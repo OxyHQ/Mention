@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -11,21 +11,21 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { storeData, getData } from '@/utils/storage';
-import { FONT_FAMILIES } from '@/styles/typography';
+import { cn } from '@/lib/utils';
 
 const IconComponent = Ionicons as any;
 
 const LANGUAGE_OPTIONS = [
-    { code: 'en-US', name: 'English', nativeName: 'English', flag: '🇺🇸' },
-    { code: 'es-ES', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
-    { code: 'it-IT', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+    { code: 'en-US', name: 'English', nativeName: 'English', flag: '\u{1F1FA}\u{1F1F8}' },
+    { code: 'es-ES', name: 'Spanish', nativeName: 'Espa\u00F1ol', flag: '\u{1F1EA}\u{1F1F8}' },
+    { code: 'it-IT', name: 'Italian', nativeName: 'Italiano', flag: '\u{1F1EE}\u{1F1F9}' },
 ];
 
 const LANGUAGE_STORAGE_KEY = 'user_language_preference';
 
 export default function LanguageSettingsScreen() {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const { colors } = useTheme();
     const [currentLanguage, setCurrentLanguage] = useState<string>('en-US');
     const [saving, setSaving] = useState(false);
 
@@ -50,13 +50,13 @@ export default function LanguageSettingsScreen() {
         try {
             setSaving(true);
             setCurrentLanguage(languageCode);
-            
+
             // Save to storage
             await storeData(LANGUAGE_STORAGE_KEY, languageCode);
-            
+
             // Change i18n language
             await i18n.changeLanguage(languageCode);
-            
+
             // Small delay to show feedback
             await new Promise(resolve => setTimeout(resolve, 300));
         } catch (error) {
@@ -73,7 +73,7 @@ export default function LanguageSettingsScreen() {
     };
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             <Header
                 options={{
                     title: t('Language'),
@@ -82,7 +82,7 @@ export default function LanguageSettingsScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -90,26 +90,26 @@ export default function LanguageSettingsScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
             >
                 {saving && (
-                    <View style={styles.savingIndicator}>
+                    <View className="flex-row items-center justify-center py-3 mb-4 gap-2">
                         <Loading variant="inline" size="small" style={{ flex: undefined }} />
-                        <Text style={[styles.savingText, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-sm text-muted-foreground">
                             {t('common.saving')}
                         </Text>
                     </View>
                 )}
 
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <View className="mt-2">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">
                         {t('settings.language.selectLanguage')}
                     </Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         {LANGUAGE_OPTIONS.map((option, index) => {
                             const isSelected = currentLanguage === option.code;
                             const isChanging = saving && isSelected;
@@ -117,32 +117,32 @@ export default function LanguageSettingsScreen() {
                             return (
                                 <View key={option.code}>
                                     <TouchableOpacity
-                                        style={[
-                                            styles.optionItem,
-                                            index === 0 && styles.firstOptionItem,
-                                            index === LANGUAGE_OPTIONS.length - 1 && styles.lastOptionItem,
-                                        ]}
+                                        className={cn(
+                                            "px-4 py-[18px]",
+                                            index === 0 && "pt-[18px]",
+                                            index === LANGUAGE_OPTIONS.length - 1 && "pb-[18px]"
+                                        )}
                                         onPress={() => !saving && handleLanguageChange(option.code)}
                                         disabled={saving}
                                         activeOpacity={0.7}
                                     >
-                                        <View style={styles.optionContent}>
-                                            <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                                        <View className="flex-row items-center justify-between">
+                                            <Text className="text-base font-medium flex-1 text-foreground">
                                                 {getLanguageDisplayName(option)}
                                             </Text>
                                             {isSelected && (
-                                                <View style={styles.selectedIndicator}>
+                                                <View className="ml-3">
                                                     {isChanging ? (
                                                         <Loading variant="inline" size="small" style={{ flex: undefined }} />
                                                     ) : (
-                                                        <IconComponent name="checkmark-circle" size={24} color={theme.colors.primary} />
+                                                        <IconComponent name="checkmark-circle" size={24} color={colors.primary} />
                                                     )}
                                                 </View>
                                             )}
                                         </View>
                                     </TouchableOpacity>
                                     {index < LANGUAGE_OPTIONS.length - 1 && (
-                                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                                        <View className="h-px mx-4 bg-border" />
                                     )}
                                 </View>
                             );
@@ -153,75 +153,3 @@ export default function LanguageSettingsScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    savingIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 12,
-        marginBottom: 16,
-        gap: 8,
-    },
-    savingText: {
-        fontSize: 14,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    section: {
-        marginTop: 8,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 12,
-        paddingHorizontal: 4,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    settingsCard: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    optionItem: {
-        paddingHorizontal: 16,
-        paddingVertical: 18,
-    },
-    firstOptionItem: {
-        paddingTop: 18,
-    },
-    lastOptionItem: {
-        paddingBottom: 18,
-    },
-    optionContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    optionText: {
-        fontSize: 16,
-        fontWeight: '500',
-        flex: 1,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    selectedIndicator: {
-        marginLeft: 12,
-    },
-    divider: {
-        height: 1,
-        marginHorizontal: 16,
-    },
-});
-

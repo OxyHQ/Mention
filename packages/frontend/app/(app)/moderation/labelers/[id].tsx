@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, Severity, LabelActionType } from '@/components/LabelBadge';
+import { cn } from '@/lib/utils';
 
 type LabelAction = LabelActionType;
 
@@ -85,7 +86,7 @@ const ActionChips = React.memo(
     if (!isSubscribed) return null;
 
     return (
-      <View style={styles.actionChips}>
+      <View className="flex-row gap-1.5 mt-1 flex-wrap">
         {ACTION_OPTIONS.map(({ value, label }) => {
           const isActive = currentAction === value;
           return (
@@ -102,10 +103,10 @@ const ActionChips = React.memo(
               activeOpacity={0.7}
             >
               <Text
-                style={[
-                  styles.actionChipText,
-                  { color: isActive ? theme.colors.primary : theme.colors.textSecondary },
-                ]}
+                className={cn(
+                  "text-xs font-semibold",
+                  isActive ? "text-primary" : "text-muted-foreground"
+                )}
               >
                 {label}
               </Text>
@@ -128,9 +129,7 @@ const LabelerDetailScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
-  // Map of labelSlug -> action for per-label preferences
   const [labelActions, setLabelActions] = useState<Record<string, LabelAction>>({});
-  // Pending saves to debounce
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingActions = React.useRef<Record<string, LabelAction>>({});
 
@@ -141,7 +140,6 @@ const LabelerDetailScreen: React.FC = () => {
       if (data.userPreferences) {
         setLabelActions(data.userPreferences as Record<string, LabelAction>);
       } else {
-        // Build default actions from label definitions
         const defaults: Record<string, LabelAction> = {};
         (data.labelDefinitions ?? []).forEach((ld) => {
           defaults[ld.slug] = ld.defaultAction ?? 'warn';
@@ -172,7 +170,6 @@ const LabelerDetailScreen: React.FC = () => {
     const currentlySubscribed = !!labeler.isSubscribed;
     setSubscribing(true);
 
-    // Optimistic update
     setLabeler((prev) =>
       prev
         ? {
@@ -196,7 +193,6 @@ const LabelerDetailScreen: React.FC = () => {
       }
     } catch (e) {
       console.warn('Subscribe toggle failed', e);
-      // Revert
       setLabeler((prev) =>
         prev
           ? {
@@ -220,7 +216,6 @@ const LabelerDetailScreen: React.FC = () => {
       setLabelActions((prev) => ({ ...prev, [labelSlug]: action }));
       pendingActions.current = { ...pendingActions.current, [labelSlug]: action };
 
-      // Debounce save
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         const labelerId = String(labeler._id || labeler.id);
@@ -250,7 +245,7 @@ const LabelerDetailScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView className="flex-1">
         <Header
           options={{
             title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
@@ -263,7 +258,7 @@ const LabelerDetailScreen: React.FC = () => {
           hideBottomBorder
           disableSticky
         />
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 justify-center items-center">
           <Loading size="large" />
         </View>
       </ThemedView>
@@ -272,7 +267,7 @@ const LabelerDetailScreen: React.FC = () => {
 
   if (!labeler) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView className="flex-1">
         <Header
           options={{
             title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
@@ -285,8 +280,8 @@ const LabelerDetailScreen: React.FC = () => {
           hideBottomBorder
           disableSticky
         />
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-[15px] text-muted-foreground">
             {t('labelers.notFound', { defaultValue: 'Labeler not found.' })}
           </Text>
         </View>
@@ -295,7 +290,7 @@ const LabelerDetailScreen: React.FC = () => {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: labeler.name,
@@ -321,13 +316,13 @@ const LabelerDetailScreen: React.FC = () => {
         }
       >
         {/* Hero card */}
-        <View style={[styles.card, { backgroundColor: theme.colors.backgroundSecondary }]}>
-          <View style={styles.heroNameRow}>
-            <Text style={[styles.heroName, { color: theme.colors.text }]}>{labeler.name}</Text>
+        <View className="rounded-2xl p-4 gap-3 bg-secondary">
+          <View className="flex-row items-center gap-2 flex-wrap">
+            <Text className="text-xl font-bold text-foreground">{labeler.name}</Text>
             {labeler.isOfficial && (
-              <View style={[styles.officialBadge, { backgroundColor: theme.colors.primary }]}>
+              <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
                 <Ionicons name="shield-checkmark" size={10} color="#fff" />
-                <Text style={styles.officialBadgeText}>
+                <Text className="text-white text-[10px] font-bold">
                   {t('labelers.official', { defaultValue: 'Official' })}
                 </Text>
               </View>
@@ -335,24 +330,24 @@ const LabelerDetailScreen: React.FC = () => {
           </View>
 
           {!!labeler.description && (
-            <Text style={[styles.heroDescription, { color: theme.colors.textSecondary }]}>
+            <Text className="text-[15px] leading-[22px] text-muted-foreground">
               {labeler.description}
             </Text>
           )}
 
-          <View style={styles.heroMeta}>
-            <View style={styles.heroMetaItem}>
+          <View className="flex-row flex-wrap gap-3">
+            <View className="flex-row items-center gap-1">
               <Ionicons name="people-outline" size={14} color={theme.colors.textSecondary} />
-              <Text style={[styles.heroMetaText, { color: theme.colors.textSecondary }]}>
+              <Text className="text-[13px] text-muted-foreground">
                 {labeler.subscriberCount}{' '}
                 {t('labelers.subscribers', { defaultValue: 'subscribers' })}
               </Text>
             </View>
 
             {!!creatorName && (
-              <View style={styles.heroMetaItem}>
+              <View className="flex-row items-center gap-1">
                 <Ionicons name="person-outline" size={14} color={theme.colors.textSecondary} />
-                <Text style={[styles.heroMetaText, { color: theme.colors.textSecondary }]}>
+                <Text className="text-[13px] text-muted-foreground">
                   {t('labelers.by', { defaultValue: 'by' })} {creatorName}
                 </Text>
               </View>
@@ -374,10 +369,10 @@ const LabelerDetailScreen: React.FC = () => {
               <Loading variant="inline" size="small" style={{ flex: undefined }} />
             ) : (
               <Text
-                style={[
-                  styles.subscribeBtnText,
-                  labeler.isSubscribed ? { color: theme.colors.text } : { color: '#fff' },
-                ]}
+                className={cn(
+                  "text-[15px] font-semibold",
+                  labeler.isSubscribed ? "text-foreground" : "text-white"
+                )}
               >
                 {labeler.isSubscribed
                   ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
@@ -390,11 +385,11 @@ const LabelerDetailScreen: React.FC = () => {
         {/* Label definitions section */}
         {(labeler.labelDefinitions?.length ?? 0) > 0 && (
           <>
-            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+            <Text className="text-[13px] font-semibold uppercase tracking-wide mt-4 mb-1 px-1 text-muted-foreground">
               {t('labelers.labelDefinitions', { defaultValue: 'Label Definitions' })}
             </Text>
 
-            <View style={[styles.card, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View className="rounded-2xl p-4 gap-3 bg-secondary">
               {(labeler.labelDefinitions ?? []).map((ld, index) => {
                 const severity: Severity = ld.severity ?? 'low';
                 const currentAction: LabelAction = labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';
@@ -406,12 +401,12 @@ const LabelerDetailScreen: React.FC = () => {
                         style={[styles.separator, { backgroundColor: theme.colors.border }]}
                       />
                     )}
-                    <View style={styles.labelRow}>
-                      <View style={styles.labelHeader}>
-                        <Text style={[styles.labelName, { color: theme.colors.text }]}>
+                    <View className="gap-1.5">
+                      <View className="flex-row items-center justify-between gap-2">
+                        <Text className="text-[15px] font-semibold flex-1 text-foreground">
                           {ld.name}
                         </Text>
-                        <View style={styles.labelBadges}>
+                        <View className="flex-row gap-1.5 items-center">
                           <SeverityBadge severity={severity} />
                           {ld.defaultAction && (
                             <View
@@ -423,7 +418,7 @@ const LabelerDetailScreen: React.FC = () => {
                                 },
                               ]}
                             >
-                              <Text style={[styles.badgeText, { color: theme.colors.primary }]}>
+                              <Text className="text-[11px] font-semibold text-primary">
                                 {ld.defaultAction}
                               </Text>
                             </View>
@@ -431,15 +426,12 @@ const LabelerDetailScreen: React.FC = () => {
                         </View>
                       </View>
 
-                      <Text
-                        style={[styles.labelSlug, { color: theme.colors.textSecondary }]}
-                        numberOfLines={1}
-                      >
+                      <Text className="text-xs font-mono text-muted-foreground" numberOfLines={1}>
                         {ld.slug}
                       </Text>
 
                       {!!ld.description && (
-                        <Text style={[styles.labelDescription, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-[13px] leading-[18px] text-muted-foreground">
                           {ld.description}
                         </Text>
                       )}
@@ -459,7 +451,7 @@ const LabelerDetailScreen: React.FC = () => {
           </>
         )}
 
-        <View style={{ height: 40 }} />
+        <View className="h-10" />
       </ScrollView>
     </ThemedView>
   );
@@ -468,79 +460,13 @@ const LabelerDetailScreen: React.FC = () => {
 export default LabelerDetailScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: 15,
-  },
   scrollContent: {
     padding: 16,
     gap: 8,
   },
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-  },
   separator: {
     height: StyleSheet.hairlineWidth,
     marginVertical: 12,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 16,
-    marginBottom: 4,
-    paddingHorizontal: 4,
-  },
-  // Hero
-  heroNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  heroName: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  officialBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  officialBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  heroDescription: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  heroMeta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  heroMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  heroMetaText: {
-    fontSize: 13,
   },
   subscribeBtn: {
     borderRadius: 20,
@@ -548,30 +474,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 40,
-  },
-  subscribeBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  // Label definitions
-  labelRow: {
-    gap: 6,
-  },
-  labelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  labelName: {
-    fontSize: 15,
-    fontWeight: '600',
-    flex: 1,
-  },
-  labelBadges: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
   },
   badge: {
     paddingHorizontal: 7,
@@ -583,29 +485,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  labelSlug: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-  },
-  labelDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  // Action chips
-  actionChips: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
-    flexWrap: 'wrap',
-  },
   actionChip: {
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
     borderWidth: 1,
-  },
-  actionChipText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
 });

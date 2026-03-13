@@ -233,20 +233,13 @@ const SkeletonLoading: React.FC<SkeletonLoadingProps> = ({
   lineHeight = 16,
   style,
 }) => {
-  const theme = useTheme();
-  
-  // Extract theme values first to avoid optional chaining issues
-  const themeBackgroundSecondary = theme && theme.colors ? theme.colors.backgroundSecondary : undefined;
-  const themeBackground = theme && theme.colors ? theme.colors.background : undefined;
-  const backgroundColor = themeBackgroundSecondary ?? themeBackground ?? '#f5f5f5';
-  
   const skeletonLines = Array.from({ length: lines }, (_, index) => (
     <View
       key={index}
+      className="bg-muted"
       style={[
         styles.skeletonLine,
         {
-          backgroundColor,
           width: typeof width === 'string' ? width : `${width}%`,
           height: lineHeight,
           marginBottom: index < lines - 1 ? SPACING.sm : 0,

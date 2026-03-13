@@ -270,25 +270,26 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
               {/* Create Account Button */}
               <Pressable
                 onPress={handleCreateAccount}
-                style={[styles.createAccountButton, { backgroundColor: theme.colors.primary }]}
+                className="bg-primary"
+                style={styles.createAccountButton}
               >
                 <Text style={styles.createAccountButtonText}>Create account</Text>
               </Pressable>
 
               {/* Explore the app link */}
               <Pressable onPress={handleExploreApp} style={styles.exploreLink}>
-                <Text style={[styles.exploreLinkText, { color: theme.colors.primary }]}>
+                <Text className="text-primary" style={styles.exploreLinkText}>
                   Explore the app
                 </Text>
               </Pressable>
 
               {/* Sign in prompt */}
               <View style={styles.signInContainer}>
-                <Text style={[styles.signInPrompt, { color: theme.colors.textSecondary }]}>
+                <Text className="text-muted-foreground" style={styles.signInPrompt}>
                   Already have an account?{' '}
                 </Text>
                 <Pressable onPress={handleSignIn}>
-                  <Text style={[styles.signInLink, { color: theme.colors.primary }]}>
+                  <Text className="text-primary" style={styles.signInLink}>
                     Sign in
                   </Text>
                 </Pressable>

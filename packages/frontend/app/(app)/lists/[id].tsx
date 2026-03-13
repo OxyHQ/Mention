@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { colors } from '@/styles/colors';
-import { FONT_FAMILIES } from '@/styles/typography';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
 import { useTheme } from '@/hooks/useTheme';
@@ -32,10 +30,10 @@ export default function ListTimelineScreen() {
   }, [id]);
 
   return (
-    <ThemedView style={{ flex: 1 }}>
-      <Header 
-        options={{ 
-          title: list?.title || 'List', 
+    <ThemedView className="flex-1">
+      <Header
+        options={{
+          title: list?.title || 'List',
           leftComponents: [
             <IconButton variant="icon"
               key="back"
@@ -44,14 +42,14 @@ export default function ListTimelineScreen() {
               <BackArrowIcon size={20} color={theme.colors.text} />
             </IconButton>,
           ],
-        }} 
+        }}
         hideBottomBorder={true}
         disableSticky={true}
       />
       {error ? (
-        <View style={styles.center}><Text style={{ color: colors.busy }}>{error}</Text></View>
+        <View className="flex-1 items-center justify-center"><Text className="text-destructive">{error}</Text></View>
       ) : !list ? (
-        <View style={styles.center}><Text>Loading…</Text></View>
+        <View className="flex-1 items-center justify-center"><Text>Loading…</Text></View>
       ) : (
         <Feed
           type={'mixed' as any}
@@ -59,9 +57,9 @@ export default function ListTimelineScreen() {
           recycleItems={true}
           maintainVisibleContentPosition={true}
           listHeaderComponent={(
-            <View style={styles.headerBox}>
-              {list.description ? <Text style={styles.desc}>{list.description}</Text> : null}
-              <Text style={styles.meta}>{(list.memberOxyUserIds || []).length} members • {list.isPublic ? 'Public' : 'Private'}</Text>
+            <View className="px-4 pt-3 pb-2 bg-background">
+              {list.description ? <Text className="text-muted-foreground font-primary">{list.description}</Text> : null}
+              <Text className="mt-1.5 text-muted-foreground text-xs font-primary">{(list.memberOxyUserIds || []).length} members • {list.isPublic ? 'Public' : 'Private'}</Text>
             </View>
           )}
         />
@@ -69,11 +67,3 @@ export default function ListTimelineScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  headerBox: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.primaryLight },
-  desc: { color: colors.COLOR_BLACK_LIGHT_3, fontFamily: FONT_FAMILIES.primary },
-  meta: { marginTop: 6, color: colors.COLOR_BLACK_LIGHT_5, fontSize: 12, fontFamily: FONT_FAMILIES.primary },
-});
-

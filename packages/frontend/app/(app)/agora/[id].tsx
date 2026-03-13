@@ -42,12 +42,12 @@ const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices:
   const avatarUri = getAvatarUrl(profile, oxyServices);
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <View className="flex-row items-center">
       <Avatar size={48} source={avatarUri} shape="squircle" />
-      <View style={{ flex: 1, marginLeft: 12 }}>
+      <View className="flex-1 ml-3">
         <ThemedText type="defaultSemiBold">{displayName}</ThemedText>
         {profile?.username && (
-          <Text style={{ fontSize: 14, marginTop: 2, color: theme.colors.textSecondary }}>
+          <Text className="text-sm mt-0.5 text-muted-foreground">
             @{profile.username}
           </Text>
         )}
@@ -139,7 +139,7 @@ const RoomDetailScreen = () => {
 
   if (loading || !room) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView className="flex-1 bg-background">
         <Header
           options={{
             title: 'Room',
@@ -150,7 +150,7 @@ const RoomDetailScreen = () => {
             ],
           }}
         />
-        <View style={styles.centerContent}>
+        <View className="flex-1 items-center justify-center">
           <Loading />
         </View>
       </SafeAreaView>
@@ -160,7 +160,7 @@ const RoomDetailScreen = () => {
   return (
     <>
       <SEO title={room.title} description={room.description || 'Join this room'} />
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView className="flex-1 bg-background">
         <Header
           options={{
             title: '',
@@ -178,69 +178,69 @@ const RoomDetailScreen = () => {
           hideBottomBorder={false}
         />
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+        <ScrollView className="flex-1" contentContainerStyle={styles.scrollContent}>
           {/* Status Badge */}
-          <View style={styles.statusContainer}>
+          <View className="px-4 pt-2 items-start">
             {isLive && (
-              <View style={[styles.statusBadge, { backgroundColor: '#FF4458' }]}>
-                <View style={styles.livePulse} />
-                <Text style={styles.statusText}>LIVE</Text>
+              <View style={styles.statusBadge} className="bg-[#FF4458]">
+                <View className="w-2 h-2 rounded-full bg-white" />
+                <Text className="text-xs font-bold text-white">LIVE</Text>
               </View>
             )}
             {isScheduled && (
-              <View style={[styles.statusBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <View style={styles.statusBadge} className="bg-secondary">
                 <Ionicons name="calendar-outline" size={14} color={theme.colors.text} />
-                <Text style={[styles.statusText, { color: theme.colors.text }]}>SCHEDULED</Text>
+                <Text className="text-xs font-bold text-foreground">SCHEDULED</Text>
               </View>
             )}
             {isEnded && (
-              <View style={[styles.statusBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>ENDED</Text>
+              <View style={styles.statusBadge} className="bg-secondary">
+                <Text className="text-xs font-bold text-muted-foreground">ENDED</Text>
               </View>
             )}
           </View>
 
           {/* Title and Description */}
-          <View style={styles.headerSection}>
+          <View className="px-4 pt-4">
             <ThemedText type="title" style={styles.title}>
               {room.title}
             </ThemedText>
             {room.topic && (
-              <Text style={[styles.topic, { color: theme.colors.textSecondary }]}>
+              <Text className="text-base mb-2 text-muted-foreground">
                 {room.topic}
               </Text>
             )}
             {room.description && (
-              <Text style={[styles.description, { color: theme.colors.text }]}>
+              <Text className="text-[15px] leading-[22px] mt-2 text-foreground">
                 {room.description}
               </Text>
             )}
           </View>
 
           {/* Host Info */}
-          <View style={styles.section}>
-            <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+          <View className="px-4 mt-6">
+            <ThemedText type="defaultSemiBold" className="text-base mb-3">
               Host
             </ThemedText>
-            <View style={styles.hostCard}>
+            <View className="flex-row items-center">
               <HostInfo hostId={room.host} oxyServices={oxyServices} theme={theme} />
             </View>
           </View>
 
           {/* Participants */}
-          <View style={styles.section}>
-            <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+          <View className="px-4 mt-6">
+            <ThemedText type="defaultSemiBold" className="text-base mb-3">
               Participants ({room.participants?.length || 0})
             </ThemedText>
-            <View style={styles.participantsList}>
+            <View className="flex-row flex-wrap gap-2">
               {room.participants?.length > 0 ? (
                 room.participants.slice(0, 10).map((participantId) => (
-                  <View key={participantId} style={styles.participantItem}>
+                  <View key={participantId} className="mb-2">
                     <ParticipantAvatar userId={participantId} oxyServices={oxyServices} />
                   </View>
                 ))
               ) : (
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                <Text className="text-sm text-muted-foreground">
                   No participants yet
                 </Text>
               )}
@@ -249,13 +249,13 @@ const RoomDetailScreen = () => {
 
           {/* Speakers */}
           {room.speakers && room.speakers.length > 0 && (
-            <View style={styles.section}>
-              <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+            <View className="px-4 mt-6">
+              <ThemedText type="defaultSemiBold" className="text-base mb-3">
                 Speakers
               </ThemedText>
-              <View style={styles.participantsList}>
+              <View className="flex-row flex-wrap gap-2">
                 {room.speakers.map((speakerId) => (
-                  <View key={speakerId} style={styles.participantItem}>
+                  <View key={speakerId} className="mb-2">
                     <ParticipantAvatar userId={speakerId} oxyServices={oxyServices} />
                   </View>
                 ))}
@@ -265,21 +265,21 @@ const RoomDetailScreen = () => {
 
           {/* Stats */}
           {room.stats && (
-            <View style={[styles.statsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <View style={styles.statItem}>
-                <ThemedText type="defaultSemiBold" style={styles.statValue}>
+            <View style={[styles.statsCard, { borderColor: theme.colors.border }]} className="bg-card">
+              <View className="flex-1 items-center">
+                <ThemedText type="defaultSemiBold" className="text-2xl">
                   {room.stats.peakListeners || 0}
                 </ThemedText>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                <Text className="text-[13px] mt-1 text-muted-foreground">
                   Peak listeners
                 </Text>
               </View>
-              <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
-              <View style={styles.statItem}>
-                <ThemedText type="defaultSemiBold" style={styles.statValue}>
+              <View style={{ width: 1, height: 40, marginHorizontal: 16, backgroundColor: theme.colors.border }} />
+              <View className="flex-1 items-center">
+                <ThemedText type="defaultSemiBold" className="text-2xl">
                   {room.stats.totalJoined || 0}
                 </ThemedText>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                <Text className="text-[13px] mt-1 text-muted-foreground">
                   Total joined
                 </Text>
               </View>
@@ -288,47 +288,50 @@ const RoomDetailScreen = () => {
         </ScrollView>
 
         {/* Action Buttons */}
-        <View style={[styles.actionBar, { backgroundColor: theme.colors.background, borderTopColor: theme.colors.border }]}>
+        <View style={styles.actionBar} className="bg-background border-t border-border">
           {isLive && (
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+              style={styles.primaryButton}
+              className="bg-primary"
               onPress={() => joinLiveRoom(id)}
               disabled={actionLoading}
             >
               <Ionicons name="radio" size={20} color={theme.colors.card} />
-              <Text style={[styles.primaryButtonText, { color: theme.colors.card }]}>
+              <Text className="text-base font-semibold" style={{ color: theme.colors.card }}>
                 Join Live
               </Text>
             </TouchableOpacity>
           )}
           {isHost && isScheduled && (
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+              style={styles.primaryButton}
+              className="bg-primary"
               onPress={handleStartRoom}
               disabled={actionLoading}
             >
               <Ionicons name="play" size={20} color={theme.colors.card} />
-              <Text style={[styles.primaryButtonText, { color: theme.colors.card }]}>
+              <Text className="text-base font-semibold" style={{ color: theme.colors.card }}>
                 Start Room
               </Text>
             </TouchableOpacity>
           )}
           {!isHost && isScheduled && (
-            <View style={[styles.infoButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View style={styles.primaryButton} className="bg-secondary">
               <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />
-              <Text style={[styles.infoButtonText, { color: theme.colors.textSecondary }]}>
+              <Text className="text-base font-semibold text-muted-foreground">
                 Room not started yet
               </Text>
             </View>
           )}
           {isHost && isLive && (
             <TouchableOpacity
-              style={[styles.dangerButton, { backgroundColor: '#FF4458' }]}
+              style={styles.primaryButton}
+              className="bg-[#FF4458]"
               onPress={handleEndRoom}
               disabled={actionLoading}
             >
               <Ionicons name="stop" size={20} color="#FFFFFF" />
-              <Text style={styles.dangerButtonText}>End Room</Text>
+              <Text className="text-base font-semibold text-white">End Room</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -341,16 +344,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
-  centerContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    alignItems: 'flex-start',
-  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -359,60 +352,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     gap: 6,
   },
-  livePulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FFFFFF',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  headerSection: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
   title: {
     fontSize: 28,
     marginBottom: 8,
-  },
-  topic: {
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 8,
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  hostCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  hostMeta: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  participantsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  participantItem: {
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
   },
   statsCard: {
     marginHorizontal: 16,
@@ -423,22 +365,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-  },
-  statLabel: {
-    fontSize: 13,
-    marginTop: 4,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    marginHorizontal: 16,
-  },
   actionBar: {
     position: 'absolute',
     bottom: 0,
@@ -446,7 +372,6 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: 1,
   },
   primaryButton: {
     flexDirection: 'row',
@@ -455,48 +380,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 24,
     gap: 8,
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 24,
-    borderWidth: 1,
-    gap: 8,
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dangerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 24,
-    gap: 8,
-  },
-  dangerButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  infoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 24,
-    gap: 8,
-  },
-  infoButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 

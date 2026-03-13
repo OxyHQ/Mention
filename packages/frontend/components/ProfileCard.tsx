@@ -8,7 +8,7 @@ import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 /**
  * ProfileCard Component
- * 
+ *
  * A card component for displaying user profiles in lists.
  * Reused from social-app and simplified for Mention's needs.
  */
@@ -61,27 +61,28 @@ export function ProfileCard({
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.7}
-      className="bg-card border-border"
+      className="bg-card border-border w-full p-4 rounded-xl gap-3"
       style={[
-        styles.outer,
+        { borderWidth: StyleSheet.hairlineWidth },
         style,
       ]}>
-      <View style={styles.header}>
+      <View className="flex-row items-center gap-3">
         <Avatar
           source={profile.avatar || undefined}
           size={40}
           verified={profile.verified}
         />
-        <View style={styles.nameContainer}>
+        <View className="flex-1 gap-1">
           <ThemedText
-            style={styles.name}
+            className="text-base font-semibold"
+            style={{ lineHeight: 20 }}
             numberOfLines={1}>
             {displayName}
           </ThemedText>
-          <View style={styles.handleRow}>
+          <View className="flex-row items-center gap-1">
             <ThemedText
-              className="text-muted-foreground"
-              style={styles.handle}
+              className="text-muted-foreground text-sm"
+              style={{ lineHeight: 18 }}
               numberOfLines={1}>
               @{profile.username}
             </ThemedText>
@@ -91,16 +92,16 @@ export function ProfileCard({
           </View>
         </View>
         {showFollowButton && (
-          <View style={styles.followButtonContainer}>
+          <View className="items-end" style={{ minWidth: 80 }}>
             {/* Follow button can be added here if needed */}
           </View>
         )}
       </View>
       {profile.description && (
-        <View style={styles.description}>
+        <View className="mt-1">
           <ThemedText
-            className="text-muted-foreground"
-            style={styles.descriptionText}
+            className="text-muted-foreground text-sm"
+            style={{ lineHeight: 20 }}
             numberOfLines={3}>
             {profile.description}
           </ThemedText>
@@ -120,7 +121,7 @@ export function ProfileCardOuter({
   children: React.ReactNode;
   style?: ViewStyle;
 }) {
-  return <View style={[styles.outerContainer, style]}>{children}</View>;
+  return <View className="w-full gap-2" style={style}>{children}</View>;
 }
 
 /**
@@ -133,54 +134,5 @@ export function ProfileCardHeader({
   children: React.ReactNode;
   style?: ViewStyle;
 }) {
-  return <View style={[styles.header, style]}>{children}</View>;
+  return <View className="flex-row items-center gap-3" style={style}>{children}</View>;
 }
-
-const styles = StyleSheet.create({
-  outerContainer: {
-    width: '100%',
-    gap: 8,
-  },
-  outer: {
-    width: '100%',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  nameContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  handle: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  handleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  description: {
-    marginTop: 4,
-  },
-  descriptionText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  followButtonContainer: {
-    minWidth: 80,
-    alignItems: 'flex-end',
-  },
-});
-

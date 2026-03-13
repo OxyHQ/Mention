@@ -1,16 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { colors } from '@/styles/colors';
-import { FONT_FAMILIES } from '@/styles/typography';
 import { useAuth } from '@oxyhq/services';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string } };
 
@@ -62,7 +61,7 @@ export default function CreateListScreen() {
   }, [title, description, isPublic, members]);
 
   return (
-    <ThemedView style={{ flex: 1 }}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: t('lists.create.title'),
@@ -79,47 +78,73 @@ export default function CreateListScreen() {
         disableSticky={true}
       />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text style={styles.label}>{t('lists.create.titleLabel')}</Text>
-        <TextInput value={title} onChangeText={setTitle} placeholder={t('lists.create.titlePlaceholder')} style={styles.input} />
+        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.titleLabel')}</Text>
+        <TextInput
+          value={title}
+          onChangeText={setTitle}
+          placeholder={t('lists.create.titlePlaceholder')}
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          style={styles.input}
+        />
 
-        <Text style={styles.label}>{t('lists.create.descriptionLabel')}</Text>
-        <TextInput value={description} onChangeText={setDescription} placeholder={t('lists.create.descriptionPlaceholder')} style={[styles.input, { height: 80 }]} multiline />
+        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.descriptionLabel')}</Text>
+        <TextInput
+          value={description}
+          onChangeText={setDescription}
+          placeholder={t('lists.create.descriptionPlaceholder')}
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary h-20"
+          style={styles.input}
+          multiline
+        />
 
-        <View style={styles.row}>
-          <Text style={styles.label}>{t('lists.create.publicLabel')}</Text>
+        <View className="flex-row items-center justify-between mb-2.5">
+          <Text className="text-sm text-muted-foreground font-primary">{t('lists.create.publicLabel')}</Text>
           <Switch value={isPublic} onValueChange={setIsPublic} />
         </View>
 
-        <Text style={[styles.label, { marginTop: 12 }]}>{t('lists.create.addMembers')}</Text>
-        <TextInput value={search} onChangeText={doSearch} placeholder={t('lists.create.searchUsersPlaceholder')} style={styles.input} />
+        <Text className="text-sm text-muted-foreground mb-1.5 mt-3 font-primary">{t('lists.create.addMembers')}</Text>
+        <TextInput
+          value={search}
+          onChangeText={doSearch}
+          placeholder={t('lists.create.searchUsersPlaceholder')}
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          style={styles.input}
+        />
 
         {results.length > 0 && (
-          <View style={styles.resultsBox}>
+          <View className="border border-border rounded-[10px] overflow-hidden">
             {results.map((u) => (
-              <TouchableOpacity key={u.id} style={styles.resultRow} onPress={() => addMember(u)}>
-                <Text style={styles.resultText}>@{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}</Text>
-                <Text style={{ color: colors.linkColor, fontWeight: '600', fontFamily: FONT_FAMILIES.primary }}>{t('lists.create.add')}</Text>
+              <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
+                <Text className="text-foreground font-primary">@{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}</Text>
+                <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
               </TouchableOpacity>
             ))}
           </View>
         )}
 
         {members.length > 0 && (
-          <View style={{ marginTop: 10 }}>
-            <Text style={styles.label}>{t('lists.create.members')}</Text>
+          <View className="mt-2.5">
+            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.members')}</Text>
             {members.map((m) => (
-              <View key={m.id} style={styles.memberChip}>
-                <Text style={{ color: colors.COLOR_BLACK_LIGHT_1 }}>@{m.username}</Text>
+              <View key={m.id} className="flex-row items-center py-1.5">
+                <Text className="text-foreground">@{m.username}</Text>
                 <TouchableOpacity onPress={() => removeMember(m.id)}>
-                  <Text style={{ color: colors.busy, marginLeft: 10 }}>{t('lists.create.remove')}</Text>
+                  <Text className="text-destructive ml-2.5">{t('lists.create.remove')}</Text>
                 </TouchableOpacity>
               </View>
             ))}
           </View>
         )}
 
-        <TouchableOpacity disabled={saving || !title.trim()} onPress={onCreate} style={[styles.createBtn, (!title.trim()) && { opacity: 0.6 }]}>
-          <Text style={styles.createBtnText}>{saving ? t('lists.create.saving') : t('lists.create.createButton')}</Text>
+        <TouchableOpacity
+          disabled={saving || !title.trim()}
+          onPress={onCreate}
+          className={cn(
+            "mt-5 py-3 rounded-[10px] items-center bg-primary",
+            !title.trim() && "opacity-60"
+          )}
+        >
+          <Text className="text-primary-foreground font-bold font-primary">{saving ? t('lists.create.saving') : t('lists.create.createButton')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </ThemedView>
@@ -127,14 +152,9 @@ export default function CreateListScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, color: colors.COLOR_BLACK_LIGHT_3, marginBottom: 6, fontFamily: FONT_FAMILIES.primary },
-  input: { borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 10, padding: 10, marginBottom: 10, color: colors.COLOR_BLACK_LIGHT_1, backgroundColor: colors.primaryLight, fontFamily: FONT_FAMILIES.primary },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  resultsBox: { borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 10, overflow: 'hidden' },
-  resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.COLOR_BLACK_LIGHT_6 },
-  resultText: { color: colors.COLOR_BLACK_LIGHT_1, fontFamily: FONT_FAMILIES.primary },
-  memberChip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
-  createBtn: { marginTop: 20, backgroundColor: colors.primaryColor, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  createBtnText: { color: colors.primaryLight, fontWeight: '700', fontFamily: FONT_FAMILIES.primary },
+  input: {
+    ...Platform.select({
+      web: { outlineStyle: 'none' as any },
+    }),
+  },
 });
-

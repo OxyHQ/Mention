@@ -84,11 +84,12 @@ const ThreadedReplyNode: React.FC<{
 
             {shouldTruncate ? (
                 <TouchableOpacity
-                    style={[styles.showMoreButton, { paddingLeft: 16 * (depth + 1) }]}
+                    className="px-4 py-2.5"
+                    style={{ paddingLeft: 16 * (depth + 1) }}
                     onPress={handleShowMore}
                     activeOpacity={0.7}
                 >
-                    <Text className="text-primary" style={styles.showMoreText}>
+                    <Text className="text-primary text-sm font-medium">
                         {t('Show more replies', { defaultValue: 'Show more replies' })} ({node.children.length})
                     </Text>
                 </TouchableOpacity>
@@ -136,14 +137,6 @@ const styles = StyleSheet.create({
         bottom: 0,
         width: 2,
         borderRadius: 1,
-    },
-    showMoreButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-    },
-    showMoreText: {
-        fontSize: 14,
-        fontWeight: '500',
     },
 });
 

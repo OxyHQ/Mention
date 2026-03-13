@@ -7,7 +7,6 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
 import { useHaptics } from '@/hooks/useHaptics';
-import { cn } from '@/lib/utils';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
@@ -68,8 +67,8 @@ const PostActions: React.FC<Props> = ({
 
   return (
     <View>
-      {/* Icon row — icon-only, left-aligned */}
-      <View style={styles.iconRow}>
+      {/* Icon row -- icon-only, left-aligned */}
+      <View className="flex-row items-center" style={{ gap: 18 }}>
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
@@ -80,7 +79,7 @@ const PostActions: React.FC<Props> = ({
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
         >
-          <View style={styles.likeRow}>
+          <View className="flex-row items-center gap-1">
             <AnimatedLikeIcon
               isLiked={!!isLiked}
               hasBeenToggled={hasBeenToggled.current}
@@ -148,15 +147,16 @@ const PostActions: React.FC<Props> = ({
         )}
       </View>
 
-      {/* Engagement summary — avatar bubbles + "X replies · Y likes" */}
+      {/* Engagement summary -- avatar bubbles + "X replies . Y likes" */}
       {summaryParts.length > 0 && (
         <PressableScale
-          style={styles.summaryRow}
+          className="flex-row items-center mt-2"
+          style={{ gap: 6 }}
           onPress={likes > 0 ? (onLikesPress ?? undefined) : undefined}
           disabled={!onLikesPress && !onRepostsPress}
         >
           {replierAvatars.length > 0 && (
-            <View style={styles.avatarStack}>
+            <View className="flex-row items-center">
               {replierAvatars.slice(0, 3).map((avatarId, i) => (
                 <View
                   key={i}
@@ -171,8 +171,8 @@ const PostActions: React.FC<Props> = ({
               ))}
             </View>
           )}
-          <Text style={styles.summaryText} className="text-muted-foreground">
-            {summaryParts.join(' · ')}
+          <Text className="text-muted-foreground text-[13px]">
+            {summaryParts.join(' \u00B7 ')}
           </Text>
         </PressableScale>
       )}
@@ -183,35 +183,12 @@ const PostActions: React.FC<Props> = ({
 export default PostActions;
 
 const styles = StyleSheet.create({
-  iconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 18,
-  },
   iconButton: {
     padding: 2,
-  },
-  likeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 6,
-  },
-  avatarStack: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   miniAvatarWrap: {
     borderWidth: 1.5,
     borderRadius: MINI_AVATAR / 2 + 1.5,
     overflow: 'hidden',
-  },
-  summaryText: {
-    fontSize: 13,
   },
 });

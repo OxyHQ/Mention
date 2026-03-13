@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Platform, Animated } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, Platform, Animated, StyleSheet } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
@@ -12,6 +12,8 @@ import { authenticatedClient } from "@/utils/api";
 import { confirmDialog, alertDialog } from "@/utils/alerts";
 import { useTheme } from "@/hooks/useTheme";
 import { useLinksStore } from "@/stores/linksStore";
+import { cn } from "@/lib/utils";
+import { ScrollView } from "react-native";
 
 // Type assertion for Ionicons compatibility with React 19
 const IconComponent = Ionicons as any;
@@ -19,12 +21,12 @@ const IconComponent = Ionicons as any;
 export default function LinkSettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
-    const theme = useTheme();
+    const { colors } = useTheme();
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
     const { clearAll } = useLinksStore();
-    
+
     const [url, setUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -64,22 +66,22 @@ export default function LinkSettingsScreen() {
         try {
             // Clear frontend cache
             clearAll();
-            
+
             // Clear backend cache
             await authenticatedClient.post('/links/clear-cache');
-            
-            await alertDialog({ 
-                title: t('common.success'), 
-                message: t('settings.links.clearAllCacheSuccess') 
+
+            await alertDialog({
+                title: t('common.success'),
+                message: t('settings.links.clearAllCacheSuccess')
             });
         } catch (error: any) {
             console.error('Error clearing cache:', error);
-            const errorMessage = error?.response?.status === 429 
+            const errorMessage = error?.response?.status === 429
                 ? t('settings.links.rateLimitExceeded')
                 : t('settings.links.clearAllCacheError');
-            await alertDialog({ 
-                title: t('common.error'), 
-                message: errorMessage 
+            await alertDialog({
+                title: t('common.error'),
+                message: errorMessage
             });
         } finally {
             setIsLoading(false);
@@ -109,29 +111,29 @@ export default function LinkSettingsScreen() {
         setIsLoading(true);
         try {
             const normalizedUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`;
-            
+
             // Force refresh on backend (clears cache and re-fetches)
             await authenticatedClient.post('/links/refresh', { url: normalizedUrl });
-            
+
             // Clear frontend cache for this URL
             const { invalidate } = useLinksStore.getState();
             invalidate(normalizedUrl);
-            
-            await alertDialog({ 
-                title: t('common.success'), 
-                message: t('settings.links.refreshLinkSuccess') 
+
+            await alertDialog({
+                title: t('common.success'),
+                message: t('settings.links.refreshLinkSuccess')
             });
-            
+
             // Clear input
             setUrl('');
         } catch (error: any) {
             console.error('Error refreshing link:', error);
-            const errorMessage = error?.response?.status === 429 
+            const errorMessage = error?.response?.status === 429
                 ? t('settings.links.rateLimitExceeded')
                 : t('settings.links.refreshLinkError');
-            await alertDialog({ 
-                title: t('common.error'), 
-                message: errorMessage 
+            await alertDialog({
+                title: t('common.error'),
+                message: errorMessage
             });
         } finally {
             setIsLoading(false);
@@ -139,7 +141,7 @@ export default function LinkSettingsScreen() {
     };
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             {/* Header */}
             <Header
                 options={{
@@ -149,7 +151,7 @@ export default function LinkSettingsScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -159,68 +161,65 @@ export default function LinkSettingsScreen() {
 
             <Animated.ScrollView
                 ref={assignScrollViewRef}
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+                className="flex-1"
+                contentContainerStyle={{ paddingBottom: 40 }}
                 showsVerticalScrollIndicator={false}
                 onScroll={onScroll}
                 scrollEventThrottle={scrollEventThrottle}
                 {...(Platform.OS === 'web' ? { dataSet: { layoutscroll: 'true' } } : {}) as any}
             >
                 {/* Clear All Cache Section */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <View className="mt-6 px-4">
+                    <Text className="text-[13px] font-semibold mb-2 uppercase tracking-wide text-foreground">
                         {t("settings.links.cacheManagement")}
                     </Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}
+                            className="flex-row items-center justify-between p-4"
                             onPress={handleClearAllCache}
                             disabled={isLoading}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="trash" size={20} color={theme.colors.error} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="w-8 h-8 rounded-full items-center justify-center mr-3">
+                                    <IconComponent name="trash" size={20} color={colors.error} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                    <Text className="text-base font-medium mb-1 text-destructive">
                                         {t("settings.links.clearAllCache")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-[13px] leading-[18px] text-muted-foreground">
                                         {t("settings.links.clearAllCacheDesc")}
                                     </Text>
                                 </View>
                             </View>
                             {isLoading ? (
-                                <IconComponent name="hourglass" size={16} color={theme.colors.textTertiary} />
+                                <IconComponent name="hourglass" size={16} color={colors.textTertiary} />
                             ) : (
-                                <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                                <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                             )}
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Refresh Single Link Section */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <View className="mt-6 px-4">
+                    <Text className="text-[13px] font-semibold mb-2 uppercase tracking-wide text-foreground">
                         {t("settings.links.refreshLink")}
                     </Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                        <View style={[styles.settingItem, styles.firstSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="link" size={20} color={theme.colors.text} />
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
+                        <View className="flex-row items-center p-4">
+                            <View className="flex-row items-center flex-1">
+                                <View className="w-8 h-8 rounded-full items-center justify-center mr-3">
+                                    <IconComponent name="link" size={20} color={colors.text} />
                                 </View>
-                                <View style={styles.inputContainer}>
+                                <View className="flex-1 ml-3">
                                     <TextInput
-                                        style={[styles.input, { 
-                                            color: theme.colors.text, 
-                                            borderColor: theme.colors.border,
-                                            backgroundColor: theme.colors.backgroundSecondary,
-                                        }]}
+                                        className="text-base px-3 py-2.5 rounded-lg border border-border bg-secondary text-foreground"
+                                        style={{ minHeight: 44 }}
                                         placeholder={t("settings.links.urlPlaceholder")}
-                                        placeholderTextColor={theme.colors.textTertiary}
+                                        placeholderTextColor={colors.textTertiary}
                                         value={url}
                                         onChangeText={setUrl}
                                         autoCapitalize="none"
@@ -232,36 +231,37 @@ export default function LinkSettingsScreen() {
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 44 }} className="bg-border" />
 
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.lastSettingItem]}
+                            className="flex-row items-center justify-between p-4"
                             onPress={handleRefreshLink}
                             disabled={isLoading || !url.trim()}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent 
-                                        name="refresh" 
-                                        size={20} 
-                                        color={isLoading || !url.trim() ? theme.colors.textTertiary : theme.colors.primary} 
+                            <View className="flex-row items-center flex-1">
+                                <View className="w-8 h-8 rounded-full items-center justify-center mr-3">
+                                    <IconComponent
+                                        name="refresh"
+                                        size={20}
+                                        color={isLoading || !url.trim() ? colors.textTertiary : colors.primary}
                                     />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { 
-                                        color: isLoading || !url.trim() ? theme.colors.textTertiary : theme.colors.text 
-                                    }]}>
+                                    <Text className={cn(
+                                        "text-base font-medium mb-1",
+                                        isLoading || !url.trim() ? "text-muted-foreground" : "text-foreground"
+                                    )}>
                                         {t("settings.links.refreshLinkButton")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-[13px] leading-[18px] text-muted-foreground">
                                         {t("settings.links.refreshLinkDesc")}
                                     </Text>
                                 </View>
                             </View>
                             {isLoading ? (
-                                <IconComponent name="hourglass" size={16} color={theme.colors.textTertiary} />
+                                <IconComponent name="hourglass" size={16} color={colors.textTertiary} />
                             ) : (
-                                <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                                <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                             )}
                         </TouchableOpacity>
                     </View>
@@ -270,82 +270,3 @@ export default function LinkSettingsScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingBottom: 40,
-    },
-    section: {
-        marginTop: 24,
-        paddingHorizontal: 16,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        marginBottom: 8,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    settingsCard: {
-        borderRadius: 15,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    settingItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 16,
-    },
-    firstSettingItem: {
-        paddingTop: 16,
-    },
-    lastSettingItem: {
-        paddingBottom: 16,
-    },
-    settingInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    settingIcon: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    settingLabel: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 4,
-    },
-    settingDescription: {
-        fontSize: 13,
-        lineHeight: 18,
-    },
-    divider: {
-        height: StyleSheet.hairlineWidth,
-        marginLeft: 44,
-    },
-    inputContainer: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    input: {
-        fontSize: 16,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 8,
-        borderWidth: 1,
-        minHeight: 44,
-    },
-});
-

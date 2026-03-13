@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
@@ -11,8 +11,6 @@ import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
 import { toast } from 'sonner';
 import { confirmDialog } from '@/utils/alerts';
-import { cn } from '@/lib/utils';
-
 interface DraftsSheetProps {
   onClose: () => void;
   onLoadDraft: (draft: Draft) => void;

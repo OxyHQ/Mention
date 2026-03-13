@@ -8,6 +8,7 @@ import { ChevronRightIcon } from "@/assets/icons/chevron-right-icon";
 import { VideoPreview } from "./VideoPreview";
 import { ScaleAndFadeIn, ScaleAndFadeOut } from "@/lib/animations/ScaleAndFade";
 import { ComposerMediaItem, MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT } from "@/utils/composeUtils";
+import { cn } from "@/lib/utils";
 
 interface MediaPreviewProps {
     mediaItems: ComposerMediaItem[];
@@ -29,11 +30,11 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
     if (mediaItems.length === 0) return null;
 
     return (
-        <View style={styles.container}>
+        <View className="mt-3 w-full" style={{ overflow: "visible" }}>
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.scroll, { paddingLeft }]}
+                contentContainerStyle={{ paddingRight: 12, gap: 12, paddingLeft }}
             >
                 {mediaItems.map((mediaItem, index) => {
                     const mediaUrl = getMediaUrl(mediaItem.id);
@@ -56,19 +57,18 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                             {mediaItem.type === "video" ? (
                                 <VideoPreview src={mediaUrl} />
                             ) : (
-                                <Image source={{ uri: mediaUrl }} style={styles.image} resizeMode="cover" />
+                                <Image source={{ uri: mediaUrl }} className="w-full h-full" resizeMode="cover" />
                             )}
 
                             {onMove && mediaItems.length > 1 && (
-                                <View style={[styles.reorderControls, { pointerEvents: 'box-none' }]}>
+                                <View className="absolute left-2 right-2 bottom-2 flex-row justify-between items-center z-[2]" style={{ pointerEvents: 'box-none' }}>
                                     <TouchableOpacity
                                         onPress={() => onMove(mediaItem.id, "left")}
                                         disabled={!canMoveLeft}
-                                        style={[
-                                            styles.reorderButton,
-                                            { backgroundColor: theme.colors.background },
-                                            !canMoveLeft && styles.reorderButtonDisabled,
-                                        ]}
+                                        className={cn(
+                                            "rounded-full p-1.5 bg-background",
+                                            !canMoveLeft && "opacity-40"
+                                        )}
                                     >
                                         <BackArrowIcon
                                             size={14}
@@ -78,11 +78,10 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                                     <TouchableOpacity
                                         onPress={() => onMove(mediaItem.id, "right")}
                                         disabled={!canMoveRight}
-                                        style={[
-                                            styles.reorderButton,
-                                            { backgroundColor: theme.colors.background },
-                                            !canMoveRight && styles.reorderButtonDisabled,
-                                        ]}
+                                        className={cn(
+                                            "rounded-full p-1.5 bg-background",
+                                            !canMoveRight && "opacity-40"
+                                        )}
                                     >
                                         <ChevronRightIcon
                                             size={14}
@@ -96,7 +95,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
 
                             <TouchableOpacity
                                 onPress={() => onRemove(mediaItem.id)}
-                                style={[styles.removeButton, { backgroundColor: theme.colors.background }]}
+                                className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
                                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                             >
                                 <CloseIcon size={16} color={theme.colors.text} />
@@ -110,15 +109,6 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
 };
 
 const styles = StyleSheet.create({
-    container: {
-        marginTop: 12,
-        width: "100%",
-        overflow: "visible",
-    },
-    scroll: {
-        paddingRight: 12,
-        gap: 12,
-    },
     mediaItem: {
         width: MEDIA_CARD_WIDTH,
         height: MEDIA_CARD_HEIGHT,
@@ -126,33 +116,5 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         overflow: "hidden",
         position: "relative",
-    },
-    image: {
-        width: "100%",
-        height: "100%",
-    },
-    removeButton: {
-        position: "absolute",
-        top: 8,
-        right: 8,
-        borderRadius: 999,
-        padding: 6,
-    },
-    reorderControls: {
-        position: "absolute",
-        left: 8,
-        right: 8,
-        bottom: 8,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        zIndex: 2,
-    },
-    reorderButton: {
-        borderRadius: 999,
-        padding: 6,
-    },
-    reorderButtonDisabled: {
-        opacity: 0.4,
     },
 });

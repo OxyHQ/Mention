@@ -32,8 +32,8 @@ const ExploreScreen: React.FC = () => {
   const headerOpacity = useSharedValue(1);
   const fabTranslateY = useSharedValue(0);
   const fabOpacity = useSharedValue(1);
-  const headerHeight = 48; // Match header minHeight
-  const fabHeight = 80; // FAB height + bottom margin
+  const headerHeight = 48;
+  const fabHeight = 80;
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
   const [trendingRefreshing, setTrendingRefreshing] = useState(false);
 
@@ -57,10 +57,7 @@ const ExploreScreen: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'media':
-        return (
-          <Feed type="media" />
-        );
-
+        return <Feed type="media" />;
       case 'trending':
         return (
           <TrendingList
@@ -69,24 +66,17 @@ const ExploreScreen: React.FC = () => {
             refreshing={trendingRefreshing}
           />
         );
-
       case 'custom':
-        return (
-          <Feed type="posts" />
-        );
-
+        return <Feed type="posts" />;
       case 'people':
         return <WhoToFollowTab />;
-
       case 'starter-packs':
         return <StarterPacksTab />;
-
       default:
         return <Feed type="explore" />;
     }
   };
 
-  // Track scroll direction and animate header and FAB
   useEffect(() => {
     let isScrollingDown = false;
     let lastKnownScrollY = 0;
@@ -95,27 +85,23 @@ const ExploreScreen: React.FC = () => {
       const currentScrollY = typeof value === 'number' ? value : 0;
       const scrollDelta = currentScrollY - lastKnownScrollY;
 
-      // Determine scroll direction (only update if movement is significant)
       if (Math.abs(scrollDelta) > 1) {
         isScrollingDown = scrollDelta > 0;
       }
 
-      if (currentScrollY > 50) { // Only hide after scrolling past threshold
+      if (currentScrollY > 50) {
         if (isScrollingDown) {
-          // Scrolling down - hide header and FAB with opacity
           headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
           headerOpacity.value = withTiming(0, { duration: 200 });
           fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
           fabOpacity.value = withTiming(0, { duration: 200 });
         } else {
-          // Scrolling up - show header and FAB
           headerTranslateY.value = withTiming(0, { duration: 200 });
           headerOpacity.value = withTiming(1, { duration: 200 });
           fabTranslateY.value = withTiming(0, { duration: 200 });
           fabOpacity.value = withTiming(1, { duration: 200 });
         }
       } else {
-        // Near top - always show header and FAB
         headerTranslateY.value = withTiming(0, { duration: 200 });
         headerOpacity.value = withTiming(1, { duration: 200 });
         fabTranslateY.value = withTiming(0, { duration: 200 });
@@ -138,9 +124,6 @@ const ExploreScreen: React.FC = () => {
   });
 
   const tabBarSpacerStyle = useAnimatedStyle(() => {
-    // When header is visible (translateY = 0), reserve space for header height
-    // When header slides up (translateY < 0), reduce spacer height accordingly
-    // This allows tabs to move up smoothly as header disappears
     const spacerHeight = Math.max(0, headerHeight + headerTranslateY.value);
     return {
       height: spacerHeight,
@@ -153,8 +136,8 @@ const ExploreScreen: React.FC = () => {
         title={t('seo.explore.title')}
         description={t('seo.explore.description')}
       />
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-        <ThemedView style={{ flex: 1 }}>
+      <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+        <ThemedView className="flex-1">
           <StatusBar style={theme.isDark ? "light" : "dark"} />
 
           {/* Header - animated */}
@@ -176,8 +159,8 @@ const ExploreScreen: React.FC = () => {
             />
           </Animated.View>
 
-          {/* Spacer for header - maintains layout space */}
-          <Animated.View style={[styles.tabBarSpacer, tabBarSpacerStyle]} />
+          {/* Spacer for header */}
+          <Animated.View style={tabBarSpacerStyle} />
 
           {/* Tab Navigation - sticky */}
           <View style={styles.stickyTabBar}>
@@ -213,9 +196,6 @@ const ExploreScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   headerContainer: {
     position: 'absolute',
     top: 0,
@@ -236,10 +216,6 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 100,
     backgroundColor: 'transparent',
-  },
-  tabBarSpacer: {
-    // Spacer maintains space for header when it's visible
-    // This ensures tabs don't jump when header slides up
   },
 });
 

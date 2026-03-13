@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 
 interface SubtleHoverProps {
   style?: ViewStyle;

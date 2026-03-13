@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import PostSources from './PostSources';
@@ -21,18 +20,18 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
   const hasSources = sources.length > 0;
 
   return (
-    <View style={styles.container} className="bg-background">
-      <View style={styles.header} className="border-b border-border">
+    <View className="flex-1 pb-6 bg-background">
+      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
         <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
         </IconButton>
-        <Text style={styles.title} className="text-foreground">
+        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground" style={{ pointerEvents: 'none' }}>
           {t('post.sourcesSheet.title', { defaultValue: 'Sources' })}
         </Text>
         <View style={styles.headerRight} />
       </View>
 
-      <View style={styles.body}>
+      <View className="flex-1 px-4 pt-4">
         {hasSources ? (
           <PostSources sources={sources} />
         ) : (
@@ -42,7 +41,7 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
               name: 'link-outline',
               size: 48,
             }}
-            containerStyle={styles.emptyState}
+            containerStyle={{ flex: 1 }}
             className="bg-surface"
           />
         )}
@@ -52,26 +51,6 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-  },
-  title: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none',
-  },
   closeButton: {
     marginRight: 6,
     zIndex: 1,
@@ -81,15 +60,6 @@ const styles = StyleSheet.create({
     height: 36,
     marginLeft: 'auto',
   },
-  body: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  emptyState: {
-    flex: 1,
-  },
 });
 
 export default PostSourcesSheet;
-

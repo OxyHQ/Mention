@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 import { PostSourceLink } from '@mention/shared-types';
 
 interface Props {
@@ -40,7 +39,7 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
   };
 
   return (
-    <View style={[styles.container, { paddingLeft: leftOffset, paddingRight: 16 }]}>
+    <View className="gap-2 mt-2" style={{ paddingLeft: leftOffset, paddingRight: 16 }}>
       {sources.map((source, index) => {
         if (!source?.url) return null;
         const title = source.title?.trim() || getHostname(source.url);
@@ -49,25 +48,22 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
         return (
           <TouchableOpacity
             key={`${source.url}-${index}`}
-            style={styles.item}
-            className="border-border bg-surface"
+            className="flex-row items-center border border-border bg-surface rounded-xl py-2.5 px-3 gap-3"
             activeOpacity={0.85}
             onPress={() => openSource(source.url)}
           >
-            <View style={styles.iconWrapper} className="bg-card">
+            <View className="w-8 h-8 rounded-full items-center justify-center bg-card">
               <SourcesIcon size={16} color={theme.colors.primary} />
             </View>
-            <View style={styles.textWrapper}>
+            <View className="flex-1">
               <Text
-                style={styles.title}
-                className="text-foreground"
+                className="text-foreground text-sm font-semibold"
                 numberOfLines={2}
               >
                 {title}
               </Text>
               <Text
-                style={styles.subtitle}
-                className="text-muted-foreground"
+                className="text-muted-foreground text-xs mt-0.5"
                 numberOfLines={1}
               >
                 {hostname}
@@ -80,39 +76,4 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 8,
-    marginTop: 8,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    gap: 12,
-  },
-  iconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textWrapper: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  subtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-});
-
 export default PostSources;
-

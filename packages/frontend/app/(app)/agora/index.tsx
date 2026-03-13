@@ -91,7 +91,7 @@ const AgoraScreen = () => {
   return (
     <>
       <SEO title="Agora" description="Join live audio conversations" />
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView className="flex-1 bg-background">
         <Header
           options={{
             title: 'Agora',
@@ -99,10 +99,10 @@ const AgoraScreen = () => {
               <TouchableOpacity
                 key="create"
                 onPress={openCreateSheet}
-                style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
+                className="flex-row items-center px-3 py-1.5 rounded-full gap-1 bg-primary"
               >
                 <Ionicons name="add" size={20} color={theme.colors.card} />
-                <Text style={[styles.createButtonText, { color: theme.colors.card }]}>Create</Text>
+                <Text className="text-sm font-semibold text-primary-foreground">Create</Text>
               </TouchableOpacity>,
             ],
           }}
@@ -130,19 +130,19 @@ const AgoraScreen = () => {
                 label: 'Create Room',
                 onPress: openCreateSheet,
               }}
-              containerStyle={styles.emptyState}
+              containerStyle={{ paddingVertical: 48, paddingHorizontal: 20 }}
             />
           ) : (
             <>
               {liveRooms.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.sectionHeader}>
-                    <View style={[styles.sectionIcon, { backgroundColor: '#FF4458' }]}>
+                <View className="mt-4 px-4">
+                  <View className="flex-row items-center mb-3">
+                    <View style={styles.sectionIcon} className="bg-[#FF4458]">
                       <AgoraIcon size={18} color="#FFFFFF" />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View className="flex-1">
                       <ThemedText type="subtitle">Live Now</ThemedText>
-                      <Text style={[styles.sectionSubtitle, { color: theme.colors.textSecondary }]}>
+                      <Text className="text-[13px] mt-0.5 text-muted-foreground">
                         Join the conversation
                       </Text>
                     </View>
@@ -158,14 +158,14 @@ const AgoraScreen = () => {
               )}
 
               {scheduledRooms.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.sectionHeader}>
-                    <View style={[styles.sectionIcon, { backgroundColor: theme.colors.primary }]}>
+                <View className="mt-4 px-4">
+                  <View className="flex-row items-center mb-3">
+                    <View style={styles.sectionIcon} className="bg-primary">
                       <Ionicons name="calendar" size={18} color={theme.colors.card} />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View className="flex-1">
                       <ThemedText type="subtitle">Upcoming</ThemedText>
-                      <Text style={[styles.sectionSubtitle, { color: theme.colors.textSecondary }]}>
+                      <Text className="text-[13px] mt-0.5 text-muted-foreground">
                         Scheduled rooms
                       </Text>
                     </View>
@@ -191,15 +191,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
-  section: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
   sectionIcon: {
     width: 36,
     height: 36,
@@ -207,26 +198,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 4,
-  },
-  createButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyState: {
-    paddingVertical: 48,
-    paddingHorizontal: 20,
   },
 });
 

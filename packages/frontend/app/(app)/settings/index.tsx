@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, ScrollView, Animated } from "react-native";
+import { View, Text, TouchableOpacity, Alert, Platform, Animated } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
@@ -19,12 +19,12 @@ import { getData, storeData } from "@/utils/storage";
 // (already imported above)
 import { hasNotificationPermission, requestNotificationPermissions, getDevicePushToken } from "@/utils/notifications";
 import { useTheme } from "@/hooks/useTheme";
-import { getThemedBorder, getThemedShadow } from "@/utils/theme";
 import { useAppearanceStore } from "@/store/appearanceStore";
 import { useHapticsStore } from "@/stores/hapticsStore";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useProfileData } from "@/hooks/useProfileData";
 import i18n from 'i18next';
+import { ScrollView } from "react-native";
 
 // Type assertion for Ionicons compatibility with React 19
 const IconComponent = Ionicons as any;
@@ -33,7 +33,7 @@ export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const { user, showBottomSheet } = useAuth();
-    const theme = useTheme();
+    const { colors } = useTheme();
     // Use useProfileData to get customized display name for current user
     const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
@@ -214,7 +214,7 @@ export default function SettingsScreen() {
     const getLanguageDisplayName = useCallback((code: string) => {
         const languages: Record<string, string> = {
             'en-US': 'English',
-            'es-ES': 'Español',
+            'es-ES': 'Espa\u00F1ol',
             'it-IT': 'Italiano',
         };
         return languages[code] || code;
@@ -229,7 +229,6 @@ export default function SettingsScreen() {
             destructive: true,
         });
         if (!confirmed) return;
-        // For now, just navigate back - the actual sign out would depend on your auth system
         router.replace('/');
     };
 
@@ -242,7 +241,6 @@ export default function SettingsScreen() {
             destructive: true,
         });
         if (!confirmed) return;
-        // Implementation would clear app cache
         await alertDialog({ title: t('common.success'), message: t('settings.data.clearCacheSuccess') });
     };
 
@@ -326,7 +324,7 @@ export default function SettingsScreen() {
     };
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             {/* Header */}
             <Header
                 options={{
@@ -336,7 +334,7 @@ export default function SettingsScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -346,28 +344,28 @@ export default function SettingsScreen() {
 
             <Animated.ScrollView
                 ref={assignScrollViewRef}
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
                 onScroll={onScroll}
                 scrollEventThrottle={scrollEventThrottle}
                 {...(Platform.OS === 'web' ? { dataSet: { layoutscroll: 'true' } } : {}) as any}
             >
                 {/* User Info */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("settings.sections.account")}</Text>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">{t("settings.sections.account")}</Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem]}
+                            className="px-4 py-4 pt-[18px] flex-row items-center justify-between"
                             onPress={() => showBottomSheet?.("AccountSettings")}
                         >
-                            <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
-                                <IconComponent name="person" size={24} color={theme.colors.card} />
+                            <View className="w-10 h-10 rounded-full items-center justify-center mr-3" style={{ backgroundColor: colors.primary }}>
+                                <IconComponent name="person" size={24} color={colors.card} />
                             </View>
-                            <View style={styles.settingInfo}>
+                            <View className="flex-row items-center flex-1">
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {currentUserProfile?.design?.displayName ||
                                             (user
                                                 ? typeof user.name === 'string'
@@ -375,50 +373,50 @@ export default function SettingsScreen() {
                                                     : user.name?.full || user.name?.first || user.username
                                                 : 'User')}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
+                                    <Text className="text-sm text-muted-foreground">{user?.username || 'Username'}</Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.lastSettingItem]}
+                            className="px-4 py-4 pb-[18px] flex-row items-center justify-between"
                             onPress={() => showBottomSheet?.("FileManagement")}
                         >
-                            <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
-                                <IconComponent name="person" size={24} color={theme.colors.card} />
+                            <View className="w-10 h-10 rounded-full items-center justify-center mr-3" style={{ backgroundColor: colors.primary }}>
+                                <IconComponent name="person" size={24} color={colors.card} />
                             </View>
-                            <View style={styles.settingInfo}>
+                            <View className="flex-row items-center flex-1">
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {user
                                             ? typeof user.name === 'string'
                                                 ? user.name
                                                 : user.name?.full || user.name?.first || user.username
                                             : 'User'}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
+                                    <Text className="text-sm text-muted-foreground">{user?.username || 'Username'}</Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* About Mention */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.aboutMention')}</Text>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">{t('settings.sections.aboutMention')}</Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         {/* App Title and Version */}
-                        <View style={[styles.settingItem, styles.firstSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <LogoIcon size={20} color={theme.colors.primary} />
+                        <View className="px-4 py-4 pt-[18px] flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <LogoIcon size={20} color={colors.primary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.appName')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.aboutMention.appName')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.aboutMention.version', {
                                             version: Constants.expoConfig?.version || '1.0.0',
                                         })}
@@ -427,17 +425,17 @@ export default function SettingsScreen() {
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Build Info */}
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="hammer" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="hammer" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.build')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.aboutMention.build')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {typeof Constants.expoConfig?.runtimeVersion === 'string'
                                             ? Constants.expoConfig.runtimeVersion
                                             : t('settings.aboutMention.buildVersion')}
@@ -446,21 +444,21 @@ export default function SettingsScreen() {
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Platform Info */}
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
+                        <View className="px-4 py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
                                     <IconComponent
                                         name="phone-portrait"
                                         size={20}
-                                        color={theme.colors.textSecondary}
+                                        color={colors.textSecondary}
                                     />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.platform')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.aboutMention.platform')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {Constants.platform?.ios
                                             ? 'iOS'
                                             : Constants.platform?.android
@@ -471,47 +469,47 @@ export default function SettingsScreen() {
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Oxy SDK */}
-                        <TouchableOpacity style={styles.settingItem} onPress={() => showBottomSheet?.('AppInfo')}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
+                        <TouchableOpacity className="px-4 py-4 flex-row items-center justify-between" onPress={() => showBottomSheet?.('AppInfo')}>
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="code-slash" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.oxySDK')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{oxySdkVersion}</Text>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.aboutMention.oxySDK')}</Text>
+                                    <Text className="text-sm text-muted-foreground">{oxySdkVersion}</Text>
                                 </View>
                             </View>
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Expo SDK */}
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="code-slash" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.expoSDK')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{expoSdkVersion}</Text>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.aboutMention.expoSDK')}</Text>
+                                    <Text className="text-sm text-muted-foreground">{expoSdkVersion}</Text>
                                 </View>
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* API URL (from env/config) */}
-                        <View style={[styles.settingItem, styles.lastSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="globe" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 pb-[18px] flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="globe" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.apiUrl')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{apiUrl}</Text>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.aboutMention.apiUrl')}</Text>
+                                    <Text className="text-sm text-muted-foreground">{apiUrl}</Text>
                                 </View>
                             </View>
                         </View>
@@ -519,12 +517,12 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* Support & Feedback */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.supportFeedback')}</Text>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">{t('settings.sections.supportFeedback')}</Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem]}
+                            className="px-4 py-4 pt-[18px] flex-row items-center justify-between"
                             onPress={() => {
                                 Alert.alert(
                                     t('settings.supportFeedback.helpSupport'),
@@ -533,24 +531,24 @@ export default function SettingsScreen() {
                                 );
                             }}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="help-circle" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="help-circle" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.helpSupport')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.supportFeedback.helpSupport')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.supportFeedback.helpSupportDesc')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={() => {
                                 Alert.alert(
                                     t('settings.supportFeedback.sendFeedback'),
@@ -570,26 +568,26 @@ export default function SettingsScreen() {
                                 );
                             }}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="chatbubble" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="chatbubble" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.supportFeedback.sendFeedback')}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.supportFeedback.sendFeedbackDesc')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.lastSettingItem]}
+                            className="px-4 py-4 pb-[18px] flex-row items-center justify-between"
                             onPress={() => {
                                 Alert.alert(
                                     t('settings.supportFeedback.rateApp'),
@@ -609,197 +607,197 @@ export default function SettingsScreen() {
                                 );
                             }}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="star" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="star" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.rateApp')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.supportFeedback.rateApp')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.supportFeedback.rateAppDesc')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Privacy */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.privacy')}</Text>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">{t('settings.sections.privacy')}</Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}
+                            className="px-4 pt-[18px] pb-[18px] flex-row items-center justify-between"
                             onPress={() => router.push('/settings/privacy')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="lock-closed" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="lock-closed" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.privacy.title')}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.privacy.description')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* App Preferences */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.preferences')}</Text>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">{t('settings.sections.preferences')}</Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         {/* Appearance */}
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem]}
+                            className="px-4 py-4 pt-[18px] flex-row items-center justify-between"
                             onPress={() => router.push('/settings/appearance')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="color-palette" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="color-palette" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.appearance')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.preferences.appearance')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.preferences.appearanceDesc')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Language Selection */}
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={() => router.push('/settings/language')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="language" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="language" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('Language')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('Language')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {getLanguageDisplayName(currentLanguage)}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Profile Customization */}
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={() => router.push('/settings/profile-customization')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="person-circle-outline" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="person-circle-outline" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.preferences.profileCustomization')}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.preferences.profileCustomizationDesc')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Your Interests */}
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={() => router.push('/settings/interests')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="heart-outline" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="heart-outline" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.preferences.interests', { defaultValue: 'Your interests' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.preferences.interestsDesc', { defaultValue: 'Select your interests to personalize your feed' })}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Feed Settings */}
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={() => router.push('/settings/feed')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="newspaper-outline" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="newspaper-outline" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.feed.title')}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.feed.description')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={() => router.push('/settings/notifications')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
                                     <IconComponent
                                         name="notifications"
                                         size={20}
-                                        color={theme.colors.textSecondary}
+                                        color={colors.textSecondary}
                                     />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.notifications')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.preferences.notifications')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.preferences.notificationsDesc')}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
-                        <View style={[styles.settingItem, styles.lastSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="moon" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 pb-[18px] flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="moon" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.darkMode')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.preferences.darkMode')}</Text>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.preferences.darkModeDesc')}
                                     </Text>
                                 </View>
@@ -812,14 +810,14 @@ export default function SettingsScreen() {
 
                         {/* Haptic Feedback */}
                         {Platform.OS !== 'web' && (
-                            <View style={[styles.settingItem, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
-                                <View style={styles.settingInfo}>
-                                    <View style={styles.settingIcon}>
-                                        <IconComponent name="hand-left" size={20} color={theme.colors.textSecondary} />
+                            <View className="px-4 py-4 flex-row items-center justify-between border-t border-border">
+                                <View className="flex-row items-center flex-1">
+                                    <View className="mr-3 items-center justify-center">
+                                        <IconComponent name="hand-left" size={20} color={colors.textSecondary} />
                                     </View>
                                     <View>
-                                        <Text style={[styles.settingLabel, { color: theme.colors.text }]}>Haptic Feedback</Text>
-                                        <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        <Text className="text-base font-medium mb-0.5 text-foreground">Haptic Feedback</Text>
+                                        <Text className="text-sm text-muted-foreground">
                                             Vibration feedback on interactions
                                         </Text>
                                     </View>
@@ -834,193 +832,187 @@ export default function SettingsScreen() {
                 </View>
 
                 {/* Data Management */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.data')}</Text>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">{t('settings.sections.data')}</Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem]}
+                            className="px-4 py-4 pt-[18px] flex-row items-center justify-between"
                             onPress={handleExportData}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="download" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="download" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.data.exportData')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('settings.data.exportDataDesc')}</Text>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.data.exportData')}</Text>
+                                    <Text className="text-sm text-muted-foreground">{t('settings.data.exportDataDesc')}</Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Link Management */}
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={() => router.push('/settings/links')}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="link" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="link" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t("settings.data.linkManagement")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t("settings.data.linkManagementDesc")}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         <TouchableOpacity
-                            style={styles.settingItem}
+                            className="px-4 py-4 flex-row items-center justify-between"
                             onPress={handleClearCache}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="trash" size={20} color={theme.colors.error} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="trash" size={20} color={colors.error} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-destructive">
                                         {t("settings.data.clearCache")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t("settings.data.clearCacheDesc")}</Text>
+                                    <Text className="text-sm text-muted-foreground">{t("settings.data.clearCacheDesc")}</Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.lastSettingItem]}
+                            className="px-4 py-4 pb-[18px] flex-row items-center justify-between"
                             onPress={handleResetPersonalization}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="refresh" size={20} color={theme.colors.error} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="refresh" size={20} color={colors.error} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-destructive">
                                         {t("settings.data.resetPersonalization")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t("settings.data.resetPersonalizationDesc")}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Your Data */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-muted-foreground">
                         {t("settings.yourData", "Your Data")}
                     </Text>
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}
+                            className="px-4 pt-[18px] pb-[18px] flex-row items-center justify-between"
                             onPress={handleExportData}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="download-outline" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="download-outline" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t("settings.data.requestExport", "Request Data Export")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t("settings.data.requestExportDesc", "Download a copy of your posts, likes, and bookmarks")}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Account */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-muted-foreground">
                         {t("settings.account.title", "Account")}
                     </Text>
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.firstSettingItem]}
+                            className="px-4 py-4 pt-[18px] flex-row items-center justify-between"
                             onPress={handleDeactivateAccount}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="eye-off-outline" size={20} color={theme.colors.textSecondary} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="eye-off-outline" size={20} color={colors.textSecondary} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t("settings.account.deactivate", "Deactivate Account")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t("settings.account.deactivateDesc", "Temporarily hide your account")}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         <TouchableOpacity
-                            style={[styles.settingItem, styles.lastSettingItem]}
+                            className="px-4 py-4 pb-[18px] flex-row items-center justify-between"
                             onPress={handleDeleteAccount}
                         >
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="trash-outline" size={20} color={theme.colors.error} />
+                            <View className="flex-row items-center flex-1">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="trash-outline" size={20} color={colors.error} />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                    <Text className="text-base font-medium mb-0.5 text-destructive">
                                         {t("settings.account.delete", "Delete Account")}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t("settings.account.deleteDesc", "Permanently delete your account and all data")}
                                     </Text>
                                 </View>
                             </View>
-                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Sign Out */}
-                <View style={styles.section}>
+                <View className="mb-8">
                     <TouchableOpacity
-                        style={[
-                            styles.settingItem,
-                            styles.firstSettingItem,
-                            styles.lastSettingItem,
-                            styles.signOutButton,
-                            styles.settingsCard,
-                            { backgroundColor: theme.colors.card, borderColor: theme.colors.error },
-                        ]}
+                        className="px-4 pt-[18px] pb-[18px] flex-row items-center justify-between rounded-2xl border bg-card overflow-hidden"
+                        style={{ borderColor: colors.error }}
                         onPress={handleSignOut}
                     >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="log-out" size={20} color={theme.colors.error} />
+                        <View className="flex-row items-center flex-1">
+                            <View className="mr-3 items-center justify-center">
+                                <IconComponent name="log-out" size={20} color={colors.error} />
                             </View>
                             <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                <Text className="text-base font-medium mb-0.5 text-destructive">
                                     {t("settings.signOut")}
                                 </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t("settings.signOutDesc")}</Text>
+                                <Text className="text-sm text-muted-foreground">{t("settings.signOutDesc")}</Text>
                             </View>
                         </View>
                     </TouchableOpacity>
@@ -1029,85 +1021,3 @@ export default function SettingsScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    userIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        // backgroundColor will be applied inline with theme
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 12,
-    },
-    section: {
-        marginBottom: 32,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: "600",
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        // color will be applied inline with theme
-        marginBottom: 12,
-        paddingHorizontal: 4,
-    },
-    settingsCard: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    settingItem: {
-        // backgroundColor will be applied inline with theme
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    firstSettingItem: {
-        paddingTop: 18,
-    },
-    lastSettingItem: {
-        paddingBottom: 18,
-    },
-    divider: {
-        height: 1,
-        marginHorizontal: 16,
-    },
-    settingInfo: {
-        flexDirection: "row",
-        alignItems: "center",
-        flex: 1,
-    },
-    settingIcon: {
-        marginRight: 12,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    settingLabel: {
-        fontSize: 16,
-        fontWeight: "500",
-        // color will be applied inline with theme
-        marginBottom: 2,
-    },
-    settingDescription: {
-        fontSize: 14,
-        // color will be applied inline with theme
-    },
-    signOutButton: {
-        borderWidth: 1,
-        // borderColor will be applied inline with theme (error color)
-    },
-});

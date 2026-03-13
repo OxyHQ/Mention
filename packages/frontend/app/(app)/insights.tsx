@@ -47,21 +47,21 @@ interface StatRowProps {
 
 const StatRow: React.FC<StatRowProps & { theme: any }> = ({ icon, iconColor, label, value, sub, showDivider = true, theme }) => (
     <View>
-        <View style={styles.statRow}>
-            <View style={styles.statRowLeft}>
+        <View className="flex-row items-center justify-between py-3">
+            <View className="flex-row items-center gap-3">
                 <Ionicons name={icon as any} size={18} color={iconColor} />
-                <Text style={[styles.statRowLabel, { color: theme.colors.text }]}>{label}</Text>
+                <Text className="text-[15px] font-medium text-foreground">{label}</Text>
             </View>
-            <View style={styles.statRowRight}>
-                <Text style={[styles.statRowValue, { color: theme.colors.text }]}>
+            <View className="flex-row items-center gap-2.5">
+                <Text className="text-base font-bold text-foreground">
                     {typeof value === 'number' ? formatCompactNumber(value) : value}
                 </Text>
                 {sub && (
-                    <Text style={[styles.statRowSub, { color: theme.colors.textSecondary }]}>{sub}</Text>
+                    <Text className="text-[13px] font-medium min-w-[40px] text-right text-muted-foreground">{sub}</Text>
                 )}
             </View>
         </View>
-        {showDivider && <View style={[styles.rowDivider, { backgroundColor: theme.colors.border }]} />}
+        {showDivider && <View style={styles.rowDivider} className="bg-border" />}
     </View>
 );
 
@@ -165,7 +165,7 @@ const InsightsScreen: React.FC = () => {
         const perPost = (n: number) => totalPosts > 0 ? `${(n / totalPosts).toFixed(1)}/post` : undefined;
 
         return (
-            <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} theme={theme} t={t} />
 
                 {/* Weekly Recap link */}
@@ -174,38 +174,38 @@ const InsightsScreen: React.FC = () => {
                     onPress={() => router.push('/insights/weekly_recap')}
                     activeOpacity={0.7}
                 >
-                    <View style={styles.recapLeft}>
+                    <View className="flex-row items-center gap-2.5">
                         <Ionicons name="calendar" size={18} color={theme.colors.primary} />
-                        <Text style={[styles.recapText, { color: theme.colors.text }]}>{t('insights.weeklyRecap.ready')}</Text>
+                        <Text className="text-[15px] font-semibold text-foreground">{t('insights.weeklyRecap.ready')}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
 
                 {/* Top-line metrics */}
-                <View style={styles.topMetrics}>
-                    <View style={styles.topMetricItem}>
-                        <Text style={[styles.topMetricValue, { color: theme.colors.text }]}>
+                <View className="flex-row items-center py-5">
+                    <View className="flex-1 items-center">
+                        <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {formatCompactNumber(stats.overview.totalPosts)}
                         </Text>
-                        <Text style={[styles.topMetricLabel, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
                             {t('insights.posts')}
                         </Text>
                     </View>
-                    <View style={[styles.topMetricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.topMetricItem}>
-                        <Text style={[styles.topMetricValue, { color: theme.colors.text }]}>
+                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <View className="flex-1 items-center">
+                        <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {formatCompactNumber(stats.overview.totalViews)}
                         </Text>
-                        <Text style={[styles.topMetricLabel, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
                             {t('insights.post.views')}
                         </Text>
                     </View>
-                    <View style={[styles.topMetricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.topMetricItem}>
-                        <Text style={[styles.topMetricValue, { color: theme.colors.text }]}>
+                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <View className="flex-1 items-center">
+                        <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {stats.overview.engagementRate.toFixed(1)}%
                         </Text>
-                        <Text style={[styles.topMetricLabel, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
                             {t('insights.post.engagementRate')}
                         </Text>
                     </View>
@@ -213,7 +213,7 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Mini chart */}
                 {stats.dailyBreakdown && stats.dailyBreakdown.length > 0 && (
-                    <View style={styles.chartContainer}>
+                    <View className="mb-4">
                         <MiniChart
                             values={stats.dailyBreakdown.slice(-7).map(d => d.views)}
                             showLabels={true}
@@ -223,7 +223,7 @@ const InsightsScreen: React.FC = () => {
                 )}
 
                 {/* Interactions */}
-                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <Text className="text-[15px] font-bold mb-1 mt-2 text-foreground">
                     {t('insights.post.interactions')}
                 </Text>
 
@@ -235,7 +235,7 @@ const InsightsScreen: React.FC = () => {
                 {/* Posts by Type */}
                 {Object.keys(stats.postsByType).length > 0 && (
                     <>
-                        <Text style={[styles.sectionTitle, styles.sectionTitleSpaced, { color: theme.colors.text }]}>
+                        <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                             {t('insights.postsByType')}
                         </Text>
                         {Object.entries(stats.postsByType).map(([type, count], index, array) => {
@@ -261,33 +261,33 @@ const InsightsScreen: React.FC = () => {
                 {/* Top Posts */}
                 {stats.topPosts.length > 0 && (
                     <>
-                        <Text style={[styles.sectionTitle, styles.sectionTitleSpaced, { color: theme.colors.text }]}>
+                        <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                             {t('insights.topPerformingPosts')}
                         </Text>
                         {loadingTopPosts ? (
-                            <View style={styles.loadingPosts}>
+                            <View className="p-6 items-center">
                                 <Loading size="small" style={{ flex: undefined }} />
                             </View>
                         ) : topPostsData.length > 0 ? (
                             topPostsData.map((post, index) => (
                                 <View key={post.id} style={[styles.topPostRow, index < topPostsData.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }]}>
-                                    <Text style={[styles.topPostRank, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm font-bold w-6 pt-3.5 text-muted-foreground">
                                         {index + 1}
                                     </Text>
-                                    <View style={styles.topPostContent}>
+                                    <View className="flex-1">
                                         <PostItem post={post} style={styles.topPostItem} />
                                     </View>
                                 </View>
                             ))
                         ) : (
-                            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                            <Text className="text-sm font-medium py-4 text-muted-foreground">
                                 {t('insights.unableToLoadPosts')}
                             </Text>
                         )}
                     </>
                 )}
 
-                <View style={styles.bottomSpacer} />
+                <View className="h-10" />
             </ScrollView>
         );
     };
@@ -296,41 +296,41 @@ const InsightsScreen: React.FC = () => {
         if (!engagementRatios) return null;
 
         return (
-            <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} theme={theme} t={t} />
 
                 {/* Top-line */}
-                <View style={styles.topMetrics}>
-                    <View style={styles.topMetricItem}>
-                        <Text style={[styles.topMetricValue, { color: theme.colors.text }]}>
+                <View className="flex-row items-center py-5">
+                    <View className="flex-1 items-center">
+                        <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {engagementRatios.ratios.engagementRate.toFixed(1)}%
                         </Text>
-                        <Text style={[styles.topMetricLabel, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
                             {t('insights.post.engagementRate')}
                         </Text>
                     </View>
-                    <View style={[styles.topMetricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.topMetricItem}>
-                        <Text style={[styles.topMetricValue, { color: theme.colors.text }]}>
+                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <View className="flex-1 items-center">
+                        <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {formatCompactNumber(engagementRatios.totals.interactions)}
                         </Text>
-                        <Text style={[styles.topMetricLabel, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
                             {t('insights.post.interactions')}
                         </Text>
                     </View>
-                    <View style={[styles.topMetricDivider, { backgroundColor: theme.colors.border }]} />
-                    <View style={styles.topMetricItem}>
-                        <Text style={[styles.topMetricValue, { color: theme.colors.text }]}>
+                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <View className="flex-1 items-center">
+                        <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {engagementRatios.averages.engagementPerPost.toFixed(1)}
                         </Text>
-                        <Text style={[styles.topMetricLabel, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-xs font-medium mt-0.5 text-muted-foreground">
                             {t('insights.avgPerPost')}
                         </Text>
                     </View>
                 </View>
 
                 {/* Rates */}
-                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <Text className="text-[15px] font-bold mb-1 mt-2 text-foreground">
                     {t('insights.engagementRatios')}
                 </Text>
 
@@ -340,7 +340,7 @@ const InsightsScreen: React.FC = () => {
                 <StatRow icon="share-social" iconColor={theme.colors.primary} label={t('insights.shareRate')} value={`${engagementRatios.ratios.shareRate.toFixed(2)}%`} showDivider={false} theme={theme} />
 
                 {/* Averages */}
-                <Text style={[styles.sectionTitle, styles.sectionTitleSpaced, { color: theme.colors.text }]}>
+                <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                     {t('insights.averages')}
                 </Text>
 
@@ -348,7 +348,7 @@ const InsightsScreen: React.FC = () => {
                 <StatRow icon="trending-up" iconColor={theme.colors.primary} label={t('insights.engagementPerPost')} value={engagementRatios.averages.engagementPerPost.toFixed(1)} showDivider={false} theme={theme} />
 
                 {/* Totals */}
-                <Text style={[styles.sectionTitle, styles.sectionTitleSpaced, { color: theme.colors.text }]}>
+                <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                     {t('insights.totalActivity')}
                 </Text>
 
@@ -356,7 +356,7 @@ const InsightsScreen: React.FC = () => {
                 <StatRow icon="eye" iconColor={theme.colors.primary} label={t('insights.post.views')} value={engagementRatios.totals.views} theme={theme} />
                 <StatRow icon="flash" iconColor={theme.colors.primary} label={t('insights.post.interactions')} value={engagementRatios.totals.interactions} showDivider={false} theme={theme} />
 
-                <View style={styles.bottomSpacer} />
+                <View className="h-10" />
             </ScrollView>
         );
     };
@@ -367,8 +367,8 @@ const InsightsScreen: React.FC = () => {
                 title={t('seo.insights.title')}
                 description={t('seo.insights.description')}
             />
-            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-                <ThemedView style={{ flex: 1 }}>
+            <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+                <ThemedView className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     <Header
@@ -396,7 +396,7 @@ const InsightsScreen: React.FC = () => {
                     </View>
 
                     {loading ? (
-                        <View style={styles.loadingContainer}>
+                        <View className="flex-1 justify-center items-center">
                             <Loading size="large" />
                         </View>
                     ) : (
@@ -409,9 +409,6 @@ const InsightsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
     stickyTabBar: {
         ...Platform.select({
             web: { position: 'sticky' as any },
@@ -422,18 +419,9 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
         borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    scroll: {
-        flex: 1,
-    },
     scrollContent: {
         paddingHorizontal: 20,
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    // Period selector
     periodRow: {
         flexDirection: 'row',
         gap: 8,
@@ -453,7 +441,6 @@ const styles = StyleSheet.create({
     periodPillTextActive: {
         fontWeight: '700',
     },
-    // Weekly recap link
     recapRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -461,116 +448,20 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    recapLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    recapText: {
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    // Top-line metrics
-    topMetrics: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 20,
-    },
-    topMetricItem: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    topMetricValue: {
-        fontSize: 24,
-        fontWeight: '800',
-        letterSpacing: -0.3,
-    },
-    topMetricLabel: {
-        fontSize: 12,
-        fontWeight: '500',
-        marginTop: 2,
-    },
     topMetricDivider: {
         width: 0.5,
         height: 28,
     },
-    // Chart
-    chartContainer: {
-        marginBottom: 16,
-    },
-    // Section
-    sectionTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        marginBottom: 4,
-        marginTop: 8,
-    },
-    sectionTitleSpaced: {
-        marginTop: 24,
-    },
-    // Stat rows
-    statRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-    },
-    statRowLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    statRowRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    statRowLabel: {
-        fontSize: 15,
-        fontWeight: '500',
-    },
-    statRowValue: {
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    statRowSub: {
-        fontSize: 13,
-        fontWeight: '500',
-        minWidth: 40,
-        textAlign: 'right',
-    },
     rowDivider: {
         height: StyleSheet.hairlineWidth,
     },
-    // Top posts
     topPostRow: {
         flexDirection: 'row',
         alignItems: 'flex-start',
         paddingVertical: 4,
     },
-    topPostRank: {
-        fontSize: 14,
-        fontWeight: '700',
-        width: 24,
-        paddingTop: 14,
-    },
-    topPostContent: {
-        flex: 1,
-    },
     topPostItem: {
         borderBottomWidth: 0,
-    },
-    loadingPosts: {
-        padding: 24,
-        alignItems: 'center',
-    },
-    emptyText: {
-        fontSize: 14,
-        fontWeight: '500',
-        paddingVertical: 16,
-    },
-    bottomSpacer: {
-        height: 40,
     },
 });
 

@@ -10,7 +10,6 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Toggle } from '@/components/Toggle';
-import { FONT_FAMILIES } from '@/styles/typography';
 
 const IconComponent = Ionicons as any;
 
@@ -31,12 +30,12 @@ export default function ProfileCustomizationScreen() {
   const loading = useAppearanceStore((state) => state.loading);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const theme = useTheme();
+  const { colors } = useTheme();
 
   const [coverPhotoEnabled, setCoverPhotoEnabled] = useState<boolean>(true);
   const [minimalistMode, setMinimalistMode] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
-  
+
   const pulseAnim = useRef(new Animated.Value(0.5)).current;
 
   // Memoize style options to update when translations change
@@ -104,29 +103,23 @@ export default function ProfileCustomizationScreen() {
   const handleCoverPhotoToggle = async (value: boolean) => {
     try {
       const newCoverPhotoEnabled = value;
-      // If disabling cover photo and minimalist mode is off, enable minimalist mode
-      // If enabling cover photo, disable minimalist mode
       const newMinimalistMode = !newCoverPhotoEnabled;
-      
-      // Update state immediately for instant UI feedback
+
       setCoverPhotoEnabled(newCoverPhotoEnabled);
       setMinimalistMode(newMinimalistMode);
-      
-      // Save to backend
+
       const result = await updateMySettings({
         profileCustomization: {
           coverPhotoEnabled: newCoverPhotoEnabled,
           minimalistMode: newMinimalistMode,
         },
       } as any);
-      
-      // Reload settings to ensure sync
+
       if (result) {
         await loadMySettings();
       }
     } catch (error) {
       console.error('Error updating cover photo setting:', error);
-      // Revert state on error
       setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
       setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
     }
@@ -135,29 +128,23 @@ export default function ProfileCustomizationScreen() {
   const handleMinimalistModeToggle = async (value: boolean) => {
     try {
       const newMinimalistMode = value;
-      // If enabling minimalist mode, disable cover photo
-      // If disabling minimalist mode, enable cover photo
       const newCoverPhotoEnabled = !newMinimalistMode;
-      
-      // Update state immediately for instant UI feedback
+
       setMinimalistMode(newMinimalistMode);
       setCoverPhotoEnabled(newCoverPhotoEnabled);
-      
-      // Save to backend
+
       const result = await updateMySettings({
         profileCustomization: {
           coverPhotoEnabled: newCoverPhotoEnabled,
           minimalistMode: newMinimalistMode,
         },
       } as any);
-      
-      // Reload settings to ensure sync
+
       if (result) {
         await loadMySettings();
       }
     } catch (error) {
       console.error('Error updating minimalist mode setting:', error);
-      // Revert state on error
       setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
       setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
     }
@@ -165,65 +152,61 @@ export default function ProfileCustomizationScreen() {
 
   const handleStyleSelect = async (style: StyleOption) => {
     try {
-      // Update state immediately for instant UI feedback
       setCoverPhotoEnabled(style.coverPhotoEnabled);
       setMinimalistMode(style.minimalistMode);
-      
-      // Save to backend
+
       const result = await updateMySettings({
         profileCustomization: {
           coverPhotoEnabled: style.coverPhotoEnabled,
           minimalistMode: style.minimalistMode,
         },
       } as any);
-      
-      // Reload settings to ensure sync
+
       if (result) {
         await loadMySettings();
       }
     } catch (error) {
       console.error('Error updating profile customization:', error);
-      // Revert state on error
       setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
       setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
     }
   };
 
   const Shimmer = ({ style: shimmerStyle }: { style?: any }) => (
-    <Animated.View 
+    <Animated.View
       style={[
         {
-          backgroundColor: theme.colors.backgroundSecondary,
+          backgroundColor: colors.backgroundSecondary,
           opacity: pulseAnim,
         },
         shimmerStyle,
-      ]} 
+      ]}
     />
   );
 
   return (
-    <ThemedView style={styles.container}>
-      <Header 
-        options={{ 
-          title: t('settings.profileCustomization.title'), 
+    <ThemedView className="flex-1">
+      <Header
+        options={{
+          title: t('settings.profileCustomization.title'),
           leftComponents: [
             <IconButton variant="icon"
               key="back"
               onPress={() => router.back()}
             >
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} color={colors.text} />
             </IconButton>,
           ],
-        }} 
+        }}
         hideBottomBorder={true}
         disableSticky={true}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerClassName="p-4">
         {/* Profile Style Selector */}
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <Text className="text-lg font-bold mb-4 text-foreground">
           {t('settings.profileCustomization.profileStyle')}
         </Text>
-        <View style={styles.styleGrid}>
+        <View className="flex-row flex-wrap gap-3">
           {styleOptions.map((style) => {
             const isSelected = currentStyle === style.id;
             return (
@@ -232,8 +215,8 @@ export default function ProfileCustomizationScreen() {
                 style={[
                   styles.styleCard,
                   {
-                    backgroundColor: theme.colors.card,
-                    borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: colors.card,
+                    borderColor: isSelected ? colors.primary : colors.border,
                     borderWidth: isSelected ? 2 : 1,
                   },
                 ]}
@@ -244,33 +227,33 @@ export default function ProfileCustomizationScreen() {
                 <View style={styles.previewContainer}>
                   {/* Banner/Header area */}
                   {style.coverPhotoEnabled ? (
-                    <View style={[styles.previewBanner, { backgroundColor: theme.colors.primary + '30' }]}>
+                    <View style={[styles.previewBanner, { backgroundColor: colors.primary + '30' }]}>
                       <Shimmer style={StyleSheet.absoluteFillObject} />
                     </View>
                   ) : (
                     <View style={[styles.previewBanner, { backgroundColor: 'transparent', height: 0 }]} />
                   )}
-                  
+
                   {/* Content area */}
-                  <View style={[styles.previewContent, { backgroundColor: theme.colors.background }]}>
+                  <View style={[styles.previewContent, { backgroundColor: colors.background }]}>
                     {/* Avatar */}
                     <View style={[
                       styles.previewAvatar,
                       {
-                        backgroundColor: theme.colors.backgroundSecondary,
-                        borderColor: theme.colors.background,
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.background,
                         marginTop: style.minimalistMode ? 8 : -20,
                       },
                     ]}>
                       <Shimmer style={styles.previewAvatarInner} />
                     </View>
-                    
+
                     {/* Name */}
                     <View style={styles.previewNameContainer}>
                       <Shimmer style={[styles.previewName, { marginTop: style.minimalistMode ? 8 : 12 }]} />
                       <Shimmer style={[styles.previewHandle, { marginTop: 4 }]} />
                     </View>
-                    
+
                     {/* Bio placeholder */}
                     <Shimmer style={[styles.previewBio, { marginTop: 8 }]} />
                     <Shimmer style={[styles.previewBio, { marginTop: 4, width: '60%' }]} />
@@ -278,28 +261,28 @@ export default function ProfileCustomizationScreen() {
                 </View>
 
                 {/* Style Info */}
-                <View style={styles.styleInfo}>
-                  <View style={styles.styleHeader}>
-                    <IconComponent 
-                      name={style.icon} 
-                      size={18} 
-                      color={isSelected ? theme.colors.primary : theme.colors.textSecondary} 
+                <View className="p-3">
+                  <View className="flex-row items-center gap-1.5 mb-1">
+                    <IconComponent
+                      name={style.icon}
+                      size={18}
+                      color={isSelected ? colors.primary : colors.textSecondary}
                     />
-                    <Text style={[
-                      styles.styleName,
-                      { color: isSelected ? theme.colors.primary : theme.colors.text },
-                    ]}>
+                    <Text
+                      className="text-sm font-semibold"
+                      style={{ color: isSelected ? colors.primary : colors.text }}
+                    >
                       {style.name}
                     </Text>
                   </View>
-                  <Text style={[styles.styleDescription, { color: theme.colors.textSecondary }]}>
+                  <Text className="text-xs leading-4 text-muted-foreground">
                     {style.description}
                   </Text>
                 </View>
 
                 {/* Selected indicator */}
                 {isSelected && (
-                  <View style={[styles.selectedIndicator, { backgroundColor: theme.colors.primary }]}>
+                  <View style={[styles.selectedIndicator, { backgroundColor: colors.primary }]}>
                     <IconComponent name="checkmark" size={14} color="#fff" />
                   </View>
                 )}
@@ -309,22 +292,22 @@ export default function ProfileCustomizationScreen() {
         </View>
 
         {/* Advanced Options */}
-        <Text style={[styles.sectionTitle, { color: theme.colors.text, marginTop: 32 }]}>
+        <Text className="text-lg font-bold mb-4 mt-8 text-foreground">
           {t('settings.profileCustomization.advancedOptions')}
         </Text>
 
         {/* Cover Photo Toggle */}
-        <View style={[styles.settingCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <View style={styles.settingIcon}>
-                <IconComponent name="image-outline" size={20} color={theme.colors.textSecondary} />
+        <View className="rounded-xl border border-border bg-card p-4">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center flex-1 mr-4">
+              <View className="mr-3">
+                <IconComponent name="image-outline" size={20} color={colors.textSecondary} />
               </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+              <View className="flex-1">
+                <Text className="text-base font-semibold mb-1 text-foreground">
                   {t('settings.profileCustomization.coverPhoto')}
                 </Text>
-                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                <Text className="text-sm leading-5 text-muted-foreground">
                   {t('settings.profileCustomization.coverPhotoDesc')}
                 </Text>
               </View>
@@ -337,17 +320,17 @@ export default function ProfileCustomizationScreen() {
         </View>
 
         {/* Minimalist Mode Toggle */}
-        <View style={[styles.settingCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 16 }]}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <View style={styles.settingIcon}>
-                <IconComponent name="remove-outline" size={20} color={theme.colors.textSecondary} />
+        <View className="rounded-xl border border-border bg-card p-4 mt-4">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center flex-1 mr-4">
+              <View className="mr-3">
+                <IconComponent name="remove-outline" size={20} color={colors.textSecondary} />
               </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+              <View className="flex-1">
+                <Text className="text-base font-semibold mb-1 text-foreground">
                   {t('settings.profileCustomization.minimalistMode')}
                 </Text>
-                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                <Text className="text-sm leading-5 text-muted-foreground">
                   {t('settings.profileCustomization.minimalistModeDesc')}
                 </Text>
               </View>
@@ -360,9 +343,9 @@ export default function ProfileCustomizationScreen() {
         </View>
 
         {/* Info Text */}
-        <View style={styles.infoContainer}>
-          <IconComponent name="information-circle-outline" size={16} color={theme.colors.textTertiary} />
-          <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+        <View className="flex-row items-start mt-6 p-3 gap-2">
+          <IconComponent name="information-circle-outline" size={16} color={colors.textTertiary} />
+          <Text className="flex-1 text-[13px] leading-[18px] text-muted-foreground">
             {t('settings.profileCustomization.info')}
           </Text>
         </View>
@@ -372,69 +355,7 @@ export default function ProfileCustomizationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1 
-  },
-  content: { 
-    padding: 16 
-  },
-  settingCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  settingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 16,
-  },
-  settingIcon: {
-    marginRight: 12,
-  },
-  settingTextContainer: {
-    flex: 1,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  settingDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  infoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 24,
-    padding: 12,
-    gap: 8,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 16,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  styleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
+  // Style cards need pixel-precise layout for the preview
   styleCard: {
     flex: 1,
     minWidth: '47%',
@@ -488,25 +409,6 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 4,
   },
-  styleInfo: {
-    padding: 12,
-  },
-  styleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  styleName: {
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  styleDescription: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: FONT_FAMILIES.primary,
-  },
   selectedIndicator: {
     position: 'absolute',
     top: 8,
@@ -518,4 +420,3 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
-

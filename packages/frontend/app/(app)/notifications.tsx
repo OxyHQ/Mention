@@ -1,8 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
     View,
-    StyleSheet,
-    TouchableOpacity,
     RefreshControl,
     Platform,
 } from 'react-native';
@@ -84,16 +82,11 @@ const NotificationsScreen: React.FC = () => {
         },
         onSuccess: async () => {
             try {
-                // Invalidate all notification queries first
                 queryClient.invalidateQueries({ queryKey: ['notifications'] });
-
-                // Use the refetch function from useQuery hook
                 await refetch();
-
                 toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
             } catch (refetchError) {
                 console.error('Error refetching notifications:', refetchError);
-                // Still show success since the API call succeeded
                 toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
             }
         },
@@ -140,10 +133,8 @@ const NotificationsScreen: React.FC = () => {
     }, [markAllAsReadMutation, t, unreadCount]);
 
     const handleTabPress = useCallback((tabId: NotificationTab) => {
-        // If pressing the same tab - scroll to top and refresh
         if (tabId === activeTab) {
             setRefreshKey(prev => prev + 1);
-            // Scroll to top
             if (listRef.current) {
                 try {
                     if (typeof listRef.current.scrollToOffset === 'function') {
@@ -156,7 +147,6 @@ const NotificationsScreen: React.FC = () => {
                 }
             }
         } else {
-            // Different tab - switch
             setActiveTab(tabId);
             setRefreshKey(prev => prev + 1);
         }
@@ -179,12 +169,10 @@ const NotificationsScreen: React.FC = () => {
         }
     }, [notificationsData, activeTab]);
 
-    // Group similar notifications (like, repost, follow, quote) together
     const groupedNotifications = useMemo(() => {
         return groupNotifications(filteredNotifications);
     }, [filteredNotifications]);
 
-    // Ensure unique items by a stable key to prevent overlapping keys in FlashList
     const getItemKey = useCallback((item: GroupedNotification) => {
         return item.key;
     }, []);
@@ -202,7 +190,6 @@ const NotificationsScreen: React.FC = () => {
         return out;
     }, [groupedNotifications]);
 
-    // Register scrollable with LayoutScrollContext
     const clearScrollableRegistration = useCallback(() => {
         if (unregisterScrollableRef.current) {
             unregisterScrollableRef.current();
@@ -228,21 +215,18 @@ const NotificationsScreen: React.FC = () => {
         clearScrollableRegistration();
     }, [clearScrollableRegistration]);
 
-    // Handle scroll events
     const handleScrollEvent = useCallback((event: any) => {
         if (handleScroll) {
             handleScroll(event);
         }
     }, [handleScroll]);
 
-    // Handle wheel events
     const handleWheelEvent = useCallback((event: any) => {
         if (forwardWheelEvent) {
             forwardWheelEvent(event);
         }
     }, [forwardWheelEvent]);
 
-    // Web-specific dataSet for scroll detection
     const dataSetForWeb = useMemo(() => {
         if (Platform.OS !== 'web') return undefined;
         return { layoutscroll: 'true' };
@@ -289,8 +273,8 @@ const NotificationsScreen: React.FC = () => {
     const renderContent = () => {
         if (!isAuthenticated) {
             return (
-                <ThemedView style={styles.authContainer}>
-                    <ThemedText style={[styles.authText, { color: theme.colors.textSecondary }]}>
+                <ThemedView className="flex-1 justify-center items-center px-5">
+                    <ThemedText className="text-base text-center text-muted-foreground">
                         {t('state.no_session')}
                     </ThemedText>
                 </ThemedView>
@@ -299,7 +283,7 @@ const NotificationsScreen: React.FC = () => {
 
         if (isLoading && !refreshing) {
             return (
-                <ThemedView style={styles.loadingContainer}>
+                <ThemedView className="flex-1 justify-center items-center">
                     <Loading size="large" />
                 </ThemedView>
             );
@@ -353,8 +337,8 @@ const NotificationsScreen: React.FC = () => {
                 title={t('seo.notifications.title')}
                 description={t('seo.notifications.description')}
             />
-            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-                <ThemedView style={{ flex: 1 }}>
+            <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+                <ThemedView className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     {/* Header */}
@@ -405,49 +389,5 @@ const NotificationsScreen: React.FC = () => {
         </>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    authContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-    },
-    authText: {
-        fontSize: 16,
-        textAlign: 'center',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 40,
-    },
-    errorTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        marginTop: 16,
-        marginBottom: 16,
-        textAlign: 'center',
-    },
-    retryButton: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 8,
-        marginTop: 16,
-    },
-    retryText: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-});
 
 export default NotificationsScreen;

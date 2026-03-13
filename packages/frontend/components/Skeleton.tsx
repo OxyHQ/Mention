@@ -1,6 +1,5 @@
 import React, { type ReactNode } from 'react';
 import { View, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { cn } from '@/lib/utils';
 
 /**
  * Skeleton Component

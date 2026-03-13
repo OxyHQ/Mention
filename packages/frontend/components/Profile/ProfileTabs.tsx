@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -49,17 +49,17 @@ export const ProfileTabs = memo(function ProfileTabs({
   // Show private message for restricted profiles
   if (isPrivate && !isOwnProfile) {
     return (
-      <View style={styles.privateContainer}>
+      <View className="items-center justify-center p-8" style={{ minHeight: 200 }}>
         <Ionicons
           name="lock-closed"
           size={48}
           color={theme.colors.textSecondary}
-          style={styles.lockIcon}
+          style={{ marginBottom: 16 }}
         />
-        <Text className="text-foreground" style={styles.privateMessage}>
+        <Text className="text-foreground text-lg font-semibold text-center mb-2">
           {t('profile.private.message', { defaultValue: 'This profile is private' })}
         </Text>
-        <Text className="text-muted-foreground" style={styles.privateSubtext}>
+        <Text className="text-muted-foreground text-sm text-center">
           {t('profile.private.subtext', { defaultValue: 'Follow this account to see their posts' })}
         </Text>
       </View>
@@ -112,7 +112,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         userId={profileId}
         hideHeader={true}
         scrollEnabled={false}
-        contentContainerStyle={styles.feedContent}
+        contentContainerStyle={{ paddingBottom: 100 }}
       />
     </View>
   );
@@ -168,7 +168,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
 
   if (loading) {
     return (
-      <View style={styles.feedsLoading}>
+      <View className="items-center justify-center p-8">
         <ActivityIndicator size="small" color={theme.colors.primary} />
       </View>
     );
@@ -176,9 +176,9 @@ const ProfileFeeds = memo(function ProfileFeeds({
 
   if (feeds.length === 0) {
     return (
-      <View style={styles.feedsEmpty}>
+      <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
         <Ionicons name="layers-outline" size={48} color={theme.colors.textSecondary} />
-        <Text className="text-muted-foreground" style={styles.feedsEmptyText}>
+        <Text className="text-muted-foreground text-base font-medium">
           {t('profile.feeds.empty', { defaultValue: 'No feeds yet' })}
         </Text>
       </View>
@@ -186,7 +186,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
   }
 
   return (
-    <View style={styles.feedsList}>
+    <View className="p-4 gap-3">
       {feeds.map((feed) => (
         <FeedCard
           key={feed.id || feed._id}
@@ -204,49 +204,4 @@ const ProfileFeeds = memo(function ProfileFeeds({
       ))}
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  privateContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 200,
-  },
-  lockIcon: {
-    marginBottom: 16,
-  },
-  privateMessage: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  privateSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  feedContent: {
-    paddingBottom: 100,
-  },
-  feedsLoading: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  feedsEmpty: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 200,
-    gap: 12,
-  },
-  feedsEmptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  feedsList: {
-    padding: 16,
-    gap: 12,
-  },
 });

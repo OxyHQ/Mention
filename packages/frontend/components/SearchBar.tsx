@@ -107,10 +107,8 @@ export const SearchBar = () => {
                 )}
                 <TouchableOpacity
                     onPress={() => setShowFilters(!showFilters)}
-                    style={[
-                        styles.filterToggle,
-                        activeFilters.size > 0 && { backgroundColor: theme.colors.primaryLight },
-                    ]}
+                    className={cn(activeFilters.size > 0 && "bg-primary/10")}
+                    style={styles.filterToggle}
                 >
                     <Ionicons
                         name="options-outline"
@@ -131,13 +129,10 @@ export const SearchBar = () => {
                             return (
                                 <TouchableOpacity
                                     key={option.id}
-                                    style={[
-                                        styles.filterPill,
-                                        {
-                                            backgroundColor: isActive ? theme.colors.primary : theme.colors.backgroundSecondary,
-                                            borderColor: isActive ? theme.colors.primary : theme.colors.border,
-                                        },
-                                    ]}
+                                    className={cn(
+                                        isActive ? "bg-primary border-primary" : "bg-muted border-border",
+                                    )}
+                                    style={styles.filterPill}
                                     onPress={() => toggleFilter(option.id)}
                                 >
                                     <Ionicons
@@ -145,10 +140,10 @@ export const SearchBar = () => {
                                         size={14}
                                         color={isActive ? '#fff' : theme.colors.text}
                                     />
-                                    <Text style={[
-                                        styles.filterPillText,
-                                        { color: isActive ? '#fff' : theme.colors.text },
-                                    ]}>
+                                    <Text
+                                        className={cn(isActive ? "text-primary-foreground" : "text-foreground")}
+                                        style={styles.filterPillText}
+                                    >
                                         {t(option.label)}
                                     </Text>
                                 </TouchableOpacity>

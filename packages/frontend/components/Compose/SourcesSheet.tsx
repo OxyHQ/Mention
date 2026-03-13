@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -50,26 +50,23 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
   }, [onClose]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}
-      >
-        <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
+    <View className="flex-1 pb-6 bg-background">
+      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border mb-3">
+        <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
           <CloseIcon size={20} color={theme.colors.text} />
         </IconButton>
-        <Text style={[styles.title, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
+        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
           {t('compose.sources.heading', { defaultValue: 'Sources' })}
         </Text>
-        <View style={styles.headerRight} />
+        <View className="w-9 h-9 ml-auto" />
       </View>
 
-      <Text style={[styles.description, { color: theme.colors.textSecondary }]}
-      >
+      <Text className="text-[13px] text-muted-foreground mb-3 px-4" style={{ lineHeight: 18 }}>
         {t('compose.sources.help', { defaultValue: 'Share links to help readers verify your post.' })}
       </Text>
 
       {hasInvalidSources && (
-        <Text style={[styles.warningText, { color: theme.colors.error || '#ff4d4f' }]}>
+        <Text className="text-xs mb-3 px-4" style={{ color: theme.colors.error || '#ff4d4f' }}>
           {t('compose.sources.invalidUrl', { defaultValue: 'Please fix the highlighted links before posting.' })}
         </Text>
       )}
@@ -93,30 +90,30 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
             } : undefined}
           />
         ) : (
-          <View style={styles.list}>
+          <View className="gap-3 px-4">
             {sources.map((source, index) => {
               const isUrlInvalid = source.url.trim().length > 0 && !validateUrl(source.url);
 
               return (
                 <View
                   key={source.id}
-                  style={[styles.card, { borderColor: isUrlInvalid ? (theme.colors.error || '#ff4d4f') : theme.colors.border, backgroundColor: theme.colors.card }]}
+                  className="border-[1.5px] rounded-xl p-3 gap-2.5"
+                  style={{
+                    borderColor: isUrlInvalid ? (theme.colors.error || '#ff4d4f') : theme.colors.border,
+                    backgroundColor: theme.colors.card,
+                  }}
                 >
-                  <View style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { color: theme.colors.textSecondary }]}>
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
                       {t('compose.sources.itemLabel', { defaultValue: 'Source {{index}}', index: index + 1 })}
                     </Text>
-                    <TouchableOpacity onPress={() => onRemove(source.id)} style={styles.removeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <TouchableOpacity onPress={() => onRemove(source.id)} className="p-1" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <CloseIcon size={16} color={theme.colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
 
                   <TextInput
-                    style={[styles.input, {
-                      color: theme.colors.text,
-                      borderColor: theme.colors.border,
-                      backgroundColor: theme.colors.backgroundSecondary,
-                    }]}
+                    className="rounded-[10px] border-[1.5px] border-border bg-secondary px-3 py-2.5 text-sm text-foreground"
                     placeholder={t('compose.sources.titlePlaceholder', { defaultValue: 'Source title (optional)' })}
                     placeholderTextColor={theme.colors.textTertiary}
                     value={source.title}
@@ -127,11 +124,11 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                   />
 
                   <TextInput
-                    style={[styles.input, styles.urlInput, {
-                      color: theme.colors.text,
+                    className="rounded-[10px] border-[1.5px] bg-secondary px-3 py-2.5 text-sm text-foreground"
+                    style={{
+                      fontFamily: 'Inter-Regular',
                       borderColor: isUrlInvalid ? (theme.colors.error || '#ff4d4f') : theme.colors.border,
-                      backgroundColor: theme.colors.backgroundSecondary,
-                    }]}
+                    }}
                     placeholder={t('compose.sources.urlPlaceholder', { defaultValue: 'https://example.com/article' })}
                     placeholderTextColor={theme.colors.textTertiary}
                     value={source.url}
@@ -144,7 +141,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                   />
 
                   {isUrlInvalid && (
-                    <Text style={[styles.errorText, { color: theme.colors.error || '#ff4d4f' }]}>
+                    <Text className="text-[11px] -mt-1" style={{ color: theme.colors.error || '#ff4d4f' }}>
                       {t('compose.sources.invalidUrl', { defaultValue: 'Enter a valid URL.' })}
                     </Text>
                   )}
@@ -158,23 +155,22 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
       {sources.length > 0 && (
         <TouchableOpacity
           onPress={onAdd}
-          style={[styles.inlineAddButton, {
-            borderColor: theme.colors.border,
+          className="flex-row items-center justify-center gap-2 py-3 rounded-full border-[1.5px] border-border mt-3 mx-4"
+          style={{
             backgroundColor: theme.colors.card,
             opacity: canAddMore ? 1 : 0.6,
-          }]}
+          }}
           disabled={!canAddMore}
         >
           <Plus size={16} color={theme.colors.primary} />
-          <Text style={[styles.inlineAddText, { color: theme.colors.text }]}>
+          <Text className="text-sm font-semibold text-foreground">
             {t('compose.sources.addAnother', { defaultValue: 'Add another source' })}
           </Text>
         </TouchableOpacity>
       )}
 
       {!canAddMore && (
-        <Text style={[styles.limitText, { color: theme.colors.textTertiary }]}
-        >
+        <Text className="text-xs text-center mt-2 px-4" style={{ color: theme.colors.textTertiary }}>
           {t('compose.sources.limit', { defaultValue: 'You can add up to 5 sources' })}
         </Text>
       )}
@@ -182,109 +178,4 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-    borderBottomWidth: 1,
-    marginBottom: 12,
-  },
-  title: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none',
-  },
-  closeButton: {
-    marginRight: 6,
-    zIndex: 1,
-  },
-  headerRight: {
-    width: 36,
-    height: 36,
-    marginLeft: 'auto',
-  },
-  description: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  warningText: {
-    fontSize: 12,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  list: {
-    gap: 12,
-    paddingHorizontal: 16,
-  },
-  card: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
-  removeBtn: {
-    padding: 4,
-  },
-  input: {
-    borderRadius: 10,
-    borderWidth: 1.5,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
-  urlInput: {
-    fontFamily: 'Inter-Regular',
-  },
-  errorText: {
-    fontSize: 11,
-    marginTop: -4,
-  },
-  inlineAddButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    marginTop: 12,
-    marginHorizontal: 16,
-  },
-  inlineAddText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  limitText: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 8,
-    paddingHorizontal: 16,
-  },
-});
-
 export default SourcesSheet;
-

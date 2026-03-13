@@ -35,42 +35,42 @@ const KaanaClientPage = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView className="flex-1 rounded-[35px]">
       <StatusBar barStyle="light-content" />
-      <ThemedView style={styles.container}>
+      <ThemedView className="flex-1">
 
         {/* Main Content */}
-        <View style={styles.mainContent}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>Hello, {user?.username || "Nate"}.</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>How can I help you today?</Text>
+        <View className="flex-1 justify-center items-center px-5">
+          <Text className="text-[32px] font-semibold text-center mb-2 text-foreground font-primary">Hello, {user?.username || "Nate"}.</Text>
+          <Text className="text-2xl font-normal text-center mb-10 text-muted-foreground font-primary">How can I help you today?</Text>
 
           {/* Action Buttons */}
-          <View style={styles.buttonGrid}>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+          <View className="w-full max-w-[500px]">
+            <View className="flex-row justify-between mb-4">
+              <TouchableOpacity style={styles.actionButton} className="flex-1 flex-row items-center rounded-[30px] p-4 mx-2 bg-secondary relative">
                 <Ionicons name="image-outline" size={22} color={theme.colors.text} />
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Editar imagen</Text>
-                <View style={styles.dropdownIndicator}>
+                <Text className="text-[15px] font-medium ml-2 flex-1 text-foreground font-primary">Editar imagen</Text>
+                <View className="ml-1">
                   <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <TouchableOpacity style={styles.actionButton} className="flex-1 flex-row items-center rounded-[30px] p-4 mx-2 bg-secondary">
                 <Ionicons name="newspaper-outline" size={22} color={theme.colors.text} />
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Noticias más recientes</Text>
+                <Text className="text-[15px] font-medium ml-2 flex-1 text-foreground font-primary">Noticias más recientes</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View className="flex-row justify-between mb-4">
+              <TouchableOpacity style={styles.actionButton} className="flex-1 flex-row items-center rounded-[30px] p-4 mx-2 bg-secondary relative">
                 <Ionicons name="person-outline" size={22} color={theme.colors.text} />
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Personalidades</Text>
-                <View style={styles.dropdownIndicator}>
+                <Text className="text-[15px] font-medium ml-2 flex-1 text-foreground font-primary">Personalidades</Text>
+                <View className="ml-1">
                   <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <TouchableOpacity style={styles.actionButton} className="flex-1 flex-row items-center rounded-[30px] p-4 mx-2 bg-secondary relative">
                 <Ionicons name="briefcase-outline" size={22} color={theme.colors.text} />
-                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Áreas de trabajo</Text>
-                <View style={styles.dropdownIndicator}>
+                <Text className="text-[15px] font-medium ml-2 flex-1 text-foreground font-primary">Áreas de trabajo</Text>
+                <View className="ml-1">
                   <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
                 </View>
               </TouchableOpacity>
@@ -81,21 +81,22 @@ const KaanaClientPage = () => {
         {/* Input Area at Bottom */}
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.inputContainer}
+          className="w-full p-4 absolute bottom-0 left-0 right-0"
         >
-          <View style={[styles.inputBar, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <TouchableOpacity style={styles.inputIcon}>
+          <View className="flex-row items-center rounded-[30px] px-3 py-2 bg-secondary">
+            <TouchableOpacity className="mx-2">
               <Ionicons name="attach-outline" size={22} color={theme.colors.textTertiary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.inputIcon}>
+            <TouchableOpacity className="mx-2">
               <Ionicons name="refresh-outline" size={22} color={theme.colors.textTertiary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.inputIcon}>
+            <TouchableOpacity className="mx-2">
               <Ionicons name="bulb-outline" size={22} color={theme.colors.textTertiary} />
             </TouchableOpacity>
 
             <TextInput
-              style={[styles.input, { height: inputHeight, color: theme.colors.text }]}
+              style={{ height: inputHeight }}
+              className="flex-1 text-base px-3 min-h-[40px] mr-2 text-foreground font-primary"
               placeholder="¿Qué quieres saber?"
               placeholderTextColor={theme.colors.textTertiary}
               multiline
@@ -104,12 +105,12 @@ const KaanaClientPage = () => {
               onContentSizeChange={handleContentSizeChange}
             />
 
-            <View style={styles.inputRightButtons}>
-              <TouchableOpacity style={[styles.modelSelector, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Text style={[styles.modelText, { color: theme.colors.text }]}>Kaana o1</Text>
+            <View className="flex-row items-center">
+              <TouchableOpacity className="flex-row items-center rounded-[20px] py-1.5 px-3 mr-2 bg-secondary">
+                <Text className="text-sm mr-1 text-foreground font-primary">Kaana o1</Text>
                 <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.sendButton, { backgroundColor: theme.colors.primary }]}>
+              <TouchableOpacity className="w-10 h-10 rounded-full justify-center items-center bg-primary">
                 <Ionicons name="arrow-up" size={22} color={theme.colors.card} />
               </TouchableOpacity>
             </View>
@@ -121,34 +122,9 @@ const KaanaClientPage = () => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    borderRadius: 35,
+  actionButton: {
+    ...shadowStyle({ elevation: 3, web: '0px 2px 4px rgba(0,0,0,0.2)' }),
   },
-  container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
-  logoContainer: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  logo: { width: 24, height: 24 },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
-  iconButton: { marginLeft: 20 },
-  avatarContainer: { marginLeft: 20, width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
-  avatar: { width: 36, height: 36 },
-  mainContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
-  title: { fontSize: 32, fontWeight: '600', textAlign: 'center', marginBottom: 8, fontFamily: FONT_FAMILIES.primary },
-  subtitle: { fontSize: 24, fontWeight: '400', textAlign: 'center', marginBottom: 40, fontFamily: FONT_FAMILIES.primary },
-  buttonGrid: { width: '100%', maxWidth: 500 },
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 30, padding: 16, marginHorizontal: 8, ...shadowStyle({ elevation: 3, web: '0px 2px 4px rgba(0,0,0,0.2)' }), position: 'relative' },
-  buttonText: { fontSize: 15, fontWeight: '500', marginLeft: 8, flex: 1, fontFamily: FONT_FAMILIES.primary },
-  dropdownIndicator: { marginLeft: 4 },
-  inputContainer: { width: '100%', padding: 16, backgroundColor: 'transparent', position: 'absolute', bottom: 0, left: 0, right: 0 },
-  inputBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 30, paddingHorizontal: 12, paddingVertical: 8 },
-  inputIcon: { marginHorizontal: 8 },
-  input: { flex: 1, fontSize: 16, paddingHorizontal: 12, minHeight: 40, marginRight: 8, fontFamily: FONT_FAMILIES.primary },
-  inputRightButtons: { flexDirection: 'row', alignItems: 'center' },
-  modelSelector: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, marginRight: 8 },
-  modelText: { fontSize: 14, marginRight: 4, fontFamily: FONT_FAMILIES.primary },
-  sendButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 });
 
 export default KaanaClientPage;

@@ -2,7 +2,6 @@ import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { router } from 'expo-router';
-import { cn } from '@/lib/utils';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
 
@@ -77,26 +76,26 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
     return (
         <PressableScale
             onPress={handlePress}
-            className="bg-surface"
-            style={[styles.card, style]}
+            className="bg-surface w-full p-4 rounded-2xl"
+            style={style}
         >
-            <View style={styles.cardBody}>
-                <View style={styles.cardInfo}>
-                    <ThemedText style={styles.title} numberOfLines={1}>
+            <View className="flex-row items-center gap-4">
+                <View className="flex-1 gap-0.5">
+                    <ThemedText className="text-base font-bold" style={{ lineHeight: 22 }} numberOfLines={1}>
                         {feed.displayName}
                     </ThemedText>
                     {subtitle ? (
                         <ThemedText
-                            className="text-muted-foreground"
-                            style={styles.subtitle}
+                            className="text-muted-foreground text-sm"
+                            style={{ lineHeight: 18 }}
                             numberOfLines={1}
                         >
                             {subtitle}
                         </ThemedText>
                     ) : feed.creator ? (
                         <ThemedText
-                            className="text-muted-foreground"
-                            style={styles.subtitle}
+                            className="text-muted-foreground text-sm"
+                            style={{ lineHeight: 18 }}
                             numberOfLines={1}
                         >
                             Feed by @{feed.creator.username}
@@ -104,8 +103,8 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
                     ) : null}
                     {feed.description ? (
                         <ThemedText
-                            className="text-muted-foreground"
-                            style={styles.description}
+                            className="text-muted-foreground text-sm mt-0.5"
+                            style={{ lineHeight: 20 }}
                             numberOfLines={2}
                         >
                             {feed.description}
@@ -123,34 +122,6 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
 }
 
 const styles = StyleSheet.create({
-    card: {
-        width: '100%',
-        padding: 16,
-        borderRadius: 16,
-    },
-    cardBody: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-    },
-    cardInfo: {
-        flex: 1,
-        gap: 2,
-    },
-    title: {
-        fontSize: 16,
-        fontWeight: '700',
-        lineHeight: 22,
-    },
-    subtitle: {
-        fontSize: 14,
-        lineHeight: 18,
-    },
-    description: {
-        fontSize: 14,
-        lineHeight: 20,
-        marginTop: 2,
-    },
     avatarStack: {
         position: 'relative',
     },

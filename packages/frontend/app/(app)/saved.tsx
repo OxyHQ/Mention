@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import PostItem from '@/components/Feed/PostItem';
-import { colors } from '@/styles/colors';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -115,7 +114,7 @@ const SavedPostsScreen: React.FC = () => {
                 title={t('seo.saved.title')}
                 description={t('seo.saved.description')}
             />
-            <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+            <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
                 <Stack.Screen
                     options={{
                         title: 'Saved Posts',
@@ -123,15 +122,15 @@ const SavedPostsScreen: React.FC = () => {
                     }}
                 />
 
-                <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                    <View style={styles.searchIcon}>
+                <View className="flex-row items-center px-4 py-2 mx-4 my-2 rounded-3xl bg-secondary">
+                    <View className="mr-2">
                         <Search
                             size={20}
                             color={theme.colors.textSecondary}
                         />
                     </View>
                     <TextInput
-                        style={[styles.searchInput, { color: theme.colors.text }]}
+                        className="flex-1 text-base py-2 text-foreground"
                         placeholder={t("search.placeholder", "Search saved posts...")}
                         placeholderTextColor={theme.colors.textSecondary}
                         value={searchQuery}
@@ -161,10 +160,10 @@ const SavedPostsScreen: React.FC = () => {
                         ]}
                         onPress={() => setSelectedFolder(null)}
                     >
-                        <Text style={[
-                            styles.folderChipText,
-                            { color: selectedFolder === null ? '#fff' : theme.colors.text },
-                        ]}>
+                        <Text
+                            className="text-sm font-medium"
+                            style={{ color: selectedFolder === null ? '#fff' : theme.colors.text }}
+                        >
                             {t('saved.allBookmarks', 'All')}
                         </Text>
                     </TouchableOpacity>
@@ -181,29 +180,29 @@ const SavedPostsScreen: React.FC = () => {
                             ]}
                             onPress={() => setSelectedFolder(folder)}
                         >
-                            <Text style={[
-                                styles.folderChipText,
-                                { color: selectedFolder === folder ? '#fff' : theme.colors.text },
-                            ]}>
+                            <Text
+                                className="text-sm font-medium"
+                                style={{ color: selectedFolder === folder ? '#fff' : theme.colors.text }}
+                            >
                                 {folder}
                             </Text>
                         </TouchableOpacity>
                     ))}
 
                     <TouchableOpacity
-                        style={[styles.folderChip, styles.newFolderChip, { borderColor: theme.colors.border }]}
+                        style={[styles.folderChip, { borderColor: theme.colors.border, backgroundColor: 'transparent' }]}
                         onPress={() => setShowNewFolderModal(true)}
                     >
                         <Ionicons name="add" size={16} color={theme.colors.primary} />
-                        <Text style={[styles.folderChipText, { color: theme.colors.primary }]}>
+                        <Text className="text-sm font-medium text-primary">
                             {t('saved.newFolder', 'New')}
                         </Text>
                     </TouchableOpacity>
                 </ScrollView>
 
-                <ScrollView style={styles.resultsContainer}>
+                <ScrollView className="flex-1">
                     {loading && (
-                        <View style={styles.loadingContainer}>
+                        <View className="flex-1 items-center justify-center pt-[60px]">
                             <Loading size="large" />
                         </View>
                     )}
@@ -214,12 +213,12 @@ const SavedPostsScreen: React.FC = () => {
                                 ? t("search.noResults", "No results found")
                                 : t("search.startSearching", "No saved posts yet")}
                             customIcon={<Search size={48} color={theme.colors.textSecondary} />}
-                            containerStyle={styles.emptyContainer}
+                            containerStyle={{ flex: 1, paddingTop: 60 }}
                         />
                     )}
 
                     {!loading && posts.length > 0 && (
-                        <View style={styles.postsContainer}>
+                        <View className="flex-1">
                             {posts.map((post: any) => (
                                 <Pressable
                                     key={post.id || post._id}
@@ -237,12 +236,12 @@ const SavedPostsScreen: React.FC = () => {
             {/* New Folder Modal */}
             <Modal visible={showNewFolderModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
-                        <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                    <View className="w-full max-w-[360px] rounded-2xl p-5 bg-card">
+                        <Text className="text-lg font-semibold mb-4 text-foreground">
                             {t('saved.createFolder', 'Create Folder')}
                         </Text>
                         <TextInput
-                            style={[styles.modalInput, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                            className="text-base p-3 mb-4 rounded-xl border text-foreground border-border bg-secondary"
                             placeholder={t('saved.folderName', 'Folder name')}
                             placeholderTextColor={theme.colors.textSecondary}
                             value={newFolderName}
@@ -250,18 +249,18 @@ const SavedPostsScreen: React.FC = () => {
                             autoFocus
                             maxLength={100}
                         />
-                        <View style={styles.modalActions}>
+                        <View className="flex-row justify-end gap-2">
                             <TouchableOpacity
-                                style={[styles.modalButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+                                className="px-4 py-2.5 rounded-[10px] items-center bg-secondary"
                                 onPress={() => { setShowNewFolderModal(false); setNewFolderName(''); }}
                             >
-                                <Text style={{ color: theme.colors.text }}>{t('common.cancel', 'Cancel')}</Text>
+                                <Text className="text-foreground">{t('common.cancel', 'Cancel')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
+                                className="px-4 py-2.5 rounded-[10px] items-center bg-primary"
                                 onPress={handleCreateFolder}
                             >
-                                <Text style={{ color: '#fff' }}>{t('common.create', 'Create')}</Text>
+                                <Text className="text-white">{t('common.create', 'Create')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -271,15 +270,15 @@ const SavedPostsScreen: React.FC = () => {
             {/* Move to Folder Modal */}
             <Modal visible={showMoveModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
-                        <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                    <View className="w-full max-w-[360px] rounded-2xl p-5 bg-card">
+                        <Text className="text-lg font-semibold mb-4 text-foreground">
                             {t('saved.moveToFolder', 'Move to Folder')}
                         </Text>
                         <TouchableOpacity
                             style={[styles.moveOption, { borderColor: theme.colors.border }]}
                             onPress={() => handleMoveToFolder(null)}
                         >
-                            <Text style={{ color: theme.colors.text }}>
+                            <Text className="text-foreground">
                                 {t('saved.allBookmarks', 'All Bookmarks')}
                             </Text>
                         </TouchableOpacity>
@@ -289,14 +288,14 @@ const SavedPostsScreen: React.FC = () => {
                                 style={[styles.moveOption, { borderColor: theme.colors.border }]}
                                 onPress={() => handleMoveToFolder(folder)}
                             >
-                                <Text style={{ color: theme.colors.text }}>{folder}</Text>
+                                <Text className="text-foreground">{folder}</Text>
                             </TouchableOpacity>
                         ))}
                         <TouchableOpacity
-                            style={[styles.modalButton, { backgroundColor: theme.colors.backgroundSecondary, marginTop: 12 }]}
+                            className="px-4 py-2.5 rounded-[10px] items-center mt-3 bg-secondary"
                             onPress={() => { setShowMoveModal(false); setMovingPostId(null); }}
                         >
-                            <Text style={{ color: theme.colors.text }}>{t('common.cancel', 'Cancel')}</Text>
+                            <Text className="text-foreground">{t('common.cancel', 'Cancel')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -306,26 +305,6 @@ const SavedPostsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    searchContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        marginHorizontal: 16,
-        marginVertical: 8,
-        borderRadius: 24,
-    },
-    searchIcon: {
-        marginRight: 8,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 16,
-        paddingVertical: 8,
-    },
     folderScrollContainer: {
         maxHeight: 44,
         marginBottom: 4,
@@ -344,64 +323,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 4,
     },
-    newFolderChip: {
-        backgroundColor: 'transparent',
-    },
-    folderChipText: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    resultsContainer: {
-        flex: 1,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        paddingTop: 60,
-    },
-    emptyContainer: {
-        flex: 1,
-        paddingTop: 60,
-    },
-    postsContainer: {
-        flex: 1,
-    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
-    },
-    modalContent: {
-        width: '100%',
-        maxWidth: 360,
-        borderRadius: 16,
-        padding: 20,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 16,
-    },
-    modalInput: {
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: 12,
-        fontSize: 16,
-        marginBottom: 16,
-    },
-    modalActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 8,
-    },
-    modalButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 10,
-        alignItems: 'center',
     },
     moveOption: {
         paddingVertical: 14,

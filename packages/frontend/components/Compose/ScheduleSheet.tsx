@@ -93,42 +93,42 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   }, [onClose]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.grabberContainer}>
-        <View style={[styles.grabber, { backgroundColor: theme.colors.border }]} />
+    <View className="rounded-t-3xl px-5 pt-3 bg-background" style={{ maxHeight: '90%' }}>
+      <View className="items-center justify-center mb-3">
+        <View className="w-10 h-1 rounded-full bg-border" />
       </View>
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, { color: theme.colors.text }]}>
+        <Text className="text-xl font-semibold text-foreground mb-4">
           {t('compose.schedule.title', { defaultValue: 'Schedule post' })}
         </Text>
 
         {scheduledAt && (
-          <View style={[styles.currentRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.currentLabel, { color: theme.colors.textSecondary }]}>
+          <View className="flex-row items-center rounded-[14px] py-3 px-3.5 mb-4.5 bg-secondary" style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }}>
+            <View className="flex-1">
+              <Text className="text-[13px] text-muted-foreground mb-1">
                 {t('compose.schedule.current', { defaultValue: 'Currently scheduled' })}
               </Text>
-              <Text style={[styles.currentValue, { color: theme.colors.text }]}>
+              <Text className="text-base font-medium text-foreground">
                 {formatLabel(scheduledAt)}
               </Text>
             </View>
-            <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-              <Text style={[styles.clearText, { color: theme.colors.error }]}>
+            <TouchableOpacity onPress={handleClear} className="ml-3 px-3 py-1.5">
+              <Text className="text-sm font-semibold" style={{ color: theme.colors.error }}>
                 {t('compose.schedule.clear', { defaultValue: 'Clear' })}
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+        <Text className="text-xs uppercase tracking-wide text-muted-foreground mb-2.5">
           {t('compose.schedule.quickPick', { defaultValue: 'Quick picks' })}
         </Text>
 
-        <View style={styles.optionsGrid}>
+        <View className="flex-row flex-wrap gap-2.5 mb-5">
           {options.map((option) => (
             <TouchableOpacity
               key={option.key}
@@ -142,23 +142,23 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               onPress={() => handleOptionPress(option)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.optionLabel, { color: theme.colors.text }]}>
+              <Text className="text-[15px] font-semibold text-foreground mb-1.5 text-left">
                 {option.label}
               </Text>
-              <Text style={[styles.optionDescription, { color: theme.colors.textSecondary }]}>
+              <Text className="text-[11px] text-muted-foreground text-left" style={{ lineHeight: 14 }}>
                 {formatLabel(option.date)}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+        <Text className="text-xs uppercase tracking-wide text-muted-foreground mb-2.5">
           {t('compose.schedule.pickCustom', { defaultValue: 'Pick custom time' })}
         </Text>
 
-        <View style={styles.inputsRow}>
-          <View style={[styles.inputGroup, styles.inputGroupLeft]}>
-            <Text style={[styles.inputLabel, { color: theme.colors.textSecondary }]}>
+        <View className="flex-row mb-5">
+          <View className="flex-1 mr-3">
+            <Text className="text-[13px] text-muted-foreground mb-1.5">
               {t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
             </Text>
             <TextInput
@@ -166,13 +166,18 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               onChangeText={setCustomDate}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={theme.colors.textTertiary}
-              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+              className="rounded-xl text-base text-foreground bg-secondary px-3"
+              style={{
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: theme.colors.border,
+                paddingVertical: Platform.select({ ios: 12, android: 8 }) ?? 10,
+              }}
               keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric'}
               autoCorrect={false}
             />
           </View>
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.colors.textSecondary }]}>
+          <View className="flex-1">
+            <Text className="text-[13px] text-muted-foreground mb-1.5">
               {t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
             </Text>
             <TextInput
@@ -180,7 +185,12 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               onChangeText={setCustomTime}
               placeholder="HH:MM"
               placeholderTextColor={theme.colors.textTertiary}
-              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+              className="rounded-xl text-base text-foreground bg-secondary px-3"
+              style={{
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: theme.colors.border,
+                paddingVertical: Platform.select({ ios: 12, android: 8 }) ?? 10,
+              }}
               keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric'}
               autoCorrect={false}
             />
@@ -188,18 +198,18 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         </View>
 
         <TouchableOpacity
-          style={[styles.applyButton, { backgroundColor: theme.colors.primary }]}
+          className="rounded-2xl py-3.5 items-center bg-primary mb-4"
           onPress={handleCustomApply}
           activeOpacity={0.85}
         >
-          <Text style={styles.applyButtonText}>
+          <Text className="text-white text-base font-semibold">
             {t('compose.schedule.apply', { defaultValue: 'Schedule' })}
           </Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-        <Text style={[styles.closeText, { color: theme.colors.textSecondary }]}>
+      <TouchableOpacity onPress={handleClose} className="py-3.5 items-center">
+        <Text className="text-[15px] font-medium text-muted-foreground">
           {t('compose.schedule.cancel', { defaultValue: 'Close' })}
         </Text>
       </TouchableOpacity>
@@ -208,66 +218,6 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    maxHeight: '90%',
-  },
-  grabberContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  grabber: {
-    width: 40,
-    height: 4,
-    borderRadius: 999,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  currentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 18,
-  },
-  currentLabel: {
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  currentValue: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  clearButton: {
-    marginLeft: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  clearText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sectionLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  optionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 20,
-  },
   optionButton: {
     width: "31%",
     aspectRatio: 1.6,
@@ -276,57 +226,6 @@ const styles = StyleSheet.create({
     padding: 10,
     justifyContent: "center",
     alignItems: "flex-start",
-  },
-  optionLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 6,
-    textAlign: "left",
-  },
-  optionDescription: {
-    fontSize: 11,
-    textAlign: "left",
-    lineHeight: 14,
-  },
-  inputsRow: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  inputGroup: {
-    flex: 1,
-  },
-  inputGroupLeft: {
-    marginRight: 12,
-  },
-  inputLabel: {
-    fontSize: 13,
-    marginBottom: 6,
-  },
-  input: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.select({ ios: 12, android: 8 }) ?? 10,
-    fontSize: 16,
-  },
-  applyButton: {
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  applyButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  closeButton: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  closeText: {
-    fontSize: 15,
-    fontWeight: '500',
   },
 });
 

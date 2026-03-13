@@ -4,6 +4,7 @@ import { Loading } from '@/components/ui/Loading';
 import { pollService } from '@/services/pollService';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 interface PollCardProps {
   pollId: string;
@@ -67,7 +68,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   };
 
   if (loading) return (
-    <View style={[styles.card, { width, backgroundColor: theme.colors.background }]}>
+    <View className="flex-1 w-full p-3 bg-background" style={{ width }}>
       <Loading size="small" style={{ flex: undefined }} />
     </View>
   );
@@ -75,9 +76,9 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   if (error || !poll) return null;
 
   return (
-    <View style={[styles.card, { width, backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.question, { color: theme.colors.text }]} numberOfLines={3}>{poll.question}</Text>
-      <View style={{ gap: 8 }}>
+    <View className="flex-1 w-full p-3 bg-background" style={{ width }}>
+      <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
+      <View className="gap-2">
         {(poll.options || []).map((opt: any) => {
           const votes = opt.votes?.length || 0;
           const pct = totalVotes > 0 ? (votes / totalVotes) : 0;
@@ -86,28 +87,28 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
               key={opt._id}
               onPress={() => handleVote(opt._id)}
               disabled={ended || (hasVoted && !poll.isMultipleChoice) || voting}
+              className="border-border bg-background"
               style={({ pressed }) => [
                 styles.option,
-                { borderColor: theme.colors.border, backgroundColor: theme.colors.background },
                 pressed ? { opacity: 0.9 } : null,
                 ended || (hasVoted && !poll.isMultipleChoice) ? { opacity: 0.9 } : null,
               ]}
             >
-              <View style={[styles.progressBg, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <View style={[styles.progressFill, { width: `${pct * 100}%`, backgroundColor: `${theme.colors.primary}40` }]} />
+              <View className="absolute left-0 top-0 bottom-0 w-full bg-secondary">
+                <View className="absolute left-0 top-0 bottom-0" style={{ width: `${pct * 100}%`, backgroundColor: `${theme.colors.primary}40` }} />
               </View>
-              <View style={styles.optionRow}>
-                <Text style={[styles.optionText, { color: theme.colors.text }]} numberOfLines={1}>{opt.text}</Text>
-                <Text style={[styles.optionPct, { color: theme.colors.text }]}>{Math.round(pct * 100)}%</Text>
+              <View className="flex-row justify-between items-center">
+                <Text className="text-foreground text-sm flex-1 mr-2" numberOfLines={1}>{opt.text}</Text>
+                <Text className="text-foreground text-sm font-semibold">{Math.round(pct * 100)}%</Text>
               </View>
             </Pressable>
           );
         })}
       </View>
-      <View style={styles.metaRow}>
-        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{totalVotes} votes</Text>
-        <Text style={[styles.dot, { color: theme.colors.textSecondary }]}>·</Text>
-        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{ended ? 'Ended' : 'Active'}</Text>
+      <View className="flex-row gap-1.5 mt-2.5">
+        <Text className="text-muted-foreground text-xs">{totalVotes} votes</Text>
+        <Text className="text-muted-foreground">{'\u00B7'}</Text>
+        <Text className="text-muted-foreground text-xs">{ended ? 'Ended' : 'Active'}</Text>
       </View>
     </View>
   );
@@ -116,16 +117,6 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
 export default PollCard;
 
 const styles = StyleSheet.create({
-  card: {
-    padding: 12,
-    flex: 1,
-    width: '100%',
-  },
-  question: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
   option: {
     position: 'relative',
     borderWidth: 1,
@@ -134,42 +125,4 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     overflow: 'hidden',
   },
-  progressBg: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: '100%',
-  },
-  progressFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  optionText: {
-    fontSize: 14,
-    flex: 1,
-    marginRight: 8,
-  },
-  optionPct: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 10,
-  },
-  metaText: {
-    fontSize: 12,
-  },
-  dot: {
-  },
 });
-

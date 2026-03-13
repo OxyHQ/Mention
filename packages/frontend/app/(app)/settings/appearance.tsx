@@ -12,10 +12,9 @@ import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Loading } from '@/components/ui/Loading';
-import { SPACING } from '@/styles/spacing';
-import { FONT_SIZES, FONT_FAMILIES } from '@/styles/typography';
 import { Divider } from '@/components/Divider';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 
 type ThemeMode = 'system' | 'light' | 'dark' | 'adaptive';
 
@@ -76,7 +75,7 @@ export default function AppearanceSettingsScreen() {
   const setAppColor = useThemeStore((s) => s.setAppColor);
   const setMode = useThemeStore((s) => s.setMode);
   const { showBottomSheet, oxyServices } = useAuth();
-  const theme = useTheme();
+  const { colors } = useTheme();
   const { t } = useTranslation();
 
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
@@ -144,7 +143,7 @@ export default function AppearanceSettingsScreen() {
   }, [saveSettings]);
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: t('settings.appearance', 'Display'),
@@ -153,11 +152,11 @@ export default function AppearanceSettingsScreen() {
               key="back"
               onPress={() => router.back()}
             >
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} color={colors.text} />
             </IconButton>,
           ],
           rightComponents: saving ? [
-            <View key="saving" style={styles.savingIndicator}>
+            <View key="saving" className="pr-2">
               <Loading variant="inline" size="small" />
             </View>,
           ] : [],
@@ -167,20 +166,20 @@ export default function AppearanceSettingsScreen() {
       />
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        className="flex-1"
+        contentContainerClassName="pb-8"
         showsVerticalScrollIndicator={false}
       >
         {/* Theme Section */}
-        <View style={styles.sectionContainer}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View className="px-4 py-5">
+          <Text className="text-xl font-bold mb-1 text-foreground">
             {t('settings.theme', 'Theme')}
           </Text>
-          <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+          <Text className="text-base leading-6 mb-4 text-muted-foreground">
             {t('settings.themeDescription', 'Choose how Mention looks to you. Select a single theme, or sync with your system settings.')}
           </Text>
 
-          <View style={styles.themeOptionsRow}>
+          <View className="gap-3">
             {THEME_OPTIONS.map((option) => {
               const isActive = themeMode === option.id;
               return (
@@ -189,8 +188,8 @@ export default function AppearanceSettingsScreen() {
                   style={[
                     styles.themeCard,
                     {
-                      borderColor: isActive ? activePrimaryColor : theme.colors.border,
-                      backgroundColor: theme.colors.card,
+                      borderColor: isActive ? activePrimaryColor : colors.border,
+                      backgroundColor: colors.card,
                     },
                     isActive && styles.themeCardActive,
                     isActive && { borderColor: activePrimaryColor },
@@ -230,29 +229,26 @@ export default function AppearanceSettingsScreen() {
                   </View>
 
                   {/* Label area */}
-                  <View style={styles.themeCardInfo}>
-                    <View style={styles.themeCardLabelRow}>
+                  <View className="px-3 py-3">
+                    <View className="flex-row items-center gap-2 mb-0.5">
                       {option.iconSet === 'material-community' ? (
                         <MaterialCommunityIcons
                           name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap}
                           size={16}
-                          color={isActive ? activePrimaryColor : theme.colors.textSecondary}
+                          color={isActive ? activePrimaryColor : colors.textSecondary}
                         />
                       ) : (
                         <Ionicons
                           name={option.icon as keyof typeof Ionicons.glyphMap}
                           size={16}
-                          color={isActive ? activePrimaryColor : theme.colors.textSecondary}
+                          color={isActive ? activePrimaryColor : colors.textSecondary}
                         />
                       )}
-                      <Text style={[
-                        styles.themeCardLabel,
-                        { color: isActive ? activePrimaryColor : theme.colors.text },
-                      ]}>
+                      <Text style={{ color: isActive ? activePrimaryColor : colors.text }} className="text-[15px] font-semibold">
                         {t(`settings.theme.${option.id}`, option.label)}
                       </Text>
                     </View>
-                    <Text style={[styles.themeCardDesc, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-sm ml-6 text-muted-foreground">
                       {t(`settings.theme.${option.id}Desc`, option.description)}
                     </Text>
                   </View>
@@ -260,7 +256,7 @@ export default function AppearanceSettingsScreen() {
                   {/* Selection indicator */}
                   <View style={[
                     styles.radioOuter,
-                    { borderColor: isActive ? activePrimaryColor : theme.colors.border },
+                    { borderColor: isActive ? activePrimaryColor : colors.border },
                   ]}>
                     {isActive && (
                       <View style={[styles.radioInner, { backgroundColor: activePrimaryColor }]} />
@@ -275,16 +271,16 @@ export default function AppearanceSettingsScreen() {
         <Divider />
 
         {/* Color Section */}
-        <View style={[styles.sectionContainer, themeMode === 'adaptive' && styles.sectionDisabled]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View className={cn("px-4 py-5", themeMode === 'adaptive' && "opacity-40 pointer-events-none")}>
+          <Text className="text-xl font-bold mb-1 text-foreground">
             {t('settings.accentColor', 'Accent color')}
           </Text>
           {themeMode === 'adaptive' ? (
-            <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+            <Text className="text-base leading-6 mb-4 text-muted-foreground">
               {t('settings.accentColorAdaptiveNote', 'Colors are set by your device when using adaptive theme.')}
             </Text>
           ) : (
-            <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+            <Text className="text-base leading-6 mb-4 text-muted-foreground">
               {t('settings.accentColorDescription', 'Pick your favorite color. It will be used for links, buttons, and highlights throughout the app.')}
             </Text>
           )}
@@ -304,7 +300,7 @@ export default function AppearanceSettingsScreen() {
           </View>
 
           {/* Color swatches */}
-          <View style={styles.colorsGrid}>
+          <View className="flex-row flex-wrap gap-3">
             {APP_COLOR_NAMES.map((name) => {
               const preset = APP_COLOR_PRESETS[name];
               const isActive = appColor === name;
@@ -330,11 +326,11 @@ export default function AppearanceSettingsScreen() {
           {/* Reset to default */}
           {appColor !== 'teal' && (
             <TouchableOpacity
-              style={[styles.resetButton, { borderColor: theme.colors.border }]}
+              className="flex-row items-center gap-2 mt-4 py-2 px-3 rounded-full border border-border self-start"
               onPress={() => onColorChange('teal')}
             >
-              <Ionicons name="refresh-outline" size={16} color={theme.colors.textSecondary} />
-              <Text style={[styles.resetButtonText, { color: theme.colors.textSecondary }]}>
+              <Ionicons name="refresh-outline" size={16} color={colors.textSecondary} />
+              <Text className="text-sm font-medium text-muted-foreground">
                 {t('settings.resetToDefault', 'Reset to default')}
               </Text>
             </TouchableOpacity>
@@ -344,19 +340,19 @@ export default function AppearanceSettingsScreen() {
         <Divider />
 
         {/* Profile Header Image */}
-        <View style={styles.sectionContainer}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View className="px-4 py-5">
+          <Text className="text-xl font-bold mb-1 text-foreground">
             {t('settings.profileHeader', 'Profile header')}
           </Text>
-          <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+          <Text className="text-base leading-6 mb-4 text-muted-foreground">
             {t('settings.profileHeaderDescription', 'Customize the header image shown on your profile page.')}
           </Text>
 
           {headerImageId ? (
-            <View style={[styles.headerImageContainer, { borderColor: theme.colors.border }]}>
+            <View className="rounded-2xl overflow-hidden border border-border relative">
               <Image
                 source={{ uri: oxyServices.getFileDownloadUrl(headerImageId, 'full') }}
-                style={[styles.headerImage, { backgroundColor: theme.colors.backgroundSecondary }]}
+                style={[styles.headerImage, { backgroundColor: colors.backgroundSecondary }]}
                 resizeMode="cover"
               />
               <View style={styles.headerImageOverlay}>
@@ -376,17 +372,20 @@ export default function AppearanceSettingsScreen() {
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.headerUploadArea, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+              className="rounded-2xl border-[1.5px] border-dashed border-border bg-secondary py-8 items-center gap-2"
               onPress={openHeaderPicker}
               activeOpacity={0.7}
             >
-              <View style={[styles.headerUploadIcon, { backgroundColor: theme.colors.backgroundTertiary }]}>
-                <Ionicons name="image-outline" size={24} color={theme.colors.textSecondary} />
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center mb-1"
+                style={{ backgroundColor: colors.backgroundTertiary }}
+              >
+                <Ionicons name="image-outline" size={24} color={colors.textSecondary} />
               </View>
-              <Text style={[styles.headerUploadText, { color: theme.colors.text }]}>
+              <Text className="text-[15px] font-semibold text-foreground">
                 {t('settings.uploadHeader', 'Upload header image')}
               </Text>
-              <Text style={[styles.headerUploadHint, { color: theme.colors.textTertiary }]}>
+              <Text className="text-sm text-muted-foreground">
                 {t('settings.uploadHeaderHint', 'Recommended: 1500x500px')}
               </Text>
             </TouchableOpacity>
@@ -394,52 +393,14 @@ export default function AppearanceSettingsScreen() {
         </View>
 
         {/* Bottom spacing */}
-        <View style={styles.bottomSpacer} />
+        <View className="h-8" />
       </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: SPACING['3xl'],
-  },
-  savingIndicator: {
-    paddingRight: SPACING.sm,
-  },
-
-  // Section
-  sectionContainer: {
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.lg,
-  },
-  sectionDisabled: {
-    opacity: 0.4,
-    pointerEvents: 'none' as const,
-  },
-  sectionTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    marginBottom: SPACING.xs,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  sectionDescription: {
-    fontSize: FONT_SIZES.base,
-    lineHeight: FONT_SIZES.base * 1.5,
-    marginBottom: SPACING.base,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-
-  // Theme Cards
-  themeOptionsRow: {
-    gap: SPACING.md,
-  },
+  // Theme Cards - keeping pixel-specific styles that need precise control
   themeCard: {
     borderWidth: 1.5,
     borderRadius: 16,
@@ -452,7 +413,7 @@ const styles = StyleSheet.create({
   themePreview: {
     height: 80,
     justifyContent: 'center',
-    paddingHorizontal: SPACING.base,
+    paddingHorizontal: 16,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -464,8 +425,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   adaptivePreviewRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
   adaptivePreviewDot: {
@@ -494,32 +455,12 @@ const styles = StyleSheet.create({
   systemHalf: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: SPACING.md,
-  },
-  themeCardInfo: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-  },
-  themeCardLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: 2,
-  },
-  themeCardLabel: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  themeCardDesc: {
-    fontSize: FONT_SIZES.sm,
-    marginLeft: 24,
-    fontFamily: FONT_FAMILIES.primary,
+    paddingHorizontal: 12,
   },
   radioOuter: {
     position: 'absolute',
-    top: SPACING.md,
-    right: SPACING.md,
+    top: 12,
+    right: 12,
     width: 22,
     height: 22,
     borderRadius: 11,
@@ -536,16 +477,16 @@ const styles = StyleSheet.create({
   // Color Section
   colorPreviewBar: {
     borderRadius: 16,
-    padding: SPACING.base,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.base,
+    marginBottom: 16,
   },
   colorPreviewContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
+    gap: 12,
   },
   colorPreviewAvatar: {
     width: 40,
@@ -560,20 +501,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   colorPreviewButton: {
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
   },
   colorPreviewButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  colorsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
+    fontSize: 14,
   },
   colorSwatch: {
     width: 44,
@@ -585,40 +520,18 @@ const styles = StyleSheet.create({
   colorSwatchActive: {
     transform: [{ scale: 1.1 }],
   },
-  resetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginTop: SPACING.base,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignSelf: 'flex-start',
-  },
-  resetButtonText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '500',
-    fontFamily: FONT_FAMILIES.primary,
-  },
 
   // Header Image
-  headerImageContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    position: 'relative',
-  },
   headerImage: {
     width: '100%',
     height: 160,
   },
   headerImageOverlay: {
     position: 'absolute',
-    bottom: SPACING.md,
-    right: SPACING.md,
+    bottom: 12,
+    right: 12,
     flexDirection: 'row',
-    gap: SPACING.sm,
+    gap: 8,
   },
   headerImageAction: {
     width: 40,
@@ -626,34 +539,5 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerUploadArea: {
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    paddingVertical: SPACING['2xl'],
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  headerUploadIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.xs,
-  },
-  headerUploadText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  headerUploadHint: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-
-  bottomSpacer: {
-    height: SPACING['3xl'],
   },
 });

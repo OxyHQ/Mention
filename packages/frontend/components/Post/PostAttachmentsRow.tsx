@@ -1,8 +1,6 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, ViewStyle, StyleProp } from 'react-native';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
@@ -20,12 +18,12 @@ interface MediaObj { id: string; type: 'image' | 'video' | 'gif' }
 interface Props {
   media?: MediaObj[];
   attachments?: PostAttachmentDescriptor[];
-  nestedPost?: any; // original (repost) or parent (reply)
-  leftOffset?: number; // negative margin-left to offset avatar space
+  nestedPost?: any;
+  leftOffset?: number;
   pollId?: string;
-  pollData?: any; // Direct poll data from content.poll
-  nestingDepth?: number; // Track nesting depth to prevent infinite nesting
-  postId?: string; // Post ID for navigation to videos screen
+  pollData?: any;
+  nestingDepth?: number;
+  postId?: string;
   article?: { articleId?: string; title?: string; body?: string } | null;
   onArticlePress?: (() => void) | null;
   event?: { eventId?: string; name: string; date: string; location?: string; description?: string } | null;
@@ -35,9 +33,9 @@ interface Props {
   location?: GeoJSONPoint | null;
   sources?: PostSourceLink[];
   onSourcesPress?: (() => void) | null;
-  text?: string; // Post text to extract links from
-  linkMetadata?: { url: string; title?: string; description?: string; image?: string; siteName?: string } | null; // Link metadata if available
-  style?: ViewStyle; // Optional style prop for margin/padding
+  text?: string;
+  linkMetadata?: { url: string; title?: string; description?: string; image?: string; siteName?: string } | null;
+  style?: ViewStyle;
 }
 
 type AttachmentItem =
@@ -68,7 +66,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   linkMetadata,
   style
 }) => {
-  const theme = useTheme();
   const router = useRouter();
   const { oxyServices } = useAuth();
 
@@ -108,7 +105,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (!mediaItem) return;
       usedMedia.add(id);
       const resolvedType = explicitType || mediaItem.type || 'image';
-      // Use thumbnail for images in feed, full size only when needed (e.g., detail view)
       const variant = resolvedType === 'video' ? 'full' : 'thumb';
       const src = resolveMediaSrc(id, variant);
       if (!src) return;
@@ -140,12 +136,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             }
             break;
           case 'room':
-          case 'space': // backward compat for old posts
+          case 'space':
             if (hasRoom && !results.some(item => item.type === 'room')) {
               results.push({ type: 'room' });
             }
             break;
-          // Note: 'link' is not a PostAttachmentType - links are handled separately via linkMetadata prop
           case 'media':
             if (descriptor.id) {
               addMediaItem(descriptor.id, descriptor.mediaType as any);
@@ -156,7 +151,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         }
       });
     } else {
-      // If no attachment descriptors, add items in default order
       if (hasPoll) results.push({ type: 'poll' });
       if (hasArticle) results.push({ type: 'article' });
       if (hasEvent) results.push({ type: 'event' });
@@ -173,7 +167,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       }
     }
 
-    // Process any remaining media from mediaArray that wasn't in descriptors
     mediaArray.forEach((m) => {
       if (!m?.id) return;
       const id = String(m.id);
@@ -181,7 +174,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       addMediaItem(id, m.type);
     });
 
-    // Always add event/room if present, even if not in attachment descriptors
     if (hasEvent && !results.some(item => item.type === 'event')) {
       results.push({ type: 'event' });
     }
@@ -189,7 +181,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       results.push({ type: 'room' });
     }
 
-    // Always add link if detected, even if not in attachment descriptors
     if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
       const linkItem: AttachmentItem = {
         type: 'link',
@@ -200,7 +191,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         siteName: linkMetadata.siteName,
       };
 
-      // Find the best position to insert the link
       let insertIdx = -1;
       for (let i = results.length - 1; i >= 0; i--) {
         if (results[i].type === 'poll' || results[i].type === 'article') {
@@ -244,7 +234,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const videoItems = useMemo(() => mediaItems.filter(item => item.type === 'video'), [mediaItems]);
   const hasSingleVideo = videoItems.length === 1 && mediaItems.length === 1;
   const hasMultipleMedia = mediaItems.length > 1;
-  const hasExactlyOneMedia = mediaItems.length === 1;
   const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested');
 
   const handleVideoPress = useCallback(() => {
@@ -472,4 +461,3 @@ const styles = StyleSheet.create({
 });
 
 export default PostAttachmentsRow;
-

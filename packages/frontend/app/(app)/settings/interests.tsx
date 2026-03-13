@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { authenticatedClient } from '@/utils/api';
 import { interests as allInterests, useInterestsDisplayNames, type Interest } from '@/lib/interests';
+import { cn } from '@/lib/utils';
 
 // Simple debounce function
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
@@ -26,7 +27,7 @@ const IconComponent = Ionicons as any;
 
 export default function InterestsSettingsScreen() {
   const { t } = useTranslation();
-  const theme = useTheme();
+  const { colors } = useTheme();
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const [loading, setLoading] = useState(true);
@@ -68,7 +69,7 @@ export default function InterestsSettingsScreen() {
             tags: newInterests,
           },
         });
-        
+
         // Reload settings to get updated data
         await loadMySettings();
 
@@ -97,7 +98,7 @@ export default function InterestsSettingsScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView className="flex-1">
         <Header
           options={{
             title: t('settings.interests.title', { defaultValue: 'Your interests' }),
@@ -106,14 +107,14 @@ export default function InterestsSettingsScreen() {
                 key="back"
                 onPress={() => router.back()}
               >
-                <BackArrowIcon size={20} color={theme.colors.text} />
+                <BackArrowIcon size={20} color={colors.text} />
               </IconButton>,
             ],
           }}
           hideBottomBorder={true}
           disableSticky={true}
         />
-        <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+        <View className="flex-1 justify-center items-center bg-background">
           <Loading size="large" />
         </View>
       </ThemedView>
@@ -121,7 +122,7 @@ export default function InterestsSettingsScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: t('settings.interests.title', { defaultValue: 'Your interests' }),
@@ -130,11 +131,11 @@ export default function InterestsSettingsScreen() {
               key="back"
               onPress={() => router.back()}
             >
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} color={colors.text} />
             </IconButton>,
           ],
           rightComponents: isSaving ? [
-            <View key="loading" style={styles.savingIndicator}>
+            <View key="loading" className="p-1 mr-2">
               <Loading variant="inline" size="small" style={{ flex: undefined }} />
             </View>,
           ] : [],
@@ -143,32 +144,32 @@ export default function InterestsSettingsScreen() {
         disableSticky={true}
       />
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        className="flex-1"
+        contentContainerClassName="pb-5"
       >
-        <View style={styles.content}>
-          <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+        <View className="p-4">
+          <Text className="text-sm leading-5 mb-6 text-muted-foreground">
             {t('settings.interests.description', {
               defaultValue: 'Your selected interests help us serve you content you care about.',
             })}
           </Text>
 
           {interests.length === 0 && (
-            <View style={[styles.tipContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <IconComponent name="information-circle-outline" size={20} color={theme.colors.primary} />
-              <Text style={[styles.tipText, { color: theme.colors.text }]}>
+            <View className="flex-row items-center p-3 rounded-lg border border-border bg-card mb-6 gap-2">
+              <IconComponent name="information-circle-outline" size={20} color={colors.primary} />
+              <Text className="text-sm flex-1 text-foreground">
                 {t('settings.interests.tip', { defaultValue: 'We recommend selecting at least two interests.' })}
               </Text>
             </View>
           )}
 
-          <View style={styles.interestsContainer}>
+          <View className="flex-row flex-wrap gap-2">
             {allInterests.map(interest => {
               const name = interestsDisplayNames[interest];
               if (!name) return null;
-              
+
               const isSelected = interests.includes(interest);
-              
+
               return (
                 <InterestButton
                   key={interest}
@@ -194,88 +195,25 @@ interface InterestButtonProps {
 }
 
 function InterestButton({ label, isSelected, onPress }: InterestButtonProps) {
-  const theme = useTheme();
-
   return (
     <TouchableOpacity
-      style={[
-        styles.interestButton,
-        {
-          backgroundColor: isSelected ? theme.colors.primary : theme.colors.backgroundSecondary,
-          borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-        },
-      ]}
+      className={cn(
+        "px-4 py-2.5 rounded-full border",
+        isSelected
+          ? "bg-primary border-primary"
+          : "bg-secondary border-border"
+      )}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <Text
-        style={[
-          styles.interestButtonText,
-          {
-            color: isSelected ? theme.colors.card : theme.colors.text,
-            fontWeight: isSelected ? '600' : '500',
-          },
-        ]}
+        className={cn(
+          "text-sm",
+          isSelected ? "text-primary-foreground font-semibold" : "text-foreground font-medium"
+        )}
       >
         {label}
       </Text>
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  content: {
-    padding: 16,
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  tipContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 24,
-    gap: 8,
-  },
-  tipText: {
-    fontSize: 14,
-    flex: 1,
-  },
-  interestsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  interestButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  interestButtonText: {
-    fontSize: 14,
-  },
-  savingIndicator: {
-    padding: 4,
-    marginRight: 8,
-  },
-});
-

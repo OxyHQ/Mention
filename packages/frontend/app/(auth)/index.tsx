@@ -17,19 +17,19 @@ export default function AuthScreen() {
 
   if (isDesktop) {
     return (
-      <View style={[styles.desktopContainer, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.heroPanel, { backgroundColor: theme.colors.primary }]}>
-          <View style={styles.heroContent}>
+      <View className="flex-1 flex-row bg-background">
+        <View className="flex-1 justify-center items-center p-12 bg-primary">
+          <View className="max-w-[400px] items-start gap-4">
             <LogoIcon size={56} color="#fff" />
-            <Text style={styles.heroTitle}>Mention</Text>
-            <Text style={styles.heroTagline}>
+            <Text className="text-[42px] font-bold text-white mt-2">Mention</Text>
+            <Text className="text-xl text-white/85 leading-7">
               {t('See what\u2019s happening in the world right now.')}
             </Text>
           </View>
         </View>
-        <View style={styles.formPanel}>
-          <View style={styles.formContent}>
-            <Text style={[styles.formTitle, { color: theme.colors.text }]}>
+        <View className="flex-1 justify-center items-center p-12">
+          <View className="w-full max-w-[360px] gap-6">
+            <Text className="text-2xl font-bold text-foreground">
               {t('Log into Mention')}
             </Text>
             <Button
@@ -47,17 +47,17 @@ export default function AuthScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.mobileContainer, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.mobileContent}>
+    <SafeAreaView className="flex-1 justify-center items-center p-6 bg-background">
+      <View className="flex-1 justify-center items-center gap-4">
         <LogoIcon size={48} color={theme.colors.primary} />
-        <Text style={[styles.mobileTitle, { color: theme.colors.text }]}>
+        <Text className="text-[28px] font-bold mt-2 text-foreground">
           Mention
         </Text>
-        <Text style={[styles.mobileTagline, { color: theme.colors.textSecondary }]}>
+        <Text className="text-base text-center max-w-[280px] leading-[22px] text-muted-foreground">
           {t('See what\u2019s happening in the world right now.')}
         </Text>
       </View>
-      <View style={styles.mobileActions}>
+      <View className="w-full max-w-[320px] pb-8">
         <Button
           variant="primary"
           size="large"
@@ -72,83 +72,11 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Desktop: two-column layout
-  desktopContainer: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  heroPanel: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  heroContent: {
-    maxWidth: 400,
-    alignItems: 'flex-start',
-    gap: 16,
-  },
-  heroTitle: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 8,
-  },
-  heroTagline: {
-    fontSize: 20,
-    color: 'rgba(255, 255, 255, 0.85)',
-    lineHeight: 28,
-  },
-  formPanel: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  formContent: {
-    width: '100%',
-    maxWidth: 360,
-    gap: 24,
-  },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
   signInButton: {
     width: '100%',
     borderRadius: 100,
     ...Platform.select({
       web: { cursor: 'pointer' },
     }),
-  },
-
-  // Mobile: single column
-  mobileContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  mobileContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  mobileTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  mobileTagline: {
-    fontSize: 16,
-    textAlign: 'center',
-    maxWidth: 280,
-    lineHeight: 22,
-  },
-  mobileActions: {
-    width: '100%',
-    maxWidth: 320,
-    paddingBottom: 32,
   },
 });

@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
 import { Toggle } from '@/components/Toggle';
-import { colors } from '@/styles/colors';
+import { cn } from '@/lib/utils';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned';
 
@@ -35,23 +35,23 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="rounded-t-3xl pb-5 bg-background">
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-        <IconButton variant="icon" 
+      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border bg-background">
+        <IconButton variant="icon"
           onPress={onClose}
-          style={styles.closeButton}
+          className="mr-1.5 z-[1]"
         >
           <CloseIcon size={20} color={theme.colors.text} />
         </IconButton>
-        <Text style={[styles.title, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
+        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
           {t('Who can reply and quote') || 'Who can reply and quote'}
         </Text>
-        <View style={styles.headerRight} />
+        <View className="w-9 ml-auto" />
       </View>
 
       {/* Options */}
-      <View style={styles.optionsWrapper}>
+      <View className="px-4 pt-2">
         {options.map((option, index) => {
           const isSelected = replyPermission === option.value;
           const isFirst = index === 0;
@@ -59,33 +59,28 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
           return (
             <TouchableOpacity
               key={option.value}
-              style={[
-                styles.option,
-                {
-                  backgroundColor: isSelected 
-                    ? theme.colors.primary + '15' 
-                    : theme.colors.backgroundSecondary,
-                  borderTopLeftRadius: isFirst ? 16 : 0,
-                  borderTopRightRadius: isFirst ? 16 : 0,
-                  borderBottomLeftRadius: isLast ? 16 : 0,
-                  borderBottomRightRadius: isLast ? 16 : 0,
-                  marginBottom: index < options.length - 1 ? 4 : 0,
-                }
-              ]}
+              className="flex-row justify-between items-center px-4 py-3.5 min-h-[50px]"
+              style={{
+                backgroundColor: isSelected
+                  ? theme.colors.primary + '15'
+                  : theme.colors.backgroundSecondary,
+                borderTopLeftRadius: isFirst ? 16 : 0,
+                borderTopRightRadius: isFirst ? 16 : 0,
+                borderBottomLeftRadius: isLast ? 16 : 0,
+                borderBottomRightRadius: isLast ? 16 : 0,
+                marginBottom: index < options.length - 1 ? 4 : 0,
+              }}
               onPress={() => onReplyPermissionChange(option.value)}
               activeOpacity={0.7}
             >
-              <Text style={[
-                styles.optionText, 
-                { 
-                  color: theme.colors.text,
-                  fontWeight: isSelected ? '600' : '400',
-                }
-              ]}>
+              <Text className={cn(
+                "text-base flex-1 text-foreground",
+                isSelected ? "font-semibold" : "font-normal"
+              )}>
                 {option.label}
               </Text>
               {isSelected && (
-                <View style={[styles.checkmarkContainer, { backgroundColor: theme.colors.primary }]} />
+                <View className="w-5 h-5 rounded-full bg-primary ml-3" />
               )}
             </TouchableOpacity>
           );
@@ -93,16 +88,13 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
       </View>
 
       {/* Review Replies Toggle */}
-      <View style={styles.toggleWrapper}>
-        <View style={[
-          styles.toggleContainer,
-          { backgroundColor: theme.colors.backgroundSecondary }
-        ]}>
+      <View className="px-4 pt-2">
+        <View className="flex-row justify-between items-center px-4 py-3.5 rounded-2xl min-h-[50px] bg-secondary">
           <Toggle
             value={reviewReplies}
             onValueChange={onReviewRepliesChange}
             label={t('Review and approve replies') || 'Review and approve replies'}
-            containerStyle={styles.toggle}
+            containerStyle={{ flex: 1 }}
           />
         </View>
       </View>
@@ -110,76 +102,4 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-    borderBottomWidth: 1,
-  },
-  title: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none',
-  },
-  closeButton: {
-    marginRight: 6,
-    zIndex: 1,
-  },
-  headerRight: {
-    width: 36,
-    marginLeft: 'auto',
-  },
-  optionsWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  option: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 50,
-  },
-  optionText: {
-    fontSize: 16,
-    flex: 1,
-  },
-  checkmarkContainer: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginLeft: 12,
-  },
-  toggleWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    minHeight: 50,
-  },
-  toggle: {
-    flex: 1,
-  },
-});
-
 export default ReplySettingsSheet;
-

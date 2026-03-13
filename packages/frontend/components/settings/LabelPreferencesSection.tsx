@@ -63,27 +63,25 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
   return (
     <View style={styles.section}>
       {/* Section header */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+      <Text className="text-muted-foreground" style={styles.sectionTitle}>
         {t('settings.contentLabels.title', { defaultValue: 'Content Labels' })}
       </Text>
 
       <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.colors.backgroundSecondary },
-        ]}
+        className="bg-muted"
+        style={styles.card}
       >
         {/* Master filter toggle */}
         {onFilteringToggle !== undefined && (
           <>
             <View style={styles.toggleRow}>
               <View style={styles.toggleInfo}>
-                <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
+                <Text className="text-foreground" style={styles.toggleLabel}>
                   {t('settings.contentLabels.enableFiltering', {
                     defaultValue: 'Enable label filtering',
                   })}
                 </Text>
-                <Text style={[styles.toggleDescription, { color: theme.colors.textSecondary }]}>
+                <Text className="text-muted-foreground" style={styles.toggleDescription}>
                   {t('settings.contentLabels.enableFilteringDesc', {
                     defaultValue:
                       'When on, posts with matching labels will be hidden, blurred, or flagged.',
@@ -93,7 +91,7 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
               <Toggle value={filteringEnabled} onValueChange={onFilteringToggle} />
             </View>
 
-            <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
+            <View className="bg-border" style={styles.separator} />
           </>
         )}
 
@@ -105,7 +103,7 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
         >
           <View style={styles.menuRowLeft}>
             <Ionicons name="shield-outline" size={20} color={theme.colors.text} />
-            <Text style={[styles.menuRowText, { color: theme.colors.text }]}>
+            <Text className="text-foreground" style={styles.menuRowText}>
               {t('settings.contentLabels.manageLabelers', { defaultValue: 'Manage Labelers' })}
             </Text>
           </View>
@@ -115,16 +113,16 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
         {/* Subscribed labelers list */}
         {!loading && subscribedLabelers.length > 0 && (
           <>
-            <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
+            <View className="bg-border" style={styles.separator} />
 
-            <Text style={[styles.subLabel, { color: theme.colors.textSecondary }]}>
+            <Text className="text-muted-foreground" style={styles.subLabel}>
               {t('settings.contentLabels.subscribed', { defaultValue: 'Subscribed' })}
             </Text>
 
             {subscribedLabelers.map((labeler, index) => (
               <React.Fragment key={labeler.id}>
                 {index > 0 && (
-                  <View style={[styles.inlineSeparator, { backgroundColor: theme.colors.border }]} />
+                  <View className="bg-border" style={styles.inlineSeparator} />
                 )}
                 <TouchableOpacity
                   style={styles.labelerRow}
@@ -132,13 +130,14 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
                   activeOpacity={0.7}
                 >
                   <Text
-                    style={[styles.labelerName, { color: theme.colors.text }]}
+                    className="text-foreground"
+                    style={styles.labelerName}
                     numberOfLines={1}
                   >
                     {labeler.name}
                   </Text>
                   <View style={styles.labelerRight}>
-                    <Text style={[styles.labelerCount, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-muted-foreground" style={styles.labelerCount}>
                       {labeler.activeLabelCount}{' '}
                       {t('settings.contentLabels.labels', { defaultValue: 'labels' })}
                     </Text>
@@ -152,8 +151,8 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
 
         {!loading && subscribedLabelers.length === 0 && (
           <>
-            <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+            <View className="bg-border" style={styles.separator} />
+            <Text className="text-muted-foreground" style={styles.emptyText}>
               {t('settings.contentLabels.noSubscriptions', {
                 defaultValue: 'No labelers subscribed yet.',
               })}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -78,12 +78,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
             : theme.colors.textSecondary;
 
     return (
-        <View style={styles.toolbar}>
+        <View className="flex-row items-center gap-2 py-2">
             {onMediaPress && (
                 <PressableScale
                     onPress={withHaptic(onMediaPress)}
                     disabled={disabled || hasPoll}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <MediaIcon
                         size={20}
@@ -96,7 +96,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onGifPress)}
                     disabled={disabled}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <GifIcon
                         size={20}
@@ -109,7 +109,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onEmojiPress)}
                     disabled={disabled}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <EmojiIcon
                         size={20}
@@ -122,7 +122,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onPollPress)}
                     disabled={disabled || hasMedia}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <PollIcon
                         size={20}
@@ -135,7 +135,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onSourcesPress)}
                     disabled={disabled}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <SourcesIcon
                         size={20}
@@ -154,7 +154,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onArticlePress)}
                     disabled={disabled}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <ArticleIcon
                         size={20}
@@ -167,7 +167,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onEventPress)}
                     disabled={disabled}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <CalendarIcon
                         size={20}
@@ -180,7 +180,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onRoomPress)}
                     disabled={disabled}
-                    style={styles.button}
+                    className="p-1"
                 >
                     <Ionicons
                         name="radio-outline"
@@ -194,7 +194,8 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onSchedulePress)}
                     disabled={disabled}
-                    style={[styles.button, !scheduleEnabled && { opacity: 0.6 }]}
+                    className="p-1"
+                    style={!scheduleEnabled ? { opacity: 0.6 } : undefined}
                 >
                     <View style={{ opacity: disabled ? 0.3 : 1 }}>
                         <CalendarIcon
@@ -209,7 +210,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <PressableScale
                     onPress={withHaptic(onLocationPress)}
                     disabled={disabled || isGettingLocation}
-                    style={styles.button}
+                    className="p-1"
                 >
                     {isGettingLocation ? (
                         <Loading variant="inline" size="small" style={{ flex: undefined }} />
@@ -224,17 +225,5 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    toolbar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 8,
-    },
-    button: {
-        padding: 4,
-    },
-});
 
 export default ComposeToolbar;

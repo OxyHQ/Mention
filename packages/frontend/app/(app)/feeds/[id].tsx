@@ -76,7 +76,7 @@ const AvatarGrid = React.memo(function AvatarGrid({ avatars }: { avatars: string
   );
 });
 
-// Hero section — extracted as a stable component to avoid re-creation
+// Hero section
 const FeedHero = React.memo(function FeedHero({
   feed,
   memberAvatars,
@@ -115,12 +115,12 @@ const FeedHero = React.memo(function FeedHero({
   }, [feed.owner, likeCount]);
 
   return (
-    <View style={styles.hero}>
-      <View style={styles.titleRow}>
-        <View style={styles.titleInfo}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>{feed.title}</Text>
+    <View className="p-5 gap-3">
+      <View className="flex-row items-start justify-between gap-4">
+        <View className="flex-1 gap-1">
+          <Text className="text-[26px] font-extrabold leading-8 text-foreground">{feed.title}</Text>
           {subtitleParts ? (
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text className="text-[15px] leading-5 text-muted-foreground">
               {subtitleParts}
             </Text>
           ) : null}
@@ -129,30 +129,30 @@ const FeedHero = React.memo(function FeedHero({
       </View>
 
       {feed.description ? (
-        <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+        <Text className="text-[15px] leading-[22px] text-muted-foreground">
           {feed.description}
         </Text>
       ) : null}
 
       {metaLine ? (
-        <Text style={[styles.meta, { color: theme.colors.textSecondary }]}>{metaLine}</Text>
+        <Text className="text-sm leading-[18px] text-muted-foreground">{metaLine}</Text>
       ) : null}
 
-      <View style={styles.actionRow}>
+      <View className="flex-row gap-2.5 mt-1">
         <TouchableOpacity
-          style={[styles.actionBtn, { borderColor: theme.colors.border }]}
+          className="flex-1 h-10 rounded-[10px] border border-border items-center justify-center"
           onPress={onShare}
           activeOpacity={0.7}
         >
-          <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>Share feed</Text>
+          <Text className="text-[15px] font-semibold text-foreground">Share feed</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, { borderColor: theme.colors.border }]}
+          className="flex-1 h-10 rounded-[10px] border border-border items-center justify-center"
           onPress={onToggleLike}
           disabled={isTogglingLike}
           activeOpacity={0.7}
         >
-          <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>
+          <Text className="text-[15px] font-semibold text-foreground">
             {isLiked ? 'Pinned' : 'Pin feed'}
           </Text>
         </TouchableOpacity>
@@ -161,15 +161,15 @@ const FeedHero = React.memo(function FeedHero({
   );
 });
 
-// Profiles tab — member list with follow buttons
+// Profiles tab
 const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: MemberProfile[] }) {
   const theme = useTheme();
 
   if (members.length === 0) {
     return (
-      <View style={styles.emptyTab}>
+      <View className="p-10 items-center justify-center gap-3">
         <Ionicons name="people-outline" size={40} color={theme.colors.textSecondary} />
-        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No profiles yet</Text>
+        <Text className="text-base font-medium text-muted-foreground">No profiles yet</Text>
       </View>
     );
   }
@@ -179,16 +179,16 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Memb
       {members.map((m) => (
         <TouchableOpacity
           key={m.id}
-          style={styles.profileRow}
+          className="flex-row items-center gap-3 py-3"
           onPress={() => router.push(`/@${m.username}` as any)}
           activeOpacity={0.7}
         >
           <Avatar source={m.avatar} size={44} />
-          <View style={styles.profileInfo}>
-            <Text style={[styles.profileUsername, { color: theme.colors.text }]} numberOfLines={1}>
+          <View className="flex-1 gap-0.5">
+            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
               {m.username}
             </Text>
-            <Text style={[styles.profileName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            <Text className="text-sm text-muted-foreground" numberOfLines={1}>
               {m.displayName}
             </Text>
           </View>
@@ -199,15 +199,15 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Memb
   );
 });
 
-// Topics tab — keyword list
+// Topics tab
 const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string[] }) {
   const theme = useTheme();
 
   if (keywords.length === 0) {
     return (
-      <View style={styles.emptyTab}>
+      <View className="p-10 items-center justify-center gap-3">
         <Ionicons name="pricetag-outline" size={40} color={theme.colors.textSecondary} />
-        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No topics yet</Text>
+        <Text className="text-base font-medium text-muted-foreground">No topics yet</Text>
       </View>
     );
   }
@@ -216,10 +216,10 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
     <ScrollView contentContainerStyle={styles.topicsList}>
       {keywords.map((keyword) => (
         <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
-          <View style={[styles.topicIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+          <View className="w-10 h-10 rounded-full items-center justify-center bg-secondary">
             <Ionicons name="pricetag" size={18} color={theme.colors.textSecondary} />
           </View>
-          <Text style={[styles.topicText, { color: theme.colors.text }]}>{keyword}</Text>
+          <Text className="text-base font-medium text-foreground">{keyword}</Text>
         </View>
       ))}
     </ScrollView>
@@ -258,7 +258,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <KeyboardAvoidingView
-        style={reviewStyles.modalOverlay}
+        className="flex-1 justify-end"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <TouchableOpacity
@@ -266,11 +266,11 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
           activeOpacity={1}
           onPress={handleClose}
         />
-        <View style={[reviewStyles.modalSheet, { backgroundColor: theme.colors.card }]}>
-          <View style={[reviewStyles.modalHandle, { backgroundColor: theme.colors.border }]} />
-          <Text style={[reviewStyles.modalTitle, { color: theme.colors.text }]}>Write a Review</Text>
+        <View style={reviewStyles.modalSheet} className="bg-card">
+          <View className="w-9 h-1 rounded-sm self-center mb-1 bg-border" />
+          <Text className="text-lg font-bold text-center text-foreground">Write a Review</Text>
 
-          <View style={reviewStyles.modalRatingRow}>
+          <View className="items-center py-1">
             <StarRating
               rating={rating}
               size={32}
@@ -285,26 +285,20 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
             onChangeText={setText}
             placeholder="Share your thoughts about this feed... (optional)"
             placeholderTextColor={theme.colors.textSecondary}
-            style={[
-              reviewStyles.modalTextInput,
-              {
-                color: theme.colors.text,
-                borderColor: theme.colors.border,
-                backgroundColor: theme.colors.backgroundSecondary,
-              },
-            ]}
+            style={reviewStyles.modalTextInput}
+            className="text-foreground border border-border bg-secondary"
             multiline
             maxLength={500}
             textAlignVertical="top"
           />
 
-          <View style={reviewStyles.modalActions}>
+          <View className="flex-row gap-2.5">
             <TouchableOpacity
-              style={[reviewStyles.modalCancelBtn, { borderColor: theme.colors.border }]}
+              className="flex-1 h-11 rounded-xl border border-border items-center justify-center"
               onPress={handleClose}
               activeOpacity={0.7}
             >
-              <Text style={[reviewStyles.modalCancelText, { color: theme.colors.text }]}>Cancel</Text>
+              <Text className="text-[15px] font-semibold text-foreground">Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -318,7 +312,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
               {submitting ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={reviewStyles.modalSubmitText}>Submit</Text>
+                <Text className="text-[15px] font-bold text-white">Submit</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -387,28 +381,28 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 
   if (loading) {
     return (
-      <View style={styles.emptyTab}>
+      <View className="p-10 items-center justify-center gap-3">
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={reviewStyles.container}>
+    <View className="p-4 gap-1">
       <TouchableOpacity
-        style={[reviewStyles.writeBtn, { borderColor: theme.colors.border }]}
+        className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-border mb-2"
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
       >
         <Ionicons name="create-outline" size={18} color={theme.colors.text} />
-        <Text style={[reviewStyles.writeBtnText, { color: theme.colors.text }]}>Write a Review</Text>
+        <Text className="text-[15px] font-semibold text-foreground">Write a Review</Text>
       </TouchableOpacity>
 
       {reviews.length === 0 ? (
-        <View style={styles.emptyTab}>
+        <View className="p-10 items-center justify-center gap-3">
           <Ionicons name="star-outline" size={40} color={theme.colors.textSecondary} />
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No reviews yet</Text>
-          <Text style={[reviewStyles.emptySubtext, { color: theme.colors.textSecondary }]}>
+          <Text className="text-base font-medium text-muted-foreground">No reviews yet</Text>
+          <Text className="text-sm text-center text-muted-foreground">
             Be the first to leave a review
           </Text>
         </View>
@@ -431,19 +425,16 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
               key={reviewId}
               style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
             >
-              <View style={reviewStyles.reviewHeader}>
+              <View className="flex-row items-start gap-2.5">
                 <Avatar source={reviewerAvatar} size={36} label={reviewerName} />
-                <View style={reviewStyles.reviewerInfo}>
-                  <Text
-                    style={[reviewStyles.reviewerName, { color: theme.colors.text }]}
-                    numberOfLines={1}
-                  >
+                <View className="flex-1 gap-[3px]">
+                  <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                     {reviewerName}
                   </Text>
-                  <View style={reviewStyles.reviewMeta}>
+                  <View className="flex-row items-center gap-2">
                     <StarRating rating={review.rating || 0} size={13} color={theme.colors.primary} />
                     {date ? (
-                      <Text style={[reviewStyles.reviewDate, { color: theme.colors.textSecondary }]}>
+                      <Text className="text-xs text-muted-foreground">
                         {date}
                       </Text>
                     ) : null}
@@ -451,7 +442,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
                 </View>
               </View>
               {review.reviewText ? (
-                <Text style={[reviewStyles.reviewText, { color: theme.colors.text }]}>
+                <Text className="text-sm leading-5 text-foreground">
                   {review.reviewText}
                 </Text>
               ) : null}
@@ -462,7 +453,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 
       {page < totalPages && (
         <TouchableOpacity
-          style={reviewStyles.loadMoreRow}
+          className="py-5 items-center justify-center"
           onPress={handleLoadMore}
           disabled={loadingMore}
           activeOpacity={0.7}
@@ -470,7 +461,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
           {loadingMore ? (
             <ActivityIndicator size="small" color={theme.colors.primary} />
           ) : (
-            <Text style={[reviewStyles.loadMoreText, { color: theme.colors.primary }]}>
+            <Text className="text-sm font-semibold text-primary">
               Load more reviews
             </Text>
           )}
@@ -646,7 +637,7 @@ export default function CustomFeedTimelineScreen() {
   }, [feed, memberAvatars, memberCount, topicCount, likeCount, isLiked, isTogglingLike, onShare, onToggleLike, tabBar]);
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: feed?.title || 'Feed',
@@ -677,12 +668,12 @@ export default function CustomFeedTimelineScreen() {
       />
 
       {error ? (
-        <View style={styles.center}>
+        <View className="flex-1 items-center justify-center">
           <Text style={{ color: theme.colors.error || theme.colors.textSecondary }}>{error}</Text>
         </View>
       ) : loading ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.textSecondary }}>Loading...</Text>
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-muted-foreground">Loading...</Text>
         </View>
       ) : activeTab === 'recent' ? (
         <Feed type="mixed" filters={feedFilters} listHeaderComponent={listHeader} />
@@ -709,7 +700,8 @@ export default function CustomFeedTimelineScreen() {
       {/* FAB */}
       {!loading && !error && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          style={styles.fab}
+          className="bg-primary"
           onPress={() => router.push('/compose')}
           activeOpacity={0.8}
         >
@@ -721,69 +713,10 @@ export default function CustomFeedTimelineScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Avatar grid
   avatarGrid: {
     width: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
     height: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
   },
-  // Hero section
-  hero: {
-    padding: 20,
-    gap: 12,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  titleInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    lineHeight: 32,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  description: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  meta: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  actionBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  // FAB
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -799,29 +732,10 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  // Profiles tab
   profilesList: {
     padding: 16,
     gap: 4,
   },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-  },
-  profileInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  profileUsername: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  profileName: {
-    fontSize: 14,
-  },
-  // Topics tab
   topicsList: {
     padding: 16,
   },
@@ -832,101 +746,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  topicIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topicText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  // Empty states
-  emptyTab: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
 });
 
 const reviewStyles = StyleSheet.create({
-  // ReviewsTab container
-  container: {
-    padding: 16,
-    gap: 4,
-  },
-  // Write a review button
-  writeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  writeBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  // Review cards
   reviewCard: {
     paddingVertical: 16,
     gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  reviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  reviewerInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  reviewerName: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  reviewMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  reviewDate: {
-    fontSize: 12,
-  },
-  reviewText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  // Load more
-  loadMoreRow: {
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadMoreText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // Empty subtext
-  emptySubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -942,22 +768,6 @@ const reviewStyles = StyleSheet.create({
       default: { paddingBottom: 24 },
     }),
   },
-  modalHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 4,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  modalRatingRow: {
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
   modalTextInput: {
     borderWidth: 1,
     borderRadius: 12,
@@ -968,32 +778,11 @@ const reviewStyles = StyleSheet.create({
       web: { outlineStyle: 'none' as any },
     }),
   },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCancelText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
   modalSubmitBtn: {
     flex: 1,
     height: 44,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  modalSubmitText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
   },
 });

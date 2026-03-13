@@ -34,9 +34,10 @@ const RoomRow = React.memo(function RoomRow({
 
   return (
     <TouchableOpacity
+      className={!isLast ? "border-border" : undefined}
       style={[
         styles.roomItem,
-        !isLast && { borderBottomWidth: 0.5, borderBottomColor: theme.colors.border },
+        !isLast && { borderBottomWidth: 0.5 },
       ]}
       onPress={onPress}
       activeOpacity={0.7}
@@ -45,14 +46,15 @@ const RoomRow = React.memo(function RoomRow({
         <View style={styles.liveDot} />
         <View style={styles.roomTextContainer}>
           <Text
-            style={[styles.roomTitle, { color: theme.colors.text }]}
+            className="text-foreground"
+            style={styles.roomTitle}
             numberOfLines={1}
           >
             {room.title}
           </Text>
           <View style={styles.roomMeta}>
             <Ionicons name="headset-outline" size={11} color={theme.colors.textSecondary} />
-            <Text style={[styles.roomMetaText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            <Text className="text-muted-foreground" style={styles.roomMetaText} numberOfLines={1}>
               {listenerCount} listening  ·  {hostName}
             </Text>
           </View>
@@ -147,12 +149,12 @@ export function LiveRoomsWidget() {
       {isLoading ? (
         <View style={styles.centerRow}>
           <Loading size="small" style={{ flex: undefined }} />
-          <Text style={[styles.muted, { color: theme.colors.textSecondary }]}>
+          <Text className="text-muted-foreground" style={styles.muted}>
             Loading rooms…
           </Text>
         </View>
       ) : error ? (
-        <Text style={{ color: theme.colors.error }}>{error}</Text>
+        <Text className="text-destructive">{error}</Text>
       ) : (
         <View style={styles.listContainer}>
           {displayedRooms.map((room, index) => (
@@ -168,7 +170,7 @@ export function LiveRoomsWidget() {
             onPress={handleShowMore}
             activeOpacity={0.7}
           >
-            <Text style={[styles.showMoreText, { color: theme.colors.primary }]}>
+            <Text className="text-primary" style={styles.showMoreText}>
               Show more
             </Text>
           </TouchableOpacity>

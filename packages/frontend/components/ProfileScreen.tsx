@@ -306,27 +306,27 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         };
 
         const MenuContent = () => (
-            <View style={styles.menuContainer}>
-                <IconButton variant="icon" onPress={handleMute} style={styles.menuItem}>
-                    <View style={styles.menuItemRow}>
+            <View className="py-2 px-4">
+                <IconButton variant="icon" onPress={handleMute} style={{ width: '100%', paddingVertical: 14 }}>
+                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
                         <Ionicons name="volume-mute-outline" size={22} color={theme.colors.text} />
-                        <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                        <Text className="text-foreground text-base font-medium">
                             {t('profile.muteUser', { username: displayUsername, defaultValue: `Mute @${displayUsername}` })}
                         </Text>
                     </View>
                 </IconButton>
-                <IconButton variant="icon" onPress={handleBlock} style={styles.menuItem}>
-                    <View style={styles.menuItemRow}>
+                <IconButton variant="icon" onPress={handleBlock} style={{ width: '100%', paddingVertical: 14 }}>
+                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
                         <Ionicons name="ban-outline" size={22} color={theme.colors.error} />
-                        <Text style={[styles.menuItemText, { color: theme.colors.error }]}>
+                        <Text className="text-destructive text-base font-medium">
                             {t('profile.blockUser', { username: displayUsername, defaultValue: `Block @${displayUsername}` })}
                         </Text>
                     </View>
                 </IconButton>
-                <IconButton variant="icon" onPress={handleReport} style={styles.menuItem}>
-                    <View style={styles.menuItemRow}>
+                <IconButton variant="icon" onPress={handleReport} style={{ width: '100%', paddingVertical: 14 }}>
+                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
                         <Ionicons name="flag-outline" size={22} color={theme.colors.error} />
-                        <Text style={[styles.menuItemText, { color: theme.colors.error }]}>
+                        <Text className="text-destructive text-base font-medium">
                             {t('profile.reportUser', { defaultValue: 'Report' })}
                         </Text>
                     </View>
@@ -380,7 +380,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     // Dynamic styles
     const themedStyles = useMemo(
         () => ({
-            container: { paddingTop: insets.top, backgroundColor: theme.colors.background },
+            container: { paddingTop: insets.top },
             headerActions: { top: insets.top + 6 },
             headerNameOverlay: { top: insets.top + 6 },
             scrollView: { marginTop: minimalistMode ? 0 : LAYOUT.HEADER_HEIGHT_NARROWED },
@@ -396,7 +396,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 zIndex: 1000,
             },
         }),
-        [insets.top, insets.bottom, minimalistMode, theme.colors.background]
+        [insets.top, insets.bottom, minimalistMode]
     );
 
     return (
@@ -423,7 +423,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 image={profileImage}
                 type="profile"
             />
-            <View style={[styles.container, themedStyles.container]}>
+            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
                 {loading ? (
@@ -431,7 +431,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 ) : (
                     <>
                         {/* Header actions */}
-                        <View style={[styles.headerActions, themedStyles.headerActions]}>
+                        <View className="absolute flex-row items-center" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING, gap: 8 }, themedStyles.headerActions]}>
                             {!isOwnProfile && !isFederated && (
                                 <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
                                     {subscribed ? (
@@ -464,7 +464,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         {/* Header name overlay (animated on scroll) */}
                         <Animated.View
                             style={[
-                                styles.headerNameOverlay,
+                                { zIndex: 10, position: 'absolute', left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
                                 themedStyles.headerNameOverlay,
                                 { opacity: headerNameOpacity },
                             ]}
@@ -478,10 +478,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 <UserName
                                     name={displayName}
                                     verified={profileData?.verified}
-                                    style={{ name: { ...styles.headerTitle, color: theme.colors.text } }}
+                                    style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3, color: theme.colors.text } }}
                                     unifiedColors={true}
                                 />
-                                <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+                                <Text className="text-muted-foreground text-[13px]">
                                     {t('profile.postsCount', {
                                         count: profileData?.postsCount ?? 0,
                                         defaultValue: `${profileData?.postsCount ?? 0} posts`,
@@ -496,28 +496,28 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 <>
                                     <ImageBackground
                                         source={{ uri: bannerUri }}
-                                        style={[styles.banner, styles.bannerHeight]}
+                                        className="absolute left-0 right-0 overflow-hidden"
+                                        style={{ height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }}
                                     />
                                     <Animated.View
-                                        style={[
-                                            styles.banner,
-                                            styles.bannerHeight,
-                                            styles.bannerOverlay,
-                                            { pointerEvents: 'none' },
-                                            {
-                                                backgroundColor: theme.colors.background,
-                                                opacity: headerBackgroundOpacity,
-                                            },
-                                        ]}
+                                        className="absolute left-0 right-0 overflow-hidden"
+                                        style={{
+                                            height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
+                                            top: 0,
+                                            zIndex: 1,
+                                            pointerEvents: 'none',
+                                            backgroundColor: theme.colors.background,
+                                            opacity: headerBackgroundOpacity,
+                                        }}
                                     />
                                 </>
                             ) : (
                                 <View
-                                    style={[
-                                        styles.banner,
-                                        styles.bannerHeight,
-                                        { backgroundColor: `${theme.colors.primary}20` },
-                                    ]}
+                                    className="absolute left-0 right-0 overflow-hidden"
+                                    style={{
+                                        height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
+                                        backgroundColor: `${theme.colors.primary}20`,
+                                    }}
                                 >
                                     <Animated.View
                                         style={[
@@ -537,7 +537,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             showsVerticalScrollIndicator={false}
                             onScroll={onScroll}
                             scrollEventThrottle={16}
-                            style={[styles.scrollView, themedStyles.scrollView]}
+                            style={[{ zIndex: 3 }, themedStyles.scrollView]}
                             contentContainerStyle={themedStyles.contentContainer}
                             stickyHeaderIndices={[1]}
                             nestedScrollEnabled={false}
@@ -605,74 +605,5 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     );
 };
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        overflow: 'visible',
-    },
-    headerActions: {
-        zIndex: 10,
-        position: 'absolute',
-        right: LAYOUT.DEFAULT_PADDING,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    headerNameOverlay: {
-        zIndex: 10,
-        position: 'absolute',
-        left: LAYOUT.DEFAULT_PADDING,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    headerAvatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: -3,
-    },
-    headerSubtitle: {
-        fontSize: 13,
-    },
-    banner: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        overflow: 'hidden',
-    },
-    bannerHeight: {
-        height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
-    },
-    bannerOverlay: {
-        top: 0,
-        zIndex: 1,
-    },
-    scrollView: {
-        zIndex: 3,
-    },
-    menuContainer: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-    },
-    menuItem: {
-        width: '100%',
-        paddingVertical: 14,
-    },
-    menuItemRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        width: '100%',
-    },
-    menuItemText: {
-        fontSize: 16,
-        fontWeight: '500',
-    },
-});
 
 export default MentionProfile;

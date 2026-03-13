@@ -24,6 +24,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import { useImagePreload } from '@/hooks/useImagePreload';
@@ -253,22 +254,19 @@ const PostItem: React.FC<PostItemProps> = ({
             isLast?: boolean;
         }> = ({ icon, text, onPress, color, isFirst, isLast }) => (
             <TouchableOpacity
-                style={[
-                    styles.sheetItem,
-                    {
-                        backgroundColor: theme.colors.backgroundSecondary,
-                        borderTopLeftRadius: isFirst ? 16 : 0,
-                        borderTopRightRadius: isFirst ? 16 : 0,
-                        borderBottomLeftRadius: isLast ? 16 : 0,
-                        borderBottomRightRadius: isLast ? 16 : 0,
-                        marginBottom: !isLast ? 4 : 0,
-                    },
-                ]}
+                className="bg-surface flex-row items-center justify-between py-3 px-3.5"
+                style={{
+                    borderTopLeftRadius: isFirst ? 16 : 0,
+                    borderTopRightRadius: isFirst ? 16 : 0,
+                    borderBottomLeftRadius: isLast ? 16 : 0,
+                    borderBottomRightRadius: isLast ? 16 : 0,
+                    marginBottom: !isLast ? 4 : 0,
+                }}
                 onPress={onPress}
                 activeOpacity={0.7}
             >
-                <Text style={[styles.sheetItemText, { color: color || theme.colors.text }]}>{text}</Text>
-                <View style={styles.sheetItemRight}>{icon}</View>
+                <Text className={cn("text-base font-medium", !color && "text-foreground")} style={color ? { color } : undefined}>{text}</Text>
+                <View className="ml-3">{icon}</View>
             </TouchableOpacity>
         );
 
@@ -277,7 +275,7 @@ const PostItem: React.FC<PostItemProps> = ({
         }> = ({ actions }) => {
             if (actions.length === 0) return null;
             return (
-                <View style={styles.actionGroup}>
+                <View className="mb-1">
                     {actions.map((action, index) => (
                         <ActionRow
                             key={index}
@@ -294,7 +292,7 @@ const PostItem: React.FC<PostItemProps> = ({
         };
 
         bottomSheet.setBottomSheetContent(
-            <View style={[styles.sheetContainer, { backgroundColor: theme.colors.background }]}>
+            <View className="bg-background p-4 gap-2">
                 {postActions.insightsAction.length > 0 && <ActionGroup actions={postActions.insightsAction} />}
                 {postActions.saveActionGroup.length > 0 && <ActionGroup actions={postActions.saveActionGroup} />}
                 {postActions.deleteAction.length > 0 && <ActionGroup actions={postActions.deleteAction} />}
@@ -305,7 +303,7 @@ const PostItem: React.FC<PostItemProps> = ({
             </View>,
         );
         bottomSheet.openBottomSheet(true);
-    }, [bottomSheet, postActions, theme.colors.background, theme.colors.backgroundSecondary, theme.colors.text]);
+    }, [bottomSheet, postActions]);
 
     const engagement: PostEngagementSummary = viewPost.engagement ?? {
         likes: 0,
@@ -354,14 +352,17 @@ const PostItem: React.FC<PostItemProps> = ({
     return (
         <>
             <Container
+                className={cn(
+                    !isNested && "bg-background",
+                    isNested && "border-border bg-background",
+                )}
                 style={[
                     !isNested && styles.postContainer,
                     !isNested && {
-                        backgroundColor: theme.colors.background,
                         paddingTop: VPAD,
                         paddingBottom: VPAD,
                     },
-                    isNested && [styles.nestedPostContainer, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }],
+                    isNested && styles.nestedPostContainer,
                     // Thread spacing adjustments
                     isThreadParent && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
                     isThreadChild && !isThreadLastChild && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
@@ -401,11 +402,11 @@ const PostItem: React.FC<PostItemProps> = ({
                     />
                 )}
                 {showPinned && (
-                    <View style={[styles.pinnedIndicator, { paddingLeft: HPAD }]}>
+                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: HPAD }}>
                         <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
                             <PinIcon size={14} color={theme.colors.textSecondary} />
                         </View>
-                        <Text style={[styles.pinnedText, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-muted-foreground text-[13px] font-semibold">
                             {t('post.pinned', { defaultValue: 'Pinned' })}
                         </Text>
                     </View>
@@ -440,18 +441,13 @@ const PostItem: React.FC<PostItemProps> = ({
                 {hasSources && (
                     <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: SECTION_GAP }}>
                         <TouchableOpacity
-                            style={[
-                                styles.sourcesChip,
-                                {
-                                    borderColor: theme.colors.border,
-                                    backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                            ]}
+                            className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border mt-2"
+                            style={{ paddingHorizontal: 10, paddingVertical: 4 }}
                             onPress={openSourcesSheet}
                             activeOpacity={0.8}
                         >
                             <Ionicons name="link-outline" size={14} color={theme.colors.primary} />
-                            <Text style={[styles.sourcesChipText, { color: theme.colors.primary }]}>
+                            <Text className="text-primary text-[13px] font-semibold">
                                 {t('post.sourcesChip', { defaultValue: 'Sources' })}
                                 {` (${sourcesList.length})`}
                             </Text>
@@ -467,7 +463,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 onPress={() => setSensitiveRevealed(true)}
                                 activeOpacity={0.8}
                             >
-                                <View style={styles.sensitiveOverlayContent}>
+                                <View className="items-center gap-1">
                                     <Ionicons name="eye-off" size={24} color="#fff" />
                                     <Text style={styles.sensitiveOverlayTitle}>
                                         {t('post.sensitiveContent', { defaultValue: 'Sensitive content' })}
@@ -602,56 +598,11 @@ const styles = StyleSheet.create({
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: 'rgba(0,0,0,0.08)',
     },
-    pinnedIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 2,
-    },
-    pinnedText: {
-        fontSize: 13,
-        fontWeight: '600',
-    },
     nestedPostContainer: {
         borderWidth: StyleSheet.hairlineWidth,
         borderRadius: 16,
         marginTop: 12,
         padding: 12,
-    },
-    sheetContainer: {
-        padding: 16,
-        gap: 8,
-    },
-    actionGroup: {
-        marginBottom: 4,
-    },
-    sheetItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-    },
-    sheetItemText: {
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    sheetItemRight: {
-        marginLeft: 12,
-    },
-    sourcesChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        borderWidth: 1,
-        alignSelf: 'flex-start',
-        marginTop: 8,
-    },
-    sourcesChipText: {
-        fontSize: 13,
-        fontWeight: '600',
     },
     sensitiveOverlay: {
         position: 'absolute',
@@ -665,10 +616,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: 120,
-    },
-    sensitiveOverlayContent: {
-        alignItems: 'center',
-        gap: 4,
     },
     sensitiveOverlayTitle: {
         color: '#fff',
@@ -706,4 +653,3 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prevProps.isThreadLastChild === nextProps.isThreadLastChild
     );
 });
-

@@ -8,7 +8,13 @@ import { useTheme } from '@/hooks/useTheme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { colors as baseColors } from '@/styles/colors';
+// Dark-mode override palette for videos screen
+const VIDEOS_DARK_PALETTE = {
+    card: '#003038',
+    border: '#555555',
+    text: '#AAAAAA',
+    textSecondary: '#888888',
+};
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 
@@ -39,10 +45,10 @@ export const BottomBar = () => {
         isDark: true,
         colors: {
             ...theme.colors,
-            card: baseColors.primaryDark_1,
-            border: baseColors.COLOR_BLACK_LIGHT_3,
-            text: baseColors.COLOR_BLACK_LIGHT_6,
-            textSecondary: baseColors.COLOR_BLACK_LIGHT_5,
+            card: VIDEOS_DARK_PALETTE.card,
+            border: VIDEOS_DARK_PALETTE.border,
+            text: VIDEOS_DARK_PALETTE.text,
+            textSecondary: VIDEOS_DARK_PALETTE.textSecondary,
             primary: theme.colors.primary,
         }
     } : theme;

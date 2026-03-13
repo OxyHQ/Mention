@@ -21,7 +21,6 @@ import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -738,7 +737,7 @@ const ComposeScreen = () => {
           <ThemedView style={{ flex: 1 }}>
 
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+            <View className="bg-background border-border" style={styles.header}>
               <IconButton variant="icon"
                 onPress={() => {
                   router.back();
@@ -747,7 +746,7 @@ const ComposeScreen = () => {
               >
                 <BackArrowIcon size={20} color={theme.colors.text} />
               </IconButton>
-              <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : t('New post')}</Text>
+              <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
@@ -821,20 +820,20 @@ const ComposeScreen = () => {
 
             {/* Editing indicator */}
             {isEditMode && (
-              <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
-                <Text style={{ color: theme.colors.primary, fontSize: 13, fontWeight: '600' }}>{editLoading ? t('Loading post...') : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
+              <View className="px-4 py-2 bg-secondary border-b border-border">
+                <Text className="text-primary text-[13px] font-semibold">{editLoading ? t('Loading post...') : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
               </View>
             )}
 
             {/* Mode Toggle Section */}
             {showModeToggle && (
-              <View style={[styles.modeToggleContainer, { backgroundColor: theme.colors.backgroundSecondary, borderBottomColor: theme.colors.border }]}>
+              <View className="bg-secondary border-border" style={styles.modeToggleContainer}>
                 <View style={styles.modeToggleRow}>
                   <View style={styles.modeOption}>
-                    <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel, { color: theme.colors.text }]}>
+                    <Text className="text-foreground" style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
                       {t('Thread')}
                     </Text>
-                    <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-muted-foreground" style={styles.modeDescription}>
                       {t('Post as linked thread')}
                     </Text>
                   </View>
@@ -844,10 +843,10 @@ const ComposeScreen = () => {
                     containerStyle={styles.modeToggle}
                   />
                   <View style={styles.modeOption}>
-                    <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel, { color: theme.colors.text }]}>
+                    <Text className="text-foreground" style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel]}>
                       {t('Beast')}
                     </Text>
-                    <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-muted-foreground" style={styles.modeDescription}>
                       {t('Post all at once')}
                     </Text>
                   </View>
@@ -877,7 +876,8 @@ const ComposeScreen = () => {
                   >
                     <MentionTextInput
                       ref={mainTextInputRef}
-                      style={[styles.mainTextInput, { color: theme.colors.text }]}
+                      className="text-foreground"
+                      style={styles.mainTextInput}
                       placeholder={t("What's new?")}
                       value={postContent}
                       onChangeText={setPostContent}
@@ -912,18 +912,18 @@ const ComposeScreen = () => {
                                 wrapperStyle={styles.pollAttachmentWrapper}
                               >
                                 <TouchableOpacity
-                                  style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                  className="border-border bg-secondary" style={styles.pollAttachmentCard}
                                   activeOpacity={0.85}
                                   onPress={focusPollCreator}
                                 >
                                   <View style={styles.pollAttachmentHeader}>
-                                    <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}>
+                                    <View className="bg-background" style={styles.pollAttachmentBadge}>
                                       <PollIcon size={16} color={theme.colors.primary} />
-                                      <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
+                                      <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
                                         {t('compose.poll.title', { defaultValue: 'Poll' })}
                                       </Text>
                                     </View>
-                                    <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-muted-foreground" style={styles.pollAttachmentMeta}>
                                       {t('compose.poll.optionCount', {
                                         count: pollOptions.length,
                                         defaultValue:
@@ -935,7 +935,7 @@ const ComposeScreen = () => {
                                       })}
                                     </Text>
                                   </View>
-                                  <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
+                                  <Text className="text-foreground" style={styles.pollAttachmentQuestion} numberOfLines={2}>
                                     {pollTitle.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
                                   </Text>
                                   <View style={styles.pollAttachmentOptions}>
@@ -944,9 +944,9 @@ const ComposeScreen = () => {
                                       return (
                                         <View
                                           key={`poll-opt-${optionIndex}`}
-                                          style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                                          className="border-border bg-background" style={styles.pollAttachmentOption}
                                         >
-                                          <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                          <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
                                             {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${optionIndex + 1}` })}
                                           </Text>
                                         </View>
@@ -1167,7 +1167,7 @@ const ComposeScreen = () => {
                       disabled={isPosting}
                     />
                     {postContent.length > 0 && (
-                      <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
+                      <Text className="text-muted-foreground" style={styles.characterCountText}>
                         {postContent.length}
                       </Text>
                     )}
@@ -1175,16 +1175,11 @@ const ComposeScreen = () => {
 
                   {scheduledAt && (
                     <View
-                      style={[
-                        styles.scheduleInfoContainer,
-                        {
-                          borderColor: theme.colors.border,
-                          backgroundColor: theme.colors.backgroundSecondary,
-                        }
-                      ]}
+                      className="border-border bg-secondary"
+                      style={styles.scheduleInfoContainer}
                     >
                       <CalendarIcon size={14} color={theme.colors.primary} />
-                      <Text style={[styles.scheduleInfoText, { color: theme.colors.text }]}
+                      <Text className="text-foreground" style={styles.scheduleInfoText}
                       >
                         {t('compose.schedule.set', {
                           defaultValue: 'Scheduled for {{time}}',
@@ -1192,7 +1187,7 @@ const ComposeScreen = () => {
                         })}
                       </Text>
                       <TouchableOpacity onPress={() => clearSchedule()} style={styles.scheduleInfoClearButton}>
-                        <Text style={[styles.scheduleInfoClearText, { color: theme.colors.primary }]}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
+                        <Text className="text-primary" style={styles.scheduleInfoClearText}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -1291,7 +1286,7 @@ const ComposeScreen = () => {
                               disabled={isPosting}
                             />
                             {item.text.length > 0 && (
-                              <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
+                              <Text className="text-muted-foreground" style={styles.characterCountText}>
                                 {item.text.length}
                               </Text>
                             )}
@@ -1300,7 +1295,7 @@ const ComposeScreen = () => {
                             style={styles.removeThreadBtn}
                             onPress={() => removeThread(item.id)}
                           >
-                            <CloseIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                            <CloseIcon size={18} color="#5e5e5e" />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1318,7 +1313,7 @@ const ComposeScreen = () => {
                           {item.showPollCreator ? (
                             <View style={styles.pollAttachmentWrapper}>
                               <TouchableOpacity
-                                style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                className="border-border bg-secondary" style={styles.pollAttachmentCard}
                                 activeOpacity={0.85}
                                 onPress={() => {
                                   openThreadPollCreator(item.id);
@@ -1328,14 +1323,14 @@ const ComposeScreen = () => {
                                 }}
                               >
                                 <View style={styles.pollAttachmentHeader}>
-                                  <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
+                                  <View className="bg-background" style={styles.pollAttachmentBadge}
                                   >
                                     <PollIcon size={16} color={theme.colors.primary} />
-                                    <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
+                                    <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
                                       {t('compose.poll.title', { defaultValue: 'Poll' })}
                                     </Text>
                                   </View>
-                                  <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
+                                  <Text className="text-muted-foreground" style={styles.pollAttachmentMeta}>
                                     {t('compose.poll.optionCount', {
                                       count: item.pollOptions.length,
                                       defaultValue:
@@ -1347,7 +1342,7 @@ const ComposeScreen = () => {
                                     })}
                                   </Text>
                                 </View>
-                                <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
+                                <Text className="text-foreground" style={styles.pollAttachmentQuestion} numberOfLines={2}>
                                   {item.pollTitle?.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
                                 </Text>
                                 <View style={styles.pollAttachmentOptions}>
@@ -1356,9 +1351,9 @@ const ComposeScreen = () => {
                                     return (
                                       <View
                                         key={`thread-${item.id}-poll-opt-${index}`}
-                                        style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                                        className="border-border bg-background" style={styles.pollAttachmentOption}
                                       >
-                                        <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                        <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
                                           {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
                                         </Text>
                                       </View>
@@ -1373,7 +1368,7 @@ const ComposeScreen = () => {
                               </TouchableOpacity>
                               <TouchableOpacity
                                 onPress={() => removeThreadPoll(item.id)}
-                                style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                className="bg-background" style={styles.pollAttachmentRemoveButton}
                                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                               >
                                 <CloseIcon size={16} color={theme.colors.text} />
@@ -1386,7 +1381,7 @@ const ComposeScreen = () => {
                             return (
                               <View
                                 key={mediaItem.id}
-                                style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                className="border-border bg-secondary" style={styles.mediaPreviewItem}
                               >
                                 {mediaItem.type === 'video' ? (
                                   <VideoPreview src={mediaUrl} />
@@ -1417,7 +1412,7 @@ const ComposeScreen = () => {
                                 ) : null}
                                 <TouchableOpacity
                                   onPress={() => removeThreadMedia(item.id, mediaItem.id)}
-                                  style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  className="bg-background" style={styles.mediaRemoveButton}
                                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                                 >
                                   <CloseIcon size={16} color={theme.colors.text} />
@@ -1566,10 +1561,10 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: '#5e5e5e',
   },
   postButton: {
-    backgroundColor: colors.primaryColor,
+    backgroundColor: '#005c67',
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
@@ -1577,10 +1572,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   postButtonDisabled: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_5,
+    backgroundColor: '#949494',
   },
   postButtonText: {
-    color: colors.COLOR_BLACK_LIGHT_9,
+    color: '#FDFDFD',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1594,14 +1589,14 @@ const styles = StyleSheet.create({
   },
   userHandle: {
     fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: '#5e5e5e',
     marginTop: 2,
   },
   textInput: {
     flex: 1,
     fontSize: 18,
     lineHeight: 24,
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: '#111111',
     minHeight: 120,
   },
   footer: {
@@ -1616,19 +1611,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   mediaButton: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    backgroundColor: '#FAFAFA',
     borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderColor: '#ededed',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   mediaButtonText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
+    color: '#3c3c3c',
     fontWeight: '600',
   },
   mediaInfoText: {
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: '#5e5e5e',
     fontSize: 12,
   },
   previewGrid: {
@@ -1648,7 +1643,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.busy,
+    backgroundColor: '#FF3B30',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1660,7 +1655,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: '#111111',
     pointerEvents: 'none', // Don't block touches on buttons
   },
   headerIcons: {
@@ -1685,7 +1680,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bottomText: {
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: '#5e5e5e',
     fontSize: 16,
     flex: 1,
   },
@@ -1707,11 +1702,11 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   floatingPostButtonDisabled: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_5,
+    backgroundColor: '#949494',
     opacity: 0.7,
   },
   floatingPostText: {
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: '#111111',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -1728,7 +1723,7 @@ const styles = StyleSheet.create({
   toolbarDivider: {
     width: 1,
     height: 48,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    backgroundColor: '#ededed',
     borderRadius: 2,
   },
   toolbarIcons: {
@@ -1744,7 +1739,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   smallThreadText: {
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: '#5e5e5e',
   },
   // New styles for exact screenshot match
   mainComposer: {
@@ -1760,14 +1755,14 @@ const styles = StyleSheet.create({
   connector: {
     width: 2,
     flex: 1,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    backgroundColor: '#ededed',
     marginTop: 0,
     borderRadius: 1,
     minHeight: 24,
   },
   mainTextInput: {
     fontSize: 16,
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: '#111111',
     minHeight: 80,
     textAlignVertical: 'top',
   },
@@ -1795,7 +1790,7 @@ const styles = StyleSheet.create({
   },
   addToThreadText: {
     fontSize: 16,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: '#5e5e5e',
   },
   // Post component structure styles
   postContainer: {
@@ -1824,7 +1819,7 @@ const styles = StyleSheet.create({
     top: -20,
     width: 2,
     height: 32,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    backgroundColor: '#ededed',
     borderRadius: 1,
   },
   // Media section styles (from PostMiddle)
@@ -1838,7 +1833,7 @@ const styles = StyleSheet.create({
   mediaItemContainer: {
     position: 'relative',
     borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderColor: '#ededed',
     borderRadius: 10,
     width: 280,
     height: 180,
@@ -1873,7 +1868,7 @@ const styles = StyleSheet.create({
   },
   threadTextInput: {
     fontSize: 16,
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: '#111111',
     minHeight: 60,
     textAlignVertical: 'top',
   },
@@ -1893,7 +1888,7 @@ const styles = StyleSheet.create({
     top: 20, // Start at center of main composer avatar (20px from top of PostHeader avatar)
     bottom: 20, // End at center of add button avatar (20px from bottom)
     width: 2,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    backgroundColor: '#ededed',
     borderRadius: 1,
     zIndex: -1, // Behind the avatars
   },
@@ -2054,7 +2049,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
   },
   modeToggleRow: {
     flexDirection: 'row',
@@ -2068,15 +2062,15 @@ const styles = StyleSheet.create({
   modeLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: '#5e5e5e',
     marginBottom: 2,
   },
   activeModeLabel: {
-    color: colors.primaryColor,
+    color: '#005c67',
   },
   modeDescription: {
     fontSize: 12,
-    color: colors.COLOR_BLACK_LIGHT_5,
+    color: '#949494',
     textAlign: 'center',
   },
   modeToggle: {

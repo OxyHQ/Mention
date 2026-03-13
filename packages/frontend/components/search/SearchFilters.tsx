@@ -4,10 +4,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { SearchFilters as SearchFiltersType } from "@/services/searchService";
 import { SPACING } from "@/styles/spacing";
@@ -66,58 +64,67 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
 
   if (!visible) return null;
 
+  const inputStyle = {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: FONT_SIZES.md,
+    backgroundColor: theme.colors.backgroundSecondary,
+    color: theme.colors.text,
+    borderColor: theme.colors.border,
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="bg-background" style={{ borderTopWidth: 1, borderTopColor: 'rgba(0, 0, 0, 0.1)' }}>
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        style={{ maxHeight: 500 }}
+        contentContainerStyle={{ padding: SPACING.base }}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>
+        <View style={{ marginBottom: SPACING.base }}>
+          <Text
+            className="text-foreground font-bold"
+            style={{ fontSize: FONT_SIZES.xl }}
+          >
             Filters
           </Text>
         </View>
 
         {/* Date Range */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
+        <View style={{ marginBottom: SPACING.lg }}>
+          <Text
+            className="text-foreground font-semibold"
+            style={{ fontSize: FONT_SIZES.md, marginBottom: SPACING.sm }}
+          >
             Date Range
           </Text>
-          <View style={styles.dateRow}>
-            <View style={styles.dateInput}>
-              <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>
+          <View className="flex-row" style={{ gap: SPACING.md }}>
+            <View className="flex-1">
+              <Text
+                className="text-muted-foreground"
+                style={{ fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs }}
+              >
                 From
               </Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.colors.backgroundSecondary,
-                    color: theme.colors.text,
-                    borderColor: theme.colors.border,
-                  }
-                ]}
+                style={inputStyle}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={theme.colors.textSecondary}
                 value={dateFrom}
                 onChangeText={setDateFrom}
               />
             </View>
-            <View style={styles.dateInput}>
-              <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>
+            <View className="flex-1">
+              <Text
+                className="text-muted-foreground"
+                style={{ fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs }}
+              >
                 To
               </Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.colors.backgroundSecondary,
-                    color: theme.colors.text,
-                    borderColor: theme.colors.border,
-                  }
-                ]}
+                style={inputStyle}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={theme.colors.textSecondary}
                 value={dateTo}
@@ -128,19 +135,15 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
         </View>
 
         {/* Author */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
+        <View style={{ marginBottom: SPACING.lg }}>
+          <Text
+            className="text-foreground font-semibold"
+            style={{ fontSize: FONT_SIZES.md, marginBottom: SPACING.sm }}
+          >
             Author
           </Text>
           <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.backgroundSecondary,
-                color: theme.colors.text,
-                borderColor: theme.colors.border,
-              }
-            ]}
+            style={inputStyle}
             placeholder="Username (e.g., @johndoe)"
             placeholderTextColor={theme.colors.textSecondary}
             value={author}
@@ -149,36 +152,38 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
         </View>
 
         {/* Media Type */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
+        <View style={{ marginBottom: SPACING.lg }}>
+          <Text
+            className="text-foreground font-semibold"
+            style={{ fontSize: FONT_SIZES.md, marginBottom: SPACING.sm }}
+          >
             Media Type
           </Text>
-          <View style={styles.chipRow}>
+          <View className="flex-row flex-wrap" style={{ gap: SPACING.sm }}>
             {(['all', 'image', 'video', 'gif'] as MediaTypeOption[]).map((type) => (
               <TouchableOpacity
                 key={type}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: mediaType === type
-                      ? theme.colors.primary
-                      : theme.colors.backgroundSecondary,
-                    borderColor: mediaType === type
-                      ? theme.colors.primary
-                      : theme.colors.border,
-                  }
-                ]}
+                className="border rounded-full"
+                style={{
+                  paddingHorizontal: SPACING.base,
+                  paddingVertical: SPACING.sm,
+                  backgroundColor: mediaType === type
+                    ? theme.colors.primary
+                    : theme.colors.backgroundSecondary,
+                  borderColor: mediaType === type
+                    ? theme.colors.primary
+                    : theme.colors.border,
+                }}
                 onPress={() => setMediaType(type)}
               >
                 <Text
-                  style={[
-                    styles.chipText,
-                    {
-                      color: mediaType === type
-                        ? theme.colors.card
-                        : theme.colors.text,
-                    }
-                  ]}
+                  className="font-semibold"
+                  style={{
+                    fontSize: FONT_SIZES.sm,
+                    color: mediaType === type
+                      ? theme.colors.card
+                      : theme.colors.text,
+                  }}
                 >
                   {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1) + 's'}
                 </Text>
@@ -188,24 +193,23 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
         </View>
 
         {/* Engagement */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
+        <View style={{ marginBottom: SPACING.lg }}>
+          <Text
+            className="text-foreground font-semibold"
+            style={{ fontSize: FONT_SIZES.md, marginBottom: SPACING.sm }}
+          >
             Engagement
           </Text>
-          <View style={styles.engagementRow}>
-            <View style={styles.engagementInput}>
-              <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>
+          <View className="flex-row" style={{ gap: SPACING.md }}>
+            <View className="flex-1">
+              <Text
+                className="text-muted-foreground"
+                style={{ fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs }}
+              >
                 Min Likes
               </Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.colors.backgroundSecondary,
-                    color: theme.colors.text,
-                    borderColor: theme.colors.border,
-                  }
-                ]}
+                style={inputStyle}
                 placeholder="0"
                 placeholderTextColor={theme.colors.textSecondary}
                 value={minLikes}
@@ -213,19 +217,15 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
                 keyboardType="number-pad"
               />
             </View>
-            <View style={styles.engagementInput}>
-              <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>
+            <View className="flex-1">
+              <Text
+                className="text-muted-foreground"
+                style={{ fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs }}
+              >
                 Min Reposts
               </Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.colors.backgroundSecondary,
-                    color: theme.colors.text,
-                    borderColor: theme.colors.border,
-                  }
-                ]}
+                style={inputStyle}
                 placeholder="0"
                 placeholderTextColor={theme.colors.textSecondary}
                 value={minReposts}
@@ -237,19 +237,15 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
         </View>
 
         {/* Language */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
+        <View style={{ marginBottom: SPACING.lg }}>
+          <Text
+            className="text-foreground font-semibold"
+            style={{ fontSize: FONT_SIZES.md, marginBottom: SPACING.sm }}
+          >
             Language
           </Text>
           <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.backgroundSecondary,
-                color: theme.colors.text,
-                borderColor: theme.colors.border,
-              }
-            ]}
+            style={inputStyle}
             placeholder="e.g., en, es, fr"
             placeholderTextColor={theme.colors.textSecondary}
             value={language}
@@ -258,16 +254,16 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
         </View>
 
         {/* Action Buttons */}
-        <View style={styles.actions}>
+        <View className="flex-row" style={{ gap: SPACING.md, marginTop: SPACING.base }}>
           <SecondaryButton
             onPress={handleClearLocal}
-            style={styles.actionButton}
+            style={{ flex: 1 }}
           >
             Clear
           </SecondaryButton>
           <PrimaryButton
             onPress={handleApply}
-            style={styles.actionButton}
+            style={{ flex: 1 }}
           >
             Apply Filters
           </PrimaryButton>
@@ -276,79 +272,3 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  scrollView: {
-    maxHeight: 500,
-  },
-  scrollContent: {
-    padding: SPACING.base,
-  },
-  header: {
-    marginBottom: SPACING.base,
-  },
-  title: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-  },
-  section: {
-    marginBottom: SPACING.lg,
-  },
-  label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    marginBottom: SPACING.sm,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    fontSize: FONT_SIZES.md,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  dateInput: {
-    flex: 1,
-  },
-  dateLabel: {
-    fontSize: FONT_SIZES.sm,
-    marginBottom: SPACING.xs,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
-  },
-  chip: {
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.sm,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-  },
-  engagementRow: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  engagementInput: {
-    flex: 1,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    marginTop: SPACING.base,
-  },
-  actionButton: {
-    flex: 1,
-  },
-});

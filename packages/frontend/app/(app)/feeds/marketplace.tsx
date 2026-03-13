@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
+import { cn } from '@/lib/utils';
 
 const PAGE_LIMIT = 20;
 
@@ -68,18 +69,18 @@ const FeedCard = React.memo(function FeedCard({
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: theme.colors.backgroundSecondary }]}
+      className="mx-4 mt-3 rounded-2xl p-4 gap-2 bg-secondary"
       onPress={handlePress}
       activeOpacity={0.75}
     >
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleArea}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
+      <View className="flex-row items-start gap-3">
+        <View className="flex-1 gap-[5px]">
+          <Text className="text-base font-bold leading-5 text-foreground" numberOfLines={1}>
             {item.title}
           </Text>
           {item.category ? (
-            <View style={[styles.categoryBadge, { backgroundColor: `${theme.colors.primary}20` }]}>
-              <Text style={[styles.categoryBadgeText, { color: theme.colors.primary }]}>
+            <View style={{ backgroundColor: `${theme.colors.primary}20` }} className="self-start px-2 py-0.5 rounded-md">
+              <Text className="text-xs font-semibold text-primary">
                 {item.category}
               </Text>
             </View>
@@ -100,10 +101,10 @@ const FeedCard = React.memo(function FeedCard({
             <ActivityIndicator size="small" color={item.isLiked ? theme.colors.text : '#fff'} />
           ) : (
             <Text
-              style={[
-                styles.subscribeBtnText,
-                { color: item.isLiked ? theme.colors.text : '#fff' },
-              ]}
+              className={cn(
+                "text-[13px] font-bold",
+                item.isLiked ? "text-foreground" : "text-white"
+              )}
             >
               {item.isLiked ? 'Subscribed' : 'Subscribe'}
             </Text>
@@ -112,19 +113,16 @@ const FeedCard = React.memo(function FeedCard({
       </View>
 
       {item.description ? (
-        <Text
-          style={[styles.cardDescription, { color: theme.colors.textSecondary }]}
-          numberOfLines={2}
-        >
+        <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
           {item.description}
         </Text>
       ) : null}
 
-      <View style={styles.cardMeta}>
+      <View className="flex-row items-center gap-3">
         {averageRating > 0 ? (
-          <View style={styles.ratingRow}>
+          <View className="flex-row items-center gap-1">
             <StarRating rating={averageRating} color={theme.colors.primary} />
-            <Text style={[styles.ratingText, { color: theme.colors.textSecondary }]}>
+            <Text className="text-[13px] text-muted-foreground">
               {averageRating.toFixed(1)}
               {reviewCount > 0 ? ` (${formatCompactNumber(reviewCount)})` : ''}
             </Text>
@@ -132,9 +130,9 @@ const FeedCard = React.memo(function FeedCard({
         ) : null}
 
         {subscriberCount > 0 ? (
-          <View style={styles.subscriberRow}>
+          <View className="flex-row items-center gap-[3px]">
             <Ionicons name="people-outline" size={13} color={theme.colors.textSecondary} />
-            <Text style={[styles.subscriberText, { color: theme.colors.textSecondary }]}>
+            <Text className="text-[13px] text-muted-foreground">
               {formatCompactNumber(subscriberCount)}
             </Text>
           </View>
@@ -142,9 +140,9 @@ const FeedCard = React.memo(function FeedCard({
       </View>
 
       {ownerName ? (
-        <View style={styles.ownerRow}>
+        <View className="flex-row items-center gap-1.5">
           <Avatar source={ownerAvatar} size={18} label={ownerName} />
-          <Text style={[styles.ownerText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
             {ownerName}
           </Text>
         </View>
@@ -330,14 +328,15 @@ export default function FeedMarketplaceScreen() {
       <View>
         {/* Search bar */}
         {searchVisible && (
-          <View style={[styles.searchBar, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}>
+          <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 border border-border rounded-xl px-3 py-[9px] bg-secondary">
             <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
             <TextInput
               value={search}
               onChangeText={handleSearchChange}
               placeholder={t('marketplace.searchPlaceholder', { defaultValue: 'Search feeds...' })}
               placeholderTextColor={theme.colors.textSecondary}
-              style={[styles.searchInput, { color: theme.colors.text }]}
+              style={styles.searchInput}
+              className="flex-1 text-[15px] text-foreground"
               autoFocus
               returnKeyType="search"
             />
@@ -354,7 +353,7 @@ export default function FeedMarketplaceScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillsContent}
-          style={styles.pillsScroll}
+          className="mt-3"
         >
           {categoryPills.map((cat) => {
             const active = cat === activeCategory;
@@ -371,10 +370,10 @@ export default function FeedMarketplaceScreen() {
                 activeOpacity={0.7}
               >
                 <Text
-                  style={[
-                    styles.pillText,
-                    { color: active ? '#fff' : theme.colors.text },
-                  ]}
+                  className={cn(
+                    "text-sm font-medium",
+                    active ? "text-white" : "text-foreground"
+                  )}
                 >
                   {cat}
                 </Text>
@@ -390,21 +389,20 @@ export default function FeedMarketplaceScreen() {
             return (
               <TouchableOpacity
                 key={opt.id}
-                style={styles.sortTab}
+                className="flex-1 items-center py-2.5 relative"
                 onPress={() => handleSortPress(opt.id)}
                 activeOpacity={0.7}
               >
                 <Text
-                  style={[
-                    styles.sortTabText,
-                    { color: active ? theme.colors.primary : theme.colors.textSecondary },
-                    active && styles.sortTabTextActive,
-                  ]}
+                  className={cn(
+                    "text-sm",
+                    active ? "font-bold text-primary" : "font-medium text-muted-foreground"
+                  )}
                 >
                   {opt.label}
                 </Text>
                 {active && (
-                  <View style={[styles.sortIndicator, { backgroundColor: theme.colors.primary }]} />
+                  <View style={styles.sortIndicator} className="bg-primary" />
                 )}
               </TouchableOpacity>
             );
@@ -429,12 +427,12 @@ export default function FeedMarketplaceScreen() {
   const ListEmpty = useMemo(() => {
     if (loading) return null;
     return (
-      <View style={styles.emptyState}>
+      <View className="pt-[60px] px-10 items-center gap-3">
         <Ionicons name="telescope-outline" size={52} color={theme.colors.textSecondary} />
-        <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+        <Text className="text-lg font-bold text-center text-foreground">
           {t('marketplace.emptyTitle', { defaultValue: 'No feeds found' })}
         </Text>
-        <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+        <Text className="text-sm leading-5 text-center text-muted-foreground">
           {debouncedSearch
             ? t('marketplace.emptySearchSubtitle', { defaultValue: 'Try a different search term or category' })
             : t('marketplace.emptySubtitle', { defaultValue: 'Be the first to create a feed in this category' })}
@@ -444,16 +442,16 @@ export default function FeedMarketplaceScreen() {
   }, [loading, debouncedSearch, theme, t]);
 
   const ListFooter = useMemo(() => {
-    if (!loadingMore) return <View style={{ height: 32 }} />;
+    if (!loadingMore) return <View className="h-8" />;
     return (
-      <View style={styles.footerLoader}>
+      <View className="py-5 items-center">
         <ActivityIndicator size="small" color={theme.colors.primary} />
       </View>
     );
   }, [loadingMore, theme.colors.primary]);
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: t('marketplace.title', { defaultValue: 'Feed Marketplace' }),
@@ -485,7 +483,7 @@ export default function FeedMarketplaceScreen() {
       />
 
       {loading && feeds.length === 0 ? (
-        <View style={styles.center}>
+        <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
@@ -511,40 +509,13 @@ export default function FeedMarketplaceScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   listContent: {
     paddingBottom: 32,
   },
-  // Search bar
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
   searchInput: {
-    flex: 1,
-    fontSize: 15,
     ...Platform.select({
       web: { outlineStyle: 'none' as any },
     }),
-  },
-  // Category pills
-  pillsScroll: {
-    marginTop: 12,
   },
   pillsContent: {
     paddingHorizontal: 16,
@@ -555,28 +526,10 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
   },
-  pillText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  // Sort tabs
   sortRow: {
     flexDirection: 'row',
     marginTop: 12,
     borderBottomWidth: 1,
-  },
-  sortTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    position: 'relative',
-  },
-  sortTabText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  sortTabTextActive: {
-    fontWeight: '700',
   },
   sortIndicator: {
     position: 'absolute',
@@ -587,38 +540,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
   },
-  // Feed cards
-  card: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  cardTitleArea: {
-    flex: 1,
-    gap: 5,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  categoryBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
   subscribeBtn: {
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -628,64 +549,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'transparent',
-  },
-  subscribeBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  cardDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 13,
-  },
-  subscriberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  subscriberText: {
-    fontSize: 13,
-  },
-  ownerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  ownerText: {
-    fontSize: 13,
-  },
-  // Empty state
-  emptyState: {
-    paddingTop: 60,
-    paddingHorizontal: 40,
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  // Footer loader
-  footerLoader: {
-    paddingVertical: 20,
-    alignItems: 'center',
   },
 });

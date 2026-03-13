@@ -1,6 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from '@/styles/colors';
 import { withTranslation } from 'react-i18next';
 
 interface Props {
@@ -69,25 +68,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 20,
-        backgroundColor: colors.primaryLight,
+        backgroundColor: '#e6f2f3',
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 12,
-        color: colors.primaryColor,
+        color: '#005c67',
         textAlign: 'center',
     },
     message: {
         fontSize: 16,
         textAlign: 'center',
         marginBottom: 24,
-        color: colors.COLOR_BLACK_LIGHT_3,
+        color: '#666666',
         lineHeight: 22,
         paddingHorizontal: 16,
     },
     retryButton: {
-        backgroundColor: colors.primaryColor,
+        backgroundColor: '#005c67',
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 12,

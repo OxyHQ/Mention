@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
-import { colors } from '../styles/colors';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import Svg, { Defs, ClipPath, Path, Image as SvgImage } from 'react-native-svg';
@@ -166,7 +165,7 @@ const Avatar: React.FC<AvatarProps> = ({
             />
           </Svg>
           {/* Verified icon on top */}
-          <VerifiedIcon size={Math.round(size * 0.36)} color={colors.primaryColor} />
+          <VerifiedIcon size={Math.round(size * 0.36)} color="#005c67" />
         </View>
       )}
     </Animated.View>

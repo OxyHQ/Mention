@@ -1,19 +1,10 @@
 import { Slot } from "expo-router";
-import { View, StyleSheet } from "react-native";
-import { useTheme } from '@/hooks/useTheme';
+import { View } from "react-native";
 
 export default function AuthLayout() {
-  const theme = useTheme();
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="flex-1 bg-background">
       <Slot />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

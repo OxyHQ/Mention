@@ -80,10 +80,10 @@ export function TrendsWidget() {
       {isLoading ? (
         <View style={styles.centerRow}>
           <Loading size="small" style={{ flex: undefined }} />
-          <Text style={[styles.muted, { color: theme.colors.textSecondary }]}>Loading trends…</Text>
+          <Text className="text-muted-foreground" style={styles.muted}>Loading trends…</Text>
         </View>
       ) : error ? (
-        <Text style={[styles.error, { color: theme.colors.error }]}>{t('error.fetch_trends')}</Text>
+        <Text className="text-destructive" style={styles.error}>{t('error.fetch_trends')}</Text>
       ) : (
         <View style={styles.listContainer}>
           {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
@@ -93,19 +93,20 @@ export function TrendsWidget() {
             return (
               <TouchableOpacity
                 key={trend.id}
+                className={!isLast ? "border-border" : undefined}
                 style={[
                   styles.trendItem,
-                  !isLast && { borderBottomWidth: 0.5, borderBottomColor: theme.colors.border },
+                  !isLast && { borderBottomWidth: 0.5 },
                 ]}
                 onPress={() => handleTrendPress(trend)}
                 activeOpacity={0.7}
               >
                 <View style={styles.trendContent}>
                   <View style={styles.trendTextContainer}>
-                    <Text style={[styles.trendMeta, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-muted-foreground" style={styles.trendMeta}>
                       Trending · {formatCompactNumber(trend.score)} post{trend.score !== 1 ? 's' : ''}
                     </Text>
-                    <Text style={[styles.trendHashtag, { color: theme.colors.text }]} numberOfLines={1}>
+                    <Text className="text-foreground" style={styles.trendHashtag} numberOfLines={1}>
                       #{tag?.replace(/^#/, '')}
                     </Text>
                   </View>
@@ -131,7 +132,7 @@ export function TrendsWidget() {
             onPress={handleMorePress}
             activeOpacity={0.7}
           >
-            <Text style={[styles.showMoreText, { color: theme.colors.primary }]}>
+            <Text className="text-primary" style={styles.showMoreText}>
               Show more
             </Text>
           </TouchableOpacity>

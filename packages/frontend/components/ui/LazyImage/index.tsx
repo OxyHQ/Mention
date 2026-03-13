@@ -5,7 +5,6 @@
 
 import React, { useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Image, ImageProps, View, StyleSheet, ViewStyle, ImageStyle, StyleProp, Platform } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 import { flattenStyleArray } from '@/utils/theme';
 import { getOptimizedImageUrl, type ImageSize } from '@/services/imageOptimizationService';
 
@@ -59,7 +58,6 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
   accessibilityLabel = 'Image',
   ...imageProps
 }) => {
-  const theme = useTheme();
   const [imgState, setImgState] = React.useReducer(
     (state: { shouldLoad: boolean; shouldLoadHighRes: boolean; hasError: boolean; isLoading: boolean },
      action: Partial<{ shouldLoad: boolean; shouldLoadHighRes: boolean; hasError: boolean; isLoading: boolean }>) => ({
@@ -197,17 +195,17 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
 
   // Default placeholder
   const defaultPlaceholder = useMemo(() => (
-    <View 
+    <View
+      className="bg-muted"
       style={[
         StyleSheet.absoluteFill,
         {
-          backgroundColor: theme.colors.backgroundSecondary,
           justifyContent: 'center',
           alignItems: 'center',
         },
-      ]} 
+      ]}
     />
-  ), [theme.colors.backgroundSecondary]);
+  ), []);
 
   // Container style with aspect ratio
   const finalContainerStyle = useMemo(() => {

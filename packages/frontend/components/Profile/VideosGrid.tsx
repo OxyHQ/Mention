@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Dimensions,
     FlatList,
-    StyleSheet,
-    Text,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -41,17 +39,17 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
 
     useEffect(() => {
         if (!userId || (isPrivate && !isOwnProfile)) return;
-        
+
         fetchUserFeed(userId, { type: 'media', limit: 50 });
     }, [userId, fetchUserFeed, isPrivate, isOwnProfile]);
 
     useEffect(() => {
         if (!userId || (isPrivate && !isOwnProfile)) return;
-        
+
             const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
             const isEmpty = (mediaFeed?.items?.length || 0) === 0;
             const postsLoaded = !!postsFeed;
-        
+
             if (isLoaded && isEmpty && !postsLoaded) {
             fetchUserFeed(userId, { type: 'posts', limit: 60 });
             }
@@ -84,15 +82,15 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
             const collected = sources.filter(Boolean) as string[];
             const seen = new Set<string>();
             const isPostVideo = postType === 'video';
-            
+
             collected.forEach((raw, idx) => {
                 const mediaType = mediaTypes?.[idx];
                 const isMediaTypeVideo = mediaType === 'video';
                 const isFileExtensionVideo = /\.(mp4|mov|m4v|webm|mpg|mpeg|avi|mkv)$/i.test(String(raw));
                 const isVideo = isPostVideo || isMediaTypeVideo || isFileExtensionVideo;
-                
+
                 if (!isVideo) return; // Only include videos
-                
+
                 const uri = resolveVideoUri(raw);
                 if (!uri || seen.has(uri)) return;
                 seen.add(uri);
@@ -132,12 +130,12 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         return (
             <TouchableOpacity
                 activeOpacity={0.8}
-                style={[styles.gridItem, { width: itemSize, height: itemSize }]}
+                style={{ width: itemSize, height: itemSize, marginRight: GAP, marginBottom: GAP }}
                 onPress={handlePress}
             >
-                <VideoGridItem 
-                    uri={item.uri} 
-                    itemSize={itemSize} 
+                <VideoGridItem
+                    uri={item.uri}
+                    itemSize={itemSize}
                     backgroundColor={theme.colors.backgroundSecondary}
                 />
             </TouchableOpacity>
@@ -175,25 +173,33 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                 {player ? (
                     <VideoView
                         player={player}
-                        style={styles.fullSize}
+                        style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                         nativeControls={false}
                         allowsFullscreen={false}
                         allowsPictureInPicture={false}
                     />
                 ) : (
-                    <View style={[styles.videoPlaceholder, { backgroundColor }]}>
+                    <View className="w-full h-full items-center justify-center" style={{ backgroundColor }}>
                         <Ionicons name="videocam-outline" size={24} color={theme.colors.textSecondary} />
                     </View>
                 )}
-                <View style={styles.playIcon}>
+                <View
+                    className="absolute top-1 right-1 items-center justify-center"
+                    style={{
+                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                        borderRadius: 12,
+                        width: 24,
+                        height: 24,
+                    }}
+                >
                     <Ionicons name="play" size={16} color="white" />
                 </View>
             </View>
         );
     };
 
-    const keyExtractor = useCallback((it: { postId: string; uri: string; mediaIndex?: number }, index: number) => 
+    const keyExtractor = useCallback((it: { postId: string; uri: string; mediaIndex?: number }, index: number) =>
         `${it.postId}:${it.mediaIndex ?? index}`, []);
 
     const getItemLayout = useCallback((_: any, index: number) => {
@@ -207,7 +213,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
 
     if (isLoading) {
         return (
-            <View style={styles.loadingContainer}>
+            <View className="items-center justify-center" style={{ padding: 40 }}>
                 <Loading size="large" />
             </View>
         );
@@ -221,14 +227,14 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                     name: 'videocam-outline',
                     size: 48,
                 }}
-                containerStyle={styles.emptyContainer}
+                containerStyle={{ flex: 1 }}
             />
         );
     }
 
     return (
-        <View 
-            style={styles.container}
+        <View
+            className="w-full"
             onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
         >
             <FlatList
@@ -239,54 +245,11 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                 scrollEnabled={false}
                 getItemLayout={getItemLayout}
                 removeClippedSubviews
-                contentContainerStyle={styles.grid}
+                contentContainerStyle={{ paddingHorizontal: H_PADDING }}
                 columnWrapperStyle={NUM_COLUMNS > 1 ? { gap: GAP } : undefined}
             />
         </View>
     );
 };
 
-const styles = StyleSheet.create({
-    container: {
-        width: '100%',
-    },
-    grid: {
-        paddingHorizontal: H_PADDING,
-    },
-    gridItem: {
-        marginRight: GAP,
-        marginBottom: GAP,
-    },
-    videoPlaceholder: {
-        width: '100%',
-        height: '100%',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    playIcon: {
-        position: 'absolute',
-        top: 4,
-        right: 4,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        borderRadius: 12,
-        width: 24,
-        height: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingContainer: {
-        padding: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    emptyContainer: {
-        flex: 1,
-    },
-    fullSize: {
-        width: '100%',
-        height: '100%',
-    },
-});
-
 export default VideosGrid;
-

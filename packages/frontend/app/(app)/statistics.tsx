@@ -99,43 +99,43 @@ const InsightsScreen: React.FC = () => {
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Summary Stats */}
                 <View style={styles.summarySection}>
-                    <View style={[styles.summaryCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <View className="bg-secondary" style={styles.summaryCard}>
                         <View style={styles.summaryRow}>
                             <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
+                                <Text className="text-foreground" style={styles.summaryValue}>
                                     {formatCompactNumber(stats.overview.totalPosts)}
                                 </Text>
-                                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
+                                <Text className="text-muted-foreground" style={styles.summaryLabel}>Posts</Text>
                             </View>
                             <View style={styles.summaryDivider} />
                             <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
+                                <Text className="text-foreground" style={styles.summaryValue}>
                                     {formatCompactNumber(stats.overview.totalViews)}
                                 </Text>
-                                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Views</Text>
+                                <Text className="text-muted-foreground" style={styles.summaryLabel}>Views</Text>
                             </View>
                             <View style={styles.summaryDivider} />
                             <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
+                                <Text className="text-foreground" style={styles.summaryValue}>
                                     {formatCompactNumber(stats.overview.totalInteractions)}
                                 </Text>
-                                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Interactions</Text>
+                                <Text className="text-muted-foreground" style={styles.summaryLabel}>Interactions</Text>
                             </View>
                         </View>
                     </View>
                 </View>
 
                 {/* Engagement Rate - Hero Card */}
-                <View style={[styles.heroCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <View className="bg-secondary" style={styles.heroCard}>
                     <View style={styles.heroHeader}>
                         <Ionicons name="trending-up" size={24} color={theme.colors.primary} />
-                        <Text style={[styles.heroTitle, { color: theme.colors.text }]}>Engagement Rate</Text>
+                        <Text className="text-foreground" style={styles.heroTitle}>Engagement Rate</Text>
                     </View>
                     <View style={styles.heroContent}>
-                        <Text style={[styles.heroValue, { color: theme.colors.primary }]}>
+                        <Text className="text-primary" style={styles.heroValue}>
                             {stats.overview.engagementRate.toFixed(2)}%
                         </Text>
-                        <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-muted-foreground" style={styles.heroSubtext}>
                             {formatCompactNumber(stats.overview.totalInteractions)} total interactions
                         </Text>
                     </View>
@@ -145,11 +145,11 @@ const InsightsScreen: React.FC = () => {
                 <View style={styles.interactionsSection}>
                     <View style={styles.sectionHeaderRow}>
                         <Ionicons name="heart" size={20} color={theme.colors.primary} />
-                        <Text style={[styles.sectionHeader, { color: theme.colors.text, marginLeft: 8 }]}>
+                        <Text className="text-foreground" style={[styles.sectionHeader, { marginLeft: 8 }]}>
                             Interactions
                         </Text>
                     </View>
-                    <View style={[styles.interactionsCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <View className="bg-secondary" style={styles.interactionsCard}>
                         <View style={styles.interactionsRow}>
                             <View style={styles.interactionItem}>
                                 <View style={styles.interactionIconWrapper}>
@@ -158,12 +158,12 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text className="text-foreground" style={styles.interactionValue}>
                                         {formatCompactNumber(stats.interactions.likes)}
                                     </Text>
-                                    <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Likes</Text>
+                                    <Text className="text-muted-foreground" style={styles.interactionLabel}>Likes</Text>
                                     {stats.interactions.likes > 0 && stats.overview.totalInteractions > 0 && (
-                                        <Text style={[styles.interactionPercent, { color: theme.colors.textSecondary }]}>
+                                        <Text className="text-muted-foreground" style={styles.interactionPercent}>
                                             {((stats.interactions.likes / stats.overview.totalInteractions) * 100).toFixed(1)}%
                                         </Text>
                                     )}
@@ -177,12 +177,12 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text className="text-foreground" style={styles.interactionValue}>
                                         {formatCompactNumber(stats.interactions.replies)}
                                     </Text>
-                                    <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Replies</Text>
+                                    <Text className="text-muted-foreground" style={styles.interactionLabel}>Replies</Text>
                                     {stats.interactions.replies > 0 && stats.overview.totalInteractions > 0 && (
-                                        <Text style={[styles.interactionPercent, { color: theme.colors.textSecondary }]}>
+                                        <Text className="text-muted-foreground" style={styles.interactionPercent}>
                                             {((stats.interactions.replies / stats.overview.totalInteractions) * 100).toFixed(1)}%
                                         </Text>
                                     )}
@@ -190,7 +190,7 @@ const InsightsScreen: React.FC = () => {
                             </View>
                         </View>
 
-                        <View style={[styles.interactionsDivider, { backgroundColor: theme.colors.border }]} />
+                        <View className="bg-border" style={styles.interactionsDivider} />
 
                         <View style={styles.interactionsRow}>
                             <View style={styles.interactionItem}>
@@ -200,12 +200,12 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text className="text-foreground" style={styles.interactionValue}>
                                         {formatCompactNumber(stats.interactions.reposts)}
                                     </Text>
-                                    <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Reposts</Text>
+                                    <Text className="text-muted-foreground" style={styles.interactionLabel}>Reposts</Text>
                                     {stats.interactions.reposts > 0 && stats.overview.totalInteractions > 0 && (
-                                        <Text style={[styles.interactionPercent, { color: theme.colors.textSecondary }]}>
+                                        <Text className="text-muted-foreground" style={styles.interactionPercent}>
                                             {((stats.interactions.reposts / stats.overview.totalInteractions) * 100).toFixed(1)}%
                                         </Text>
                                     )}
@@ -219,12 +219,12 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text className="text-foreground" style={styles.interactionValue}>
                                         {formatCompactNumber(stats.interactions.shares)}
                                     </Text>
-                                    <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Shares</Text>
+                                    <Text className="text-muted-foreground" style={styles.interactionLabel}>Shares</Text>
                                     {stats.interactions.shares > 0 && stats.overview.totalInteractions > 0 && (
-                                        <Text style={[styles.interactionPercent, { color: theme.colors.textSecondary }]}>
+                                        <Text className="text-muted-foreground" style={styles.interactionPercent}>
                                             {((stats.interactions.shares / stats.overview.totalInteractions) * 100).toFixed(1)}%
                                         </Text>
                                     )}
@@ -239,7 +239,7 @@ const InsightsScreen: React.FC = () => {
                     <View style={styles.topPostsSection}>
                         <View style={styles.sectionHeaderRow}>
                             <Ionicons name="trophy" size={20} color={theme.colors.primary} />
-                            <Text style={[styles.sectionHeader, { color: theme.colors.text, marginLeft: 8 }]}>
+                            <Text className="text-foreground" style={[styles.sectionHeader, { marginLeft: 8 }]}>
                                 Top Performing Posts
                             </Text>
                         </View>
@@ -273,7 +273,7 @@ const InsightsScreen: React.FC = () => {
                         ) : (
                             <View style={styles.emptyPosts}>
                                 <Ionicons name="document-outline" size={48} color={theme.colors.textSecondary} />
-                                <Text style={[styles.emptyPostsText, { color: theme.colors.textSecondary }]}>
+                                <Text className="text-muted-foreground" style={styles.emptyPostsText}>
                                     Unable to load posts
                                 </Text>
                             </View>
@@ -286,11 +286,11 @@ const InsightsScreen: React.FC = () => {
                     <View style={styles.typeSection}>
                         <View style={styles.sectionHeaderRow}>
                             <Ionicons name="grid" size={20} color={theme.colors.primary} />
-                            <Text style={[styles.sectionHeader, { color: theme.colors.text, marginLeft: 8 }]}>
+                            <Text className="text-foreground" style={[styles.sectionHeader, { marginLeft: 8 }]}>
                                 Posts by Type
                             </Text>
                         </View>
-                        <View style={[styles.typeCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="bg-secondary" style={styles.typeCard}>
                             {Object.entries(stats.postsByType).map(([type, count], index, array) => (
                                 <View key={type}>
                                     <View style={styles.typeRow}>
@@ -305,14 +305,14 @@ const InsightsScreen: React.FC = () => {
                                                 size={18} 
                                                 color={theme.colors.textSecondary} 
                                             />
-                                            <Text style={[styles.typeLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                                            <Text className="text-muted-foreground" style={[styles.typeLabel, { marginLeft: 8 }]}>
                                                 {type.charAt(0).toUpperCase() + type.slice(1)}
                                             </Text>
                                         </View>
-                                        <Text style={[styles.typeValue, { color: theme.colors.text }]}>{count}</Text>
+                                        <Text className="text-foreground" style={styles.typeValue}>{count}</Text>
                                     </View>
                                     {index < array.length - 1 && (
-                                        <View style={[styles.typeDivider, { backgroundColor: theme.colors.border }]} />
+                                        <View className="bg-border" style={styles.typeDivider} />
                                     )}
                                 </View>
                             ))}
@@ -329,16 +329,16 @@ const InsightsScreen: React.FC = () => {
         return (
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Overall Engagement */}
-                <View style={[styles.heroCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <View className="bg-secondary" style={styles.heroCard}>
                     <View style={styles.heroHeader}>
                         <Ionicons name="stats-chart" size={24} color={theme.colors.primary} />
-                        <Text style={[styles.heroTitle, { color: theme.colors.text }]}>Overall Engagement</Text>
+                        <Text className="text-foreground" style={styles.heroTitle}>Overall Engagement</Text>
                     </View>
                     <View style={styles.heroContent}>
-                        <Text style={[styles.heroValue, { color: theme.colors.primary }]}>
+                        <Text className="text-primary" style={styles.heroValue}>
                             {engagementRatios.ratios.engagementRate.toFixed(2)}%
                         </Text>
-                        <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-muted-foreground" style={styles.heroSubtext}>
                             {formatCompactNumber(engagementRatios.totals.interactions)} total interactions
                         </Text>
                     </View>
@@ -346,44 +346,44 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Engagement Ratios */}
                 <View style={styles.ratiosSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.text }]}>Engagement Ratios</Text>
+                    <Text className="text-foreground" style={styles.sectionHeader}>Engagement Ratios</Text>
                     <View style={styles.ratiosGrid}>
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="bg-secondary" style={styles.ratioCard}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="heart" size={18} color="#FF3040" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Like Rate</Text>
+                                <Text className="text-muted-foreground" style={[styles.ratioLabel, { marginLeft: 8 }]}>Like Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text className="text-foreground" style={styles.ratioValue}>
                                 {engagementRatios.ratios.likeRate.toFixed(2)}%
                             </Text>
                         </View>
 
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="bg-secondary" style={styles.ratioCard}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="chatbubble" size={18} color="#3B82F6" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Reply Rate</Text>
+                                <Text className="text-muted-foreground" style={[styles.ratioLabel, { marginLeft: 8 }]}>Reply Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text className="text-foreground" style={styles.ratioValue}>
                                 {engagementRatios.ratios.replyRate.toFixed(2)}%
                             </Text>
                         </View>
 
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="bg-secondary" style={styles.ratioCard}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="repeat" size={18} color="#10B981" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Repost Rate</Text>
+                                <Text className="text-muted-foreground" style={[styles.ratioLabel, { marginLeft: 8 }]}>Repost Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text className="text-foreground" style={styles.ratioValue}>
                                 {engagementRatios.ratios.repostRate.toFixed(2)}%
                             </Text>
                         </View>
 
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="bg-secondary" style={styles.ratioCard}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="share-social" size={18} color="#8B5CF6" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Share Rate</Text>
+                                <Text className="text-muted-foreground" style={[styles.ratioLabel, { marginLeft: 8 }]}>Share Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text className="text-foreground" style={styles.ratioValue}>
                                 {engagementRatios.ratios.shareRate.toFixed(2)}%
                             </Text>
                         </View>
@@ -392,27 +392,27 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Averages */}
                 <View style={styles.averagesSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.text }]}>Averages</Text>
+                    <Text className="text-foreground" style={styles.sectionHeader}>Averages</Text>
                     <View style={styles.averagesGrid}>
-                        <View style={[styles.averageCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="bg-secondary" style={styles.averageCard}>
                             <View style={styles.averageHeader}>
                                 <Ionicons name="eye" size={20} color={theme.colors.primary} />
-                                <Text style={[styles.averageLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                                <Text className="text-muted-foreground" style={[styles.averageLabel, { marginLeft: 8 }]}>
                                     Views per Post
                                 </Text>
                             </View>
-                            <Text style={[styles.averageValue, { color: theme.colors.text }]}>
+                            <Text className="text-foreground" style={styles.averageValue}>
                                 {engagementRatios.averages.viewsPerPost.toFixed(0)}
                             </Text>
                         </View>
-                        <View style={[styles.averageCard, styles.averageCardLast, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="bg-secondary" style={[styles.averageCard, styles.averageCardLast]}>
                             <View style={styles.averageHeader}>
                                 <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
-                                <Text style={[styles.averageLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                                <Text className="text-muted-foreground" style={[styles.averageLabel, { marginLeft: 8 }]}>
                                     Engagement per Post
                                 </Text>
                             </View>
-                            <Text style={[styles.averageValue, { color: theme.colors.text }]}>
+                            <Text className="text-foreground" style={styles.averageValue}>
                                 {engagementRatios.averages.engagementPerPost.toFixed(1)}
                             </Text>
                         </View>
@@ -421,28 +421,28 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Totals Summary */}
                 <View style={styles.totalsSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.text }]}>Total Activity</Text>
-                    <View style={[styles.totalsCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <Text className="text-foreground" style={styles.sectionHeader}>Total Activity</Text>
+                    <View className="bg-secondary" style={styles.totalsCard}>
                         <View style={styles.totalsRow}>
                             <View style={styles.totalItem}>
-                                <Text style={[styles.totalValue, { color: theme.colors.text }]}>
+                                <Text className="text-foreground" style={styles.totalValue}>
                                     {formatCompactNumber(engagementRatios.totals.posts)}
                                 </Text>
-                                <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
+                                <Text className="text-muted-foreground" style={styles.totalLabel}>Posts</Text>
                             </View>
                             <View style={styles.totalDivider} />
                             <View style={styles.totalItem}>
-                                <Text style={[styles.totalValue, { color: theme.colors.text }]}>
+                                <Text className="text-foreground" style={styles.totalValue}>
                                     {formatCompactNumber(engagementRatios.totals.views)}
                                 </Text>
-                                <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Views</Text>
+                                <Text className="text-muted-foreground" style={styles.totalLabel}>Views</Text>
                             </View>
                             <View style={styles.totalDivider} />
                             <View style={styles.totalItem}>
-                                <Text style={[styles.totalValue, { color: theme.colors.text }]}>
+                                <Text className="text-foreground" style={styles.totalValue}>
                                     {formatCompactNumber(engagementRatios.totals.interactions)}
                                 </Text>
-                                <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Interactions</Text>
+                                <Text className="text-muted-foreground" style={styles.totalLabel}>Interactions</Text>
                             </View>
                         </View>
                     </View>
@@ -452,18 +452,18 @@ const InsightsScreen: React.FC = () => {
     };
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
+            <View className="bg-background" style={[styles.header, { paddingTop: insets.top }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Insights</Text>
+                <Text className="text-foreground" style={styles.headerTitle}>Insights</Text>
                 <View style={styles.headerRight} />
             </View>
 
             {/* Period Selector */}
-            <View style={[styles.periodSelector, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View className="bg-secondary" style={styles.periodSelector}>
                 {PERIOD_OPTIONS.map(option => (
                     <TouchableOpacity
                         key={option.value}
@@ -494,7 +494,7 @@ const InsightsScreen: React.FC = () => {
             </View>
 
             {/* Tabs */}
-            <View style={[styles.tabs, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View className="bg-secondary" style={styles.tabs}>
                 <TouchableOpacity
                     style={[
                         styles.tab,
@@ -553,7 +553,7 @@ const InsightsScreen: React.FC = () => {
 
             {/* Content */}
             {loading ? (
-                <View style={styles.loadingContainer}>
+                <View className="flex-1 items-center justify-center">
                     <Loading size="large" />
                 </View>
             ) : (
@@ -564,9 +564,6 @@ const InsightsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -635,11 +632,6 @@ const styles = StyleSheet.create({
     scrollContent: {
         flex: 1,
         padding: 12,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     // Summary Section
     summarySection: {

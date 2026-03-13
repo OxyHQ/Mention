@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Image, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
 
@@ -87,10 +88,10 @@ const PostAttachmentImage: React.FC<{
       ]}
       resizeMode="contain"
       placeholder={
-        <View style={[
-          hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia,
-          { backgroundColor: theme.colors.backgroundSecondary, justifyContent: 'center', alignItems: 'center' },
-        ]} />
+        <View
+          className="bg-secondary justify-center items-center"
+          style={hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia}
+        />
       }
       threshold={300}
     />

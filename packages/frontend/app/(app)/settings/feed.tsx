@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -12,6 +12,7 @@ import { Slider } from '@/components/Slider';
 import { useFeedSettings, FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { cn } from '@/lib/utils';
 
 const IconComponent = Ionicons as any;
 
@@ -63,7 +64,7 @@ const PRESETS = {
 
 export default function FeedSettingsScreen() {
   const { t } = useTranslation();
-  const theme = useTheme();
+  const { colors } = useTheme();
   const { settings, loading, updateSettings } = useFeedSettings();
 
   const [localSettings, setLocalSettings] = useState<FeedSettings>(settings);
@@ -188,20 +189,20 @@ export default function FeedSettingsScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView className="flex-1">
         <Header
           options={{
             title: t('settings.feed.title'),
             leftComponents: [
               <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                <BackArrowIcon size={20} color={theme.colors.text} />
+                <BackArrowIcon size={20} color={colors.text} />
               </IconButton>,
             ],
           }}
           hideBottomBorder={true}
           disableSticky={true}
         />
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 justify-center items-center">
           <Loading size="large" />
         </View>
       </ThemedView>
@@ -209,23 +210,23 @@ export default function FeedSettingsScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: t('settings.feed.title'),
           leftComponents: [
             <IconButton variant="icon" key="back" onPress={() => router.back()}>
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} color={colors.text} />
             </IconButton>,
           ],
           rightComponents: [
             saving ? (
-              <View key="saving" style={styles.headerIconContainer}>
+              <View key="saving" className="w-8 h-8 items-center justify-center">
                 <Loading variant="inline" size="small" style={{ flex: undefined }} />
               </View>
             ) : justSaved ? (
-              <View key="saved" style={styles.headerIconContainer}>
-                <IconComponent name="checkmark-circle" size={20} color={theme.colors.primary} />
+              <View key="saved" className="w-8 h-8 items-center justify-center">
+                <IconComponent name="checkmark-circle" size={20} color={colors.primary} />
               </View>
             ) : null,
           ].filter(Boolean),
@@ -235,32 +236,36 @@ export default function FeedSettingsScreen() {
       />
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        className="flex-1"
+        contentContainerClassName="px-4 pt-5 pb-6"
         showsVerticalScrollIndicator={false}
       >
         {/* Presets Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View className="mb-8">
+          <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">
             {t('settings.feed.presets.title')}
           </Text>
-          <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <View className="rounded-2xl border border-border bg-card overflow-hidden">
             {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key, index) => (
               <React.Fragment key={key}>
-                {index > 0 && <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />}
+                {index > 0 && <View className="h-px mx-4 bg-border" />}
                 <TouchableOpacity
-                  style={[styles.settingItem, index === 0 && styles.firstSettingItem, index === Object.keys(PRESETS).length - 1 && styles.lastSettingItem]}
+                  className={cn(
+                    "px-4 py-4 flex-row items-center justify-between",
+                    index === 0 && "pt-[18px]",
+                    index === Object.keys(PRESETS).length - 1 && "pb-[18px]"
+                  )}
                   onPress={() => applyPreset(key)}
                 >
-                  <View style={styles.settingInfo}>
-                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                  <View className="flex-1 mr-4">
+                    <Text className="text-base font-medium mb-0.5 text-foreground">
                       {PRESETS[key].name}
                     </Text>
-                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-sm text-muted-foreground">
                       {t(`settings.feed.presets.${key}Desc`)}
                     </Text>
                   </View>
-                  <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                  <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
                 </TouchableOpacity>
               </React.Fragment>
             ))}
@@ -268,22 +273,22 @@ export default function FeedSettingsScreen() {
         </View>
 
         {/* Diversity Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View className="mb-8">
+          <View className="flex-row items-center justify-between mb-3 px-1">
+            <Text className="text-[13px] font-semibold uppercase tracking-wide text-foreground">
               {t('settings.feed.diversity.title')}
             </Text>
             <TouchableOpacity onPress={() => showHelp('diversity')}>
-              <IconComponent name="help-circle-outline" size={20} color={theme.colors.textSecondary} />
+              <IconComponent name="help-circle-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={[styles.settingItem, styles.firstSettingItem]}>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+          <View className="rounded-2xl border border-border bg-card overflow-hidden">
+            <View className="px-4 py-4 pt-[18px] flex-row items-center justify-between">
+              <View className="flex-1 mr-4">
+                <Text className="text-base font-medium mb-0.5 text-foreground">
                   {t('settings.feed.diversity.enabled')}
                 </Text>
-                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                <Text className="text-sm text-muted-foreground">
                   {t('settings.feed.diversity.enabledDesc')}
                 </Text>
               </View>
@@ -300,8 +305,8 @@ export default function FeedSettingsScreen() {
 
             {localSettings.diversity.enabled && (
               <>
-                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                <View style={[styles.settingItem, styles.sliderItem]}>
+                <View className="h-px mx-4 bg-border" />
+                <View className="px-4 py-4">
                   <Slider
                     value={localSettings.diversity.sameAuthorPenalty}
                     onValueChange={(value) => updateLocalSettings({
@@ -316,13 +321,13 @@ export default function FeedSettingsScreen() {
                     label={t('settings.feed.diversity.sameAuthorPenalty')}
                     formatValue={(v) => v.toFixed(2)}
                   />
-                  <Text style={[styles.helpText, { color: theme.colors.textTertiary }]}>
+                  <Text className="text-xs mt-2 leading-4 text-muted-foreground">
                     {t('settings.feed.diversity.sameAuthorPenaltyDesc')}
                   </Text>
                 </View>
 
-                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                <View style={[styles.settingItem, styles.lastSettingItem, styles.sliderItem]}>
+                <View className="h-px mx-4 bg-border" />
+                <View className="px-4 py-4 pb-[18px]">
                   <Slider
                     value={localSettings.diversity.sameTopicPenalty}
                     onValueChange={(value) => updateLocalSettings({
@@ -337,7 +342,7 @@ export default function FeedSettingsScreen() {
                     label={t('settings.feed.diversity.sameTopicPenalty')}
                     formatValue={(v) => v.toFixed(2)}
                   />
-                  <Text style={[styles.helpText, { color: theme.colors.textTertiary }]}>
+                  <Text className="text-xs mt-2 leading-4 text-muted-foreground">
                     {t('settings.feed.diversity.sameTopicPenaltyDesc')}
                   </Text>
                 </View>
@@ -347,17 +352,17 @@ export default function FeedSettingsScreen() {
         </View>
 
         {/* Recency Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View className="mb-8">
+          <View className="flex-row items-center justify-between mb-3 px-1">
+            <Text className="text-[13px] font-semibold uppercase tracking-wide text-foreground">
               {t('settings.feed.recency.title')}
             </Text>
             <TouchableOpacity onPress={() => showHelp('recency')}>
-              <IconComponent name="help-circle-outline" size={20} color={theme.colors.textSecondary} />
+              <IconComponent name="help-circle-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={[styles.settingItem, styles.firstSettingItem, styles.sliderItem]}>
+          <View className="rounded-2xl border border-border bg-card overflow-hidden">
+            <View className="px-4 py-4 pt-[18px]">
               <Slider
                 value={localSettings.recency.halfLifeHours}
                 onValueChange={(value) => updateLocalSettings({
@@ -372,13 +377,13 @@ export default function FeedSettingsScreen() {
                 label={t('settings.feed.recency.halfLifeHours')}
                 formatValue={(v) => `${Math.round(v)} ${t('settings.feed.recency.hours')}`}
               />
-              <Text style={[styles.helpText, { color: theme.colors.textTertiary }]}>
+              <Text className="text-xs mt-2 leading-4 text-muted-foreground">
                 {t('settings.feed.recency.halfLifeHoursDesc')}
               </Text>
             </View>
 
-            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-            <View style={[styles.settingItem, styles.lastSettingItem, styles.sliderItem]}>
+            <View className="h-px mx-4 bg-border" />
+            <View className="px-4 py-4 pb-[18px]">
               <Slider
                 value={localSettings.recency.maxAgeHours}
                 onValueChange={(value) => updateLocalSettings({
@@ -393,7 +398,7 @@ export default function FeedSettingsScreen() {
                 label={t('settings.feed.recency.maxAgeHours')}
                 formatValue={(v) => `${Math.round(v / 24)} ${t('settings.feed.recency.days')}`}
               />
-              <Text style={[styles.helpText, { color: theme.colors.textTertiary }]}>
+              <Text className="text-xs mt-2 leading-4 text-muted-foreground">
                 {t('settings.feed.recency.maxAgeHoursDesc')}
               </Text>
             </View>
@@ -401,22 +406,22 @@ export default function FeedSettingsScreen() {
         </View>
 
         {/* Quality Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View className="mb-8">
+          <View className="flex-row items-center justify-between mb-3 px-1">
+            <Text className="text-[13px] font-semibold uppercase tracking-wide text-foreground">
               {t('settings.feed.quality.title')}
             </Text>
             <TouchableOpacity onPress={() => showHelp('quality')}>
-              <IconComponent name="help-circle-outline" size={20} color={theme.colors.textSecondary} />
+              <IconComponent name="help-circle-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+          <View className="rounded-2xl border border-border bg-card overflow-hidden">
+            <View className="px-4 pt-[18px] pb-[18px] flex-row items-center justify-between">
+              <View className="flex-1 mr-4">
+                <Text className="text-base font-medium mb-0.5 text-foreground">
                   {t('settings.feed.quality.boostHighQuality')}
                 </Text>
-                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                <Text className="text-sm text-muted-foreground">
                   {t('settings.feed.quality.boostHighQualityDesc')}
                 </Text>
               </View>
@@ -434,13 +439,13 @@ export default function FeedSettingsScreen() {
         </View>
 
         {/* Reset Button */}
-        <View style={styles.section}>
+        <View className="mb-8">
           <TouchableOpacity
-            style={[styles.resetBtn, { borderColor: theme.colors.border }]}
+            className="flex-row items-center justify-center gap-2 py-3.5 rounded-2xl border border-border"
             onPress={resetToDefaults}
           >
-            <IconComponent name="refresh-outline" size={18} color={theme.colors.textSecondary} />
-            <Text style={[styles.resetText, { color: theme.colors.textSecondary }]}>
+            <IconComponent name="refresh-outline" size={18} color={colors.textSecondary} />
+            <Text className="text-base font-medium text-muted-foreground">
               {t('settings.feed.resetToDefaults')}
             </Text>
           </TouchableOpacity>
@@ -449,104 +454,3 @@ export default function FeedSettingsScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerIconContainer: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  settingsCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  settingItem: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  firstSettingItem: {
-    paddingTop: 18,
-  },
-  lastSettingItem: {
-    paddingBottom: 18,
-  },
-  sliderItem: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    paddingVertical: 16,
-  },
-  settingInfo: {
-    flex: 1,
-    marginRight: 16,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  settingDescription: {
-    fontSize: 14,
-  },
-  helpText: {
-    fontSize: 12,
-    marginTop: 8,
-    lineHeight: 16,
-  },
-  divider: {
-    height: 1,
-    marginHorizontal: 16,
-  },
-  resetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  resetText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-});

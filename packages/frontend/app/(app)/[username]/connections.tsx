@@ -235,20 +235,20 @@ export default function ConnectionsScreen() {
     return (
       <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity
-          style={styles.rowLeft}
+          className="flex-row items-center flex-1"
           onPress={() => router.push(`/@${usernameValue}` as any)}
           activeOpacity={0.7}
         >
           <Avatar source={avatarSource || undefined} size={48} />
-          <View style={styles.rowTextWrap}>
-            <ThemedText style={[styles.rowTitle, { color: theme.colors.text }]} numberOfLines={1}>
+          <View className="ml-3 flex-1">
+            <ThemedText className="font-semibold text-base text-foreground" numberOfLines={1}>
               {displayName}
             </ThemedText>
-            <ThemedText style={[styles.rowSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            <ThemedText className="pt-0.5 text-sm text-muted-foreground" numberOfLines={1}>
               @{usernameValue}
             </ThemedText>
             {bio ? (
-              <ThemedText style={[styles.rowBio, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+              <ThemedText className="pt-1 text-sm leading-[18px] text-muted-foreground" numberOfLines={2}>
                 {bio}
               </ThemedText>
             ) : null}
@@ -257,28 +257,29 @@ export default function ConnectionsScreen() {
         <FollowButton userId={userId} size="small" />
       </View>
     );
-  }, [theme.colors.border, theme.colors.text, theme.colors.textSecondary, FollowButton]);
+  }, [theme.colors.border, FollowButton]);
 
   const renderInviteBanner = useCallback(() => (
     <TouchableOpacity
-      style={[styles.inviteBanner, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+      className="flex-row items-center p-3 mx-4 mt-3 mb-2 rounded-[20px] border bg-card border-border"
+      style={{ gap: 10 }}
       onPress={handleInviteFriends}
       activeOpacity={0.7}
     >
-      <View style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}>
+      <View className="w-10 h-10 rounded-full items-center justify-center bg-primary">
         <Ionicons name="people" size={20} color={theme.colors.card} />
       </View>
-      <View style={styles.inviteContent}>
-        <ThemedText style={[styles.inviteTitle, { color: theme.colors.text }]}>
+      <View className="flex-1">
+        <ThemedText className="text-[15px] font-bold mb-0.5 text-foreground">
           {t('settings.inviteContacts.inviteBannerTitle', { defaultValue: 'Invite friends from your contacts' })}
         </ThemedText>
-        <ThemedText style={[styles.inviteSubtitle, { color: theme.colors.textSecondary }]}>
+        <ThemedText className="text-[13px] font-medium text-muted-foreground">
           {t('settings.inviteContacts.inviteBannerSubtitle', { defaultValue: 'Share Mention and grow your community.' })}
         </ThemedText>
       </View>
       <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
     </TouchableOpacity>
-  ), [handleInviteFriends, theme.colors.border, theme.colors.card, theme.colors.primary, theme.colors.text, theme.colors.textSecondary, t]);
+  ), [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t]);
 
   const currentData = useMemo(() => {
     switch (activeTab) {
@@ -367,9 +368,9 @@ export default function ConnectionsScreen() {
 
     if (loading && currentData.length === 0) {
       return (
-        <View style={styles.loadingState}>
+        <View className="flex-1 items-center justify-center gap-3 px-4">
           <Loading size="large" />
-          <ThemedText style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+          <ThemedText className="text-base text-muted-foreground">
             {t('Loading...', { defaultValue: 'Loading...' })}
           </ThemedText>
         </View>
@@ -383,12 +384,12 @@ export default function ConnectionsScreen() {
         keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
         ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
+          <View className="items-center py-[60px] px-8 gap-2">
             <Ionicons name="people-outline" size={48} color={theme.colors.textSecondary} />
-            <ThemedText style={[styles.emptyTitle, { color: theme.colors.text }]}>
+            <ThemedText className="text-[17px] font-bold mt-2 text-center text-foreground">
               {getEmptyMessage()}
             </ThemedText>
-            <ThemedText style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+            <ThemedText className="text-sm leading-5 text-center text-muted-foreground">
               {getEmptySubtitle()}
             </ThemedText>
           </View>
@@ -399,7 +400,7 @@ export default function ConnectionsScreen() {
         initialNumToRender={10}
         recycleItems={true}
         maintainVisibleContentPosition={true}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={{ paddingBottom: 20 }}
         refreshing={loading}
         onRefresh={loadCurrentTab}
       />
@@ -407,7 +408,7 @@ export default function ConnectionsScreen() {
   };
 
   return (
-    <ThemedView style={{ flex: 1, paddingTop: insets.top }}>
+    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
       <Header
         options={{
           title: getTitle(),
@@ -438,9 +439,6 @@ export default function ConnectionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  listContent: {
-    paddingBottom: 20,
-  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -449,84 +447,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     ...Platform.select({ web: { cursor: 'pointer' as const } }),
-  },
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  rowTextWrap: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  rowTitle: {
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  rowSub: {
-    paddingTop: 2,
-    fontSize: 14,
-  },
-  rowBio: {
-    paddingTop: 4,
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  inviteBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 10,
-  },
-  inviteIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inviteContent: {
-    flex: 1,
-  },
-  inviteTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  inviteSubtitle: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 32,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  loadingState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-  },
-  loadingText: {
-    fontSize: 16,
   },
 });

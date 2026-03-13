@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
-import { colors } from '../styles/colors';
 import { cn } from '@/lib/utils';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 
@@ -51,11 +50,11 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
 
   const getNotificationColor = (type: string): string => {
     switch (type) {
-      case 'like': return colors.online;
-      case 'follow': return colors.primaryColor;
-      case 'repost': return colors.primaryColor;
-      case 'quote': return colors.primaryColor;
-      default: return colors.primaryColor;
+      case 'like': return '#22c55e';
+      case 'follow': return '#005c67';
+      case 'repost': return '#005c67';
+      case 'quote': return '#005c67';
+      default: return '#005c67';
     }
   };
 

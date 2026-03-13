@@ -1,5 +1,5 @@
 import React, { memo, useState, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { flattenStyleArray } from '@/utils/theme';
@@ -70,20 +70,17 @@ export const EmptyState = memo<EmptyStateProps>(
             return (
                 <View
                     style={flattenStyleArray([
-                        styles.errorContainer,
-                        { backgroundColor: theme.colors.background },
                         containerStyle,
                     ])}
+                    className="flex-1 justify-center items-center py-8 px-6 bg-background"
                 >
-                    <View style={styles.errorContent}>
+                    <View className="items-center max-w-[320px] w-full">
                         {icon && (
                             <View
-                                style={[
-                                    styles.iconWrapper,
-                                    {
-                                        backgroundColor: icon.backgroundColor || theme.colors.error + '15',
-                                    },
-                                ]}
+                                className="w-[72px] h-[72px] rounded-full justify-center items-center mb-3"
+                                style={{
+                                    backgroundColor: icon.backgroundColor || theme.colors.error + '15',
+                                }}
                             >
                                 <Ionicons
                                     name={icon.name}
@@ -94,34 +91,23 @@ export const EmptyState = memo<EmptyStateProps>(
                         )}
 
                         <Text
-                            style={flattenStyleArray([
-                                styles.errorTitle,
-                                { color: theme.colors.text },
-                                titleStyle,
-                            ])}
+                            className="text-lg font-bold text-center text-foreground mb-1.5"
+                            style={{ letterSpacing: -0.3, ...flattenStyleArray([titleStyle]) }}
                         >
                             {error.title}
                         </Text>
 
                         <Text
-                            style={flattenStyleArray([
-                                styles.errorMessage,
-                                { color: theme.colors.textSecondary },
-                                subtitleStyle,
-                            ])}
+                            className="text-sm text-center text-muted-foreground mb-4"
+                            style={{ lineHeight: 20, ...flattenStyleArray([subtitleStyle]) }}
                         >
                             {error.message}
                         </Text>
 
                         {error.onRetry && (
                             <TouchableOpacity
-                                style={[
-                                    styles.retryButton,
-                                    {
-                                        backgroundColor: theme.colors.primary,
-                                        opacity: isRetrying ? 0.6 : 1,
-                                    },
-                                ]}
+                                className="flex-row items-center justify-center py-2 px-4 rounded-[20px] min-w-[100px] gap-1.5 bg-primary"
+                                style={{ opacity: isRetrying ? 0.6 : 1 }}
                                 onPress={handleRetry}
                                 disabled={isRetrying}
                                 activeOpacity={0.8}
@@ -134,13 +120,10 @@ export const EmptyState = memo<EmptyStateProps>(
                                             name="refresh"
                                             size={18}
                                             color={theme.colors.card}
-                                            style={styles.retryIcon}
                                         />
                                         <Text
-                                            style={[
-                                                styles.retryButtonText,
-                                                { color: theme.colors.card },
-                                            ]}
+                                            className="text-[15px] font-semibold"
+                                            style={{ color: theme.colors.card }}
                                         >
                                             Try again
                                         </Text>
@@ -161,24 +144,19 @@ export const EmptyState = memo<EmptyStateProps>(
         return (
             <View
                 style={flattenStyleArray([
-                    styles.emptyState,
-                    { backgroundColor: theme.colors.background },
                     containerStyle,
                 ])}
+                className="flex-1 justify-center items-center py-8 px-6 bg-background"
                 accessible={accessible}
                 accessibilityRole="text"
                 accessibilityLabel={accessibilityLabel || `${title || ''}. ${subtitle || ''}`}
             >
-                {customIcon && <View style={styles.iconContainer}>{customIcon}</View>}
-                
+                {customIcon && <View className="mb-3">{customIcon}</View>}
+
                 {icon && !customIcon && (
                     <View
-                        style={[
-                            styles.iconWrapper,
-                            icon.backgroundColor && {
-                                backgroundColor: icon.backgroundColor,
-                            },
-                        ]}
+                        className="w-[72px] h-[72px] rounded-full justify-center items-center mb-3"
+                        style={icon.backgroundColor ? { backgroundColor: icon.backgroundColor } : undefined}
                     >
                         <Ionicons
                             name={icon.name}
@@ -190,11 +168,8 @@ export const EmptyState = memo<EmptyStateProps>(
 
                 {title && (
                     <Text
-                        style={flattenStyleArray([
-                            styles.emptyStateText,
-                            { color: theme.colors.text },
-                            titleStyle,
-                        ])}
+                        className="text-lg font-bold mt-3 text-center text-foreground"
+                        style={{ letterSpacing: -0.5, ...flattenStyleArray([titleStyle]) }}
                     >
                         {title}
                     </Text>
@@ -202,11 +177,8 @@ export const EmptyState = memo<EmptyStateProps>(
 
                 {subtitle && (
                     <Text
-                        style={flattenStyleArray([
-                            styles.emptyStateSubtext,
-                            { color: theme.colors.textSecondary },
-                            subtitleStyle,
-                        ])}
+                        className="text-sm mt-1.5 text-center text-muted-foreground max-w-[280px]"
+                        style={{ lineHeight: 20, ...flattenStyleArray([subtitleStyle]) }}
                     >
                         {subtitle}
                     </Text>
@@ -214,10 +186,7 @@ export const EmptyState = memo<EmptyStateProps>(
 
                 {action && (
                     <TouchableOpacity
-                        style={[
-                            styles.actionButton,
-                            { backgroundColor: theme.colors.primary },
-                        ]}
+                        className="flex-row items-center justify-center py-2 px-4 rounded-[20px] mt-4.5 gap-1.5 bg-primary"
                         onPress={action.onPress}
                         activeOpacity={0.8}
                     >
@@ -226,14 +195,11 @@ export const EmptyState = memo<EmptyStateProps>(
                                 name={action.icon}
                                 size={18}
                                 color={theme.colors.card}
-                                style={styles.actionIcon}
                             />
                         )}
                         <Text
-                            style={[
-                                styles.actionButtonText,
-                                { color: theme.colors.card },
-                            ]}
+                            className="text-[15px] font-semibold"
+                            style={{ color: theme.colors.card }}
                         >
                             {action.label}
                         </Text>
@@ -245,98 +211,3 @@ export const EmptyState = memo<EmptyStateProps>(
 );
 
 EmptyState.displayName = 'EmptyState';
-
-const styles = StyleSheet.create({
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 32,
-        paddingHorizontal: 24,
-    },
-    errorContent: {
-        alignItems: 'center',
-        maxWidth: 320,
-        width: '100%',
-    },
-    iconWrapper: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    iconContainer: {
-        marginBottom: 12,
-    },
-    errorTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        textAlign: 'center',
-        marginBottom: 6,
-        letterSpacing: -0.3,
-    },
-    errorMessage: {
-        fontSize: 14,
-        textAlign: 'center',
-        lineHeight: 20,
-        marginBottom: 16,
-    },
-    retryButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        minWidth: 100,
-        gap: 6,
-    },
-    retryIcon: {
-        marginRight: 0,
-    },
-    retryButtonText: {
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    emptyState: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 32,
-        paddingHorizontal: 24,
-    },
-    emptyStateText: {
-        fontSize: 18,
-        fontWeight: '700',
-        marginTop: 12,
-        textAlign: 'center',
-        letterSpacing: -0.5,
-    },
-    emptyStateSubtext: {
-        fontSize: 14,
-        marginTop: 6,
-        textAlign: 'center',
-        lineHeight: 20,
-        maxWidth: 280,
-    },
-    actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        marginTop: 18,
-        gap: 6,
-    },
-    actionIcon: {
-        marginRight: 0,
-    },
-    actionButtonText: {
-        fontSize: 15,
-        fontWeight: '600',
-    },
-});
-

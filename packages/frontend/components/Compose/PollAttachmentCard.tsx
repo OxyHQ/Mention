@@ -7,6 +7,7 @@ import { CloseIcon } from "@/assets/icons/close-icon";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { ChevronRightIcon } from "@/assets/icons/chevron-right-icon";
 import { MEDIA_CARD_WIDTH } from "@/utils/composeUtils";
+import { cn } from "@/lib/utils";
 
 interface PollAttachmentCardProps {
     pollTitle: string;
@@ -35,17 +36,16 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
     const { t } = useTranslation();
 
     return (
-        <View style={styles.wrapper}>
+        <View className="relative self-start">
             {showReorderControls && (
-                <View style={[styles.reorderControls, { pointerEvents: 'box-none' }]}>
+                <View className="absolute left-2 right-2 bottom-2 flex-row justify-between items-center z-[2]" style={{ pointerEvents: 'box-none' }}>
                     <TouchableOpacity
                         onPress={onMoveLeft}
                         disabled={!canMoveLeft}
-                        style={[
-                            styles.reorderButton,
-                            { backgroundColor: theme.colors.background },
-                            !canMoveLeft && styles.reorderButtonDisabled,
-                        ]}
+                        className={cn(
+                            "rounded-full p-1.5 bg-background",
+                            !canMoveLeft && "opacity-40"
+                        )}
                     >
                         <BackArrowIcon
                             size={14}
@@ -55,11 +55,10 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                     <TouchableOpacity
                         onPress={onMoveRight}
                         disabled={!canMoveRight}
-                        style={[
-                            styles.reorderButton,
-                            { backgroundColor: theme.colors.background },
-                            !canMoveRight && styles.reorderButtonDisabled,
-                        ]}
+                        className={cn(
+                            "rounded-full p-1.5 bg-background",
+                            !canMoveRight && "opacity-40"
+                        )}
                     >
                         <ChevronRightIcon
                             size={14}
@@ -80,14 +79,14 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                 activeOpacity={0.85}
                 onPress={onPress}
             >
-                <View style={styles.header}>
-                    <View style={[styles.badge, { backgroundColor: theme.colors.background }]}>
+                <View className="flex-row items-center justify-between gap-3">
+                    <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-background">
                         <PollIcon size={16} color={theme.colors.primary} />
-                        <Text style={[styles.badgeText, { color: theme.colors.primary }]}>
+                        <Text className="text-xs font-semibold uppercase tracking-wide text-primary">
                             {t("compose.poll.title", { defaultValue: "Poll" })}
                         </Text>
                     </View>
-                    <Text style={[styles.meta, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-xs font-medium text-muted-foreground">
                         {t("compose.poll.optionCount", {
                             count: pollOptions.length,
                             defaultValue:
@@ -100,26 +99,20 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                     </Text>
                 </View>
 
-                <Text style={[styles.question, { color: theme.colors.text }]} numberOfLines={2}>
+                <Text className="text-base font-bold text-foreground" numberOfLines={2}>
                     {pollTitle.trim() ||
                         t("compose.poll.placeholderQuestion", { defaultValue: "Ask a question..." })}
                 </Text>
 
-                <View style={styles.options}>
+                <View className="gap-2">
                     {(pollOptions.length > 0 ? pollOptions : ["", ""]).slice(0, 2).map((option, index) => {
                         const trimmed = option?.trim?.() || "";
                         return (
                             <View
                                 key={`poll-opt-${index}`}
-                                style={[
-                                    styles.option,
-                                    {
-                                        borderColor: theme.colors.border,
-                                        backgroundColor: theme.colors.background,
-                                    },
-                                ]}
+                                className="border border-border bg-background rounded-[10px] px-3 py-2.5"
                             >
-                                <Text style={[styles.optionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                <Text className="text-[13px] font-medium text-muted-foreground" numberOfLines={1}>
                                     {trimmed ||
                                         t("compose.poll.optionPlaceholder", {
                                             defaultValue: `Option ${index + 1}`,
@@ -129,7 +122,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                         );
                     })}
                     {pollOptions.length > 2 && (
-                        <Text style={[styles.more, { color: theme.colors.textTertiary }]}>
+                        <Text style={{ fontSize: 12, fontWeight: "500", color: theme.colors.textTertiary }}>
                             {t("compose.poll.moreOptions", {
                                 count: pollOptions.length - 2,
                                 defaultValue: `+${pollOptions.length - 2} more`,
@@ -141,7 +134,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
 
             <TouchableOpacity
                 onPress={onRemove}
-                style={[styles.removeButton, { backgroundColor: theme.colors.background }]}
+                className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
                 <CloseIcon size={16} color={theme.colors.text} />
@@ -151,10 +144,6 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-    wrapper: {
-        position: "relative",
-        alignSelf: "flex-start",
-    },
     card: {
         width: MEDIA_CARD_WIDTH,
         minHeight: 150,
@@ -162,74 +151,5 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         padding: 16,
         gap: 12,
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-    },
-    badge: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 999,
-    },
-    badgeText: {
-        fontSize: 12,
-        fontWeight: "600",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
-    },
-    meta: {
-        fontSize: 12,
-        fontWeight: "500",
-    },
-    question: {
-        fontSize: 16,
-        fontWeight: "700",
-    },
-    options: {
-        gap: 8,
-    },
-    option: {
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-    },
-    optionText: {
-        fontSize: 13,
-        fontWeight: "500",
-    },
-    more: {
-        fontSize: 12,
-        fontWeight: "500",
-    },
-    removeButton: {
-        position: "absolute",
-        top: 8,
-        right: 8,
-        borderRadius: 999,
-        padding: 6,
-    },
-    reorderControls: {
-        position: "absolute",
-        left: 8,
-        right: 8,
-        bottom: 8,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        zIndex: 2,
-    },
-    reorderButton: {
-        borderRadius: 999,
-        padding: 6,
-    },
-    reorderButtonDisabled: {
-        opacity: 0.4,
     },
 });

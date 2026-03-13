@@ -122,42 +122,33 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             presentationStyle="fullScreen"
             onRequestClose={onClose}
         >
-            <SafeAreaView
-                style={[styles.container, { backgroundColor: theme.colors.background }]}
-            >
-                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
+            <SafeAreaView className="flex-1 bg-background">
+                <View className="flex-row items-center justify-between px-4 py-3" style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }}>
+                    <IconButton variant="icon" onPress={onClose} className="w-10 h-10 justify-center items-center">
                         <CloseIcon size={20} color={theme.colors.text} />
                     </IconButton>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
+                    <Text className="text-lg font-semibold flex-1 text-center text-foreground">
                         {t("compose.event.editorTitle", { defaultValue: "Create event" })}
                     </Text>
                     <TouchableOpacity
                         onPress={onSave}
-                        style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
+                        className="px-4 py-2 rounded-[20px] bg-primary"
                         activeOpacity={0.85}
                     >
-                        <Text style={[styles.saveText, { color: theme.colors.card }]}>
+                        <Text className="text-[15px] font-semibold" style={{ color: theme.colors.card }}>
                             {t("common.save")}
                         </Text>
                     </TouchableOpacity>
                 </View>
 
                 <KeyboardAvoidingView
-                    style={{ flex: 1 }}
+                    className="flex-1"
                     behavior={Platform.OS === "ios" ? "padding" : undefined}
                     keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
                 >
-                    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                    <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
                         <TextInput
-                            style={[
-                                styles.nameInput,
-                                {
-                                    color: theme.colors.text,
-                                    borderColor: theme.colors.border,
-                                    backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                            ]}
+                            className="text-lg font-semibold p-4 rounded-xl border border-border bg-secondary text-foreground min-h-[56px]"
                             placeholder={t("compose.event.namePlaceholder", {
                                 defaultValue: "Event name",
                             })}
@@ -167,48 +158,36 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                             maxLength={100}
                         />
 
-                        <View style={styles.dateTimeSection}>
+                        <View className="flex-row gap-3">
                             <TouchableOpacity
-                                style={[
-                                    styles.dateTimeButton,
-                                    {
-                                        borderColor: theme.colors.border,
-                                        backgroundColor: theme.colors.backgroundSecondary,
-                                    },
-                                ]}
+                                className="flex-1 p-4 rounded-xl border border-border bg-secondary"
                                 onPress={() => setShowDatePicker(true)}
                                 activeOpacity={0.7}
                             >
-                                <Text style={[styles.dateTimeLabel, { color: theme.colors.textSecondary }]}>
+                                <Text className="text-xs text-muted-foreground mb-1">
                                     {t("compose.event.date", { defaultValue: "Date" })}
                                 </Text>
-                                <Text style={[styles.dateTimeValue, { color: theme.colors.text }]}>
+                                <Text className="text-base font-semibold text-foreground">
                                     {formatDate}
                                 </Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                style={[
-                                    styles.dateTimeButton,
-                                    {
-                                        borderColor: theme.colors.border,
-                                        backgroundColor: theme.colors.backgroundSecondary,
-                                    },
-                                ]}
+                                className="flex-1 p-4 rounded-xl border border-border bg-secondary"
                                 onPress={() => setShowTimePicker(true)}
                                 activeOpacity={0.7}
                             >
-                                <Text style={[styles.dateTimeLabel, { color: theme.colors.textSecondary }]}>
+                                <Text className="text-xs text-muted-foreground mb-1">
                                     {t("compose.event.time", { defaultValue: "Time" })}
                                 </Text>
-                                <Text style={[styles.dateTimeValue, { color: theme.colors.text }]}>
+                                <Text className="text-base font-semibold text-foreground">
                                     {formatTime}
                                 </Text>
                             </TouchableOpacity>
                         </View>
 
                         {showDatePicker && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                            <View className="rounded-xl border border-border bg-secondary p-3 mt-2">
                                 <DateTimePicker
                                     mode="single"
                                     date={eventDate}
@@ -219,19 +198,12 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         )}
 
                         {showTimePicker && (
-                            <View style={[styles.pickerContainer, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-                                <Text style={[styles.timePickerLabel, { color: theme.colors.text }]}>
+                            <View className="rounded-xl border border-border bg-secondary p-3 mt-2">
+                                <Text className="text-sm font-semibold text-foreground mb-3">
                                     {t("compose.event.selectTime", { defaultValue: "Select time" })}
                                 </Text>
                                 <TextInput
-                                    style={[
-                                        styles.timeInput,
-                                        {
-                                            color: theme.colors.text,
-                                            borderColor: theme.colors.border,
-                                            backgroundColor: theme.colors.background,
-                                        },
-                                    ]}
+                                    className="text-base p-3 rounded-lg border border-border bg-background text-foreground text-center"
                                     placeholder="HH:MM (24h format)"
                                     placeholderTextColor={theme.colors.textSecondary}
                                     value={`${String(eventDate.getHours()).padStart(2, '0')}:${String(eventDate.getMinutes()).padStart(2, '0')}`}
@@ -251,14 +223,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         )}
 
                         <TextInput
-                            style={[
-                                styles.locationInput,
-                                {
-                                    color: theme.colors.text,
-                                    borderColor: theme.colors.border,
-                                    backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                            ]}
+                            className="text-[15px] p-4 rounded-xl border border-border bg-secondary text-foreground min-h-[56px]"
                             placeholder={t("compose.event.locationPlaceholder", {
                                 defaultValue: "Location (optional)",
                             })}
@@ -269,14 +234,8 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         />
 
                         <TextInput
-                            style={[
-                                styles.descriptionInput,
-                                {
-                                    color: theme.colors.text,
-                                    borderColor: theme.colors.border,
-                                    backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                            ]}
+                            className="text-[15px] p-4 rounded-xl border border-border bg-secondary text-foreground min-h-[120px]"
+                            style={{ textAlignVertical: "top" }}
                             placeholder={t("compose.event.descriptionPlaceholder", {
                                 defaultValue: "Description (optional)",
                             })}
@@ -293,102 +252,3 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         </Modal>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    closeButton: {
-        width: 40,
-        height: 40,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        flex: 1,
-        textAlign: "center",
-    },
-    saveButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-    },
-    saveText: {
-        fontSize: 15,
-        fontWeight: "600",
-    },
-    content: {
-        padding: 16,
-        gap: 16,
-    },
-    nameInput: {
-        fontSize: 18,
-        fontWeight: "600",
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        minHeight: 56,
-    },
-    dateTimeSection: {
-        flexDirection: "row",
-        gap: 12,
-    },
-    dateTimeButton: {
-        flex: 1,
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-    },
-    dateTimeLabel: {
-        fontSize: 12,
-        marginBottom: 4,
-    },
-    dateTimeValue: {
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    pickerContainer: {
-        borderRadius: 12,
-        borderWidth: 1,
-        padding: 12,
-        marginTop: 8,
-    },
-    timePickerLabel: {
-        fontSize: 14,
-        fontWeight: "600",
-        marginBottom: 12,
-    },
-    timeInput: {
-        fontSize: 16,
-        padding: 12,
-        borderRadius: 8,
-        borderWidth: 1,
-        textAlign: "center",
-    },
-    locationInput: {
-        fontSize: 15,
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        minHeight: 56,
-    },
-    descriptionInput: {
-        fontSize: 15,
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        minHeight: 120,
-        textAlignVertical: "top",
-    },
-});
-

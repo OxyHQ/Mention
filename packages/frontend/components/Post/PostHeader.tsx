@@ -1,17 +1,15 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../styles/colors';
 import PostAvatar from './PostAvatar';
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@/hooks/useTheme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
-import { cn } from '@/lib/utils';
 
 // Spacing tokens for consistent layout
-const HPAD = 8;         // horizontal padding
-const ROW_GAP = 8;       // gap between inline header items
+const HPAD = 8;
+const ROW_GAP = 8;
 
 interface User {
   name: string;
@@ -34,7 +32,7 @@ interface PostHeaderProps {
   avatarGap?: number;
   onPressUser?: () => void;
   onPressAvatar?: () => void;
-  onPressMenu?: () => void; // optional three-dots menu action
+  onPressMenu?: () => void;
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
@@ -54,7 +52,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 }) => {
   const theme = useTheme();
 
-  // Move formatRelativeTime outside component to avoid recreation
   const formatRelativeTime = React.useCallback((input?: string): string => {
     if (!input) return 'now';
     const ts = Date.parse(input);
@@ -76,52 +73,52 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     return `${years}y`;
   }, []);
 
-  // Memoize time labels to prevent recalculation on every render
   const timeLabel = useMemo(() => formatRelativeTime(date), [date, formatRelativeTime]);
   const repostLabel = useMemo(() => repostedBy ? `${repostedBy.name} reposted` : undefined, [repostedBy]);
   const repostTime = useMemo(() => repostedBy?.date ? formatRelativeTime(repostedBy.date) : undefined, [repostedBy?.date, formatRelativeTime]);
+
   return (
-    <View style={[styles.container, { paddingHorizontal }]}>
-      <View style={styles.headerRow}>
+    <View style={{ paddingHorizontal }}>
+      <View className="flex-row items-start justify-between">
         <ProfileHoverCard username={user.handle}>
           <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
             <PostAvatar uri={avatarUri} size={avatarSize} />
           </TouchableOpacity>
         </ProfileHoverCard>
-        <View style={styles.headerMeta}>
-          <View style={styles.postHeader}>
+        <View className="flex-1" style={{ gap: 4 }}>
+          <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
             <UserName
               name={user.name}
               verified={user.verified}
               onPress={onPressUser}
             />
-            {user.handle ? <Text style={styles.postHandle} className="text-muted-foreground">@{user.handle}</Text> : null}
+            {user.handle ? <Text className="text-muted-foreground text-[15px]">@{user.handle}</Text> : null}
             {user.isFederated ? (
               <FediverseIcon size={13} color={theme.colors.textTertiary} />
             ) : null}
-            {!!timeLabel && <Text style={styles.postDate} className="text-muted-foreground">· {timeLabel}</Text>}
+            {!!timeLabel && <Text className="text-muted-foreground text-[15px]">{'\u00B7'} {timeLabel}</Text>}
             {(repostLabel || showRepost) && (
-              <View style={styles.metaIndicator}>
+              <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
                 <Ionicons name="repeat" size={12} color={theme.colors.textSecondary} />
-                <Text style={styles.metaIndicatorText} className="text-muted-foreground">
-                  {repostLabel || 'Reposted'}{repostTime ? ` · ${repostTime}` : ''}
+                <Text className="text-muted-foreground text-xs">
+                  {repostLabel || 'Reposted'}{repostTime ? ` \u00B7 ${repostTime}` : ''}
                 </Text>
               </View>
             )}
             {showReply && (
-              <View style={styles.metaIndicator}>
+              <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
                 <Ionicons name="chatbubble" size={12} color={theme.colors.textSecondary} />
-                <Text style={styles.metaIndicatorText} className="text-muted-foreground">Replied</Text>
+                <Text className="text-muted-foreground text-xs">Replied</Text>
               </View>
             )}
           </View>
-          {children ? <View style={styles.headerChildren}>{children}</View> : null}
+          {children ? <View>{children}</View> : null}
         </View>
         {onPressMenu ? (
           <TouchableOpacity
             accessibilityLabel="Post options"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.menuButton}
+            className="px-2 pt-1"
             onPress={onPressMenu}
           >
             <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
@@ -131,53 +128,5 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    paddingTop: 0,
-    paddingBottom: 0,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  headerMeta: {
-    flex: 1,
-    gap: 4,
-  },
-  menuButton: {
-    paddingHorizontal: 8,
-    paddingTop: 4,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: ROW_GAP,
-  },
-  headerChildren: {
-  },
-  postUserName: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  verifiedIcon: {
-    // icon sits inline with text; spacing handled by gap/text layout
-  },
-  postHandle: {
-    fontSize: 15,
-  },
-  postDate: {
-    fontSize: 15,
-  },
-  metaIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: ROW_GAP,
-  },
-  metaIndicatorText: {
-    fontSize: 12,
-  },
-});
 
 export default React.memo(PostHeader);

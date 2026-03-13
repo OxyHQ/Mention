@@ -205,17 +205,17 @@ const PostDetailScreen: React.FC = () => {
     const requestLocation = useCallback(async () => {
         setIsGettingLocation(true);
         try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
+            const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
                 toast.error(t('Location permission denied'));
                 return;
             }
 
-            const currentLocation = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.Balanced,
+            const currentLocation = await ExpoLocation.getCurrentPositionAsync({
+                accuracy: ExpoLocation.Accuracy.Balanced,
             });
 
-            const reverseGeocode = await Location.reverseGeocodeAsync({
+            const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({
                 latitude: currentLocation.coords.latitude,
                 longitude: currentLocation.coords.longitude,
             });
@@ -400,7 +400,7 @@ const PostDetailScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+            <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
                 <Header
                     options={{
                         title: 'Post',
@@ -416,9 +416,9 @@ const PostDetailScreen: React.FC = () => {
                     hideBottomBorder={true}
                     disableSticky={true}
                 />
-                <View style={styles.loadingContainer}>
+                <View className="flex-1 items-center justify-center px-8">
                     <Loading size="large" />
-                    <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading post...</Text>
+                    <Text className="mt-4 text-base text-muted-foreground">Loading post...</Text>
                 </View>
             </ThemedView>
         );
@@ -431,7 +431,7 @@ const PostDetailScreen: React.FC = () => {
                     title={t('seo.post.notFound')}
                     description={t('seo.post.notFoundDescription')}
                 />
-                <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+                <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
                     <Header
                         options={{
                             title: 'Post',
@@ -447,14 +447,14 @@ const PostDetailScreen: React.FC = () => {
                         hideBottomBorder={true}
                         disableSticky={true}
                     />
-                    <View style={styles.errorContainer}>
+                    <View className="flex-1 items-center justify-center px-8">
                         <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
-                        <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Post Not Found</Text>
-                        <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-xl font-semibold mt-4 mb-2 text-foreground">Post Not Found</Text>
+                        <Text className="text-base text-center leading-[22px] mb-6 text-muted-foreground">
                             {error || 'The post you\'re looking for doesn\'t exist or has been deleted.'}
                         </Text>
-                        <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={() => router.back()}>
-                            <Text style={[styles.retryButtonText, { color: theme.colors.card }]}>Go Back</Text>
+                        <TouchableOpacity className="px-6 py-3 rounded-lg bg-primary" onPress={() => router.back()}>
+                            <Text className="text-base font-semibold" style={{ color: theme.colors.card }}>Go Back</Text>
                         </TouchableOpacity>
                     </View>
                 </ThemedView>
@@ -476,7 +476,8 @@ const PostDetailScreen: React.FC = () => {
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
-                style={[styles.container, { paddingTop: insets.top }]}
+                className="flex-1"
+                style={{ paddingTop: insets.top }}
             >
                 <Header
                     options={{
@@ -496,7 +497,7 @@ const PostDetailScreen: React.FC = () => {
 
                 <ScrollView
                     ref={scrollViewRef}
-                    style={styles.scrollView}
+                    className="flex-1"
                     contentContainerStyle={styles.scrollContent}
                     onScroll={handleScrollEvent}
                     scrollEventThrottle={scrollEventThrottle}
@@ -507,26 +508,26 @@ const PostDetailScreen: React.FC = () => {
                 >
                     {/* Show parent post on top if this is a reply */}
                     {parentPost && (post as any)?.parentPostId && (
-                        <View style={[styles.parentPostContainer, { borderBottomColor: theme.colors.border }]}>
-                            <Text style={[styles.parentPostLabel, { color: theme.colors.textSecondary }]}>Replying to</Text>
+                        <View className="border-b pb-3 mb-2 border-border">
+                            <Text className="text-sm px-4 py-2 font-medium text-muted-foreground">Replying to</Text>
                             <PostItem
                                 post={parentPost}
                                 onReply={handleFocusInput}
                             />
-                            <View style={[styles.replyConnector, { backgroundColor: theme.colors.border }]} />
+                            <View className="w-0.5 h-3 ml-8 mt-1 bg-border" />
                         </View>
                     )}
 
-                    <View style={styles.postContainer}>
+                    <View className="pb-2">
                         <PostItem
                             post={post}
                             onReply={handleFocusInput}
                         />
                     </View>
                     <View style={styles.repliesSection}>
-                        <View style={styles.repliesHeader}>
-                            <Text style={[styles.repliesTitle, { color: theme.colors.text }]}>Replies</Text>
-                            <View style={[styles.sortToggle, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View className="flex-row items-center justify-between px-4 pt-4 pb-2">
+                            <Text className="text-lg font-semibold text-foreground">Replies</Text>
+                            <View className="flex-row rounded-lg p-0.5 bg-secondary">
                                 <TouchableOpacity
                                     onPress={() => setReplySort('best')}
                                     style={[
@@ -535,11 +536,13 @@ const PostDetailScreen: React.FC = () => {
                                     ]}
                                     activeOpacity={0.7}
                                 >
-                                    <Text style={[
-                                        styles.sortOptionText,
-                                        { color: replySort === 'best' ? theme.colors.text : theme.colors.textSecondary },
-                                        replySort === 'best' && styles.sortOptionTextActive
-                                    ]}>Best</Text>
+                                    <Text
+                                        className="text-[13px]"
+                                        style={{
+                                            color: replySort === 'best' ? theme.colors.text : theme.colors.textSecondary,
+                                            fontWeight: replySort === 'best' ? '600' : '500',
+                                        }}
+                                    >Best</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     onPress={() => setReplySort('recent')}
@@ -549,21 +552,23 @@ const PostDetailScreen: React.FC = () => {
                                     ]}
                                     activeOpacity={0.7}
                                 >
-                                    <Text style={[
-                                        styles.sortOptionText,
-                                        { color: replySort === 'recent' ? theme.colors.text : theme.colors.textSecondary },
-                                        replySort === 'recent' && styles.sortOptionTextActive
-                                    ]}>Recent</Text>
+                                    <Text
+                                        className="text-[13px]"
+                                        style={{
+                                            color: replySort === 'recent' ? theme.colors.text : theme.colors.textSecondary,
+                                            fontWeight: replySort === 'recent' ? '600' : '500',
+                                        }}
+                                    >Recent</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
                         {repliesFeed.isLoading && repliesFeed.items.length === 0 ? (
-                            <View style={styles.repliesLoading}>
+                            <View className="items-center justify-center py-8">
                                 <LoadingIcon size={32} color={theme.colors.primary} />
                             </View>
                         ) : repliesFeed.items.length === 0 ? (
-                            <View style={styles.repliesEmpty}>
-                                <Text style={[styles.repliesEmptyText, { color: theme.colors.textSecondary }]}>
+                            <View className="items-center justify-center py-8 px-4">
+                                <Text className="text-[15px] text-center text-muted-foreground">
                                     No replies yet. Be the first to reply!
                                 </Text>
                             </View>
@@ -580,12 +585,12 @@ const PostDetailScreen: React.FC = () => {
                 {/* Inline Reply Composer */}
                 <ThemedView style={[styles.composerContainer, { borderTopColor: theme.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}
                 >
-                    <View style={styles.composerContent}>
-                        <View style={styles.composer}>
-                            <View style={styles.composerAvatarWrap}>
+                    <View>
+                        <View className="flex-row items-start gap-2">
+                            <View className="pt-2">
                                 <Avatar source={(user as any)?.avatar} size={36} />
                             </View>
-                            <View style={styles.composerInputContainer}>
+                            <View className="flex-1">
                                 <MentionTextInput
                                     style={[styles.composerInput, {
                                         color: theme.colors.text,
@@ -601,7 +606,7 @@ const PostDetailScreen: React.FC = () => {
 
                                 {/* Media Preview */}
                                 {mediaIds.length > 0 && (
-                                    <View style={styles.mediaPreview}>
+                                    <View className="my-2">
                                         <PostAttachmentsRow
                                             media={mediaIds.map(m => ({ id: m.id, type: m.type }))}
                                             leftOffset={0}
@@ -611,15 +616,15 @@ const PostDetailScreen: React.FC = () => {
 
                                 {/* Poll Creator */}
                                 {showPollCreator && (
-                                    <View style={[styles.pollCreator, { borderColor: theme.colors.border }]}>
-                                        <View style={styles.pollHeader}>
-                                            <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
+                                    <View className="mt-3 p-3 rounded-xl border border-border">
+                                        <View className="flex-row items-center justify-between mb-3">
+                                            <Text className="text-base font-semibold text-foreground">{t('Create a poll')}</Text>
                                             <TouchableOpacity onPress={removePoll}>
                                                 <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
                                             </TouchableOpacity>
                                         </View>
                                         {pollOptions.map((option, index) => (
-                                            <View key={index} style={styles.pollOptionRow}>
+                                            <View key={index} className="flex-row items-center gap-2 mb-2">
                                                 <TextInput
                                                     style={[styles.pollOptionInput, {
                                                         borderColor: theme.colors.border,
@@ -640,9 +645,9 @@ const PostDetailScreen: React.FC = () => {
                                             </View>
                                         ))}
                                         {pollOptions.length < 4 && (
-                                            <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
+                                            <TouchableOpacity className="flex-row items-center gap-1 py-2" onPress={addPollOption}>
                                                 <Ionicons name="add" size={16} color={theme.colors.primary} />
-                                                <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>
+                                                <Text className="text-sm font-medium text-primary">
                                                     {t('Add option')}
                                                 </Text>
                                             </TouchableOpacity>
@@ -652,9 +657,9 @@ const PostDetailScreen: React.FC = () => {
 
                                 {/* Location Display */}
                                 {location && (
-                                    <View style={[styles.locationDisplay, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                                    <View className="flex-row items-center gap-2 px-3 py-2 mt-2 rounded-lg border bg-secondary border-border">
                                         <Ionicons name="location" size={16} color={theme.colors.primary} />
-                                        <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                        <Text className="flex-1 text-sm text-muted-foreground" numberOfLines={1}>
                                             {location.address}
                                         </Text>
                                         <TouchableOpacity onPress={removeLocation}>
@@ -680,20 +685,20 @@ const PostDetailScreen: React.FC = () => {
                                 disabled={!canReply}
                                 style={[
                                     styles.composerButton,
-                                    { backgroundColor: theme.colors.primary },
                                     !canReply && styles.composerButtonDisabled
                                 ]}
+                                className="bg-primary"
                             >
-                                <Text style={[styles.composerButtonText, { color: theme.colors.card }]}>{isSubmitting ? '...' : 'Reply'}</Text>
+                                <Text className="font-semibold text-sm" style={{ color: theme.colors.card }}>{isSubmitting ? '...' : 'Reply'}</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={styles.composerMeta}>
+                        <View className="flex-row justify-end px-2 py-1">
                             <Text
-                                style={[
-                                    styles.characterCountText,
-                                    { color: theme.colors.textSecondary },
-                                    isOverLimit && [styles.characterCountWarning, { color: theme.colors.error }]
-                                ]}
+                                className="text-xs"
+                                style={{
+                                    color: isOverLimit ? theme.colors.error : theme.colors.textSecondary,
+                                    fontWeight: isOverLimit ? '600' : '400',
+                                }}
                             >
                                 {characterCount}/{MAX_CHARACTERS}
                             </Text>
@@ -706,79 +711,12 @@ const PostDetailScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
     scrollContent: {
         flexGrow: 1,
-        // Add extra padding to account for composer container at bottom
         paddingBottom: 120,
-    },
-    list: {
-        flex: 1,
-    },
-    postContainer: {
-        paddingBottom: 8,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 32,
-    },
-    loadingText: {
-        marginTop: 16,
-        fontSize: 16,
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 32,
-    },
-    errorTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        marginTop: 16,
-        marginBottom: 8,
-    },
-    errorText: {
-        fontSize: 16,
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 24,
-    },
-    retryButton: {
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 8,
-    },
-    retryButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
     },
     repliesSection: {
         minHeight: 200,
-    },
-    repliesHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 8,
-    },
-    repliesTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    sortToggle: {
-        flexDirection: 'row',
-        borderRadius: 8,
-        padding: 2,
     },
     sortOption: {
         paddingHorizontal: 14,
@@ -792,60 +730,11 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         elevation: 1,
     },
-    sortOptionText: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    sortOptionTextActive: {
-        fontWeight: '600',
-    },
-    repliesLoading: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 32,
-    },
-    repliesEmpty: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 32,
-        paddingHorizontal: 16,
-    },
-    repliesEmptyText: {
-        fontSize: 15,
-        textAlign: 'center',
-    },
-    repliesFeed: {
-        minHeight: 200,
-    },
-    footer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 16,
-    },
-    footerText: {
-        fontSize: 14,
-        marginLeft: 8,
-    },
     composerContainer: {
         borderTopWidth: 1,
         paddingHorizontal: 12,
         paddingTop: 8,
         backgroundColor: 'transparent',
-    },
-    composerContent: {
-        // Removed flex: 1 to prevent layout issues - container should size to content
-    },
-    composer: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 8,
-    },
-    composerAvatarWrap: {
-        paddingTop: 8,
-    },
-    composerInputContainer: {
-        flex: 1,
     },
     composerInput: {
         minHeight: 40,
@@ -853,62 +742,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
         paddingVertical: 8,
     },
-    mediaPreview: {
-        marginTop: 8,
-        marginBottom: 8,
-    },
-    pollCreator: {
-        marginTop: 12,
-        padding: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-    },
-    pollHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    pollTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    pollOptionRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 8,
-    },
     pollOptionInput: {
         flex: 1,
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 8,
         borderWidth: 1,
-        fontSize: 14,
-    },
-    addPollOptionBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingVertical: 8,
-    },
-    addPollOptionText: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    locationDisplay: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        marginTop: 8,
-        borderRadius: 8,
-        borderWidth: 1,
-    },
-    locationText: {
-        flex: 1,
         fontSize: 14,
     },
     composerButton: {
@@ -920,40 +759,6 @@ const styles = StyleSheet.create({
     },
     composerButtonDisabled: {
         opacity: 0.5,
-    },
-    composerButtonText: {
-        fontWeight: '600',
-        fontSize: 14,
-    },
-    composerMeta: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        paddingHorizontal: 8,
-        paddingTop: 4,
-        paddingBottom: 4,
-    },
-    characterCountText: {
-        fontSize: 12,
-    },
-    characterCountWarning: {
-        fontWeight: '600',
-    },
-    parentPostContainer: {
-        borderBottomWidth: 1,
-        paddingBottom: 12,
-        marginBottom: 8,
-    },
-    parentPostLabel: {
-        fontSize: 14,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        fontWeight: '500',
-    },
-    replyConnector: {
-        width: 2,
-        height: 12,
-        marginLeft: 32,
-        marginTop: 4,
     },
 });
 

@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity } from 'react-native';
 import Avatar from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/styles/colors';
 
 interface Props {
     id: string | number;
@@ -16,105 +15,53 @@ interface Props {
 
 const ComposeForm: React.FC<Props> = ({ id, value, onChange, onRemove, placeholder, showAvatar = true, avatarSrc }) => {
     return (
-        <View style={styles.row} key={id}>
-            <View style={styles.leftCol}>
-                <View style={styles.connectorTop} />
+        <View className="flex-row items-start px-4 gap-3" key={id}>
+            <View className="w-12 items-center">
+                <View className="w-0.5 h-2 rounded-sm bg-muted" />
                 {showAvatar && <Avatar source={avatarSrc ? { uri: avatarSrc } : undefined} size={36} />}
-                <View style={styles.connectorBottom} />
+                <View className="w-0.5 flex-1 rounded-sm min-h-[16px] bg-muted" />
             </View>
 
-            <View style={styles.content}>
+            <View className="flex-1">
                 <TextInput
-                    style={styles.textInput}
+                    className="min-h-[64px] text-base text-foreground"
                     placeholder={placeholder || "What's happening?"}
-                    placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                    placeholderTextColor="#949494"
                     value={value}
                     onChangeText={onChange}
                     multiline
                 />
 
                 {/* toolbar under each form */}
-                <View style={styles.toolbarRow}>
+                <View className="flex-row gap-3.5 mt-2">
                     <TouchableOpacity>
-                        <Ionicons name="image-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <Ionicons name="image-outline" size={18} color="#5e5e5e" />
                     </TouchableOpacity>
                     <TouchableOpacity>
-                        <Ionicons name="gift" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <Ionicons name="gift" size={18} color="#5e5e5e" />
                     </TouchableOpacity>
                     <TouchableOpacity>
-                        <Ionicons name="happy-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <Ionicons name="happy-outline" size={18} color="#5e5e5e" />
                     </TouchableOpacity>
                     <TouchableOpacity>
-                        <Ionicons name="list-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <Ionicons name="list-outline" size={18} color="#5e5e5e" />
                     </TouchableOpacity>
                     <TouchableOpacity>
-                        <Ionicons name="document-text-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <Ionicons name="document-text-outline" size={18} color="#5e5e5e" />
                     </TouchableOpacity>
                     <TouchableOpacity>
-                        <Ionicons name="location-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <Ionicons name="location-outline" size={18} color="#5e5e5e" />
                     </TouchableOpacity>
                 </View>
             </View>
 
             {onRemove && (
-                <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-                    <Ionicons name="close" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                <TouchableOpacity onPress={onRemove} className="p-1.5">
+                    <Ionicons name="close" size={18} color="#5e5e5e" />
                 </TouchableOpacity>
             )}
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    row: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        paddingHorizontal: 16,
-        gap: 12,
-        marginTop: 0,
-    },
-    leftCol: {
-        width: 48,
-        alignItems: 'center',
-    },
-    connectorTop: {
-        width: 2,
-        height: 8,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-        borderRadius: 1,
-        marginBottom: 0,
-    },
-    connectorBottom: {
-        width: 2,
-        flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-        marginTop: 0,
-        borderRadius: 1,
-        minHeight: 16,
-    },
-    connector: {
-        width: 2,
-        flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-        marginTop: 8,
-        borderRadius: 1,
-    },
-    content: {
-        flex: 1,
-    },
-    textInput: {
-        minHeight: 64,
-        fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_1,
-    },
-    toolbarRow: {
-        flexDirection: 'row',
-        gap: 14,
-        marginTop: 8,
-    },
-    removeBtn: {
-        padding: 6,
-    },
-});
 
 export default ComposeForm;

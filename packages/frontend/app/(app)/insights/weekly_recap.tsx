@@ -2,11 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
-    StyleSheet,
     ScrollView,
     TouchableOpacity,
     Dimensions,
-    Platform
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,7 +48,7 @@ const WeeklyRecapScreen: React.FC = () => {
         monday.setDate(monday.getDate() - (weekOffset * 7));
         const sunday = new Date(monday);
         sunday.setDate(sunday.getDate() + 6);
-        
+
         return { start: monday, end: sunday };
     };
 
@@ -66,7 +64,7 @@ const WeeklyRecapScreen: React.FC = () => {
             t('insights.weeklyRecap.days.sun')
         ];
         const labels = [];
-        
+
         for (let i = 0; i < 7; i++) {
             const date = new Date(weekDates.start);
             date.setDate(date.getDate() + i);
@@ -75,16 +73,16 @@ const WeeklyRecapScreen: React.FC = () => {
             const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
             labels.push(days[adjustedIndex]);
         }
-        
+
         return labels;
     };
 
     const getCurrentWeekData = (data: UserStatistics['dailyBreakdown'], field: 'views' | 'replies' | 'interactions'): number[] => {
         if (!data || data.length === 0) return Array(7).fill(0);
-        
+
         const weekDates = getWeekDates(0);
         const weekData = Array(7).fill(0);
-        
+
         // Create a map of dates to values
         const dataMap = new Map<string, number>();
         data.forEach(day => {
@@ -92,7 +90,7 @@ const WeeklyRecapScreen: React.FC = () => {
             const value = day[field] || 0;
             dataMap.set(dateStr, value);
         });
-        
+
         // Map each day of the week to its value
         for (let i = 0; i < 7; i++) {
             const date = new Date(weekDates.start);
@@ -100,7 +98,7 @@ const WeeklyRecapScreen: React.FC = () => {
             const dateStr = date.toISOString().split('T')[0];
             weekData[i] = dataMap.get(dateStr) || 0;
         }
-        
+
         return weekData;
     };
 
@@ -109,7 +107,7 @@ const WeeklyRecapScreen: React.FC = () => {
         const startDay = start.getDate();
         const endMonth = end.toLocaleDateString('en-US', { month: 'short' });
         const endDay = end.getDate();
-        
+
         if (startMonth === endMonth) {
             return `${startMonth} ${startDay} - ${endDay}`;
         }
@@ -123,7 +121,7 @@ const WeeklyRecapScreen: React.FC = () => {
             setLoading(true);
             const currentWeekDates = getWeekDates(0);
             const previousWeekDates = getWeekDates(1);
-            
+
             // Calculate days for each week (7 days per week)
             const daysDiff = 7;
             const prevDaysDiff = 7;
@@ -183,13 +181,13 @@ const WeeklyRecapScreen: React.FC = () => {
             // Extract follower data from followerChanges if available
             let newFollowers = 0;
             let previousFollowers = 0;
-            
+
             if (followerChanges && followerChanges.followerChanges) {
                 const changes = followerChanges.followerChanges;
                 // Current week followers (last 7 days)
                 const currentWeekChanges = changes.slice(-7);
                 newFollowers = currentWeekChanges.reduce((sum, change) => sum + Math.max(0, change.change), 0);
-                
+
                 // Previous week followers (days 8-14)
                 const previousWeekChanges = changes.slice(0, 7);
                 previousFollowers = previousWeekChanges.reduce((sum, change) => sum + Math.max(0, change.change), 0);
@@ -215,7 +213,7 @@ const WeeklyRecapScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <ThemedView style={styles.container}>
+            <ThemedView className="flex-1">
                 <View style={{ paddingTop: insets.top }}>
                     <Header
                         options={{
@@ -233,7 +231,7 @@ const WeeklyRecapScreen: React.FC = () => {
                         disableSticky={true}
                     />
                 </View>
-                <View style={styles.loadingContainer}>
+                <View className="flex-1 items-center justify-center">
                     <Loading size="large" />
                 </View>
             </ThemedView>
@@ -242,7 +240,7 @@ const WeeklyRecapScreen: React.FC = () => {
 
     if (!data) {
         return (
-            <ThemedView style={styles.container}>
+            <ThemedView className="flex-1">
                 <View style={{ paddingTop: insets.top }}>
                     <Header
                         options={{
@@ -260,9 +258,9 @@ const WeeklyRecapScreen: React.FC = () => {
                         disableSticky={true}
                     />
                 </View>
-                <View style={styles.emptyContainer}>
+                <View className="flex-1 items-center justify-center p-6">
                     <Ionicons name="bar-chart-outline" size={64} color={theme.colors.primary + '60'} />
-                    <Text style={[styles.emptyText, { color: theme.colors.primary + '80' }]}>
+                    <Text className="text-base mt-3" style={{ color: theme.colors.primary + '80' }}>
                         {t('insights.weeklyRecap.noDataAvailable')}
                     </Text>
                 </View>
@@ -314,7 +312,7 @@ const WeeklyRecapScreen: React.FC = () => {
     ];
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             {/* Header */}
             <View style={{ paddingTop: insets.top }}>
                 <Header
@@ -325,16 +323,18 @@ const WeeklyRecapScreen: React.FC = () => {
                 />
             </View>
 
-            <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView className="flex-1 px-4 pb-5" showsVerticalScrollIndicator={false}>
                 {/* Profile & Title Section */}
-                <View style={styles.profileSection}>
+                <View className="items-center mb-6 mt-2">
                     <Avatar
                         source={avatarUri}
                         size={72}
                         label={(typeof user?.name === 'string' ? user.name[0] : null) || (typeof user?.handle === 'string' ? user.handle[0] : null) || ''}
                     />
-                    <Text style={[styles.title, { color: theme.colors.text }]}>{t('insights.weeklyRecap.pageTitle')}</Text>
-                    <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-2xl font-bold mt-4 mb-2 text-foreground" style={{ letterSpacing: -0.3 }}>
+                        {t('insights.weeklyRecap.pageTitle')}
+                    </Text>
+                    <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
                         {t('insights.weeklyRecap.subtitleText', { dateRange })}
                     </Text>
                 </View>
@@ -357,19 +357,21 @@ const WeeklyRecapScreen: React.FC = () => {
                 ))}
 
                 {/* Weekly Tip Section */}
-                <View style={[styles.tipCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <View style={styles.tipHeader}>
+                <View className="rounded-[15px] p-4 mb-4 border overflow-hidden bg-card border-border">
+                    <View className="flex-row items-center mb-3">
                         <Ionicons name="bulb" size={18} color={theme.colors.primary} />
-                        <Text style={[styles.tipTitle, { color: theme.colors.text }]}>{t('insights.weeklyRecap.thisWeeksTip')}</Text>
+                        <Text className="text-[15px] font-bold ml-2 text-foreground" style={{ letterSpacing: -0.2 }}>
+                            {t('insights.weeklyRecap.thisWeeksTip')}
+                        </Text>
                     </View>
-                    <Text style={[styles.tipMainText, { color: theme.colors.text }]}>
+                    <Text className="text-sm font-bold mb-2 leading-5 text-foreground" style={{ letterSpacing: -0.2 }}>
                         {t('insights.weeklyRecap.tipMainText')}
                     </Text>
-                    <Text style={[styles.tipDescription, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-xs leading-[18px] mb-3 text-muted-foreground">
                         {t('insights.weeklyRecap.tipDescription')}
                     </Text>
-                    <TouchableOpacity style={styles.tipLink}>
-                        <Text style={[styles.tipLinkText, { color: theme.colors.primary }]}>
+                    <TouchableOpacity className="flex-row items-center">
+                        <Text className="text-xs font-semibold mr-1 text-primary">
                             {t('insights.weeklyRecap.seeMoreTips')}
                         </Text>
                         <Ionicons name="chevron-forward" size={14} color={theme.colors.primary} />
@@ -379,90 +381,5 @@ const WeeklyRecapScreen: React.FC = () => {
         </ThemedView>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-    },
-    emptyText: {
-        fontSize: 16,
-        marginTop: 12,
-    },
-    scrollContent: {
-        flex: 1,
-        paddingHorizontal: 16,
-        paddingTop: 0,
-        paddingBottom: 20,
-    },
-    profileSection: {
-        alignItems: 'center',
-        marginBottom: 24,
-        marginTop: 8,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: '700',
-        marginTop: 16,
-        marginBottom: 8,
-        letterSpacing: -0.3,
-    },
-    subtitle: {
-        fontSize: 14,
-        textAlign: 'center',
-        paddingHorizontal: 20,
-        lineHeight: 20,
-    },
-    // Tip Section
-    tipCard: {
-        borderRadius: 15,
-        padding: 16,
-        marginBottom: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    tipHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    tipTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        marginLeft: 8,
-        letterSpacing: -0.2,
-    },
-    tipMainText: {
-        fontSize: 14,
-        fontWeight: '700',
-        marginBottom: 8,
-        lineHeight: 20,
-        letterSpacing: -0.2,
-    },
-    tipDescription: {
-        fontSize: 12,
-        lineHeight: 18,
-        marginBottom: 12,
-    },
-    tipLink: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    tipLinkText: {
-        fontSize: 12,
-        fontWeight: '600',
-        marginRight: 4,
-    },
-});
 
 export default WeeklyRecapScreen;

@@ -1,7 +1,8 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useRef, useLayoutEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 interface Tab {
     id: string;
@@ -118,12 +119,12 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
         : {};
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }, style]}>
-            <Container style={styles.tabsContainer} {...containerProps}>
+        <View className="relative border-b border-border bg-background" style={style}>
+            <Container className="flex-row" {...containerProps}>
                 {tabs.map((tab, index) => (
                     <TouchableOpacity
                         key={tab.id}
-                        style={styles.tab}
+                        className="items-center py-2.5 px-3 min-w-[60px]"
                         onPress={() => onTabPress(tab.id)}
                         accessibilityRole="tab"
                         accessibilityLabel={tab.label}
@@ -151,11 +152,10 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                         }}
                     >
                         <Text
-                            style={[
-                                styles.tabText,
-                                { color: theme.colors.textSecondary },
-                                activeTabId === tab.id && [styles.activeTabText, { color: theme.colors.primary }],
-                            ]}
+                            className={cn(
+                                "text-[15px] font-medium text-muted-foreground",
+                                activeTabId === tab.id && "font-bold text-primary"
+                            )}
                             numberOfLines={1}
                             onLayout={(event) => {
                                 const { width: textWidth } = event.nativeEvent.layout;
@@ -182,7 +182,10 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                     </TouchableOpacity>
                 ))}
             </Container>
-            <Animated.View style={[styles.indicator, { backgroundColor: theme.colors.primary }, animatedIndicatorStyle]} />
+            <Animated.View
+                className="absolute bottom-0 h-0.5 rounded-t bg-primary"
+                style={animatedIndicatorStyle}
+            />
         </View>
     );
 };
@@ -190,37 +193,7 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
 export default AnimatedTabBar;
 
 const styles = StyleSheet.create({
-    container: {
-        position: 'relative',
-        borderTopWidth: 0,
-        borderBottomWidth: 1,
-    },
-    tabsContainer: {
-        flexDirection: 'row',
-    },
     scrollContent: {
         flexDirection: 'row',
     },
-    tab: {
-        alignItems: 'center',
-        paddingTop: 10,
-        paddingBottom: 10,
-        paddingHorizontal: 12,
-        minWidth: 60,
-    },
-    tabText: {
-        fontSize: 15,
-        fontWeight: '500',
-    },
-    activeTabText: {
-        fontWeight: '700',
-    },
-    indicator: {
-        position: 'absolute',
-        bottom: 0,
-        height: 2,
-        borderTopLeftRadius: 4,
-        borderTopRightRadius: 4,
-    },
 });
-

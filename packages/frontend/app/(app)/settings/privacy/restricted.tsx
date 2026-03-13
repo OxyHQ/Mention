@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -36,7 +36,7 @@ interface RestrictedUser {
 
 export default function RestrictedUsersScreen() {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const { colors } = useTheme();
     const { user: currentUser, isAuthenticated, oxyServices } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
@@ -46,7 +46,7 @@ export default function RestrictedUsersScreen() {
     const [searchResults, setSearchResults] = useState<RestrictedUser[]>([]);
     const [searching, setSearching] = useState(false);
     const [restricting, setRestricting] = useState<string | null>(null);
-    
+
     // Performance optimizations
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchAbortControllerRef = useRef<AbortController | null>(null);
@@ -74,13 +74,13 @@ export default function RestrictedUsersScreen() {
                     return user.id || user._id || user.userId;
                 })
                 .filter(Boolean);
-            
+
             // Filter out the current user's ID (can't restrict yourself)
             const currentUserId = currentUser?.id;
             if (currentUserId) {
                 userIds = userIds.filter((id: string) => id !== currentUserId);
             }
-            
+
             log('[RestrictedUsers] Restricted user IDs (filtered):', userIds);
             setRestrictedUserIds(userIds);
 
@@ -93,17 +93,17 @@ export default function RestrictedUsersScreen() {
             // Batch user lookups with concurrency limit for better performance
             const BATCH_SIZE = 10;
             const userPromises: Promise<RestrictedUser>[] = [];
-            
+
             for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
                 const batch = userIds.slice(i, i + BATCH_SIZE);
                 const batchPromises = batch.map(async (userId: string) => {
                     try {
                         log(`[RestrictedUsers] Fetching user details for: ${userId}`);
-                        
+
                         // Use usersStore's ensureById which tries multiple methods and caches
                         const { useUsersStore } = await import('@/stores/usersStore');
                         const usersState = useUsersStore.getState();
-                        
+
                         const svc: any = oxyServices as any;
                         const loader = async (id: string) => {
                             // Try multiple methods like NotificationItem does
@@ -137,10 +137,10 @@ export default function RestrictedUsersScreen() {
                             }
                             return null;
                         };
-                        
+
                         const user = await usersState.ensureById(String(userId), loader);
                         log(`[RestrictedUsers] Found user for ${userId}:`, user ? 'yes' : 'no');
-                        
+
                         // If we couldn't fetch user details, create a minimal user object
                         if (!user) {
                             log(`[RestrictedUsers] Creating fallback user object for ${userId}`);
@@ -150,7 +150,7 @@ export default function RestrictedUsersScreen() {
                                 handle: userId.substring(0, 8) + '...',
                             } as RestrictedUser;
                         }
-                        
+
                         return user;
                     } catch (error) {
                         logWarn(`[RestrictedUsers] Failed to fetch user ${userId}:`, error);
@@ -230,7 +230,7 @@ export default function RestrictedUsersScreen() {
             } else {
                 results = await searchService.searchUsers(query);
             }
-            
+
             // Check if request was cancelled
             if (abortController.signal.aborted) {
                 return;
@@ -239,8 +239,8 @@ export default function RestrictedUsersScreen() {
             // Filter out already restricted users and current user using Set for O(1) lookup
             const filtered = results.filter((user: any) => {
                 const userId = user.id || user._id;
-                return userId && 
-                       !restrictedUserIdsSet.has(userId) && 
+                return userId &&
+                       !restrictedUserIdsSet.has(userId) &&
                        userId !== currentUser?.id;
             });
             setSearchResults(filtered);
@@ -258,7 +258,7 @@ export default function RestrictedUsersScreen() {
 
     const handleSearch = useCallback((query: string) => {
         setSearchQuery(query);
-        
+
         // Clear existing timeout
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
@@ -308,11 +308,11 @@ export default function RestrictedUsersScreen() {
 
         try {
             setRestricting(userId);
-            
+
             // Optimistically update the state
             setRestrictedUserIds(prev => [...prev, userId]);
             setRestrictedUsers(prev => [...prev, user]);
-            
+
             // Remove from search results immediately
             setSearchResults(prev => prev.filter(u => {
                 const id = u.id || (u as any)._id;
@@ -321,10 +321,10 @@ export default function RestrictedUsersScreen() {
             // Use Oxy services directly
             await oxyServices.restrictUser(userId);
             log('[RestrictedUsers] User restricted successfully');
-            
+
             // Reload from server to ensure consistency
             await loadRestrictedUsers();
-            
+
             setSearchQuery('');
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
@@ -368,21 +368,21 @@ export default function RestrictedUsersScreen() {
         const performUnrestrict = async () => {
             try {
                 log('[RestrictedUsers] Unrestricting user:', userId);
-                
+
                 // Optimistically remove from list
                 setRestrictedUserIds(prev => prev.filter(id => id !== userId));
                 setRestrictedUsers(prev => prev.filter(u => {
                     const id = u.id || (u as any)._id;
                     return id !== userId;
                 }));
-                
+
                 // Use Oxy services directly
                 await oxyServices.unrestrictUser(userId);
                 log('[RestrictedUsers] User unrestricted successfully');
-                
+
                 // Reload from server to ensure consistency
                 await loadRestrictedUsers();
-                
+
                 bottomSheet.setBottomSheetContent(
                     <MessageBottomSheet
                         title={t('common.success')}
@@ -445,7 +445,7 @@ export default function RestrictedUsersScreen() {
     }, []);
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             <Header
                 options={{
                     title: t('settings.privacy.restrictedProfiles'),
@@ -454,7 +454,7 @@ export default function RestrictedUsersScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -462,27 +462,27 @@ export default function RestrictedUsersScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
             >
                 {/* Info Card */}
-                <View style={[styles.infoCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <IconComponent name="information-circle" size={20} color={theme.colors.primary} />
-                    <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                <View className="flex-row items-start rounded-2xl border border-border bg-card p-4 mb-5 gap-3">
+                    <IconComponent name="information-circle" size={20} color={colors.primary} />
+                    <Text className="flex-1 text-sm leading-5 text-muted-foreground">
                         {t('settings.privacy.restrictedUsersDescription')}
                     </Text>
                 </View>
 
                 {/* Search Section */}
-                <View style={styles.searchSection}>
-                    <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                        <IconComponent name="search" size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
+                <View className="mb-6">
+                    <View className="flex-row items-center rounded-2xl border border-border bg-card px-3 py-2.5 mb-3">
+                        <IconComponent name="search" size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
                         <TextInput
-                            style={[styles.searchInput, { color: theme.colors.text }]}
+                            className="flex-1 text-base text-foreground"
                             placeholder={t('settings.privacy.searchUsersToRestrict')}
-                            placeholderTextColor={theme.colors.textSecondary}
+                            placeholderTextColor={colors.textSecondary}
                             value={searchQuery}
                             onChangeText={handleSearch}
                             autoCapitalize="none"
@@ -495,7 +495,7 @@ export default function RestrictedUsersScreen() {
 
                     {/* Search Results */}
                     {searchQuery && searchResults.length > 0 && (
-                        <View style={[styles.searchResults, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <View className="rounded-2xl border border-border bg-card overflow-hidden" style={{ maxHeight: 300 }}>
                             {searchResults.map((user) => {
                                 const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
@@ -506,7 +506,7 @@ export default function RestrictedUsersScreen() {
                                 return (
                                     <TouchableOpacity
                                         key={userId}
-                                        style={[styles.searchResultItem, { borderBottomColor: theme.colors.border }]}
+                                        className="flex-row items-center py-3 border-b border-border"
                                         onPress={() => !isRestricting && handleRestrict(user)}
                                         disabled={isRestricting}
                                     >
@@ -515,18 +515,18 @@ export default function RestrictedUsersScreen() {
                                             size={40}
                                             label={displayName?.[0] || handle?.[0]}
                                         />
-                                        <View style={styles.searchResultInfo}>
-                                            <Text style={[styles.searchResultName, { color: theme.colors.text }]}>
+                                        <View className="flex-1 ml-3">
+                                            <Text className="text-base font-medium mb-0.5 text-foreground">
                                                 {displayName}
                                             </Text>
-                                            <Text style={[styles.searchResultHandle, { color: theme.colors.textSecondary }]}>
+                                            <Text className="text-sm text-muted-foreground">
                                                 @{handle}
                                             </Text>
                                         </View>
                                         {isRestricting ? (
                                             <Loading variant="inline" size="small" style={{ flex: undefined }} />
                                         ) : (
-                                            <IconComponent name="add-circle" size={24} color={theme.colors.primary} />
+                                            <IconComponent name="add-circle" size={24} color={colors.primary} />
                                         )}
                                     </TouchableOpacity>
                                 );
@@ -535,8 +535,8 @@ export default function RestrictedUsersScreen() {
                     )}
 
                     {searchQuery && !searching && searchResults.length === 0 && (
-                        <View style={styles.emptySearch}>
-                            <Text style={[styles.emptySearchText, { color: theme.colors.textSecondary }]}>
+                        <View className="py-4 items-center">
+                            <Text className="text-sm text-muted-foreground">
                                 {t('settings.privacy.noUsersFound')}
                             </Text>
                         </View>
@@ -544,13 +544,13 @@ export default function RestrictedUsersScreen() {
                 </View>
 
                 {/* Restricted Users List */}
-                <View style={styles.restrictedSection}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <View className="mt-2">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">
                         {t('settings.privacy.restrictedUsers')}
                     </Text>
 
                     {loading ? (
-                        <View style={styles.loadingContainer}>
+                        <View className="py-10 items-center">
                             <Loading size="large" style={{ flex: undefined }} />
                         </View>
                     ) : restrictedUsers.length === 0 ? (
@@ -562,7 +562,7 @@ export default function RestrictedUsersScreen() {
                             }}
                         />
                     ) : (
-                        <View style={[styles.restrictedList, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <View className="rounded-2xl border border-border bg-card overflow-hidden">
                             {restrictedUsers.map((user, index) => {
                                 const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
@@ -571,22 +571,23 @@ export default function RestrictedUsersScreen() {
 
                                 return (
                                     <View key={userId}>
-                                        <View style={styles.restrictedUserItem}>
+                                        <View className="flex-row items-center px-4 py-4">
                                             <Avatar
                                                 source={avatarUri}
                                                 size={48}
                                                 label={displayName?.[0] || handle?.[0]}
                                             />
-                                            <View style={styles.restrictedUserInfo}>
-                                                <Text style={[styles.restrictedUserName, { color: theme.colors.text }]}>
+                                            <View className="flex-1 ml-3">
+                                                <Text className="text-base font-medium mb-0.5 text-foreground">
                                                     {displayName}
                                                 </Text>
-                                                <Text style={[styles.restrictedUserHandle, { color: theme.colors.textSecondary }]}>
+                                                <Text className="text-sm text-muted-foreground">
                                                     @{handle}
                                                 </Text>
                                             </View>
                                             <TouchableOpacity
-                                                style={[styles.unrestrictButton, { backgroundColor: theme.colors.error + '20' }]}
+                                                className="px-4 py-2 rounded-lg"
+                                                style={{ backgroundColor: colors.error + '20' }}
                                                 activeOpacity={0.7}
                                                 onPress={() => {
                                                     log('[RestrictedUsers] Unrestrict button pressed for userId:', userId, 'user:', user);
@@ -606,13 +607,13 @@ export default function RestrictedUsersScreen() {
                                                     }
                                                 }}
                                             >
-                                                <Text style={[styles.unrestrictButtonText, { color: theme.colors.error }]}>
+                                                <Text className="text-sm font-semibold" style={{ color: colors.error }}>
                                                     {t('settings.privacy.unrestrict')}
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
                                         {index < restrictedUsers.length - 1 && (
-                                            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                                            <View className="h-px mx-4 bg-border" />
                                         )}
                                     </View>
                                 );
@@ -624,135 +625,3 @@ export default function RestrictedUsersScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    infoCard: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        borderRadius: 16,
-        borderWidth: 1,
-        padding: 16,
-        marginBottom: 20,
-        gap: 12,
-    },
-    infoText: {
-        flex: 1,
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    searchSection: {
-        marginBottom: 24,
-    },
-    searchInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 16,
-        borderWidth: 1,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        marginBottom: 12,
-    },
-    searchIcon: {
-        marginRight: 8,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 16,
-    },
-    searchLoader: {
-        marginLeft: 8,
-    },
-    searchResults: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-        maxHeight: 300,
-    },
-    searchResultItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-    },
-    searchResultInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    searchResultName: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 2,
-    },
-    searchResultHandle: {
-        fontSize: 14,
-    },
-    emptySearch: {
-        paddingVertical: 16,
-        alignItems: 'center',
-    },
-    emptySearchText: {
-        fontSize: 14,
-    },
-    restrictedSection: {
-        marginTop: 8,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 12,
-        paddingHorizontal: 4,
-    },
-    loadingContainer: {
-        paddingVertical: 40,
-        alignItems: 'center',
-    },
-    restrictedList: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    restrictedUserItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-    },
-    restrictedUserInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    restrictedUserName: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 2,
-    },
-    restrictedUserHandle: {
-        fontSize: 14,
-    },
-    unrestrictButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 8,
-    },
-    unrestrictButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    divider: {
-        height: 1,
-        marginHorizontal: 16,
-    },
-});

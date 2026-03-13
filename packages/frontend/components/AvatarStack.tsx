@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 import Avatar from './Avatar';
 
 /**

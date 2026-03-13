@@ -3,8 +3,6 @@ import {
     Dimensions,
     FlatList,
     Image,
-    StyleSheet,
-    Text,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -234,7 +232,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             return (
                 <View style={errorContainerStyle}>
                     <Ionicons name="videocam-outline" size={32} color={theme.colors.textSecondary} />
-                    <View style={styles.videoOverlay}>
+                    <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
                         <Ionicons name="play-circle" size={24} color="rgba(255, 255, 255, 0.9)" />
                     </View>
                 </View>
@@ -245,12 +243,12 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             <View style={videoContainerStyle}>
                 <VideoView
                     player={player}
-                    style={styles.fullSize}
+                    style={{ width: '100%', height: '100%' }}
                     contentFit="cover"
                     nativeControls={false}
                     allowsFullscreen={false}
                 />
-                <View style={styles.videoOverlay}>
+                <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
                     <Ionicons name="play-circle" size={24} color="rgba(255, 255, 255, 0.9)" />
                 </View>
             </View>
@@ -297,7 +295,10 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                     />
                 )}
                 {item.isCarousel && (
-                    <View style={styles.carouselIndicator}>
+                    <View
+                        className="absolute top-1 right-1 rounded p-0.5"
+                        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                    >
                         <Ionicons name="albums-outline" size={12} color="white" />
                     </View>
                 )}
@@ -319,7 +320,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     const isLoading = (!mediaFeed && !postsFeed) || mediaFeed?.isLoading || postsFeed?.isLoading;
     if (isLoading && mediaItems.length === 0) {
         return (
-            <View style={styles.loading}>
+            <View className="py-6">
                 <Loading size="small" style={{ flex: undefined }} />
             </View>
         );
@@ -334,13 +335,13 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                     name: 'images-outline',
                     size: 48,
                 }}
-                containerStyle={styles.empty}
+                containerStyle={{ flex: 1 }}
             />
         );
     }
 
     return (
-        <View className="bg-background" style={styles.container} onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
+        <View className="bg-background" onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
             <FlatList
                 data={mediaItems}
                 keyExtractor={keyExtractor}
@@ -360,37 +361,3 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 };
 
 export default MediaGrid;
-
-const styles = StyleSheet.create({
-    container: {
-        // backgroundColor set dynamically via theme
-    },
-    loading: {
-        paddingVertical: 24,
-    },
-    empty: {
-        flex: 1,
-    },
-    videoOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    },
-    carouselIndicator: {
-        position: 'absolute',
-        top: 4,
-        right: 4,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        borderRadius: 4,
-        padding: 2,
-    },
-    fullSize: {
-        width: '100%',
-        height: '100%',
-    },
-});

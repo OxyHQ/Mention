@@ -67,7 +67,7 @@ const QuickFeedRow = ({
       activeOpacity={0.7}
     >
       <Ionicons name={icon as any} size={20} color={iconColor} />
-      <Text style={[styles.quickRowLabel, { color: theme.colors.text }]}>{label}</Text>
+      <Text className="flex-1 text-[15px] font-semibold text-foreground">{label}</Text>
       <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
     </TouchableOpacity>
   );
@@ -96,17 +96,17 @@ const FeedRow = ({
       activeOpacity={0.7}
     >
       <Avatar source={item.avatar || undefined} size={36} />
-      <View style={styles.feedRowMeta}>
-        <Text style={[styles.feedRowTitle, { color: theme.colors.text }]} numberOfLines={1}>
+      <View className="flex-1 gap-0.5">
+        <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
           {item.title || 'Untitled Feed'}
         </Text>
-        <Text style={[styles.feedRowSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+        <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
           {item.owner ? `@${item.owner.username || item.owner.handle}` : ''}
           {memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : ''}
           {(item.likeCount || 0) > 0 ? ` · ${formatCompactNumber(item.likeCount!)} likes` : ''}
         </Text>
         {item.description ? (
-          <Text style={[styles.feedRowDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+          <Text className="text-[13px] leading-[18px] mt-0.5 text-muted-foreground" numberOfLines={2}>
             {item.description}
           </Text>
         ) : null}
@@ -196,7 +196,7 @@ const FeedsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView className="flex-1 bg-background">
         <Header
           options={{
             title: t('Feeds'),
@@ -236,14 +236,15 @@ const FeedsScreen: React.FC = () => {
             ))}
 
           {/* Discover feeds */}
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+          <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
             {t('feeds.discoverNew.title')}
           </Text>
 
-          <View style={[styles.searchBar, { backgroundColor: theme.colors.backgroundSecondary }]}>
+          <View className="flex-row items-center px-3 h-[38px] rounded-[10px] mt-2 mb-1 gap-2 bg-secondary">
             <Search size={18} color={theme.colors.textSecondary} />
             <TextInput
-              style={[styles.searchInput, { color: theme.colors.text }]}
+              style={styles.searchInput}
+              className="flex-1 text-[15px] text-foreground"
               placeholder={t('feeds.searchPlaceholder')}
               placeholderTextColor={theme.colors.textSecondary}
               value={searchQuery}
@@ -273,7 +274,7 @@ const FeedsScreen: React.FC = () => {
           {/* Your feeds */}
           {myFeeds.length > 0 && (
             <>
-              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced, { color: theme.colors.text }]}>
+              <Text className="text-[15px] font-bold text-foreground mt-7 mb-1">
                 {t('feeds.yourFeeds.title')}
               </Text>
               {myFeeds.map((f) => (
@@ -288,12 +289,13 @@ const FeedsScreen: React.FC = () => {
             </>
           )}
 
-          <View style={{ height: 80 }} />
+          <View className="h-20" />
         </ScrollView>
 
         {/* FAB */}
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          style={styles.fab}
+          className="bg-primary"
           onPress={() => router.push('/feeds/create')}
           activeOpacity={0.8}
         >
@@ -308,7 +310,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
   },
-  // Quick access rows
   quickRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,62 +317,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 14,
   },
-  quickRowLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  // Section
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 24,
-    marginBottom: 4,
-  },
-  sectionTitleSpaced: {
-    marginTop: 28,
-  },
-  // Search
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    height: 38,
-    borderRadius: 10,
-    marginTop: 8,
-    marginBottom: 4,
-    gap: 8,
-  },
   searchInput: {
-    flex: 1,
-    fontSize: 15,
     ...Platform.select({
       web: { outlineStyle: 'none' as any },
     }),
   },
-  // Feed rows
   feedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 12,
-  },
-  feedRowMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  feedRowTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  feedRowSub: {
-    fontSize: 13,
-  },
-  feedRowDesc: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 2,
   },
   pinBtn: {
     width: 28,
@@ -380,7 +336,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // FAB
   fab: {
     position: 'absolute',
     bottom: 24,

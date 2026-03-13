@@ -27,9 +27,9 @@ export default function AccountInfoScreen() {
   // Format join date
   const joinDate = useMemo(() => {
     if (!profileData?.createdAt) return null;
-    return new Date(profileData.createdAt).toLocaleDateString('en-US', { 
-      month: 'long', 
-      year: 'numeric' 
+    return new Date(profileData.createdAt).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
     });
   }, [profileData?.createdAt]);
 
@@ -39,9 +39,9 @@ export default function AccountInfoScreen() {
     // If we have a verifiedAt date, use it, otherwise use createdAt
     const dateToUse = profileData.verifiedAt || profileData.createdAt;
     if (!dateToUse) return null;
-    return new Date(dateToUse).toLocaleDateString('en-US', { 
-      month: 'long', 
-      year: 'numeric' 
+    return new Date(dateToUse).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
     });
   }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
 
@@ -52,7 +52,7 @@ export default function AccountInfoScreen() {
   ), [profileData, cleanUsername]);
 
   return (
-    <ThemedView style={{ flex: 1, paddingTop: insets.top }}>
+    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
       <Header
         options={{
           title: t('About', { defaultValue: 'About' }),
@@ -69,48 +69,48 @@ export default function AccountInfoScreen() {
         hideBottomBorder={true}
         disableSticky={true}
       />
-      
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
+
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
       >
         {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
+        <View className="flex-row items-center mb-4 gap-3 overflow-visible">
+          <View className="relative overflow-visible">
             <Avatar
               source={avatarSource}
               size={56}
               verified={profileData?.verified}
             />
           </View>
-          <View style={styles.profileHeaderText}>
-            <View style={styles.nameRow}>
-              <ThemedText style={[styles.displayName, { color: theme.colors.text }]}>
+          <View className="flex-1 gap-1">
+            <View className="flex-row items-center gap-1.5">
+              <ThemedText className="text-lg font-bold text-foreground">
                 {displayName}
               </ThemedText>
               {profileData?.verified && (
                 <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
               )}
             </View>
-            <ThemedText style={[styles.username, { color: theme.colors.textSecondary }]}>
+            <ThemedText className="text-[15px] text-muted-foreground">
               @{profileData?.username || cleanUsername}
             </ThemedText>
           </View>
         </View>
 
         {/* Account Details List */}
-        <View style={[styles.detailsContainer, { backgroundColor: theme.colors.card }]}>
+        <View className="rounded-2xl overflow-hidden bg-card">
           {/* Date Joined */}
           {profileData?.createdAt && (
             <View style={[styles.detailRow, styles.firstRow, { borderBottomColor: theme.colors.border }]}>
-              <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
               </View>
-              <View style={styles.detailContent}>
-                <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
+              <View className="flex-1 gap-0.5">
+                <ThemedText className="text-sm font-semibold text-foreground">
                   {t('Date joined', { defaultValue: 'Date joined' })}
                 </ThemedText>
-                <ThemedText style={[styles.detailValue, { color: theme.colors.textSecondary }]}>
+                <ThemedText className="text-[13px] text-muted-foreground">
                   {joinDate}
                 </ThemedText>
               </View>
@@ -120,14 +120,14 @@ export default function AccountInfoScreen() {
           {/* Account Based In */}
           {profileData?.primaryLocation && (
             <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-              <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="location-outline" size={18} color={theme.colors.textSecondary} />
               </View>
-              <View style={styles.detailContent}>
-                <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
+              <View className="flex-1 gap-0.5">
+                <ThemedText className="text-sm font-semibold text-foreground">
                   {t('Account based in', { defaultValue: 'Account based in' })}
                 </ThemedText>
-                <ThemedText style={[styles.detailValue, { color: theme.colors.textSecondary }]}>
+                <ThemedText className="text-[13px] text-muted-foreground">
                   {profileData.primaryLocation}
                 </ThemedText>
               </View>
@@ -136,18 +136,18 @@ export default function AccountInfoScreen() {
 
           {/* Verified */}
           {profileData?.verified && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}
               activeOpacity={0.7}
             >
-              <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.textSecondary} />
               </View>
-              <View style={styles.detailContent}>
-                <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
+              <View className="flex-1 gap-0.5">
+                <ThemedText className="text-sm font-semibold text-foreground">
                   {t('Verified', { defaultValue: 'Verified' })}
                 </ThemedText>
-                <ThemedText style={[styles.detailValue, { color: theme.colors.textSecondary }]}>
+                <ThemedText className="text-[13px] text-muted-foreground">
                   {verifiedDate ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` }) : t('Verified account', { defaultValue: 'Verified account' })}
                 </ThemedText>
               </View>
@@ -157,14 +157,14 @@ export default function AccountInfoScreen() {
 
           {/* Username Changes */}
           <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
               <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
             </View>
-            <View style={styles.detailContent}>
-              <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
+            <View className="flex-1 gap-0.5">
+              <ThemedText className="text-sm font-semibold text-foreground">
                 {t('Username changes', { defaultValue: 'Username changes' })}
               </ThemedText>
-              <ThemedText style={[styles.detailValue, { color: theme.colors.textSecondary }]}>
+              <ThemedText className="text-[13px] text-muted-foreground">
                 {profileData?.usernameChangeCount ?? 0}
               </ThemedText>
             </View>
@@ -173,14 +173,14 @@ export default function AccountInfoScreen() {
           {/* Connected Via - could be expanded later with app store info */}
           {profileData?.connectedVia && (
             <View style={[styles.detailRow, styles.lastRow]}>
-              <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="globe-outline" size={18} color={theme.colors.textSecondary} />
               </View>
-              <View style={styles.detailContent}>
-                <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
+              <View className="flex-1 gap-0.5">
+                <ThemedText className="text-sm font-semibold text-foreground">
                   {t('Connected via', { defaultValue: 'Connected via' })}
                 </ThemedText>
-                <ThemedText style={[styles.detailValue, { color: theme.colors.textSecondary }]}>
+                <ThemedText className="text-[13px] text-muted-foreground">
                   {profileData.connectedVia}
                 </ThemedText>
               </View>
@@ -193,44 +193,6 @@ export default function AccountInfoScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 20,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-    overflow: 'visible',
-  },
-  avatarContainer: {
-    position: 'relative',
-    overflow: 'visible',
-  },
-  profileHeaderText: {
-    flex: 1,
-    gap: 4,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  displayName: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  username: {
-    fontSize: 15,
-  },
-  detailsContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,23 +210,4 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
   },
-  detailIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailContent: {
-    flex: 1,
-    gap: 2,
-  },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  detailValue: {
-    fontSize: 13,
-  },
 });
-

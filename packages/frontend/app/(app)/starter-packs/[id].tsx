@@ -6,14 +6,13 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { colors } from '@/styles/colors';
-import { FONT_FAMILIES } from '@/styles/typography';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
+import { cn } from '@/lib/utils';
 
 interface MemberProfile {
   id: string;
@@ -114,7 +113,7 @@ export default function StarterPackDetailScreen() {
         title={pack?.name || 'Starter Pack'}
         description={pack?.description || 'A curated collection of accounts to follow'}
       />
-      <ThemedView style={{ flex: 1 }}>
+      <ThemedView className="flex-1">
         <Header
           options={{
             title: pack?.name || 'Starter Pack',
@@ -128,7 +127,7 @@ export default function StarterPackDetailScreen() {
             ],
             rightComponents: isOwner ? [
               <TouchableOpacity key="delete" onPress={handleDelete}>
-                <ThemedText style={{ color: colors.busy, fontWeight: '600' }}>Delete</ThemedText>
+                <ThemedText className="text-destructive font-semibold">Delete</ThemedText>
               </TouchableOpacity>
             ] : [],
           }}
@@ -137,23 +136,23 @@ export default function StarterPackDetailScreen() {
         />
 
         {error ? (
-          <View style={styles.center}><Text style={{ color: colors.busy }}>{error}</Text></View>
+          <View className="flex-1 items-center justify-center"><Text className="text-destructive">{error}</Text></View>
         ) : loading ? (
-          <View style={styles.center}><ActivityIndicator /></View>
+          <View className="flex-1 items-center justify-center"><ActivityIndicator /></View>
         ) : pack ? (
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Pack info */}
-            <View style={styles.packInfo}>
-              <View style={[styles.iconBubble, { backgroundColor: theme.colors.primary + '20' }]}>
+            <View className="items-center px-6 pt-6 pb-4">
+              <View className="w-16 h-16 rounded-2xl items-center justify-center mb-4 bg-primary/20">
                 <Ionicons name="rocket-outline" size={32} color={theme.colors.primary} />
               </View>
-              <ThemedText style={styles.packName}>{pack.name}</ThemedText>
+              <ThemedText className="text-[22px] font-bold text-center font-primary">{pack.name}</ThemedText>
               {pack.description && (
-                <ThemedText style={[styles.packDescription, { color: theme.colors.textSecondary }]}>
+                <ThemedText className="text-[15px] leading-[22px] text-center mt-2 text-muted-foreground font-primary">
                   {pack.description}
                 </ThemedText>
               )}
-              <ThemedText style={[styles.packStats, { color: theme.colors.textSecondary }]}>
+              <ThemedText className="text-sm mt-2 text-muted-foreground font-primary">
                 {members.length} {members.length === 1 ? 'account' : 'accounts'}
                 {pack.useCount > 0 ? ` · Used by ${pack.useCount} ${pack.useCount === 1 ? 'person' : 'people'}` : ''}
               </ThemedText>
@@ -163,13 +162,13 @@ export default function StarterPackDetailScreen() {
                 <TouchableOpacity
                   disabled={using || useComplete}
                   onPress={handleUse}
-                  style={[
-                    styles.useButton,
-                    { backgroundColor: useComplete ? theme.colors.textSecondary : theme.colors.primary },
-                    (using || useComplete) && { opacity: 0.7 },
-                  ]}
+                  className={cn(
+                    "mt-5 py-3.5 px-8 rounded-3xl min-w-[220px] items-center",
+                    useComplete ? "bg-muted-foreground" : "bg-primary",
+                    (using || useComplete) && "opacity-70"
+                  )}
                 >
-                  <Text style={styles.useButtonText}>
+                  <Text className="text-white font-bold text-base font-primary">
                     {useComplete
                       ? 'Done!'
                       : using
@@ -181,23 +180,23 @@ export default function StarterPackDetailScreen() {
             </View>
 
             {/* Member list */}
-            <View style={styles.memberList}>
-              <ThemedText style={styles.sectionTitle}>Accounts in this pack</ThemedText>
+            <View className="px-4 pt-2 pb-8">
+              <ThemedText className="text-base font-bold mb-3 font-primary">Accounts in this pack</ThemedText>
               {members.map((m) => (
                 <TouchableOpacity
                   key={m.id}
-                  style={[styles.memberRow, { borderBottomColor: theme.colors.border }]}
+                  className="flex-row items-center py-3 border-b border-border gap-3"
                   onPress={() => router.push(`/${m.username}`)}
                   activeOpacity={0.7}
                 >
                   <Avatar source={m.avatar} size={44} />
-                  <View style={styles.memberInfo}>
+                  <View className="flex-1 gap-0.5">
                     {m.displayName && (
-                      <ThemedText style={styles.memberDisplayName} numberOfLines={1}>
+                      <ThemedText className="text-[15px] font-semibold font-primary" numberOfLines={1}>
                         {m.displayName}
                       </ThemedText>
                     )}
-                    <ThemedText style={[styles.memberUsername, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                    <ThemedText className="text-sm text-muted-foreground font-primary" numberOfLines={1}>
                       @{m.username}
                     </ThemedText>
                   </View>
@@ -210,20 +209,3 @@ export default function StarterPackDetailScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  packInfo: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 },
-  iconBubble: { width: 64, height: 64, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  packName: { fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: FONT_FAMILIES.primary },
-  packDescription: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: 8, fontFamily: FONT_FAMILIES.primary },
-  packStats: { fontSize: 14, marginTop: 8, fontFamily: FONT_FAMILIES.primary },
-  useButton: { marginTop: 20, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 24, minWidth: 220, alignItems: 'center' },
-  useButtonText: { color: '#fff', fontWeight: '700', fontSize: 16, fontFamily: FONT_FAMILIES.primary },
-  memberList: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12, fontFamily: FONT_FAMILIES.primary },
-  memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
-  memberInfo: { flex: 1, gap: 2 },
-  memberDisplayName: { fontSize: 15, fontWeight: '600', fontFamily: FONT_FAMILIES.primary },
-  memberUsername: { fontSize: 14, fontFamily: FONT_FAMILIES.primary },
-});

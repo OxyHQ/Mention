@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -14,7 +14,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@/hooks/useTheme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
@@ -47,17 +47,15 @@ const HomeScreen: React.FC = () => {
     const headerOpacity = useSharedValue(1);
     const fabTranslateY = useSharedValue(0);
     const fabOpacity = useSharedValue(1);
-    const headerHeight = 48; // Match header minHeight
-    const fabHeight = 80; // FAB height + bottom margin
+    const headerHeight = 48;
+    const fabHeight = 80;
 
-    // Load pinned feeds function
     const loadFeeds = React.useCallback(async () => {
         if (!isAuthenticated) return;
 
         try {
             const pinned = (await getData<string[]>(PINNED_KEY)) || [];
 
-            // Fetch both user's feeds and public feeds to find all pinned feeds
             const [mineFeeds, publicFeeds] = await Promise.all([
                 customFeedsService.list({ mine: true }),
                 customFeedsService.list({ publicOnly: true })
@@ -66,7 +64,6 @@ const HomeScreen: React.FC = () => {
             const myFeedsList = mineFeeds.items || [];
             const publicFeedsList = publicFeeds.items || [];
 
-            // Combine feeds, deduplicating by id
             const allFeedsMap = new Map<string, any>();
             [...myFeedsList, ...publicFeedsList].forEach((feed: any) => {
                 const feedId = String(feed._id || feed.id);
@@ -78,7 +75,6 @@ const HomeScreen: React.FC = () => {
 
             setMyFeeds(myFeedsList);
 
-            // Find pinned feeds from all available feeds (mine + public)
             const pinnedFeedData = pinned
                 .map((id) => {
                     const feedId = id.replace('custom:', '');
@@ -96,11 +92,10 @@ const HomeScreen: React.FC = () => {
 
             setPinnedFeeds(pinnedFeedData);
         } catch (error: any) {
-            // Silently ignore errors (including 401 for unauthenticated users)
+            // Silently ignore errors
         }
     }, [isAuthenticated]);
 
-    // Load pinned feeds on mount and when screen is focused
     useEffect(() => {
         loadFeeds();
     }, [loadFeeds]);
@@ -111,15 +106,12 @@ const HomeScreen: React.FC = () => {
         }, [loadFeeds])
     );
 
-    // Reset activeTab if user becomes unauthenticated and current tab is not available
     useEffect(() => {
         if (!isAuthenticated && (activeTab === 'following' || activeTab.startsWith('custom:'))) {
             setActiveTab('for_you');
         }
     }, [isAuthenticated, activeTab]);
 
-    // Register refresh handler from BottomBar
-    // This allows BottomBar to trigger refresh when home tab is pressed while already on home
     useEffect(() => {
         const handleRefresh = () => {
             setRefreshKey(prev => prev + 1);
@@ -130,7 +122,6 @@ const HomeScreen: React.FC = () => {
         };
     }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
 
-    // Track scroll direction and animate header
     useEffect(() => {
         let isScrollingDown = false;
         let lastKnownScrollY = 0;
@@ -139,27 +130,23 @@ const HomeScreen: React.FC = () => {
             const currentScrollY = typeof value === 'number' ? value : 0;
             const scrollDelta = currentScrollY - lastKnownScrollY;
 
-            // Determine scroll direction (only update if movement is significant)
             if (Math.abs(scrollDelta) > 1) {
                 isScrollingDown = scrollDelta > 0;
             }
 
-            if (currentScrollY > 50) { // Only hide after scrolling past threshold
+            if (currentScrollY > 50) {
                 if (isScrollingDown) {
-                    // Scrolling down - hide header and FAB with opacity
                     headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
                     headerOpacity.value = withTiming(0, { duration: 200 });
                     fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
                     fabOpacity.value = withTiming(0, { duration: 200 });
                 } else {
-                    // Scrolling up - show header and FAB
                     headerTranslateY.value = withTiming(0, { duration: 200 });
                     headerOpacity.value = withTiming(1, { duration: 200 });
                     fabTranslateY.value = withTiming(0, { duration: 200 });
                     fabOpacity.value = withTiming(1, { duration: 200 });
                 }
             } else {
-                // Near top - always show header and FAB
                 headerTranslateY.value = withTiming(0, { duration: 200 });
                 headerOpacity.value = withTiming(1, { duration: 200 });
                 fabTranslateY.value = withTiming(0, { duration: 200 });
@@ -181,16 +168,7 @@ const HomeScreen: React.FC = () => {
         };
     });
 
-    const fabAnimatedStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ translateY: fabTranslateY.value }],
-        };
-    });
-
     const tabBarSpacerStyle = useAnimatedStyle(() => {
-        // When header is visible (translateY = 0), reserve space for header height
-        // When header slides up (translateY < 0), reduce spacer height accordingly
-        // This allows tabs to move up smoothly as header disappears
         const spacerHeight = Math.max(0, headerHeight + headerTranslateY.value);
         return {
             height: spacerHeight,
@@ -198,17 +176,14 @@ const HomeScreen: React.FC = () => {
     });
 
     const handleTabPress = (tabId: HomeTab) => {
-        // If pressing the same tab - scroll to top and refresh
         if (tabId === activeTab) {
             setRefreshKey(prev => prev + 1);
         } else {
-            // Different tab - switch (will scroll to top automatically on mount)
             setActiveTab(tabId);
         }
     };
 
     const renderContent = () => {
-        // Check if activeTab is a custom pinned feed (only for authenticated users)
         if (isAuthenticated && activeTab.startsWith('custom:')) {
             const feedId = activeTab.replace('custom:', '');
             const pinnedFeed = pinnedFeeds.find(f => f.feedId === feedId);
@@ -226,58 +201,22 @@ const HomeScreen: React.FC = () => {
             }
         }
 
-        // For unauthenticated users, show popular posts
         if (!isAuthenticated) {
             switch (activeTab) {
                 case 'trending':
-                    return (
-                        <Feed
-                            key="trending"
-                            type="explore"
-                            reloadKey={refreshKey}
-                        />
-                    );
-
+                    return <Feed key="trending" type="explore" reloadKey={refreshKey} />;
                 default:
-                    // Show popular posts for "For You" tab when not authenticated
-                    return (
-                        <Feed
-                            key="for_you"
-                            type="for_you"
-                            reloadKey={refreshKey}
-                        />
-                    );
+                    return <Feed key="for_you" type="for_you" reloadKey={refreshKey} />;
             }
         }
 
-        // Authenticated users get personalized feeds
         switch (activeTab) {
             case 'following':
-                return (
-                    <Feed
-                        key="following"
-                        type="following"
-                        reloadKey={refreshKey}
-                    />
-                );
-
+                return <Feed key="following" type="following" reloadKey={refreshKey} />;
             case 'trending':
-                return (
-                    <Feed
-                        key="trending"
-                        type="explore"
-                        reloadKey={refreshKey}
-                    />
-                );
-
+                return <Feed key="trending" type="explore" reloadKey={refreshKey} />;
             default:
-                return (
-                    <Feed
-                        key="for_you"
-                        type="for_you"
-                        reloadKey={refreshKey}
-                    />
-                );
+                return <Feed key="for_you" type="for_you" reloadKey={refreshKey} />;
         }
     };
 
@@ -287,8 +226,8 @@ const HomeScreen: React.FC = () => {
                 title={t('seo.home.title')}
                 description={t('seo.home.description')}
             />
-            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-                <ThemedView style={{ flex: 1 }}>
+            <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+                <ThemedView className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     {/* Header - animated */}
@@ -316,8 +255,8 @@ const HomeScreen: React.FC = () => {
                         />
                     </Animated.View>
 
-                    {/* Spacer for header - maintains layout space */}
-                    <Animated.View style={[styles.tabBarSpacer, tabBarSpacerStyle]} />
+                    {/* Spacer for header */}
+                    <Animated.View style={tabBarSpacerStyle} />
 
                     {/* Tab Navigation - sticky */}
                     <View style={styles.stickyTabBar}>
@@ -353,9 +292,6 @@ const HomeScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
     headerContainer: {
         position: 'absolute',
         top: 0,
@@ -376,10 +312,6 @@ const styles = StyleSheet.create({
         top: 0,
         zIndex: 100,
         backgroundColor: 'transparent',
-    },
-    tabBarSpacer: {
-        // Spacer maintains space for header when it's visible
-        // This ensures tabs don't jump when header slides up
     },
 });
 

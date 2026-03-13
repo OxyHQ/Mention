@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -39,7 +39,7 @@ const DEFAULT_PREFS: NotificationPreferences = {
 
 export default function NotificationSettingsScreen() {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const { colors } = useTheme();
 
     const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS);
     const [loading, setLoading] = useState(true);
@@ -88,18 +88,18 @@ export default function NotificationSettingsScreen() {
 
     if (loading) {
         return (
-            <ThemedView style={styles.container}>
+            <ThemedView className="flex-1">
                 <Header
                     options={{
                         title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
                         leftComponents: [
                             <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                                <BackArrowIcon size={20} color={theme.colors.text} />
+                                <BackArrowIcon size={20} color={colors.text} />
                             </IconButton>,
                         ],
                     }}
                 />
-                <View style={styles.loadingContainer}>
+                <View className="flex-1 justify-center items-center">
                     <Loading size="large" />
                 </View>
             </ThemedView>
@@ -107,13 +107,13 @@ export default function NotificationSettingsScreen() {
     }
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             <Header
                 options={{
                     title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
                     leftComponents: [
                         <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -121,27 +121,27 @@ export default function NotificationSettingsScreen() {
             />
 
             <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
             >
                 {/* Global toggles */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">
                         {t('settings.notifications.sections.general', { defaultValue: 'General' })}
                     </Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                        <View style={[styles.settingItem, styles.firstSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="notifications" size={20} color={theme.colors.textSecondary} />
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
+                        <View className="px-4 pt-[18px] py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="notifications" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.push', { defaultValue: 'Push notifications' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.pushDesc', { defaultValue: 'Receive push notifications on your device' })}
                                     </Text>
                                 </View>
@@ -149,18 +149,18 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.pushEnabled} onValueChange={(v) => updatePreference('pushEnabled', v)} />
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
-                        <View style={[styles.settingItem, styles.lastSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="mail" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 pb-[18px] flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="mail" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.email', { defaultValue: 'Email notifications' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.emailDesc', { defaultValue: 'Receive email summaries of your notifications' })}
                                     </Text>
                                 </View>
@@ -171,23 +171,23 @@ export default function NotificationSettingsScreen() {
                 </View>
 
                 {/* Per-type toggles */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <View className="mb-8">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">
                         {t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}
                     </Text>
 
-                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View className="rounded-2xl border border-border bg-card overflow-hidden">
                         {/* Likes */}
-                        <View style={[styles.settingItem, styles.firstSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="heart" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 pt-[18px] py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="heart" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.likes', { defaultValue: 'Likes' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.likesDesc', { defaultValue: 'When someone likes your post' })}
                                     </Text>
                                 </View>
@@ -195,19 +195,19 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.likes} onValueChange={(v) => updatePreference('likes', v)} />
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Reposts */}
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="repeat" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="repeat" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.reposts', { defaultValue: 'Reposts' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.repostsDesc', { defaultValue: 'When someone reposts your post' })}
                                     </Text>
                                 </View>
@@ -215,19 +215,19 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.reposts} onValueChange={(v) => updatePreference('reposts', v)} />
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Followers */}
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="person-add" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="person-add" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.follows', { defaultValue: 'New followers' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.followsDesc', { defaultValue: 'When someone follows you' })}
                                     </Text>
                                 </View>
@@ -235,19 +235,19 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.follows} onValueChange={(v) => updatePreference('follows', v)} />
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Mentions */}
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="at" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="at" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.mentions', { defaultValue: 'Mentions' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.mentionsDesc', { defaultValue: 'When someone mentions you in a post' })}
                                     </Text>
                                 </View>
@@ -255,19 +255,19 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.mentions} onValueChange={(v) => updatePreference('mentions', v)} />
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Replies */}
-                        <View style={styles.settingItem}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="chatbubble" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="chatbubble" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.replies', { defaultValue: 'Replies' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.repliesDesc', { defaultValue: 'When someone replies to your post' })}
                                     </Text>
                                 </View>
@@ -275,19 +275,19 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.replies} onValueChange={(v) => updatePreference('replies', v)} />
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <View className="h-px mx-4 bg-border" />
 
                         {/* Quote posts */}
-                        <View style={[styles.settingItem, styles.lastSettingItem]}>
-                            <View style={styles.settingInfo}>
-                                <View style={styles.settingIcon}>
-                                    <IconComponent name="chatbox-ellipses" size={20} color={theme.colors.textSecondary} />
+                        <View className="px-4 py-4 pb-[18px] flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1 mr-3">
+                                <View className="mr-3 items-center justify-center">
+                                    <IconComponent name="chatbox-ellipses" size={20} color={colors.textSecondary} />
                                 </View>
-                                <View style={styles.settingTextContainer}>
-                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <View className="flex-1">
+                                    <Text className="text-base font-medium mb-0.5 text-foreground">
                                         {t('settings.notifications.quotes', { defaultValue: 'Quote posts' })}
                                     </Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    <Text className="text-sm text-muted-foreground">
                                         {t('settings.notifications.quotesDesc', { defaultValue: 'When someone quotes your post' })}
                                     </Text>
                                 </View>
@@ -300,77 +300,3 @@ export default function NotificationSettingsScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    section: {
-        marginBottom: 32,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 12,
-        paddingHorizontal: 4,
-    },
-    settingsCard: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    settingItem: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    firstSettingItem: {
-        paddingTop: 18,
-    },
-    lastSettingItem: {
-        paddingBottom: 18,
-    },
-    divider: {
-        height: 1,
-        marginHorizontal: 16,
-    },
-    settingInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        marginRight: 12,
-    },
-    settingIcon: {
-        marginRight: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    settingTextContainer: {
-        flex: 1,
-    },
-    settingLabel: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 2,
-    },
-    settingDescription: {
-        fontSize: 14,
-    },
-});

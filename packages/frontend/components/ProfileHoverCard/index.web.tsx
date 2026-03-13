@@ -278,16 +278,21 @@ let Card = ({
   return (
     <View
       className="bg-card border-border"
-      style={[
-        cardStyles.container,
-        {
-          shadowColor: theme.colors.text,
-        },
-      ]}>
+      style={{
+        width: 300,
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        shadowColor: theme.colors.text,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+        elevation: 8,
+      }}>
       {profile && !loading ? (
         <CardContent profile={profile} username={username} hide={hide} onPressProfile={handlePressProfile} />
       ) : (
-        <View style={cardStyles.loadingContainer}>
+        <View className="items-center justify-center" style={{ minHeight: 120 }}>
           <ActivityIndicator size="small" color={theme.colors.primary} />
         </View>
       )}
@@ -314,9 +319,9 @@ function CardContent({
 
   return (
     <View>
-      <View style={cardStyles.topRow}>
+      <View className="flex-row justify-between items-start">
         <View
-          style={cardStyles.clickable}
+          style={Platform.select({ web: { cursor: 'pointer' }, default: {} })}
           onPointerUp={onPressProfile}>
           <Avatar
             source={profile.design.avatar || profile.avatar}
@@ -331,17 +336,20 @@ function CardContent({
       </View>
 
       <View
-        style={cardStyles.profileInfo}
+        style={Platform.select({
+          web: { cursor: 'pointer', paddingTop: 8, paddingBottom: 4 },
+          default: { paddingTop: 8, paddingBottom: 4 },
+        })}
         onPointerUp={onPressProfile}>
-        <View style={cardStyles.nameRow}>
+        <View className="flex-row items-center">
           <UserName
             name={profile.design.displayName || profile.username}
             verified={profile.verified}
           />
         </View>
 
-        <View style={cardStyles.handleRow}>
-          <Text className="text-muted-foreground" style={cardStyles.handle} numberOfLines={1}>
+        <View className="flex-row items-center gap-1 mt-0.5">
+          <Text className="text-muted-foreground text-sm" style={{ lineHeight: 18 }} numberOfLines={1}>
             @{profile.username}
           </Text>
           {profile.isFederated && (
@@ -350,30 +358,30 @@ function CardContent({
         </View>
       </View>
 
-      <View style={cardStyles.statsRow}>
-        <View style={cardStyles.statItem}>
-          <Text className="text-foreground" style={cardStyles.statNumber}>
+      <View className="flex-row gap-4 pt-2">
+        <View className="flex-row items-center">
+          <Text className="text-foreground text-sm font-semibold">
             {formatCompactNumber(followersCount)}
           </Text>
-          <Text className="text-muted-foreground" style={cardStyles.statLabel}>
+          <Text className="text-muted-foreground text-sm">
             {' '}{followersCount === 1 ? 'follower' : 'followers'}
           </Text>
         </View>
-        <View style={cardStyles.statItem}>
-          <Text className="text-foreground" style={cardStyles.statNumber}>
+        <View className="flex-row items-center">
+          <Text className="text-foreground text-sm font-semibold">
             {formatCompactNumber(followingCount)}
           </Text>
-          <Text className="text-muted-foreground" style={cardStyles.statLabel}>
+          <Text className="text-muted-foreground text-sm">
             {' '}following
           </Text>
         </View>
       </View>
 
       {profile.bio ? (
-        <View style={cardStyles.bioContainer}>
+        <View className="pt-2">
           <Text
-            className="text-muted-foreground"
-            style={cardStyles.bio}
+            className="text-muted-foreground text-sm"
+            style={{ lineHeight: 20 }}
             numberOfLines={3}>
             {profile.bio}
           </Text>
@@ -382,71 +390,3 @@ function CardContent({
     </View>
   );
 }
-
-const cardStyles = StyleSheet.create({
-  container: {
-    width: 300,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  loadingContainer: {
-    minHeight: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  handleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  handle: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingTop: 8,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statLabel: {
-    fontSize: 14,
-  },
-  clickable: Platform.select({
-    web: { cursor: 'pointer' },
-    default: {},
-  }),
-  profileInfo: Platform.select({
-    web: { cursor: 'pointer', paddingTop: 8, paddingBottom: 4 },
-    default: { paddingTop: 8, paddingBottom: 4 },
-  }),
-  bioContainer: {
-    paddingTop: 8,
-  },
-  bio: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-});

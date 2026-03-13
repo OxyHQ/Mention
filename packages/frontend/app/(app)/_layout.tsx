@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, memo } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, View } from "react-native";
 import { Slot } from "expo-router";
 
 import { useAuth } from '@oxyhq/services';
@@ -20,41 +20,15 @@ import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useTheme } from '@/hooks/useTheme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
   isScreenNotMobile: boolean;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
-  const theme = useTheme();
+  const { colors } = useTheme();
   const { forwardWheelEvent } = useLayoutScroll();
-
-  const styles = useMemo(() => StyleSheet.create({
-    container: {
-      flex: 1,
-      width: '100%',
-      marginHorizontal: 'auto',
-      flexDirection: isScreenNotMobile ? 'row' : 'column',
-      backgroundColor: theme.colors.background,
-    },
-    mainContent: {
-      maxWidth: 950,
-      marginHorizontal: isScreenNotMobile ? 'auto' : 0,
-      justifyContent: 'space-between',
-      flexDirection: isScreenNotMobile ? 'row' : 'column',
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    mainContentWrapper: {
-      flex: isScreenNotMobile ? 2.2 : 1,
-      ...(isScreenNotMobile ? {
-        borderLeftWidth: 0.5,
-        borderRightWidth: 0.5,
-        borderColor: theme.colors.border,
-      } : {}),
-      backgroundColor: theme.colors.background,
-    },
-  }), [isScreenNotMobile, theme.colors.background, theme.colors.border]);
 
   const handleWheel = useCallback((event: any) => {
     forwardWheelEvent(event);
@@ -66,10 +40,28 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
   );
 
   return (
-    <View style={styles.container} {...containerProps}>
+    <View
+      className={cn(
+        "flex-1 w-full mx-auto bg-background",
+        isScreenNotMobile ? "flex-row" : "flex-col"
+      )}
+      {...containerProps}
+    >
       <SideBar />
-      <View style={styles.mainContent}>
-        <ThemedView style={styles.mainContentWrapper}>
+      <View
+        className={cn(
+          "flex-1 justify-between bg-background",
+          isScreenNotMobile ? "flex-row mx-auto" : "flex-col"
+        )}
+        style={{ maxWidth: 950 }}
+      >
+        <ThemedView
+          className="bg-background"
+          style={{
+            flex: isScreenNotMobile ? 2.2 : 1,
+            ...(isScreenNotMobile ? { borderLeftWidth: 0.5, borderRightWidth: 0.5, borderColor: colors.border } : {}),
+          }}
+        >
           <Slot />
         </ThemedView>
         <RightBar />

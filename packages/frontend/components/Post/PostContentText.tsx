@@ -1,14 +1,12 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
-import { colors } from '../../styles/colors';
 import LinkifiedText from '../common/LinkifiedText';
 import { useRouter, usePathname } from 'expo-router';
 import { PostContent } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 
 interface Props {
-  content?: string | PostContent; // Support both legacy string and new PostContent object
+  content?: string | PostContent;
   postId?: string;
   previewChars?: number;
 }
@@ -25,10 +23,10 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280 
 
   const isDetailPage = pathname?.startsWith('/p');
   const shouldTruncate = !isDetailPage && textContent.length > previewChars;
-  const displayed = shouldTruncate ? `${textContent.slice(0, previewChars).trimEnd()}…` : textContent;
+  const displayed = shouldTruncate ? `${textContent.slice(0, previewChars).trimEnd()}\u2026` : textContent;
 
   const suffix = shouldTruncate && postId ? (
-    <Text style={styles.link} className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
+    <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
       {' Read more'}
     </Text>
   ) : null;
@@ -37,7 +35,7 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280 
     <LinkifiedText
       text={displayed}
       style={[styles.postText, { color: theme.colors.text }]}
-      linkStyle={[styles.link, { color: theme.colors.primary }]}
+      linkStyle={[{ color: theme.colors.primary }]}
       suffix={suffix}
     />
   );
@@ -49,7 +47,5 @@ const styles = StyleSheet.create({
   postText: {
     fontSize: 15,
     lineHeight: 20,
-  },
-  link: {
   },
 });

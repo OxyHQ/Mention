@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
-    Text,
     StyleSheet,
     RefreshControl,
 } from 'react-native';
@@ -21,7 +20,6 @@ import PostItem from '@/components/Feed/PostItem';
 import { FeedResponse } from '@mention/shared-types';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { createScopedLogger } from '@/utils/logger';
-import { FONT_FAMILIES } from '@/styles/typography';
 import SEO from '@/components/SEO';
 import { FeedEmptyState } from '@/components/Feed/FeedEmptyState';
 
@@ -129,12 +127,12 @@ const HashtagScreen: React.FC = () => {
     }, []);
 
     const renderHeader = () => (
-        <View style={[styles.headerContent, { paddingTop: insets.top }]}>
-            <ThemedText type="title" style={styles.hashtagTitle}>
+        <View className="p-4 pb-2" style={{ paddingTop: insets.top }}>
+            <ThemedText type="title" className="text-[28px] font-bold mb-1 font-primary">
                 {displayTag}
             </ThemedText>
             {posts.length > 0 && (
-                <ThemedText style={[styles.postCount, { color: theme.colors.textSecondary }]}>
+                <ThemedText className="text-sm text-muted-foreground font-primary">
                     {t('hashtag.postCount', { count: posts.length, defaultValue: `${posts.length} posts` })}
                 </ThemedText>
             )}
@@ -144,7 +142,7 @@ const HashtagScreen: React.FC = () => {
     const renderFooter = () => {
         if (!loadingMore) return null;
         return (
-            <View style={styles.footer}>
+            <View className="p-4 items-center">
                 <Loading size="small" style={{ flex: undefined }} />
             </View>
         );
@@ -165,7 +163,7 @@ const HashtagScreen: React.FC = () => {
 
     if (error && !loading) {
         return (
-            <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+            <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
                 <SEO
                     title={t('seo.hashtag.title', { hashtag: displayTag, defaultValue: `${displayTag} - Mention` })}
                     description={t('seo.hashtag.description', {
@@ -187,8 +185,8 @@ const HashtagScreen: React.FC = () => {
                         ],
                     }}
                 />
-                <ThemedView style={styles.errorContainer}>
-                    <ThemedText type="subtitle" style={styles.errorText}>
+                <ThemedView className="flex-1 justify-center items-center p-5">
+                    <ThemedText type="subtitle" className="text-center">
                         {error}
                     </ThemedText>
                 </ThemedView>
@@ -197,7 +195,7 @@ const HashtagScreen: React.FC = () => {
     }
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
             <SEO
                 title={t('seo.hashtag.title', { hashtag: displayTag, defaultValue: `${displayTag} - Mention` })}
                 description={t('seo.hashtag.description', {
@@ -220,7 +218,7 @@ const HashtagScreen: React.FC = () => {
                 }}
             />
             {loading && posts.length === 0 ? (
-                <ThemedView style={styles.loadingContainer}>
+                <ThemedView className="flex-1 justify-center items-center">
                     <Loading size="large" />
                 </ThemedView>
             ) : (
@@ -252,57 +250,9 @@ const HashtagScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     listContent: {
         paddingBottom: 20,
-    },
-    headerContent: {
-        padding: 16,
-        paddingBottom: 8,
-    },
-    hashtagTitle: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        marginBottom: 4,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    postCount: {
-        fontSize: 14,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    footer: {
-        padding: 16,
-        alignItems: 'center',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    errorText: {
-        textAlign: 'center',
     },
 });
 
 export default HashtagScreen;
-
-
-
-
-
-
-
-
-
-
-
-
-

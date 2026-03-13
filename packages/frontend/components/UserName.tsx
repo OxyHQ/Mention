@@ -1,9 +1,7 @@
 import React from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-native';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
-import { colors } from '../styles/colors';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 
 interface Props {
     name?: string | null;

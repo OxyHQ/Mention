@@ -10,7 +10,6 @@ import { useUsersStore } from '@/stores/usersStore';
 import { useTheme } from '@/hooks/useTheme';
 import LegendList from '@/components/LegendList';
 import { ThemedText } from '@/components/ThemedText';
-import { colors } from '@/styles/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { Error } from '@/components/Error';
 

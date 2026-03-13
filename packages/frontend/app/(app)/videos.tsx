@@ -168,7 +168,7 @@ const VideoItem = memo<VideoItemProps>(({
                     } catch (error) {
                         // Silently handle currentTime reset errors
                     }
-                    
+
                     const playResult = player.play() as Promise<void> | void;
                     if (playResult instanceof Promise) {
                         playResult.catch(() => {
@@ -213,10 +213,10 @@ const VideoItem = memo<VideoItemProps>(({
                     allowsPictureInPicture={false}
                 />
             ) : (
-                <View style={[styles.video, styles.videoPlaceholder, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <View style={[styles.video, styles.videoPlaceholder]} className="bg-secondary">
                     <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
                     {videoError && (
-                        <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
+                        <Text className="mt-2 text-xs text-muted-foreground">
                             {t('videos.unavailable')}
                         </Text>
                     )}
@@ -765,8 +765,8 @@ export default function VideosScreen() {
 
             {loadingMore && (
                 <View style={styles.loadingMore}>
-                    <View style={[styles.loadingIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                        <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                    <View style={styles.loadingIndicator}>
+                        <Text className="text-sm font-semibold text-muted-foreground">
                             {t('videos.loading')}
                         </Text>
                     </View>
@@ -813,10 +813,6 @@ const styles = StyleSheet.create({
     videoPlaceholder: {
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    errorText: {
-        marginTop: 8,
-        fontSize: 12,
     },
     muteButton: {
         position: 'absolute',
@@ -950,9 +946,5 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.1)',
         boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.3)',
         elevation: 4,
-    },
-    loadingText: {
-        fontSize: 14,
-        fontWeight: '600',
     },
 });

@@ -1,10 +1,9 @@
 import React, { memo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { cn } from '@/lib/utils';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
@@ -67,43 +66,44 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   const fedFollowLabel = fedFollowPending ? 'Pending' : fedFollowing ? 'Following' : 'Follow';
 
   return (
-    <View style={styles.avatarRow}>
-      <View style={styles.avatarContainer}>
+    <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -45 }}>
+      <View className="relative">
         <ZoomableAvatar
           source={avatarUri}
           size={90}
-          style={[
-            styles.avatar,
-            {
-              borderColor: theme.colors.background,
-              backgroundColor: theme.colors.backgroundSecondary,
-            },
-          ]}
+          style={{
+            width: 90,
+            height: 90,
+            borderRadius: 45,
+            borderWidth: 4,
+            borderColor: theme.colors.background,
+            backgroundColor: theme.colors.backgroundSecondary,
+          }}
           imageStyle={{}}
         />
         {!isOwnProfile && !isFederated && profileId && (
           <PresenceIndicator
             userId={profileId}
             size="medium"
-            style={styles.presenceIndicator}
+            style={{ position: 'absolute', bottom: 4, right: 4 }}
           />
         )}
       </View>
-      <View style={styles.profileActions}>
+      <View className="flex-row items-center">
         {isOwnProfile && currentUsername === username ? (
-          <View style={styles.actionButtons}>
+          <View className="flex-row items-center gap-3">
             <TouchableOpacity
-              className="bg-background border-border"
-              style={styles.followButton}
+              className="border rounded-full px-6 py-2"
+              style={{ backgroundColor: theme.colors.background, borderColor: theme.colors.border }}
               onPress={() => showBottomSheet?.('AccountSettings')}
               accessibilityRole="button"
               accessibilityLabel={t('profile.editProfile')}
             >
-              <Text className="text-foreground" style={styles.followButtonText}>{t('profile.editProfile')}</Text>
+              <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="bg-background border-border"
-              style={styles.settingsButton}
+              className="border items-center justify-center"
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.background, borderColor: theme.colors.border }}
               onPress={() => router.push('/insights')}
               accessibilityRole="button"
               accessibilityLabel="Analytics"
@@ -111,8 +111,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               <AnalyticsIcon size={20} color={theme.colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              className="bg-background border-border"
-              style={styles.settingsButton}
+              className="border items-center justify-center"
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.background, borderColor: theme.colors.border }}
               onPress={() => router.push('/settings')}
               accessibilityRole="button"
               accessibilityLabel="Settings"
@@ -121,15 +121,13 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             </TouchableOpacity>
           </View>
         ) : isFederated && actorUri ? (
-          <View style={styles.actionButtons}>
+          <View className="flex-row items-center gap-3">
             <TouchableOpacity
-              style={[
-                styles.followButton,
-                {
-                  backgroundColor: fedFollowing || fedFollowPending ? theme.colors.background : theme.colors.primary,
-                  borderColor: fedFollowing || fedFollowPending ? theme.colors.border : theme.colors.primary,
-                },
-              ]}
+              className="border rounded-full px-6 py-2"
+              style={{
+                backgroundColor: fedFollowing || fedFollowPending ? theme.colors.background : theme.colors.primary,
+                borderColor: fedFollowing || fedFollowPending ? theme.colors.border : theme.colors.primary,
+              }}
               onPress={handleFederatedFollow}
               disabled={fedFollowLoading}
               accessibilityRole="button"
@@ -138,22 +136,23 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               {fedFollowLoading ? (
                 <ActivityIndicator size="small" color={fedFollowing || fedFollowPending ? theme.colors.text : '#fff'} />
               ) : (
-                <Text style={[styles.followButtonText, { color: fedFollowing || fedFollowPending ? theme.colors.text : '#fff' }]}>
+                <Text className="text-sm font-semibold" style={{ color: fedFollowing || fedFollowPending ? theme.colors.text : '#fff' }}>
                   {fedFollowLabel}
                 </Text>
               )}
             </TouchableOpacity>
           </View>
         ) : profileId ? (
-          <View style={styles.actionButtons}>
+          <View className="flex-row items-center gap-3">
             <TouchableOpacity
-              style={[
-                styles.settingsButton,
-                {
-                  backgroundColor: poked ? theme.colors.primary : theme.colors.background,
-                  borderColor: poked ? theme.colors.primary : theme.colors.border,
-                },
-              ]}
+              className="border items-center justify-center"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: poked ? theme.colors.primary : theme.colors.background,
+                borderColor: poked ? theme.colors.primary : theme.colors.border,
+              }}
               onPress={togglePoke}
               disabled={pokeLoading}
               accessibilityRole="button"
@@ -185,36 +184,37 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   UserNameComponent,
 }: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean }) {
   return (
-    <View style={styles.minimalistHeader}>
-      <View style={styles.minimalistInfo}>
+    <View className="flex-row justify-between items-start mb-4 relative w-full">
+      <View className="flex-1 mr-4">
         <UserNameComponent
           name={displayName}
           handle={username}
           verified={false}
           variant="default"
           style={{
-            name: [styles.profileName, { color: theme.colors.text }],
-            handle: [styles.profileHandle, { color: theme.colors.textSecondary }],
+            name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4, color: theme.colors.text },
+            handle: { fontSize: 15, marginBottom: 12, color: theme.colors.textSecondary },
             container: undefined,
           }}
         />
         {isPrivate && <PrivateBadge privacySettings={privacySettings} />}
       </View>
-      <View style={styles.minimalistAvatarContainer}>
+      <View className="relative">
         <ZoomableAvatar
           source={avatarUri}
           size={70}
-          style={[
-            styles.avatarMinimalist,
-            {
-              borderColor: theme.colors.background,
-              backgroundColor: theme.colors.backgroundSecondary,
-            },
-          ]}
+          style={{
+            width: 70,
+            height: 70,
+            borderRadius: 35,
+            borderWidth: 2,
+            borderColor: theme.colors.background,
+            backgroundColor: theme.colors.backgroundSecondary,
+          }}
           imageStyle={{}}
         />
         {verified && (
-          <View className="bg-background" style={styles.verifiedBadge}>
+          <View className="absolute rounded-[10px] p-0.5" style={{ left: -6, bottom: -2, backgroundColor: theme.colors.background }}>
             <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
           </View>
         )}
@@ -222,7 +222,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
           <PresenceIndicator
             userId={profileId}
             size="small"
-            style={styles.presenceIndicatorMinimalist}
+            style={{ position: 'absolute', bottom: 2, right: 2 }}
           />
         )}
       </View>
@@ -255,15 +255,16 @@ export const ProfileActions = memo(function ProfileActions({
   if (!isOwnProfile || currentUsername !== profileUsername) {
     if (!profileId) return null;
     return (
-      <View style={styles.actionButtons}>
+      <View className="flex-row items-center gap-3">
         <TouchableOpacity
-          style={[
-            styles.settingsButton,
-            {
-              backgroundColor: poked ? theme.colors.primary : theme.colors.background,
-              borderColor: poked ? theme.colors.primary : theme.colors.border,
-            },
-          ]}
+          className="border items-center justify-center"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: poked ? theme.colors.primary : theme.colors.background,
+            borderColor: poked ? theme.colors.primary : theme.colors.border,
+          }}
           onPress={togglePoke}
           disabled={pokeLoading}
           accessibilityRole="button"
@@ -277,19 +278,19 @@ export const ProfileActions = memo(function ProfileActions({
   }
 
   return (
-    <View style={styles.actionButtons}>
+    <View className="flex-row items-center gap-3">
       <TouchableOpacity
-        className="bg-background border-border"
-        style={styles.followButton}
+        className="border rounded-full px-6 py-2"
+        style={{ backgroundColor: theme.colors.background, borderColor: theme.colors.border }}
         onPress={() => showBottomSheet?.('AccountSettings')}
         accessibilityRole="button"
         accessibilityLabel={t('profile.editProfile')}
       >
-        <Text className="text-foreground" style={styles.followButtonText}>{t('profile.editProfile')}</Text>
+        <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        className="bg-background border-border"
-        style={styles.settingsButton}
+        className="border items-center justify-center"
+        style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.background, borderColor: theme.colors.border }}
         onPress={() => router.push('/insights')}
         accessibilityRole="button"
         accessibilityLabel="Analytics"
@@ -297,8 +298,8 @@ export const ProfileActions = memo(function ProfileActions({
         <AnalyticsIcon size={20} color={theme.colors.text} />
       </TouchableOpacity>
       <TouchableOpacity
-        className="bg-background border-border"
-        style={styles.settingsButton}
+        className="border items-center justify-center"
+        style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.background, borderColor: theme.colors.border }}
         onPress={() => router.push('/settings')}
         accessibilityRole="button"
         accessibilityLabel="Settings"
@@ -308,113 +309,3 @@ export const ProfileActions = memo(function ProfileActions({
     </View>
   );
 });
-
-const styles = StyleSheet.create({
-  avatarRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: -45,
-    marginBottom: 10,
-  },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 4,
-  },
-  presenceIndicator: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-  },
-  presenceIndicatorMinimalist: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-  },
-  profileActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  followButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  followButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  minimalistHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-    position: 'relative',
-    width: '100%',
-  },
-  minimalistInfo: {
-    flex: 1,
-    marginRight: 16,
-  },
-  minimalistAvatarContainer: {
-    position: 'relative',
-  },
-  avatarMinimalist: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 2,
-  },
-  verifiedBadge: {
-    position: 'absolute',
-    left: -6,
-    bottom: -2,
-    borderRadius: 10,
-    padding: 2,
-  },
-  profileName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  profileHandle: {
-    fontSize: 15,
-    marginBottom: 12,
-  },
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

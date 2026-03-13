@@ -28,7 +28,6 @@ import { PostErrorBoundary } from './PostErrorBoundary';
 import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
 import { useRouter } from 'expo-router';
@@ -244,7 +243,7 @@ const Feed = memo((props: FeedProps) => {
                         style={styles.showThreadLink}
                         onPress={() => router.push(`/p/${post.id}`)}
                     >
-                        <Text className="text-primary" style={styles.showThreadLinkText}>
+                        <Text className="text-primary text-sm font-medium">
                             Show this thread
                         </Text>
                     </Pressable>
@@ -418,8 +417,8 @@ const Feed = memo((props: FeedProps) => {
     return (
         <ErrorBoundary>
             <View
-                className="bg-background"
-                style={containerStyle}
+                className="flex-1 bg-background"
+                style={[{ minHeight: 0 }, containerStyle]}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
                 {feedState.isLoading && !refreshing && !isLoadingMore && feedRows.length === 0 ? (
@@ -519,9 +518,5 @@ const styles = StyleSheet.create({
         paddingLeft: 64, // HPAD + AVATAR_SIZE + AVATAR_GAP
         paddingRight: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    showThreadLinkText: {
-        fontSize: 14,
-        fontWeight: '500',
     },
 });

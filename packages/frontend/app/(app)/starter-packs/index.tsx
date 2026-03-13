@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -34,7 +34,7 @@ export default function StarterPacksScreen() {
         title="Starter Packs"
         description="Curated collections of accounts to follow"
       />
-      <ThemedView style={{ flex: 1 }}>
+      <ThemedView className="flex-1">
         <Header options={{
           title: 'Starter Packs',
           leftComponents: [
@@ -46,8 +46,8 @@ export default function StarterPacksScreen() {
             </IconButton>,
           ],
           rightComponents: [
-            <TouchableOpacity key="create" onPress={() => router.push('/starter-packs/create')} style={[styles.newPill, { backgroundColor: theme.colors.primary }]}>
-              <Text style={[styles.newPillText, { color: theme.colors.card }]}>New</Text>
+            <TouchableOpacity key="create" onPress={() => router.push('/starter-packs/create')} className="px-3.5 py-1.5 rounded-full items-center justify-center bg-primary">
+              <Text className="font-bold text-primary-foreground">New</Text>
             </TouchableOpacity>
           ]
         }}
@@ -55,7 +55,7 @@ export default function StarterPacksScreen() {
         disableSticky={true}
         />
 
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
+        <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
           {myPacks.length === 0 ? (
             <EmptyState
               title="No starter packs yet"
@@ -68,10 +68,10 @@ export default function StarterPacksScreen() {
                 label: 'Create Starter Pack',
                 onPress: () => router.push('/starter-packs/create'),
               }}
-              containerStyle={styles.emptyState}
+              containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
             />
           ) : (
-            <View style={styles.packsContainer}>
+            <View className="px-1">
               {myPacks.map((p: any) => {
                 const cardData: StarterPackCardData = {
                   id: String(p._id || p.id),
@@ -82,7 +82,7 @@ export default function StarterPacksScreen() {
                 };
 
                 return (
-                  <View key={String(p._id || p.id)} style={styles.cardWrapper}>
+                  <View key={String(p._id || p.id)} className="px-3 mb-2">
                     <StarterPackCard
                       pack={cardData}
                       onPress={() => router.push(`/starter-packs/${p._id || p.id}`)}
@@ -97,12 +97,3 @@ export default function StarterPacksScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { paddingHorizontal: 12, paddingTop: 10 },
-  packsContainer: { paddingHorizontal: 4 },
-  cardWrapper: { paddingHorizontal: 12, marginBottom: 8 },
-  newPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  newPillText: { fontWeight: '700' },
-  emptyState: { paddingVertical: 36, paddingHorizontal: 20 },
-});

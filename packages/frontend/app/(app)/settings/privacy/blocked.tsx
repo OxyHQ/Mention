@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -30,7 +30,7 @@ interface BlockedUser {
 
 export default function BlockedUsersScreen() {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const { colors } = useTheme();
     const { user: currentUser, oxyServices } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
@@ -78,11 +78,11 @@ export default function BlockedUsersScreen() {
             const userPromises = userIds.map(async (userId: string) => {
                 try {
                     console.log(`[BlockedUsers] Fetching user details for: ${userId}`);
-                    
+
                     // Use usersStore's ensureById which tries multiple methods
                     const { useUsersStore } = await import('@/stores/usersStore');
                     const usersState = useUsersStore.getState();
-                    
+
                     const svc: any = oxyServices as any;
                     const loader = async (id: string) => {
                         // Try multiple methods like NotificationItem does
@@ -116,10 +116,10 @@ export default function BlockedUsersScreen() {
                         }
                         return null;
                     };
-                    
+
                     const user = await usersState.ensureById(String(userId), loader);
                     console.log(`[BlockedUsers] Found user for ${userId}:`, user ? 'yes' : 'no', user);
-                    
+
                     // If we couldn't fetch user details, create a minimal user object
                     if (!user) {
                         console.log(`[BlockedUsers] Creating fallback user object for ${userId}`);
@@ -129,7 +129,7 @@ export default function BlockedUsersScreen() {
                             handle: userId.substring(0, 8) + '...',
                         } as BlockedUser;
                     }
-                    
+
                     return user;
                 } catch (error) {
                     console.warn(`[BlockedUsers] Failed to fetch user ${userId}:`, error);
@@ -193,8 +193,8 @@ export default function BlockedUsersScreen() {
             // Filter out already blocked users and current user
             const filtered = results.filter((user: any) => {
                 const userId = user.id || user._id;
-                return userId && 
-                       !blockedUserIds.includes(userId) && 
+                return userId &&
+                       !blockedUserIds.includes(userId) &&
                        userId !== currentUser?.id;
             });
             setSearchResults(filtered);
@@ -225,24 +225,24 @@ export default function BlockedUsersScreen() {
 
         try {
             setBlocking(userId);
-            
+
             // Optimistically update the state
             setBlockedUserIds(prev => [...prev, userId]);
             setBlockedUsers(prev => [...prev, user]);
-            
+
             // Remove from search results immediately
             setSearchResults(prev => prev.filter(u => {
                 const id = u.id || (u as any)._id;
                 return id !== userId;
             }));
-            
+
             // Use Oxy services directly
             await oxyServices.blockUser(userId);
             console.log('[BlockedUsers] User blocked successfully');
-            
+
             // Reload from server to ensure consistency
             await loadBlockedUsers();
-            
+
             setSearchQuery('');
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
@@ -286,21 +286,21 @@ export default function BlockedUsersScreen() {
         const performUnblock = async () => {
             try {
                 console.log('[BlockedUsers] Unblocking user:', userId);
-                
+
                 // Optimistically remove from list
                 setBlockedUserIds(prev => prev.filter(id => id !== userId));
                 setBlockedUsers(prev => prev.filter(u => {
                     const id = u.id || (u as any)._id;
                     return id !== userId;
                 }));
-                
+
                 // Use Oxy services directly
                 await oxyServices.unblockUser(userId);
                 console.log('[BlockedUsers] User unblocked successfully');
-                
+
                 // Reload from server to ensure consistency
                 await loadBlockedUsers();
-                
+
                 bottomSheet.setBottomSheetContent(
                     <MessageBottomSheet
                         title={t('common.success')}
@@ -362,7 +362,7 @@ export default function BlockedUsersScreen() {
     };
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             <Header
                 options={{
                     title: t('settings.privacy.blockedProfiles'),
@@ -371,7 +371,7 @@ export default function BlockedUsersScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -379,19 +379,19 @@ export default function BlockedUsersScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
             >
                 {/* Search Section */}
-                <View style={styles.searchSection}>
-                    <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                        <IconComponent name="search" size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
+                <View className="mb-6">
+                    <View className="flex-row items-center rounded-2xl border border-border bg-card px-3 py-2.5 mb-3">
+                        <IconComponent name="search" size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
                         <TextInput
-                            style={[styles.searchInput, { color: theme.colors.text }]}
+                            className="flex-1 text-base text-foreground"
                             placeholder={t('settings.privacy.searchUsersToBlock')}
-                            placeholderTextColor={theme.colors.textSecondary}
+                            placeholderTextColor={colors.textSecondary}
                             value={searchQuery}
                             onChangeText={handleSearch}
                             autoCapitalize="none"
@@ -404,7 +404,7 @@ export default function BlockedUsersScreen() {
 
                     {/* Search Results */}
                     {searchQuery && searchResults.length > 0 && (
-                        <View style={[styles.searchResults, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <View className="rounded-2xl border border-border bg-card overflow-hidden" style={{ maxHeight: 300 }}>
                             {searchResults.map((user) => {
                                 const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
@@ -415,7 +415,7 @@ export default function BlockedUsersScreen() {
                                 return (
                                     <TouchableOpacity
                                         key={userId}
-                                        style={[styles.searchResultItem, { borderBottomColor: theme.colors.border }]}
+                                        className="flex-row items-center py-3 border-b border-border"
                                         onPress={() => !isBlocking && handleBlock(user)}
                                         disabled={isBlocking}
                                     >
@@ -424,18 +424,18 @@ export default function BlockedUsersScreen() {
                                             size={40}
                                             label={displayName?.[0] || handle?.[0]}
                                         />
-                                        <View style={styles.searchResultInfo}>
-                                            <Text style={[styles.searchResultName, { color: theme.colors.text }]}>
+                                        <View className="flex-1 ml-3">
+                                            <Text className="text-base font-medium mb-0.5 text-foreground">
                                                 {displayName}
                                             </Text>
-                                            <Text style={[styles.searchResultHandle, { color: theme.colors.textSecondary }]}>
+                                            <Text className="text-sm text-muted-foreground">
                                                 @{handle}
                                             </Text>
                                         </View>
                                         {isBlocking ? (
                                             <Loading variant="inline" size="small" style={{ flex: undefined }} />
                                         ) : (
-                                            <IconComponent name="add-circle" size={24} color={theme.colors.primary} />
+                                            <IconComponent name="add-circle" size={24} color={colors.primary} />
                                         )}
                                     </TouchableOpacity>
                                 );
@@ -444,8 +444,8 @@ export default function BlockedUsersScreen() {
                     )}
 
                     {searchQuery && !searching && searchResults.length === 0 && (
-                        <View style={styles.emptySearch}>
-                            <Text style={[styles.emptySearchText, { color: theme.colors.textSecondary }]}>
+                        <View className="py-4 items-center">
+                            <Text className="text-sm text-muted-foreground">
                                 {t('settings.privacy.noUsersFound')}
                             </Text>
                         </View>
@@ -453,13 +453,13 @@ export default function BlockedUsersScreen() {
                 </View>
 
                 {/* Blocked Users List */}
-                <View style={styles.blockedSection}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                <View className="mt-2">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide mb-3 px-1 text-foreground">
                         {t('settings.privacy.blockedUsers')}
                     </Text>
 
                     {loading ? (
-                        <View style={styles.loadingContainer}>
+                        <View className="py-10 items-center">
                             <Loading size="large" style={{ flex: undefined }} />
                         </View>
                     ) : blockedUsers.length === 0 ? (
@@ -471,7 +471,7 @@ export default function BlockedUsersScreen() {
                             }}
                         />
                     ) : (
-                        <View style={[styles.blockedList, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <View className="rounded-2xl border border-border bg-card overflow-hidden">
                             {blockedUsers.map((user, index) => {
                                 const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
@@ -480,22 +480,23 @@ export default function BlockedUsersScreen() {
 
                                 return (
                                     <View key={userId}>
-                                        <View style={styles.blockedUserItem}>
+                                        <View className="flex-row items-center px-4 py-4">
                                             <Avatar
                                                 source={avatarUri}
                                                 size={48}
                                                 label={displayName?.[0] || handle?.[0]}
                                             />
-                                            <View style={styles.blockedUserInfo}>
-                                                <Text style={[styles.blockedUserName, { color: theme.colors.text }]}>
+                                            <View className="flex-1 ml-3">
+                                                <Text className="text-base font-medium mb-0.5 text-foreground">
                                                     {displayName}
                                                 </Text>
-                                                <Text style={[styles.blockedUserHandle, { color: theme.colors.textSecondary }]}>
+                                                <Text className="text-sm text-muted-foreground">
                                                     @{handle}
                                                 </Text>
                                             </View>
                                             <TouchableOpacity
-                                                style={[styles.unblockButton, { backgroundColor: theme.colors.error + '20' }]}
+                                                className="px-4 py-2 rounded-lg"
+                                                style={{ backgroundColor: colors.error + '20' }}
                                                 activeOpacity={0.7}
                                                 onPress={() => {
                                                     console.log('[BlockedUsers] Unblock button pressed for userId:', userId, 'user:', user);
@@ -515,13 +516,13 @@ export default function BlockedUsersScreen() {
                                                     }
                                                 }}
                                             >
-                                                <Text style={[styles.unblockButtonText, { color: theme.colors.error }]}>
+                                                <Text className="text-sm font-semibold" style={{ color: colors.error }}>
                                                     {t('settings.privacy.unblock')}
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
                                         {index < blockedUsers.length - 1 && (
-                                            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                                            <View className="h-px mx-4 bg-border" />
                                         )}
                                     </View>
                                 );
@@ -533,121 +534,3 @@ export default function BlockedUsersScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    searchSection: {
-        marginBottom: 24,
-    },
-    searchInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 16,
-        borderWidth: 1,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        marginBottom: 12,
-    },
-    searchIcon: {
-        marginRight: 8,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 16,
-    },
-    searchLoader: {
-        marginLeft: 8,
-    },
-    searchResults: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-        maxHeight: 300,
-    },
-    searchResultItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-    },
-    searchResultInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    searchResultName: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 2,
-    },
-    searchResultHandle: {
-        fontSize: 14,
-    },
-    emptySearch: {
-        paddingVertical: 16,
-        alignItems: 'center',
-    },
-    emptySearchText: {
-        fontSize: 14,
-    },
-    blockedSection: {
-        marginTop: 8,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 12,
-        paddingHorizontal: 4,
-    },
-    loadingContainer: {
-        paddingVertical: 40,
-        alignItems: 'center',
-    },
-    blockedList: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    blockedUserItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-    },
-    blockedUserInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    blockedUserName: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 2,
-    },
-    blockedUserHandle: {
-        fontSize: 14,
-    },
-    unblockButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 8,
-    },
-    unblockButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    divider: {
-        height: 1,
-        marginHorizontal: 16,
-    },
-});

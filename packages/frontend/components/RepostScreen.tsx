@@ -6,7 +6,6 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -121,78 +120,91 @@ const RepostScreen: React.FC = () => {
 
     if (!originalPost) {
         return (
-            <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-                <Text style={styles.errorText}>Post not found</Text>
+            <View className="flex-1 bg-background">
+                <Text className="text-lg text-center" style={{ marginTop: 100 }}>Post not found</Text>
             </View>
         );
     }
 
     return (
         <KeyboardAvoidingView
-            style={[styles.container, { backgroundColor: theme.colors.background }]}
+            className="flex-1 bg-background"
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             {/* Header */}
-            <View style={[styles.header, { borderBottomColor: theme.colors.border }, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-                    <Text style={[styles.cancelText, { color: theme.colors.primary }]}>Cancel</Text>
+            <View
+                className="flex-row justify-between items-center px-4 border-b border-border"
+                style={{ paddingBottom: 12, paddingTop: insets.top }}
+            >
+                <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
+                    <Text className="text-primary text-base font-semibold">Cancel</Text>
                 </TouchableOpacity>
 
-                <View style={styles.headerActions}>
+                <View className="flex-row items-center">
                     <TouchableOpacity
-                        style={[styles.repostButton, !canRepost && styles.repostButtonDisabled]}
+                        className="rounded-full px-5 py-2"
+                        style={[!canRepost && { opacity: 0.5 }]}
                         onPress={handleRepost}
                         disabled={!canRepost}
                     >
-                        <Text style={[styles.repostButtonText, !canRepost && styles.repostButtonTextDisabled]}>
+                        <Text className="text-base font-bold" style={[!canRepost && { opacity: 0.7 }]}>
                             {isSubmitting ? 'Reposting...' : 'Repost'}
                         </Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                 {/* Repost Header */}
-                <View style={[styles.repostHeader, { borderBottomColor: theme.colors.border }]}>
+                <View className="flex-row items-center py-3 border-b border-border mb-4">
                     <Ionicons name="repeat" size={20} color={theme.colors.primary} />
-                    <Text style={[styles.repostHeaderText, { color: theme.colors.primary }]}>Repost</Text>
+                    <Text className="text-primary text-base font-semibold ml-2">Repost</Text>
                 </View>
 
                 {/* Original Post */}
-                <View style={[styles.originalPost, { borderBottomColor: theme.colors.border }]}>
-                    <View style={styles.originalPostHeader}>
+                <View className="py-4 border-b border-border mb-4">
+                    <View className="flex-row items-center mb-2">
                         <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }} />
-                        <View style={styles.originalPostInfo}>
+                        <View className="flex-1">
                             <UserName
                                 name={originalPost.user.name}
                                 verified={originalPost.user.verified}
                                 variant="small"
                             />
-                            {originalPost.user.handle ? <Text style={[styles.originalPostHandle, { color: theme.colors.textSecondary }]}>@{originalPost.user.handle}</Text> : null}
+                            {originalPost.user.handle ? (
+                                <Text className="text-muted-foreground text-[13px]">@{originalPost.user.handle}</Text>
+                            ) : null}
                         </View>
                     </View>
-                    <Text style={[styles.originalPostContent, { color: theme.colors.text }]}>{originalPost.content}</Text>
+                    <Text className="text-foreground text-[15px]" style={{ lineHeight: 20 }}>{originalPost.content}</Text>
                 </View>
 
                 {/* Repost Input */}
-                <View style={styles.repostSection}>
-                    <View style={styles.userInfo}>
+                <View className="flex-1">
+                    <View className="flex-row mb-3">
                         <Avatar
                             source={user?.avatar}
                             size={48}
                             style={{ marginRight: 12 }}
                         />
-                        <View style={styles.userDetails}>
-                            <Text style={[styles.userName, { color: theme.colors.text }]}>
+                        <View className="justify-center">
+                            <Text className="text-foreground text-base font-bold mb-0.5">
                                 {user?.name?.full || user?.username}
                             </Text>
-                            <Text style={[styles.userHandle, { color: theme.colors.textSecondary }]}>@{user?.username}</Text>
+                            <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
                         </View>
                     </View>
 
                     <TextInput
                         ref={textInputRef}
-                        style={[styles.textInput, { color: theme.colors.text }]}
+                        className="text-foreground"
+                        style={{
+                            fontSize: 20,
+                            lineHeight: 28,
+                            minHeight: 120,
+                            textAlignVertical: 'top',
+                            color: theme.colors.text,
+                        }}
                         placeholder="Add a comment..."
                         placeholderTextColor={theme.colors.textTertiary}
                         value={content}
@@ -204,15 +216,14 @@ const RepostScreen: React.FC = () => {
                     />
 
                     {/* Character Count */}
-                    <View style={styles.characterCount}>
-                        <Text style={[
-                            styles.characterCountText,
-                            { color: theme.colors.textSecondary },
-                            isOverLimit && { color: theme.colors.error }
-                        ]}>
+                    <View className="flex-row justify-end items-center mt-4 mb-5">
+                        <Text
+                            className="text-muted-foreground text-sm font-medium"
+                            style={isOverLimit ? { color: theme.colors.error } : undefined}
+                        >
                             {characterCount}
                         </Text>
-                        <Text style={[styles.characterCountMax, { color: theme.colors.textSecondary }]}>/{MAX_CHARACTERS}</Text>
+                        <Text className="text-muted-foreground text-sm ml-0.5">/{MAX_CHARACTERS}</Text>
                     </View>
                 </View>
             </ScrollView>
@@ -220,153 +231,4 @@ const RepostScreen: React.FC = () => {
     );
 };
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        // backgroundColor will be applied inline with theme
-    },
-    header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        borderBottomWidth: 1,
-        // borderBottomColor will be applied inline with theme
-    },
-    cancelButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-    },
-    cancelText: {
-        // color will be applied inline with theme
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    headerActions: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    repostButton: {
-        // backgroundColor will be applied inline with theme
-        paddingHorizontal: 20,
-        paddingVertical: 8,
-        borderRadius: 20,
-    },
-    repostButtonDisabled: {
-        // backgroundColor will be applied inline with theme
-        opacity: 0.5,
-    },
-    repostButtonText: {
-        // color will be applied inline with theme
-        fontSize: 16,
-        fontWeight: "700",
-    },
-    repostButtonTextDisabled: {
-        opacity: 0.7,
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 16,
-    },
-    repostHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        marginBottom: 16,
-    },
-    repostHeaderText: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginLeft: 8,
-    },
-    originalPost: {
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        marginBottom: 16,
-    },
-    originalPostHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    originalPostAvatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        marginRight: 8,
-    },
-    originalPostInfo: {
-        flex: 1,
-    },
-    originalPostName: {
-        fontSize: 14,
-        fontWeight: '700',
-        marginRight: 4,
-    },
-    verifiedIcon: {
-        marginRight: 4,
-    },
-    originalPostHandle: {
-        fontSize: 13,
-    },
-    originalPostContent: {
-        fontSize: 15,
-        lineHeight: 20,
-    },
-    repostSection: {
-        flex: 1,
-    },
-    userInfo: {
-        flexDirection: 'row',
-        marginBottom: 12,
-    },
-    userAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        marginRight: 12,
-    },
-    userDetails: {
-        justifyContent: 'center',
-    },
-    userName: {
-        fontSize: 16,
-        fontWeight: '700',
-        marginBottom: 2,
-    },
-    userHandle: {
-        fontSize: 14,
-    },
-    textInput: {
-        fontSize: 20,
-        lineHeight: 28,
-        minHeight: 120,
-        textAlignVertical: 'top',
-    },
-    characterCount: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        marginTop: 16,
-        marginBottom: 20,
-    },
-    characterCountText: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    characterCountOverLimit: {
-    },
-    characterCountMax: {
-        fontSize: 14,
-        marginLeft: 2,
-    },
-    errorText: {
-        fontSize: 18,
-        textAlign: 'center',
-        marginTop: 100,
-    },
-});
-
-export default RepostScreen; 
+export default RepostScreen;

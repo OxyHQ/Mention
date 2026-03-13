@@ -51,16 +51,16 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
   const fetchGifs = useCallback(async (query: string = '') => {
     try {
       setLoading(true);
-      
+
       // Call backend API instead of KLIPY directly
       const endpoint = query.trim() ? '/gifs/search' : '/gifs/trending';
-      const params = query.trim() 
+      const params = query.trim()
         ? { q: query.trim(), page: '1', per_page: '20' }
         : { page: '1', per_page: '20' };
 
       const response = await api.get(endpoint, params);
       const data = response.data;
-      
+
       // Handle backend API response format: { result: true, data: { data: [...] } }
       if (data.result && data.data?.data && Array.isArray(data.data.data)) {
         // Map KLIPY response to our GifItem format
@@ -68,7 +68,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           // Use medium size for thumbnail, HD for full GIF
           const thumbnailFile = gif.file?.md || gif.file?.sm || gif.file?.hd;
           const fullFile = gif.file?.hd || gif.file?.md || gif.file?.sm;
-          
+
           return {
             id: gif.id || String(Math.random()),
             slug: gif.slug || '',
@@ -79,7 +79,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
             height: fullFile?.gif?.height || thumbnailFile?.gif?.height || 200,
           };
         }).filter((gif: GifItem) => gif.url && gif.thumbnail); // Filter out items without URLs
-        
+
         setGifs(mappedGifs);
       } else {
         setGifs([]);
@@ -108,7 +108,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
   const handleSelectGif = async (gif: GifItem) => {
     if (uploading) return;
-    
+
     try {
       setSelectedGif(gif.id);
       setUploading(true);
@@ -116,15 +116,15 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       // Fetch the GIF using the URL from KLIPY
       const gifUrl = gif.url;
       const filename = `gif_${gif.id || gif.slug}.gif`;
-      
+
       if (Platform.OS === 'web') {
         // For web, use fetch and create a File object
         const response = await fetch(gifUrl);
         const blob = await response.blob();
-        
+
         // Create file object for web
         const file = new File([blob], filename, { type: 'image/gif' });
-        
+
         // Upload via Oxy services
         console.log('Uploading GIF file (web):', { filename, type: 'image/gif' });
         const uploadResponse = await oxyServices.uploadFile(file as any, {
@@ -136,7 +136,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
         // Extract file ID from Oxy response: file.key is the file identifier
         const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
-        
+
         if (fileId) {
           await onSelectGif(gifUrl, fileId);
           onClose();
@@ -148,15 +148,15 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       } else {
         // For React Native, try to use expo-file-system if available, otherwise use direct URL
         let fileUri = gifUrl;
-        
+
         try {
           // Try to use expo-file-system to download the file locally first
           const FileSystem = require('expo-file-system');
           const localUri = `${FileSystem.cacheDirectory}${filename}`;
-          
+
           // Download the GIF file
           const downloadResult = await FileSystem.downloadAsync(gifUrl, localUri);
-          
+
           if (downloadResult.uri) {
             fileUri = downloadResult.uri;
           }
@@ -183,7 +183,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
         // Extract file ID from Oxy response: file.key is the file identifier
         const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
-        
+
         if (fileId) {
           await onSelectGif(gifUrl, fileId);
           onClose();
@@ -210,9 +210,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       <TouchableOpacity
         style={[
           styles.gifItem,
-          { 
-            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-          },
+          { borderColor: isSelected ? theme.colors.primary : theme.colors.border },
           isSelected && { opacity: 0.7 },
         ]}
         onPress={() => handleSelectGif(item)}
@@ -221,11 +219,11 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       >
         <Image
           source={{ uri: item.thumbnail || item.url }}
-          style={styles.gifImage}
+          className="w-full h-full"
           resizeMode="cover"
         />
         {isUploading && (
-          <View style={styles.uploadingOverlay}>
+          <View className="absolute inset-0 bg-black/50 justify-center items-center">
             <Loading size="small" style={{ flex: undefined }} />
           </View>
         )}
@@ -234,7 +232,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="flex-1 bg-background">
       <Header
         options={{
           title: t('Select a GIF'),
@@ -248,10 +246,10 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         disableSticky={true}
       />
 
-      <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+      <View className="flex-row items-center px-3 py-2.5 mx-4 mt-3 mb-2 rounded-xl bg-secondary gap-2.5">
         <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
         <TextInput
-          style={[styles.searchInput, { color: theme.colors.text }]}
+          className="flex-1 text-[15px] text-foreground"
           placeholder={t('Search GIFs...')}
           placeholderTextColor={theme.colors.textTertiary}
           value={searchQuery}
@@ -267,16 +265,16 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       </View>
 
       {loading && gifs.length === 0 ? (
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 justify-center items-center py-12">
           <Loading size="large" />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+          <Text className="mt-3 text-sm text-muted-foreground">
             {t('Loading GIFs...')}
           </Text>
         </View>
       ) : gifs.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <View className="flex-1 justify-center items-center py-12">
           <Ionicons name="image-outline" size={64} color={theme.colors.textSecondary} />
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+          <Text className="mt-4 text-base text-muted-foreground">
             {t('No GIFs found')}
           </Text>
         </View>
@@ -286,7 +284,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           renderItem={renderGifItem}
           keyExtractor={(item) => String(item.id)}
           numColumns={numColumns}
-          contentContainerStyle={styles.gifList}
+          contentContainerStyle={{ padding: 0 }}
           columnWrapperStyle={styles.gifRow}
           showsVerticalScrollIndicator={false}
         />
@@ -296,47 +294,6 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    borderRadius: 12,
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 48,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 48,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 16,
-  },
-  gifList: {
-    padding: 0,
-  },
   gifRow: {
     flexDirection: 'row',
     marginBottom: 0,
@@ -350,21 +307,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'solid',
   },
-  gifImage: {
-    width: '100%',
-    height: '100%',
-  },
-  uploadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 });
 
 export default GifPickerSheet;
-

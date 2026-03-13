@@ -32,7 +32,7 @@ export function StarterPackCard({ pack, onPress }: StarterPackCardProps) {
       className="bg-card border-border"
       style={styles.outer}>
       <View style={styles.header}>
-        <View style={[styles.iconBubble, { backgroundColor: theme.colors.primary + '20' }]}>
+        <View className="bg-primary/20" style={styles.iconBubble}>
           <Ionicons name="rocket-outline" size={22} color={theme.colors.primary} />
         </View>
         <View style={styles.titleContainer}>

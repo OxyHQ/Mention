@@ -278,9 +278,9 @@ export default function SearchIndex() {
                     style={styles.profileCardStyle}
                 />
                 {user.isFederated && user.instance ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, marginTop: -8, marginBottom: 8 }}>
+                    <View className="flex-row items-center gap-1 px-4 -mt-2 mb-2">
                         <Ionicons name="globe-outline" size={12} color={theme.colors.textSecondary} />
-                        <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>
+                        <Text className="text-xs text-muted-foreground">
                             {user.instance}
                         </Text>
                     </View>
@@ -325,15 +325,15 @@ export default function SearchIndex() {
                 style={styles.hashtagItem}
                 onPress={() => router.push(`/hashtag/${hashtag.tag}`)}
             >
-                <View style={styles.hashtagLeft}>
-                    <View style={[styles.hashtagIconContainer, { backgroundColor: theme.colors.primaryLight }]}>
-                        <Text style={[styles.hashtagSymbol, { color: theme.colors.primary }]}>#</Text>
+                <View className="flex-row items-center" style={{ gap: SPACING.md }}>
+                    <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: theme.colors.primaryLight }}>
+                        <Text className="text-2xl font-bold text-primary">#</Text>
                     </View>
                     <View>
-                        <Text style={[styles.hashtagText, { color: theme.colors.text }]}>
+                        <Text className="text-lg font-semibold text-foreground">
                             {hashtag.tag}
                         </Text>
-                        <Text style={[styles.hashtagCount, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-sm mt-0.5 text-muted-foreground">
                             {hashtag.count || 0} {t("search.posts", "posts")}
                         </Text>
                     </View>
@@ -400,7 +400,7 @@ export default function SearchIndex() {
         return (
             <View style={styles.section}>
                 {showTitle && (
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                    <Text className="text-xl font-bold text-foreground" style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.md }}>
                         {title}
                     </Text>
                 )}
@@ -420,8 +420,8 @@ export default function SearchIndex() {
                 title={t('seo.search.title')}
                 description={t('seo.search.description')}
             />
-            <ThemedView style={styles.container}>
-                <SafeAreaView style={styles.safeArea} edges={["top"]}>
+            <ThemedView className="flex-1">
+                <SafeAreaView className="flex-1" edges={["top"]}>
                     <Header
                         options={{
                             title: t("search.title", "Search"),
@@ -437,7 +437,7 @@ export default function SearchIndex() {
                         hideBottomBorder={true}
                     />
 
-                    <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <View style={styles.searchContainer} className="bg-secondary">
                         <View style={styles.searchIcon}>
                             <Search
                                 size={18}
@@ -446,7 +446,8 @@ export default function SearchIndex() {
                         </View>
                         <TextInput
                             ref={searchInputRef}
-                            style={[styles.searchInput, { color: theme.colors.text }]}
+                            style={styles.searchInput}
+                            className="text-foreground"
                             placeholder={t("search.placeholder", "Search...")}
                             placeholderTextColor={theme.colors.textSecondary}
                             value={query}
@@ -459,7 +460,7 @@ export default function SearchIndex() {
                         {query.length > 0 && (
                             <TouchableOpacity
                                 onPress={clearSearch}
-                                style={styles.clearButton}
+                                className="p-1"
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
                                 <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
@@ -475,13 +476,13 @@ export default function SearchIndex() {
                     />
 
                     <ScrollView
-                        style={styles.resultsContainer}
+                        className="flex-1"
                         contentContainerStyle={showIdleState && !showSearchHistory ? styles.resultsContentEmpty : undefined}
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
                     >
                         {loading && (
-                            <View style={styles.loadingContainer}>
+                            <View className="flex-1 items-center justify-center" style={{ minHeight: 300 }}>
                                 <Loading size="large" />
                             </View>
                         )}
@@ -499,16 +500,16 @@ export default function SearchIndex() {
 
                         {/* Idle state: search history + operator hints */}
                         {showIdleState && (
-                            <View style={styles.idleContainer}>
+                            <View className="flex-1" style={{ paddingTop: SPACING.sm }}>
                                 {/* Recent searches */}
                                 {showSearchHistory && (
-                                    <View style={styles.historySection}>
-                                        <View style={styles.historyHeader}>
-                                            <Text style={[styles.historySectionTitle, { color: theme.colors.text }]}>
+                                    <View style={{ marginBottom: SPACING.md }}>
+                                        <View className="flex-row items-center justify-between" style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm }}>
+                                            <Text className="text-lg font-bold text-foreground">
                                                 {t("search.recentSearches", "Recent searches")}
                                             </Text>
                                             <TouchableOpacity onPress={handleClearAllHistory}>
-                                                <Text style={[styles.historyClearAll, { color: theme.colors.primary }]}>
+                                                <Text className="text-sm font-semibold text-primary">
                                                     {t("common.clearAll", "Clear all")}
                                                 </Text>
                                             </TouchableOpacity>
@@ -516,12 +517,13 @@ export default function SearchIndex() {
                                         {searchHistory.map((item) => (
                                             <TouchableOpacity
                                                 key={item}
-                                                style={styles.historyItem}
+                                                className="flex-row items-center justify-between"
+                                                style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.md }}
                                                 onPress={() => handleHistoryItemPress(item)}
                                             >
-                                                <View style={styles.historyItemLeft}>
+                                                <View className="flex-row items-center flex-1" style={{ gap: SPACING.md }}>
                                                     <Ionicons name="time-outline" size={18} color={theme.colors.textSecondary} />
-                                                    <Text style={[styles.historyItemText, { color: theme.colors.text }]} numberOfLines={1}>
+                                                    <Text className="text-base flex-1 text-foreground" numberOfLines={1}>
                                                         {item}
                                                     </Text>
                                                 </View>
@@ -539,24 +541,28 @@ export default function SearchIndex() {
 
                                 {/* Search operator hints */}
                                 {showOperatorHints && (
-                                    <View style={styles.operatorHintsSection}>
-                                        <Text style={[styles.operatorHintsTitle, { color: theme.colors.textSecondary }]}>
+                                    <View style={{ paddingHorizontal: SPACING.base, paddingTop: SPACING.md }}>
+                                        <Text className="text-sm font-semibold uppercase text-muted-foreground" style={{ letterSpacing: 0.5, marginBottom: SPACING.md }}>
                                             {t("search.operatorHints", "Search operators")}
                                         </Text>
                                         {SEARCH_OPERATORS.map((op) => (
                                             <TouchableOpacity
                                                 key={op.operator}
-                                                style={styles.operatorHintRow}
+                                                className="flex-row items-center"
+                                                style={{ gap: SPACING.md, paddingVertical: SPACING.sm }}
                                                 onPress={() => {
                                                     const prefix = op.operator.split(':')[0] + ':';
                                                     setQuery(prefix);
                                                     searchInputRef.current?.focus();
                                                 }}
                                             >
-                                                <Text style={[styles.operatorCode, { color: theme.colors.primary, backgroundColor: theme.colors.backgroundSecondary }]}>
+                                                <Text
+                                                    className="text-sm font-semibold text-primary bg-secondary"
+                                                    style={{ paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}
+                                                >
                                                     {op.operator}
                                                 </Text>
-                                                <Text style={[styles.operatorDesc, { color: theme.colors.textSecondary }]}>
+                                                <Text className="text-sm flex-1 text-muted-foreground">
                                                     {t(`search.operator.${op.operator.split(':')[0]}`, op.description)}
                                                 </Text>
                                             </TouchableOpacity>
@@ -644,12 +650,6 @@ export default function SearchIndex() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    safeArea: {
-        flex: 1,
-    },
     searchContainer: {
         flexDirection: "row",
         alignItems: "center",
@@ -667,31 +667,13 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.lg,
         paddingVertical: SPACING.sm,
     },
-    clearButton: {
-        padding: 4,
-    },
-    resultsContainer: {
-        flex: 1,
-    },
     resultsContentEmpty: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
     },
-    loadingContainer: {
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: 300,
-    },
     section: {
         marginBottom: SPACING.base,
-    },
-    sectionTitle: {
-        fontSize: FONT_SIZES.xl,
-        fontWeight: "700",
-        paddingHorizontal: SPACING.base,
-        paddingVertical: SPACING.md,
     },
     itemWrapper: {
         paddingHorizontal: SPACING.md,
@@ -707,101 +689,5 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingHorizontal: SPACING.base,
         paddingVertical: SPACING.md,
-    },
-    hashtagLeft: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: SPACING.md,
-    },
-    hashtagIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    hashtagSymbol: {
-        fontSize: FONT_SIZES["2xl"],
-        fontWeight: "700",
-    },
-    hashtagText: {
-        fontSize: FONT_SIZES.lg,
-        fontWeight: "600",
-    },
-    hashtagCount: {
-        fontSize: FONT_SIZES.sm,
-        marginTop: 2,
-    },
-    // Idle state styles
-    idleContainer: {
-        flex: 1,
-        paddingTop: SPACING.sm,
-    },
-    // Search history styles
-    historySection: {
-        marginBottom: SPACING.md,
-    },
-    historyHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingHorizontal: SPACING.base,
-        paddingVertical: SPACING.sm,
-    },
-    historySectionTitle: {
-        fontSize: FONT_SIZES.lg,
-        fontWeight: "700",
-    },
-    historyClearAll: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: "600",
-    },
-    historyItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: SPACING.base,
-        paddingVertical: SPACING.md,
-    },
-    historyItemLeft: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: SPACING.md,
-        flex: 1,
-    },
-    historyItemText: {
-        fontSize: FONT_SIZES.base,
-        flex: 1,
-    },
-    // Operator hints styles
-    operatorHintsSection: {
-        paddingHorizontal: SPACING.base,
-        paddingTop: SPACING.md,
-    },
-    operatorHintsTitle: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: "600",
-        textTransform: "uppercase",
-        letterSpacing: 0.5,
-        marginBottom: SPACING.md,
-    },
-    operatorHintRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: SPACING.md,
-        paddingVertical: SPACING.sm,
-    },
-    operatorCode: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: "600",
-        fontFamily: undefined, // platform monospace fallback
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: 2,
-        borderRadius: 4,
-        overflow: "hidden",
-    },
-    operatorDesc: {
-        fontSize: FONT_SIZES.sm,
-        flex: 1,
     },
 });

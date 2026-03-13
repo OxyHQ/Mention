@@ -20,6 +20,7 @@ import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
+import { cn } from '@/lib/utils';
 
 interface Labeler {
   _id: string;
@@ -47,19 +48,19 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: theme.colors.backgroundSecondary }]}
+      className="rounded-2xl p-4 gap-2 bg-secondary"
       onPress={() => router.push(`/moderation/labelers/${id}`)}
       activeOpacity={0.7}
     >
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleRow}>
-          <Text style={[styles.cardName, { color: theme.colors.text }]} numberOfLines={1}>
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="flex-1 flex-row items-center gap-2 flex-wrap">
+          <Text className="text-base font-bold text-foreground" numberOfLines={1}>
             {labeler.name}
           </Text>
           {labeler.isOfficial && (
-            <View style={[styles.officialBadge, { backgroundColor: theme.colors.primary }]}>
+            <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
               <Ionicons name="shield-checkmark" size={10} color="#fff" />
-              <Text style={styles.officialBadgeText}>
+              <Text className="text-white text-[10px] font-bold">
                 {t('labelers.official', { defaultValue: 'Official' })}
               </Text>
             </View>
@@ -81,12 +82,10 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
             <Loading variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
             <Text
-              style={[
-                styles.subscribeBtnText,
-                labeler.isSubscribed
-                  ? { color: theme.colors.text }
-                  : { color: '#fff' },
-              ]}
+              className={cn(
+                "text-[13px] font-semibold",
+                labeler.isSubscribed ? "text-foreground" : "text-white"
+              )}
             >
               {labeler.isSubscribed
                 ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
@@ -97,23 +96,20 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
       </View>
 
       {!!labeler.description && (
-        <Text
-          style={[styles.cardDescription, { color: theme.colors.textSecondary }]}
-          numberOfLines={2}
-        >
+        <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
           {labeler.description}
         </Text>
       )}
 
-      <View style={styles.cardMeta}>
-        <Text style={[styles.cardMetaText, { color: theme.colors.textSecondary }]}>
+      <View className="flex-row items-center gap-1.5">
+        <Text className="text-[13px] text-muted-foreground">
           {t('labelers.subscriberCount', {
             count: labeler.subscriberCount,
             defaultValue: '{{count}} subscribers',
           })}
         </Text>
-        <Text style={[styles.cardMetaDot, { color: theme.colors.textSecondary }]}>{'\u00B7'}</Text>
-        <Text style={[styles.cardMetaText, { color: theme.colors.textSecondary }]}>
+        <Text className="text-[13px] text-muted-foreground">{'\u00B7'}</Text>
+        <Text className="text-[13px] text-muted-foreground">
           {t('labelers.labelCount', {
             count: labelCount,
             defaultValue: '{{count}} labels',
@@ -248,12 +244,12 @@ const LabelersScreen: React.FC = () => {
 
   const ListEmpty = useCallback(
     () => (
-      <View style={styles.emptyState}>
+      <View className="items-center pt-[60px] gap-3">
         <Ionicons name="shield-outline" size={48} color={theme.colors.textSecondary} />
-        <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+        <Text className="text-[17px] font-semibold text-foreground">
           {t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
         </Text>
-        <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+        <Text className="text-sm text-center px-8 text-muted-foreground">
           {t('labelers.emptySubtitle', {
             defaultValue: 'Try adjusting your search or check back later.',
           })}
@@ -264,7 +260,7 @@ const LabelersScreen: React.FC = () => {
   );
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView className="flex-1">
       <Header
         options={{
           title: t('labelers.title', { defaultValue: 'Content Labels' }),
@@ -278,19 +274,15 @@ const LabelersScreen: React.FC = () => {
         disableSticky
       />
 
-      <View
-        style={[
-          styles.searchBar,
-          { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border },
-        ]}
-      >
+      <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 rounded-xl border border-border px-3 py-2.5 bg-secondary">
         <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
         <TextInput
           value={search}
           onChangeText={handleSearch}
-          placeholder={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers…' })}
+          placeholder={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' })}
           placeholderTextColor={theme.colors.textSecondary}
-          style={[styles.searchInput, { color: theme.colors.text }]}
+          className="flex-1 text-[15px] text-foreground"
+          style={styles.searchInput}
           returnKeyType="search"
         />
         {search.length > 0 && (
@@ -301,7 +293,7 @@ const LabelersScreen: React.FC = () => {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 justify-center items-center">
           <Loading size="large" />
         </View>
       ) : (
@@ -319,7 +311,7 @@ const LabelersScreen: React.FC = () => {
               tintColor={theme.colors.primary}
             />
           }
-          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          ItemSeparatorComponent={() => <View className="h-2" />}
         />
       )}
     </ThemedView>
@@ -329,72 +321,14 @@ const LabelersScreen: React.FC = () => {
 export default LabelersScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
   searchInput: {
-    flex: 1,
-    fontSize: 15,
     ...Platform.select({
       web: { outlineStyle: 'none' as any },
     }),
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   listContent: {
     padding: 16,
     paddingTop: 8,
-  },
-  // Card
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  cardTitleRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  cardName: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  officialBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  officialBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
   },
   subscribeBtn: {
     borderWidth: 1,
@@ -404,39 +338,5 @@ const styles = StyleSheet.create({
     minWidth: 90,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  subscribeBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  cardDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  cardMetaText: {
-    fontSize: 13,
-  },
-  cardMetaDot: {
-    fontSize: 13,
-  },
-  // Empty state
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: 12,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 32,
   },
 });

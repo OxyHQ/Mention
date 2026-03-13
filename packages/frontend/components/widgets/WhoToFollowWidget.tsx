@@ -9,7 +9,6 @@ import Avatar from "@/components/Avatar";
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
 import { useUsersStore } from "@/stores/usersStore";
-import { useTheme } from "@/hooks/useTheme";
 
 interface ProfileData {
   id: string;
@@ -29,7 +28,6 @@ export function WhoToFollowWidget() {
   const { oxyServices, isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
-  const theme = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +98,7 @@ export function WhoToFollowWidget() {
       <BaseWidget title={t("Who to follow")}>
         <View style={styles.centerContainer}>
           <Loading size="small" style={{ flex: undefined }} />
-          <ThemedText style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+          <ThemedText className="text-muted-foreground" style={styles.statusText}>
             {t("Loading...")}
           </ThemedText>
         </View>
@@ -112,7 +110,7 @@ export function WhoToFollowWidget() {
     return (
       <BaseWidget title={t("Who to follow")}>
         <View style={styles.centerContainer}>
-          <ThemedText style={[styles.statusText, { color: theme.colors.error }]}>
+          <ThemedText className="text-destructive" style={styles.statusText}>
             {error}
           </ThemedText>
         </View>
@@ -124,7 +122,7 @@ export function WhoToFollowWidget() {
     return (
       <BaseWidget title={t("Who to follow")}>
         <View style={styles.centerContainer}>
-          <ThemedText style={{ color: theme.colors.textSecondary }}>
+          <ThemedText className="text-muted-foreground">
             {t("No recommendations available")}
           </ThemedText>
         </View>
@@ -139,7 +137,7 @@ export function WhoToFollowWidget() {
           <FollowRowComponent key={user.id} profileData={user} />
         ))}
         <TouchableOpacity onPress={handleShowMore} style={styles.showMoreBtn} activeOpacity={0.7}>
-          <ThemedText style={[styles.showMoreText, { color: theme.colors.primary }]}>
+          <ThemedText className="text-primary" style={styles.showMoreText}>
             {t("Show more")}
           </ThemedText>
         </TouchableOpacity>
@@ -151,7 +149,6 @@ export function WhoToFollowWidget() {
 const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileData }) => {
   const router = useRouter();
   const { oxyServices } = useAuth();
-  const theme = useTheme();
   const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
     userId: string;
     size?: "small" | "medium" | "large"
@@ -174,19 +171,20 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   }, [router, username]);
 
   return (
-    <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
+    <View className="border-border" style={styles.row}>
       <TouchableOpacity style={styles.rowLeft} onPress={handlePress} activeOpacity={0.7}>
         <Avatar source={avatarUri} size={40} />
         <View style={styles.rowTextWrap}>
-          <ThemedText style={[styles.rowTitle, { color: theme.colors.text }]}>
+          <ThemedText className="text-foreground" style={styles.rowTitle}>
             {displayName}
           </ThemedText>
-          <ThemedText style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+          <ThemedText className="text-muted-foreground" style={styles.rowSub}>
             @{username}
           </ThemedText>
           {profileData.bio && (
             <ThemedText
-              style={[styles.rowBio, { color: theme.colors.textSecondary }]}
+              className="text-muted-foreground"
+              style={styles.rowBio}
               numberOfLines={2}
             >
               {profileData.bio}

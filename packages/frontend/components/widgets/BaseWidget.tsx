@@ -1,7 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { useTheme } from '@/hooks/useTheme';
 
 type BaseWidgetProps = {
     title?: string;
@@ -11,21 +10,16 @@ type BaseWidgetProps = {
 };
 
 export function BaseWidget({ title, icon, children, noPadding = false }: BaseWidgetProps) {
-    const theme = useTheme();
-
     return (
-        <View style={[
-            styles.widgetContainer,
-            {
-                backgroundColor: theme.colors.card,
-                borderColor: theme.colors.border,
-            }
-        ]}>
+        <View
+            className="bg-card border-border"
+            style={styles.widgetContainer}
+        >
             {title && (
-                <View style={[
-                    styles.widgetHeader,
-                    { borderBottomColor: theme.colors.border }
-                ]}>
+                <View
+                    className="border-border"
+                    style={styles.widgetHeader}
+                >
                     <ThemedText style={styles.widgetTitle}>{title}</ThemedText>
                     {icon && <View>{icon}</View>}
                 </View>

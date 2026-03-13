@@ -8,9 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 import { Logo } from './Logo';
-import { colors } from '../styles/colors';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 
 interface SignInPromptProps {
     onSignInPress?: () => void;
@@ -29,7 +27,7 @@ const SignInPrompt: React.FC<SignInPromptProps> = ({ onSignInPress }) => {
     };
 
     return (
-        <View className="bg-muted" style={styles.signInContainer}>
+        <View className="bg-primary/10" style={styles.signInContainer}>
             <View className="bg-background" style={styles.signInCard}>
                 <View style={styles.logoContainer}>
                     <Logo />
@@ -56,7 +54,7 @@ const SignInPrompt: React.FC<SignInPromptProps> = ({ onSignInPress }) => {
                 </View>
 
                 <TouchableOpacity className="bg-primary" style={styles.signInButton} onPress={handleSignInPress}>
-                    <Text style={[styles.signInButtonText, { color: theme.colors.card }]}>Get Started</Text>
+                    <Text className="text-primary-foreground" style={styles.signInButtonText}>Get Started</Text>
                     <Ionicons name="arrow-forward" size={18} color={theme.colors.card} />
                 </TouchableOpacity>
 
@@ -74,10 +72,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 24,
-        backgroundColor: colors.primaryLight,
     },
     signInCard: {
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
         borderRadius: 20,
         padding: 32,
         width: '100%',
@@ -92,13 +88,11 @@ const styles = StyleSheet.create({
     signInTitle: {
         fontSize: 28,
         fontWeight: 'bold',
-        color: colors.COLOR_BLACK_LIGHT_1,
         marginBottom: 12,
         textAlign: 'center',
     },
     signInSubtitle: {
         fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_3,
         marginBottom: 32,
         textAlign: 'center',
         lineHeight: 24,
@@ -115,12 +109,10 @@ const styles = StyleSheet.create({
     },
     featureText: {
         fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_2,
         marginLeft: 12,
         flex: 1,
     },
     signInButton: {
-        backgroundColor: colors.primaryColor,
         paddingHorizontal: 32,
         paddingVertical: 16,
         borderRadius: 12,
@@ -132,14 +124,12 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     signInButtonText: {
-        color: colors.COLOR_BLACK_LIGHT_9,
         fontSize: 16,
         fontWeight: '600',
         marginRight: 8,
     },
     signInFooter: {
         fontSize: 12,
-        color: colors.COLOR_BLACK_LIGHT_5,
         textAlign: 'center',
         marginTop: 24,
         lineHeight: 18,

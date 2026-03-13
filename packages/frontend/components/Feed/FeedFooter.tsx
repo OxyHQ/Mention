@@ -30,13 +30,13 @@ export const FeedFooter = memo<FeedFooterProps>(
         if (!isAuthenticated && hasItems && !showOnlySaved) {
             return (
                 <TouchableOpacity
-                    className="border-border"
+                    className="flex-row items-center justify-center py-4 px-5 border-border"
                     style={styles.signInFooter}
                     onPress={handleSignIn}
                     activeOpacity={0.7}
                 >
                     <Ionicons name="lock-closed-outline" size={20} color={theme.colors.primary} />
-                    <Text className="text-foreground" style={styles.signInText}>
+                    <Text className="text-foreground text-[15px] font-medium flex-1" style={{ marginLeft: 10 }}>
                         Sign in to see more
                     </Text>
                     <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
@@ -49,7 +49,7 @@ export const FeedFooter = memo<FeedFooterProps>(
 
         return (
             <View
-                style={styles.footer}
+                className="flex-row justify-center items-center py-2"
                 accessible={true}
                 accessibilityRole="progressbar"
                 accessibilityLabel="Loading more posts"
@@ -63,25 +63,8 @@ export const FeedFooter = memo<FeedFooterProps>(
 FeedFooter.displayName = 'FeedFooter';
 
 const styles = StyleSheet.create({
-    footer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
     signInFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 20,
         gap: 10,
         borderTopWidth: StyleSheet.hairlineWidth,
     },
-    signInText: {
-        fontSize: 15,
-        fontWeight: '500',
-        flex: 1,
-    },
 });
-

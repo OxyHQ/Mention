@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
 export type LabelActionType = 'show' | 'warn' | 'blur' | 'hide';
@@ -27,7 +26,6 @@ const LabelBadge: React.FC<LabelBadgeProps> = ({
   action,
   onShowAnyway,
 }) => {
-  const theme = useTheme();
   const color = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS.low;
 
   if (action === 'hide' || action === 'blur') {
@@ -43,7 +41,7 @@ const LabelBadge: React.FC<LabelBadgeProps> = ({
         ]}
       >
         <View style={styles.warnContent}>
-          <Text style={[styles.warnText, { color: theme.colors.text }]}>
+          <Text className="text-foreground" style={styles.warnText}>
             This post was labeled{' '}
             <Text style={[styles.warnLabel, { color }]}>{labelName}</Text>
             {' '}by{' '}

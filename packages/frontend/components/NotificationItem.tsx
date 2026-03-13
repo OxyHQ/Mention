@@ -4,7 +4,6 @@ import { PressableScale } from '@/lib/animations/PressableScale';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { colors } from '../styles/colors';
 import { useTranslation } from 'react-i18next';
 import { useNotificationTransformer, RawNotification } from '../utils/notificationTransformer';
 import { useAuth } from '@oxyhq/services';
@@ -13,7 +12,6 @@ import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
 import { useUsersStore } from '@/stores/usersStore';
-import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 
 interface NotificationItemProps {
@@ -29,7 +27,6 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     const { t } = useTranslation();
     const { transformSingleNotification } = useNotificationTransformer();
     const { oxyServices } = useAuth();
-    const theme = useTheme();
 
     // Transform the raw notification data
     const transformedNotification = transformSingleNotification(notification);
@@ -164,19 +161,19 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     const getNotificationColor = (type: string): string => {
         switch (type) {
             case 'like':
-                return colors.online;
+                return '#22c55e';
             case 'reply':
-                return colors.away;
+                return '#f59e0b';
             case 'mention':
-                return colors.primaryColor;
+                return '#005c67';
             case 'follow':
-                return colors.primaryColor;
+                return '#005c67';
             case 'post':
-                return colors.primaryColor;
+                return '#005c67';
             case 'poke':
-                return colors.away;
+                return '#f59e0b';
             default:
-                return colors.primaryColor;
+                return '#005c67';
         }
     };
 
@@ -266,7 +263,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     {buildTitle(notification.type, actorName)}
                 </ThemedText>
 
-                <ThemedText style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
+                <ThemedText className="text-muted-foreground" style={styles.timestamp}>
                     {formatTimeAgo(notification.createdAt)}
                 </ThemedText>
             </View>
@@ -287,7 +284,6 @@ const PostNotificationItem: React.FC<{
 }> = ({ notification, actorName, onMarkAsRead, handlePress }) => {
     const { t } = useTranslation();
     const { getPostById } = usePostsStore();
-    const theme = useTheme();
     const embedded = (notification as any).post ? ZEmbeddedPost.safeParse((notification as any).post) : null;
     const [post, setPost] = useState<any>(embedded?.success ? embedded.data : null);
     const [loading, setLoading] = useState(!(notification as any).post);
@@ -331,19 +327,18 @@ const PostNotificationItem: React.FC<{
 
     if (loading) {
         return (
-            <View style={[
-                styles.container,
-                { borderBottomColor: theme.colors.border },
-                !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
-            ]}>
+            <View
+                className={cn("border-border", !notification.read && "bg-primary/5")}
+                style={styles.container}
+            >
                 <View style={styles.avatarContainer}>
                     <Avatar size={40} />
-                    <View style={[styles.actionBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
+                    <View className="bg-primary border-background" style={styles.actionBadge}>
                         <Ionicons name="create" size={12} color="#fff" />
                     </View>
                 </View>
                 <View style={styles.contentContainer}>
-                    <ThemedText style={[styles.message, { color: theme.colors.textSecondary }]}>Loading post...</ThemedText>
+                    <ThemedText className="text-muted-foreground" style={styles.message}>Loading post...</ThemedText>
                 </View>
             </View>
         );
@@ -352,47 +347,43 @@ const PostNotificationItem: React.FC<{
     if (!post) {
         return (
             <PressableScale
-                style={[
-                    styles.container,
-                    { borderBottomColor: theme.colors.border },
-                    !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
-                ]}
+                className={cn("border-border", !notification.read && "bg-primary/5")}
+                style={styles.container}
                 onPress={handleNotificationPress}
             >
                 <View style={styles.avatarContainer}>
                     <Avatar size={40} />
-                    <View style={[styles.actionBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
+                    <View className="bg-primary border-background" style={styles.actionBadge}>
                         <Ionicons name="create" size={12} color="#fff" />
                     </View>
                 </View>
                 <View style={styles.contentContainer}>
-                    <ThemedText style={[
-                        styles.message,
-                        { color: theme.colors.textSecondary },
-                        !notification.read && [styles.unreadText, { color: theme.colors.text }]
-                    ]}>
+                    <ThemedText
+                        className={cn("text-muted-foreground", !notification.read && "text-foreground")}
+                        style={[
+                            styles.message,
+                            !notification.read && styles.unreadText,
+                        ]}
+                    >
                         {t('notification.post', { actorName, defaultValue: `${actorName} posted a new update` })}
                     </ThemedText>
-                    <ThemedText style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
+                    <ThemedText className="text-muted-foreground" style={styles.timestamp}>
                         {formatTimeAgo(notification.createdAt)}
                     </ThemedText>
                 </View>
-                {!notification.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.colors.primary }]} />}
+                {!notification.read && <View className="bg-primary" style={styles.unreadIndicator} />}
             </PressableScale>
         );
     }
 
     return (
         <PressableScale
-            style={[
-                styles.postNotificationContainer,
-                { borderBottomColor: theme.colors.border },
-                !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
-            ]}
+            className={cn("border-border", !notification.read && "bg-primary/5")}
+            style={styles.postNotificationContainer}
             onPress={handleNotificationPress}
             targetScale={0.99}
         >
-            <View style={[styles.postContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View className="bg-surface" style={styles.postContainer}>
                 <PostItem
                     post={post}
                     isNested={false}

@@ -1,10 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/styles/colors';
 import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
 
 interface PostLocationProps {
   location: GeoJSONPoint;
@@ -35,7 +33,8 @@ const PostLocation: React.FC<PostLocationProps> = ({
 
   return (
     <Container
-      style={[styles.container, { paddingHorizontal }, style]}
+      className="flex-row items-center py-1"
+      style={[{ paddingHorizontal }, style]}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
@@ -43,28 +42,13 @@ const PostLocation: React.FC<PostLocationProps> = ({
         name="location-outline"
         size={14}
         color={theme.colors.textSecondary}
-        style={styles.icon}
+        style={{ marginRight: 4 }}
       />
-      <Text style={styles.locationText} className="text-muted-foreground" numberOfLines={1}>
+      <Text className="text-muted-foreground text-[13px] flex-1" numberOfLines={1}>
         {displayText}
       </Text>
     </Container>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  icon: {
-    marginRight: 4,
-  },
-  locationText: {
-    fontSize: 13,
-    flex: 1,
-  },
-});
 
 export default PostLocation;

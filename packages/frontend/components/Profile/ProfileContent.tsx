@@ -3,7 +3,6 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { cn } from '@/lib/utils';
 import UserName from '@/components/UserName';
 import LinkifiedText from '@/components/common/LinkifiedText';
 import {
@@ -47,8 +46,8 @@ export const ProfileContent = memo(function ProfileContent({
   };
 
   const userNameStyle = useMemo(() => ({
-    name: [styles.profileName, { color: theme.colors.text }],
-    handle: [styles.profileHandle, { color: theme.colors.textSecondary }],
+    name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4, color: theme.colors.text },
+    handle: { fontSize: 15, marginBottom: 12, color: theme.colors.textSecondary },
     container: undefined,
   }), [theme.colors.text, theme.colors.textSecondary]);
 
@@ -56,8 +55,8 @@ export const ProfileContent = memo(function ProfileContent({
     <View
       className="bg-background"
       style={[
-        styles.container,
-        minimalistMode && styles.containerMinimalist,
+        { paddingHorizontal: LAYOUT.DEFAULT_PADDING, paddingBottom: LAYOUT.DEFAULT_PADDING },
+        minimalistMode && { paddingTop: 0, marginTop: 0 },
       ]}
       onLayout={handleLayout}
     >
@@ -94,7 +93,7 @@ export const ProfileContent = memo(function ProfileContent({
 
       {/* Action buttons for minimalist mode */}
       {minimalistMode && (
-        <View style={styles.minimalistActions}>
+        <View className="mt-3 mb-2">
           <ProfileActions
             isOwnProfile={isOwnProfile}
             currentUsername={currentUsername}
@@ -116,19 +115,19 @@ export const ProfileContent = memo(function ProfileContent({
             variant="default"
             style={userNameStyle}
           />
-          <View style={styles.badgeRow}>
+          <View className="flex-row items-center gap-2 flex-wrap">
             {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
             {profileData.isFederated && profileData.instance && (
-              <View className="bg-muted" style={styles.fediverseBadge}>
+              <View className="bg-secondary flex-row items-center gap-1 px-1.5 py-0.5 rounded">
                 <FediverseIcon size={12} color={theme.colors.textSecondary} />
-                <Text className="text-muted-foreground" style={styles.fediverseText}>
+                <Text className="text-muted-foreground text-xs font-medium">
                   {profileData.instance}
                 </Text>
               </View>
             )}
             {!isOwnProfile && profileData.followsYou && (
-              <View className="bg-muted" style={styles.followsYouBadge}>
-                <Text className="text-muted-foreground" style={styles.followsYouText}>
+              <View className="bg-secondary px-1.5 py-0.5 rounded">
+                <Text className="text-muted-foreground text-xs font-medium">
                   {t('profile.followsYou', { defaultValue: 'Follows you' })}
                 </Text>
               </View>
@@ -141,28 +140,30 @@ export const ProfileContent = memo(function ProfileContent({
       {!minimalistMode && profileData.bio && (
         <LinkifiedText
           text={profileData.bio}
-          className="text-foreground"
-          style={styles.profileBio}
+          style={{ fontSize: 15, lineHeight: 20, marginBottom: 12, color: theme.colors.text }}
           linkStyle={{ color: theme.colors.primary }}
         />
       )}
 
       {/* Profile fields (federated profiles) */}
       {profileData.isFederated && profileData.fields && profileData.fields.length > 0 && (
-        <View style={styles.fieldsContainer}>
+        <View className="mb-3" style={{ gap: 1 }}>
           {profileData.fields.map((field: any, i: number) => (
-            <View key={i} className="border-border" style={styles.fieldItem}>
-              <Text className="text-muted-foreground" style={styles.fieldName} numberOfLines={1}>
+            <View
+              key={i}
+              className="flex-row items-center py-1.5 border-b border-border"
+              style={{ borderBottomWidth: StyleSheet.hairlineWidth }}
+            >
+              <Text className="text-muted-foreground text-[13px] font-semibold" style={{ width: 100, marginRight: 8 }} numberOfLines={1}>
                 {field.name}
               </Text>
               <LinkifiedText
                 text={field.value?.replace(/<[^>]*>/g, '') || ''}
-                className="text-foreground"
-                style={styles.fieldValue}
+                style={{ fontSize: 14, flex: 1, color: theme.colors.text }}
                 linkStyle={{ color: theme.colors.primary }}
               />
               {field.verifiedAt && (
-                <Ionicons name="checkmark-circle" size={14} color="#2ecc71" style={styles.fieldVerified} />
+                <Ionicons name="checkmark-circle" size={14} color="#2ecc71" style={{ marginLeft: 4 }} />
               )}
             </View>
           ))}
@@ -198,99 +199,3 @@ export const ProfileContent = memo(function ProfileContent({
     </View>
   );
 });
-
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: LAYOUT.DEFAULT_PADDING,
-    paddingBottom: LAYOUT.DEFAULT_PADDING,
-  },
-  containerMinimalist: {
-    paddingTop: 0,
-    marginTop: 0,
-  },
-  minimalistActions: {
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  profileName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  profileHandle: {
-    fontSize: 15,
-    marginBottom: 12,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  fediverseBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  fediverseText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  followsYouBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  followsYouText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  profileBio: {
-    fontSize: 15,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  fieldsContainer: {
-    marginBottom: 12,
-    gap: 1,
-  },
-  fieldItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  fieldName: {
-    fontSize: 13,
-    fontWeight: '600',
-    width: 100,
-    marginRight: 8,
-  },
-  fieldValue: {
-    fontSize: 14,
-    flex: 1,
-  },
-  fieldVerified: {
-    marginLeft: 4,
-  },
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

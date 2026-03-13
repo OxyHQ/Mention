@@ -14,7 +14,7 @@ import { getApiOrigin } from '@/utils/api';
  */
 function fixImageUrl(imageUrl: string | undefined): string | undefined {
   if (!imageUrl) return imageUrl;
-  
+
   // Already absolute and not a cached image - use as-is
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
     // If it's a cached image URL with wrong port, fix it
@@ -27,12 +27,12 @@ function fixImageUrl(imageUrl: string | undefined): string | undefined {
     }
     return imageUrl;
   }
-  
+
   // Relative URL - construct absolute URL with correct port
   if (imageUrl.startsWith('/links/images/') || imageUrl.startsWith('/')) {
     return `${getApiOrigin()}${imageUrl}`;
   }
-  
+
   return imageUrl;
 }
 
@@ -99,7 +99,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
       {link.image ? (
         <Image
           source={{ uri: fixImageUrl(link.image) }}
-          style={styles.image}
+          className="flex-1 w-full min-h-[50px] bg-[#EFEFEF]"
           resizeMode="cover"
           onError={() => {
             // Image will just not display if it fails - silently handle
@@ -107,10 +107,10 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
         />
       ) : null}
 
-      <View style={styles.content}>
+      <View className="p-3">
         {displaySiteName ? (
           <Text
-            style={[styles.siteName, { color: theme.colors.textSecondary }]}
+            className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
             numberOfLines={1}
           >
             {displaySiteName}
@@ -119,7 +119,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
 
         {displayTitle ? (
           <Text
-            style={[styles.title, { color: theme.colors.text }]}
+            className="text-[15px] font-semibold text-foreground mt-1"
             numberOfLines={2}
           >
             {displayTitle}
@@ -128,7 +128,8 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
 
         {displayDescription ? (
           <Text
-            style={[styles.description, { color: theme.colors.textSecondary }]}
+            className="text-[13px] text-muted-foreground mt-1"
+            style={{ lineHeight: 18 }}
             numberOfLines={2}
           >
             {displayDescription}
@@ -142,7 +143,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
             e.stopPropagation();
             onRemove();
           }}
-          style={[styles.removeButton, { backgroundColor: theme.colors.background }]}
+          className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
           <CloseIcon size={16} color={theme.colors.text} />
@@ -181,9 +182,9 @@ export const LinkPreviewLoading: React.FC<LinkPreviewLoadingProps> = ({ style })
         style,
       ]}
     >
-      <View style={styles.loadingContent}>
+      <View className="flex-row items-center justify-center p-4">
         <Loading size="small" style={{ flex: undefined }} />
-        <Text style={[styles.loadingText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+        <Text className="text-[13px] text-muted-foreground ml-2">
           Loading preview...
         </Text>
       </View>
@@ -194,53 +195,11 @@ export const LinkPreviewLoading: React.FC<LinkPreviewLoadingProps> = ({ style })
 const styles = StyleSheet.create({
   container: {
     borderRadius: 15,
-    borderWidth: 0, // Border handled by wrapper
+    borderWidth: 0,
     overflow: 'hidden',
     position: 'relative',
     width: '100%',
-    maxHeight: MEDIA_CARD_HEIGHT, // Match media card height (180px)
-    height: MEDIA_CARD_HEIGHT, // Fixed height to match media cards
-  },
-  image: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: '#EFEFEF',
-    minHeight: 50,
-  },
-  content: {
-    padding: 12,
-  },
-  siteName: {
-    fontSize: 12,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  description: {
-    fontSize: 13,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  removeButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
-  },
-  loadingContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  loadingText: {
-    fontSize: 13,
+    maxHeight: MEDIA_CARD_HEIGHT,
+    height: MEDIA_CARD_HEIGHT,
   },
 });
-

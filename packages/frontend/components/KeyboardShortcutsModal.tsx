@@ -1,6 +1,5 @@
 import React, { memo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView, Pressable } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 import { SHORTCUTS } from '@/hooks/useKeyboardShortcuts';
 
 interface KeyboardShortcutsModalProps {
@@ -9,7 +8,6 @@ interface KeyboardShortcutsModalProps {
 }
 
 const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ visible, onClose }) => {
-  const theme = useTheme();
 
   if (Platform.OS !== 'web' || !visible) return null;
 
@@ -22,18 +20,20 @@ const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ visible
     >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable
-          style={[styles.modal, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+          className="bg-background border-border"
+          style={styles.modal}
           onPress={(e) => e.stopPropagation()}
         >
-          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>Keyboard Shortcuts</Text>
+          <View className="border-border" style={styles.header}>
+            <Text className="text-foreground" style={styles.title}>Keyboard Shortcuts</Text>
             <TouchableOpacity
               onPress={onClose}
-              style={[styles.closeButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+              className="bg-muted"
+              style={styles.closeButton}
               accessibilityLabel="Close keyboard shortcuts"
               accessibilityRole="button"
             >
-              <Text style={[styles.closeButtonText, { color: theme.colors.textSecondary }]}>Esc</Text>
+              <Text className="text-muted-foreground" style={styles.closeButtonText}>Esc</Text>
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.list}>
@@ -44,23 +44,24 @@ const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ visible
             ).map((shortcut, index) => (
               <View
                 key={index}
-                style={[styles.row, { borderBottomColor: theme.colors.border }]}
+                className="border-border"
+                style={styles.row}
               >
                 <View style={styles.keysContainer}>
                   {shortcut.keys.map((key, ki) => (
                     <React.Fragment key={ki}>
                       {ki > 0 && (
-                        <Text style={[styles.plus, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-muted-foreground" style={styles.plus}>
                           {shortcut.keys.length === 2 && shortcut.keys[0] === 'g' ? ' then ' : ' + '}
                         </Text>
                       )}
-                      <View style={[styles.key, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-                        <Text style={[styles.keyText, { color: theme.colors.text }]}>{key}</Text>
+                      <View className="bg-muted border-border" style={styles.key}>
+                        <Text className="text-foreground" style={styles.keyText}>{key}</Text>
                       </View>
                     </React.Fragment>
                   ))}
                 </View>
-                <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+                <Text className="text-muted-foreground" style={styles.description}>
                   {shortcut.description}
                 </Text>
               </View>
