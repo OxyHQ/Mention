@@ -1,5 +1,5 @@
 import React, { memo, useMemo, useCallback } from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, Pressable, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as OxyServicesNS from '@oxyhq/services';
@@ -34,18 +34,19 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   const theme = useTheme();
   const router = useRouter();
 
+  const handle = user.username || user.id;
+
   const displayName = useMemo(() => {
     if (user.name?.full) return user.name.full;
     if (user.name?.first) {
       return `${user.name.first} ${user.name.last || ''}`.trim();
     }
     return user.username || 'Unknown';
-  }, [user.name, user.username]);
+  }, [user.name?.full, user.name?.first, user.name?.last, user.username]);
 
   const handlePress = useCallback(() => {
-    const username = user.username || user.id;
-    router.push(`/@${username}`);
-  }, [router, user.username, user.id]);
+    router.push(`/@${handle}`);
+  }, [router, handle]);
 
   const handleDismiss = useCallback(() => {
     onDismiss(user.id);
@@ -63,13 +64,13 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       onPress={handlePress}
       activeOpacity={0.7}
     >
-      <TouchableOpacity
+      <Pressable
         style={styles.dismissButton}
         onPress={handleDismiss}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Ionicons name="close" size={16} color={theme.colors.textSecondary} />
-      </TouchableOpacity>
+      </Pressable>
 
       <Avatar source={user.avatar} size={64} />
 
@@ -89,7 +90,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
           style={[styles.bio, { color: theme.colors.textSecondary }]}
           numberOfLines={1}
         >
-          @{user.username || user.id}
+          @{handle}
         </ThemedText>
       )}
 

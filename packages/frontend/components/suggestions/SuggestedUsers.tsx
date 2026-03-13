@@ -1,8 +1,7 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { memo, useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, FlatList, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
-import { Loading } from '@/components/ui/Loading';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@/hooks/useTheme';
 import { useUsersStore } from '@/stores/usersStore';
@@ -18,7 +17,9 @@ interface SuggestedUsersProps {
 
 const DEFAULT_MAX_CARDS = 10;
 
-export function SuggestedUsers({
+const ItemSeparator = () => <View style={styles.separator} />;
+
+export const SuggestedUsers = memo(function SuggestedUsers({
   visible = true,
   sourceUserId,
   title,
@@ -31,12 +32,12 @@ export function SuggestedUsers({
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<SuggestedUserData[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const fetchInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!isAuthenticated || !visible) {
-      setLoading(false);
-      return;
-    }
+    if (!isAuthenticated || !visible) return;
+    if (fetchInFlightRef.current) return;
+    fetchInFlightRef.current = true;
 
     let mounted = true;
 
@@ -60,7 +61,10 @@ export function SuggestedUsers({
         if (!mounted) return;
         console.error('SuggestedUsers: error fetching recommendations:', err);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          fetchInFlightRef.current = false;
+        }
       }
     };
 
@@ -80,22 +84,23 @@ export function SuggestedUsers({
   }, []);
 
   const displayedUsers = useMemo(() => {
-    return recommendations
-      .filter((user) => {
-        if (dismissedIds.has(user.id)) return false;
-        if (sourceUserId && user.id === sourceUserId) return false;
-        return true;
-      })
-      .slice(0, maxCards);
+    const result: SuggestedUserData[] = [];
+    for (const user of recommendations) {
+      if (result.length >= maxCards) break;
+      if (dismissedIds.has(user.id)) continue;
+      if (sourceUserId && user.id === sourceUserId) continue;
+      result.push(user);
+    }
+    return result;
   }, [recommendations, dismissedIds, sourceUserId, maxCards]);
+
+  const renderItem = useCallback(({ item }: { item: SuggestedUserData }) => (
+    <SuggestedUserCard user={item} onDismiss={handleDismiss} />
+  ), [handleDismiss]);
 
   if (!visible || !isAuthenticated || loading || displayedUsers.length === 0) {
     return null;
   }
-
-  const renderItem = ({ item }: { item: SuggestedUserData }) => (
-    <SuggestedUserCard user={item} onDismiss={handleDismiss} />
-  );
 
   return (
     <View style={styles.container}>
@@ -105,15 +110,17 @@ export function SuggestedUsers({
       <FlatList
         data={displayedUsers}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ItemSeparatorComponent={ItemSeparator}
       />
     </View>
   );
-}
+});
+
+const keyExtractor = (item: SuggestedUserData) => item.id;
 
 const styles = StyleSheet.create({
   container: {

@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect, useContext } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useContext, useRef } from 'react';
 import {
     Animated,
     ImageBackground,
@@ -119,6 +119,33 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { followerCount: localFollowerCount = 0, followingCount: localFollowingCount = 0, isFollowing: isFollowingProfileUser = false } = useFollow(stableUserId);
     const followerCount = isFederated ? (profileData?.followersCount ?? 0) : localFollowerCount;
     const followingCount = isFederated ? (profileData?.followingCount ?? 0) : localFollowingCount;
+
+    // Track "just followed" — show suggestions only on the follow action, not on revisits
+    const [justFollowed, setJustFollowed] = useState(false);
+    const followSettledRef = useRef(false);
+    const prevFollowRef = useRef(isFollowingProfileUser);
+
+    // Reset transition tracking when navigating to a different profile
+    useEffect(() => {
+        followSettledRef.current = false;
+        prevFollowRef.current = false;
+        setJustFollowed(false);
+    }, [stableUserId]);
+
+    useEffect(() => {
+        // Skip the initial store hydration (false → true on page load)
+        if (!followSettledRef.current) {
+            followSettledRef.current = true;
+            return;
+        }
+        // Detect user-initiated follow
+        if (isFollowingProfileUser && !prevFollowRef.current) {
+            setJustFollowed(true);
+        } else if (!isFollowingProfileUser && justFollowed) {
+            setJustFollowed(false);
+        }
+        prevFollowRef.current = isFollowingProfileUser;
+    }, [isFollowingProfileUser]);
 
     // Subscription handling — disabled for federated profiles
     const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(
@@ -538,7 +565,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 )}
                                 {!isOwnProfile && !isFederated && profileData?.id && (
                                     <SuggestedUsers
-                                        visible={isFollowingProfileUser}
+                                        visible={justFollowed}
                                         sourceUserId={profileData.id}
                                     />
                                 )}
