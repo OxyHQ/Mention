@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Loading } from '@/components/ui/Loading';
 import { LinkMetadata } from '../../stores/linksStore';
 import { useTheme } from '@/hooks/useTheme';
 import { CloseIcon } from '@/assets/icons/close-icon';
+import { ScaleAndFadeIn, ScaleAndFadeOut } from '@/lib/animations/ScaleAndFade';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getApiOrigin } from '@/utils/api';
 
@@ -81,6 +83,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
   }, [link.title, link.siteName, link.description, link.url]);
 
   return (
+    <Animated.View entering={ScaleAndFadeIn} exiting={ScaleAndFadeOut}>
     <TouchableOpacity
       style={[
         styles.container,
@@ -146,6 +149,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
         </TouchableOpacity>
       )}
     </TouchableOpacity>
+    </Animated.View>
   );
 }, (prevProps, nextProps) => {
   // Custom comparison for memo

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { PressableScale } from '@/lib/animations/PressableScale';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
@@ -26,9 +27,8 @@ export function StarterPackCard({ pack, onPress }: StarterPackCardProps) {
   const theme = useTheme();
 
   return (
-    <TouchableOpacity
+    <PressableScale
       onPress={onPress}
-      activeOpacity={0.7}
       style={[
         styles.outer,
         {
@@ -64,7 +64,7 @@ export function StarterPackCard({ pack, onPress }: StarterPackCardProps) {
         {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
         {pack.useCount > 0 ? ` · Used by ${pack.useCount} ${pack.useCount === 1 ? 'person' : 'people'}` : ''}
       </ThemedText>
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 

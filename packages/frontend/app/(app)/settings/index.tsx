@@ -21,6 +21,7 @@ import { hasNotificationPermission, requestNotificationPermissions, getDevicePus
 import { useTheme } from "@/hooks/useTheme";
 import { getThemedBorder, getThemedShadow } from "@/utils/theme";
 import { useAppearanceStore } from "@/store/appearanceStore";
+import { useHapticsStore } from "@/stores/hapticsStore";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileData } from "@/hooks/useProfileData";
 import i18n from 'i18next';
@@ -808,6 +809,27 @@ export default function SettingsScreen() {
                                 onValueChange={handleDarkModeToggle}
                             />
                         </View>
+
+                        {/* Haptic Feedback */}
+                        {Platform.OS !== 'web' && (
+                            <View style={[styles.settingItem, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
+                                <View style={styles.settingInfo}>
+                                    <View style={styles.settingIcon}>
+                                        <IconComponent name="hand-left" size={20} color={theme.colors.textSecondary} />
+                                    </View>
+                                    <View>
+                                        <Text style={[styles.settingLabel, { color: theme.colors.text }]}>Haptic Feedback</Text>
+                                        <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                            Vibration feedback on interactions
+                                        </Text>
+                                    </View>
+                                </View>
+                                <Toggle
+                                    value={!useHapticsStore.getState().disabled}
+                                    onValueChange={(enabled) => useHapticsStore.getState().setDisabled(!enabled)}
+                                />
+                            </View>
+                        )}
                     </View>
                 </View>
 

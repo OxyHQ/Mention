@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useCallback } from 'react';
-import { View, TouchableOpacity, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Pressable, StyleSheet, Platform } from 'react-native';
+import { PressableScale } from '@/lib/animations/PressableScale';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as OxyServicesNS from '@oxyhq/services';
@@ -53,7 +54,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   }, [onDismiss, user.id]);
 
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[
         styles.card,
         {
@@ -62,7 +63,6 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
         },
       ]}
       onPress={handlePress}
-      activeOpacity={0.7}
     >
       <Pressable
         style={styles.dismissButton}
@@ -97,7 +97,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       <View style={styles.followButtonContainer}>
         <FollowButton userId={user.id} size="small" />
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 

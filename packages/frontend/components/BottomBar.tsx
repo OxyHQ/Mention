@@ -1,10 +1,11 @@
-import { View, Pressable, Platform, Vibration, LayoutChangeEvent } from 'react-native';
+import { View, Pressable, Platform, LayoutChangeEvent } from 'react-native';
 import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
 import Avatar from './Avatar';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
+import { useHaptics } from '@/hooks/useHaptics';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { colors as baseColors } from '@/styles/colors';
@@ -25,6 +26,7 @@ export const BottomBar = () => {
     const pathname = usePathname();
     const { showBottomSheet, signIn, user, isAuthenticated } = useAuth();
     const theme = useTheme();
+    const haptic = useHaptics();
     const { triggerHomeRefresh } = useHomeRefresh();
     const { scrollY } = useLayoutScroll();
     const bottomBarTranslateY = useSharedValue(0);
@@ -126,14 +128,16 @@ export const BottomBar = () => {
     }));
 
     const handlePress = (route: string) => {
+        haptic('Light');
         router.push(route);
     };
 
     const handleHomePress = () => {
+        haptic('Light');
         if (pathname === '/') {
             triggerHomeRefresh();
         } else {
-            handlePress('/');
+            router.push('/');
         }
     };
 
@@ -209,7 +213,7 @@ export const BottomBar = () => {
                 }
             },
             onLongPress: () => {
-                Vibration.vibrate(50);
+                haptic('Heavy');
                 showBottomSheet?.('AccountCenter');
             },
             label: 'Profile',

@@ -21,6 +21,7 @@ import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { Toaster } from '@/lib/sonner';
+import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import i18n from '@/lib/i18n';
 import { agoraConfig } from '@/lib/agoraConfig';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
@@ -70,6 +71,7 @@ export const AppProviders = memo(function AppProviders({
                                 swipeToDismissDirection="left"
                                 offset={15}
                               />
+                              <ConfirmPromptProvider />
                             </HomeRefreshProvider>
                           </LayoutScrollProvider>
                         </ErrorBoundary>

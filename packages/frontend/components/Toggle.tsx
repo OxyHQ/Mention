@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useHaptics } from '@/hooks/useHaptics';
 
 interface ToggleProps {
   value: boolean;
@@ -18,6 +19,7 @@ export const Toggle: React.FC<ToggleProps> = ({
   containerStyle,
 }) => {
   const theme = useTheme();
+  const haptic = useHaptics();
   const switchAnimation = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
@@ -43,7 +45,11 @@ export const Toggle: React.FC<ToggleProps> = ({
             opacity: disabled ? 0.5 : 1,
           }
         ]}
-        onPress={() => !disabled && onValueChange(!value)}
+        onPress={() => {
+          if (disabled) return;
+          haptic('Light');
+          onValueChange(!value);
+        }}
         activeOpacity={0.8}
         disabled={disabled}
       >

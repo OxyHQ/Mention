@@ -1,13 +1,16 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
-import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
+import { useHaptics } from '@/hooks/useHaptics';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { PressableScale } from '@/lib/animations/PressableScale';
+import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
+import { CountWheel } from '@/lib/animations/CountWheel';
 
 const ICON_SIZE = 20;
 const MINI_AVATAR = 16;
@@ -51,6 +54,8 @@ const PostActions: React.FC<Props> = ({
   onInsightsPress,
 }) => {
   const theme = useTheme();
+  const haptic = useHaptics();
+  const hasBeenToggled = useRef(false);
 
   const replies = engagement?.replies ?? 0;
   const likes = engagement?.likes ?? 0;
@@ -59,38 +64,53 @@ const PostActions: React.FC<Props> = ({
   // Build summary parts like Threads: "X replies · Y likes"
   const summaryParts: string[] = [];
   if (replies > 0) summaryParts.push(`${formatCompactNumber(replies)} ${replies === 1 ? 'reply' : 'replies'}`);
-  if (likes > 0) summaryParts.push(`${formatCompactNumber(likes)} ${likes === 1 ? 'like' : 'likes'}`);
 
   return (
     <View>
-      {/* Icon row — Threads style: icon-only, left-aligned */}
+      {/* Icon row — icon-only, left-aligned */}
       <View style={styles.iconRow}>
-        <TouchableOpacity
+        <PressableScale
           style={styles.iconButton}
-          onPress={onLike}
-          accessibilityRole="button"
+          onPress={() => {
+            hasBeenToggled.current = true;
+            haptic('Light');
+            onLike();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
         >
-          {isLiked ? (
-            <HeartIconActive size={ICON_SIZE} color={theme.colors.error} />
-          ) : (
-            <HeartIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
-          )}
-        </TouchableOpacity>
+          <View style={styles.likeRow}>
+            <AnimatedLikeIcon
+              isLiked={!!isLiked}
+              hasBeenToggled={hasBeenToggled.current}
+            />
+            <CountWheel
+              likeCount={likes}
+              isLiked={!!isLiked}
+              hasBeenToggled={hasBeenToggled.current}
+            />
+          </View>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={styles.iconButton}
-          onPress={onReply}
-          accessibilityRole="button"
+          onPress={() => {
+            haptic('Light');
+            onReply();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel="Reply"
         >
           <CommentIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={styles.iconButton}
-          onPress={onRepost}
-          accessibilityRole="button"
+          onPress={() => {
+            haptic('Medium');
+            onRepost();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel={isReposted ? 'Undo repost' : 'Repost'}
         >
           {isReposted ? (
@@ -98,35 +118,40 @@ const PostActions: React.FC<Props> = ({
           ) : (
             <RepostIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
           )}
-        </TouchableOpacity>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={styles.iconButton}
-          onPress={onShare}
-          accessibilityRole="button"
+          onPress={() => {
+            haptic('Light');
+            onShare();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel="Share"
         >
           <ShareIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
+        </PressableScale>
 
         {onInsightsPress && (
-          <TouchableOpacity
+          <PressableScale
             style={styles.iconButton}
-            onPress={onInsightsPress}
-            accessibilityRole="button"
+            onPress={() => {
+              haptic('Light');
+              onInsightsPress();
+            }}
+            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel="Insights"
           >
             <AnalyticsIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
+          </PressableScale>
         )}
       </View>
 
-      {/* Engagement summary — Threads style: avatar bubbles + "X replies · Y likes" */}
+      {/* Engagement summary — avatar bubbles + "X replies · Y likes" */}
       {summaryParts.length > 0 && (
-        <TouchableOpacity
+        <PressableScale
           style={styles.summaryRow}
           onPress={likes > 0 ? (onLikesPress ?? undefined) : undefined}
-          activeOpacity={0.6}
           disabled={!onLikesPress && !onRepostsPress}
         >
           {replierAvatars.length > 0 && (
@@ -148,7 +173,7 @@ const PostActions: React.FC<Props> = ({
           <Text style={[styles.summaryText, { color: theme.colors.textSecondary }]}>
             {summaryParts.join(' · ')}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       )}
     </View>
   );
@@ -164,6 +189,11 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 2,
+  },
+  likeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   summaryRow: {
     flexDirection: 'row',

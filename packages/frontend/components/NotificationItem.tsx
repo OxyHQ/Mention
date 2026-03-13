@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
+import { PressableScale } from '@/lib/animations/PressableScale';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
@@ -239,7 +240,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     }
 
     return (
-        <TouchableOpacity
+        <PressableScale
             style={[
                 styles.container,
                 { borderBottomColor: theme.colors.border },
@@ -275,7 +276,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             {!notification.read && (
                 <View style={[styles.unreadIndicator, { backgroundColor: theme.colors.primary }]} />
             )}
-        </TouchableOpacity>
+        </PressableScale>
     );
 };
 
@@ -352,7 +353,7 @@ const PostNotificationItem: React.FC<{
 
     if (!post) {
         return (
-            <TouchableOpacity
+            <PressableScale
                 style={[
                     styles.container,
                     { borderBottomColor: theme.colors.border },
@@ -379,19 +380,19 @@ const PostNotificationItem: React.FC<{
                     </ThemedText>
                 </View>
                 {!notification.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.colors.primary }]} />}
-            </TouchableOpacity>
+            </PressableScale>
         );
     }
 
     return (
-        <TouchableOpacity
+        <PressableScale
             style={[
                 styles.postNotificationContainer,
                 { borderBottomColor: theme.colors.border },
                 !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
             ]}
             onPress={handleNotificationPress}
-            activeOpacity={0.95}
+            targetScale={0.99}
         >
             <View style={[styles.postContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
                 <PostItem
@@ -400,7 +401,7 @@ const PostNotificationItem: React.FC<{
                     style={styles.nestedPost}
                 />
             </View>
-        </TouchableOpacity>
+        </PressableScale>
     );
 };
 

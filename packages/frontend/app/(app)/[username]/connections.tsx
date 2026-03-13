@@ -35,7 +35,10 @@ export default function ConnectionsScreen() {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
-  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
+  const FollowButton = useMemo(
+    () => (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>,
+    []
+  );
 
   const { data: profileData } = useProfileData(cleanUsername);
 

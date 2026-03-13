@@ -1,10 +1,12 @@
 import React from "react";
 import { View, ScrollView, Image, TouchableOpacity, StyleSheet } from "react-native";
+import Animated from "react-native-reanimated";
 import { useTheme } from "@/hooks/useTheme";
 import { CloseIcon } from "@/assets/icons/close-icon";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { ChevronRightIcon } from "@/assets/icons/chevron-right-icon";
 import { VideoPreview } from "./VideoPreview";
+import { ScaleAndFadeIn, ScaleAndFadeOut } from "@/lib/animations/ScaleAndFade";
 import { ComposerMediaItem, MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT } from "@/utils/composeUtils";
 
 interface MediaPreviewProps {
@@ -39,8 +41,10 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                     const canMoveRight = index < mediaItems.length - 1;
 
                     return (
-                        <View
+                        <Animated.View
                             key={mediaItem.id}
+                            entering={ScaleAndFadeIn}
+                            exiting={ScaleAndFadeOut}
                             style={[
                                 styles.mediaItem,
                                 {
@@ -97,7 +101,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                             >
                                 <CloseIcon size={16} color={theme.colors.text} />
                             </TouchableOpacity>
-                        </View>
+                        </Animated.View>
                     );
                 })}
             </ScrollView>

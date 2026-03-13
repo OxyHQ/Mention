@@ -31,6 +31,7 @@ import { Pressable as WebPressable } from 'react-native-web-hover';
 import { useMediaQuery } from 'react-responsive';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useHaptics } from '@/hooks/useHaptics';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 import { Z_INDEX } from '@/lib/constants';
@@ -95,6 +96,7 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   activeOpacity,
 }) => {
   const theme = useTheme();
+  const haptic = useHaptics();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isScreenNotMobile = useIsScreenNotMobile();
@@ -115,12 +117,13 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   // Handle link navigation
   const handlePress = useCallback(() => {
     if (disabled) return;
+    haptic('Light');
     if (href && as === 'link') {
       router.push(href);
       return;
     }
     onPress?.();
-  }, [disabled, href, as, router, onPress]);
+  }, [disabled, haptic, href, as, router, onPress]);
   
   // Floating button positioning
   const floatingStyles = useMemo(() => {

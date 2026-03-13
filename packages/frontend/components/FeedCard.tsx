@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import { PressableScale } from '@/lib/animations/PressableScale';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
@@ -76,9 +77,8 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
     }, [feed.topicCount, feed.memberCount]);
 
     return (
-        <TouchableOpacity
+        <PressableScale
             onPress={handlePress}
-            activeOpacity={0.7}
             style={[
                 styles.card,
                 { backgroundColor: theme.colors.backgroundSecondary },
@@ -120,7 +120,7 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
                     <View>{headerRight}</View>
                 ) : null}
             </View>
-        </TouchableOpacity>
+        </PressableScale>
     );
 }
 

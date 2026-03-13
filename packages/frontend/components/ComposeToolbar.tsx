@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
+import { useHaptics } from '@/hooks/useHaptics';
+import { PressableScale } from '@/lib/animations/PressableScale';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
@@ -62,6 +64,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     disabled = false,
 }) => {
     const theme = useTheme();
+    const haptic = useHaptics();
+
+    const withHaptic = (handler?: () => void) => () => {
+        haptic('Light');
+        handler?.();
+    };
 
     const scheduleColor = (disabled || !scheduleEnabled)
         ? theme.colors.textTertiary
@@ -72,8 +80,8 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     return (
         <View style={styles.toolbar}>
             {onMediaPress && (
-                <TouchableOpacity
-                    onPress={onMediaPress}
+                <PressableScale
+                    onPress={withHaptic(onMediaPress)}
                     disabled={disabled || hasPoll}
                     style={styles.button}
                 >
@@ -81,12 +89,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                         size={20}
                         color={disabled || hasPoll ? theme.colors.textTertiary : theme.colors.textSecondary}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onGifPress && (
-                <TouchableOpacity
-                    onPress={onGifPress}
+                <PressableScale
+                    onPress={withHaptic(onGifPress)}
                     disabled={disabled}
                     style={styles.button}
                 >
@@ -94,12 +102,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                         size={20}
                         color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onEmojiPress && (
-                <TouchableOpacity
-                    onPress={onEmojiPress}
+                <PressableScale
+                    onPress={withHaptic(onEmojiPress)}
                     disabled={disabled}
                     style={styles.button}
                 >
@@ -107,12 +115,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                         size={20}
                         color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onPollPress && (
-                <TouchableOpacity
-                    onPress={onPollPress}
+                <PressableScale
+                    onPress={withHaptic(onPollPress)}
                     disabled={disabled || hasMedia}
                     style={styles.button}
                 >
@@ -120,12 +128,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                         size={20}
                         color={disabled || hasMedia ? theme.colors.textTertiary : (hasPoll ? theme.colors.primary : theme.colors.textSecondary)}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onSourcesPress && (
-                <TouchableOpacity
-                    onPress={onSourcesPress}
+                <PressableScale
+                    onPress={withHaptic(onSourcesPress)}
                     disabled={disabled}
                     style={styles.button}
                 >
@@ -139,12 +147,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                                     ? theme.colors.primary
                                     : theme.colors.textSecondary}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onArticlePress && (
-                <TouchableOpacity
-                    onPress={onArticlePress}
+                <PressableScale
+                    onPress={withHaptic(onArticlePress)}
                     disabled={disabled}
                     style={styles.button}
                 >
@@ -152,12 +160,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                         size={20}
                         color={disabled ? theme.colors.textTertiary : (hasArticle ? theme.colors.primary : theme.colors.textSecondary)}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onEventPress && (
-                <TouchableOpacity
-                    onPress={onEventPress}
+                <PressableScale
+                    onPress={withHaptic(onEventPress)}
                     disabled={disabled}
                     style={styles.button}
                 >
@@ -165,12 +173,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                         size={20}
                         color={disabled ? theme.colors.textTertiary : (hasEvent ? theme.colors.primary : theme.colors.textSecondary)}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onRoomPress && (
-                <TouchableOpacity
-                    onPress={onRoomPress}
+                <PressableScale
+                    onPress={withHaptic(onRoomPress)}
                     disabled={disabled}
                     style={styles.button}
                 >
@@ -179,14 +187,13 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                         size={20}
                         color={disabled ? theme.colors.textTertiary : (hasRoom ? theme.colors.primary : theme.colors.textSecondary)}
                     />
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onSchedulePress && (
-                <TouchableOpacity
-                    onPress={onSchedulePress}
+                <PressableScale
+                    onPress={withHaptic(onSchedulePress)}
                     disabled={disabled}
-                    activeOpacity={scheduleEnabled ? 0.7 : 1}
                     style={[styles.button, !scheduleEnabled && { opacity: 0.6 }]}
                 >
                     <View style={{ opacity: disabled ? 0.3 : 1 }}>
@@ -195,12 +202,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                             color={scheduleColor}
                         />
                     </View>
-                </TouchableOpacity>
+                </PressableScale>
             )}
 
             {onLocationPress && (
-                <TouchableOpacity
-                    onPress={onLocationPress}
+                <PressableScale
+                    onPress={withHaptic(onLocationPress)}
                     disabled={disabled || isGettingLocation}
                     style={styles.button}
                 >
@@ -212,7 +219,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                             color={disabled ? theme.colors.textTertiary : (hasLocation ? theme.colors.primary : theme.colors.textSecondary)}
                         />
                     )}
-                </TouchableOpacity>
+                </PressableScale>
             )}
         </View>
     );
