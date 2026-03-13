@@ -94,6 +94,5 @@ config.transformer = {
 };
 
 module.exports = withNativeWind(config, {
-  input: './global.css',
   inlineRem: 16,
 });

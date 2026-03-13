@@ -1,6 +1,4 @@
-import {
-  useColorScheme as useNativeWindColorScheme,
-} from 'nativewind';
+import { useColorScheme as useRNColorScheme } from 'react-native';
 import { useThemeStore, type ThemeMode } from './theme-store';
 import { setColorSchemeSafe } from './set-color-scheme-safe';
 import { useCallback, useEffect, useMemo } from 'react';
@@ -18,13 +16,13 @@ function hslVarToCSS(value: string): string {
 }
 
 export function useColorScheme() {
-  const { colorScheme: nwScheme } = useNativeWindColorScheme();
+  const rnScheme = useRNColorScheme();
   const { mode, setMode, appColor } = useThemeStore();
 
   const isAdaptive = mode === 'adaptive';
   const effectiveMode = isAdaptive ? 'system' : mode;
   const resolved: 'light' | 'dark' =
-    effectiveMode === 'system' ? (nwScheme ?? 'light') : effectiveMode;
+    effectiveMode === 'system' ? (rnScheme ?? 'light') : effectiveMode;
 
   // Keep the dark class in sync on web for all modes (including system)
   useEffect(() => {
