@@ -41,7 +41,6 @@ export function SideBar() {
     const router = useRouter();
     const { isAuthenticated: _isAuthenticated, user, signIn, logout, oxyServices } = useAuth();
     const theme = useTheme();
-
     const avatarUri = user?.avatar;
 
     const handleSignOut = async () => {
@@ -209,22 +208,20 @@ export function SideBar() {
                             <Button
                                 href="/compose"
                                 renderText={() => (
-                                    <Text style={[
-                                        styles.addPostButtonText,
-                                        {
-                                            color: theme.colors.card,
+                                    <Text
+                                        className="text-primary-foreground text-base font-bold text-center m-0 whitespace-nowrap"
+                                        style={{
                                             opacity: isExpanded ? 1 : 0,
                                             width: isExpanded ? 'auto' : 0,
                                             overflow: 'hidden',
-                                            whiteSpace: 'nowrap',
                                             ...(Platform.select({
                                                 web: {
                                                     transition: 'opacity 220ms cubic-bezier(0.2, 0, 0, 1), width 220ms cubic-bezier(0.2, 0, 0, 1)',
                                                     willChange: 'opacity, width',
                                                 },
                                             }) as any),
-                                        }
-                                    ]}>{t("New Post")}</Text>
+                                        }}
+                                    >{t("New Post")}</Text>
                                 )}
                                 renderIcon={() => (
                                     <View style={{
@@ -240,7 +237,7 @@ export function SideBar() {
                                             },
                                         }) as any),
                                     }}>
-                                        <ComposeIcon size={20} className="text-background" />
+                                        <ComposeIcon size={20} className="text-primary-foreground" />
                                     </View>
                                 )}
                                 containerStyle={() => ({

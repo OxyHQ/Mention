@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Platform } from 'react-native';
 import { Pressable } from 'react-native-web-hover';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 export function SideBarItem({
     isActive,
@@ -22,7 +22,6 @@ export function SideBarItem({
     onPress?: () => void;
 }) {
     const router = useRouter();
-    const theme = useTheme();
     const [isHovered, setIsHovered] = React.useState(false);
     return (
         <Pressable
@@ -37,67 +36,42 @@ export function SideBarItem({
                 },
                 onHoverOut: () => setIsHovered(false),
             } as any)}
-            style={({ pressed }) => [
-                {
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    width: isExpanded ? '100%' : 'auto',
-                    alignSelf: isExpanded ? 'stretch' : 'flex-start',
-                    marginBottom: 6,
-                    marginEnd: 0,
-                    borderRadius: 35,
-                    paddingVertical: 10,
-                    paddingHorizontal: isExpanded ? 16 : 12,
-                    marginLeft: 0,
-                    backgroundColor: pressed
-                        ? `${theme.colors.primary}20`
-                        : isHovered
-                            ? `${theme.colors.primary}0F`
-                            : isActive
-                                ? `${theme.colors.primary}15`
-                                : 'transparent',
-                    ...(Platform.select({
-                        web: {
-                            transition: 'all 200ms cubic-bezier(0.2, 0, 0, 1)',
-                            willChange: 'background-color, border-color, transform',
-                        },
-                    }) as any),
-                    ...Platform.select({
-                        web: {
-                            cursor: 'pointer',
-                        },
-                    }),
-                },
+            className={cn(
+                "flex-row items-center rounded-[35px] py-2.5 mb-1.5",
+                isExpanded ? "w-full self-stretch px-4" : "self-start px-3",
+                isActive && "bg-primary/10",
+                isHovered && !isActive && "bg-primary/5",
+            )}
+            style={({ pressed }: { pressed: boolean }) => [
+                pressed ? { backgroundColor: 'hsla(var(--primary), 0.13)' } : {},
+                Platform.select({
+                    web: {
+                        transition: 'all 200ms cubic-bezier(0.2, 0, 0, 1)',
+                        willChange: 'background-color, border-color, transform',
+                        cursor: 'pointer',
+                    },
+                }),
             ]}
         >
-            <View style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                width: '100%',
-                justifyContent: 'flex-start',
-                gap: isExpanded ? 12 : 0,
-            }}>
-                <View style={{
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 24,
-                    height: 24,
-                }}>
+            <View className={cn(
+                "flex-row items-center w-full justify-start",
+                isExpanded ? "gap-3" : "gap-0",
+            )}>
+                <View className="items-center justify-center w-6 h-6">
                     {icon}
                 </View>
                 {isExpanded ? (
                     <Text
-                        style={{
-                            fontSize: 15,
-                            fontWeight: isActive ? '600' : '500',
-                            color: isActive || isHovered ? theme.colors.primary : theme.colors.text,
-                            ...(Platform.select({
-                                web: {
-                                    transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
-                                    whiteSpace: 'nowrap',
-                                },
-                            }) as any),
-                        }}
+                        className={cn(
+                            "text-[15px] whitespace-nowrap",
+                            isActive ? "font-semibold" : "font-medium",
+                            isActive || isHovered ? "text-primary" : "text-foreground",
+                        )}
+                        style={Platform.select({
+                            web: {
+                                transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
+                            },
+                        })}
                     >
                         {text}
                     </Text>

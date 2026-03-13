@@ -18,7 +18,6 @@ import ConnectionStatus from '@/components/common/ConnectionStatus';
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
-import { useTheme } from '@/hooks/useTheme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +26,6 @@ interface MainLayoutProps {
 }
 
 const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
-  const { colors } = useTheme();
   const { forwardWheelEvent } = useLayoutScroll();
 
   const handleWheel = useCallback((event: any) => {
@@ -56,10 +54,12 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
         style={{ maxWidth: 950 }}
       >
         <ThemedView
-          className="bg-background"
+          className={cn(
+            "bg-background",
+            isScreenNotMobile && "border-x border-border"
+          )}
           style={{
             flex: isScreenNotMobile ? 2.2 : 1,
-            ...(isScreenNotMobile ? { borderLeftWidth: 0.5, borderRightWidth: 0.5, borderColor: colors.border } : {}),
           }}
         >
           <Slot />

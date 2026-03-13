@@ -3,7 +3,6 @@ import { usePathname } from "expo-router";
 import React from 'react';
 import { StyleSheet, View, Platform, Text, Linking } from "react-native";
 import { useMediaQuery } from 'react-responsive';
-import { colors } from '../styles/colors';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 
@@ -40,14 +39,15 @@ function RightBarFooter() {
                 {footerLinks.map((link) => (
                     <Text
                         key={link.label}
-                        style={styles.footerLink}
+                        className="text-muted-foreground text-[12.5px] pr-3 pb-1"
+                        style={Platform.select({ web: { cursor: 'pointer' as any } })}
                         onPress={() => Linking.openURL(link.url)}
                     >
                         {link.label}
                     </Text>
                 ))}
             </View>
-            <Text style={styles.footerBrand}>Made with ❤️ in the 🌎 by Oxy.</Text>
+            <Text className="text-muted-foreground text-[12.5px] pt-0.5">Made with ❤️ in the 🌎 by Oxy.</Text>
         </View>
     );
 }
@@ -73,21 +73,5 @@ const styles = StyleSheet.create({
     footerLinks: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-    },
-    footerLink: {
-        fontSize: 12.5,
-        color: colors.text.secondary,
-        paddingRight: 12,
-        paddingBottom: 4,
-        ...Platform.select({
-            web: {
-                cursor: 'pointer' as any,
-            },
-        }),
-    },
-    footerBrand: {
-        fontSize: 12.5,
-        color: colors.text.secondary,
-        paddingTop: 2,
     },
 });
