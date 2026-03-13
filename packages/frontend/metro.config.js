@@ -38,7 +38,6 @@ config.resolver = {
     /\.spec\.(js|ts|tsx|jsx)$/,
     /\.md$/,
     /README/,
-    /\.map$/,
   ],
   extraNodeModules: {
     '@mention/shared-types': path.join(monorepoRoot, 'packages/shared-types'),
