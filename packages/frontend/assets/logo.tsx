@@ -1,9 +1,7 @@
 import { ReactElement } from 'react';
 import Svg, { Path } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-import { colors } from '../styles/colors';
-
-export const LogoIcon = ({ color = colors.primaryColor, size = 26, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }): ReactElement => {
+export const LogoIcon = ({ color = 'currentColor', size = 26, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }): ReactElement => {
   return (
     <Svg viewBox="0 0 67.65 74.16" width={size} height={size} style={style} className={className}>
       <Path
