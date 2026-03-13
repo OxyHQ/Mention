@@ -53,6 +53,7 @@ import {
     type ProfileTab,
     type FollowButtonComponent,
 } from './Profile';
+import { SuggestedUsers } from './suggestions/SuggestedUsers';
 
 // Helper functions
 const isProfilePrivate = (
@@ -115,7 +116,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     // Follow data — skip useFollow for federated profiles (uses data from profileData)
     const stableUserId = isFederated ? '' : (profileData?.id || '');
-    const { followerCount: localFollowerCount = 0, followingCount: localFollowingCount = 0 } = useFollow(stableUserId);
+    const { followerCount: localFollowerCount = 0, followingCount: localFollowingCount = 0, isFollowing: isFollowingProfileUser = false } = useFollow(stableUserId);
     const followerCount = isFederated ? (profileData?.followersCount ?? 0) : localFollowerCount;
     const followingCount = isFederated ? (profileData?.followingCount ?? 0) : localFollowingCount;
 
@@ -517,23 +518,31 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             decelerationRate="normal"
                             {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
                         >
-                            {/* Profile info */}
-                            {profileData && (
-                                <ProfileContent
-                                    profileData={profileData}
-                                    avatarUri={avatarUri}
-                                    isOwnProfile={isOwnProfile}
-                                    isPrivate={isPrivate}
-                                    currentUsername={currentUser?.username}
-                                    followingCount={followingCount}
-                                    followerCount={followerCount}
-                                    username={username}
-                                    FollowButtonComponent={FollowButtonComponent}
-                                    showBottomSheet={showBottomSheet}
-                                    onPostsPress={handlePostsPress}
-                                    onLayout={setProfileContentHeight}
-                                />
-                            )}
+                            {/* Profile info + suggestions wrapper (keeps stickyHeaderIndices stable) */}
+                            <View>
+                                {profileData && (
+                                    <ProfileContent
+                                        profileData={profileData}
+                                        avatarUri={avatarUri}
+                                        isOwnProfile={isOwnProfile}
+                                        isPrivate={isPrivate}
+                                        currentUsername={currentUser?.username}
+                                        followingCount={followingCount}
+                                        followerCount={followerCount}
+                                        username={username}
+                                        FollowButtonComponent={FollowButtonComponent}
+                                        showBottomSheet={showBottomSheet}
+                                        onPostsPress={handlePostsPress}
+                                        onLayout={setProfileContentHeight}
+                                    />
+                                )}
+                                {!isOwnProfile && !isFederated && profileData?.id && (
+                                    <SuggestedUsers
+                                        visible={isFollowingProfileUser}
+                                        sourceUserId={profileData.id}
+                                    />
+                                )}
+                            </View>
 
                             {/* Tabs */}
                             <AnimatedTabBar
