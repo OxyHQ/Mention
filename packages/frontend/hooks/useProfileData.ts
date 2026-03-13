@@ -22,6 +22,10 @@ export interface ProfileData {
   avatar?: string;
   postsCount?: number;
   followsYou?: boolean;
+  isFederated?: boolean;
+  instance?: string;
+  followersCount?: number;
+  followingCount?: number;
   design: ProfileDesign;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';

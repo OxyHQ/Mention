@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import PostAvatar from './PostAvatar';
 import UserName from '../UserName';
+import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@/hooks/useTheme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
@@ -81,9 +82,11 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <View style={styles.headerRow}>
-        <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
-          <PostAvatar uri={avatarUri} size={avatarSize} />
-        </TouchableOpacity>
+        <ProfileHoverCard username={user.handle}>
+          <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
+            <PostAvatar uri={avatarUri} size={avatarSize} />
+          </TouchableOpacity>
+        </ProfileHoverCard>
         <View style={styles.headerMeta}>
           <View style={styles.postHeader}>
             <UserName
