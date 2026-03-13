@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import { type AppColorName, applyAppColorToDocument } from './app-color-presets';
 import { setColorSchemeSafe } from './set-color-scheme-safe';
+import { applyDarkClass } from './apply-dark-class';
 
 export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
@@ -29,14 +29,12 @@ export const useThemeStore = create<ThemeState>()(
         if (!state?.mode) return;
         const effectiveMode = state.mode === 'adaptive' ? 'system' : state.mode;
         setColorSchemeSafe(effectiveMode);
-        if (Platform.OS === 'web' && typeof document !== 'undefined') {
-          const resolved = effectiveMode === 'system'
-            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-            : effectiveMode;
-          document.documentElement.classList.toggle('dark', resolved === 'dark');
-          if (state.appColor && state.appColor !== 'teal') {
-            applyAppColorToDocument(state.appColor, resolved as 'light' | 'dark');
-          }
+        const resolved: 'light' | 'dark' = effectiveMode === 'system'
+          ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : effectiveMode as 'light' | 'dark';
+        applyDarkClass(resolved);
+        if (state.appColor && state.appColor !== 'teal') {
+          applyAppColorToDocument(state.appColor, resolved);
         }
       },
     }

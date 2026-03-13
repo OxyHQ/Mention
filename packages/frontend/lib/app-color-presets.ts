@@ -782,11 +782,15 @@ export function getAppColorCSSVariables(
   return mode === 'light' ? preset.light : preset.dark;
 }
 
+let _lastApplied: { color: AppColorName; mode: 'light' | 'dark' } | null = null;
+
 export function applyAppColorToDocument(
   colorName: AppColorName,
   resolvedMode: 'light' | 'dark',
 ) {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  if (_lastApplied?.color === colorName && _lastApplied?.mode === resolvedMode) return;
+  _lastApplied = { color: colorName, mode: resolvedMode };
 
   if (colorName === 'teal') {
     // Teal is the default in global.css — remove any overrides

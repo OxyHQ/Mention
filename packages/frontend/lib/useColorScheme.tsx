@@ -1,11 +1,11 @@
 import {
   useColorScheme as useNativeWindColorScheme,
 } from 'nativewind';
-import { Platform } from 'react-native';
 import { useThemeStore, type ThemeMode } from './theme-store';
 import { setColorSchemeSafe } from './set-color-scheme-safe';
 import { useCallback, useEffect, useMemo } from 'react';
 import { APP_COLOR_PRESETS } from './app-color-presets';
+import { applyDarkClass } from './apply-dark-class';
 
 /** Convert an HSL CSS variable value like "153 50% 5%" to "hsl(153, 50%, 5%)". */
 function hslVarToCSS(value: string): string {
@@ -15,12 +15,6 @@ function hslVarToCSS(value: string): string {
     return `hsla(${parts[0].replace(/ /g, ', ')}, ${alpha})`;
   }
   return `hsl(${value.replace(/ /g, ', ')})`;
-}
-
-function applyTheme(resolved: 'light' | 'dark') {
-  if (Platform.OS === 'web' && typeof document !== 'undefined') {
-    document.documentElement.classList.toggle('dark', resolved === 'dark');
-  }
 }
 
 export function useColorScheme() {
@@ -34,7 +28,7 @@ export function useColorScheme() {
 
   // Keep the dark class in sync on web for all modes (including system)
   useEffect(() => {
-    applyTheme(resolved);
+    applyDarkClass(resolved);
   }, [resolved]);
 
   const setColorScheme = useCallback(

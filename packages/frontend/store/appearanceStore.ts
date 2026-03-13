@@ -4,15 +4,25 @@ import { Storage } from '@/utils/storage';
 import { useThemeStore } from '@/lib/theme-store';
 import { hexToAppColorName } from '@/lib/app-color-presets';
 
+import type { ThemeMode as StoreThemeMode } from '@/lib/theme-store';
+
+const VALID_THEME_MODES = new Set<StoreThemeMode>(['light', 'dark', 'system', 'adaptive']);
+
 /** Push appearance settings into the local theme store for immediate effect. */
 function syncToThemeStore(appearance: { themeMode?: string; primaryColor?: string } | undefined) {
   if (!appearance) return;
   const store = useThemeStore.getState();
-  if (appearance.themeMode) {
-    store.setMode(appearance.themeMode as any);
+  if (appearance.themeMode && VALID_THEME_MODES.has(appearance.themeMode as StoreThemeMode)) {
+    const newMode = appearance.themeMode as StoreThemeMode;
+    if (store.mode !== newMode) {
+      store.setMode(newMode);
+    }
   }
   if (appearance.primaryColor) {
-    store.setAppColor(hexToAppColorName(appearance.primaryColor));
+    const newColor = hexToAppColorName(appearance.primaryColor);
+    if (store.appColor !== newColor) {
+      store.setAppColor(newColor);
+    }
   }
 }
 
