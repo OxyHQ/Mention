@@ -4,7 +4,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import Avatar from '@/components/Avatar';
 import * as OxyServicesNS from '@oxyhq/services';
-import { Link, useLocalSearchParams, router, usePathname } from 'expo-router';
+import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform, StyleSheet } from 'react-native';
@@ -17,9 +17,7 @@ import { useTheme } from '@/hooks/useTheme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useAuth } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
-import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
-import { Divider } from '@/components/Divider';
-import { EmptyState } from '@/components/common/EmptyState';
+import { Error as ErrorComponent } from '@/components/Error';
 import { useProfileData } from '@/hooks/useProfileData';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
@@ -31,21 +29,21 @@ export default function ConnectionsScreen() {
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const { oxyServices, user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [followers, setFollowers] = useState<any[]>([]);
   const [following, setFollowing] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
   const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
-  
-  // Use unified profile data hook - automatically fetches profile and appearance settings
-  const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
+
+  const { data: profileData } = useProfileData(cleanUsername);
 
   // Determine active tab from pathname
   const getActiveTab = useCallback((): TabType => {
     if (pathname?.endsWith('/following')) return 'following';
     if (pathname?.endsWith('/who-may-know')) return 'who-may-know';
-    return 'followers'; // Default
+    return 'followers';
   }, [pathname]);
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -54,7 +52,6 @@ export default function ConnectionsScreen() {
     return 'followers';
   });
 
-  // Update active tab when pathname changes
   useEffect(() => {
     const newTab = getActiveTab();
     if (newTab !== activeTab) {
@@ -65,8 +62,9 @@ export default function ConnectionsScreen() {
   // Load followers
   const loadFollowers = useCallback(async () => {
     if (!profileData?.id) return;
-    
+
     try {
+      setError(null);
       const followersList: any = await oxyServices.getUserFollowers(profileData.id);
       const list = Array.isArray(followersList?.followers)
         ? followersList.followers
@@ -75,16 +73,19 @@ export default function ConnectionsScreen() {
           : [];
       setFollowers(list);
       try { useUsersStore.getState().upsertMany(list as any); } catch {}
-    } catch (error) {
-      console.error('Error loading followers:', error);
+    } catch (err) {
+      const message = err instanceof globalThis.Error ? err.message : 'Failed to load followers';
+      setError(message);
+      console.error('Error loading followers:', err);
     }
   }, [profileData?.id, oxyServices]);
 
   // Load following
   const loadFollowing = useCallback(async () => {
     if (!profileData?.id) return;
-    
+
     try {
+      setError(null);
       const followingList: any = await oxyServices.getUserFollowing(profileData.id);
       const list = Array.isArray(followingList?.following)
         ? followingList.following
@@ -93,14 +94,17 @@ export default function ConnectionsScreen() {
           : [];
       setFollowing(list);
       try { useUsersStore.getState().upsertMany(list as any); } catch {}
-    } catch (error) {
-      console.error('Error loading following:', error);
+    } catch (err) {
+      const message = err instanceof globalThis.Error ? err.message : 'Failed to load following';
+      setError(message);
+      console.error('Error loading following:', err);
     }
   }, [profileData?.id, oxyServices]);
 
   // Load recommendations (who may know)
   const loadRecommendations = useCallback(async () => {
     try {
+      setError(null);
       const response = await oxyServices.getProfileRecommendations();
       const recommendationsList = Array.isArray(response) ? response : [];
       setRecommendations(recommendationsList);
@@ -109,37 +113,39 @@ export default function ConnectionsScreen() {
           useUsersStore.getState().upsertMany(recommendationsList as any);
         }
       } catch {}
-    } catch (error) {
-      console.error('Error loading recommendations:', error);
+    } catch (err) {
+      const message = err instanceof globalThis.Error ? err.message : 'Failed to load recommendations';
+      setError(message);
+      console.error('Error loading recommendations:', err);
     }
   }, [oxyServices]);
 
   // Load data based on active tab
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        if (activeTab === 'followers') {
-          await loadFollowers();
-        } else if (activeTab === 'following') {
-          await loadFollowing();
-        } else if (activeTab === 'who-may-know') {
-          await loadRecommendations();
-        }
-      } finally {
-        setLoading(false);
+  const loadCurrentTab = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'followers') {
+        await loadFollowers();
+      } else if (activeTab === 'following') {
+        await loadFollowing();
+      } else if (activeTab === 'who-may-know') {
+        await loadRecommendations();
       }
-    };
-
-    if (profileData || activeTab === 'who-may-know') {
-      loadData();
+    } finally {
+      setLoading(false);
     }
-  }, [activeTab, profileData, loadFollowers, loadFollowing, loadRecommendations]);
+  }, [activeTab, loadFollowers, loadFollowing, loadRecommendations]);
+
+  useEffect(() => {
+    if (profileData || activeTab === 'who-may-know') {
+      loadCurrentTab();
+    }
+  }, [activeTab, profileData, loadCurrentTab]);
 
   const handleTabPress = useCallback((tabId: string) => {
     if (!username) return;
     const tab = tabId as TabType;
-    
+
     let path: string;
     if (tab === 'following') {
       path = `/@${cleanUsername}/following`;
@@ -148,9 +154,9 @@ export default function ConnectionsScreen() {
     } else {
       path = `/@${cleanUsername}/followers`;
     }
-    
+
     router.push(path as any);
-  }, [cleanUsername, router]);
+  }, [cleanUsername, username]);
 
   const getInviteMessage = useCallback(() => {
     const userName = user
@@ -160,7 +166,7 @@ export default function ConnectionsScreen() {
       : 'Someone';
     const userHandle = user?.username || '';
     const appUrl = 'https://mention.earth';
-    
+
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
         name: userName,
@@ -201,18 +207,17 @@ export default function ConnectionsScreen() {
       await Share.share({
         message: inviteMessage,
       });
-    } catch (error: any) {
-      if (error?.message !== 'User did not share' && error?.code !== 'ERR_SHARE_CANCELLED') {
-        console.error('Error inviting friends:', error);
+    } catch (err: unknown) {
+      const shareErr = err as { message?: string; code?: string };
+      if (shareErr?.message !== 'User did not share' && shareErr?.code !== 'ERR_SHARE_CANCELLED') {
+        console.error('Error inviting friends:', err);
       }
     }
   }, [getInviteMessage, t]);
 
-  const renderUser = ({ item }: { item: any }) => {
+  const renderUser = useCallback(({ item }: { item: any }) => {
     const usernameValue = item?.username || item?.handle || item?.userID || item?.id;
-    if (!usernameValue) {
-      return null;
-    }
+    if (!usernameValue) return null;
 
     const displayName =
       item?.profile?.name?.full ||
@@ -221,58 +226,58 @@ export default function ConnectionsScreen() {
       usernameValue;
 
     const avatarSource = item?.avatar ?? (item as any)?.profilePicture;
-
     const bio = item?.profile?.bio || item?.bio;
-
-    const profileData: ProfileCardData = {
-      id: String((item as any).id || (item as any)._id || (item as any).userID),
-      username: usernameValue,
-      displayName,
-      avatar: avatarSource || undefined,
-      verified: item?.verified || false,
-      description: bio,
-    };
+    const userId = String((item as any).id || (item as any)._id || (item as any).userID);
 
     return (
-      <View style={styles.row}> 
-        <ProfileCard
-          profile={profileData}
+      <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
+        <TouchableOpacity
+          style={styles.rowLeft}
           onPress={() => router.push(`/@${usernameValue}` as any)}
-          style={styles.profileCardStyle}
-        />
-        <FollowButton
-          userId={(item as any).id || (item as any)._id || (item as any).userID}
-          size="small"
-        />
-        <Divider />
+          activeOpacity={0.7}
+        >
+          <Avatar source={avatarSource || undefined} size={48} />
+          <View style={styles.rowTextWrap}>
+            <ThemedText style={[styles.rowTitle, { color: theme.colors.text }]} numberOfLines={1}>
+              {displayName}
+            </ThemedText>
+            <ThemedText style={[styles.rowSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              @{usernameValue}
+            </ThemedText>
+            {bio ? (
+              <ThemedText style={[styles.rowBio, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                {bio}
+              </ThemedText>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+        <FollowButton userId={userId} size="small" />
       </View>
     );
-  };
+  }, [theme.colors.border, theme.colors.text, theme.colors.textSecondary, FollowButton]);
 
   const renderInviteBanner = useCallback(() => (
-    <View style={styles.inviteWrapper}>
-      <TouchableOpacity
-        onPress={handleInviteFriends}
-        activeOpacity={0.75}
-        style={[styles.inviteRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-      >
-        <View style={[styles.inviteIcon, { backgroundColor: theme.colors.primary }]}>
-          <Ionicons name="people" size={18} color={theme.colors.card} />
-        </View>
-        <View style={styles.inviteTextWrap}>
-          <ThemedText style={[styles.inviteTitle, { color: theme.colors.text }]}>
-            {t('settings.inviteContacts.inviteBannerTitle', { defaultValue: 'Invite friends from your contacts' })}
-          </ThemedText>
-          <ThemedText style={[styles.inviteSubtitle, { color: theme.colors.textSecondary }]}>
-            {t('settings.inviteContacts.inviteBannerSubtitle', { defaultValue: 'Share Mention and grow your community.' })}
-          </ThemedText>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      style={[styles.inviteBanner, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+      onPress={handleInviteFriends}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}>
+        <Ionicons name="people" size={20} color={theme.colors.card} />
+      </View>
+      <View style={styles.inviteContent}>
+        <ThemedText style={[styles.inviteTitle, { color: theme.colors.text }]}>
+          {t('settings.inviteContacts.inviteBannerTitle', { defaultValue: 'Invite friends from your contacts' })}
+        </ThemedText>
+        <ThemedText style={[styles.inviteSubtitle, { color: theme.colors.textSecondary }]}>
+          {t('settings.inviteContacts.inviteBannerSubtitle', { defaultValue: 'Share Mention and grow your community.' })}
+        </ThemedText>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+    </TouchableOpacity>
   ), [handleInviteFriends, theme.colors.border, theme.colors.card, theme.colors.primary, theme.colors.text, theme.colors.textSecondary, t]);
 
-  const getCurrentData = () => {
+  const currentData = useMemo(() => {
     switch (activeTab) {
       case 'followers':
         return followers;
@@ -283,27 +288,47 @@ export default function ConnectionsScreen() {
       default:
         return [];
     }
-  };
+  }, [activeTab, followers, following, recommendations]);
 
-  const getEmptyMessage = () => {
-    switch (activeTab) {
-      case 'followers':
-        return t("No followers yet", { defaultValue: 'No followers yet' });
-      case 'following':
-        return t("No following yet", { defaultValue: 'No following yet' });
-      case 'who-may-know':
-        return t("No recommendations available", { defaultValue: 'No recommendations available' });
-      default:
-        return '';
-    }
-  };
-
-  // Use displayName from profileData (includes customized display name from appearance settings)
   const profileDisplayName = useMemo(() => (
     profileData?.design?.displayName ||
     profileData?.username ||
     cleanUsername
   ), [profileData, cleanUsername]);
+
+  const getEmptyMessage = () => {
+    switch (activeTab) {
+      case 'followers':
+        return t('connections.emptyFollowers', { defaultValue: 'No followers yet' });
+      case 'following':
+        return t('connections.emptyFollowing', { defaultValue: 'Not following anyone yet' });
+      case 'who-may-know':
+        return t('connections.emptyRecommendations', { defaultValue: 'No recommendations available' });
+      default:
+        return '';
+    }
+  };
+
+  const getEmptySubtitle = () => {
+    switch (activeTab) {
+      case 'followers':
+        return t('connections.emptyFollowersSubtitle', {
+          name: profileDisplayName,
+          defaultValue: `When people follow ${profileDisplayName}, they'll appear here.`,
+        });
+      case 'following':
+        return t('connections.emptyFollowingSubtitle', {
+          name: profileDisplayName,
+          defaultValue: `When ${profileDisplayName} follows people, they'll appear here.`,
+        });
+      case 'who-may-know':
+        return t('connections.emptyRecommendationsSubtitle', {
+          defaultValue: 'Check back later for suggestions.',
+        });
+      default:
+        return '';
+    }
+  };
 
   const getTitle = () => {
     switch (activeTab) {
@@ -324,6 +349,60 @@ export default function ConnectionsScreen() {
     { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
   ];
 
+  const renderContent = () => {
+    if (error && currentData.length === 0 && !loading) {
+      return (
+        <ErrorComponent
+          title={t('Error', { defaultValue: 'Error' })}
+          message={error}
+          onRetry={loadCurrentTab}
+          hideBackButton={true}
+          style={{ flex: 1, paddingVertical: 40 }}
+        />
+      );
+    }
+
+    if (loading && currentData.length === 0) {
+      return (
+        <View style={styles.loadingState}>
+          <Loading size="large" />
+          <ThemedText style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+            {t('Loading...', { defaultValue: 'Loading...' })}
+          </ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <LegendList
+        data={currentData}
+        renderItem={renderUser}
+        keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
+        ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="people-outline" size={48} color={theme.colors.textSecondary} />
+            <ThemedText style={[styles.emptyTitle, { color: theme.colors.text }]}>
+              {getEmptyMessage()}
+            </ThemedText>
+            <ThemedText style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+              {getEmptySubtitle()}
+            </ThemedText>
+          </View>
+        }
+        removeClippedSubviews={false}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={10}
+        recycleItems={true}
+        maintainVisibleContentPosition={true}
+        contentContainerStyle={styles.listContent}
+        refreshing={loading}
+        onRefresh={loadCurrentTab}
+      />
+    );
+  };
+
   return (
     <ThemedView style={{ flex: 1, paddingTop: insets.top }}>
       <Header
@@ -341,7 +420,7 @@ export default function ConnectionsScreen() {
         hideBottomBorder={true}
         disableSticky={true}
       />
-      
+
       <AnimatedTabBar
         tabs={tabs}
         activeTabId={activeTab}
@@ -350,135 +429,101 @@ export default function ConnectionsScreen() {
         instanceId={`connections-${cleanUsername}`}
       />
 
-      {loading ? (
-        <View style={styles.loadingState}>
-          <Loading size="large" />
-          <ThemedText style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-            {t('Loading...', { defaultValue: 'Loading...' })}
-          </ThemedText>
-        </View>
-      ) : (
-        <LegendList
-          data={getCurrentData()}
-          renderItem={renderUser}
-          keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
-          ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
-          ListEmptyComponent={
-            <EmptyState
-              title={getEmptyMessage()}
-              icon={{
-                name: 'people-outline',
-                size: 48,
-              }}
-              containerStyle={styles.emptyState}
-            />
-          }
-          removeClippedSubviews={false}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-          initialNumToRender={10}
-          recycleItems={true}
-          maintainVisibleContentPosition={true}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+      {renderContent()}
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   listContent: {
-    paddingHorizontal: 0,
-    paddingBottom: 12,
+    paddingBottom: 20,
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    position: 'relative',
-  },
-  profileCardStyle: {
-    flex: 1,
-    marginRight: 12,
-    borderWidth: 0,
-    padding: 0,
-  },
-  rowOld: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
     borderBottomWidth: 0.5,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    ...Platform.select({ web: { cursor: 'pointer' as const } }),
   },
   rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 10,
   },
   rowTextWrap: {
+    marginLeft: 12,
     flex: 1,
-    gap: 2,
   },
   rowTitle: {
-    fontSize: 15,
     fontWeight: '600',
+    fontSize: 16,
   },
-  rowSubtitle: {
-    fontSize: 13,
+  rowSub: {
+    paddingTop: 2,
+    fontSize: 14,
   },
   rowBio: {
-    fontSize: 12,
-    lineHeight: 16,
+    paddingTop: 4,
+    fontSize: 14,
+    lineHeight: 18,
   },
-  inviteWrapper: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  inviteRow: {
+  inviteBanner: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 20,
     borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
     gap: 10,
   },
-  inviteIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  inviteIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  inviteTextWrap: {
+  inviteContent: {
     flex: 1,
-    gap: 2,
   },
   inviteTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   inviteSubtitle: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    fontWeight: '500',
   },
-  emptyState: {
-    flex: 1,
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   loadingState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     paddingHorizontal: 16,
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: 16,
   },
 });
-

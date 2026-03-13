@@ -645,5 +645,14 @@
       "remove": "Rimuovi",
       "createButton": "Crea Feed"
     }
-  }
+  },
+  "connections": {
+    "emptyFollowers": "Ancora nessun follower",
+    "emptyFollowing": "Non segue ancora nessuno",
+    "emptyRecommendations": "Nessuna raccomandazione disponibile",
+    "emptyFollowersSubtitle": "Quando le persone seguiranno {{name}}, appariranno qui.",
+    "emptyFollowingSubtitle": "Quando {{name}} seguirà delle persone, appariranno qui.",
+    "emptyRecommendationsSubtitle": "Torna più tardi per i suggerimenti."
+  },
+  "Who May Know": "Persone che potresti conoscere"
 }

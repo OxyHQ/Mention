@@ -31,6 +31,7 @@ import type { FeedType } from '@mention/shared-types';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
+import { ComposeIcon } from '@/assets/icons/compose-icon';
 
 // Components
 import Avatar from './Avatar';
@@ -594,7 +595,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         {/* FAB */}
                         <FAB
                             onPress={() => router.push('/compose')}
-                            icon="create-outline"
+                            customIcon={<ComposeIcon size={20} color={theme.colors.card} />}
                             style={themedStyles.fabStyle}
                         />
                     </>

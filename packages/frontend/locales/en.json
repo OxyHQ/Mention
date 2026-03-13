@@ -754,5 +754,14 @@
             "remove": "Remove",
             "createButton": "Create Feed"
         }
-    }
+    },
+    "connections": {
+        "emptyFollowers": "No followers yet",
+        "emptyFollowing": "Not following anyone yet",
+        "emptyRecommendations": "No recommendations available",
+        "emptyFollowersSubtitle": "When people follow {{name}}, they'll appear here.",
+        "emptyFollowingSubtitle": "When {{name}} follows people, they'll appear here.",
+        "emptyRecommendationsSubtitle": "Check back later for suggestions."
+    },
+    "Who May Know": "Who May Know"
 }
