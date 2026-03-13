@@ -94,4 +94,5 @@ config.transformer = {
 
 module.exports = withNativeWind(config, {
   inlineRem: 16,
+  inlineVariables: false,
 });
