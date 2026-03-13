@@ -744,7 +744,7 @@ const ComposeScreen = () => {
                 }}
                 style={styles.backBtn}
               >
-                <BackArrowIcon size={20} color={theme.colors.text} />
+                <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>
               <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : t('New post')}</Text>
               <View style={styles.headerIcons}>
@@ -753,9 +753,9 @@ const ComposeScreen = () => {
                   onPress={() => setShowModeToggle(!showModeToggle)}
                 >
                   {showModeToggle ? (
-                    <HideIcon size={20} color={theme.colors.text} />
+                    <HideIcon size={20} className="text-foreground" />
                   ) : (
-                    <ChevronRightIcon size={20} color={theme.colors.text} style={{ transform: [{ rotate: '90deg' }] }} />
+                    <ChevronRightIcon size={20} className="text-foreground" style={{ transform: [{ rotate: '90deg' }] }} />
                   )}
                 </IconButton>
                 <IconButton variant="icon"
@@ -773,7 +773,7 @@ const ComposeScreen = () => {
                     bottomSheet.openBottomSheet(true);
                   }}
                 >
-                  <DraftsIcon size={20} color={theme.colors.text} />
+                  <DraftsIcon size={20} className="text-foreground" />
                 </IconButton>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
@@ -813,7 +813,7 @@ const ComposeScreen = () => {
                     );
                   }}
                 >
-                  <DotIcon size={20} color={theme.colors.text} />
+                  <DotIcon size={20} className="text-foreground" />
                 </IconButton>
               </View>
             </View>
@@ -918,7 +918,7 @@ const ComposeScreen = () => {
                                 >
                                   <View style={styles.pollAttachmentHeader}>
                                     <View className="bg-background" style={styles.pollAttachmentBadge}>
-                                      <PollIcon size={16} color={theme.colors.primary} />
+                                      <PollIcon size={16} className="text-primary" />
                                       <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
                                         {t('compose.poll.title', { defaultValue: 'Poll' })}
                                       </Text>
@@ -1178,7 +1178,7 @@ const ComposeScreen = () => {
                       className="border-border bg-secondary"
                       style={styles.scheduleInfoContainer}
                     >
-                      <CalendarIcon size={14} color={theme.colors.primary} />
+                      <CalendarIcon size={14} className="text-primary" />
                       <Text className="text-foreground" style={styles.scheduleInfoText}
                       >
                         {t('compose.schedule.set', {
@@ -1325,7 +1325,7 @@ const ComposeScreen = () => {
                                 <View style={styles.pollAttachmentHeader}>
                                   <View className="bg-background" style={styles.pollAttachmentBadge}
                                   >
-                                    <PollIcon size={16} color={theme.colors.primary} />
+                                    <PollIcon size={16} className="text-primary" />
                                     <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
                                       {t('compose.poll.title', { defaultValue: 'Poll' })}
                                     </Text>
@@ -1371,7 +1371,7 @@ const ComposeScreen = () => {
                                 className="bg-background" style={styles.pollAttachmentRemoveButton}
                                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                               >
-                                <CloseIcon size={16} color={theme.colors.text} />
+                                <CloseIcon size={16} className="text-foreground" />
                               </TouchableOpacity>
                             </View>
                           ) : null}
@@ -1415,7 +1415,7 @@ const ComposeScreen = () => {
                                   className="bg-background" style={styles.mediaRemoveButton}
                                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                                 >
-                                  <CloseIcon size={16} color={theme.colors.text} />
+                                  <CloseIcon size={16} className="text-foreground" />
                                 </TouchableOpacity>
                               </View>
                             );

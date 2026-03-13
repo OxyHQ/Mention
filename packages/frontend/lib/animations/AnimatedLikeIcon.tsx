@@ -87,7 +87,7 @@ export function AnimatedLikeIcon({
           </Animated.View>
         ) : (
           <HeartIcon
-            color={theme.colors.textSecondary}
+            className="text-muted-foreground"
             size={size}
             style={{ pointerEvents: 'none' } as any}
           />

@@ -1,9 +1,9 @@
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-export const MuteIcon = ({ color = '#005c67', size = 24, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const MuteIcon = ({ color = 'currentColor', size = 24, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }) => {
   return (
-    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
+    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }} className={className}>
       <Path
         d="M18 8.59V1.2L12.71 6H5.5c-.28 0-.5.22-.5.5v11c0 .28.22.5.5.5H12l6.71 6.71 1.41-1.41-2.3-2.3L21 17.41l-2.41-2.41zM12 19.29L8.41 16H7V8h4.41l3.59-3.59v8.17l-3 3z"
         fill={color}

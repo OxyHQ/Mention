@@ -87,7 +87,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                 title: t('insights.post.title'),
                 rightComponents: [
                     <IconButton variant="icon" key="close" onPress={onClose}>
-                        <CloseIcon size={20} color={theme.colors.text} />
+                        <CloseIcon size={20} className="text-foreground" />
                     </IconButton>,
                 ],
             }}

@@ -112,7 +112,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
                 key="close"
                 onPress={onClose}
               >
-                <CloseIcon size={20} color={theme.colors.text} />
+                <CloseIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
           }}
@@ -136,7 +136,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
               key="close"
               onPress={onClose}
             >
-              <CloseIcon size={20} color={theme.colors.text} />
+              <CloseIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}

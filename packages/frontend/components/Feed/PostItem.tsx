@@ -404,7 +404,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 {showPinned && (
                     <View className="flex-row items-center mb-0.5" style={{ paddingLeft: HPAD }}>
                         <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
-                            <PinIcon size={14} color={theme.colors.textSecondary} />
+                            <PinIcon size={14} className="text-muted-foreground" />
                         </View>
                         <Text className="text-muted-foreground text-[13px] font-semibold">
                             {t('post.pinned', { defaultValue: 'Pinned' })}

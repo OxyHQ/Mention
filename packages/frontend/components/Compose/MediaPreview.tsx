@@ -98,7 +98,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                                 className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
                                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                             >
-                                <CloseIcon size={16} color={theme.colors.text} />
+                                <CloseIcon size={16} className="text-foreground" />
                             </TouchableOpacity>
                         </Animated.View>
                     );

@@ -183,32 +183,32 @@ export const BottomBar = () => {
             label: 'Home',
             isActive: pathname === '/',
             icon: pathname === '/'
-                ? <HomeActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
-                : <Home size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
+                ? <HomeActive size={ICON_SIZE} className="text-primary" />
+                : <Home size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
             onPress: () => handlePress('/videos'),
             label: 'Videos',
             isActive: pathname === '/videos',
             icon: pathname === '/videos'
-                ? <VideoActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
-                : <Video size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
+                ? <VideoActive size={ICON_SIZE} className="text-primary" />
+                : <Video size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
             onPress: () => handlePress('/compose'),
             label: 'Compose',
             isActive: pathname === '/compose',
             icon: pathname === '/compose'
-                ? <ComposeIIconActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
-                : <ComposeIcon size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
+                ? <ComposeIIconActive size={ICON_SIZE} className="text-primary" />
+                : <ComposeIcon size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
             onPress: () => handlePress('/notifications'),
             label: 'Notifications',
             isActive: pathname === '/notifications',
             icon: pathname === '/notifications'
-                ? <BellActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
-                : <Bell size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
+                ? <BellActive size={ICON_SIZE} className="text-primary" />
+                : <Bell size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
             onPress: () => {

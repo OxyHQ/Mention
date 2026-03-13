@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
-import { useTheme } from '@/hooks/useTheme';
 import { PostSourceLink } from '@mention/shared-types';
 
 interface Props {
@@ -19,8 +18,6 @@ const getHostname = (url: string): string => {
 };
 
 const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
-  const theme = useTheme();
-
   if (!sources || sources.length === 0) {
     return null;
   }
@@ -53,7 +50,7 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
             onPress={() => openSource(source.url)}
           >
             <View className="w-8 h-8 rounded-full items-center justify-center bg-card">
-              <SourcesIcon size={16} color={theme.colors.primary} />
+              <SourcesIcon size={16} className="text-primary" />
             </View>
             <View className="flex-1">
               <Text

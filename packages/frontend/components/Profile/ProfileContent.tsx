@@ -119,7 +119,7 @@ export const ProfileContent = memo(function ProfileContent({
             {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
             {profileData.isFederated && profileData.instance && (
               <View className="bg-secondary flex-row items-center gap-1 px-1.5 py-0.5 rounded">
-                <FediverseIcon size={12} color={theme.colors.textSecondary} />
+                <FediverseIcon size={12} className="text-muted-foreground" />
                 <Text className="text-muted-foreground text-xs font-medium">
                   {profileData.instance}
                 </Text>

@@ -150,7 +150,7 @@ const ExploreScreen: React.FC = () => {
                     key="search"
                     onPress={() => router.push('/search')}
                   >
-                    <Search color={theme.colors.text} size={20} />
+                    <Search className="text-foreground" size={20} />
                   </IconButton>,
                 ],
               }}
@@ -185,7 +185,7 @@ const ExploreScreen: React.FC = () => {
           {/* Floating Action Button - Search */}
           <FAB
             onPress={() => router.push('/search')}
-            customIcon={<Search color={theme.colors.card} size={24} />}
+            customIcon={<Search className="text-background" size={24} />}
             animatedTranslateY={fabTranslateY}
             animatedOpacity={fabOpacity}
           />

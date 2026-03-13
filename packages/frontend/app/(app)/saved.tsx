@@ -126,7 +126,7 @@ const SavedPostsScreen: React.FC = () => {
                     <View className="mr-2">
                         <Search
                             size={20}
-                            color={theme.colors.textSecondary}
+                            className="text-muted-foreground"
                         />
                     </View>
                     <TextInput
@@ -212,7 +212,7 @@ const SavedPostsScreen: React.FC = () => {
                             title={searchQuery.trim()
                                 ? t("search.noResults", "No results found")
                                 : t("search.startSearching", "No saved posts yet")}
-                            customIcon={<Search size={48} color={theme.colors.textSecondary} />}
+                            customIcon={<Search size={48} className="text-muted-foreground" />}
                             containerStyle={{ flex: 1, paddingTop: 60 }}
                         />
                     )}

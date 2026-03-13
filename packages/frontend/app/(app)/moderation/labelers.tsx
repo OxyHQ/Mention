@@ -266,7 +266,7 @@ const LabelersScreen: React.FC = () => {
           title: t('labelers.title', { defaultValue: 'Content Labels' }),
           leftComponents: [
             <IconButton variant="icon" key="back" onPress={() => router.back()}>
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}

@@ -223,7 +223,7 @@ const WeeklyRecapScreen: React.FC = () => {
                                     key="back"
                                     onPress={() => router.back()}
                                 >
-                                    <BackArrowIcon size={20} color={theme.colors.text} />
+                                    <BackArrowIcon size={20} className="text-foreground" />
                                 </IconButton>,
                             ],
                         }}
@@ -250,7 +250,7 @@ const WeeklyRecapScreen: React.FC = () => {
                                     key="back"
                                     onPress={() => router.back()}
                                 >
-                                    <BackArrowIcon size={20} color={theme.colors.text} />
+                                    <BackArrowIcon size={20} className="text-foreground" />
                                 </IconButton>,
                             ],
                         }}

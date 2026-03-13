@@ -353,7 +353,7 @@ function CardContent({
             @{profile.username}
           </Text>
           {profile.isFederated && (
-            <FediverseIcon size={13} color={theme.colors.textSecondary} />
+            <FediverseIcon size={13} className="text-muted-foreground" />
           )}
         </View>
       </View>

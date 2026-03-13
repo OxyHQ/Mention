@@ -27,7 +27,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
     return (
         <View style={[styles.container, style]}>
             <View style={styles.header}>
-                <LocationIcon size={16} color={colors.primaryColor} />
+                <LocationIcon size={16} className="text-primary" />
                 {isGettingLocation ? (
                     <>
                         <Loading size="small" style={{ flex: undefined }} />
@@ -37,7 +37,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
                     <>
                         <Text style={styles.text}>{location?.address}</Text>
                         <TouchableOpacity onPress={onRemove}>
-                            <CloseIcon size={16} color={colors.COLOR_BLACK_LIGHT_4} />
+                            <CloseIcon size={16} className="text-muted-foreground" />
                         </TouchableOpacity>
                     </>
                 )}

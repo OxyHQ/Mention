@@ -62,7 +62,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     className="p-2 z-10"
                     activeOpacity={0.7}
                 >
-                    <CloseIcon size={20} color={theme.colors.text} />
+                    <CloseIcon size={20} className="text-foreground" />
                 </TouchableOpacity>
                 <Text
                     className="text-foreground text-lg font-bold absolute left-0 right-0 text-center"

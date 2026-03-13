@@ -94,7 +94,7 @@ export default function NotificationSettingsScreen() {
                         title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
                         leftComponents: [
                             <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                                <BackArrowIcon size={20} color={colors.text} />
+                                <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
                     }}
@@ -113,7 +113,7 @@ export default function NotificationSettingsScreen() {
                     title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
                     leftComponents: [
                         <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                            <BackArrowIcon size={20} color={colors.text} />
+                            <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],
                 }}

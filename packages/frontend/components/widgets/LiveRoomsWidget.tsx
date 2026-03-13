@@ -144,7 +144,7 @@ export function LiveRoomsWidget() {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<AgoraIcon size={18} color={theme.colors.text} />}
+      icon={<AgoraIcon size={18} className="text-foreground" />}
     >
       {isLoading ? (
         <View style={styles.centerRow}>

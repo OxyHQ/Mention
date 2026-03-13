@@ -6,7 +6,6 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import SEO from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
@@ -14,7 +13,6 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
-  const theme = useTheme();
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -42,7 +40,7 @@ export default function ListsScreen() {
               key="back"
               onPress={() => router.back()}
             >
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
           rightComponents: [

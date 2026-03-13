@@ -180,7 +180,7 @@ const HashtagScreen: React.FC = () => {
                                 variant="icon"
                                 onPress={handleBack}
                             >
-                                <BackArrowIcon size={20} color={theme.colors.text} />
+                                <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
                     }}
@@ -212,7 +212,7 @@ const HashtagScreen: React.FC = () => {
                             variant="icon"
                             onPress={handleBack}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],
                 }}

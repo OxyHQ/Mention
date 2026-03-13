@@ -423,7 +423,7 @@ const Feed = memo((props: FeedProps) => {
             >
                 {feedState.isLoading && !refreshing && !isLoadingMore && feedRows.length === 0 ? (
                     <View style={styles.initialLoadingContainer}>
-                        <LoadingIcon size={44} color={theme.colors.primary} />
+                        <LoadingIcon size={44} className="text-primary" />
                     </View>
                 ) : null}
                 <FlashList

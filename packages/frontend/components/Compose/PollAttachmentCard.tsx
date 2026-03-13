@@ -81,7 +81,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
             >
                 <View className="flex-row items-center justify-between gap-3">
                     <View className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-background">
-                        <PollIcon size={16} color={theme.colors.primary} />
+                        <PollIcon size={16} className="text-primary" />
                         <Text className="text-xs font-semibold uppercase tracking-wide text-primary">
                             {t("compose.poll.title", { defaultValue: "Poll" })}
                         </Text>
@@ -137,7 +137,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                 className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-                <CloseIcon size={16} color={theme.colors.text} />
+                <CloseIcon size={16} className="text-foreground" />
             </TouchableOpacity>
         </View>
     );

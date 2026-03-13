@@ -54,7 +54,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
         >
             <View className="flex-row justify-between items-center mb-2.5">
                 <View className="flex-row items-center gap-1.5">
-                    <PollIcon size={18} color={theme.colors.primary} />
+                    <PollIcon size={18} className="text-primary" />
                     <Text className="text-[15px] font-bold text-foreground">
                         {t("Create a poll")}
                     </Text>
@@ -64,7 +64,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                     className="p-1"
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                    <CloseIcon size={18} color={theme.colors.textSecondary} />
+                    <CloseIcon size={18} className="text-muted-foreground" />
                 </TouchableOpacity>
             </View>
 
@@ -113,7 +113,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                                 className="p-1 shrink-0"
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
-                                <CloseIcon size={16} color={theme.colors.textSecondary} />
+                                <CloseIcon size={16} className="text-muted-foreground" />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -127,7 +127,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                     activeOpacity={0.7}
                 >
                     <View className="w-6 h-6 rounded-full items-center justify-center bg-secondary">
-                        <Plus size={16} color={theme.colors.primary} />
+                        <Plus size={16} className="text-primary" />
                     </View>
                     <Text className="text-sm font-semibold text-primary">
                         {t("Add option")}

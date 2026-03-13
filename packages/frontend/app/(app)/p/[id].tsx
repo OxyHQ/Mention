@@ -409,7 +409,7 @@ const PostDetailScreen: React.FC = () => {
                                 key="back"
                                 onPress={handleBack}
                             >
-                                <BackArrowIcon size={20} color={theme.colors.text} />
+                                <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
                     }}
@@ -440,7 +440,7 @@ const PostDetailScreen: React.FC = () => {
                                     key="back"
                                     onPress={handleBack}
                                 >
-                                    <BackArrowIcon size={20} color={theme.colors.text} />
+                                    <BackArrowIcon size={20} className="text-foreground" />
                                 </IconButton>,
                             ],
                         }}
@@ -487,7 +487,7 @@ const PostDetailScreen: React.FC = () => {
                                 key="back"
                                 onPress={handleBack}
                             >
-                                <BackArrowIcon size={20} color={theme.colors.text} />
+                                <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
                     }}
@@ -564,7 +564,7 @@ const PostDetailScreen: React.FC = () => {
                         </View>
                         {repliesFeed.isLoading && repliesFeed.items.length === 0 ? (
                             <View className="items-center justify-center py-8">
-                                <LoadingIcon size={32} color={theme.colors.primary} />
+                                <LoadingIcon size={32} className="text-primary" />
                             </View>
                         ) : repliesFeed.items.length === 0 ? (
                             <View className="items-center justify-center py-8 px-4">

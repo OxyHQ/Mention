@@ -62,7 +62,7 @@ export default function AccountInfoScreen() {
               variant="icon"
               onPress={() => router.back()}
             >
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}

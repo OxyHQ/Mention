@@ -125,7 +125,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             <SafeAreaView className="flex-1 bg-background">
                 <View className="flex-row items-center justify-between px-4 py-3" style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }}>
                     <IconButton variant="icon" onPress={onClose} className="w-10 h-10 justify-center items-center">
-                        <CloseIcon size={20} color={theme.colors.text} />
+                        <CloseIcon size={20} className="text-foreground" />
                     </IconButton>
                     <Text className="text-lg font-semibold flex-1 text-center text-foreground">
                         {t("compose.event.editorTitle", { defaultValue: "Create event" })}

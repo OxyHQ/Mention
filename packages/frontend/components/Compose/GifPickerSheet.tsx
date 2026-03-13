@@ -238,7 +238,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           title: t('Select a GIF'),
           rightComponents: [
             <IconButton variant="icon" key="close" onPress={onClose}>
-              <CloseIcon size={20} color={theme.colors.text} />
+              <CloseIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}

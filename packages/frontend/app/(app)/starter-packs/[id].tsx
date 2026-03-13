@@ -122,7 +122,7 @@ export default function StarterPackDetailScreen() {
                 key="back"
                 onPress={() => router.back()}
               >
-                <BackArrowIcon size={20} color={theme.colors.text} />
+                <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
             rightComponents: isOwner ? [

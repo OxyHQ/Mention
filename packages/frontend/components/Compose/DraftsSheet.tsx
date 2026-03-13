@@ -200,7 +200,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
                 key="close"
                 onPress={onClose}
               >
-                <CloseIcon size={20} color={theme.colors.text} />
+                <CloseIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
           }}
@@ -224,7 +224,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
               key="close"
               onPress={onClose}
             >
-              <CloseIcon size={20} color={theme.colors.text} />
+              <CloseIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}
@@ -234,7 +234,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
 
       {drafts.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12 px-8">
-          <DraftsIcon size={64} color={theme.colors.textSecondary} />
+          <DraftsIcon size={64} className="text-muted-foreground" />
           <Text className="mt-6 text-xl font-semibold text-foreground">
             {t('compose.noDrafts')}
           </Text>

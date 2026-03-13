@@ -2,8 +2,8 @@ import React from 'react';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { IconProps } from './types';
 
-export const CalendarIcon: React.FC<IconProps> = ({ size = 20, color = '#000' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+export const CalendarIcon: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
     <Rect x={3} y={4} width={18} height={17} rx={2} stroke={color} strokeWidth={1.5} />
     <Path d="M8 2.5v3" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
     <Path d="M16 2.5v3" stroke={color} strokeWidth={1.5} strokeLinecap="round" />

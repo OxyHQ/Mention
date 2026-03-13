@@ -42,7 +42,7 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
                     onPress={onClose}
                     className="mr-1.5 z-[1]"
                 >
-                    <CloseIcon size={20} color={theme.colors.text} />
+                    <CloseIcon size={20} className="text-foreground" />
                 </IconButton>
                 <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
                     {title}

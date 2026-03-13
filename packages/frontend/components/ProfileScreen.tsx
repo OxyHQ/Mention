@@ -435,9 +435,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             {!isOwnProfile && !isFederated && (
                                 <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
                                     {subscribed ? (
-                                        <BellActive size={20} color={theme.colors.primary} />
+                                        <BellActive size={20} className="text-primary" />
                                     ) : (
-                                        <Bell size={20} color={theme.colors.text} />
+                                        <Bell size={20} className="text-foreground" />
                                     )}
                                 </IconButton>
                             )}
@@ -452,7 +452,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 </IconButton>
                             )}
                             <IconButton variant="icon" onPress={handleShare}>
-                                <ShareIcon size={20} color={theme.colors.text} />
+                                <ShareIcon size={20} className="text-foreground" />
                             </IconButton>
                             {!isOwnProfile && !isFederated && (
                                 <IconButton variant="icon" onPress={handleMoreOptions}>
@@ -595,7 +595,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         {/* FAB */}
                         <FAB
                             onPress={() => router.push('/compose')}
-                            customIcon={<ComposeIcon size={20} color={theme.colors.card} />}
+                            customIcon={<ComposeIcon size={20} className="text-background" />}
                             style={themedStyles.fabStyle}
                         />
                     </>

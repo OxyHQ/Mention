@@ -69,8 +69,8 @@ export function SideBar() {
     }[] = [
             {
                 title: t("Home"),
-                icon: <Home color={theme.colors.text} />,
-                iconActive: <HomeActive color={theme.colors.primary} />,
+                icon: <Home className="text-foreground" />,
+                iconActive: <HomeActive className="text-primary" />,
                 route: '/',
             },
             ...(user ? [{
@@ -81,62 +81,62 @@ export function SideBar() {
             }] : []),
             {
                 title: t("Explore"),
-                icon: <Search color={theme.colors.text} />,
-                iconActive: <SearchActive color={theme.colors.primary} />,
+                icon: <Search className="text-foreground" />,
+                iconActive: <SearchActive className="text-primary" />,
                 route: '/explore',
             },
             {
                 title: t("Notifications"),
-                icon: <Bell color={theme.colors.text} />,
-                iconActive: <BellActive color={theme.colors.primary} />,
+                icon: <Bell className="text-foreground" />,
+                iconActive: <BellActive className="text-primary" />,
                 route: '/notifications',
             },
             {
                 title: t("Chat"),
-                icon: <Chat color={theme.colors.text} />,
-                iconActive: <ChatActive color={theme.colors.primary} />,
+                icon: <Chat className="text-foreground" />,
+                iconActive: <ChatActive className="text-primary" />,
                 route: '/chat',
             },
             {
                 title: t("Agora"),
-                icon: <Agora color={theme.colors.text} />,
-                iconActive: <AgoraActive color={theme.colors.primary} />,
+                icon: <Agora className="text-foreground" />,
+                iconActive: <AgoraActive className="text-primary" />,
                 route: '/agora',
             },
             {
                 title: t("Insights"),
-                icon: <AnalyticsIcon color={theme.colors.text} />,
-                iconActive: <AnalyticsIconActive color={theme.colors.primary} />,
+                icon: <AnalyticsIcon className="text-foreground" />,
+                iconActive: <AnalyticsIconActive className="text-primary" />,
                 route: '/insights',
             },
             {
                 title: t("Saved"),
-                icon: <Bookmark color={theme.colors.text} />,
-                iconActive: <BookmarkActive color={theme.colors.primary} />,
+                icon: <Bookmark className="text-foreground" />,
+                iconActive: <BookmarkActive className="text-primary" />,
                 route: '/saved',
             },
             {
                 title: t("Feeds"),
-                icon: <Hashtag color={theme.colors.text} />,
-                iconActive: <HashtagActive color={theme.colors.primary} />,
+                icon: <Hashtag className="text-foreground" />,
+                iconActive: <HashtagActive className="text-primary" />,
                 route: '/feeds',
             },
             {
                 title: t("Lists"),
-                icon: <List color={theme.colors.text} />,
-                iconActive: <ListActive color={theme.colors.primary} />,
+                icon: <List className="text-foreground" />,
+                iconActive: <ListActive className="text-primary" />,
                 route: '/lists',
             },
             {
                 title: t("Videos"),
-                icon: <Video color={theme.colors.text} />,
-                iconActive: <VideoActive color={theme.colors.primary} />,
+                icon: <Video className="text-foreground" />,
+                iconActive: <VideoActive className="text-primary" />,
                 route: '/videos',
             },
             {
                 title: t("Settings"),
-                icon: <Gear color={theme.colors.text} />,
-                iconActive: <GearActive color={theme.colors.primary} />,
+                icon: <Gear className="text-foreground" />,
+                iconActive: <GearActive className="text-primary" />,
                 route: '/settings',
             },
         ];
@@ -240,7 +240,7 @@ export function SideBar() {
                                             },
                                         }) as any),
                                     }}>
-                                        <ComposeIcon size={20} color={theme.colors.card} />
+                                        <ComposeIcon size={20} className="text-background" />
                                     </View>
                                 )}
                                 containerStyle={() => ({

@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
@@ -43,7 +42,6 @@ export function ProfileCard({
   style,
 }: ProfileCardProps) {
   const router = useRouter();
-  const theme = useTheme();
 
   const handlePress = () => {
     if (onPress) {
@@ -87,7 +85,7 @@ export function ProfileCard({
               @{profile.username}
             </ThemedText>
             {profile.isFederated && (
-              <FediverseIcon size={13} color={theme.colors.textSecondary} />
+              <FediverseIcon size={13} className="text-muted-foreground" />
             )}
           </View>
         </View>

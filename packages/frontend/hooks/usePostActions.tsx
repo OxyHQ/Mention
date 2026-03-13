@@ -113,7 +113,7 @@ export function usePostActions({
         };
 
         const insightsAction = isOwner ? [{
-            icon: <AnalyticsIcon size={20} color={theme.colors.textSecondary} />,
+            icon: <AnalyticsIcon size={20} className="text-muted-foreground" />,
             text: "Insights",
             onPress: () => {
                 bottomSheet.setBottomSheetContent(
@@ -130,13 +130,13 @@ export function usePostActions({
 
         if (!isSaved) {
             saveActionGroup.push({
-                icon: <Bookmark size={20} color={theme.colors.textSecondary} />,
+                icon: <Bookmark size={20} className="text-muted-foreground" />,
                 text: "Save",
                 onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
             });
         } else {
             saveActionGroup.push({
-                icon: <BookmarkActive size={20} color={theme.colors.textSecondary} />,
+                icon: <BookmarkActive size={20} className="text-muted-foreground" />,
                 text: "Unsave",
                 onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
             });
@@ -162,8 +162,8 @@ export function usePostActions({
         if (isOwner) {
             saveActionGroup.push({
                 icon: isPinned
-                    ? <UnpinIcon size={20} color={theme.colors.textSecondary} />
-                    : <PinIcon size={20} color={theme.colors.textSecondary} />,
+                    ? <UnpinIcon size={20} className="text-muted-foreground" />
+                    : <PinIcon size={20} className="text-muted-foreground" />,
                 text: isPinned ? "Unpin from profile" : "Pin to your profile",
                 onPress: async () => {
                     try {
@@ -179,7 +179,7 @@ export function usePostActions({
         if (isOwner) {
             const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
             saveActionGroup.push({
-                icon: <HideIcon size={20} color={theme.colors.textSecondary} />,
+                icon: <HideIcon size={20} className="text-muted-foreground" />,
                 text: isHidden ? "Show like and share counts" : "Hide like and share counts",
                 onPress: async () => {
                     try {
@@ -194,7 +194,7 @@ export function usePostActions({
 
         if (isOwner) {
             saveActionGroup.push({
-                icon: <ChevronRightIcon size={20} color={theme.colors.textSecondary} />,
+                icon: <ChevronRightIcon size={20} className="text-muted-foreground" />,
                 text: "Reply options",
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
@@ -224,11 +224,11 @@ export function usePostActions({
         }
 
         const deleteAction = isOwner ? [
-            { icon: <TrashIcon size={20} color={theme.colors.error} />, text: "Delete", onPress: handleDelete, color: theme.colors.error }
+            { icon: <TrashIcon size={20} className="text-destructive" />, text: "Delete", onPress: handleDelete, color: theme.colors.error }
         ] : [];
 
         const articleAction = hasArticle ? [{
-            icon: <ArticleIcon size={20} color={theme.colors.textSecondary} />,
+            icon: <ArticleIcon size={20} className="text-muted-foreground" />,
             text: t('post.viewArticle', { defaultValue: 'View article' }),
             onPress: () => {
                 onOpenArticle();
@@ -236,7 +236,7 @@ export function usePostActions({
         }] : [];
 
         const sourcesAction = hasSources ? [{
-            icon: <SourcesIcon size={20} color={theme.colors.textSecondary} />,
+            icon: <SourcesIcon size={20} className="text-muted-foreground" />,
             text: t('post.viewSources', { defaultValue: 'View sources' }),
             onPress: () => {
                 onOpenSources();
@@ -294,13 +294,13 @@ export function usePostActions({
         if (!isOwner) {
             const username = viewPost?.user?.handle || viewPost?.user?.name || 'user';
             muteReportAction.push({
-                icon: <MuteIcon size={20} color={theme.colors.textSecondary} />,
+                icon: <MuteIcon size={20} className="text-muted-foreground" />,
                 text: `Mute @${username}`,
                 onPress: handleMuteUser,
             });
 
             muteReportAction.push({
-                icon: <ReportIcon size={20} color={theme.colors.error} />,
+                icon: <ReportIcon size={20} className="text-destructive" />,
                 text: "Report post",
                 onPress: handleReportPost,
                 color: theme.colors.error,
@@ -308,7 +308,7 @@ export function usePostActions({
         }
 
         const copyLinkAction = [{
-            icon: <LinkIcon size={20} color={theme.colors.textSecondary} />,
+            icon: <LinkIcon size={20} className="text-muted-foreground" />,
             text: "Copy link",
             onPress: async () => {
                 try {

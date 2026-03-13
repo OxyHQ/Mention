@@ -7,10 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { LogoIcon } from '@/assets/logo';
 import { Button } from '@/components/ui/Button';
-import { useTheme } from '@/hooks/useTheme';
-
 export default function AuthScreen() {
-  const theme = useTheme();
   const { signIn } = useAuth();
   const { t } = useTranslation();
   const isDesktop = useMediaQuery({ minWidth: 768 });
@@ -49,7 +46,7 @@ export default function AuthScreen() {
   return (
     <SafeAreaView className="flex-1 justify-center items-center p-6 bg-background">
       <View className="flex-1 justify-center items-center gap-4">
-        <LogoIcon size={48} color={theme.colors.primary} />
+        <LogoIcon size={48} className="text-primary" />
         <Text className="text-[28px] font-bold mt-2 text-foreground">
           Mention
         </Text>

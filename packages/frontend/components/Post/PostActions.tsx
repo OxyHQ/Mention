@@ -101,7 +101,7 @@ const PostActions: React.FC<Props> = ({
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel="Reply"
         >
-          <CommentIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
+          <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
         </PressableScale>
 
         <PressableScale
@@ -116,7 +116,7 @@ const PostActions: React.FC<Props> = ({
           {isReposted ? (
             <RepostIconActive size={ICON_SIZE} color={theme.colors.success} />
           ) : (
-            <RepostIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
+            <RepostIcon size={ICON_SIZE} className="text-muted-foreground" />
           )}
         </PressableScale>
 
@@ -129,7 +129,7 @@ const PostActions: React.FC<Props> = ({
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel="Share"
         >
-          <ShareIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
+          <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
         </PressableScale>
 
         {onInsightsPress && (
@@ -142,7 +142,7 @@ const PostActions: React.FC<Props> = ({
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel="Insights"
           >
-            <AnalyticsIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
+            <AnalyticsIcon size={ICON_SIZE} className="text-muted-foreground" />
           </PressableScale>
         )}
       </View>

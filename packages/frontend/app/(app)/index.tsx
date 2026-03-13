@@ -240,13 +240,13 @@ const HomeScreen: React.FC = () => {
                                         key="search"
                                         onPress={() => router.push('/search')}
                                     >
-                                        <Search color={theme.colors.text} size={20} />
+                                        <Search className="text-foreground" size={20} />
                                     </IconButton>,
                                     <IconButton variant="icon"
                                         key="notifications"
                                         onPress={() => router.push('/notifications')}
                                     >
-                                        <Bell size={20} color={theme.colors.text} />
+                                        <Bell size={20} className="text-foreground" />
                                     </IconButton>
                                 ]
                             }}

@@ -47,7 +47,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
             <SafeAreaView className="flex-1 bg-background">
                 <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
                     <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
-                        <CloseIcon size={20} color={theme.colors.text} />
+                        <CloseIcon size={20} className="text-foreground" />
                     </IconButton>
                     <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
                         {t("compose.article.editorTitle", { defaultValue: "Write article" })}

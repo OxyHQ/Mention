@@ -109,7 +109,7 @@ export default function PrivacySettingsScreen() {
                                 key="back"
                                 onPress={() => router.back()}
                             >
-                                <BackArrowIcon size={20} color={colors.text} />
+                                <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
                     }}
@@ -133,7 +133,7 @@ export default function PrivacySettingsScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={colors.text} />
+                            <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],
                 }}

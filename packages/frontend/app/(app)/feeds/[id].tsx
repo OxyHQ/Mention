@@ -644,7 +644,7 @@ export default function CustomFeedTimelineScreen() {
           headerTitleStyle: { justifyContent: 'flex-start', flex: 1 },
           leftComponents: [
             <IconButton variant="icon" key="back" onPress={() => router.back()}>
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
           rightComponents: [
@@ -705,7 +705,7 @@ export default function CustomFeedTimelineScreen() {
           onPress={() => router.push('/compose')}
           activeOpacity={0.8}
         >
-          <CreateIcon size={22} color={theme.colors.card} />
+          <CreateIcon size={22} className="text-background" />
         </TouchableOpacity>
       )}
     </ThemedView>

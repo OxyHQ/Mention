@@ -7,7 +7,6 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -34,7 +33,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEmoji }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [activeCategory, setActiveCategory] = useState('smileys');
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
@@ -102,7 +100,7 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
           title: t('compose.emoji.title', { defaultValue: 'Emojis' }),
           rightComponents: [
             <IconButton variant="icon" key="close" onPress={onClose}>
-              <CloseIcon size={20} color={theme.colors.text} />
+              <CloseIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}

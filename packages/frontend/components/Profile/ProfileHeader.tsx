@@ -108,7 +108,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               accessibilityRole="button"
               accessibilityLabel="Analytics"
             >
-              <AnalyticsIcon size={20} color={theme.colors.text} />
+              <AnalyticsIcon size={20} className="text-foreground" />
             </TouchableOpacity>
             <TouchableOpacity
               className="border items-center justify-center"
@@ -117,7 +117,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               accessibilityRole="button"
               accessibilityLabel="Settings"
             >
-              <Gear size={20} color={theme.colors.text} />
+              <Gear size={20} className="text-foreground" />
             </TouchableOpacity>
           </View>
         ) : isFederated && actorUri ? (
@@ -295,7 +295,7 @@ export const ProfileActions = memo(function ProfileActions({
         accessibilityRole="button"
         accessibilityLabel="Analytics"
       >
-        <AnalyticsIcon size={20} color={theme.colors.text} />
+        <AnalyticsIcon size={20} className="text-foreground" />
       </TouchableOpacity>
       <TouchableOpacity
         className="border items-center justify-center"
@@ -304,7 +304,7 @@ export const ProfileActions = memo(function ProfileActions({
         accessibilityRole="button"
         accessibilityLabel="Settings"
       >
-        <Gear size={20} color={theme.colors.text} />
+        <Gear size={20} className="text-foreground" />
       </TouchableOpacity>
     </View>
   );

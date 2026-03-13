@@ -53,7 +53,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
     <View className="flex-1 pb-6 bg-background">
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border mb-3">
         <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
-          <CloseIcon size={20} color={theme.colors.text} />
+          <CloseIcon size={20} className="text-foreground" />
         </IconButton>
         <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
           {t('compose.sources.heading', { defaultValue: 'Sources' })}
@@ -108,7 +108,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                       {t('compose.sources.itemLabel', { defaultValue: 'Source {{index}}', index: index + 1 })}
                     </Text>
                     <TouchableOpacity onPress={() => onRemove(source.id)} className="p-1" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <CloseIcon size={16} color={theme.colors.textSecondary} />
+                      <CloseIcon size={16} className="text-muted-foreground" />
                     </TouchableOpacity>
                   </View>
 
@@ -162,7 +162,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
           }}
           disabled={!canAddMore}
         >
-          <Plus size={16} color={theme.colors.primary} />
+          <Plus size={16} className="text-primary" />
           <Text className="text-sm font-semibold text-foreground">
             {t('compose.sources.addAnother', { defaultValue: 'Add another source' })}
           </Text>

@@ -81,7 +81,7 @@ export const SearchBar = () => {
                     <Loading variant="inline" size="small" style={styles.searchIconWrapper} />
                 ) : (
                     <View style={styles.searchIconWrapper}>
-                        <Search size={18} color={theme.colors.textSecondary} />
+                        <Search size={18} className="text-muted-foreground" />
                     </View>
                 )}
                 <TextInput

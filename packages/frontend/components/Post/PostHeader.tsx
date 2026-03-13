@@ -94,7 +94,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             />
             {user.handle ? <Text className="text-muted-foreground text-[15px]">@{user.handle}</Text> : null}
             {user.isFederated ? (
-              <FediverseIcon size={13} color={theme.colors.textTertiary} />
+              <FediverseIcon size={13} className="text-muted-foreground" />
             ) : null}
             {!!timeLabel && <Text className="text-muted-foreground text-[15px]">{'\u00B7'} {timeLabel}</Text>}
             {(repostLabel || showRepost) && (

@@ -40,7 +40,7 @@ export function IconCircle({
       ]}>
       <Icon
         size={iconSize}
-        color={theme.colors.primary}
+        className="text-primary"
         style={iconStyle}
       />
     </View>

@@ -241,7 +241,7 @@ const FeedsScreen: React.FC = () => {
           </Text>
 
           <View className="flex-row items-center px-3 h-[38px] rounded-[10px] mt-2 mb-1 gap-2 bg-secondary">
-            <Search size={18} color={theme.colors.textSecondary} />
+            <Search size={18} className="text-muted-foreground" />
             <TextInput
               style={styles.searchInput}
               className="flex-1 text-[15px] text-foreground"

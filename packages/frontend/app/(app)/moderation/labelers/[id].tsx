@@ -251,7 +251,7 @@ const LabelerDetailScreen: React.FC = () => {
             title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
             leftComponents: [
               <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                <BackArrowIcon size={20} color={theme.colors.text} />
+                <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
           }}
@@ -273,7 +273,7 @@ const LabelerDetailScreen: React.FC = () => {
             title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
             leftComponents: [
               <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                <BackArrowIcon size={20} color={theme.colors.text} />
+                <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
           }}
@@ -296,7 +296,7 @@ const LabelerDetailScreen: React.FC = () => {
           title: labeler.name,
           leftComponents: [
             <IconButton variant="icon" key="back" onPress={() => router.back()}>
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}

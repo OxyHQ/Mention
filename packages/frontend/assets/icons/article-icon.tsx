@@ -1,9 +1,9 @@
 import React from 'react';
 import Svg, { Path, Line, Polygon, Rect } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-export const ArticleIcon = ({ color = '#005c67', size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const ArticleIcon = ({ color = 'currentColor', size = 26, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }) => {
   return (
-    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
+    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }} className={className}>
       <Rect fill="none" height="20.5" rx="4.25" stroke={color} strokeWidth="1.5" width="16.5" x="3.75" y="1.75"></Rect>
       <Rect fill={color} height="1.5" rx="0.75" width="10" x="7" y="7"></Rect>
       <Rect fill={color} height="1.5" rx="0.75" width="10" x="7" y="10"></Rect>

@@ -18,7 +18,7 @@ export const Logo = () => {
       ]}>
       <View style={styles.logo}>
         <LogoIcon style={styles.logoSvg} size={27}
-          color={theme.colors.primary} />
+          className="text-primary" />
       </View>
     </Pressable>
   );

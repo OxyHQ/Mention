@@ -195,7 +195,7 @@ export default function FeedSettingsScreen() {
             title: t('settings.feed.title'),
             leftComponents: [
               <IconButton variant="icon" key="back" onPress={() => router.back()}>
-                <BackArrowIcon size={20} color={colors.text} />
+                <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
           }}
@@ -216,7 +216,7 @@ export default function FeedSettingsScreen() {
           title: t('settings.feed.title'),
           leftComponents: [
             <IconButton variant="icon" key="back" onPress={() => router.back()}>
-              <BackArrowIcon size={20} color={colors.text} />
+              <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
           rightComponents: [

@@ -239,13 +239,13 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
               style={styles.closeButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <CloseIcon color={theme.colors.text} size={20} />
+              <CloseIcon className="text-foreground" size={20} />
             </Pressable>
 
             {/* Logo */}
             <View style={styles.logoContainer}>
               <LogoIcon
-                color={theme.colors.primary}
+                className="text-primary"
                 size={40}
                 style={styles.logoIcon}
               />

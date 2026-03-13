@@ -4,7 +4,7 @@ import { ViewStyle } from 'react-native';
 
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
-export const Loading = ({ color = '#005c67', size = 26, style: styleProp }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const Loading = ({ color = 'currentColor', size = 26, style: styleProp, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }) => {
     const rotation = useSharedValue(0);
 
     React.useEffect(() => {
@@ -33,7 +33,7 @@ export const Loading = ({ color = '#005c67', size = 26, style: styleProp }: { co
                 styleProp,
             ]}
         >
-            <Svg viewBox="0 0 100 100" width={size} height={size}>
+            <Svg viewBox="0 0 100 100" width={size} height={size} className={className}>
                 <Rect fill={color} height="10" opacity="0" rx="5" ry="5" transform="rotate(-90 50 50)" width="28" x="67" y="45" />
                 <Rect fill={color} height="10" opacity="0.125" rx="5" ry="5" transform="rotate(-45 50 50)" width="28" x="67" y="45" />
                 <Rect fill={color} height="10" opacity="0.25" rx="5" ry="5" transform="rotate(0 50 50)" width="28" x="67" y="45" />

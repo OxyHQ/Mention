@@ -245,7 +245,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         >
           <View style={headerStyle} className="border-b border-border">
             <IconButton variant="icon" onPress={stableOnClose} style={styles.closeButton}>
-              <CloseIcon size={20} color={theme.colors.text} />
+              <CloseIcon size={20} className="text-foreground" />
             </IconButton>
             <Text style={[headerTitleStyle, { pointerEvents: 'none' }]} className="text-foreground">
               {titleText}

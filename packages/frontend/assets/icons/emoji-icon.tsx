@@ -3,13 +3,15 @@ import Svg, { Path } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
 
 export const EmojiIcon = ({
-  color = '#005c67', // Replace with your primary color
+  color = 'currentColor',
   size = 26,
-  style
+  style,
+  className
 }: {
   color?: string;
   size?: number;
-  style?: ViewStyle
+  style?: ViewStyle;
+  className?: string;
 }) => {
   return (
     <Svg
@@ -17,6 +19,7 @@ export const EmojiIcon = ({
       height={size}
       viewBox="0 0 24 24"
       style={style}
+      className={className}
     >
       <Path
         fill={color}

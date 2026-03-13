@@ -7,14 +7,11 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
-import { useTheme } from '@/hooks/useTheme';
-
 export default function ListTimelineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [list, setList] = useState<any | null>(null);
   const [_loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const theme = useTheme();
 
   useEffect(() => {
     (async () => {
@@ -39,7 +36,7 @@ export default function ListTimelineScreen() {
               key="back"
               onPress={() => router.back()}
             >
-              <BackArrowIcon size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
         }}

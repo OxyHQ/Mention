@@ -11,8 +11,8 @@ export interface NoUpdatesIllustrationProps {
 // Primary accents mapped to app colors; strokes use app neutral
 export const NoUpdatesIllustration: React.FC<NoUpdatesIllustrationProps> = ({ width = 200, height = 200 }) => {
     const strokeNeutral = colors.COLOR_BLACK_LIGHT_2;
-    const accentA = '#005c67' + "15";
-    const accentB = '#005c67' + "99";
+    const accentA = colors.primaryColor + "15";
+    const accentB = colors.primaryColor + "99";
     const white = colors.primaryLight;
 
     return (

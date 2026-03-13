@@ -334,7 +334,7 @@ export default function SettingsScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={colors.text} />
+                            <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],
                 }}
@@ -412,7 +412,7 @@ export default function SettingsScreen() {
                         <View className="px-4 py-4 pt-[18px] flex-row items-center justify-between">
                             <View className="flex-row items-center flex-1">
                                 <View className="mr-3 items-center justify-center">
-                                    <LogoIcon size={20} color={colors.primary} />
+                                    <LogoIcon size={20} className="text-primary" />
                                 </View>
                                 <View>
                                     <Text className="text-base font-medium mb-0.5 text-foreground">{t('settings.aboutMention.appName')}</Text>

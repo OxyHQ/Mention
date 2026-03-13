@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import PostSources from './PostSources';
@@ -14,7 +13,6 @@ interface PostSourcesSheetProps {
 }
 
 const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const hasSources = sources.length > 0;
@@ -23,7 +21,7 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
     <View className="flex-1 pb-6 bg-background">
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
         <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
-          <CloseIcon size={20} color={theme.colors.text} />
+          <CloseIcon size={20} className="text-foreground" />
         </IconButton>
         <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground" style={{ pointerEvents: 'none' }}>
           {t('post.sourcesSheet.title', { defaultValue: 'Sources' })}
