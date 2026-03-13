@@ -16,6 +16,7 @@ import {
   PostType,
   PostVisibility,
   HydratedPost,
+  SlicedFeedResponse,
 } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { io } from '../../server';
@@ -47,6 +48,7 @@ import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { threadSlicingService } from '../services/ThreadSlicingService';
 
 /**
  * Feed Controller
@@ -833,7 +835,7 @@ class FeedController {
         return scoreDiff;
       });
 
-      // Slice to limit + 1 before validation (ranked posts can be up to candidateLimit)
+      // Take enough posts for slicing (slices consume extra posts)
       let posts = sortedPosts.slice(0, limit + 1);
 
       // Filter out posts from blocked/muted users
@@ -842,50 +844,59 @@ class FeedController {
         posts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
       }
 
-      // Use FeedResponseBuilder for consistent response building
-      // Note: We need to handle privacy filtering separately as it's applied after transformation
-      const response = await FeedResponseBuilder.buildResponse({
-        posts,
-        limit,
-        previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
-        currentUserId
+      const hasMore = posts.length > limit;
+      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+
+      // Thread slicing: group self-threads and inject reply context
+      const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+        enableThreadGrouping: true,
+        enableReplyContext: true,
+        maxSliceSize: 3,
+        viewerId: currentUserId,
       });
 
-      // FINAL VERIFICATION: Log what we're sending to ensure no duplicates
-      const responseIds = response.items.map(p => p.id?.toString() || 'NO_ID');
-      const uniqueResponseIds = new Set(responseIds);
-      
-      logger.debug('📤 For You feed response', {
-        requestCursor: cursor ? (cursor.length > 50 ? cursor.substring(0, 50) + '...' : cursor) : 'none',
-        totalPosts: response.items.length,
-        uniqueIds: uniqueResponseIds.size,
-        hasMore: response.hasMore,
-        hasCursor: !!response.nextCursor,
-        firstPostId: responseIds[0] || 'none',
-        lastPostId: responseIds[responseIds.length - 1] || 'none'
+      // Batch-hydrate all posts across slices in one pass
+      const scopedOxy = createScopedOxyClient(req);
+      const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+        viewerId: currentUserId,
+        oxyClient: scopedOxy,
+        maxDepth: 0,
+        includeLinkMetadata: true,
+        includeFullArticleBody: false,
+        includeFullMetadata: false,
       });
-      
-      if (responseIds.length !== uniqueResponseIds.size) {
-        const duplicates = responseIds.filter((id, idx) => responseIds.indexOf(id) !== idx);
-        logger.error('🚨 CRITICAL: Backend sending duplicate IDs', [...new Set(duplicates)]);
+
+      // Build score-based cursor from last slice's anchor post
+      let sliceCursor: string | undefined;
+      if (hydratedSlices.length > 0 && hasMore) {
+        const lastSlice = hydratedSlices[hydratedSlices.length - 1];
+        const anchorPost = lastSlice.items[0]?.post;
+        const rawAnchor = postsToReturn.find(p => p._id?.toString() === anchorPost?.id);
+        if (rawAnchor) {
+          const score = (rawAnchor as any).finalScore ?? 0;
+          sliceCursor = `${score.toFixed(6)}:${rawAnchor._id.toString()}`;
+        }
       }
+
+      const response = FeedResponseBuilder.buildSlicedResponse({
+        slices: hydratedSlices,
+        limit,
+        previousCursor: cursor,
+        cursorFromLastSlice: sliceCursor,
+        hasMore,
+      });
 
       res.json(response);
 
       // Mark returned posts as seen in Redis (async, non-blocking)
-      // This prevents these posts from appearing in future pagination requests
-      // Industry-standard approach: track seen posts server-side, not in cursor
       if (currentUserId && response.items.length > 0) {
         const postIdsToMark = response.items
           .map((post: any) => post.id?.toString())
           .filter((id: string | undefined): id is string => !!id && id !== 'undefined' && id !== 'null');
-        
+
         if (postIdsToMark.length > 0) {
-          // Mark as seen asynchronously (don't block response)
           feedSeenPostsService.markPostsAsSeen(currentUserId, postIdsToMark)
             .catch(error => {
-              // Log but don't fail - seen posts tracking is best-effort
               logger.warn('Failed to mark posts as seen (non-critical)', error);
             });
         }
@@ -942,17 +953,20 @@ class FeedController {
       }
 
       // Use FeedQueryBuilder for consistent query building
+      // Replies now flow through (no parentPostId filter) for thread slicing
       const query = FeedQueryBuilder.buildFollowingQuery(followingIds, cursor, federatedActorIds);
 
+      // Overfetch to compensate for multi-post slices consuming extra positions
+      const overfetchLimit = Math.ceil(limit * 1.5) + 1;
       let posts = await Post.find(query)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
-        .limit(limit + 1)
+        .limit(overfetchLimit)
         .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
 
       // Validate result size
-      validateResultSize(posts, limit + 1);
+      validateResultSize(posts, overfetchLimit);
 
       // Filter out posts from blocked/muted users
       if (currentUserId) {
@@ -960,13 +974,33 @@ class FeedController {
         posts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
       }
 
-      // Use FeedResponseBuilder for consistent response building
-      const response = await FeedResponseBuilder.buildResponse({
-        posts,
+      const hasMore = posts.length > limit;
+      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+
+      // Thread slicing: group self-threads and inject reply context
+      const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+        enableThreadGrouping: true,
+        enableReplyContext: true,
+        maxSliceSize: 3,
+        viewerId: currentUserId,
+      });
+
+      // Batch-hydrate all posts across slices in one pass
+      const scopedOxy = createScopedOxyClient(req);
+      const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+        viewerId: currentUserId,
+        oxyClient: scopedOxy,
+        maxDepth: 0,
+        includeLinkMetadata: true,
+        includeFullArticleBody: false,
+        includeFullMetadata: false,
+      });
+
+      const response = FeedResponseBuilder.buildSlicedResponse({
+        slices: hydratedSlices,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
-        currentUserId
+        hasMore,
       });
 
       res.json(response);
@@ -1099,13 +1133,33 @@ class FeedController {
         filteredPosts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
       }
 
-      // Use FeedResponseBuilder for consistent response building
-      const response = await FeedResponseBuilder.buildResponse({
-        posts: filteredPosts,
+      const hasMore = filteredPosts.length > limit;
+      const postsToReturn = hasMore ? filteredPosts.slice(0, limit) : filteredPosts;
+
+      // Thread slicing: self-thread grouping only (no reply context for explore)
+      const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+        enableThreadGrouping: true,
+        enableReplyContext: false,
+        maxSliceSize: 3,
+        viewerId: currentUserId,
+      });
+
+      // Batch-hydrate all posts across slices in one pass
+      const scopedOxy = createScopedOxyClient(req);
+      const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+        viewerId: currentUserId,
+        oxyClient: scopedOxy,
+        maxDepth: 0,
+        includeLinkMetadata: true,
+        includeFullArticleBody: false,
+        includeFullMetadata: false,
+      });
+
+      const response = FeedResponseBuilder.buildSlicedResponse({
+        slices: hydratedSlices,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
-        currentUserId
+        hasMore,
       });
 
       res.json(response);

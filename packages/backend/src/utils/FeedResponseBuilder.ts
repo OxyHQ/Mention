@@ -3,7 +3,7 @@
  * Centralized response building with consistent error handling and cursor management
  */
 
-import { FeedResponse, HydratedPost } from '@mention/shared-types';
+import { FeedResponse, FeedPostSlice, HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { buildFeedCursor, validateCursorAdvanced, deduplicatePosts, validateResultSize } from './feedUtils';
 import { logger } from './logger';
@@ -131,6 +131,65 @@ export class FeedResponseBuilder {
     });
 
     return response;
+  }
+
+  /**
+   * Build sliced feed response from hydrated slices.
+   * Populates both `slices` (for new clients) and `items` (backward compat).
+   */
+  static buildSlicedResponse(options: {
+    slices: FeedPostSlice[];
+    limit: number;
+    previousCursor?: string;
+    cursorFromLastSlice?: string;
+    hasMore?: boolean; // caller-provided hasMore (from post overfetch check)
+  }): SlicedFeedResponse {
+    const { slices, limit, previousCursor, cursorFromLastSlice } = options;
+
+    // hasMore is determined by the caller (who checks post count vs overfetch),
+    // not by comparing slice count to post limit (they measure different things).
+    const hasMore = options.hasMore ?? slices.length > limit;
+    const slicesToReturn = slices;
+
+    // Flatten slices into items for backward compatibility
+    const items: HydratedPost[] = [];
+    for (const slice of slicesToReturn) {
+      for (const item of slice.items) {
+        items.push(item.post as HydratedPost);
+      }
+    }
+
+    // Calculate cursor from last slice's anchor post (first post in the slice)
+    let nextCursor: string | undefined;
+    if (slicesToReturn.length > 0 && hasMore) {
+      if (cursorFromLastSlice) {
+        nextCursor = cursorFromLastSlice;
+      } else {
+        // Default: use last slice's first post ID as cursor
+        const lastSlice = slicesToReturn[slicesToReturn.length - 1];
+        const anchorPost = lastSlice.items[0]?.post;
+        if (anchorPost?.id) {
+          nextCursor = anchorPost.id;
+        }
+      }
+
+      // Validate cursor advanced
+      if (previousCursor && nextCursor && !validateCursorAdvanced(nextCursor, previousCursor)) {
+        logger.warn('[FeedResponseBuilder] Sliced cursor did not advance', {
+          previousCursor,
+          nextCursor,
+        });
+        nextCursor = undefined;
+      }
+    }
+
+    return {
+      slices: slicesToReturn,
+      items,
+      hasMore: slicesToReturn.length >= limit && nextCursor !== undefined,
+      nextCursor,
+      totalCount: items.length,
+    };
   }
 
   /**

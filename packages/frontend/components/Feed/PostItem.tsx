@@ -46,6 +46,9 @@ interface PostItemProps {
     style?: object;
     onReply?: () => void;
     nestingDepth?: number;
+    isThreadParent?: boolean;
+    isThreadChild?: boolean;
+    isThreadLastChild?: boolean;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -55,6 +58,9 @@ const PostItem: React.FC<PostItemProps> = ({
     style,
     onReply,
     nestingDepth = 0,
+    isThreadParent = false,
+    isThreadChild = false,
+    isThreadLastChild = false,
 }) => {
     const { oxyServices } = useAuth();
     const theme = useTheme();
@@ -341,6 +347,10 @@ const PostItem: React.FC<PostItemProps> = ({
         ? `${postAuthor}: ${postTextSummary}`
         : `Post by ${postAuthor}`;
 
+    // Thread line positioning: center of avatar column
+    const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1; // 31px
+    const THREAD_LINE_WIDTH = 2;
+
     return (
         <>
             <Container
@@ -352,12 +362,44 @@ const PostItem: React.FC<PostItemProps> = ({
                         paddingBottom: VPAD,
                     },
                     isNested && [styles.nestedPostContainer, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }],
+                    // Thread spacing adjustments
+                    isThreadParent && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
+                    isThreadChild && !isThreadLastChild && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
+                    isThreadChild && !isNested && { paddingTop: 0 },
                     style,
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
                 accessibilityRole={isPostDetail ? undefined : 'button'}
                 {...(isPostDetail ? {} : { onPress: goToPost })}
             >
+                {/* Thread line above avatar — connects from previous post's bottom */}
+                {isThreadChild && !isNested && (
+                    <View
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: THREAD_LINE_LEFT,
+                            width: THREAD_LINE_WIDTH,
+                            height: VPAD,
+                            backgroundColor: theme.colors.border,
+                            zIndex: 1,
+                        }}
+                    />
+                )}
+                {/* Thread line below avatar — connects to next post's top */}
+                {isThreadParent && !isNested && (
+                    <View
+                        style={{
+                            position: 'absolute',
+                            top: VPAD + AVATAR_SIZE,
+                            left: THREAD_LINE_LEFT,
+                            width: THREAD_LINE_WIDTH,
+                            bottom: 0,
+                            backgroundColor: theme.colors.border,
+                            zIndex: 1,
+                        }}
+                    />
+                )}
                 {showPinned && (
                     <View style={[styles.pinnedIndicator, { paddingLeft: HPAD }]}>
                         <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
@@ -658,7 +700,10 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prev?.engagement?.replies === next?.engagement?.replies &&
         prev?.metadata?.updatedAt === next?.metadata?.updatedAt &&
         prevProps.isNested === nextProps.isNested &&
-        prevProps.nestingDepth === nextProps.nestingDepth
+        prevProps.nestingDepth === nextProps.nestingDepth &&
+        prevProps.isThreadParent === nextProps.isThreadParent &&
+        prevProps.isThreadChild === nextProps.isThreadChild &&
+        prevProps.isThreadLastChild === nextProps.isThreadLastChild
     );
 });
 

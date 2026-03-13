@@ -206,6 +206,9 @@ export class FeedRankingService {
       context.behaviorSets
     ));
 
+    // Thread boost: thread roots with replies get a bump (encourages thread engagement)
+    const threadBoost = safe(this.calculateThreadBoost(post));
+
     // Combine all scores (each sub-score is already guarded)
     const finalScore = engagementScore
       * recencyScore
@@ -214,6 +217,7 @@ export class FeedRankingService {
       * qualityScore
       * trendingBoost
       * timeOfDayScore
+      * threadBoost
       * diversityPenalty
       * negativePenalty;
 
@@ -471,6 +475,21 @@ export class FeedRankingService {
   }
 
   /**
+   * Calculate thread boost for thread root posts with replies.
+   * Thread roots that sparked conversation are more valuable feed items,
+   * especially since they'll be displayed as grouped slices.
+   */
+  private calculateThreadBoost(post: any): number {
+    const hasThread = post.threadId && !post.parentPostId;
+    const hasReplies = (post.stats?.commentsCount || 0) > 0;
+
+    if (hasThread && hasReplies) {
+      return 1.1; // 10% boost for thread roots with conversation
+    }
+    return 1.0;
+  }
+
+  /**
    * Calculate time-of-day relevance score
    * Boosts posts created during user's active hours
    */
@@ -688,26 +707,41 @@ export class FeedRankingService {
     );
 
     // Apply diversity penalty sequentially — each post's penalty depends on previously seen authors/topics
+    // Per-slice awareness: posts that will be grouped into the same thread slice
+    // (same threadId + same oxyUserId) only penalize once for their author
     const recentAuthorsSet = new Set<string>();
     const recentTopicsSet = new Set<string>();
+    const penalizedThreadIds = new Set<string>();
     const safe = (v: number, fallback: number = 1) => Number.isFinite(v) ? v : fallback;
 
     const postsWithScores = postsWithBaseScores.map((item) => {
-      const diversityPenalty = safe(this.calculateDiversityPenalty(
-        item.post,
-        recentAuthorsSet,
-        recentTopicsSet,
-        context.feedSettings?.diversity
-      ));
+      // For thread children by the same author, skip diversity penalty
+      // if the thread root was already counted (they'll appear in the same slice)
+      const threadKey = item.post.threadId && item.post.oxyUserId
+        ? `${item.post.threadId}:${item.post.oxyUserId}`
+        : null;
+      const isAlreadyPenalizedThread = threadKey && penalizedThreadIds.has(threadKey);
+
+      const diversityPenalty = isAlreadyPenalizedThread
+        ? 1.0 // Skip penalty — this post will be grouped with its thread root
+        : safe(this.calculateDiversityPenalty(
+            item.post,
+            recentAuthorsSet,
+            recentTopicsSet,
+            context.feedSettings?.diversity
+          ));
 
       // Track this post's author/topics for subsequent posts
-      if (item.post.oxyUserId) {
+      if (item.post.oxyUserId && !isAlreadyPenalizedThread) {
         recentAuthorsSet.add(item.post.oxyUserId);
       }
-      if (item.post.hashtags) {
+      if (item.post.hashtags && !isAlreadyPenalizedThread) {
         item.post.hashtags.forEach((tag: string) => {
           recentTopicsSet.add(tag.toLowerCase());
         });
+      }
+      if (threadKey) {
+        penalizedThreadIds.add(threadKey);
       }
 
       return { ...item, score: item.score * diversityPenalty };

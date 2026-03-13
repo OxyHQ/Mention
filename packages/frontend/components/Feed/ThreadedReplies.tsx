@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import PostItem from './PostItem';
 import { PostErrorBoundary } from './PostErrorBoundary';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 
 const MAX_NESTING_DEPTH = 3;
@@ -62,7 +61,6 @@ const ThreadedReplyNode: React.FC<{
     depth: number;
     onReply?: () => void;
 }> = ({ node, depth, onReply }) => {
-    const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
 
@@ -76,7 +74,7 @@ const ThreadedReplyNode: React.FC<{
     return (
         <View style={depth > 0 ? styles.nestedContainer : undefined}>
             {depth > 0 && (
-                <View style={[styles.threadLine, { backgroundColor: theme.colors.border }]} />
+                <View className="bg-border" style={styles.threadLine} />
             )}
             <View style={depth > 0 ? { paddingLeft: 16 } : undefined}>
                 <PostErrorBoundary postId={node.reply.id || node.reply._id}>
@@ -90,7 +88,7 @@ const ThreadedReplyNode: React.FC<{
                     onPress={handleShowMore}
                     activeOpacity={0.7}
                 >
-                    <Text style={[styles.showMoreText, { color: theme.colors.primary }]}>
+                    <Text className="text-primary" style={styles.showMoreText}>
                         {t('Show more replies', { defaultValue: 'Show more replies' })} ({node.children.length})
                     </Text>
                 </TouchableOpacity>

@@ -29,13 +29,14 @@ export const FeedFooter = memo<FeedFooterProps>(
         // Show sign-in prompt for unauthenticated users at the end of the feed
         if (!isAuthenticated && hasItems && !showOnlySaved) {
             return (
-                <TouchableOpacity 
-                    style={[styles.signInFooter, { borderTopColor: theme.colors.border }]}
+                <TouchableOpacity
+                    className="border-border"
+                    style={styles.signInFooter}
                     onPress={handleSignIn}
                     activeOpacity={0.7}
                 >
                     <Ionicons name="lock-closed-outline" size={20} color={theme.colors.primary} />
-                    <Text style={[styles.signInText, { color: theme.colors.text }]}>
+                    <Text className="text-foreground" style={styles.signInText}>
                         Sign in to see more
                     </Text>
                     <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />

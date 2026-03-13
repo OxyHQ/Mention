@@ -1,7 +1,5 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
-import { flattenStyleArray } from '@/utils/theme';
 
 interface FeedHeaderProps {
     showComposeButton?: boolean;
@@ -15,24 +13,13 @@ interface FeedHeaderProps {
  */
 export const FeedHeader = memo<FeedHeaderProps>(
     ({ showComposeButton, onComposePress, hideHeader }) => {
-        const theme = useTheme();
-
         if (!showComposeButton || hideHeader) return null;
 
         return (
-            <View
-                style={flattenStyleArray([
-                    { backgroundColor: theme.colors.background },
-                ])}
-            >
+            <View className="bg-background">
                 <TouchableOpacity
-                    style={flattenStyleArray([
-                        styles.composeButton,
-                        {
-                            backgroundColor: theme.colors.backgroundSecondary,
-                            borderColor: theme.colors.border,
-                        },
-                    ])}
+                    className="bg-surface border-border"
+                    style={styles.composeButton}
                     onPress={onComposePress}
                     activeOpacity={0.7}
                     accessible={true}
@@ -41,10 +28,8 @@ export const FeedHeader = memo<FeedHeaderProps>(
                     accessibilityHint="Opens the compose screen to create a new post"
                 >
                     <Text
-                        style={flattenStyleArray([
-                            styles.composeButtonText,
-                            { color: theme.colors.textSecondary },
-                        ])}
+                        className="text-muted-foreground"
+                        style={styles.composeButtonText}
                     >
                         What&apos;s happening?
                     </Text>

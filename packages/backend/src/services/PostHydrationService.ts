@@ -1,4 +1,5 @@
-import { HydratedPost, HydratedPostSummary, HydratedRepostContext, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedRepostContext, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState } from '@mention/shared-types';
+import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -8,6 +9,7 @@ import { oxy as defaultOxyClient } from '../../server';
 import { linkMetadataService } from './linkMetadataService';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
+import { assignThreadState } from './ThreadSlicingService';
 
 interface HydrationOptions {
   viewerId?: string;
@@ -74,16 +76,20 @@ export class PostHydrationService {
 
     await this.populateViewerInteractions(postIds, viewerContext);
 
+    // Pre-collect replier user IDs so we can batch them into the main user fetch
+    const replierAggResult = await this.aggregateRecentReplierIds(postIds);
+
     const pollMap = await this.buildPollMap(postsForHydration);
-    const userMap = await this.buildUserMap(postsForHydration);
+    const userMap = await this.buildUserMap(postsForHydration, replierAggResult.allReplierIds);
     const mentionCache: Map<string, PostActorSummary> = new Map(userMap);
-    const authorPrivacyMap = await this.buildAuthorPrivacyMap(postsForHydration);
+    const authorPrivacyMap = await this.buildAuthorPrivacyMap(postsForHydration, viewerContext);
 
     const linkPreviewMap = options.includeLinkMetadata !== false
       ? await this.buildLinkPreviewMap(postsForHydration)
       : new Map<string, PostLinkPreview>();
 
-    const recentReplierMap = await this.buildRecentReplierAvatarsMap(postIds, userMap);
+    // Build replier avatar map using the already-populated userMap (no extra fetches)
+    const recentReplierMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, userMap);
 
     const summaryMap = new Map<string, HydratedPostSummary>();
 
@@ -121,6 +127,80 @@ export class PostHydrationService {
     return hydratedResults;
   }
 
+  /**
+   * Hydrate all posts across multiple slices in a single batch,
+   * then reconstruct slices with hydrated data.
+   * This prevents per-slice hydration overhead (N+1 at the slice level).
+   */
+  async hydrateSlices(
+    slices: FeedPostSlice[],
+    options: HydrationOptions = {}
+  ): Promise<FeedPostSlice[]> {
+    if (slices.length === 0) return [];
+
+    // Collect ALL posts from ALL slices into a flat array for batch hydration
+    const allRawPosts: any[] = [];
+    const postIdToSlicePositions = new Map<string, Array<{ sliceIdx: number; itemIdx: number }>>();
+
+    for (let si = 0; si < slices.length; si++) {
+      for (let ii = 0; ii < slices[si].items.length; ii++) {
+        const rawPost = slices[si].items[ii].post;
+        const postId = rawPost?.id || (rawPost as any)?._id?.toString() || '';
+        if (!postId) continue;
+
+        allRawPosts.push(rawPost);
+        if (!postIdToSlicePositions.has(postId)) {
+          postIdToSlicePositions.set(postId, []);
+        }
+        postIdToSlicePositions.get(postId)!.push({ sliceIdx: si, itemIdx: ii });
+      }
+    }
+
+    // Hydrate all posts in one batch
+    const hydratedPosts = await this.hydratePosts(allRawPosts, options);
+
+    // Build lookup: postId → HydratedPost
+    const hydratedMap = new Map<string, HydratedPost>();
+    for (const hp of hydratedPosts) {
+      hydratedMap.set(hp.id, hp);
+    }
+
+    // Reconstruct slices with hydrated data
+    const result: FeedPostSlice[] = [];
+    for (const slice of slices) {
+      const hydratedItems: FeedSliceItem[] = [];
+      for (const item of slice.items) {
+        const postId = item.post?.id || (item.post as any)?._id?.toString() || '';
+        const hydrated = hydratedMap.get(postId);
+        if (hydrated) {
+          hydratedItems.push({
+            ...item,
+            post: hydrated,
+          });
+        }
+      }
+
+      // Only include slices that have at least one hydrated item
+      if (hydratedItems.length > 0) {
+        // Recalculate thread state after filtering (items may have been dropped)
+        const recalculated = assignThreadState(hydratedItems);
+
+        // Recompute slice key only if items were dropped during hydration
+        const sliceKey = hydratedItems.length === slice.items.length
+          ? slice._sliceKey
+          : recalculated.map((i) => i.post.id).join('+');
+
+        result.push({
+          ...slice,
+          _sliceKey: sliceKey,
+          items: recalculated,
+        });
+      }
+    }
+
+    return result;
+  }
+
   private async buildViewerContext(posts: any[], viewerId?: string, options?: HydrationOptions): Promise<ViewerContext & { includeFullArticleBody?: boolean; includeFullMetadata?: boolean }> {
     const context: ViewerContext & { includeFullArticleBody?: boolean; includeFullMetadata?: boolean } = {
       viewerId,
@@ -142,16 +222,44 @@ export class PostHydrationService {
       new Set(posts.map((p) => p?.oxyUserId).filter(Boolean).map((id) => String(id))),
     );
 
-    // Load profile visibility settings for all authors (works for both authenticated and unauthenticated)
+    // Load ALL author settings in one query (profile visibility + engagement privacy)
+    // This avoids a separate query in buildAuthorPrivacyMap
     if (authorIds.length > 0) {
       try {
-        const privacySettings = await UserSettings.find({
+        const allAuthorSettings = await UserSettings.find({
           oxyUserId: { $in: authorIds },
-          'privacy.profileVisibility': { $in: ['private', 'followers_only'] },
         }).lean();
-        privacySettings.forEach((s) => context.privateProfileIds.add(String(s.oxyUserId)));
+
+        // Pre-populate author privacy map for reuse in buildAuthorPrivacyMap
+        const authorPrivacyCache = new Map<string, typeof DEFAULT_PRIVACY>();
+        for (const s of allAuthorSettings) {
+          const authorId = String(s.oxyUserId);
+
+          // Track private profiles
+          const vis = (s as any).privacy?.profileVisibility;
+          if (vis === 'private' || vis === 'followers_only') {
+            context.privateProfileIds.add(authorId);
+          }
+
+          // Cache engagement privacy for buildAuthorPrivacyMap
+          authorPrivacyCache.set(authorId, {
+            hideLikeCounts: Boolean((s as any).privacy?.hideLikeCounts),
+            hideShareCounts: Boolean((s as any).privacy?.hideShareCounts),
+            hideReplyCounts: Boolean((s as any).privacy?.hideReplyCounts),
+            hideSaveCounts: Boolean((s as any).privacy?.hideSaveCounts),
+          });
+        }
+
+        // Set defaults for authors without settings
+        for (const authorId of authorIds) {
+          if (!authorPrivacyCache.has(authorId)) {
+            authorPrivacyCache.set(authorId, { ...DEFAULT_PRIVACY });
+          }
+        }
+
+        (context as any)._authorPrivacyCache = authorPrivacyCache;
       } catch (error) {
-        logger.warn('[PostHydration] Failed to load profile visibility settings:', error);
+        logger.warn('[PostHydration] Failed to load author settings:', error);
       }
     }
 
@@ -391,7 +499,10 @@ export class PostHydrationService {
     }
   }
 
-  private async buildUserMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostActorSummary>> {
+  private async buildUserMap(
+    nodes: HydratedGraphNode[],
+    extraLocalUserIds?: Set<string>,
+  ): Promise<Map<string, PostActorSummary>> {
     const userMap = new Map<string, PostActorSummary>();
 
     // Separate local users from federated actors
@@ -403,6 +514,13 @@ export class PostHydrationService {
         federatedActorIds.add(String((post as any).federatedActorId));
       } else if (post?.oxyUserId) {
         localUserIds.add(String(post.oxyUserId));
+      }
+    }
+
+    // Merge in extra user IDs (e.g., replier IDs) for batch fetching
+    if (extraLocalUserIds) {
+      for (const id of extraLocalUserIds) {
+        localUserIds.add(id);
       }
     }
 
@@ -555,7 +673,45 @@ export class PostHydrationService {
     return null;
   }
 
-  private async buildAuthorPrivacyMap(nodes: HydratedGraphNode[]): Promise<Map<string, typeof DEFAULT_PRIVACY>> {
+  private async buildAuthorPrivacyMap(
+    nodes: HydratedGraphNode[],
+    viewerContext?: ViewerContext,
+  ): Promise<Map<string, typeof DEFAULT_PRIVACY>> {
+    // Use pre-fetched cache from buildViewerContext if available
+    const cached = (viewerContext as any)?._authorPrivacyCache as Map<string, typeof DEFAULT_PRIVACY> | undefined;
+    if (cached && cached.size > 0) {
+      // Ensure all authors in current nodes are covered (some may be from depth>0 fetches)
+      const authorIds = Array.from(
+        new Set(nodes.map(({ post }) => post?.oxyUserId).filter(Boolean).map((id) => String(id))),
+      );
+      const missingIds = authorIds.filter((id) => !cached.has(id));
+      if (missingIds.length === 0) {
+        return cached;
+      }
+
+      // Fetch only missing authors
+      try {
+        const settings = await UserSettings.find({ oxyUserId: { $in: missingIds } }).lean();
+        for (const setting of settings) {
+          const authorId = String(setting.oxyUserId);
+          cached.set(authorId, {
+            hideLikeCounts: Boolean(setting.privacy?.hideLikeCounts),
+            hideShareCounts: Boolean(setting.privacy?.hideShareCounts),
+            hideReplyCounts: Boolean(setting.privacy?.hideReplyCounts),
+            hideSaveCounts: Boolean(setting.privacy?.hideSaveCounts),
+          });
+        }
+        for (const id of missingIds) {
+          if (!cached.has(id)) cached.set(id, { ...DEFAULT_PRIVACY });
+        }
+      } catch (error) {
+        logger.warn('[PostHydration] Failed to load missing author privacy settings:', error);
+        for (const id of missingIds) cached.set(id, { ...DEFAULT_PRIVACY });
+      }
+      return cached;
+    }
+
+    // Fallback: no cache available, fetch all
     const authorIds = Array.from(
       new Set(nodes.map(({ post }) => post?.oxyUserId).filter(Boolean).map((id) => String(id))),
     );
@@ -577,7 +733,6 @@ export class PostHydrationService {
         });
       });
 
-      // Set defaults for authors without settings
       authorIds.forEach((authorId) => {
         if (!privacyMap.has(authorId)) {
           privacyMap.set(authorId, { ...DEFAULT_PRIVACY });
@@ -585,13 +740,99 @@ export class PostHydrationService {
       });
     } catch (error) {
       logger.warn('[PostHydration] Failed to load author privacy settings:', error);
-      // Set defaults for all authors on error
       authorIds.forEach((authorId) => {
         privacyMap.set(authorId, { ...DEFAULT_PRIVACY });
       });
     }
 
     return privacyMap;
+  }
+
+  /**
+   * Phase 1: Aggregate replier user IDs without fetching their profiles.
+   * Returns both per-post replier arrays and a flat set of all IDs.
+   */
+  private async aggregateRecentReplierIds(postIds: string[]): Promise<{
+    perPostRepliers: Map<string, string[]>;
+    allReplierIds: Set<string>;
+  }> {
+    const perPostRepliers = new Map<string, string[]>();
+    const allReplierIds = new Set<string>();
+
+    if (postIds.length === 0) return { perPostRepliers, allReplierIds };
+
+    try {
+      const objectIds = postIds.map((id) => {
+        try { return new mongoose.Types.ObjectId(id); } catch { return id; }
+      });
+
+      // Use $push (preserves $sort order) then deduplicate via $reduce
+      const recentReplies = await Post.aggregate([
+        { $match: { parentPostId: { $in: objectIds } } },
+        { $sort: { createdAt: -1 } },
+        { $group: {
+          _id: '$parentPostId',
+          replierIds: { $push: '$oxyUserId' },
+        }},
+        { $project: {
+          _id: 1,
+          // Deduplicate while preserving recency order, then take first 3
+          replierIds: {
+            $slice: [
+              { $reduce: {
+                input: '$replierIds',
+                initialValue: [],
+                in: { $cond: [
+                  { $in: ['$$this', '$$value'] },
+                  '$$value',
+                  { $concatArrays: ['$$value', ['$$this']] },
+                ]},
+              }},
+              3,
+            ],
+          },
+        }},
+      ]);
+
+      for (const entry of recentReplies) {
+        const parentId = String(entry._id);
+        const ids = (entry.replierIds || []).map((id: any) => String(id));
+        perPostRepliers.set(parentId, ids);
+        for (const id of ids) {
+          allReplierIds.add(id);
+        }
+      }
+    } catch (error) {
+      logger.warn('[PostHydration] Failed to aggregate replier IDs:', error);
+    }
+
+    return { perPostRepliers, allReplierIds };
+  }
+
+  /**
+   * Phase 2: Build replier avatar map using the already-populated userMap.
+   * No additional user profile fetches needed.
+   */
+  private buildReplierAvatarsFromUserMap(
+    perPostRepliers: Map<string, string[]>,
+    userMap: Map<string, PostActorSummary>,
+  ): Map<string, string[]> {
+    const replierMap = new Map<string, string[]>();
+
+    for (const [parentId, replierIds] of perPostRepliers) {
+      const avatars: string[] = [];
+      for (const replierId of replierIds) {
+        const user = userMap.get(replierId);
+        if (user?.avatar) {
+          avatars.push(user.avatar);
+        }
+      }
+      if (avatars.length > 0) {
+        replierMap.set(parentId, avatars);
+      }
+    }
+
+    return replierMap;
   }
 
   private async buildRecentReplierAvatarsMap(
@@ -602,22 +843,34 @@ export class PostHydrationService {
     if (postIds.length === 0) return replierMap;
 
     try {
-      const mongoose = require('mongoose');
       const objectIds = postIds.map((id) => {
         try { return new mongoose.Types.ObjectId(id); } catch { return id; }
       });
 
-      // Find up to 3 recent unique repliers per post
+      // Find up to 3 recent unique repliers per post (preserving recency order)
       const recentReplies = await Post.aggregate([
         { $match: { parentPostId: { $in: objectIds } } },
         { $sort: { createdAt: -1 } },
         { $group: {
           _id: '$parentPostId',
-          replierIds: { $addToSet: '$oxyUserId' },
+          replierIds: { $push: '$oxyUserId' },
         }},
         { $project: {
           _id: 1,
-          replierIds: { $slice: ['$replierIds', 3] },
+          replierIds: {
+            $slice: [
+              { $reduce: {
+                input: '$replierIds',
+                initialValue: [],
+                in: { $cond: [
+                  { $in: ['$$this', '$$value'] },
+                  '$$value',
+                  { $concatArrays: ['$$value', ['$$this']] },
+                ]},
+              }},
+              3,
+            ],
+          },
         }},
       ]);
 

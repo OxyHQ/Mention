@@ -45,8 +45,12 @@ export {
   FeedStats, 
   CreateReplyRequest, 
   CreateRepostRequest, 
-  LikeRequest, 
-  UnlikeRequest 
+  LikeRequest,
+  UnlikeRequest,
+  FeedSliceItem,
+  FeedSliceReason,
+  FeedPostSlice,
+  SlicedFeedResponse,
 } from './feed';
 
 // Custom feeds (user-created timelines)

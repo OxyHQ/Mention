@@ -341,8 +341,11 @@ export class FeedQueryBuilder {
         ? orConditions[0]
         : { $or: orConditions }),
       visibility: PostVisibility.PUBLIC,
-      parentPostId: null,
-      repostOf: null,
+      // No parentPostId filter — replies flow through for thread slicing
+      // Exclude reposts (they are shown differently)
+      $and: [
+        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+      ],
     };
 
     const cursorId = parseFeedCursor(cursor);

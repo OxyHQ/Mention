@@ -43,7 +43,7 @@ export interface FeedItem {
 }
 
 export interface FeedResponse {
-  items: any[]; // HydratedPost[] - using any[] for flexibility during migration
+  items: any[]; // DomainPost[] - using any[] for flexibility during migration
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;
@@ -107,4 +107,33 @@ export interface ShareRequest {
   postId: string;
   type: 'post' | 'reply' | 'repost';
   platform?: 'twitter' | 'facebook' | 'linkedin' | 'copy';
-} 
+}
+
+// Thread slicing types for grouped feed rendering
+
+export interface FeedSliceItem {
+  post: DomainPost;
+  isThreadParent: boolean;
+  isThreadChild: boolean;
+  isThreadLastChild: boolean;
+}
+
+export type FeedSliceReason =
+  | { type: 'repost'; actor: PostActorSummary }
+  | { type: 'replyContext'; parentAuthor: PostActorSummary }
+  | { type: 'selfThread' };
+
+export interface FeedPostSlice {
+  _sliceKey: string;
+  items: FeedSliceItem[];
+  isIncompleteThread: boolean;
+  reason?: FeedSliceReason;
+}
+
+export interface SlicedFeedResponse {
+  slices: FeedPostSlice[];
+  items: DomainPost[]; // backward compat: flattened slices
+  hasMore: boolean;
+  nextCursor?: string;
+  totalCount: number;
+}

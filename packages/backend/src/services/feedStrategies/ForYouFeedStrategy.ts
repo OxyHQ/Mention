@@ -3,7 +3,7 @@
  * Personalized feed with ranking algorithm
  */
 
-import { FeedResponse } from '@mention/shared-types';
+import { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { AuthRequest } from '../../types/auth';
 import { Post } from '../../models/Post';
 import { feedRankingService } from '../FeedRankingService';
@@ -11,12 +11,14 @@ import { feedSeenPostsService } from '../FeedSeenPostsService';
 import { FeedQueryBuilder } from '../../utils/feedQueryBuilder';
 import { IFeedStrategy, FeedStrategyContext, FeedStrategyOptions } from './FeedStrategy';
 import { postHydrationService } from '../PostHydrationService';
+import { threadSlicingService } from '../ThreadSlicingService';
+import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
 export class ForYouFeedStrategy implements IFeedStrategy {
   private readonly FEED_FIELDS = '_id oxyUserId createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
-  private readonly RANKED_FEED_CANDIDATE_MULTIPLIER = 2;
+  private readonly RANKED_FEED_CANDIDATE_MULTIPLIER = 3;
   private readonly SCORE_EPSILON = 0.001;
 
   /**
@@ -58,11 +60,11 @@ export class ForYouFeedStrategy implements IFeedStrategy {
     req: AuthRequest,
     options: FeedStrategyOptions,
     context: FeedStrategyContext
-  ): Promise<FeedResponse> {
+  ): Promise<FeedResponse | SlicedFeedResponse> {
     const { cursor, limit } = options;
     const { currentUserId } = context;
 
-    // For unauthenticated users, return popular posts
+    // For unauthenticated users, return popular posts (flat response)
     if (!currentUserId) {
       return this.generatePopularFeed(cursor, limit);
     }
@@ -163,8 +165,16 @@ export class ForYouFeedStrategy implements IFeedStrategy {
       }
     }
 
-    // Transform posts
-    const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
+    // Slice posts into thread groups + reply context
+    const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+      enableThreadGrouping: true,
+      enableReplyContext: true,
+      maxSliceSize: 3,
+      viewerId: currentUserId,
+    });
+
+    // Hydrate all posts across slices in a single batch
+    const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
       viewerId: currentUserId,
       oxyClient: context.oxyClient,
       maxDepth: 0,
@@ -174,25 +184,42 @@ export class ForYouFeedStrategy implements IFeedStrategy {
     });
 
     // Mark posts as seen
-    if (transformedPosts.length > 0) {
-      const postIdsToMark = transformedPosts
-        .map(post => post.id?.toString())
-        .filter((id): id is string => !!id && id !== 'undefined' && id !== 'null');
-      
-      if (postIdsToMark.length > 0) {
-        feedSeenPostsService.markPostsAsSeen(currentUserId, postIdsToMark)
-          .catch(error => {
-            logger.warn('Failed to mark posts as seen (non-critical)', error);
-          });
+    const allPostIds: string[] = [];
+    for (const slice of hydratedSlices) {
+      for (const item of slice.items) {
+        const id = item.post?.id?.toString();
+        if (id && id !== 'undefined' && id !== 'null') {
+          allPostIds.push(id);
+        }
+      }
+    }
+    if (allPostIds.length > 0) {
+      feedSeenPostsService.markPostsAsSeen(currentUserId, allPostIds)
+        .catch(error => {
+          logger.warn('Failed to mark posts as seen (non-critical)', error);
+        });
+    }
+
+    // Build cursor from last slice's anchor post score
+    let sliceCursor: string | undefined;
+    if (hydratedSlices.length > 0 && hasMore) {
+      const lastSlice = hydratedSlices[hydratedSlices.length - 1];
+      const anchorPost = lastSlice.items[0]?.post;
+      // Use the score stored on the raw post for score-based cursor
+      const rawAnchor = postsToReturn.find(p => p._id?.toString() === anchorPost?.id);
+      if (rawAnchor) {
+        const score = (rawAnchor as any).finalScore ?? 0;
+        sliceCursor = this.buildCursor(score, rawAnchor._id.toString());
       }
     }
 
-    return {
-      items: transformedPosts,
-      hasMore: transformedPosts.length >= limit && nextCursor !== undefined,
-      nextCursor,
-      totalCount: transformedPosts.length
-    };
+    return FeedResponseBuilder.buildSlicedResponse({
+      slices: hydratedSlices,
+      limit,
+      previousCursor: cursor,
+      cursorFromLastSlice: sliceCursor,
+      hasMore,
+    });
   }
 
   private async generatePopularFeed(cursor?: string, limit: number = 20): Promise<FeedResponse> {

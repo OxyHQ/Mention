@@ -3,11 +3,13 @@
  * Shows trending/popular content for discovery - posts from users the current user doesn't follow
  */
 
-import { FeedResponse } from '@mention/shared-types';
+import { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { AuthRequest } from '../../types/auth';
 import { Post } from '../../models/Post';
 import { IFeedStrategy, FeedStrategyContext, FeedStrategyOptions } from './FeedStrategy';
 import { postHydrationService } from '../PostHydrationService';
+import { threadSlicingService } from '../ThreadSlicingService';
+import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
@@ -24,7 +26,7 @@ export class ExploreFeedStrategy implements IFeedStrategy {
     req: AuthRequest,
     options: FeedStrategyOptions,
     context: FeedStrategyContext
-  ): Promise<FeedResponse> {
+  ): Promise<SlicedFeedResponse> {
     const { cursor, limit } = options;
     const { currentUserId, followingIds } = context;
 
@@ -167,8 +169,16 @@ export class ExploreFeedStrategy implements IFeedStrategy {
       }
     }
 
-    // Hydrate posts
-    const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
+    // Slice posts: self-thread grouping only (no reply context for explore)
+    const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+      enableThreadGrouping: true,
+      enableReplyContext: false,
+      maxSliceSize: 3,
+      viewerId: currentUserId,
+    });
+
+    // Hydrate all posts across slices in a single batch
+    const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
       viewerId: currentUserId,
       oxyClient: context.oxyClient,
       maxDepth: 0,
@@ -177,11 +187,12 @@ export class ExploreFeedStrategy implements IFeedStrategy {
       includeFullMetadata: false,
     });
 
-    return {
-      items: transformedPosts,
-      hasMore: transformedPosts.length >= limit && nextCursor !== undefined,
-      nextCursor,
-      totalCount: transformedPosts.length
-    };
+    return FeedResponseBuilder.buildSlicedResponse({
+      slices: hydratedSlices,
+      limit,
+      previousCursor: cursor,
+      cursorFromLastSlice: nextCursor,
+      hasMore,
+    });
   }
 }

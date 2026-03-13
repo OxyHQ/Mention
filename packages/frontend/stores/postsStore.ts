@@ -14,6 +14,7 @@ import {
   HydratedPostSummary,
   PostAttachmentBundle,
   PostEngagementSummary,
+  FeedPostSlice,
 } from '@mention/shared-types';
 import { feedService } from '../services/feedService';
 import { useUsersStore } from './usersStore';
@@ -40,6 +41,7 @@ type FeedItem = HydratedPost & {
 interface FeedState {
   feeds: Record<FeedType, {
     items: FeedItem[];
+    slices?: FeedPostSlice[];
     hasMore: boolean;
     nextCursor?: string;
     totalCount: number;
@@ -51,6 +53,7 @@ interface FeedState {
   
   userFeeds: Record<string, Record<FeedType, {
     items: FeedItem[];
+    slices?: FeedPostSlice[];
     hasMore: boolean;
     nextCursor?: string;
     totalCount: number;
@@ -494,6 +497,7 @@ export const usePostsStore = create<FeedState>()(
           // Merging is handled by loadMoreFeed for pagination
           const updatedFeed = {
             items: uniqueItems,
+            slices: response.slices || undefined,
             hasMore: response.hasMore || false,
             nextCursor: response.nextCursor,
             totalCount: uniqueItems.length,
@@ -781,6 +785,7 @@ export const usePostsStore = create<FeedState>()(
               ...state.feeds,
               [type]: {
                 items: uniqueItems,
+                slices: response.slices || undefined,
                 hasMore: response.hasMore || false,
                 nextCursor: response.nextCursor,
                 totalCount: uniqueItems.length,
@@ -795,7 +800,7 @@ export const usePostsStore = create<FeedState>()(
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to refresh feed';
-        
+
         set(state => ({
           feeds: {
             ...state.feeds,
@@ -998,11 +1003,19 @@ export const usePostsStore = create<FeedState>()(
             }
           }
           
+          // Append new slices to existing slices (if present)
+          const existingSlices = currentFeedAfterAsync.slices || [];
+          const newSlices = response.slices || [];
+          const mergedSlices = newSlices.length > 0
+            ? [...existingSlices, ...newSlices]
+            : existingSlices.length > 0 ? existingSlices : undefined;
+
           return ({
             feeds: {
               ...state.feeds,
               [type]: {
                 items: finalItems,
+                slices: mergedSlices,
                 hasMore: response.hasMore || false,
                 nextCursor: response.nextCursor,
                 totalCount: finalItems.length,
@@ -1985,6 +1998,7 @@ export const useFeedSelector = (type: FeedType) => {
   const feed = usePostsStore(state => state.feeds[type]);
   return feed || {
     items: [],
+    slices: undefined,
     hasMore: true,
     nextCursor: undefined,
     totalCount: 0,
@@ -1999,6 +2013,7 @@ export const useUserFeedSelector = (userId: string, type: FeedType) => {
   const feed = usePostsStore(state => state.userFeeds[userId]?.[type]);
   return feed || {
     items: [],
+    slices: undefined,
     hasMore: true,
     nextCursor: undefined,
     totalCount: 0,

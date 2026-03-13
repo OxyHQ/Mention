@@ -3,7 +3,7 @@
  * Defines the contract for different feed generation strategies
  */
 
-import { FeedResponse } from '@mention/shared-types';
+import { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { AuthRequest } from '../../types/auth';
 import { OxyClient } from '../../utils/privacyHelpers';
 
@@ -26,14 +26,15 @@ export interface FeedStrategyOptions {
  */
 export interface IFeedStrategy {
   /**
-   * Generate feed for the strategy
+   * Generate feed for the strategy.
+   * May return SlicedFeedResponse (with slices) or plain FeedResponse (backward compat).
    */
   generateFeed(
     req: AuthRequest,
     options: FeedStrategyOptions,
     context: FeedStrategyContext
-  ): Promise<FeedResponse>;
-  
+  ): Promise<FeedResponse | SlicedFeedResponse>;
+
   /**
    * Get strategy name
    */

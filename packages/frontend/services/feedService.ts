@@ -1,7 +1,8 @@
 import {
-  FeedRequest, 
-  FeedResponse, 
-  CreateReplyRequest, 
+  FeedRequest,
+  FeedResponse,
+  SlicedFeedResponse,
+  CreateReplyRequest,
   CreateRepostRequest,
   CreatePostRequest,
   CreateThreadRequest,
@@ -9,6 +10,9 @@ import {
   UnlikeRequest,
   FeedType
 } from '@mention/shared-types';
+
+// Feed responses may include slices for thread grouping
+type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices'>>;
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
 import { logger } from '../utils/logger';
@@ -35,7 +39,7 @@ interface FeedServiceOptions {
 }
 
 interface CachedFeedResponse {
-  data: FeedResponse;
+  data: FeedServiceResponse;
   timestamp: number;
   expiresAt: number;
 }
@@ -65,14 +69,14 @@ setInterval(() => {
 }, 60000); // Clean up every minute
 
 // In-flight request deduplication
-const inFlightRequests = new Map<string, Promise<FeedResponse>>();
+const inFlightRequests = new Map<string, Promise<FeedServiceResponse>>();
 
 class FeedService {
   /**
    * Get feed data from backend using Oxy authenticated client
    * Includes client-side caching for 30 seconds to reduce redundant requests
    */
-  async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedResponse> {
+  async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedServiceResponse> {
       // Check cache first (only for non-cursor requests to avoid stale pagination)
       if (!request.cursor) {
         const cacheKey = getCacheKey(request);
@@ -239,7 +243,7 @@ class FeedService {
   /**
    * Get user profile feed
    */
-  async getUserFeed(userId: string, request: FeedRequest): Promise<FeedResponse> {
+  async getUserFeed(userId: string, request: FeedRequest): Promise<FeedServiceResponse> {
     const params: Record<string, unknown> = {};
 
     if (request.cursor) params.cursor = request.cursor;

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FeedType } from '@mention/shared-types';
+import { FeedType, FeedPostSlice } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 
 // FeedItem type matches what the store returns (UIPost-like structure)
@@ -77,11 +77,12 @@ export interface UseFeedStateOptions {
 export interface UseFeedStateReturn {
     // Feed data
     items: FeedItem[];
+    slices?: FeedPostSlice[];
     hasMore: boolean;
     isLoading: boolean;
     error: string | null;
     nextCursor?: string;
-    
+
     // Actions
     fetchInitial: (forceRefresh?: boolean) => Promise<void>;
     refresh: () => Promise<void>;
@@ -113,6 +114,7 @@ export function useFeedState({
 
     // Local state for scoped feeds
     const [localItems, setLocalItems] = useState<FeedItem[]>([]);
+    const [localSlices, setLocalSlices] = useState<FeedPostSlice[] | undefined>(undefined);
     const [localHasMore, setLocalHasMore] = useState<boolean>(true);
     const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(undefined);
     const [localLoading, setLocalLoading] = useState<boolean>(false);
@@ -217,6 +219,7 @@ export function useFeedState({
 
                     const uniqueItems = deduplicateItems(items, getItemKey);
                     setLocalItems(uniqueItems);
+                    setLocalSlices(resp.slices || undefined);
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
                 } else if (userId) {
@@ -300,6 +303,7 @@ export function useFeedState({
                 }
 
                 setLocalItems(deduplicateItems(items, getItemKey));
+                setLocalSlices(resp.slices || undefined);
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
             } else if (userId) {
@@ -381,6 +385,12 @@ export function useFeedState({
                     );
                     return prev.concat(uniqueNew);
                 });
+
+                // Append new slices
+                const newSlices = resp.slices;
+                if (newSlices && newSlices.length > 0) {
+                    setLocalSlices((prev) => prev ? [...prev, ...newSlices] : newSlices);
+                }
 
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
@@ -465,6 +475,7 @@ export function useFeedState({
 
     // Return appropriate state based on scoped vs global
     const items = useScoped ? localItems : globalFeed?.items || [];
+    const slices = useScoped ? localSlices : globalFeed?.slices;
     const hasMore = useScoped ? localHasMore : !!globalFeed?.hasMore;
     const isLoading = useScoped ? localLoading : !!globalFeed?.isLoading;
     const error = useScoped ? localError : globalFeed?.error || null;
@@ -472,6 +483,7 @@ export function useFeedState({
 
     return {
         items,
+        slices,
         hasMore,
         isLoading,
         error,

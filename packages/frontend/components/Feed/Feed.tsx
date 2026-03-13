@@ -4,20 +4,34 @@ import {
     View,
     RefreshControl,
     Platform,
+    Pressable,
+    Text,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { FeedType, UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
+import { FeedType, UIPost, Reply, FeedRepost as Repost, FeedPostSlice } from '@mention/shared-types';
 import PostItem from './PostItem';
 
 // Type alias for feed items (what PostItem expects)
 type FeedItem = UIPost | Reply | Repost;
+
+// Row type for FlashList with thread state
+interface FeedRow {
+    item: FeedItem;
+    sliceKey: string;
+    isThreadParent: boolean;
+    isThreadChild: boolean;
+    isThreadLastChild: boolean;
+    isIncompleteThread: boolean;
+}
 import ErrorBoundary from '../ErrorBoundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
+import { useRouter } from 'expo-router';
 import { createScopedLogger } from '@/utils/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
@@ -72,6 +86,7 @@ const Feed = memo((props: FeedProps) => {
     } = { ...DEFAULT_FEED_PROPS, ...props };
 
     const theme = useTheme();
+    const router = useRouter();
     const flatListRef = useRef<any>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -121,15 +136,43 @@ const Feed = memo((props: FeedProps) => {
         feedState.loadMore();
     }, [feedState.hasMore, feedState.isLoading, feedState.loadMore, isAuthenticated, signIn]);
 
-    // Process items with single-pass deduplication and sorting
-    const finalRenderItems = useDeepCompareMemo(() => {
+    // Transform slices (or items) into FeedRows with thread state
+    const feedRows = useDeepCompareMemo((): FeedRow[] => {
+        const slices = feedState.slices;
         const src = feedState.items;
+
+        // If we have slices, transform them into FeedRows with thread state
+        if (slices && slices.length > 0) {
+            const rows: FeedRow[] = [];
+            for (const slice of slices) {
+                for (let i = 0; i < slice.items.length; i++) {
+                    const sliceItem = slice.items[i];
+                    const post = sliceItem.post as FeedItem;
+                    if (!post || !(post as any).id) continue;
+
+                    // Privacy filter
+                    if (blockedSet.size > 0) {
+                        const authorId = extractAuthorId(post);
+                        if (authorId && blockedSet.has(authorId)) continue;
+                    }
+
+                    rows.push({
+                        item: post,
+                        sliceKey: slice._sliceKey,
+                        isThreadParent: i < slice.items.length - 1,
+                        isThreadChild: i > 0,
+                        isThreadLastChild: i === slice.items.length - 1 && i > 0,
+                        isIncompleteThread: slice.isIncompleteThread,
+                    });
+                }
+            }
+            return rows;
+        }
+
+        // Fallback: wrap flat items into single-post FeedRows (no thread state)
         if (src.length === 0) return [];
 
-        // Single deduplication pass using utility
         const deduped = deduplicateItems(src, getItemKey);
-
-        // Fast privacy filtering using Set lookup (O(1) vs O(n) function call)
         const filteredByPrivacy = blockedSet.size > 0
             ? deduped.filter((item) => {
                 const authorId = extractAuthorId(item);
@@ -137,7 +180,8 @@ const Feed = memo((props: FeedProps) => {
             })
             : deduped;
 
-        // Only apply sorting for 'for_you' feed if user is authenticated
+        // Sort recent user posts to top for for_you feed
+        let finalItems = filteredByPrivacy;
         const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
         if (effectiveType === 'for_you' && currentUser?.id && filteredByPrivacy.length > 0) {
             const now = Date.now();
@@ -145,7 +189,6 @@ const Feed = memo((props: FeedProps) => {
             const mineNow: Array<{ item: FeedItem; ts: number }> = [];
             const others: FeedItem[] = [];
 
-            // Single pass to separate items
             for (const item of filteredByPrivacy) {
                 const ownerId = (item as any)?.user?.id;
                 if ((item as any)?.isLocalNew || ownerId === currentUser.id) {
@@ -161,53 +204,81 @@ const Feed = memo((props: FeedProps) => {
                 }
             }
 
-            // Sort only if we have recent items from user
             if (mineNow.length > 0) {
                 mineNow.sort((a, b) => b.ts - a.ts);
-                return [...mineNow.map((x) => x.item), ...others];
+                finalItems = [...mineNow.map((x) => x.item), ...others];
             }
         }
 
-        return filteredByPrivacy;
-    }, [feedState.items, type, showOnlySaved, currentUser?.id, blockedSet]);
+        return finalItems.map((item) => ({
+            item,
+            sliceKey: getItemKey(item),
+            isThreadParent: false,
+            isThreadChild: false,
+            isThreadLastChild: false,
+            isIncompleteThread: false,
+        }));
+    }, [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet]);
 
     // Memoize renderPostItem to prevent recreating on every render
-    const renderPostItem = useCallback(({ item }: { item: FeedItem; index: number }) => {
-        // Validate item before rendering to prevent crashes
-        if (!item || !item.id) {
-            logger.warn('Invalid post item', item);
+    const renderPostItem = useCallback(({ item: row }: { item: FeedRow; index: number }) => {
+        const post = row.item;
+        if (!post || !post.id) {
+            logger.warn('Invalid post item', post);
             return null;
         }
 
-        // Wrap each post in an error boundary to prevent single malformed posts from crashing the feed
+        const showThreadLink = row.isIncompleteThread && row.isThreadLastChild;
+
         return (
-            <PostErrorBoundary postId={item.id}>
-                <PostItem post={item} />
+            <PostErrorBoundary postId={post.id}>
+                <PostItem
+                    post={post}
+                    isThreadParent={row.isThreadParent}
+                    isThreadChild={row.isThreadChild}
+                    isThreadLastChild={row.isThreadLastChild}
+                />
+                {showThreadLink && (
+                    <Pressable
+                        className="border-border"
+                        style={styles.showThreadLink}
+                        onPress={() => router.push(`/p/${post.id}`)}
+                    >
+                        <Text className="text-primary" style={styles.showThreadLinkText}>
+                            Show this thread
+                        </Text>
+                    </Pressable>
+                )}
             </PostErrorBoundary>
         );
+    }, [router]);
+
+    const keyExtractor = useCallback((row: FeedRow) => {
+        // Use sliceKey + item id for unique key within a slice
+        const itemId = getItemKey(row.item);
+        return row.sliceKey !== itemId ? `${row.sliceKey}:${itemId}` : itemId;
     }, []);
 
-    const keyExtractor = useCallback((item: FeedItem) => getItemKey(item), []);
-
     // CRITICAL: getItemType helps FlashList properly recycle components
-    const getItemType = useCallback((item: FeedItem) => {
-        // Return item type based on post structure to help FlashList recycle correctly
+    const getItemType = useCallback((row: FeedRow) => {
+        if (row.isThreadParent) return 'threadParent';
+        if (row.isThreadChild) return 'threadChild';
+        const item = row.item;
         if ((item as any)?.original || (item as any)?.repostOf) return 'repost';
         if ((item as any)?.quoted || (item as any)?.quoteOf) return 'quote';
         if ((item as any)?.parentPostId || (item as any)?.replyTo) return 'reply';
-        return 'post'; // Default type
+        return 'post';
     }, []);
 
     // Optimized data hash for FlashList extraData - only recalculate when items change
     const dataHash = useMemo(() => {
-        const count = finalRenderItems.length;
+        const count = feedRows.length;
         if (count === 0) return 'empty';
-        // Use first, middle, and last IDs for hash - faster than processing all items
-        const firstKey = getItemKey(finalRenderItems[0]);
-        const lastKey = getItemKey(finalRenderItems[count - 1]);
-        const midKey = count > 2 ? getItemKey(finalRenderItems[Math.floor(count / 2)]) : '';
+        const firstKey = getItemKey(feedRows[0].item);
+        const lastKey = getItemKey(feedRows[count - 1].item);
+        const midKey = count > 2 ? getItemKey(feedRows[Math.floor(count / 2)].item) : '';
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
-    }, [finalRenderItems]);
+    }, [feedRows]);
 
     // Register scrollable with LayoutScrollContext
     const clearScrollableRegistration = useCallback(() => {
@@ -272,8 +343,8 @@ const Feed = memo((props: FeedProps) => {
 
     // Memoize container style
     const containerStyle = useMemo(
-        () => flattenStyleArray([styles.container, { backgroundColor: theme.colors.background }]),
-        [theme.colors.background]
+        () => flattenStyleArray([styles.container]),
+        []
     );
 
     // Memoize list content style
@@ -281,10 +352,9 @@ const Feed = memo((props: FeedProps) => {
         () =>
             flattenStyleArray([
                 styles.listContent,
-                { backgroundColor: theme.colors.background },
                 contentContainerStyle,
             ]),
-        [theme.colors.background, contentContainerStyle]
+        [contentContainerStyle]
     );
 
     // Memoize list style
@@ -292,10 +362,9 @@ const Feed = memo((props: FeedProps) => {
         () =>
             flattenStyleArray([
                 styles.list,
-                { backgroundColor: theme.colors.background },
                 style,
             ]),
-        [theme.colors.background, style]
+        [style]
     );
 
     // Memoize header component
@@ -319,20 +388,20 @@ const Feed = memo((props: FeedProps) => {
             <FeedEmptyState
                 isLoading={feedState.isLoading}
                 error={feedState.error}
-                hasItems={finalRenderItems.length > 0}
+                hasItems={feedRows.length > 0}
                 type={type}
                 showOnlySaved={showOnlySaved}
                 onRetry={handleRetry}
             />
         ),
-        [feedState.isLoading, feedState.error, finalRenderItems.length, type, showOnlySaved, handleRetry]
+        [feedState.isLoading, feedState.error, feedRows.length, type, showOnlySaved, handleRetry]
     );
 
     // Track if we're loading more (loading while we already have items)
-    const isLoadingMore = feedState.isLoading && finalRenderItems.length > 0;
+    const isLoadingMore = feedState.isLoading && feedRows.length > 0;
 
     // Show footer for loading more or sign-in prompt for unauthenticated users
-    const showFooter = isLoadingMore || (!isAuthenticated && finalRenderItems.length > 0);
+    const showFooter = isLoadingMore || (!isAuthenticated && feedRows.length > 0);
 
     const footerComponent = useMemo(
         () => (
@@ -340,26 +409,27 @@ const Feed = memo((props: FeedProps) => {
                 showOnlySaved={showOnlySaved}
                 hasMore={feedState.hasMore}
                 isLoadingMore={isLoadingMore}
-                hasItems={finalRenderItems.length > 0}
+                hasItems={feedRows.length > 0}
             />
         ),
-        [showOnlySaved, feedState.hasMore, isLoadingMore, finalRenderItems.length]
+        [showOnlySaved, feedState.hasMore, isLoadingMore, feedRows.length]
     );
 
     return (
         <ErrorBoundary>
             <View
+                className="bg-background"
                 style={containerStyle}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
-                {feedState.isLoading && !refreshing && !isLoadingMore && finalRenderItems.length === 0 ? (
+                {feedState.isLoading && !refreshing && !isLoadingMore && feedRows.length === 0 ? (
                     <View style={styles.initialLoadingContainer}>
                         <LoadingIcon size={44} color={theme.colors.primary} />
                     </View>
                 ) : null}
                 <FlashList
                     ref={assignListRef}
-                    data={finalRenderItems}
+                    data={feedRows}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemType={getItemType}
@@ -443,5 +513,15 @@ const styles = StyleSheet.create({
     listContent: {
         flexGrow: 0,
         alignSelf: 'stretch',
+    },
+    showThreadLink: {
+        paddingVertical: 10,
+        paddingLeft: 64, // HPAD + AVATAR_SIZE + AVATAR_GAP
+        paddingRight: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    showThreadLinkText: {
+        fontSize: 14,
+        fontWeight: '500',
     },
 });

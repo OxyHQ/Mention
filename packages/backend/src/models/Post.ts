@@ -440,6 +440,12 @@ PostSchema.index(
   { name: 'following_feed_idx' }
 );
 
+// Thread slicing: enables efficient grouping of self-threads and reply context
+PostSchema.index(
+  { threadId: 1, oxyUserId: 1, parentPostId: 1, createdAt: 1 },
+  { name: 'thread_slicing_idx' }
+);
+
 // Federation indexes (sparse — zero overhead for local posts)
 PostSchema.index(
   { 'federation.activityId': 1 },
