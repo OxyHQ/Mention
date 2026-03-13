@@ -9,7 +9,6 @@ module.exports = function (api) {
             unstable_transformImportMeta: true,
           },
         ],
-        'react-native-css/babel',
       ],
       plugins: [
         // resolver must come first for proper module resolution
@@ -20,6 +19,8 @@ module.exports = function (api) {
         }],
         '@babel/plugin-syntax-dynamic-import',
         '@babel/plugin-transform-export-namespace-from',
+        // must be LAST
+        'react-native-worklets/plugin',
       ],
     };
   };
