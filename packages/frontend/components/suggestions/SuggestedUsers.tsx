@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, FlatList, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
@@ -16,8 +16,6 @@ interface SuggestedUsersProps {
 }
 
 const DEFAULT_MAX_CARDS = 10;
-
-const ItemSeparator = () => <View style={styles.separator} />;
 
 export const SuggestedUsers = memo(function SuggestedUsers({
   visible = true,
@@ -94,10 +92,6 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     return result;
   }, [recommendations, dismissedIds, sourceUserId, maxCards]);
 
-  const renderItem = useCallback(({ item }: { item: SuggestedUserData }) => (
-    <SuggestedUserCard user={item} onDismiss={handleDismiss} />
-  ), [handleDismiss]);
-
   if (!visible || !isAuthenticated || loading || displayedUsers.length === 0) {
     return null;
   }
@@ -107,36 +101,21 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       <ThemedText style={[styles.title, { color: theme.colors.text }]}>
         {title || t('Suggested for you')}
       </ThemedText>
-      <FlatList
-        data={displayedUsers}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={ItemSeparator}
-      />
+      {displayedUsers.map((user) => (
+        <SuggestedUserCard key={user.id} user={user} onDismiss={handleDismiss} />
+      ))}
     </View>
   );
 });
 
-const keyExtractor = (item: SuggestedUserData) => item.id;
-
 const styles = StyleSheet.create({
   container: {
     paddingTop: 12,
-    paddingBottom: 4,
   },
   title: {
     fontSize: 15,
     fontWeight: '700',
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  listContent: {
-    paddingHorizontal: 12,
-  },
-  separator: {
-    width: 8,
+    paddingHorizontal: 16,
+    marginBottom: 4,
   },
 });

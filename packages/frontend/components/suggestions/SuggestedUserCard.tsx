@@ -1,6 +1,5 @@
 import React, { memo, useMemo, useCallback } from 'react';
-import { View, Pressable, StyleSheet, Platform } from 'react-native';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { View, TouchableOpacity, Pressable, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as OxyServicesNS from '@oxyhq/services';
@@ -20,8 +19,6 @@ interface SuggestedUserCardProps {
   user: SuggestedUserData;
   onDismiss: (id: string) => void;
 }
-
-const CARD_WIDTH = 150;
 
 const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
   userId: string;
@@ -54,16 +51,29 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   }, [onDismiss, user.id]);
 
   return (
-    <PressableScale
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border,
-        },
-      ]}
+    <TouchableOpacity
+      style={[styles.row, { borderBottomColor: theme.colors.border }]}
       onPress={handlePress}
+      activeOpacity={0.7}
     >
+      <Avatar source={user.avatar} size={40} />
+      <View style={styles.textColumn}>
+        <ThemedText style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
+          {displayName}
+        </ThemedText>
+        <ThemedText style={[styles.handle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          @{handle}
+        </ThemedText>
+        {user.bio ? (
+          <ThemedText
+            style={[styles.bio, { color: theme.colors.textSecondary }]}
+            numberOfLines={2}
+          >
+            {user.bio}
+          </ThemedText>
+        ) : null}
+      </View>
+      <FollowButton userId={user.id} size="small" />
       <Pressable
         style={styles.dismissButton}
         onPress={handleDismiss}
@@ -71,70 +81,42 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       >
         <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
       </Pressable>
-
-      <Avatar source={user.avatar} size={48} />
-
-      <ThemedText style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
-        {displayName}
-      </ThemedText>
-
-      {user.bio ? (
-        <ThemedText
-          style={[styles.bio, { color: theme.colors.textSecondary }]}
-          numberOfLines={2}
-        >
-          {user.bio}
-        </ThemedText>
-      ) : (
-        <ThemedText
-          style={[styles.bio, { color: theme.colors.textSecondary }]}
-          numberOfLines={1}
-        >
-          @{handle}
-        </ThemedText>
-      )}
-
-      <View style={styles.followButtonContainer}>
-        <FollowButton userId={user.id} size="small" />
-      </View>
-    </PressableScale>
+    </TouchableOpacity>
   );
 });
 
 const styles = StyleSheet.create({
-  card: {
-    width: CARD_WIDTH,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingTop: 20,
-    paddingBottom: 10,
-    paddingHorizontal: 10,
+  row: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
-  dismissButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 1,
-    padding: 4,
+  textColumn: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 12,
   },
   name: {
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  handle: {
     fontSize: 14,
-    fontWeight: '700',
-    marginTop: 8,
-    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 1,
   },
   bio: {
-    fontSize: 12,
-    lineHeight: 16,
-    marginTop: 2,
-    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 18,
+    marginTop: 4,
   },
-  followButtonContainer: {
-    marginTop: 8,
-    width: '100%',
-    alignItems: 'center',
+  dismissButton: {
+    padding: 4,
+    marginLeft: 8,
   },
 });
 
