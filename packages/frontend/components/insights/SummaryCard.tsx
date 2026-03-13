@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 import MiniChart from '@/components/MiniChart';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
@@ -21,8 +20,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     chartData,
     showChart = false,
 }) => {
-    const theme = useTheme();
-
     return (
         <View className="py-3">
             <View className="flex-row items-center justify-around">

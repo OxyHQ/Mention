@@ -1,7 +1,6 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
-import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 
 interface Tab {
@@ -29,7 +28,6 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
     style,
     instanceId = 'default',
 }) => {
-    const theme = useTheme();
     // Initialize shared values from stored state if available
     const storedState = previousTabStore.get(instanceId);
     const indicatorPosition = useSharedValue(storedState?.position ?? 0);

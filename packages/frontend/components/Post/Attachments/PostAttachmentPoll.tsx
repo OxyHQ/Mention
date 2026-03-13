@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, ViewStyle, Platform } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 import PollCard from '../PollCard';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
@@ -19,8 +18,6 @@ interface PostAttachmentPollProps {
 }
 
 const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollData, style }) => {
-  const theme = useTheme();
-
   return (
     <View
       className="border border-border rounded-[15px] overflow-hidden w-[280px]"
@@ -42,7 +39,7 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollDat
       ) : (
         // Debug: Show what we received
         <View className="bg-secondary p-4 rounded-[15px]">
-          <Text style={{ color: theme.colors.error }} className="text-base font-bold mb-3">
+          <Text className="text-destructive text-base font-bold mb-3">
             {process.env.NODE_ENV === 'development' ? 'Poll data missing' : 'Poll unavailable'}
           </Text>
         </View>

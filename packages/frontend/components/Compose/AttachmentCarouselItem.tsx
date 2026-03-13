@@ -3,7 +3,6 @@ import { View, TouchableOpacity, ViewStyle, StyleProp } from 'react-native';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { CloseIcon } from '@/assets/icons/close-icon';
-import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 
 interface AttachmentCarouselItemProps {
@@ -25,7 +24,6 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
   wrapperStyle,
   children,
 }) => {
-  const theme = useTheme();
   const canMoveLeft = index > 0;
   const canMoveRight = index < total - 1;
 
@@ -38,14 +36,14 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
             disabled={!canMoveLeft}
             className={cn('rounded-full p-1.5 bg-background', !canMoveLeft && 'opacity-40')}
           >
-            <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+            <BackArrowIcon size={14} className="text-muted-foreground" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onMove(attachmentKey, 'right')}
             disabled={!canMoveRight}
             className={cn('rounded-full p-1.5 bg-background', !canMoveRight && 'opacity-40')}
           >
-            <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+            <ChevronRightIcon size={14} className="text-muted-foreground" />
           </TouchableOpacity>
         </View>
       ) : null}

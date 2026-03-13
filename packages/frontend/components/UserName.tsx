@@ -1,7 +1,6 @@
 import React from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-native';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
-import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
     name?: string | null;
@@ -16,7 +15,6 @@ interface Props {
 }
 
 const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, variant = 'default', style }) => {
-    const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
     // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
@@ -36,7 +34,7 @@ const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, var
                     {name}
                 </Text>
                 {verified && (
-                    <VerifiedIcon size={iconSize} color={unifiedColors ? theme.colors.text : theme.colors.primary} style={[styles.verifiedIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={[styles.verifiedIcon, { transform: [{ translateY: baselineNudge }] }]} />
                 )}
             </View>
         </View>

@@ -66,7 +66,6 @@ const RoomRow = React.memo(function RoomRow({
 
 export function LiveRoomsWidget() {
   const { isAuthenticated } = useAuth();
-  const theme = useTheme();
   const router = useRouter();
   const { joinLiveRoom } = useLiveRoom();
 

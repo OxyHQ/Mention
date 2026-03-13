@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
-import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -16,7 +15,6 @@ interface PostArticleSheetProps {
 }
 
 const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, body, onClose }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const [articleTitle, setArticleTitle] = useState<string | undefined>(title);
@@ -85,7 +83,7 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
               {trimmedBody}
             </Text>
           ) : loadError ? (
-            <Text style={[styles.articleBodyPlaceholder, { color: theme.colors.error }]}>
+            <Text style={styles.articleBodyPlaceholder} className="text-destructive">
               {loadError}
             </Text>
           ) : (

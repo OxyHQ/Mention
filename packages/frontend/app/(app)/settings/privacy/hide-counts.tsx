@@ -6,7 +6,6 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
@@ -14,8 +13,6 @@ import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
 
 export default function HideCountsScreen() {
     const { t } = useTranslation();
-    const { colors } = useTheme();
-
     const [hideLikeCounts, setHideLikeCounts] = useState(false);
     const [hideShareCounts, setHideShareCounts] = useState(false);
     const [hideReplyCounts, setHideReplyCounts] = useState(false);

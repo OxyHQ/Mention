@@ -6,15 +6,12 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 
 export default function TagsMentionsScreen() {
     const { t } = useTranslation();
-    const { colors } = useTheme();
-
     const [allowTags, setAllowTags] = useState(true);
     const [allowMentions, setAllowMentions] = useState(true);
     const [loading, setLoading] = useState(true);
