@@ -23,14 +23,19 @@ import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@/components/Portal';
 
 // Hooks
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useColorScheme } from "@/lib/useColorScheme";
+import { useThemeStore } from "@/lib/theme-store";
+import { APP_COLOR_PRESETS, getAppColorCSSVariables, applyAppColorToDocument } from "@/lib/app-color-presets";
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
 import { AppInitializer } from '@/lib/appInitializer';
 
+// NativeWind
+import { vars } from 'nativewind';
+
 // Styles
-import '../styles/global.css';
+import '../global.css';
 
 // Types
 interface SplashState {
@@ -134,7 +139,18 @@ export default function RootLayout() {
     }
   }, [splashState.initializationComplete, splashState.fadeComplete, appIsReady]);
 
-  const colorScheme = useColorScheme();
+  const { colorScheme } = useColorScheme();
+  const appColor = useThemeStore((s) => s.appColor);
+
+  // Apply color preset to web document and compute NativeWind CSS vars for native
+  useEffect(() => {
+    applyAppColorToDocument(appColor, colorScheme);
+  }, [appColor, colorScheme]);
+
+  const colorVars = useMemo(() => {
+    const preset = APP_COLOR_PRESETS[appColor];
+    return vars(getAppColorCSSVariables(preset, colorScheme));
+  }, [appColor, colorScheme]);
 
   const appContent = useMemo(() => {
     if (!appIsReady) {
@@ -174,7 +190,7 @@ export default function RootLayout() {
   ]);
 
   return (
-    <ThemedView style={{ flex: 1 }}>
+    <ThemedView style={[{ flex: 1 }, colorVars]}>
       {appContent}
     </ThemedView>
   );

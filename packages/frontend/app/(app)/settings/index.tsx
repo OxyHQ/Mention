@@ -22,7 +22,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { getThemedBorder, getThemedShadow } from "@/utils/theme";
 import { useAppearanceStore } from "@/store/appearanceStore";
 import { useHapticsStore } from "@/stores/hapticsStore";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { useProfileData } from "@/hooks/useProfileData";
 import i18n from 'i18next';
 
@@ -163,7 +163,7 @@ export default function SettingsScreen() {
     const mySettings = useAppearanceStore((state) => state.mySettings);
     const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
     const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
-    const currentColorScheme = useColorScheme();
+    const { colorScheme: currentColorScheme } = useColorScheme();
 
     // Load settings on mount if not already loaded
     useEffect(() => {

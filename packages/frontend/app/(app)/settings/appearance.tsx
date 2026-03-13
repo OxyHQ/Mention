@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, useWindowDimensions } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { colors as baseColors } from '@/styles/colors';
+import { useThemeStore } from '@/lib/theme-store';
+import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@/lib/app-color-presets';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -15,19 +16,6 @@ import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES, FONT_FAMILIES } from '@/styles/typography';
 import { Divider } from '@/components/Divider';
 import { useTranslation } from 'react-i18next';
-
-const COLOR_CHOICES = [
-  { color: '#005c67', name: 'Teal' },
-  { color: '#1D9BF0', name: 'Blue' },
-  { color: '#10B981', name: 'Green' },
-  { color: '#F59E0B', name: 'Amber' },
-  { color: '#EF4444', name: 'Red' },
-  { color: '#8B5CF6', name: 'Purple' },
-  { color: '#EC4899', name: 'Pink' },
-  { color: '#0EA5E9', name: 'Sky' },
-  { color: '#F97316', name: 'Orange' },
-  { color: '#14B8A6', name: 'Mint' },
-];
 
 type ThemeMode = 'system' | 'light' | 'dark' | 'adaptive';
 
@@ -84,13 +72,14 @@ export default function AppearanceSettingsScreen() {
   const loading = useAppearanceStore((state) => state.loading);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
+  const appColor = useThemeStore((s) => s.appColor);
+  const setAppColor = useThemeStore((s) => s.setAppColor);
+  const setMode = useThemeStore((s) => s.setMode);
   const { showBottomSheet, oxyServices } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { width } = useWindowDimensions();
 
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
-  const [primaryColor, setPrimaryColor] = useState<string>('');
   const [headerImageId, setHeaderImageId] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
@@ -101,36 +90,36 @@ export default function AppearanceSettingsScreen() {
   useEffect(() => {
     if (mySettings) {
       setThemeMode(mySettings.appearance?.themeMode || 'system');
-      setPrimaryColor(mySettings.appearance?.primaryColor || '');
       setHeaderImageId(mySettings.profileHeaderImage || '');
     }
   }, [mySettings]);
 
-  const activePrimaryColor = useMemo(() => primaryColor || baseColors.primaryColor, [primaryColor]);
+  const activePrimaryColor = APP_COLOR_PRESETS[appColor].hex;
 
   // Auto-save helper
   const saveSettings = useCallback(async (updates: { themeMode?: ThemeMode; primaryColor?: string; headerImageId?: string }) => {
     setSaving(true);
     const mode = updates.themeMode ?? themeMode;
-    const color = updates.primaryColor ?? primaryColor;
+    const color = updates.primaryColor ?? activePrimaryColor;
     const header = updates.headerImageId ?? headerImageId;
     await updateMySettings({
       appearance: { themeMode: mode, primaryColor: color || undefined },
       profileHeaderImage: header || undefined,
     } as any);
     setSaving(false);
-  }, [themeMode, primaryColor, headerImageId, updateMySettings]);
+  }, [themeMode, activePrimaryColor, headerImageId, updateMySettings]);
 
   const onThemeModeChange = useCallback(async (mode: ThemeMode) => {
     setThemeMode(mode);
+    setMode(mode);
     await saveSettings({ themeMode: mode });
-  }, [saveSettings]);
+  }, [saveSettings, setMode]);
 
-  const onColorChange = useCallback(async (color: string) => {
-    const newColor = primaryColor === color ? '' : color;
-    setPrimaryColor(newColor);
-    await saveSettings({ primaryColor: newColor });
-  }, [primaryColor, saveSettings]);
+  const onColorChange = useCallback(async (name: AppColorName) => {
+    setAppColor(name);
+    const hex = APP_COLOR_PRESETS[name].hex;
+    await saveSettings({ primaryColor: hex });
+  }, [saveSettings, setAppColor]);
 
   const openHeaderPicker = () => {
     showBottomSheet?.({
@@ -153,10 +142,6 @@ export default function AppearanceSettingsScreen() {
     setHeaderImageId('');
     await saveSettings({ headerImageId: '' });
   }, [saveSettings]);
-
-  // Calculate color grid columns
-  const colorSwatchSize = 44;
-  const colorsPerRow = Math.min(COLOR_CHOICES.length, Math.floor((width - SPACING.base * 2 - SPACING.base * 2) / (colorSwatchSize + SPACING.md)));
 
   return (
     <ThemedView style={styles.container}>
@@ -320,17 +305,18 @@ export default function AppearanceSettingsScreen() {
 
           {/* Color swatches */}
           <View style={styles.colorsGrid}>
-            {COLOR_CHOICES.map((item) => {
-              const isActive = primaryColor === item.color;
+            {APP_COLOR_NAMES.map((name) => {
+              const preset = APP_COLOR_PRESETS[name];
+              const isActive = appColor === name;
               return (
                 <TouchableOpacity
-                  key={item.color}
+                  key={name}
                   style={[
                     styles.colorSwatch,
-                    { backgroundColor: item.color },
+                    { backgroundColor: preset.hex },
                     isActive && styles.colorSwatchActive,
                   ]}
-                  onPress={() => onColorChange(item.color)}
+                  onPress={() => onColorChange(name)}
                   activeOpacity={0.7}
                 >
                   {isActive && (
@@ -342,10 +328,10 @@ export default function AppearanceSettingsScreen() {
           </View>
 
           {/* Reset to default */}
-          {primaryColor !== '' && (
+          {appColor !== 'teal' && (
             <TouchableOpacity
               style={[styles.resetButton, { borderColor: theme.colors.border }]}
-              onPress={() => onColorChange(primaryColor)}
+              onPress={() => onColorChange('teal')}
             >
               <Ionicons name="refresh-outline" size={16} color={theme.colors.textSecondary} />
               <Text style={[styles.resetButtonText, { color: theme.colors.textSecondary }]}>

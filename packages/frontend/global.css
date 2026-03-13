@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: Inter, sans-serif;
+    --radius: 1rem;
+
+    /* Light mode colors (teal default) */
+    --background: 0 0% 99%;
+    --foreground: 0 0% 12%;
+    --surface: 185 10% 97%;
+    --surface-foreground: 0 0% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12%;
+
+    --primary: 185 100% 20%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 185 8% 95%;
+    --secondary-foreground: 0 0% 12%;
+    --muted: 185 8% 95%;
+    --muted-foreground: 185 5% 42%;
+    --accent: 185 8% 95%;
+    --accent-foreground: 0 0% 12%;
+
+    --destructive: 0 84% 60%;
+    --border: 185 8% 88%;
+    --input: 185 8% 88%;
+    --ring: 185 100% 20%;
+
+    --chart-1: 185 60% 85%;
+    --chart-2: 185 60% 75%;
+    --chart-3: 185 60% 65%;
+    --chart-4: 185 60% 75%;
+    --chart-5: 185 60% 65%;
+
+    --content-area: 185 10% 97%;
+    --sidebar: 185 10% 97%;
+    --sidebar-foreground: 0 0% 12%;
+    --sidebar-primary: 185 100% 20%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 185 8% 95%;
+    --sidebar-accent-foreground: 0 0% 12%;
+    --sidebar-border: 185 8% 88%;
+    --sidebar-ring: 185 100% 20%;
+  }
+
+  .dark {
+    --background: 185 50% 5%;
+    --foreground: 0 0% 93%;
+    --surface: 185 20% 18%;
+    --surface-foreground: 0 0% 93%;
+    --popover: 185 20% 18%;
+    --popover-foreground: 0 0% 93%;
+
+    --primary: 185 100% 20%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 185 20% 18%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 185 18% 20%;
+    --muted-foreground: 0 0% 70%;
+    --accent: 185 18% 20%;
+    --accent-foreground: 0 0% 93%;
+
+    --destructive: 0 84% 60%;
+    --border: 185 12% 20%;
+    --input: 185 10% 23%;
+    --ring: 185 100% 20%;
+
+    --chart-1: 185 60% 85%;
+    --chart-2: 185 60% 75%;
+    --chart-3: 185 60% 65%;
+    --chart-4: 185 60% 55%;
+    --chart-5: 185 60% 45%;
+
+    --content-area: 185 30% 8%;
+    --sidebar: 185 30% 8%;
+    --sidebar-foreground: 0 0% 93%;
+    --sidebar-primary: 185 100% 20%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 185 30% 8%;
+    --sidebar-accent-foreground: 0 0% 93%;
+    --sidebar-border: 185 12% 20%;
+    --sidebar-ring: 185 100% 20%;
+  }
+}
+
+@layer utilities {
+  .squircle {
+    border-radius: 20%;
+  }
+}
+
+/* Preserved from styles/global.css */
+html, body, #root {
+  font-family: 'Inter', 'Inter-Regular', sans-serif;
+}
+
+@keyframes profileHoverCardFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes profileHoverCardFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

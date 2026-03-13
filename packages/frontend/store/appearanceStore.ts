@@ -1,6 +1,20 @@
 import { create } from 'zustand';
 import { api, publicApi, isUnauthorizedError } from '@/utils/api';
 import { Storage } from '@/utils/storage';
+import { useThemeStore } from '@/lib/theme-store';
+import { hexToAppColorName } from '@/lib/app-color-presets';
+
+/** Push appearance settings into the local theme store for immediate effect. */
+function syncToThemeStore(appearance: { themeMode?: string; primaryColor?: string } | undefined) {
+  if (!appearance) return;
+  const store = useThemeStore.getState();
+  if (appearance.themeMode) {
+    store.setMode(appearance.themeMode as any);
+  }
+  if (appearance.primaryColor) {
+    store.setAppColor(hexToAppColorName(appearance.primaryColor));
+  }
+}
 
 const APPEARANCE_CACHE_KEY = 'oxy_appearance_settings';
 
@@ -78,6 +92,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       const cached = unwrapApiData<UserAppearance>(cachedRaw);
       if (cached) {
         set({ mySettings: cached });
+        syncToThemeStore(cached.appearance);
       }
 
       // Only fetch from API if user is authenticated
@@ -100,6 +115,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
           byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
           loading: false,
         }));
+        syncToThemeStore(doc.appearance);
       } else {
         set({ loading: false });
       }
@@ -164,6 +180,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
           byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
           loading: false,
         }));
+        syncToThemeStore(doc.appearance);
 
         return doc;
       }
