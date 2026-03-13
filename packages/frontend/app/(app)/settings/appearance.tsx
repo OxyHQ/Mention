@@ -1,70 +1,98 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, Image } from 'react-native';
+import { vars } from 'react-native-css';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useThemeStore } from '@/lib/theme-store';
-import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@/lib/app-color-presets';
+import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName, type AppColorPreset } from '@/lib/app-color-presets';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Loading } from '@/components/ui/Loading';
-import { Divider } from '@/components/Divider';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
-type ThemeMode = 'system' | 'light' | 'dark' | 'adaptive';
+type ThemeMode = 'system' | 'light' | 'dark';
 
-interface ThemeOption {
-  id: ThemeMode;
-  label: string;
-  icon: string;
-  iconSet?: 'ionicons' | 'material-community';
-  description: string;
-  bgColor: string;
-  fgColor: string;
-  accentColor?: string;
+/** Miniature post row used inside MentionMiniature feed column */
+function MiniPost({ hasImage }: { hasImage?: boolean }) {
+  return (
+    <View className="flex-row gap-1 p-1.5">
+      <View className="w-3.5 h-3.5 rounded-full bg-muted-foreground/20" />
+      <View className="flex-1 gap-1">
+        <View className="flex-row gap-1">
+          <View className="h-1 w-2/5 rounded-full bg-foreground/80" />
+          <View className="h-1 w-1/4 rounded-full bg-muted-foreground/30" />
+        </View>
+        <View className="h-0.5 w-full rounded-full bg-foreground/40" />
+        <View className="h-0.5 w-3/4 rounded-full bg-foreground/40" />
+        {hasImage && <View className="h-4 w-full rounded bg-muted mt-0.5" />}
+      </View>
+    </View>
+  );
 }
 
-const THEME_OPTIONS: ThemeOption[] = [
-  {
-    id: 'light',
-    label: 'Light',
-    icon: 'sunny-outline',
-    description: 'Always light',
-    bgColor: '#FFFFFF',
-    fgColor: '#1A1A1A',
-  },
-  {
-    id: 'dark',
-    label: 'Dark',
-    icon: 'moon-outline',
-    description: 'Always dark',
-    bgColor: '#1A1A1A',
-    fgColor: '#EDEDED',
-  },
-  {
-    id: 'system',
-    label: 'System',
-    icon: 'phone-portrait-outline',
-    description: 'Match device',
-    bgColor: '#6366F1',
-    fgColor: '#FFFFFF',
-  },
-  {
-    id: 'adaptive',
-    label: 'Adaptive',
-    icon: 'palette-outline',
-    iconSet: 'material-community',
-    description: 'Material You',
-    bgColor: '#E8DEF8',
-    fgColor: '#1D1B20',
-    accentColor: '#6750A4',
-  },
-];
+/** Miniature Mention app preview using real theme tokens via vars() */
+const MentionMiniature = React.memo(function MentionMiniature({ variant, preset }: { variant: 'light' | 'dark'; preset: AppColorPreset }) {
+  const themeVars = vars(variant === 'light' ? preset.light : preset.dark);
+
+  return (
+    <View className="flex-row flex-1 rounded-md overflow-hidden bg-background" style={themeVars}>
+      {/* Collapsed icon sidebar */}
+      <View className="items-center py-2 gap-1.5 justify-between" style={{ width: '15%' }}>
+        <View className="gap-2 items-center">
+          <View className="w-2.5 h-2.5 rounded bg-foreground/80" />
+          <View className="w-2 h-2 rounded-full bg-primary" />
+          <View className="w-1.5 h-1.5 rounded-full bg-muted-foreground/25" />
+          <View className="w-1.5 h-1.5 rounded-full bg-muted-foreground/25" />
+          <View className="w-1.5 h-1.5 rounded-full bg-muted-foreground/25" />
+        </View>
+        <View className="items-center gap-1.5">
+          <View className="w-3 h-3 rounded-full bg-primary" />
+          <View className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+        </View>
+      </View>
+
+      {/* Timeline feed */}
+      <View className="flex-1 border-x border-border">
+        <View className="px-1.5 py-1 border-b border-border flex-row gap-2 items-center">
+          <View className="h-1 w-1/4 rounded-full bg-primary" />
+          <View className="h-1 w-1/4 rounded-full bg-muted-foreground/20" />
+        </View>
+        <MiniPost />
+        <View className="h-px bg-border" />
+        <MiniPost hasImage />
+        <View className="h-px bg-border" />
+        <MiniPost />
+      </View>
+
+      {/* Right panel */}
+      <View className="py-1.5 px-1.5 gap-1.5" style={{ width: '32%' }}>
+        <View className="h-2 rounded-full bg-muted" />
+        <View className="rounded bg-muted p-1.5 gap-1">
+          <View className="h-1 w-3/4 rounded-full bg-foreground/60" />
+          <View className="h-0.5 w-full rounded-full bg-muted-foreground/20" />
+          <View className="h-0.5 w-2/3 rounded-full bg-muted-foreground/20" />
+        </View>
+        <View className="rounded bg-muted p-1.5 gap-1">
+          <View className="h-1 w-2/3 rounded-full bg-foreground/60" />
+          <View className="flex-row gap-1 items-center">
+            <View className="w-2 h-2 rounded-full bg-muted-foreground/20" />
+            <View className="h-0.5 flex-1 rounded-full bg-muted-foreground/20" />
+          </View>
+          <View className="flex-row gap-1 items-center">
+            <View className="w-2 h-2 rounded-full bg-muted-foreground/20" />
+            <View className="h-0.5 flex-1 rounded-full bg-muted-foreground/20" />
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+});
 
 export default function AppearanceSettingsScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
@@ -88,25 +116,25 @@ export default function AppearanceSettingsScreen() {
 
   useEffect(() => {
     if (mySettings) {
-      setThemeMode(mySettings.appearance?.themeMode || 'system');
+      const mode = mySettings.appearance?.themeMode || 'system';
+      setThemeMode(mode === 'adaptive' ? 'system' : mode);
       setHeaderImageId(mySettings.profileHeaderImage || '');
     }
   }, [mySettings]);
 
-  const activePrimaryColor = APP_COLOR_PRESETS[appColor].hex;
+  const preset = APP_COLOR_PRESETS[appColor];
 
-  // Auto-save helper
   const saveSettings = useCallback(async (updates: { themeMode?: ThemeMode; primaryColor?: string; headerImageId?: string }) => {
     setSaving(true);
     const mode = updates.themeMode ?? themeMode;
-    const color = updates.primaryColor ?? activePrimaryColor;
+    const color = updates.primaryColor ?? preset.hex;
     const header = updates.headerImageId ?? headerImageId;
     await updateMySettings({
       appearance: { themeMode: mode, primaryColor: color || undefined },
       profileHeaderImage: header || undefined,
-    } as any);
+    } as Record<string, unknown>);
     setSaving(false);
-  }, [themeMode, activePrimaryColor, headerImageId, updateMySettings]);
+  }, [themeMode, preset.hex, headerImageId, updateMySettings]);
 
   const onThemeModeChange = useCallback(async (mode: ThemeMode) => {
     setThemeMode(mode);
@@ -128,7 +156,7 @@ export default function AppearanceSettingsScreen() {
         multiSelect: false,
         disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
         afterSelect: 'back',
-        onSelect: async (file: any) => {
+        onSelect: async (file: { id: string; contentType?: string }) => {
           if (!file?.contentType?.startsWith?.('image/')) return;
           setHeaderImageId(file.id);
           await saveSettings({ headerImageId: file.id });
@@ -167,377 +195,157 @@ export default function AppearanceSettingsScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="pb-8"
+        contentContainerClassName="p-4 gap-5"
         showsVerticalScrollIndicator={false}
       >
-        {/* Theme Section */}
-        <View className="px-4 py-5">
-          <Text className="text-xl font-bold mb-1 text-foreground">
+        {/* Theme */}
+        <View className="gap-2">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
             {t('settings.theme', 'Theme')}
           </Text>
-          <Text className="text-base leading-6 mb-4 text-muted-foreground">
-            {t('settings.themeDescription', 'Choose how Mention looks to you. Select a single theme, or sync with your system settings.')}
-          </Text>
 
-          <View className="gap-3">
-            {THEME_OPTIONS.map((option) => {
-              const isActive = themeMode === option.id;
-              return (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[
-                    styles.themeCard,
-                    {
-                      borderColor: isActive ? activePrimaryColor : colors.border,
-                      backgroundColor: colors.card,
-                    },
-                    isActive && styles.themeCardActive,
-                    isActive && { borderColor: activePrimaryColor },
-                  ]}
-                  onPress={() => onThemeModeChange(option.id)}
-                  activeOpacity={0.7}
-                >
-                  {/* Theme preview */}
-                  <View style={[styles.themePreview, { backgroundColor: option.bgColor }]}>
-                    {option.id === 'adaptive' ? (
-                      <View style={styles.themePreviewContent}>
-                        <View style={styles.adaptivePreviewRow}>
-                          <View style={[styles.adaptivePreviewDot, { backgroundColor: '#6750A4' }]} />
-                          <View style={[styles.previewLine, { backgroundColor: '#6750A4', width: '40%', opacity: 0.8 }]} />
-                        </View>
-                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '70%', opacity: 0.3 }]} />
-                        <View style={styles.adaptivePreviewRow}>
-                          <View style={[styles.adaptivePreviewChip, { backgroundColor: '#D0BCFF' }]} />
-                          <View style={[styles.adaptivePreviewChip, { backgroundColor: '#CCC2DC' }]} />
-                          <View style={[styles.adaptivePreviewChip, { backgroundColor: '#EFB8C8' }]} />
-                        </View>
-                      </View>
-                    ) : (
-                      <View style={styles.themePreviewContent}>
-                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '60%', opacity: 0.8 }]} />
-                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '80%', opacity: 0.4 }]} />
-                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '45%', opacity: 0.25 }]} />
-                      </View>
-                    )}
-                    {option.id === 'system' && (
-                      <View style={styles.systemSplit}>
-                        <View style={[styles.systemHalf, { backgroundColor: '#FFFFFF' }]}>
-                          <View style={[styles.previewLineTiny, { backgroundColor: '#1A1A1A', opacity: 0.5 }]} />
-                        </View>
-                      </View>
-                    )}
-                  </View>
+          <View className="flex-row gap-2">
+            <Pressable onPress={() => onThemeModeChange('light')} className="flex-1">
+              <View
+                className={cn(
+                  'rounded-lg p-1.5',
+                  themeMode === 'light' ? 'border-2 border-primary' : 'border border-border',
+                )}
+              >
+                <View className="mb-1 aspect-[4/3]">
+                  <MentionMiniature variant="light" preset={preset} />
+                </View>
+                <Text className="text-center text-xs font-medium text-foreground">
+                  {t('settings.theme.light', 'Light')}
+                </Text>
+              </View>
+            </Pressable>
 
-                  {/* Label area */}
-                  <View className="px-3 py-3">
-                    <View className="flex-row items-center gap-2 mb-0.5">
-                      {option.iconSet === 'material-community' ? (
-                        <MaterialCommunityIcons
-                          name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-                          size={16}
-                          color={isActive ? activePrimaryColor : colors.textSecondary}
-                        />
-                      ) : (
-                        <Ionicons
-                          name={option.icon as keyof typeof Ionicons.glyphMap}
-                          size={16}
-                          color={isActive ? activePrimaryColor : colors.textSecondary}
-                        />
-                      )}
-                      <Text style={{ color: isActive ? activePrimaryColor : colors.text }} className="text-[15px] font-semibold">
-                        {t(`settings.theme.${option.id}`, option.label)}
-                      </Text>
+            <Pressable onPress={() => onThemeModeChange('system')} className="flex-1">
+              <View
+                className={cn(
+                  'rounded-lg p-1.5',
+                  themeMode === 'system' ? 'border-2 border-primary' : 'border border-border',
+                )}
+              >
+                <View className="rounded overflow-hidden mb-1 aspect-[4/3]">
+                  <View className="flex-row flex-1">
+                    <View className="flex-1 overflow-hidden">
+                      <MentionMiniature variant="light" preset={preset} />
                     </View>
-                    <Text className="text-sm ml-6 text-muted-foreground">
-                      {t(`settings.theme.${option.id}Desc`, option.description)}
-                    </Text>
+                    <View className="flex-1 overflow-hidden">
+                      <MentionMiniature variant="dark" preset={preset} />
+                    </View>
                   </View>
+                </View>
+                <Text className="text-center text-xs font-medium text-foreground">
+                  {t('settings.theme.system', 'System')}
+                </Text>
+              </View>
+            </Pressable>
 
-                  {/* Selection indicator */}
-                  <View style={[
-                    styles.radioOuter,
-                    { borderColor: isActive ? activePrimaryColor : colors.border },
-                  ]}>
-                    {isActive && (
-                      <View style={[styles.radioInner, { backgroundColor: activePrimaryColor }]} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            <Pressable onPress={() => onThemeModeChange('dark')} className="flex-1">
+              <View
+                className={cn(
+                  'rounded-lg p-1.5',
+                  themeMode === 'dark' ? 'border-2 border-primary' : 'border border-border',
+                )}
+              >
+                <View className="mb-1 aspect-[4/3]">
+                  <MentionMiniature variant="dark" preset={preset} />
+                </View>
+                <Text className="text-center text-xs font-medium text-foreground">
+                  {t('settings.theme.dark', 'Dark')}
+                </Text>
+              </View>
+            </Pressable>
           </View>
         </View>
 
-        <Divider />
-
-        {/* Color Section */}
-        <View className={cn("px-4 py-5", themeMode === 'adaptive' && "opacity-40 pointer-events-none")}>
-          <Text className="text-xl font-bold mb-1 text-foreground">
+        {/* Accent color */}
+        <View className="gap-2">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
             {t('settings.accentColor', 'Accent color')}
           </Text>
-          {themeMode === 'adaptive' ? (
-            <Text className="text-base leading-6 mb-4 text-muted-foreground">
-              {t('settings.accentColorAdaptiveNote', 'Colors are set by your device when using adaptive theme.')}
-            </Text>
-          ) : (
-            <Text className="text-base leading-6 mb-4 text-muted-foreground">
-              {t('settings.accentColorDescription', 'Pick your favorite color. It will be used for links, buttons, and highlights throughout the app.')}
-            </Text>
-          )}
 
-          {/* Color preview bar */}
-          <View style={[styles.colorPreviewBar, { backgroundColor: activePrimaryColor }]}>
-            <View style={styles.colorPreviewContent}>
-              <View style={[styles.colorPreviewAvatar, { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
-              <View style={styles.colorPreviewTextGroup}>
-                <View style={[styles.colorPreviewText, { backgroundColor: 'rgba(255,255,255,0.9)', width: 80 }]} />
-                <View style={[styles.colorPreviewText, { backgroundColor: 'rgba(255,255,255,0.5)', width: 120 }]} />
-              </View>
-            </View>
-            <View style={[styles.colorPreviewButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Text style={styles.colorPreviewButtonText}>Follow</Text>
-            </View>
-          </View>
-
-          {/* Color swatches */}
-          <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row gap-3 flex-wrap">
             {APP_COLOR_NAMES.map((name) => {
-              const preset = APP_COLOR_PRESETS[name];
-              const isActive = appColor === name;
+              const p = APP_COLOR_PRESETS[name];
+              const isSelected = appColor === name;
               return (
-                <TouchableOpacity
+                <Pressable
                   key={name}
-                  style={[
-                    styles.colorSwatch,
-                    { backgroundColor: preset.hex },
-                    isActive && styles.colorSwatchActive,
-                  ]}
                   onPress={() => onColorChange(name)}
-                  activeOpacity={0.7}
+                  className="items-center gap-1"
                 >
-                  {isActive && (
-                    <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
+                  <View
+                    className={cn(
+                      'w-8 h-8 rounded-full border-2 overflow-hidden',
+                      isSelected ? 'border-foreground scale-110' : 'border-transparent',
+                    )}
+                  >
+                    <View style={{ backgroundColor: p.hex, flex: 1 }} />
+                  </View>
+                  <Text
+                    className={cn(
+                      'text-[10px] capitalize',
+                      isSelected ? 'text-foreground font-medium' : 'text-muted-foreground',
+                    )}
+                  >
+                    {name}
+                  </Text>
+                </Pressable>
               );
             })}
           </View>
-
-          {/* Reset to default */}
-          {appColor !== 'teal' && (
-            <TouchableOpacity
-              className="flex-row items-center gap-2 mt-4 py-2 px-3 rounded-full border border-border self-start"
-              onPress={() => onColorChange('teal')}
-            >
-              <Ionicons name="refresh-outline" size={16} color={colors.textSecondary} />
-              <Text className="text-sm font-medium text-muted-foreground">
-                {t('settings.resetToDefault', 'Reset to default')}
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
 
-        <Divider />
-
-        {/* Profile Header Image */}
-        <View className="px-4 py-5">
-          <Text className="text-xl font-bold mb-1 text-foreground">
+        {/* Profile header */}
+        <View className="gap-2">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
             {t('settings.profileHeader', 'Profile header')}
-          </Text>
-          <Text className="text-base leading-6 mb-4 text-muted-foreground">
-            {t('settings.profileHeaderDescription', 'Customize the header image shown on your profile page.')}
           </Text>
 
           {headerImageId ? (
-            <View className="rounded-2xl overflow-hidden border border-border relative">
+            <View className="rounded-xl overflow-hidden border border-border relative">
               <Image
                 source={{ uri: oxyServices.getFileDownloadUrl(headerImageId, 'full') }}
-                style={[styles.headerImage, { backgroundColor: colors.backgroundSecondary }]}
+                className="w-full h-32 bg-muted"
                 resizeMode="cover"
               />
-              <View style={styles.headerImageOverlay}>
-                <TouchableOpacity
-                  style={[styles.headerImageAction, { backgroundColor: 'rgba(0,0,0,0.6)' }]}
+              <View className="absolute bottom-2 right-2 flex-row gap-1.5">
+                <Pressable
+                  className="w-8 h-8 rounded-full items-center justify-center bg-black/60"
                   onPress={openHeaderPicker}
                 >
-                  <Ionicons name="camera-outline" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.headerImageAction, { backgroundColor: 'rgba(239,68,68,0.8)' }]}
+                  <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
+                </Pressable>
+                <Pressable
+                  className="w-8 h-8 rounded-full items-center justify-center bg-red-500/80"
                   onPress={removeHeaderImage}
                 >
-                  <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
+                  <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                </Pressable>
               </View>
             </View>
           ) : (
-            <TouchableOpacity
-              className="rounded-2xl border-[1.5px] border-dashed border-border bg-secondary py-8 items-center gap-2"
+            <Pressable
+              className="rounded-xl border-[1.5px] border-dashed border-border bg-secondary py-5 items-center gap-1.5"
               onPress={openHeaderPicker}
-              activeOpacity={0.7}
             >
-              <View
-                className="w-14 h-14 rounded-full items-center justify-center mb-1"
-                style={{ backgroundColor: colors.backgroundTertiary }}
-              >
-                <Ionicons name="image-outline" size={24} color={colors.textSecondary} />
+              <View className="w-10 h-10 rounded-full items-center justify-center bg-muted">
+                <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
               </View>
-              <Text className="text-[15px] font-semibold text-foreground">
+              <Text className="text-sm font-semibold text-foreground">
                 {t('settings.uploadHeader', 'Upload header image')}
               </Text>
-              <Text className="text-sm text-muted-foreground">
+              <Text className="text-xs text-muted-foreground">
                 {t('settings.uploadHeaderHint', 'Recommended: 1500x500px')}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
         </View>
-
-        {/* Bottom spacing */}
-        <View className="h-8" />
       </ScrollView>
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  // Theme Cards - keeping pixel-specific styles that need precise control
-  themeCard: {
-    borderWidth: 1.5,
-    borderRadius: 16,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  themeCardActive: {
-    borderWidth: 2,
-  },
-  themePreview: {
-    height: 80,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  themePreviewContent: {
-    gap: 6,
-  },
-  previewLine: {
-    height: 8,
-    borderRadius: 4,
-  },
-  adaptivePreviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  adaptivePreviewDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  adaptivePreviewChip: {
-    height: 10,
-    width: 32,
-    borderRadius: 5,
-  },
-  previewLineTiny: {
-    height: 6,
-    width: '50%',
-    borderRadius: 3,
-  },
-  systemSplit: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: '50%',
-    overflow: 'hidden',
-  },
-  systemHalf: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  radioOuter: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-
-  // Color Section
-  colorPreviewBar: {
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  colorPreviewContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  colorPreviewAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  colorPreviewTextGroup: {
-    gap: 4,
-  },
-  colorPreviewText: {
-    height: 8,
-    borderRadius: 4,
-  },
-  colorPreviewButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  colorPreviewButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  colorSwatch: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorSwatchActive: {
-    transform: [{ scale: 1.1 }],
-  },
-
-  // Header Image
-  headerImage: {
-    width: '100%',
-    height: 160,
-  },
-  headerImageOverlay: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerImageAction: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

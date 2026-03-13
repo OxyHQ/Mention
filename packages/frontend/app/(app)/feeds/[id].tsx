@@ -22,7 +22,8 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
-import { CreateIcon } from '@/assets/icons/create-icon';
+import { ComposeIcon } from '@/assets/icons/compose-icon';
+import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import Avatar from '@/components/Avatar';
 import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -699,14 +700,10 @@ export default function CustomFeedTimelineScreen() {
 
       {/* FAB */}
       {!loading && !error && (
-        <TouchableOpacity
-          style={styles.fab}
-          className="bg-primary"
+        <FAB
           onPress={() => router.push('/compose')}
-          activeOpacity={0.8}
-        >
-          <CreateIcon size={22} className="text-background" />
-        </TouchableOpacity>
+          customIcon={<ComposeIcon size={22} className="text-primary-foreground" />}
+        />
       )}
     </ThemedView>
   );
@@ -716,21 +713,6 @@ const styles = StyleSheet.create({
   avatarGrid: {
     width: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
     height: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
-    ...Platform.select({
-      web: { boxShadow: '0px 2px 6px 0px rgba(0, 0, 0, 0.12)' },
-      default: {},
-    }),
   },
   profilesList: {
     padding: 16,

@@ -31,8 +31,8 @@ import { APP_COLOR_PRESETS, getAppColorCSSVariables, applyAppColorToDocument } f
 import { oxyServices } from '@/lib/oxyServices';
 import { AppInitializer } from '@/lib/appInitializer';
 
-// NativeWind
-import { vars } from 'nativewind';
+// CSS runtime
+import { vars } from 'react-native-css';
 
 // Styles
 import '../global.css';

@@ -1,19 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, TouchableOpacity, Text, ScrollView } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { router } from 'expo-router';
-import { useTranslation } from 'react-i18next';
 import SEO from '@/components/SEO';
-import { StarterPackCard, type StarterPackCardData } from '@/components/StarterPackCard';
+import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { EmptyState } from '@/components/common/EmptyState';
 
 export default function StarterPacksScreen() {
   const [myPacks, setMyPacks] = useState<any[]>([]);
-  const { t } = useTranslation();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -22,6 +21,8 @@ export default function StarterPacksScreen() {
         setMyPacks(res.items || []);
       } catch (e) {
         console.warn('load starter packs failed', e);
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -54,7 +55,15 @@ export default function StarterPacksScreen() {
         />
 
         <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
-          {myPacks.length === 0 ? (
+          {loading ? (
+            <View className="px-1 gap-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <View key={i} className="px-3">
+                  <StarterPackCardSkeleton />
+                </View>
+              ))}
+            </View>
+          ) : myPacks.length === 0 ? (
             <EmptyState
               title="No starter packs yet"
               subtitle="Create a starter pack to help others discover great accounts"
@@ -75,8 +84,11 @@ export default function StarterPacksScreen() {
                   id: String(p._id || p.id),
                   name: p.name || 'Untitled Pack',
                   description: p.description,
+                  creator: p.creator || p.owner,
                   memberCount: (p.memberOxyUserIds || []).length,
                   useCount: p.useCount || 0,
+                  memberAvatars: p.memberAvatars || [],
+                  totalMembers: (p.memberOxyUserIds || []).length,
                 };
 
                 return (

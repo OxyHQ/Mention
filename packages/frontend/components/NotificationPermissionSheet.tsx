@@ -5,7 +5,6 @@ import { colors } from "@/styles/colors";
 import { ThemedView } from "@/components/ThemedView";
 import { NoUpdatesIllustration } from "@/assets/illustrations/NoUpdates";
 import { TouchableOpacity } from "react-native-gesture-handler";
-
 interface Props {
     onEnable: () => void;
     onLater: () => void;

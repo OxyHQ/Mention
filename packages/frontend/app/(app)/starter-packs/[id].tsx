@@ -9,10 +9,14 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@oxyhq/services';
+import { useHaptics } from '@/hooks/useHaptics';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from '@/components/Avatar';
+import { ResponsiveAvatarStack } from '@/components/AvatarStack';
 import SEO from '@/components/SEO';
 import { cn } from '@/lib/utils';
+import { formatCompactNumber } from '@/utils/formatNumber';
+import { toast } from '@/lib/sonner';
 
 interface MemberProfile {
   id: string;
@@ -21,28 +25,27 @@ interface MemberProfile {
   avatar?: string;
 }
 
+type FollowState = 'idle' | 'processing' | 'complete';
+
 export default function StarterPackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { user, oxyServices } = useAuth();
+  const haptics = useHaptics();
   const [pack, setPack] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<MemberProfile[]>([]);
-  const [using, setUsing] = useState(false);
-  const [useComplete, setUseComplete] = useState(false);
-  const [followProgress, setFollowProgress] = useState({ current: 0, total: 0 });
+  const [followState, setFollowState] = useState<FollowState>('idle');
 
   const isOwner = pack && user?.id === pack.ownerOxyUserId;
 
-  // Load pack data
   useEffect(() => {
     (async () => {
       try {
         const p = await starterPacksService.get(String(id));
         setPack(p);
 
-        // Hydrate member profiles in parallel
         if (p.memberOxyUserIds?.length) {
           const profiles = await Promise.all(
             p.memberOxyUserIds.map(async (uid: string): Promise<MemberProfile> => {
@@ -56,9 +59,9 @@ export default function StarterPackDetailScreen() {
                     avatar: (profile as any).avatar,
                   };
                 }
-              } catch { /* ignore */ }
+              } catch { /* ignore individual failures */ }
               return { id: uid, username: uid };
-            })
+            }),
           );
           setMembers(profiles);
         }
@@ -70,42 +73,44 @@ export default function StarterPackDetailScreen() {
     })();
   }, [id]);
 
-  // Use the starter pack — follow all members
-  const handleUse = useCallback(async () => {
-    if (!pack || using) return;
-    setUsing(true);
+  const handleFollowAll = useCallback(async () => {
+    if (!pack || followState !== 'idle') return;
+    setFollowState('processing');
+
     try {
       const result = await starterPacksService.use(String(id));
       const userIds = result.memberOxyUserIds || [];
-      setFollowProgress({ current: 0, total: userIds.length });
 
-      for (let i = 0; i < userIds.length; i++) {
-        try {
-          await oxyServices.followUser(userIds[i]);
-        } catch {
-          // Skip users that fail (may already be following)
-        }
-        setFollowProgress({ current: i + 1, total: userIds.length });
-      }
+      // Follow all members in parallel — individual failures silently skipped
+      // (user may already be following them)
+      await Promise.allSettled(
+        userIds.map((uid: string) => oxyServices.followUser(uid)),
+      );
 
-      setPack((prev: any) => prev ? { ...prev, useCount: result.useCount } : prev);
-      setUseComplete(true);
-    } catch (e) {
-      console.error('Failed to use starter pack', e);
-    } finally {
-      setUsing(false);
+      setPack((prev: any) =>
+        prev ? { ...prev, useCount: result.useCount } : prev,
+      );
+      setFollowState('complete');
+      haptics('Medium');
+      toast.success('All accounts have been followed!');
+    } catch {
+      setFollowState('idle');
+      toast.error('Failed to follow accounts');
     }
-  }, [pack, id, using, oxyServices]);
+  }, [pack, id, followState, oxyServices, haptics]);
 
-  // Delete pack
   const handleDelete = useCallback(async () => {
     try {
       await starterPacksService.remove(String(id));
       router.replace('/starter-packs');
-    } catch (e) {
-      console.error('Failed to delete starter pack', e);
+    } catch {
+      toast.error('Failed to delete starter pack');
     }
   }, [id]);
+
+  const memberAvatars = members
+    .filter((m) => m.avatar)
+    .map((m) => m.avatar!);
 
   return (
     <>
@@ -118,85 +123,143 @@ export default function StarterPackDetailScreen() {
           options={{
             title: pack?.name || 'Starter Pack',
             leftComponents: [
-              <IconButton variant="icon"
-                key="back"
-                onPress={() => router.back()}
-              >
+              <IconButton variant="icon" key="back" onPress={() => router.back()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
-            rightComponents: isOwner ? [
-              <TouchableOpacity key="delete" onPress={handleDelete}>
-                <ThemedText className="text-destructive font-semibold">Delete</ThemedText>
-              </TouchableOpacity>
-            ] : [],
+            rightComponents: isOwner
+              ? [
+                  <TouchableOpacity key="delete" onPress={handleDelete}>
+                    <ThemedText className="text-destructive font-semibold">
+                      Delete
+                    </ThemedText>
+                  </TouchableOpacity>,
+                ]
+              : [],
           }}
           hideBottomBorder={true}
           disableSticky={true}
         />
 
         {error ? (
-          <View className="flex-1 items-center justify-center"><Text className="text-destructive">{error}</Text></View>
+          <View className="flex-1 items-center justify-center">
+            <Text className="text-destructive">{error}</Text>
+          </View>
         ) : loading ? (
-          <View className="flex-1 items-center justify-center"><ActivityIndicator /></View>
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          </View>
         ) : pack ? (
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Pack info */}
-            <View className="items-center px-6 pt-6 pb-4">
-              <View className="w-16 h-16 rounded-2xl items-center justify-center mb-4 bg-primary/20">
-                <Ionicons name="rocket-outline" size={32} color={theme.colors.primary} />
-              </View>
-              <ThemedText className="text-[22px] font-bold text-center font-primary">{pack.name}</ThemedText>
+            {/* Hero section with avatar stack */}
+            <View className="items-center px-6 pt-6 pb-4 gap-4">
+              {memberAvatars.length > 0 ? (
+                <View style={styles.avatarStackContainer}>
+                  <ResponsiveAvatarStack
+                    avatars={memberAvatars}
+                    total={members.length}
+                    maxDisplay={8}
+                  />
+                </View>
+              ) : (
+                <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
+                  <Ionicons name="rocket-outline" size={32} color={theme.colors.primary} />
+                </View>
+              )}
+
+              <ThemedText className="text-[22px] font-bold text-center" numberOfLines={2}>
+                {pack.name}
+              </ThemedText>
+
               {pack.description && (
-                <ThemedText className="text-[15px] leading-[22px] text-center mt-2 text-muted-foreground font-primary">
+                <ThemedText className="text-[15px] leading-[22px] text-center text-muted-foreground">
                   {pack.description}
                 </ThemedText>
               )}
-              <ThemedText className="text-sm mt-2 text-muted-foreground font-primary">
+
+              <ThemedText className="text-sm text-muted-foreground">
                 {members.length} {members.length === 1 ? 'account' : 'accounts'}
-                {pack.useCount > 0 ? ` · Used by ${pack.useCount} ${pack.useCount === 1 ? 'person' : 'people'}` : ''}
+                {pack.useCount > 0
+                  ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
+                  : ''}
               </ThemedText>
 
-              {/* Use button */}
+              {/* Follow all button — 3 states: idle, processing, complete */}
               {!isOwner && (
                 <TouchableOpacity
-                  disabled={using || useComplete}
-                  onPress={handleUse}
+                  disabled={followState !== 'idle'}
+                  onPress={handleFollowAll}
                   className={cn(
-                    "mt-5 py-3.5 px-8 rounded-3xl min-w-[220px] items-center",
-                    useComplete ? "bg-muted-foreground" : "bg-primary",
-                    (using || useComplete) && "opacity-70"
+                    'mt-2 py-3.5 px-8 rounded-3xl min-w-[220px] items-center flex-row justify-center gap-2',
+                    followState === 'complete' ? 'bg-muted-foreground' : 'bg-primary',
+                    followState !== 'idle' && 'opacity-70',
                   )}
-                >
-                  <Text className="text-white font-bold text-base font-primary">
-                    {useComplete
-                      ? 'Done!'
-                      : using
-                        ? `Following ${followProgress.current} of ${followProgress.total}...`
-                        : 'Use this Starter Pack'}
-                  </Text>
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    followState === 'complete'
+                      ? 'All accounts followed'
+                      : followState === 'processing'
+                        ? 'Following accounts'
+                        : 'Follow all accounts in this starter pack'
+                  }>
+                  {followState === 'processing' ? (
+                    <>
+                      <ActivityIndicator size="small" color="#fff" />
+                      <Text className="text-white font-bold text-base">
+                        Following...
+                      </Text>
+                    </>
+                  ) : followState === 'complete' ? (
+                    <>
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                      <Text className="text-white font-bold text-base">
+                        Done!
+                      </Text>
+                    </>
+                  ) : (
+                    <Text className="text-white font-bold text-base">
+                      Follow all
+                    </Text>
+                  )}
                 </TouchableOpacity>
+              )}
+
+              {/* Joined count — only show for popular packs (>= 50) */}
+              {pack.useCount >= 50 && (
+                <View className="flex-row items-center gap-1.5 mt-1">
+                  <Ionicons name="trending-up" size={14} color={theme.colors.textSecondary} />
+                  <ThemedText className="text-sm font-semibold text-muted-foreground">
+                    {formatCompactNumber(pack.useCount)} joined
+                  </ThemedText>
+                </View>
               )}
             </View>
 
             {/* Member list */}
             <View className="px-4 pt-2 pb-8">
-              <ThemedText className="text-base font-bold mb-3 font-primary">Accounts in this pack</ThemedText>
+              <ThemedText className="text-base font-bold mb-3">
+                Accounts in this pack
+              </ThemedText>
               {members.map((m) => (
                 <TouchableOpacity
                   key={m.id}
                   className="flex-row items-center py-3 border-b border-border gap-3"
-                  onPress={() => router.push(`/${m.username}`)}
+                  onPress={() => router.push(`/@${m.username}` as never)}
                   activeOpacity={0.7}
-                >
+                  accessibilityRole="button"
+                  accessibilityLabel={`${m.displayName || m.username}, @${m.username}`}>
                   <Avatar source={m.avatar} size={44} />
                   <View className="flex-1 gap-0.5">
                     {m.displayName && (
-                      <ThemedText className="text-[15px] font-semibold font-primary" numberOfLines={1}>
+                      <ThemedText
+                        className="text-[15px] font-semibold"
+                        numberOfLines={1}>
                         {m.displayName}
                       </ThemedText>
                     )}
-                    <ThemedText className="text-sm text-muted-foreground font-primary" numberOfLines={1}>
+                    <ThemedText
+                      className="text-sm text-muted-foreground"
+                      numberOfLines={1}>
                       @{m.username}
                     </ThemedText>
                   </View>
@@ -209,3 +272,11 @@ export default function StarterPackDetailScreen() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  avatarStackContainer: {
+    width: '100%',
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+});

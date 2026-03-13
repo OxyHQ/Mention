@@ -18,7 +18,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
-import { CreateIcon } from '@/assets/icons/create-icon';
+import { ComposeIcon } from '@/assets/icons/compose-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 
@@ -280,7 +280,7 @@ const HomeScreen: React.FC = () => {
                     {isAuthenticated && (
                         <FAB
                             onPress={() => router.push('/compose')}
-                            customIcon={<CreateIcon size={22} color="#fff" />}
+                            customIcon={<ComposeIcon size={22} className="text-primary-foreground" />}
                             animatedTranslateY={fabTranslateY}
                             animatedOpacity={fabOpacity}
                         />

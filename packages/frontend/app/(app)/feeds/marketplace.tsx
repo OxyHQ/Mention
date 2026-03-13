@@ -6,15 +6,16 @@ import {
   TouchableOpacity,
   FlatList,
   TextInput,
+  TextStyle,
   ScrollView,
   Platform,
   ActivityIndicator,
+  StyleProp,
 } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
 import { customFeedsService } from '@/services/customFeedsService';
 import { router } from 'expo-router';
@@ -24,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { cn } from '@/lib/utils';
+import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 
 const PAGE_LIMIT = 20;
 
@@ -37,117 +39,125 @@ const SORT_OPTIONS: { id: SortBy; label: string }[] = [
 
 const ALL_CATEGORY = 'All';
 
-// Individual feed card
-interface FeedCardProps {
-  item: any;
-  onSubscribeToggle: (id: string, isSubscribed: boolean) => void;
-  subscribingId: string | null;
-}
+/**
+ * Subscribe button rendered in the FeedCard headerRight slot.
+ */
+const SubscribeButton = React.memo(function SubscribeButton({
+  isSubscribed,
+  isSubscribing,
+  onPress,
+}: {
+  isSubscribed: boolean;
+  isSubscribing: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <TouchableOpacity
+      style={[
+        styles.subscribeBtn,
+        isSubscribed
+          ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
+          : { backgroundColor: theme.colors.primary },
+      ]}
+      onPress={onPress}
+      disabled={isSubscribing}
+      activeOpacity={0.7}>
+      {isSubscribing ? (
+        <ActivityIndicator size="small" color={isSubscribed ? theme.colors.text : '#fff'} />
+      ) : (
+        <Text
+          className={cn(
+            'text-[13px] font-bold',
+            isSubscribed ? 'text-foreground' : 'text-white',
+          )}>
+          {isSubscribed ? 'Subscribed' : 'Subscribe'}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+});
 
-const FeedCard = React.memo(function FeedCard({
+/**
+ * Marketplace feed item — wraps the shared FeedCard with
+ * subscribe button, rating, and subscriber count.
+ */
+const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
   item,
   onSubscribeToggle,
   subscribingId,
-}: FeedCardProps) {
+}: {
+  item: any;
+  onSubscribeToggle: (id: string, isSubscribed: boolean) => void;
+  subscribingId: string | null;
+}) {
   const theme = useTheme();
   const feedId = String(item._id || item.id);
   const isSubscribing = subscribingId === feedId;
-
-  const handlePress = useCallback(() => {
-    router.push(`/feeds/${feedId}` as any);
-  }, [feedId]);
 
   const handleSubscribe = useCallback(() => {
     onSubscribeToggle(feedId, item.isLiked || false);
   }, [feedId, item.isLiked, onSubscribeToggle]);
 
-  const subscriberCount = item.subscriberCount || 0;
   const averageRating = item.averageRating || 0;
   const reviewCount = item.ratingsCount || 0;
-  const ownerName = item.owner?.displayName || item.owner?.username || '';
-  const ownerAvatar = item.owner?.avatar;
+  const subscriberCount = item.subscriberCount || 0;
+
+  const feedData: FeedCardData = {
+    id: feedId,
+    displayName: item.title,
+    description: item.description,
+    avatar: item.avatar,
+    creator: item.owner
+      ? {
+          username: item.owner.username || '',
+          displayName: item.owner.displayName,
+          avatar: item.owner.avatar,
+        }
+      : undefined,
+    likeCount: item.likeCount,
+    memberCount: item.memberCount,
+    topicCount: item.topicCount,
+    memberAvatars: item.memberAvatars,
+  };
 
   return (
-    <TouchableOpacity
-      className="mx-4 mt-3 rounded-2xl p-4 gap-2 bg-secondary"
-      onPress={handlePress}
-      activeOpacity={0.75}
-    >
-      <View className="flex-row items-start gap-3">
-        <View className="flex-1 gap-[5px]">
-          <Text className="text-base font-bold leading-5 text-foreground" numberOfLines={1}>
-            {item.title}
-          </Text>
-          {item.category ? (
-            <View style={{ backgroundColor: `${theme.colors.primary}20` }} className="self-start px-2 py-0.5 rounded-md">
-              <Text className="text-xs font-semibold text-primary">
-                {item.category}
+    <View className="mx-4 mt-3">
+      <FeedCard
+        feed={feedData}
+        showDescription
+        showLikes={false}
+        headerRight={
+          <SubscribeButton
+            isSubscribed={item.isLiked || false}
+            isSubscribing={isSubscribing}
+            onPress={handleSubscribe}
+          />
+        }
+      />
+      {/* Extra marketplace metadata below the card */}
+      {(averageRating > 0 || subscriberCount > 0) && (
+        <View className="flex-row items-center gap-3 px-4 pb-2 -mt-1">
+          {averageRating > 0 && (
+            <View className="flex-row items-center gap-1">
+              <StarRating rating={averageRating} color={theme.colors.primary} />
+              <Text className="text-[13px] text-muted-foreground">
+                {averageRating.toFixed(1)}
+                {reviewCount > 0 ? ` (${formatCompactNumber(reviewCount)})` : ''}
               </Text>
             </View>
-          ) : null}
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.subscribeBtn,
-            item.isLiked
-              ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
-              : { backgroundColor: theme.colors.primary },
-          ]}
-          onPress={handleSubscribe}
-          disabled={isSubscribing}
-          activeOpacity={0.7}
-        >
-          {isSubscribing ? (
-            <ActivityIndicator size="small" color={item.isLiked ? theme.colors.text : '#fff'} />
-          ) : (
-            <Text
-              className={cn(
-                "text-[13px] font-bold",
-                item.isLiked ? "text-foreground" : "text-white"
-              )}
-            >
-              {item.isLiked ? 'Subscribed' : 'Subscribe'}
-            </Text>
           )}
-        </TouchableOpacity>
-      </View>
-
-      {item.description ? (
-        <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
-          {item.description}
-        </Text>
-      ) : null}
-
-      <View className="flex-row items-center gap-3">
-        {averageRating > 0 ? (
-          <View className="flex-row items-center gap-1">
-            <StarRating rating={averageRating} color={theme.colors.primary} />
-            <Text className="text-[13px] text-muted-foreground">
-              {averageRating.toFixed(1)}
-              {reviewCount > 0 ? ` (${formatCompactNumber(reviewCount)})` : ''}
-            </Text>
-          </View>
-        ) : null}
-
-        {subscriberCount > 0 ? (
-          <View className="flex-row items-center gap-[3px]">
-            <Ionicons name="people-outline" size={13} color={theme.colors.textSecondary} />
-            <Text className="text-[13px] text-muted-foreground">
-              {formatCompactNumber(subscriberCount)}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {ownerName ? (
-        <View className="flex-row items-center gap-1.5">
-          <Avatar source={ownerAvatar} size={18} label={ownerName} />
-          <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
-            {ownerName}
-          </Text>
+          {subscriberCount > 0 && (
+            <View className="flex-row items-center gap-[3px]">
+              <Ionicons name="people-outline" size={13} color={theme.colors.textSecondary} />
+              <Text className="text-[13px] text-muted-foreground">
+                {formatCompactNumber(subscriberCount)}
+              </Text>
+            </View>
+          )}
         </View>
-      ) : null}
-    </TouchableOpacity>
+      )}
+    </View>
   );
 });
 
@@ -187,7 +197,6 @@ export default function FeedMarketplaceScreen() {
     }, 350);
   }, []);
 
-  // Load categories once on mount
   useEffect(() => {
     customFeedsService
       .getMarketplaceCategories()
@@ -229,7 +238,6 @@ export default function FeedMarketplaceScreen() {
     [activeCategory, sortBy, debouncedSearch, t],
   );
 
-  // Re-fetch when filters change
   useEffect(() => {
     fetchFeeds({ pageNum: 1, replace: true });
   }, [fetchFeeds]);
@@ -260,7 +268,6 @@ export default function FeedMarketplaceScreen() {
       if (subscribingId) return;
       setSubscribingId(feedId);
 
-      // Optimistic update
       setFeeds((prev) =>
         prev.map((f) => {
           const fid = String(f._id || f.id);
@@ -281,7 +288,6 @@ export default function FeedMarketplaceScreen() {
           await customFeedsService.likeFeed(feedId);
         }
       } catch {
-        // Revert on failure
         setFeeds((prev) =>
           prev.map((f) => {
             const fid = String(f._id || f.id);
@@ -309,7 +315,7 @@ export default function FeedMarketplaceScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
-      <FeedCard
+      <MarketplaceFeedCard
         item={item}
         onSubscribeToggle={handleSubscribeToggle}
         subscribingId={subscribingId}
@@ -326,7 +332,6 @@ export default function FeedMarketplaceScreen() {
   const ListHeader = useMemo(
     () => (
       <View>
-        {/* Search bar */}
         {searchVisible && (
           <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 border border-border rounded-xl px-3 py-[9px] bg-secondary">
             <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
@@ -335,7 +340,7 @@ export default function FeedMarketplaceScreen() {
               onChangeText={handleSearchChange}
               placeholder={t('marketplace.searchPlaceholder', { defaultValue: 'Search feeds...' })}
               placeholderTextColor={theme.colors.textSecondary}
-              style={styles.searchInput}
+              style={searchInputStyle}
               className="flex-1 text-[15px] text-foreground"
               autoFocus
               returnKeyType="search"
@@ -348,13 +353,11 @@ export default function FeedMarketplaceScreen() {
           </View>
         )}
 
-        {/* Category pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillsContent}
-          className="mt-3"
-        >
+          className="mt-3">
           {categoryPills.map((cat) => {
             const active = cat === activeCategory;
             return (
@@ -367,14 +370,12 @@ export default function FeedMarketplaceScreen() {
                     : { borderWidth: 1, borderColor: theme.colors.border },
                 ]}
                 onPress={() => handleCategoryPress(cat)}
-                activeOpacity={0.7}
-              >
+                activeOpacity={0.7}>
                 <Text
                   className={cn(
-                    "text-sm font-medium",
-                    active ? "text-white" : "text-foreground"
-                  )}
-                >
+                    'text-sm font-medium',
+                    active ? 'text-white' : 'text-foreground',
+                  )}>
                   {cat}
                 </Text>
               </TouchableOpacity>
@@ -382,7 +383,6 @@ export default function FeedMarketplaceScreen() {
           })}
         </ScrollView>
 
-        {/* Sort tabs */}
         <View style={[styles.sortRow, { borderBottomColor: theme.colors.border }]}>
           {SORT_OPTIONS.map((opt) => {
             const active = opt.id === sortBy;
@@ -391,19 +391,15 @@ export default function FeedMarketplaceScreen() {
                 key={opt.id}
                 className="flex-1 items-center py-2.5 relative"
                 onPress={() => handleSortPress(opt.id)}
-                activeOpacity={0.7}
-              >
+                activeOpacity={0.7}>
                 <Text
                   className={cn(
-                    "text-sm",
-                    active ? "font-bold text-primary" : "font-medium text-muted-foreground"
-                  )}
-                >
+                    'text-sm',
+                    active ? 'font-bold text-primary' : 'font-medium text-muted-foreground',
+                  )}>
                   {opt.label}
                 </Text>
-                {active && (
-                  <View style={styles.sortIndicator} className="bg-primary" />
-                )}
+                {active && <View style={styles.sortIndicator} className="bg-primary" />}
               </TouchableOpacity>
             );
           })}
@@ -468,8 +464,7 @@ export default function FeedMarketplaceScreen() {
               onPress={() => {
                 setSearchVisible((v) => !v);
                 if (searchVisible) handleSearchChange('');
-              }}
-            >
+              }}>
               <Ionicons
                 name={searchVisible ? 'close' : 'search'}
                 size={22}
@@ -483,8 +478,10 @@ export default function FeedMarketplaceScreen() {
       />
 
       {loading && feeds.length === 0 ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+        <View className="px-4 pt-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <FeedCardSkeleton key={i} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -511,11 +508,6 @@ export default function FeedMarketplaceScreen() {
 const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 32,
-  },
-  searchInput: {
-    ...Platform.select({
-      web: { outlineStyle: 'none' as any },
-    }),
   },
   pillsContent: {
     paddingHorizontal: 16,
@@ -550,4 +542,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
+});
+
+const searchInputStyle: StyleProp<TextStyle> = Platform.select({
+  web: { outlineStyle: 'none' } as TextStyle,
+  default: {},
 });

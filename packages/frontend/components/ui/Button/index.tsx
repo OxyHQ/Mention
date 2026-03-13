@@ -347,14 +347,20 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   
   // Responsive button (SideBar pattern)
   if (isResponsive) {
-    const PressableComponent = Platform.OS === 'web' ? WebPressable : Pressable;
+    if (href) {
+      return (
+        <Link href={href} style={responsiveContainerStyle || finalStyle}>
+          {buttonContent}
+        </Link>
+      );
+    }
     return (
-      <PressableComponent 
+      <Pressable
         style={responsiveContainerStyle || finalStyle}
-        onPress={href ? undefined : handlePress}
+        onPress={handlePress}
       >
         {buttonContent}
-      </PressableComponent>
+      </Pressable>
     );
   }
   

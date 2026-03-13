@@ -595,7 +595,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         {/* FAB */}
                         <FAB
                             onPress={() => router.push('/compose')}
-                            customIcon={<ComposeIcon size={20} className="text-background" />}
+                            customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
                             style={themedStyles.fabStyle}
                         />
                     </>

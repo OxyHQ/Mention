@@ -6,7 +6,6 @@ import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { Button } from '@/components/ui/Button';
-
 export default function NotFoundScreen() {
     const router = useRouter();
 

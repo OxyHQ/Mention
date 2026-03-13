@@ -1,9 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
 import { useRouter } from 'expo-router';
-import { ThemedText } from '@/components/ThemedText';
-import { StarterPackCard, type StarterPackCardData } from '@/components/StarterPackCard';
+import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { starterPacksService } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
 import LegendList from '@/components/LegendList';
@@ -30,7 +28,15 @@ export function StarterPacksTab() {
   }, [fetchPacks]);
 
   if (loading) {
-    return <Loading />;
+    return (
+      <View style={styles.list}>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <View key={i} style={styles.cardWrapper}>
+            <StarterPackCardSkeleton />
+          </View>
+        ))}
+      </View>
+    );
   }
 
   if (packs.length === 0) {
@@ -53,8 +59,11 @@ export function StarterPacksTab() {
       id: String(item._id || item.id),
       name: item.name || 'Untitled Pack',
       description: item.description,
+      creator: item.creator || item.owner,
       memberCount: (item.memberOxyUserIds || []).length,
       useCount: item.useCount || 0,
+      memberAvatars: item.memberAvatars || [],
+      totalMembers: (item.memberOxyUserIds || []).length,
     };
 
     return (
