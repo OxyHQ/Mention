@@ -56,10 +56,10 @@ export const ProfileTabs = memo(function ProfileTabs({
           color={theme.colors.textSecondary}
           style={styles.lockIcon}
         />
-        <Text style={[styles.privateMessage, { color: theme.colors.text }]}>
+        <Text className="text-foreground" style={styles.privateMessage}>
           {t('profile.private.message', { defaultValue: 'This profile is private' })}
         </Text>
-        <Text style={[styles.privateSubtext, { color: theme.colors.textSecondary }]}>
+        <Text className="text-muted-foreground" style={styles.privateSubtext}>
           {t('profile.private.subtext', { defaultValue: 'Follow this account to see their posts' })}
         </Text>
       </View>
@@ -178,7 +178,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
     return (
       <View style={styles.feedsEmpty}>
         <Ionicons name="layers-outline" size={48} color={theme.colors.textSecondary} />
-        <Text style={[styles.feedsEmptyText, { color: theme.colors.textSecondary }]}>
+        <Text className="text-muted-foreground" style={styles.feedsEmptyText}>
           {t('profile.feeds.empty', { defaultValue: 'No feeds yet' })}
         </Text>
       </View>

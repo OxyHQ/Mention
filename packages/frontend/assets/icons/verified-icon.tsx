@@ -1,15 +1,13 @@
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 import { View, ViewStyle, StyleProp } from 'react-native';
-import { colors } from '@/styles/colors';
-
 type Props = {
   color?: string;
   size?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-export const VerifiedIcon: React.FC<Props> = ({ color = colors.primaryColor, size = 16, style }) => {
+export const VerifiedIcon: React.FC<Props> = ({ color = '#005c67', size = 16, style }) => {
   return (
     <View style={[style as any]}>
       <Svg viewBox="0 0 24 24" width={size} height={size}>

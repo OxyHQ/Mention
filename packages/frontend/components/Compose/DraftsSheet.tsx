@@ -11,6 +11,7 @@ import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
 import { toast } from 'sonner';
 import { confirmDialog } from '@/utils/alerts';
+import { cn } from '@/lib/utils';
 
 interface DraftsSheetProps {
   onClose: () => void;
@@ -72,7 +73,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
     if (diffMins < 1) {
       return t('compose.justNow');
     } else if (diffMins < 60) {
-      return diffMins === 1 
+      return diffMins === 1
         ? t('compose.minutesAgo', { count: diffMins })
         : t('compose.minutesAgo_plural', { count: diffMins });
     } else if (diffHours < 24) {
@@ -118,55 +119,49 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
 
     return (
       <View
-        style={[
-          styles.draftItem,
-          { 
-            backgroundColor: theme.colors.background,
-            borderBottomColor: theme.colors.border,
-          },
-          isCurrentDraft && { backgroundColor: theme.colors.primary + '15' }
-        ]}
+        className="flex-row items-center px-4 py-3 bg-background border-b border-border"
+        style={isCurrentDraft ? { backgroundColor: theme.colors.primary + '15' } : undefined}
       >
         <TouchableOpacity
-          style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+          className="flex-1 flex-row items-center"
           onPress={() => handleLoadDraft(item)}
           disabled={isDeleting}
         >
-          <View style={styles.draftContent}>
-            <View style={styles.draftHeader}>
-              <View style={styles.draftInfo}>
+          <View className="flex-1 mr-3">
+            <View className="flex-row justify-between items-center mb-1">
+              <View className="flex-row items-center gap-2">
                 {isCurrentDraft && (
-                  <View style={[styles.currentBadge, { backgroundColor: theme.colors.primary }]}>
-                    <Text style={[styles.currentBadgeText, { color: theme.colors.card }]}>
+                  <View className="px-1.5 py-0.5 rounded bg-primary">
+                    <Text className="text-[10px] font-semibold" style={{ color: theme.colors.card }}>
                       {t('compose.current')}
                     </Text>
                   </View>
                 )}
-                <Text style={[styles.draftDate, { color: theme.colors.textSecondary }]}>
+                <Text className="text-xs text-muted-foreground">
                   {formatDate(item.updatedAt)}
                 </Text>
               </View>
             </View>
-            <Text 
-              style={[styles.draftPreview, { color: theme.colors.text }]} 
+            <Text
+              className="text-sm text-foreground mb-1"
               numberOfLines={2}
             >
               {getDraftPreview(item)}
             </Text>
             {(item.mediaIds.length > 0 || item.threadItems.length > 0) && (
-              <View style={styles.draftMeta}>
+              <View className="flex-row items-center gap-3 mt-1">
                 {item.mediaIds.length > 0 && (
-                  <View style={styles.metaItem}>
+                  <View className="flex-row items-center gap-1">
                     <Ionicons name="image-outline" size={14} color={theme.colors.textSecondary} />
-                    <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-xs text-muted-foreground">
                       {item.mediaIds.length}
                     </Text>
                   </View>
                 )}
                 {item.threadItems.length > 0 && (
-                  <View style={styles.metaItem}>
+                  <View className="flex-row items-center gap-1">
                     <Ionicons name="layers-outline" size={14} color={theme.colors.textSecondary} />
-                    <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-xs text-muted-foreground">
                       {item.threadItems.length + 1}
                     </Text>
                   </View>
@@ -177,7 +172,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.deleteButton}
+          className="p-1"
           onPress={() => {
             console.log('Delete button pressed for draft:', item.id);
             handleDeleteDraft(item.id);
@@ -198,7 +193,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View className="flex-1 max-h-[600px] bg-background">
         <Header
           options={{
             title: t('compose.drafts'),
@@ -214,7 +209,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           hideBottomBorder={true}
           disableSticky={true}
         />
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 justify-center items-center py-12">
           <Loading size="large" />
         </View>
       </View>
@@ -222,7 +217,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="flex-1 max-h-[600px] bg-background">
       <Header
         options={{
           title: t('compose.drafts'),
@@ -238,14 +233,14 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
         hideBottomBorder={true}
         disableSticky={true}
       />
-      
+
       {drafts.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <View className="flex-1 justify-center items-center py-12 px-8">
           <DraftsIcon size={64} color={theme.colors.textSecondary} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+          <Text className="mt-6 text-xl font-semibold text-foreground">
             {t('compose.noDrafts')}
           </Text>
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+          <Text className="mt-2 text-base text-center text-muted-foreground">
             {t('compose.noDraftsDescription')}
           </Text>
         </View>
@@ -254,100 +249,11 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           data={drafts}
           renderItem={renderDraftItem}
           keyExtractor={(item) => item.id}
-          style={styles.list}
+          className="flex-1"
         />
       )}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    maxHeight: 600,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 48,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    marginTop: 24,
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  emptyText: {
-    marginTop: 8,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  list: {
-    flex: 1,
-  },
-  draftItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'transparent',
-  },
-  draftContent: {
-    flex: 1,
-    marginRight: 12,
-  },
-  draftHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  draftInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  currentBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  currentBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  draftDate: {
-    fontSize: 12,
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  draftPreview: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  draftMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-  },
-});
 
 export default DraftsSheet;

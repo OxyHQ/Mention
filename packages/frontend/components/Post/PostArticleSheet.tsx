@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
@@ -59,13 +60,12 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
   const trimmedBody = useMemo(() => articleBody?.trim(), [articleBody]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+    <View style={styles.container} className="bg-background">
+      <View style={styles.header} className="border-b border-border">
         <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
         </IconButton>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
+        <Text style={[styles.headerTitle, { pointerEvents: 'none' }]} className="text-foreground">
           {t('post.articleSheet.title', { defaultValue: 'Article' })}
         </Text>
         <View style={styles.headerRight} />
@@ -77,11 +77,11 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.articleTitle, { color: theme.colors.text }]}>
+          <Text style={styles.articleTitle} className="text-foreground">
             {trimmedTitle || t('post.articleSheet.untitled', { defaultValue: 'Untitled article' })}
           </Text>
           {trimmedBody ? (
-            <Text style={[styles.articleBody, { color: theme.colors.textSecondary }]}>
+            <Text style={styles.articleBody} className="text-muted-foreground">
               {trimmedBody}
             </Text>
           ) : loadError ? (
@@ -89,7 +89,7 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
               {loadError}
             </Text>
           ) : (
-            <Text style={[styles.articleBodyPlaceholder, { color: theme.colors.textSecondary }]}>
+            <Text style={styles.articleBodyPlaceholder} className="text-muted-foreground">
               {t('post.articleSheet.emptyBody', { defaultValue: 'No content provided.' })}
             </Text>
           )}
@@ -110,7 +110,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     minHeight: 48,
-    borderBottomWidth: 1,
   },
   closeButton: {
     marginRight: 6,

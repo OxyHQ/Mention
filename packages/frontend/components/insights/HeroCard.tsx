@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { View, Text } from 'react-native';
 
 interface HeroCardProps {
     value: string | number;
@@ -13,39 +12,24 @@ const HeroCard: React.FC<HeroCardProps> = ({
     subtitle,
     subtitleColor,
 }) => {
-    const theme = useTheme();
-    const defaultSubtitleColor = subtitleColor || theme.colors.textSecondary;
-
     return (
-        <View style={styles.container}>
-            <Text style={[styles.value, { color: theme.colors.text }]}>
+        <View className="items-center py-4 mb-2">
+            <Text
+                className="text-foreground text-4xl font-extrabold"
+                style={{ letterSpacing: -0.5 }}
+            >
                 {value}
             </Text>
             {subtitle && (
-                <Text style={[styles.subtitle, { color: defaultSubtitleColor }]}>
+                <Text
+                    className="text-muted-foreground text-[13px] mt-1 font-medium"
+                    style={subtitleColor ? { color: subtitleColor } : undefined}
+                >
                     {subtitle}
                 </Text>
             )}
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        alignItems: 'center',
-        paddingVertical: 16,
-        marginBottom: 8,
-    },
-    value: {
-        fontSize: 36,
-        fontWeight: '800',
-        letterSpacing: -0.5,
-    },
-    subtitle: {
-        fontSize: 13,
-        marginTop: 4,
-        fontWeight: '500',
-    },
-});
 
 export default HeroCard;

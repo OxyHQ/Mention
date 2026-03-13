@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   FlatList,
   ListRenderItem,
 } from "react-native";
@@ -59,20 +58,22 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
     return (
       <View>
         <TouchableOpacity
-          style={styles.item}
+          className="flex-row items-center px-4 py-3"
+          style={{ gap: SPACING.md }}
           onPress={() => handleTopicPress(item.name)}
           activeOpacity={0.7}
         >
-          <View style={styles.rankContainer}>
-            <Text style={[styles.rankText, { color: theme.colors.textSecondary }]}>
+          <View className="items-center" style={{ width: 32 }}>
+            <Text className="text-muted-foreground font-bold" style={{ fontSize: FONT_SIZES.lg }}>
               {item.rank}
             </Text>
           </View>
 
-          <View style={styles.content}>
-            <View style={styles.topRow}>
+          <View className="flex-1">
+            <View className="flex-row items-center justify-between" style={{ marginBottom: SPACING.xs }}>
               <Text
-                style={[styles.topicName, { color: theme.colors.text }]}
+                className="text-foreground font-semibold flex-1"
+                style={{ fontSize: FONT_SIZES.lg, marginRight: SPACING.sm }}
                 numberOfLines={1}
               >
                 {displayName}
@@ -84,7 +85,7 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
               />
             </View>
 
-            <Text style={[styles.volume, { color: theme.colors.textSecondary }]}>
+            <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.sm }}>
               {formatVolume(item.volume)}
             </Text>
           </View>
@@ -106,13 +107,13 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
 
   if (topics.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <View className="flex-1 items-center justify-center" style={{ paddingVertical: SPACING['3xl'], gap: SPACING.md }}>
         <Ionicons
           name="trending-up-outline"
           size={48}
           color={theme.colors.textSecondary}
         />
-        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+        <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.md }}>
           No trending topics available
         </Text>
       </View>
@@ -126,57 +127,8 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
       keyExtractor={keyExtractor}
       onRefresh={onRefresh}
       refreshing={refreshing}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={{ paddingBottom: SPACING.base }}
       showsVerticalScrollIndicator={true}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  listContent: {
-    paddingBottom: SPACING.base,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.md,
-    gap: SPACING.md,
-  },
-  rankContainer: {
-    width: 32,
-    alignItems: 'center',
-  },
-  rankText: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
-  },
-  content: {
-    flex: 1,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.xs,
-  },
-  topicName: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: SPACING.sm,
-  },
-  volume: {
-    fontSize: FONT_SIZES.sm,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING['3xl'],
-    gap: SPACING.md,
-  },
-  emptyText: {
-    fontSize: FONT_SIZES.md,
-  },
-});

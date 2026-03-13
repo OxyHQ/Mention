@@ -7,6 +7,7 @@ import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@/hooks/useTheme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { cn } from '@/lib/utils';
 
 // Spacing tokens for consistent layout
 const HPAD = 8;         // horizontal padding
@@ -94,15 +95,15 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               verified={user.verified}
               onPress={onPressUser}
             />
-            {user.handle ? <Text style={[styles.postHandle, { color: theme.colors.textSecondary }]}>@{user.handle}</Text> : null}
+            {user.handle ? <Text style={styles.postHandle} className="text-muted-foreground">@{user.handle}</Text> : null}
             {user.isFederated ? (
               <FediverseIcon size={13} color={theme.colors.textTertiary} />
             ) : null}
-            {!!timeLabel && <Text style={[styles.postDate, { color: theme.colors.textSecondary }]}>· {timeLabel}</Text>}
+            {!!timeLabel && <Text style={styles.postDate} className="text-muted-foreground">· {timeLabel}</Text>}
             {(repostLabel || showRepost) && (
               <View style={styles.metaIndicator}>
                 <Ionicons name="repeat" size={12} color={theme.colors.textSecondary} />
-                <Text style={[styles.metaIndicatorText, { color: theme.colors.textSecondary }]}>
+                <Text style={styles.metaIndicatorText} className="text-muted-foreground">
                   {repostLabel || 'Reposted'}{repostTime ? ` · ${repostTime}` : ''}
                 </Text>
               </View>
@@ -110,7 +111,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             {showReply && (
               <View style={styles.metaIndicator}>
                 <Ionicons name="chatbubble" size={12} color={theme.colors.textSecondary} />
-                <Text style={[styles.metaIndicatorText, { color: theme.colors.textSecondary }]}>Replied</Text>
+                <Text style={styles.metaIndicatorText} className="text-muted-foreground">Replied</Text>
               </View>
             )}
           </View>

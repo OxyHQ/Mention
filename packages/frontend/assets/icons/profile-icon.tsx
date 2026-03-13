@@ -2,8 +2,6 @@ import React from 'react';
 import { View, ViewStyle } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { IconProps } from './types';
-import { colors } from '@/styles/colors';
-
 export const ProfileIcon: React.FC<IconProps> = ({ size = 24, color = '#5baaff' }) => {
   return (
     <View style={{ width: size, height: size }}>
@@ -21,7 +19,7 @@ export const ProfileIcon: React.FC<IconProps> = ({ size = 24, color = '#5baaff' 
 };
 
 export const ProfileIconActive = ({
-  color = colors.primaryColor,
+  color = '#005c67',
   size = 26,
   style,
 }: {

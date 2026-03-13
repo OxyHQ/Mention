@@ -7,7 +7,6 @@ import {
     Modal,
     KeyboardAvoidingView,
     ScrollView,
-    StyleSheet,
     Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -45,42 +44,33 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
             presentationStyle="fullScreen"
             onRequestClose={onClose}
         >
-            <SafeAreaView
-                style={[styles.container, { backgroundColor: theme.colors.background }]}
-            >
-                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
+            <SafeAreaView className="flex-1 bg-background">
+                <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
+                    <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
                         <CloseIcon size={20} color={theme.colors.text} />
                     </IconButton>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
+                    <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
                         {t("compose.article.editorTitle", { defaultValue: "Write article" })}
                     </Text>
                     <TouchableOpacity
                         onPress={onSave}
-                        style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
+                        className="px-4 py-2 rounded-full bg-primary ml-auto"
                         activeOpacity={0.85}
                     >
-                        <Text style={[styles.saveText, { color: theme.colors.card }]}>
+                        <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
                             {t("common.save")}
                         </Text>
                     </TouchableOpacity>
                 </View>
 
                 <KeyboardAvoidingView
-                    style={{ flex: 1 }}
+                    className="flex-1"
                     behavior={Platform.OS === "ios" ? "padding" : undefined}
                     keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
                 >
-                    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 40, gap: 16 }} keyboardShouldPersistTaps="handled">
                         <TextInput
-                            style={[
-                                styles.titleInput,
-                                {
-                                    color: theme.colors.text,
-                                    borderColor: theme.colors.border,
-                                    backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                            ]}
+                            className="text-lg font-bold rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-foreground"
                             placeholder={t("compose.article.titlePlaceholder", {
                                 defaultValue: "Article title",
                             })}
@@ -91,14 +81,8 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                         />
 
                         <TextInput
-                            style={[
-                                styles.bodyInput,
-                                {
-                                    color: theme.colors.text,
-                                    borderColor: theme.colors.border,
-                                    backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                            ]}
+                            className="min-h-[240px] rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-[15px] text-foreground"
+                            style={{ textAlignVertical: "top" }}
                             placeholder={t("compose.article.bodyPlaceholder", {
                                 defaultValue: "Start writing…",
                             })}
@@ -113,63 +97,3 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
         </Modal>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        minHeight: 48,
-        borderBottomWidth: 1,
-    },
-    closeButton: {
-        marginRight: 6,
-        zIndex: 1,
-    },
-    headerTitle: {
-        position: "absolute",
-        left: 0,
-        right: 0,
-        textAlign: "center",
-        fontSize: 18,
-        fontWeight: "700",
-        pointerEvents: "none",
-    },
-    saveButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 999,
-        marginLeft: "auto",
-    },
-    saveText: {
-        fontSize: 14,
-        fontWeight: "600",
-    },
-    content: {
-        paddingHorizontal: 20,
-        paddingTop: 24,
-        paddingBottom: 40,
-        gap: 16,
-    },
-    titleInput: {
-        fontSize: 18,
-        fontWeight: "700",
-        borderRadius: 14,
-        borderWidth: 1.5,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    bodyInput: {
-        minHeight: 240,
-        borderRadius: 14,
-        borderWidth: 1.5,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        fontSize: 15,
-        textAlignVertical: "top",
-    },
-});

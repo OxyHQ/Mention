@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -35,15 +35,15 @@ export const ProfileMeta = memo(function ProfileMeta({
   }
 
   return (
-    <View style={styles.container}>
+    <View className="flex-row flex-wrap mb-3">
       {hasLocation && (
-        <View style={styles.metaItem}>
+        <View className="flex-row items-center mr-4 mb-1">
           <Ionicons
             name="location-outline"
             size={16}
             color={theme.colors.textSecondary}
           />
-          <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+          <Text className="text-muted-foreground text-[15px] ml-1">
             {location}
           </Text>
         </View>
@@ -55,18 +55,18 @@ export const ProfileMeta = memo(function ProfileMeta({
         return (
           <TouchableOpacity
             key={index}
-            style={styles.metaItem}
+            className="flex-row items-center mr-4 mb-1"
             onPress={() => Linking.openURL(href)}
             activeOpacity={0.7}
           >
-            <View style={styles.linkIconWrapper}>
+            <View style={{ transform: [{ rotate: '-45deg' }] }}>
               <Ionicons
                 name="link-outline"
                 size={16}
                 color={theme.colors.textSecondary}
               />
             </View>
-            <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>
+            <Text className="text-primary text-[15px] ml-1 underline">
               {displayText}
             </Text>
           </TouchableOpacity>
@@ -75,7 +75,7 @@ export const ProfileMeta = memo(function ProfileMeta({
 
       {hasJoinDate && (
         <TouchableOpacity
-          style={styles.metaItem}
+          className="flex-row items-center mr-4 mb-1"
           onPress={() => router.push(`/@${username}/about` as any)}
           activeOpacity={0.7}
         >
@@ -84,60 +84,17 @@ export const ProfileMeta = memo(function ProfileMeta({
             size={16}
             color={theme.colors.textSecondary}
           />
-          <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+          <Text className="text-muted-foreground text-[15px] ml-1">
             {t('profile.joined')} {formatJoinDate(createdAt!)}
           </Text>
           <Ionicons
             name="chevron-forward"
             size={16}
             color={theme.colors.textSecondary}
-            style={styles.chevron}
+            style={{ marginLeft: 4 }}
           />
         </TouchableOpacity>
       )}
     </View>
   );
 });
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-    marginBottom: 4,
-  },
-  metaText: {
-    fontSize: 15,
-    marginLeft: 4,
-  },
-  linkText: {
-    textDecorationLine: 'underline',
-  },
-  linkIconWrapper: {
-    transform: [{ rotate: '-45deg' }],
-  },
-  chevron: {
-    marginLeft: 4,
-  },
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -17,13 +17,13 @@ export const PrivateBadge = memo(function PrivateBadge({
   const isFollowersOnly = privacySettings?.profileVisibility === 'followers_only';
 
   return (
-    <View style={styles.container}>
+    <View className="flex-row items-center self-start rounded-xl px-1.5 py-0.5 gap-1 mt-1 mb-1" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
       <Ionicons
         name="lock-closed"
         size={12}
         color={theme.colors.textSecondary}
       />
-      <Text style={[styles.text, { color: theme.colors.textSecondary }]}>
+      <Text className="text-muted-foreground text-xs font-medium">
         {isFollowersOnly
           ? t('settings.privacy.followersOnly')
           : t('settings.privacy.private')}
@@ -31,38 +31,3 @@ export const PrivateBadge = memo(function PrivateBadge({
     </View>
   );
 });
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 12,
-    gap: 4,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  text: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

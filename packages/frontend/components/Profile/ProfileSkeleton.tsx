@@ -1,6 +1,5 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
 import { SkeletonCircle, SkeletonText, SkeletonPill } from '@/components/Skeleton';
 import { LAYOUT } from './types';
 
@@ -9,14 +8,12 @@ import { LAYOUT } from './types';
  * Uses static imports for better performance
  */
 export const ProfileSkeleton = memo(function ProfileSkeleton() {
-  const theme = useTheme();
-
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.banner, { backgroundColor: theme.colors.backgroundSecondary }]} />
+    <View className="bg-background" style={styles.container}>
+      <View className="bg-muted" style={styles.banner} />
       <View style={styles.content}>
         <View style={styles.avatarRow}>
-          <SkeletonCircle size={90} style={[styles.avatarSkeleton, { borderColor: theme.colors.background }]} />
+          <SkeletonCircle size={90} className="border-background" style={styles.avatarSkeleton} />
           <View style={styles.spacer} />
           <SkeletonPill size={36} style={styles.buttonSkeleton} />
           <SkeletonCircle size={36} />
@@ -30,7 +27,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton() {
           <SkeletonPill size={24} style={styles.metaItem2} />
           <SkeletonPill size={24} style={styles.metaItem3} />
         </View>
-        <View style={[styles.tabs, { borderColor: theme.colors.border }]}>
+        <View className="border-border" style={styles.tabs}>
           {[0, 1, 2, 3, 4].map((i) => (
             <SkeletonPill key={i} size={32} style={styles.tabItem} />
           ))}

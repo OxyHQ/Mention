@@ -19,6 +19,7 @@ import Animated, {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
@@ -171,20 +172,19 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
 
   // Memoize style objects to prevent recreation
   const headerStyle = useMemo(
-    () => [styles.header, { borderBottomColor: theme.colors.border }],
-    [theme.colors.border]
+    () => styles.header,
+    []
   );
 
   const contentContainerStyle = useMemo(
     () => [
       styles.contentContainer,
       {
-        backgroundColor: theme.colors.background,
         paddingTop: insets.top,
       },
       contentAnimatedStyle,
     ],
-    [theme.colors.background, insets.top, contentAnimatedStyle]
+    [insets.top, contentAnimatedStyle]
   );
 
   const overlayColor = useMemo(
@@ -198,27 +198,11 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     [theme.isDark]
   );
 
-  // Memoize text styles
-  const headerTitleStyle = useMemo(
-    () => [styles.headerTitle, { color: theme.colors.text }],
-    [theme.colors.text]
-  );
-
-  const articleTitleStyle = useMemo(
-    () => [styles.articleTitle, { color: theme.colors.text }],
-    [theme.colors.text]
-  );
-
-  const articleBodyStyle = useMemo(
-    () => [styles.articleBody, { color: theme.colors.textSecondary }],
-    [theme.colors.textSecondary]
-  );
-
-  const articleBodyPlaceholderStyle = useMemo(
-    () => [styles.articleBodyPlaceholder, { color: theme.colors.textSecondary }],
-    [theme.colors.textSecondary]
-  );
-
+  // Text styles are now handled via className - only keep non-theme memoized styles
+  const headerTitleStyle = styles.headerTitle;
+  const articleTitleStyle = styles.articleTitle;
+  const articleBodyStyle = styles.articleBody;
+  const articleBodyPlaceholderStyle = styles.articleBodyPlaceholder;
   const errorStyle = useMemo(
     () => [styles.articleBodyPlaceholder, { color: theme.colors.error }],
     [theme.colors.error]
@@ -252,17 +236,18 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
       </Pressable>
 
       <Animated.View
+        className="bg-background"
         style={[contentContainerStyle, { pointerEvents: 'box-none' }]}
       >
         <Pressable
           onPress={handleContentPress}
           style={styles.pressableContent}
         >
-          <View style={headerStyle}>
+          <View style={headerStyle} className="border-b border-border">
             <IconButton variant="icon" onPress={stableOnClose} style={styles.closeButton}>
               <CloseIcon size={20} color={theme.colors.text} />
             </IconButton>
-            <Text style={[headerTitleStyle, { pointerEvents: 'none' }]}>
+            <Text style={[headerTitleStyle, { pointerEvents: 'none' }]} className="text-foreground">
               {titleText}
             </Text>
             <View style={styles.headerRight} />
@@ -282,13 +267,13 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
               <View style={styles.articleWrapper}>
                 <LinkifiedText
                   text={trimmedTitle || untitledText}
-                  style={articleTitleStyle}
+                  style={[articleTitleStyle, { color: theme.colors.text }]}
                   linkStyle={[{ color: theme.colors.primary }]}
                 />
                 {trimmedBody ? (
                   <LinkifiedText
                     text={trimmedBody}
-                    style={articleBodyStyle}
+                    style={[articleBodyStyle, { color: theme.colors.textSecondary }]}
                     linkStyle={[{ color: theme.colors.primary }]}
                   />
                 ) : loadError ? (
@@ -296,7 +281,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
                     {loadError}
                   </Text>
                 ) : (
-                  <Text style={articleBodyPlaceholderStyle}>
+                  <Text style={articleBodyPlaceholderStyle} className="text-muted-foreground">
                     {emptyBodyText}
                   </Text>
                 )}
@@ -368,7 +353,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     minHeight: 48,
-    borderBottomWidth: 1,
   },
   closeButton: {
     marginRight: 6,

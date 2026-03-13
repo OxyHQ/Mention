@@ -103,7 +103,7 @@ export const Slider: React.FC<SliderProps> = ({
     <View style={styles.container}>
       {label && (
         <View style={styles.labelRow}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
+          <Text className="text-foreground" style={styles.label}>{label}</Text>
           {showValue && (
             <Text style={[styles.value, { color: theme.colors.primary }]}>{displayValue}</Text>
           )}

@@ -1,10 +1,8 @@
 import React from 'react';
 import Svg, { Path, Line, Polygon } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-import { colors } from '@/styles/colors';
 
-
-export const Home = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const Home = ({ color = '#005c67', size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
   return (
     <Svg viewBox="0 0 26 26" width={size} height={size} style={{ ...style }}>
       <Path
@@ -18,7 +16,7 @@ export const Home = ({ color = colors.primaryColor, size = 26, style }: { color?
   );
 };
 
-export const HomeActive = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const HomeActive = ({ color = '#005c67', size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
   return (
     <Svg viewBox="0 0 26 26" width={size} height={size} style={{ ...style }}>
       <Path

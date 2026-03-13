@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import MiniChart from '@/components/MiniChart';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -24,26 +24,29 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     const theme = useTheme();
 
     return (
-        <View style={styles.container}>
-            <View style={styles.row}>
+        <View className="py-3">
+            <View className="flex-row items-center justify-around">
                 {items.map((item, index) => (
                     <React.Fragment key={index}>
-                        <View style={styles.item}>
-                            <Text style={[styles.value, { color: theme.colors.text }]}>
+                        <View className="items-center flex-1">
+                            <Text className="text-foreground text-xl font-extrabold mb-0.5">
                                 {(item.formatNumber || formatCompactNumber)(item.value)}
                             </Text>
-                            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+                            <Text className="text-muted-foreground text-xs font-medium">
                                 {item.label}
                             </Text>
                         </View>
                         {index < items.length - 1 && (
-                            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                            <View
+                                className="bg-border"
+                                style={{ width: 0.5, height: 28 }}
+                            />
                         )}
                     </React.Fragment>
                 ))}
             </View>
             {showChart && chartData && chartData.length > 0 && (
-                <View style={styles.chart}>
+                <View className="mt-4">
                     <MiniChart
                         values={chartData}
                         showLabels={true}
@@ -54,36 +57,5 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    container: {
-        paddingVertical: 12,
-    },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-    },
-    item: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    divider: {
-        width: 0.5,
-        height: 28,
-    },
-    value: {
-        fontSize: 20,
-        fontWeight: '800',
-        marginBottom: 2,
-    },
-    label: {
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    chart: {
-        marginTop: 16,
-    },
-});
 
 export default SummaryCard;

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/styles/colors';
 import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 interface PostLocationProps {
   location: GeoJSONPoint;
@@ -44,7 +45,7 @@ const PostLocation: React.FC<PostLocationProps> = ({
         color={theme.colors.textSecondary}
         style={styles.icon}
       />
-      <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+      <Text style={styles.locationText} className="text-muted-foreground" numberOfLines={1}>
         {displayText}
       </Text>
     </Container>

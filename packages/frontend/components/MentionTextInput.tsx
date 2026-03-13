@@ -218,9 +218,9 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
                 placeholderTextColor={theme.colors.textTertiary}
                 maxLength={maxLength}
                 multiline={multiline}
+                className="text-foreground"
                 style={[
                     styles.textInput,
-                    { color: theme.colors.text },
                     style,
                 ]}
                 {...textInputProps}

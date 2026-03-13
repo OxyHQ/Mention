@@ -1,9 +1,10 @@
 import React, { ReactNode } from 'react';
-import { View, TouchableOpacity, StyleSheet, ViewStyle, StyleProp } from 'react-native';
+import { View, TouchableOpacity, ViewStyle, StyleProp } from 'react-native';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 interface AttachmentCarouselItemProps {
   attachmentKey: string;
@@ -31,18 +32,18 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
   return (
     <View style={wrapperStyle}>
       {total > 1 ? (
-        <View style={[styles.reorderControls, { pointerEvents: 'box-none' }]}>
+        <View className="absolute left-2 right-2 bottom-2 flex-row justify-between items-center z-[2]" style={{ pointerEvents: 'box-none' }}>
           <TouchableOpacity
             onPress={() => onMove(attachmentKey, 'left')}
             disabled={!canMoveLeft}
-            style={[styles.reorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.reorderButtonDisabled]}
+            className={cn('rounded-full p-1.5 bg-background', !canMoveLeft && 'opacity-40')}
           >
             <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onMove(attachmentKey, 'right')}
             disabled={!canMoveRight}
-            style={[styles.reorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.reorderButtonDisabled]}
+            className={cn('rounded-full p-1.5 bg-background', !canMoveRight && 'opacity-40')}
           >
             <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
           </TouchableOpacity>
@@ -54,7 +55,7 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
           e.stopPropagation();
           onRemove();
         }}
-        style={[styles.removeButton, { backgroundColor: theme.colors.background }]}
+        className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       >
         <CloseIcon size={16} color={theme.colors.text} />
@@ -62,32 +63,5 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  reorderControls: {
-    position: 'absolute',
-    left: 8,
-    right: 8,
-    bottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  reorderButton: {
-    borderRadius: 999,
-    padding: 6,
-  },
-  reorderButtonDisabled: {
-    opacity: 0.4,
-  },
-  removeButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
-  },
-});
 
 export default AttachmentCarouselItem;

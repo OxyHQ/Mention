@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { View, ViewStyle, Platform } from 'react-native';
 import { LinkPreview } from '../../Compose/LinkPreview';
 
 interface PostAttachmentLinkProps {
@@ -24,17 +23,10 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   siteName,
   style,
 }) => {
-  const theme = useTheme();
-
   return (
     <View
-      style={[
-        styles.itemContainer,
-        webGrabCursorStyle,
-        styles.linkWrapper,
-        { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-        style,
-      ]}
+      className="border border-border bg-secondary rounded-[14px] overflow-hidden w-[280px]"
+      style={[webGrabCursorStyle, style]}
     >
       <LinkPreview
         link={{
@@ -50,16 +42,4 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  itemContainer: {
-    borderWidth: 1,
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  linkWrapper: {
-    width: 280,
-  },
-});
-
 export default PostAttachmentLink;
-

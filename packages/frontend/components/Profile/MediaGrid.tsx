@@ -340,7 +340,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]} onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
+        <View className="bg-background" style={styles.container} onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
             <FlatList
                 data={mediaItems}
                 keyExtractor={keyExtractor}

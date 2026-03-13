@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
 import { colors } from '../styles/colors';
-import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 
 interface GroupedNotificationItemProps {
@@ -20,7 +20,6 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
 }) => {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = useTheme();
 
   const handlePress = useCallback(() => {
     // Mark all unread notifications in the group as read
@@ -126,17 +125,14 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
 
   return (
     <TouchableOpacity
-      style={[
-        styles.container,
-        { borderBottomColor: theme.colors.border },
-        group.hasUnread && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }],
-      ]}
+      className={cn("border-border", group.hasUnread && "bg-primary/5")}
+      style={styles.container}
       onPress={handlePress}
     >
       {/* Avatar + action badge */}
       <View style={styles.avatarContainer}>
         <Avatar source={group.actors[0]?.avatar} size={40} />
-        <View style={[styles.actionBadge, { backgroundColor: getNotificationColor(group.type), borderColor: theme.colors.background }]}>
+        <View className="border-background" style={[styles.actionBadge, { backgroundColor: getNotificationColor(group.type) }]}>
           <Ionicons name={getNotificationIcon(group.type) as any} size={12} color="#fff" />
         </View>
       </View>
@@ -153,14 +149,14 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
                   { marginLeft: index > 0 ? -8 : 0, zIndex: group.actors.length - index },
                 ]}
               >
-                <View style={[styles.avatarBorder, { borderColor: theme.colors.background }]}>
+                <View className="border-background" style={styles.avatarBorder}>
                   <Avatar source={actor.avatar} size={24} />
                 </View>
               </View>
             ))}
             {group.totalActors > group.actors.length && (
               <View style={[styles.avatarWrapper, { marginLeft: -8, zIndex: 0 }]}>
-                <View style={[styles.moreAvatarBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
+                <View className="bg-primary border-background" style={styles.moreAvatarBadge}>
                   <ThemedText style={styles.moreAvatarText}>
                     +{group.totalActors - group.actors.length}
                   </ThemedText>
@@ -172,23 +168,23 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
 
         {/* Group text */}
         <ThemedText
+          className={cn("text-muted-foreground", group.hasUnread && "text-foreground")}
           style={[
             styles.message,
-            { color: theme.colors.textSecondary },
-            group.hasUnread && [styles.unreadText, { color: theme.colors.text }],
+            group.hasUnread && styles.unreadText,
           ]}
           numberOfLines={2}
         >
           {buildGroupTitle()}
         </ThemedText>
 
-        <ThemedText style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
+        <ThemedText className="text-muted-foreground" style={styles.timestamp}>
           {formatTimeAgo(group.createdAt)}
         </ThemedText>
       </View>
 
       {group.hasUnread && (
-        <View style={[styles.unreadIndicator, { backgroundColor: theme.colors.primary }]} />
+        <View className="bg-primary" style={styles.unreadIndicator} />
       )}
     </TouchableOpacity>
   );

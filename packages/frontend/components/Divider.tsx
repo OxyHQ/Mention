@@ -1,37 +1,18 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { View, ViewStyle } from 'react-native';
+import { cn } from '@/lib/utils';
 
 interface DividerProps {
     style?: ViewStyle;
+    className?: string;
 }
 
-/**
- * Divider Component
- * 
- * A simple horizontal divider line component.
- * Reused from social-app and adapted for Mention's theme system.
- */
-export function Divider({ style }: DividerProps) {
-    const theme = useTheme();
-
+export function Divider({ style, className }: DividerProps) {
     return (
         <View
-            style={[
-                styles.divider,
-                {
-                    borderTopColor: theme.colors.border,
-                },
-                style,
-            ]}
+            className={cn("w-full border-t border-border", className)}
+            style={style}
         />
     );
 }
-
-const styles = StyleSheet.create({
-    divider: {
-        width: '100%',
-        borderTopWidth: 1,
-    },
-});
 

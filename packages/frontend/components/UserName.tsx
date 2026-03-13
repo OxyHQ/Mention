@@ -3,6 +3,7 @@ import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-nativ
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 interface Props {
     name?: string | null;
@@ -18,7 +19,7 @@ interface Props {
 
 const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, variant = 'default', style }) => {
     const theme = useTheme();
-    const nameStyle = [styles.name, { color: theme.colors.text }, variant === 'small' && styles.nameSmall, style?.name];
+    const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
     // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
     const flattenedNameStyle = style?.name ? (StyleSheet.flatten(style.name) as TextStyle) : undefined;
@@ -33,7 +34,7 @@ const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, var
     const content = (
         <View style={[styles.container, style?.container]}>
             <View style={styles.nameRow}>
-                <Text style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
+                <Text className="text-foreground" style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
                     {name}
                 </Text>
                 {verified && (

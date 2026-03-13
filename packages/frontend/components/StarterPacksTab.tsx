@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from '@/components/ThemedText';
 import { StarterPackCard, type StarterPackCardData } from '@/components/StarterPackCard';
 import { starterPacksService } from '@/services/starterPacksService';
@@ -11,7 +10,6 @@ import LegendList from '@/components/LegendList';
 
 export function StarterPacksTab() {
   const router = useRouter();
-  const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [packs, setPacks] = useState<any[]>([]);
 
@@ -77,10 +75,11 @@ export function StarterPacksTab() {
       contentContainerStyle={styles.list}
       ListHeaderComponent={
         <TouchableOpacity
-          style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
+          className="bg-primary"
+          style={styles.createButton}
           onPress={() => router.push('/starter-packs/create')}
         >
-          <Text style={[styles.createButtonText, { color: theme.colors.card }]}>
+          <Text className="text-primary-foreground" style={styles.createButtonText}>
             Create Starter Pack
           </Text>
         </TouchableOpacity>

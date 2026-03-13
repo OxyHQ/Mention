@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { PostSourceLink } from '@mention/shared-types';
 
 interface Props {
@@ -48,28 +49,25 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
         return (
           <TouchableOpacity
             key={`${source.url}-${index}`}
-            style={[
-              styles.item,
-              {
-                borderColor: theme.colors.border,
-                backgroundColor: theme.colors.backgroundSecondary,
-              },
-            ]}
+            style={styles.item}
+            className="border-border bg-surface"
             activeOpacity={0.85}
             onPress={() => openSource(source.url)}
           >
-            <View style={[styles.iconWrapper, { backgroundColor: theme.colors.card }]}> 
+            <View style={styles.iconWrapper} className="bg-card">
               <SourcesIcon size={16} color={theme.colors.primary} />
             </View>
             <View style={styles.textWrapper}>
               <Text
-                style={[styles.title, { color: theme.colors.text }]}
+                style={styles.title}
+                className="text-foreground"
                 numberOfLines={2}
               >
                 {title}
               </Text>
               <Text
-                style={[styles.subtitle, { color: theme.colors.textSecondary }]}
+                style={styles.subtitle}
+                className="text-muted-foreground"
                 numberOfLines={1}
               >
                 {hostname}

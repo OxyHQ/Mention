@@ -1,10 +1,10 @@
 import React, { type ReactNode } from 'react';
 import { View, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 /**
  * Skeleton Component
- * 
+ *
  * Loading placeholders for content that is being loaded.
  * Reused from social-app and adapted for Mention's theme system.
  */
@@ -25,8 +25,6 @@ interface ViewStyleProp {
  * Skeleton text placeholder
  */
 export function SkeletonText({ blend, style }: TextStyleProp & SkeletonProps) {
-  const theme = useTheme();
-
   // Default line height for text
   const lineHeight = (style as any)?.fontSize
     ? ((style as any).fontSize * 1.4) || 14
@@ -40,10 +38,10 @@ export function SkeletonText({ blend, style }: TextStyleProp & SkeletonProps) {
         { paddingVertical: lineHeight * 0.15 },
       ]}>
       <View
+        className="bg-input"
         style={[
           styles.textSkeleton,
           {
-            backgroundColor: theme.colors.borderLight,
             height: lineHeight * 0.7,
             opacity: blend ? 0.6 : 1,
           },
@@ -62,16 +60,14 @@ export function SkeletonCircle({
   blend,
   style,
 }: ViewStyleProp & { children?: ReactNode; size: number } & SkeletonProps) {
-  const theme = useTheme();
-
   return (
     <View
+      className="bg-input"
       style={[
         styles.circle,
         {
           width: size,
           height: size,
-          backgroundColor: theme.colors.borderLight,
           opacity: blend ? 0.6 : 1,
         },
         style,
@@ -89,16 +85,14 @@ export function SkeletonPill({
   blend,
   style,
 }: ViewStyleProp & { size: number } & SkeletonProps) {
-  const theme = useTheme();
-
   return (
     <View
+      className="bg-input"
       style={[
         styles.pill,
         {
           width: size * 1.618, // Golden ratio for pill shape
           height: size,
-          backgroundColor: theme.colors.borderLight,
           opacity: blend ? 0.6 : 1,
         },
         style,
@@ -149,4 +143,3 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
 });
-

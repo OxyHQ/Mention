@@ -1,7 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCommunitiesProps, Community } from './types';
 
@@ -12,7 +11,6 @@ import type { ProfileCommunitiesProps, Community } from './types';
 export const ProfileCommunities = memo(function ProfileCommunities({
   communities,
 }: ProfileCommunitiesProps) {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   if (!communities || communities.length === 0) {
@@ -20,8 +18,8 @@ export const ProfileCommunities = memo(function ProfileCommunities({
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>
+    <View className="mt-4">
+      <Text className="text-foreground text-sm font-bold mb-3">
         {t('profile.communities')}
       </Text>
       {communities.map((community, index) => (
@@ -32,7 +30,6 @@ export const ProfileCommunities = memo(function ProfileCommunities({
 });
 
 const CommunityCard = memo(function CommunityCard({ community }: { community: Community }) {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const handleViewPress = useCallback(() => {
@@ -42,37 +39,29 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
   }, [community.id]);
 
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.colors.backgroundSecondary,
-          borderColor: theme.colors.border,
-        },
-      ]}
-    >
-      <View style={styles.header}>
+    <View className="bg-muted border border-border rounded-xl p-3 mb-3">
+      <View className="flex-row mb-3">
         {community.icon && (
-          <View style={styles.iconContainer}>
+          <View className="rounded-lg mr-3 overflow-hidden" style={{ width: 100, height: 100 }}>
             <Image
               source={{ uri: community.icon }}
               resizeMode="cover"
-              style={styles.iconImage}
+              className="flex-1 overflow-hidden"
             />
           </View>
         )}
-        <View style={styles.info}>
-          <Text style={[styles.name, { color: theme.colors.text }]}>
+        <View className="flex-1">
+          <Text className="text-foreground text-base font-bold mb-1">
             {community.name}
           </Text>
           {community.description && (
-            <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+            <Text className="text-muted-foreground text-sm mb-2" style={{ lineHeight: 18 }}>
               {community.description}
             </Text>
           )}
           {community.memberCount && (
-            <View style={styles.members}>
-              <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>
+            <View className="flex-row items-center mb-3">
+              <Text className="text-muted-foreground text-[13px]">
                 {t('profile.memberCount', {
                   count: community.memberCount,
                   defaultValue: `${community.memberCount} Members`,
@@ -82,93 +71,11 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
           )}
         </View>
       </View>
-      <TouchableOpacity style={styles.viewButton} onPress={handleViewPress}>
-        <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>
+      <TouchableOpacity className="self-center w-full mt-2.5 px-4 py-1.5" onPress={handleViewPress}>
+        <Text className="text-primary text-[15px] font-semibold text-center">
           {t('profile.view')}
         </Text>
       </TouchableOpacity>
     </View>
   );
 });
-
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 16,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  card: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginRight: 12,
-    overflow: 'hidden',
-  },
-  iconImage: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  info: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  members: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  memberCount: {
-    fontSize: 13,
-  },
-  viewButton: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    alignSelf: 'center',
-    width: '100%',
-    marginTop: 10,
-  },
-  viewButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

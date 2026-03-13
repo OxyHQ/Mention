@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, ViewStyle } from 'react-native'
 import { Loading } from '@/components/ui/Loading'
 import { useTheme } from '@/hooks/useTheme'
+import { cn } from '@/lib/utils'
 import { Search } from '@/assets/icons/search-icon'
 import { SPACING } from '@/styles/spacing'
 import { FONT_SIZES } from '@/styles/typography'
@@ -74,8 +75,8 @@ export const SearchBar = () => {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <View className="bg-background" style={styles.container}>
+            <View className="bg-muted" style={styles.searchInputContainer}>
                 {isLoading ? (
                     <Loading variant="inline" size="small" style={styles.searchIconWrapper} />
                 ) : (
@@ -84,7 +85,8 @@ export const SearchBar = () => {
                     </View>
                 )}
                 <TextInput
-                    style={[styles.input, { color: theme.colors.text }]}
+                    className="text-foreground"
+                    style={styles.input}
                     placeholder={t("Search Mention")}
                     placeholderTextColor={theme.colors.textSecondary}
                     value={searchQuery}
@@ -119,8 +121,8 @@ export const SearchBar = () => {
             </View>
 
             {showFilters && (
-                <View style={[styles.filtersDropdown, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <Text style={[styles.filterLabel, { color: theme.colors.textSecondary }]}>
+                <View className="bg-card border-border" style={styles.filtersDropdown}>
+                    <Text className="text-muted-foreground" style={styles.filterLabel}>
                         {t("Filter by")}
                     </Text>
                     <View style={styles.filterPillsRow}>

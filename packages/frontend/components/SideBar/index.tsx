@@ -169,9 +169,9 @@ export function SideBar() {
         return (
             <Pressable
                 {...({ onHoverIn: handleHoverIn, onHoverOut: handleHoverOut } as any)}
+                className="bg-background"
                 style={[
                     styles.container,
-                    { backgroundColor: theme.colors.background },
                     {
                         width: isExpanded ? 240 : 60,
                         padding: 6,

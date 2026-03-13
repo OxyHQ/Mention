@@ -14,6 +14,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOJI_CATEGORIES, MAX_RECENT_EMOJIS, EmojiCategory } from '@/utils/emojiData';
+import { cn } from '@/lib/utils';
 
 const RECENT_EMOJIS_KEY = '@mention/recent_emojis';
 const NUM_COLUMNS = 8;
@@ -95,7 +96,7 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="flex-1 min-h-[350px] bg-background">
       <Header
         options={{
           title: t('compose.emoji.title', { defaultValue: 'Emojis' }),
@@ -113,19 +114,19 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoryTabs}
-        style={[styles.categoryTabsContainer, { borderBottomColor: theme.colors.border }]}
+        contentContainerStyle={{ paddingHorizontal: 8, gap: 4 }}
+        className="border-b border-border max-h-[48px]"
       >
         {categories.map(cat => (
           <TouchableOpacity
             key={cat.id}
-            style={[
-              styles.categoryTab,
-              activeCategory === cat.id && [styles.activeCategoryTab, { borderBottomColor: theme.colors.primary }],
-            ]}
+            className={cn(
+              'px-2.5 py-2.5 border-b-2 border-transparent',
+              activeCategory === cat.id && 'border-primary'
+            )}
             onPress={() => handleCategoryPress(cat.id)}
           >
-            <Text style={styles.categoryIcon}>{cat.icon}</Text>
+            <Text className="text-xl">{cat.icon}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -134,7 +135,7 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
       <ScrollView
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.emojiGrid}
+        contentContainerStyle={{ paddingBottom: 16 }}
       >
         {categories.map(cat => {
           const rows = chunk(cat.emojis, NUM_COLUMNS);
@@ -143,13 +144,13 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
               key={cat.id}
               onLayout={(e) => handleSectionLayout(cat.id, e.nativeEvent.layout.y)}
             >
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+              <View className="px-4 pt-3 pb-1.5">
+                <Text className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {cat.name}
                 </Text>
               </View>
               {rows.map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.emojiRow}>
+                <View key={rowIndex} className="flex-row px-2">
                   {row.map((emoji, colIndex) => (
                     <TouchableOpacity
                       key={`${cat.id}-${rowIndex}-${colIndex}`}
@@ -176,48 +177,6 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    minHeight: 350,
-  },
-  categoryTabsContainer: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    maxHeight: 48,
-  },
-  categoryTabs: {
-    paddingHorizontal: 8,
-    gap: 4,
-  },
-  categoryTab: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeCategoryTab: {
-    borderBottomWidth: 2,
-  },
-  categoryIcon: {
-    fontSize: 20,
-  },
-  sectionHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  emojiGrid: {
-    paddingBottom: 16,
-  },
-  emojiRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-  },
   emojiCell: {
     flex: 1,
     aspectRatio: 1,

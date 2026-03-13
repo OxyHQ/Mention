@@ -23,21 +23,20 @@ interface PostAttachmentMediaProps {
 
 const PostAttachmentVideo: React.FC<{
   src: string;
-  borderColor: string;
-  backgroundColor: string;
   postId?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, borderColor, backgroundColor, postId, onPress, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src, postId, onPress, hasSingleMedia, hasMultipleMedia }) => {
   return (
-    <View style={[
-      styles.itemContainer,
-      webGrabCursorStyle,
-      { borderColor, backgroundColor },
-      hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
-      hasSingleMedia && { maxHeight: undefined, height: undefined }
-    ]}>
+    <View
+      className="border border-border bg-secondary rounded-[15px] overflow-hidden"
+      style={[
+        webGrabCursorStyle,
+        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
+        hasSingleMedia && { maxHeight: undefined, height: undefined },
+      ]}
+    >
       <VideoPlayer
         src={src}
         style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
@@ -51,11 +50,10 @@ const PostAttachmentVideo: React.FC<{
 
 const PostAttachmentImage: React.FC<{
   src: string;
-  borderColor: string;
-  backgroundColor: string;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, borderColor, backgroundColor, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src, hasSingleMedia, hasMultipleMedia }) => {
+  const theme = useTheme();
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
 
   useEffect(() => {
@@ -79,19 +77,19 @@ const PostAttachmentImage: React.FC<{
       containerStyle={[
         styles.itemContainer,
         webGrabCursorStyle,
-        { borderColor, backgroundColor },
-        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
-        hasSingleMedia && { maxHeight: undefined, height: undefined }
+        { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
+        hasSingleMedia && { maxHeight: undefined, height: undefined },
       ]}
       style={[
         hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia,
-        aspectRatio !== undefined ? { aspectRatio } : undefined
+        aspectRatio !== undefined ? { aspectRatio } : undefined,
       ]}
       resizeMode="contain"
       placeholder={
         <View style={[
           hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia,
-          { backgroundColor, justifyContent: 'center', alignItems: 'center' }
+          { backgroundColor: theme.colors.backgroundSecondary, justifyContent: 'center', alignItems: 'center' },
         ]} />
       }
       threshold={300}
@@ -108,14 +106,10 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   hasSingleMedia,
   hasMultipleMedia,
 }) => {
-  const theme = useTheme();
-
   if (type === 'video') {
     return (
       <PostAttachmentVideo
         src={src}
-        borderColor={theme.colors.border}
-        backgroundColor={theme.colors.backgroundSecondary}
         postId={postId}
         onPress={onPress}
         hasSingleMedia={hasSingleMedia}
@@ -127,8 +121,6 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   return (
     <PostAttachmentImage
       src={src}
-      borderColor={theme.colors.border}
-      backgroundColor={theme.colors.backgroundSecondary}
       hasSingleMedia={hasSingleMedia}
       hasMultipleMedia={hasMultipleMedia}
     />
@@ -143,20 +135,16 @@ const styles = StyleSheet.create({
   },
   videoPreserveAspect: {
     width: CARD_WIDTH,
-    // No height or aspectRatio constraint - height determined by video's natural aspect ratio
   },
   videoMultipleMedia: {
     height: CARD_HEIGHT,
-    // No width or aspectRatio - width will be determined by video's natural aspect ratio
     alignSelf: 'flex-start',
   },
   imagePreserveAspect: {
     width: CARD_WIDTH,
-    // No height or aspectRatio constraint - height determined by image's natural aspect ratio
   },
   imageMultipleMedia: {
     height: CARD_HEIGHT,
-    // No width or aspectRatio - width will be determined by image's natural aspect ratio
     alignSelf: 'flex-start',
   },
 });

@@ -13,7 +13,6 @@ import {
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
-import { useTheme } from '@/hooks/useTheme';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import Svg, { Defs, ClipPath, Path, Image as SvgImage } from 'react-native-svg';
 
@@ -59,7 +58,6 @@ const Avatar: React.FC<AvatarProps> = ({
   onPress,
   useAnimated = false,
 }) => {
-  const theme = useTheme();
   const [errored, setErrored] = React.useState(false);
   const radius = getCircleRadius(size);
 
@@ -138,7 +136,7 @@ const Avatar: React.FC<AvatarProps> = ({
               />
             )
           ) : (
-            <View style={[styles.fallback, { width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View className="bg-muted" style={[styles.fallback, { width: size, height: size, borderRadius: radius, overflow: 'hidden' }]}>
               <Image
                 source={DEFAULT_AVATAR_SOURCE}
                 style={{ width: size, height: size, borderRadius: radius }}

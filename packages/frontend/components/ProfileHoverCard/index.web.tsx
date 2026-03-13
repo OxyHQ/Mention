@@ -277,11 +277,10 @@ let Card = ({
 
   return (
     <View
+      className="bg-card border-border"
       style={[
         cardStyles.container,
         {
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border,
           shadowColor: theme.colors.text,
         },
       ]}>
@@ -342,7 +341,7 @@ function CardContent({
         </View>
 
         <View style={cardStyles.handleRow}>
-          <Text style={[cardStyles.handle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          <Text className="text-muted-foreground" style={cardStyles.handle} numberOfLines={1}>
             @{profile.username}
           </Text>
           {profile.isFederated && (
@@ -353,18 +352,18 @@ function CardContent({
 
       <View style={cardStyles.statsRow}>
         <View style={cardStyles.statItem}>
-          <Text style={[cardStyles.statNumber, { color: theme.colors.text }]}>
+          <Text className="text-foreground" style={cardStyles.statNumber}>
             {formatCompactNumber(followersCount)}
           </Text>
-          <Text style={[cardStyles.statLabel, { color: theme.colors.textSecondary }]}>
+          <Text className="text-muted-foreground" style={cardStyles.statLabel}>
             {' '}{followersCount === 1 ? 'follower' : 'followers'}
           </Text>
         </View>
         <View style={cardStyles.statItem}>
-          <Text style={[cardStyles.statNumber, { color: theme.colors.text }]}>
+          <Text className="text-foreground" style={cardStyles.statNumber}>
             {formatCompactNumber(followingCount)}
           </Text>
-          <Text style={[cardStyles.statLabel, { color: theme.colors.textSecondary }]}>
+          <Text className="text-muted-foreground" style={cardStyles.statLabel}>
             {' '}following
           </Text>
         </View>
@@ -373,7 +372,8 @@ function CardContent({
       {profile.bio ? (
         <View style={cardStyles.bioContainer}>
           <Text
-            style={[cardStyles.bio, { color: theme.colors.textSecondary }]}
+            className="text-muted-foreground"
+            style={cardStyles.bio}
             numberOfLines={3}>
             {profile.bio}
           </Text>

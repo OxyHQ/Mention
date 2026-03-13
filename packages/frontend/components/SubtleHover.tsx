@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 interface SubtleHoverProps {
   style?: ViewStyle;
@@ -45,10 +46,10 @@ export function SubtleHover({
 
   return (
     <View
+      className="bg-input"
       style={[
         styles.overlay,
         {
-          backgroundColor: theme.colors.borderLight,
           opacity: hover ? opacity : 0,
         },
         style,

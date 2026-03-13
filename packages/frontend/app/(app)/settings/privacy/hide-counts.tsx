@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -14,7 +14,7 @@ import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
 
 export default function HideCountsScreen() {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const { colors } = useTheme();
 
     const [hideLikeCounts, setHideLikeCounts] = useState(false);
     const [hideShareCounts, setHideShareCounts] = useState(false);
@@ -64,7 +64,7 @@ export default function HideCountsScreen() {
             await authenticatedClient.put('/profile/settings', {
                 privacy: updatedPrivacy
             });
-            
+
             // Update cache immediately
             try {
                 const currentResponse = await authenticatedClient.get('/profile/settings/me');
@@ -107,7 +107,7 @@ export default function HideCountsScreen() {
             setHideShareCounts(value);
             setHideReplyCounts(value);
             setHideSaveCounts(value);
-            
+
             // Update cache immediately
             try {
                 const currentResponse = await authenticatedClient.get('/profile/settings/me');
@@ -124,7 +124,7 @@ export default function HideCountsScreen() {
 
     if (loading) {
         return (
-            <ThemedView style={styles.container}>
+            <ThemedView className="flex-1">
                 <Header
                     options={{
                         title: t('settings.privacy.hideAllCounts'),
@@ -133,14 +133,14 @@ export default function HideCountsScreen() {
                                 key="back"
                                 onPress={() => router.back()}
                             >
-                                <BackArrowIcon size={20} color={theme.colors.text} />
+                                <BackArrowIcon size={20} color={colors.text} />
                             </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}
                     disableSticky={true}
                 />
-                <View style={styles.loadingContainer}>
+                <View className="flex-1 justify-center items-center">
                     <Loading size="large" />
                 </View>
             </ThemedView>
@@ -148,7 +148,7 @@ export default function HideCountsScreen() {
     }
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             <Header
                 options={{
                     title: t('settings.privacy.hideAllCounts'),
@@ -157,7 +157,7 @@ export default function HideCountsScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -165,19 +165,19 @@ export default function HideCountsScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
             >
                 {/* Main toggle card - highlighted */}
-                <View style={[styles.mainCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <View style={styles.mainCardContent}>
-                        <View style={styles.mainCardInfo}>
-                            <Text style={[styles.mainCardLabel, { color: theme.colors.text }]}>
+                <View className="rounded-2xl border border-border bg-card mb-6 p-5">
+                    <View className="flex-row items-center justify-between">
+                        <View className="flex-1 mr-4">
+                            <Text className="text-lg font-semibold mb-1.5 text-foreground">
                                 {t('settings.privacy.hideAllCounts')}
                             </Text>
-                            <Text style={[styles.mainCardDescription, { color: theme.colors.textSecondary }]}>
+                            <Text className="text-sm leading-5 text-muted-foreground">
                                 {t('settings.privacy.hideAllCountsDesc')}
                             </Text>
                         </View>
@@ -191,20 +191,20 @@ export default function HideCountsScreen() {
                 </View>
 
                 {/* Section header */}
-                <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionHeaderText, { color: theme.colors.textSecondary }]}>
+                <View className="mb-3 px-1">
+                    <Text className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {t('settings.privacy.individualSettings')}
                     </Text>
                 </View>
 
                 {/* Individual settings card */}
-                <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <View style={[styles.settingItem, styles.firstSettingItem]}>
-                        <View style={styles.settingInfo}>
-                            <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                <View className="rounded-2xl border border-border bg-card overflow-hidden">
+                    <View className="flex-row items-center justify-between px-4 pt-[18px] py-4">
+                        <View className="flex-1 mr-4">
+                            <Text className="text-base font-medium mb-1 text-foreground">
                                 {t('settings.privacy.hideLikeCounts')}
                             </Text>
-                            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                            <Text className="text-sm leading-5 text-muted-foreground">
                                 {t('settings.privacy.hideLikeCountsDesc')}
                             </Text>
                         </View>
@@ -217,14 +217,14 @@ export default function HideCountsScreen() {
                         />
                     </View>
 
-                    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                    <View className="h-px mx-4 bg-border" />
 
-                    <View style={styles.settingItem}>
-                        <View style={styles.settingInfo}>
-                            <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                    <View className="flex-row items-center justify-between px-4 py-4">
+                        <View className="flex-1 mr-4">
+                            <Text className="text-base font-medium mb-1 text-foreground">
                                 {t('settings.privacy.hideShareCounts')}
                             </Text>
-                            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                            <Text className="text-sm leading-5 text-muted-foreground">
                                 {t('settings.privacy.hideShareCountsDesc')}
                             </Text>
                         </View>
@@ -237,14 +237,14 @@ export default function HideCountsScreen() {
                         />
                     </View>
 
-                    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                    <View className="h-px mx-4 bg-border" />
 
-                    <View style={styles.settingItem}>
-                        <View style={styles.settingInfo}>
-                            <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                    <View className="flex-row items-center justify-between px-4 py-4">
+                        <View className="flex-1 mr-4">
+                            <Text className="text-base font-medium mb-1 text-foreground">
                                 {t('settings.privacy.hideReplyCounts')}
                             </Text>
-                            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                            <Text className="text-sm leading-5 text-muted-foreground">
                                 {t('settings.privacy.hideReplyCountsDesc')}
                             </Text>
                         </View>
@@ -257,14 +257,14 @@ export default function HideCountsScreen() {
                         />
                     </View>
 
-                    <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                    <View className="h-px mx-4 bg-border" />
 
-                    <View style={[styles.settingItem, styles.lastSettingItem]}>
-                        <View style={styles.settingInfo}>
-                            <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                    <View className="flex-row items-center justify-between px-4 py-4 pb-[18px]">
+                        <View className="flex-1 mr-4">
+                            <Text className="text-base font-medium mb-1 text-foreground">
                                 {t('settings.privacy.hideSaveCounts')}
                             </Text>
-                            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                            <Text className="text-sm leading-5 text-muted-foreground">
                                 {t('settings.privacy.hideSaveCountsDesc')}
                             </Text>
                         </View>
@@ -281,92 +281,3 @@ export default function HideCountsScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    mainCard: {
-        borderRadius: 16,
-        borderWidth: 1,
-        marginBottom: 24,
-        padding: 20,
-    },
-    mainCardContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    mainCardInfo: {
-        flex: 1,
-        marginRight: 16,
-    },
-    mainCardLabel: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 6,
-    },
-    mainCardDescription: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    sectionHeader: {
-        marginBottom: 12,
-        paddingHorizontal: 4,
-    },
-    sectionHeaderText: {
-        fontSize: 13,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    settingsCard: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    settingItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-    },
-    firstSettingItem: {
-        paddingTop: 18,
-    },
-    lastSettingItem: {
-        paddingBottom: 18,
-    },
-    divider: {
-        height: 1,
-        marginHorizontal: 16,
-    },
-    settingInfo: {
-        flex: 1,
-        marginRight: 16,
-    },
-    settingLabel: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 4,
-    },
-    settingDescription: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-});
-

@@ -14,6 +14,7 @@ import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
 import { useUsersStore } from '@/stores/usersStore';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 interface NotificationItemProps {
     notification: RawNotification;
@@ -241,27 +242,24 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
     return (
         <PressableScale
-            style={[
-                styles.container,
-                { borderBottomColor: theme.colors.border },
-                !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
-            ]}
+            className={cn("border-border", !notification.read && "bg-primary/5")}
+            style={styles.container}
             onPress={handlePress}
             onLongPress={handleLongPress}
         >
             <View style={styles.avatarContainer}>
                 <Avatar source={actorAvatar} size={40} />
-                <View style={[styles.actionBadge, { backgroundColor: getNotificationColor(notification.type), borderColor: theme.colors.background }]}>
+                <View className="border-background" style={[styles.actionBadge, { backgroundColor: getNotificationColor(notification.type) }]}>
                     <Ionicons name={getNotificationIcon(notification.type) as any} size={12} color="#fff" />
                 </View>
             </View>
 
             <View style={styles.contentContainer}>
                 <ThemedText
+                    className={cn("text-muted-foreground", !notification.read && "text-foreground")}
                     style={[
                         styles.message,
-                        { color: theme.colors.textSecondary },
-                        !notification.read && [styles.unreadText, { color: theme.colors.text }]
+                        !notification.read && styles.unreadText,
                     ]}
                     numberOfLines={2}
                 >
@@ -274,7 +272,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             </View>
 
             {!notification.read && (
-                <View style={[styles.unreadIndicator, { backgroundColor: theme.colors.primary }]} />
+                <View className="bg-primary" style={styles.unreadIndicator} />
             )}
         </PressableScale>
     );

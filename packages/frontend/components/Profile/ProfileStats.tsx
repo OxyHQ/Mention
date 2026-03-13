@@ -1,7 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
@@ -18,7 +17,6 @@ export const ProfileStats = memo(function ProfileStats({
   username,
   onPostsPress,
 }: ProfileStatsProps) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const displayUsername = profileUsername || username;
 
@@ -36,10 +34,10 @@ export const ProfileStats = memo(function ProfileStats({
         style={styles.statItem}
         onPress={handleFollowingPress}
       >
-        <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+        <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(followingCount ?? 0)}
         </Text>
-        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+        <Text className="text-muted-foreground" style={styles.statLabel}>
           {t('profile.following')}
         </Text>
       </TouchableOpacity>
@@ -48,10 +46,10 @@ export const ProfileStats = memo(function ProfileStats({
         style={styles.statItem}
         onPress={handleFollowersPress}
       >
-        <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+        <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(followerCount ?? 0)}
         </Text>
-        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+        <Text className="text-muted-foreground" style={styles.statLabel}>
           {t('profile.followers')}
         </Text>
       </TouchableOpacity>
@@ -60,10 +58,10 @@ export const ProfileStats = memo(function ProfileStats({
         style={styles.statItem}
         onPress={onPostsPress}
       >
-        <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+        <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(postsCount ?? 0)}
         </Text>
-        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+        <Text className="text-muted-foreground" style={styles.statLabel}>
           {t('profile.tabs.posts')}
         </Text>
       </TouchableOpacity>

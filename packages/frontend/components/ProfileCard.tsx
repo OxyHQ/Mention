@@ -61,12 +61,9 @@ export function ProfileCard({
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.7}
+      className="bg-card border-border"
       style={[
         styles.outer,
-        {
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border,
-        },
         style,
       ]}>
       <View style={styles.header}>
@@ -83,10 +80,8 @@ export function ProfileCard({
           </ThemedText>
           <View style={styles.handleRow}>
             <ThemedText
-              style={[
-                styles.handle,
-                { color: theme.colors.textSecondary },
-              ]}
+              className="text-muted-foreground"
+              style={styles.handle}
               numberOfLines={1}>
               @{profile.username}
             </ThemedText>
@@ -104,10 +99,8 @@ export function ProfileCard({
       {profile.description && (
         <View style={styles.description}>
           <ThemedText
-            style={[
-              styles.descriptionText,
-              { color: theme.colors.textSecondary },
-            ]}
+            className="text-muted-foreground"
+            style={styles.descriptionText}
             numberOfLines={3}>
             {profile.description}
           </ThemedText>

@@ -29,13 +29,8 @@ export function StarterPackCard({ pack, onPress }: StarterPackCardProps) {
   return (
     <PressableScale
       onPress={onPress}
-      style={[
-        styles.outer,
-        {
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border,
-        },
-      ]}>
+      className="bg-card border-border"
+      style={styles.outer}>
       <View style={styles.header}>
         <View style={[styles.iconBubble, { backgroundColor: theme.colors.primary + '20' }]}>
           <Ionicons name="rocket-outline" size={22} color={theme.colors.primary} />
@@ -46,7 +41,8 @@ export function StarterPackCard({ pack, onPress }: StarterPackCardProps) {
           </ThemedText>
           {pack.creator && (
             <ThemedText
-              style={[styles.byline, { color: theme.colors.textSecondary }]}
+              className="text-muted-foreground"
+              style={styles.byline}
               numberOfLines={1}>
               Starter pack by @{pack.creator.username}
             </ThemedText>
@@ -55,12 +51,13 @@ export function StarterPackCard({ pack, onPress }: StarterPackCardProps) {
       </View>
       {pack.description && (
         <ThemedText
-          style={[styles.descriptionText, { color: theme.colors.textSecondary }]}
+          className="text-muted-foreground"
+          style={styles.descriptionText}
           numberOfLines={3}>
           {pack.description}
         </ThemedText>
       )}
-      <ThemedText style={[styles.stats, { color: theme.colors.textSecondary }]}>
+      <ThemedText className="text-muted-foreground" style={styles.stats}>
         {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
         {pack.useCount > 0 ? ` · Used by ${pack.useCount} ${pack.useCount === 1 ? 'person' : 'people'}` : ''}
       </ThemedText>

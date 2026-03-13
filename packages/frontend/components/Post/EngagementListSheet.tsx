@@ -39,17 +39,17 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
       if (cursor) {
         setLoadingMore(true);
       }
-      
+
       const result = type === 'likes'
         ? await feedService.getPostLikes(postId, cursor)
         : await feedService.getPostReposts(postId, cursor);
-      
+
       if (cursor) {
         setUsers(prev => [...prev, ...result.users]);
       } else {
         setUsers(result.users);
       }
-      
+
       setHasMore(result.hasMore);
       setNextCursor(result.nextCursor);
     } catch (error) {
@@ -77,35 +77,33 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 
   const renderUser = useCallback(({ item }: { item: User }) => {
     return (
-      <View>
       <TouchableOpacity
-          style={styles.userRow}
+        className="flex-row items-center px-4 py-3"
+        style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent' }}
         onPress={() => handleUserPress(item.handle)}
       >
         <Avatar source={item.avatar} size={50} style={{ marginRight: 12 }} />
-        <View style={styles.userInfo}>
-          <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
+        <View className="flex-1">
+          <View className="flex-row items-center">
+            <Text className="text-foreground text-base font-semibold" numberOfLines={1}>
               {item.name}
             </Text>
             {item.verified && (
-              <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} style={styles.verifiedIcon} />
+              <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />
             )}
           </View>
-          <Text style={[styles.handle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          <Text className="text-muted-foreground text-sm mt-0.5" numberOfLines={1}>
             @{item.handle}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
       </TouchableOpacity>
-      <Divider />
-      </View>
     );
   }, [theme, handleUserPress]);
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View className="flex-1 bg-background">
         <Header
           options={{
             title: type === 'likes' ? 'Likes' : 'Reposts',
@@ -121,7 +119,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           hideBottomBorder={true}
           disableSticky={true}
         />
-        <View style={styles.loadingContainer}>
+        <View className="flex-1 justify-center items-center">
           <Loading size="large" />
         </View>
       </View>
@@ -129,7 +127,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="flex-1 bg-background">
       <Header
         options={{
           title: type === 'likes' ? 'Likes' : 'Reposts',
@@ -145,7 +143,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
         hideBottomBorder={true}
         disableSticky={true}
       />
-      
+
       {users.length === 0 ? (
         <EmptyState
           title={`No ${type === 'likes' ? 'likes' : 'reposts'} yet`}
@@ -153,7 +151,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
             name: type === 'likes' ? 'heart-outline' : 'repeat-outline',
             size: 48,
           }}
-          containerStyle={styles.emptyContainer}
+          containerStyle={{ flex: 1 }}
         />
       ) : (
         <FlatList
@@ -164,7 +162,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           onEndReachedThreshold={0.5}
           ListFooterComponent={
             loadingMore ? (
-              <View style={styles.footerLoader}>
+              <View className="py-4 items-center">
                 <Loading size="small" style={{ flex: undefined }} />
               </View>
             ) : null
@@ -175,49 +173,4 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-  },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'transparent',
-  },
-  userInfo: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  verifiedIcon: {
-    marginLeft: 4,
-  },
-  handle: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  footerLoader: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-});
-
 export default EngagementListSheet;
-

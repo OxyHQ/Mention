@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { router } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
 
@@ -55,8 +55,6 @@ const AvatarStack = React.memo(function AvatarStack({ avatars }: { avatars: stri
 });
 
 export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
-    const theme = useTheme();
-
     const handlePress = useCallback(() => {
         if (onPress) {
             onPress();
@@ -79,11 +77,8 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
     return (
         <PressableScale
             onPress={handlePress}
-            style={[
-                styles.card,
-                { backgroundColor: theme.colors.backgroundSecondary },
-                style,
-            ]}
+            className="bg-surface"
+            style={[styles.card, style]}
         >
             <View style={styles.cardBody}>
                 <View style={styles.cardInfo}>
@@ -92,14 +87,16 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
                     </ThemedText>
                     {subtitle ? (
                         <ThemedText
-                            style={[styles.subtitle, { color: theme.colors.textSecondary }]}
+                            className="text-muted-foreground"
+                            style={styles.subtitle}
                             numberOfLines={1}
                         >
                             {subtitle}
                         </ThemedText>
                     ) : feed.creator ? (
                         <ThemedText
-                            style={[styles.subtitle, { color: theme.colors.textSecondary }]}
+                            className="text-muted-foreground"
+                            style={styles.subtitle}
                             numberOfLines={1}
                         >
                             Feed by @{feed.creator.username}
@@ -107,7 +104,8 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
                     ) : null}
                     {feed.description ? (
                         <ThemedText
-                            style={[styles.description, { color: theme.colors.textSecondary }]}
+                            className="text-muted-foreground"
+                            style={styles.description}
                             numberOfLines={2}
                         >
                             {feed.description}

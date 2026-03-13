@@ -5,20 +5,18 @@ import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/Button';
-import { useTheme } from '@/hooks/useTheme';
 
 export const SignInBanner = memo(function SignInBanner() {
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
   const { t } = useTranslation();
 
   return (
     <View
+      className="bg-primary"
       style={[
         styles.container,
         {
-          backgroundColor: theme.colors.primary,
           paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom,
         },
       ]}

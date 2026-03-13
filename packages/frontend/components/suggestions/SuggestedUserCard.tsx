@@ -52,21 +52,23 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
 
   return (
     <TouchableOpacity
-      style={[styles.row, { borderBottomColor: theme.colors.border }]}
+      className="flex-row items-center py-3 px-4 border-b border-border"
+      style={Platform.select({ web: { cursor: 'pointer' as any } })}
       onPress={handlePress}
       activeOpacity={0.7}
     >
       <Avatar source={user.avatar} size={40} />
-      <View style={styles.textColumn}>
-        <ThemedText style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
+      <View className="flex-1 ml-3 mr-3">
+        <ThemedText className="text-foreground text-[15px] font-semibold" style={{ lineHeight: 20 }} numberOfLines={1}>
           {displayName}
         </ThemedText>
-        <ThemedText style={[styles.handle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+        <ThemedText className="text-muted-foreground text-sm" style={{ lineHeight: 18, marginTop: 1 }} numberOfLines={1}>
           @{handle}
         </ThemedText>
         {user.bio ? (
           <ThemedText
-            style={[styles.bio, { color: theme.colors.textSecondary }]}
+            className="text-muted-foreground text-sm mt-1"
+            style={{ lineHeight: 18 }}
             numberOfLines={2}
           >
             {user.bio}
@@ -75,7 +77,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       </View>
       <FollowButton userId={user.id} size="small" />
       <Pressable
-        style={styles.dismissButton}
+        className="p-1 ml-2"
         onPress={handleDismiss}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
@@ -83,41 +85,6 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       </Pressable>
     </TouchableOpacity>
   );
-});
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  textColumn: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 12,
-  },
-  name: {
-    fontSize: 15,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  handle: {
-    fontSize: 14,
-    lineHeight: 18,
-    marginTop: 1,
-  },
-  bio: {
-    fontSize: 14,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  dismissButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
 });
 
 export type { SuggestedUserData };

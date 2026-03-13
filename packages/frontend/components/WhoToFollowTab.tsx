@@ -134,7 +134,7 @@ export function WhoToFollowTab() {
     const username = item.username || item.id;
 
     return (
-      <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
+      <View className="border-border" style={styles.row}>
         <TouchableOpacity
           style={styles.rowLeft}
           onPress={() => router.push(`/@${username}`)}
@@ -142,14 +142,14 @@ export function WhoToFollowTab() {
         >
           <Avatar source={avatarUri} size={48} />
           <View style={styles.rowTextWrap}>
-            <ThemedText style={[styles.rowTitle, { color: theme.colors.text }]}>
+            <ThemedText className="text-foreground" style={styles.rowTitle}>
               {displayName}
             </ThemedText>
-            <ThemedText style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+            <ThemedText className="text-muted-foreground" style={styles.rowSub}>
               @{username}
             </ThemedText>
             {item.bio && (
-              <ThemedText style={[styles.rowBio, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+              <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={2}>
                 {item.bio}
               </ThemedText>
             )}
@@ -164,7 +164,7 @@ export function WhoToFollowTab() {
     return (
       <View style={styles.loadingContainer}>
         <Loading size="large" />
-        <ThemedText style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+        <ThemedText className="text-muted-foreground" style={styles.loadingText}>
           {t('Loading...')}
         </ThemedText>
       </View>
@@ -208,18 +208,19 @@ export function WhoToFollowTab() {
 
   const renderInviteBanner = () => (
     <TouchableOpacity
-      style={[styles.inviteBanner, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+      className="bg-card border-border"
+      style={styles.inviteBanner}
       onPress={handleInviteFriends}
       activeOpacity={0.7}
     >
-      <View style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}>
+      <View className="bg-primary" style={styles.inviteIconContainer}>
         <Ionicons name="people" size={20} color={theme.colors.card} />
       </View>
       <View style={styles.inviteContent}>
-        <ThemedText style={[styles.inviteTitle, { color: theme.colors.text }]}>
+        <ThemedText className="text-foreground" style={styles.inviteTitle}>
           {t('settings.inviteContacts.inviteBannerTitle')}
         </ThemedText>
-        <ThemedText style={[styles.inviteSubtitle, { color: theme.colors.textSecondary }]}>
+        <ThemedText className="text-muted-foreground" style={styles.inviteSubtitle}>
           {t('settings.inviteContacts.inviteBannerSubtitle')}
         </ThemedText>
       </View>
@@ -235,7 +236,7 @@ export function WhoToFollowTab() {
       ListHeaderComponent={renderInviteBanner}
       ListEmptyComponent={
         <View style={styles.emptyContainer}>
-          <ThemedText style={{ color: theme.colors.textSecondary }}>
+          <ThemedText className="text-muted-foreground">
             {t('No recommendations available')}
           </ThemedText>
         </View>

@@ -2,7 +2,6 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '@/hooks/useTheme';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
@@ -10,7 +9,6 @@ import { Button } from '@/components/ui/Button';
 
 export default function NotFoundScreen() {
     const router = useRouter();
-    const theme = useTheme();
 
     return (
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
@@ -24,7 +22,7 @@ export default function NotFoundScreen() {
                 <ThemedText style={styles.title}>Page Not Found</ThemedText>
 
                 {/* Message */}
-                <ThemedText style={[styles.message, { color: theme.colors.textSecondary }]}>
+                <ThemedText className="text-muted-foreground" style={styles.message}>
                     The page you're looking for doesn't exist or has been moved.
                 </ThemedText>
 

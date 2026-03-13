@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import Avatar from './Avatar';
 
 /**
@@ -83,12 +84,12 @@ export function AvatarStack({
             />
           ) : (
             <View
+              className="bg-input"
               style={[
                 styles.skeleton,
                 {
                   width: size - 2,
                   height: size - 2,
-                  backgroundColor: theme.colors.borderLight,
                 },
               ]}
             />

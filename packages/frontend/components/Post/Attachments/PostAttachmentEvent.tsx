@@ -1,6 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { TouchableOpacity, View, Text, StyleProp, ViewStyle } from 'react-native';
 
 interface PostAttachmentEventProps {
   name: string;
@@ -10,15 +9,13 @@ interface PostAttachmentEventProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({ 
-  name, 
-  date, 
-  location, 
-  onPress, 
-  style 
+const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
+  name,
+  date,
+  location,
+  onPress,
+  style
 }) => {
-  const theme = useTheme();
-
   // Parse date and format
   const eventDate = React.useMemo(() => {
     try {
@@ -33,40 +30,41 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   const day = eventDate ? eventDate.getDate() : null;
   const month = eventDate ? eventDate.toLocaleString('default', { month: 'short' }) : null;
   const year = eventDate ? eventDate.getFullYear() : null;
-  const time = eventDate ? eventDate.toLocaleTimeString('default', { 
-    hour: '2-digit', 
+  const time = eventDate ? eventDate.toLocaleTimeString('default', {
+    hour: '2-digit',
     minute: '2-digit',
-    hour12: true 
+    hour12: true
   }) : null;
 
   return (
     <TouchableOpacity
-      style={[styles.container, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }, style]}
+      className="w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] overflow-hidden flex-row"
+      style={style}
       activeOpacity={0.85}
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={[styles.calendarSection, { backgroundColor: theme.colors.primary }]}>
+      <View className="w-[60px] py-3 px-2 items-center justify-center bg-primary">
         {day !== null && (
           <>
-            <Text style={styles.dayNumber}>{day}</Text>
-            {month && <Text style={styles.monthText}>{month}</Text>}
-            {year && <Text style={styles.yearText}>{year}</Text>}
+            <Text className="text-[28px] font-bold text-white leading-[32px]">{day}</Text>
+            {month && <Text className="text-[11px] font-semibold text-white uppercase mt-0.5">{month}</Text>}
+            {year && <Text className="text-[10px] font-medium text-white opacity-90 mt-0.5">{year}</Text>}
           </>
         )}
       </View>
-      <View style={styles.contentSection}>
-        <Text style={[styles.eventName, { color: theme.colors.text }]} numberOfLines={2}>
+      <View className="flex-1 p-3 justify-center">
+        <Text className="text-foreground text-[15px] font-semibold mb-1 leading-5" numberOfLines={2}>
           {name}
         </Text>
         {time && (
-          <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>
+          <Text className="text-muted-foreground text-xs mb-1">
             {time}
           </Text>
         )}
         {location && (
-          <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-            <Text>📍 </Text>
+          <Text className="text-muted-foreground text-[11px] mt-0.5" numberOfLines={1}>
+            <Text>{'\uD83D\uDCCD'} </Text>
             <Text>{location}</Text>
           </Text>
         )}
@@ -75,62 +73,4 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    width: 200,
-    minHeight: 140,
-    borderWidth: 1,
-    borderRadius: 14,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  calendarSection: {
-    width: 60,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayNumber: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    lineHeight: 32,
-  },
-  monthText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    marginTop: 2,
-  },
-  yearText: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginTop: 2,
-  },
-  contentSection: {
-    flex: 1,
-    padding: 12,
-    justifyContent: 'center',
-  },
-  eventName: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  timeText: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  locationText: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-});
-
 export default PostAttachmentEvent;
-

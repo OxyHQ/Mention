@@ -9,7 +9,7 @@ import {
     Keyboard,
 } from "react-native";
 import { Loading } from '@/components/ui/Loading';
-import { useTheme } from "@/hooks/useTheme";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@oxyhq/services";
 import Avatar from "./Avatar";
 
@@ -34,7 +34,6 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
     onClose,
     maxHeight = 300,
 }) => {
-    const theme = useTheme();
     const { oxyServices } = useAuth();
     const [users, setUsers] = useState<MentionUser[]>([]);
     const [loading, setLoading] = useState(false);
@@ -92,12 +91,11 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
 
     return (
         <View
+            className="bg-card border-border"
             style={[
                 styles.container,
                 {
                     maxHeight,
-                    backgroundColor: theme.colors.card,
-                    borderColor: theme.colors.border,
                 },
             ]}
         >
@@ -107,7 +105,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                 </View>
             ) : users.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                    <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                    <Text className="text-muted-foreground" style={styles.emptyText}>
                         No users found
                     </Text>
                 </View>
@@ -118,10 +116,8 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                     keyboardShouldPersistTaps="handled"
                     renderItem={({ item }) => (
                         <TouchableOpacity
-                            style={[
-                                styles.userItem,
-                                { borderBottomColor: theme.colors.border },
-                            ]}
+                            className="border-b-border"
+                            style={styles.userItem}
                             onPress={() => {
                                 onSelect(item);
                                 onClose();
@@ -134,7 +130,8 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                             <View style={styles.userInfo}>
                                 <View style={styles.userNameRow}>
                                     <Text
-                                        style={[styles.userName, { color: theme.colors.text }]}
+                                        className="text-foreground"
+                                        style={styles.userName}
                                         numberOfLines={1}
                                     >
                                         {item.name}
@@ -144,7 +141,8 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                                     )}
                                 </View>
                                 <Text
-                                    style={[styles.userHandle, { color: theme.colors.textSecondary }]}
+                                    className="text-muted-foreground"
+                                    style={styles.userHandle}
                                     numberOfLines={1}
                                 >
                                     @{item.username}

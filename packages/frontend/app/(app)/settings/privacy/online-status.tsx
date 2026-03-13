@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -13,7 +13,7 @@ import { Toggle } from '@/components/Toggle';
 
 export default function OnlineStatusScreen() {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const { colors } = useTheme();
 
     const [showOnlineStatus, setShowOnlineStatus] = useState(true);
     const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ export default function OnlineStatusScreen() {
 
     if (loading) {
         return (
-            <ThemedView style={styles.container}>
+            <ThemedView className="flex-1">
                 <Header
                     options={{
                         title: t('settings.privacy.onlineStatus'),
@@ -57,14 +57,14 @@ export default function OnlineStatusScreen() {
                                 key="back"
                                 onPress={() => router.back()}
                             >
-                                <BackArrowIcon size={20} color={theme.colors.text} />
+                                <BackArrowIcon size={20} color={colors.text} />
                             </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}
                     disableSticky={true}
                 />
-                <View style={styles.loadingContainer}>
+                <View className="flex-1 justify-center items-center">
                     <Loading size="large" />
                 </View>
             </ThemedView>
@@ -72,7 +72,7 @@ export default function OnlineStatusScreen() {
     }
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             <Header
                 options={{
                     title: t('settings.privacy.onlineStatus'),
@@ -81,7 +81,7 @@ export default function OnlineStatusScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -89,19 +89,19 @@ export default function OnlineStatusScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
             >
-                <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <View style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}>
-                        <View style={styles.settingInfo}>
+                <View className="rounded-2xl border border-border bg-card overflow-hidden">
+                    <View className="flex-row items-center justify-between px-4 pt-[18px] pb-[18px]">
+                        <View className="flex-1">
                             <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                <Text className="text-base font-medium mb-1 text-foreground">
                                     {t('settings.privacy.showOnlineStatus')}
                                 </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                <Text className="text-sm leading-5 text-muted-foreground">
                                     {t('settings.privacy.showOnlineStatusDesc')}
                                 </Text>
                             </View>
@@ -119,53 +119,3 @@ export default function OnlineStatusScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    settingsCard: {
-        borderRadius: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    settingItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-    },
-    firstSettingItem: {
-        paddingTop: 18,
-    },
-    lastSettingItem: {
-        paddingBottom: 18,
-    },
-    settingInfo: {
-        flex: 1,
-    },
-    settingLabel: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 4,
-    },
-    settingDescription: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-});
-

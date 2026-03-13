@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { alertDialog } from '@/utils/alerts';
 import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
+import { cn } from '@/lib/utils';
 
 const IconComponent = Ionicons as any;
 
@@ -19,7 +20,7 @@ type VisibilityOption = 'public' | 'private' | 'followers_only';
 
 export default function ProfileVisibilityScreen() {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const { colors } = useTheme();
 
     const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>('public');
     const [loading, setLoading] = useState(true);
@@ -67,7 +68,7 @@ export default function ProfileVisibilityScreen() {
             await authenticatedClient.put('/profile/settings', {
                 privacy: updatedPrivacy
             });
-            
+
             // Update cache immediately
             try {
                 const currentResponse = await authenticatedClient.get('/profile/settings/me');
@@ -77,7 +78,7 @@ export default function ProfileVisibilityScreen() {
             } catch (e) {
                 console.debug('Failed to update privacy settings cache:', e);
             }
-            
+
             setProfileVisibility(newVisibility);
             await alertDialog({
                 title: t('common.success'),
@@ -100,7 +101,7 @@ export default function ProfileVisibilityScreen() {
 
     if (loading) {
         return (
-            <ThemedView style={styles.container}>
+            <ThemedView className="flex-1">
                 <Header
                     options={{
                         title: t('settings.privacy.privateProfile'),
@@ -109,14 +110,14 @@ export default function ProfileVisibilityScreen() {
                                 key="back"
                                 onPress={() => router.back()}
                             >
-                                <BackArrowIcon size={20} color={theme.colors.text} />
+                                <BackArrowIcon size={20} color={colors.text} />
                             </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}
                     disableSticky={true}
                 />
-                <View style={styles.loadingContainer}>
+                <View className="flex-1 justify-center items-center">
                     <Loading size="large" />
                 </View>
             </ThemedView>
@@ -145,7 +146,7 @@ export default function ProfileVisibilityScreen() {
     ];
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView className="flex-1">
             <Header
                 options={{
                     title: t('settings.privacy.privateProfile'),
@@ -154,7 +155,7 @@ export default function ProfileVisibilityScreen() {
                             key="back"
                             onPress={() => router.back()}
                         >
-                            <BackArrowIcon size={20} color={theme.colors.text} />
+                            <BackArrowIcon size={20} color={colors.text} />
                         </IconButton>,
                     ],
                 }}
@@ -162,9 +163,9 @@ export default function ProfileVisibilityScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.content}
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="px-4 pt-5 pb-6"
                 showsVerticalScrollIndicator={false}
             >
                 {options.map((option, index) => {
@@ -174,37 +175,36 @@ export default function ProfileVisibilityScreen() {
                     return (
                         <TouchableOpacity
                             key={option.value}
-                            style={[
-                                styles.optionItem,
-                                index === 0 && styles.firstOptionItem,
-                                isLast && styles.lastOptionItem,
-                                { backgroundColor: theme.colors.card, borderColor: theme.colors.border }
-                            ]}
+                            className={cn(
+                                "rounded-2xl border border-border bg-card mb-3 px-4 py-[18px]",
+                                index === 0 && "mt-0",
+                                isLast && "mb-0"
+                            )}
                             onPress={() => !saving && handleSave(option.value)}
                             disabled={saving}
                         >
-                            <View style={styles.optionContent}>
-                                <View style={styles.optionHeader}>
-                                    <View style={styles.optionLeft}>
-                                        <IconComponent 
-                                            name={option.icon} 
-                                            size={20} 
-                                            color={isSelected ? theme.colors.primary : theme.colors.textSecondary} 
+                            <View className="flex-1">
+                                <View className="flex-row items-center justify-between">
+                                    <View className="flex-row items-center flex-1">
+                                        <IconComponent
+                                            name={option.icon}
+                                            size={20}
+                                            color={isSelected ? colors.primary : colors.textSecondary}
                                         />
-                                        <View style={styles.optionTextContainer}>
-                                            <Text style={[styles.optionLabel, { color: theme.colors.text }]}>
+                                        <View className="ml-3 flex-1">
+                                            <Text className="text-base font-semibold mb-1 text-foreground">
                                                 {option.label}
                                             </Text>
-                                            <Text style={[styles.optionDescription, { color: theme.colors.textSecondary }]}>
+                                            <Text className="text-sm leading-5 text-muted-foreground">
                                                 {option.description}
                                             </Text>
                                         </View>
                                     </View>
                                     {isSelected && (
-                                        <IconComponent 
-                                            name="checkmark-circle" 
-                                            size={24} 
-                                            color={theme.colors.primary} 
+                                        <IconComponent
+                                            name="checkmark-circle"
+                                            size={24}
+                                            color={colors.primary}
                                         />
                                     )}
                                 </View>
@@ -214,9 +214,9 @@ export default function ProfileVisibilityScreen() {
                 })}
 
                 {saving && (
-                    <View style={styles.savingContainer}>
+                    <View className="flex-row items-center justify-center py-4 gap-2">
                         <Loading variant="inline" size="small" style={{ flex: undefined }} />
-                        <Text style={[styles.savingText, { color: theme.colors.textSecondary }]}>
+                        <Text className="text-sm text-muted-foreground">
                             {t('common.saving')}
                         </Text>
                     </View>
@@ -225,72 +225,3 @@ export default function ProfileVisibilityScreen() {
         </ThemedView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    content: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 24,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    optionItem: {
-        borderRadius: 16,
-        borderWidth: 1,
-        marginBottom: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 18,
-    },
-    firstOptionItem: {
-        marginTop: 0,
-    },
-    lastOptionItem: {
-        marginBottom: 0,
-    },
-    optionContent: {
-        flex: 1,
-    },
-    optionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    optionLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    optionTextContainer: {
-        marginLeft: 12,
-        flex: 1,
-    },
-    optionLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 4,
-    },
-    optionDescription: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    savingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        gap: 8,
-    },
-    savingText: {
-        fontSize: 14,
-    },
-});
-

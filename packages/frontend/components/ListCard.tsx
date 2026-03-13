@@ -2,7 +2,6 @@ import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
 
@@ -45,7 +44,6 @@ export function ListCard({
     style,
 }: ListCardProps) {
     const router = useRouter();
-    const theme = useTheme();
 
     const handlePress = () => {
         if (onPress) {
@@ -63,14 +61,8 @@ export function ListCard({
     return (
         <PressableScale
             onPress={handlePress}
-            style={[
-                styles.outer,
-                {
-                    backgroundColor: theme.colors.card,
-                    borderColor: theme.colors.border,
-                },
-                style,
-            ]}>
+            className="bg-card border-border"
+            style={[styles.outer, style]}>
             <View style={styles.header}>
                 <Avatar
                     source={list.avatar || undefined}
@@ -84,10 +76,8 @@ export function ListCard({
                     </ThemedText>
                     {list.creator && (
                         <ThemedText
-                            style={[
-                                styles.byline,
-                                { color: theme.colors.textSecondary },
-                            ]}
+                            className="text-muted-foreground"
+                            style={styles.byline}
                             numberOfLines={1}>
                             {purposeLabel} by @{list.creator.username}
                         </ThemedText>
@@ -102,10 +92,8 @@ export function ListCard({
             {list.description && (
                 <View style={styles.description}>
                     <ThemedText
-                        style={[
-                            styles.descriptionText,
-                            { color: theme.colors.textSecondary },
-                        ]}
+                        className="text-muted-foreground"
+                        style={styles.descriptionText}
                         numberOfLines={3}>
                         {list.description}
                     </ThemedText>
@@ -114,10 +102,8 @@ export function ListCard({
             {list.itemCount !== undefined && (
                 <View style={styles.itemCount}>
                     <ThemedText
-                        style={[
-                            styles.itemCountText,
-                            { color: theme.colors.textSecondary },
-                        ]}>
+                        className="text-muted-foreground"
+                        style={styles.itemCountText}>
                         {list.itemCount} {list.itemCount === 1 ? 'item' : 'items'}
                     </ThemedText>
                 </View>

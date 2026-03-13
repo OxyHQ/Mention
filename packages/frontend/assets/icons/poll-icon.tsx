@@ -1,7 +1,5 @@
 import React from 'react';
 import Svg, { Path, Rect } from 'react-native-svg';
-import { colors } from '@/styles/colors';
-
 interface PollIconProps {
     size?: number;
     color?: string;
@@ -9,7 +7,7 @@ interface PollIconProps {
 
 export const PollIcon: React.FC<PollIconProps> = ({
     size = 20,
-    color = colors.primaryColor
+    color = '#005c67'
 }) => {
     return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">

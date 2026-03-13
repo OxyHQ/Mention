@@ -1,10 +1,10 @@
 import React from 'react';
 import Svg, { Rect } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-import { colors } from '@/styles/colors';
+
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
-export const Loading = ({ color = colors.primaryColor, size = 26, style: styleProp }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const Loading = ({ color = '#005c67', size = 26, style: styleProp }: { color?: string; size?: number; style?: ViewStyle }) => {
     const rotation = useSharedValue(0);
 
     React.useEffect(() => {

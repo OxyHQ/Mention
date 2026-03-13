@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
@@ -92,18 +93,17 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
         {isOwnProfile && currentUsername === username ? (
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+              className="bg-background border-border"
+              style={styles.followButton}
               onPress={() => showBottomSheet?.('AccountSettings')}
               accessibilityRole="button"
               accessibilityLabel={t('profile.editProfile')}
             >
-              <Text style={[styles.followButtonText, { color: theme.colors.text }]}>{t('profile.editProfile')}</Text>
+              <Text className="text-foreground" style={styles.followButtonText}>{t('profile.editProfile')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.settingsButton,
-                { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
-              ]}
+              className="bg-background border-border"
+              style={styles.settingsButton}
               onPress={() => router.push('/insights')}
               accessibilityRole="button"
               accessibilityLabel="Analytics"
@@ -111,10 +111,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               <AnalyticsIcon size={20} color={theme.colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.settingsButton,
-                { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
-              ]}
+              className="bg-background border-border"
+              style={styles.settingsButton}
               onPress={() => router.push('/settings')}
               accessibilityRole="button"
               accessibilityLabel="Settings"
@@ -216,7 +214,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
           imageStyle={{}}
         />
         {verified && (
-          <View style={[styles.verifiedBadge, { backgroundColor: theme.colors.background }]}>
+          <View className="bg-background" style={styles.verifiedBadge}>
             <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
           </View>
         )}
@@ -281,18 +279,17 @@ export const ProfileActions = memo(function ProfileActions({
   return (
     <View style={styles.actionButtons}>
       <TouchableOpacity
-        style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+        className="bg-background border-border"
+        style={styles.followButton}
         onPress={() => showBottomSheet?.('AccountSettings')}
         accessibilityRole="button"
         accessibilityLabel={t('profile.editProfile')}
       >
-        <Text style={[styles.followButtonText, { color: theme.colors.text }]}>{t('profile.editProfile')}</Text>
+        <Text className="text-foreground" style={styles.followButtonText}>{t('profile.editProfile')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[
-          styles.settingsButton,
-          { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
-        ]}
+        className="bg-background border-border"
+        style={styles.settingsButton}
         onPress={() => router.push('/insights')}
         accessibilityRole="button"
         accessibilityLabel="Analytics"
@@ -300,10 +297,8 @@ export const ProfileActions = memo(function ProfileActions({
         <AnalyticsIcon size={20} color={theme.colors.text} />
       </TouchableOpacity>
       <TouchableOpacity
-        style={[
-          styles.settingsButton,
-          { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
-        ]}
+        className="bg-background border-border"
+        style={styles.settingsButton}
         onPress={() => router.push('/settings')}
         accessibilityRole="button"
         accessibilityLabel="Settings"

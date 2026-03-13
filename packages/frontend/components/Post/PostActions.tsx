@@ -7,6 +7,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
 import { useHaptics } from '@/hooks/useHaptics';
+import { cn } from '@/lib/utils';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
@@ -170,7 +171,7 @@ const PostActions: React.FC<Props> = ({
               ))}
             </View>
           )}
-          <Text style={[styles.summaryText, { color: theme.colors.textSecondary }]}>
+          <Text style={styles.summaryText} className="text-muted-foreground">
             {summaryParts.join(' · ')}
           </Text>
         </PressableScale>

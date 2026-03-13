@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import PostSources from './PostSources';
@@ -20,12 +21,12 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
   const hasSources = sources.length > 0;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}> 
+    <View style={styles.container} className="bg-background">
+      <View style={styles.header} className="border-b border-border">
         <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
         </IconButton>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
+        <Text style={styles.title} className="text-foreground">
           {t('post.sourcesSheet.title', { defaultValue: 'Sources' })}
         </Text>
         <View style={styles.headerRight} />
@@ -41,7 +42,8 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
               name: 'link-outline',
               size: 48,
             }}
-            containerStyle={[styles.emptyState, { backgroundColor: theme.colors.backgroundSecondary }]}
+            containerStyle={styles.emptyState}
+            className="bg-surface"
           />
         )}
       </View>
@@ -60,7 +62,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     minHeight: 48,
-    borderBottomWidth: 1,
   },
   title: {
     position: 'absolute',

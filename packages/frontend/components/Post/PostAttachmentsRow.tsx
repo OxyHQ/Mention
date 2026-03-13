@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, ViewStyle, StyleProp } from 'react-native';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
@@ -351,8 +352,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
       onLayout={(e) => setScrollViewWidth(e.nativeEvent.layout.width)}
-      style={[{ backgroundColor: theme.colors.background }, style]}
-      contentContainerStyle={[styles.scroller, { backgroundColor: theme.colors.background }, leftOffset ? { paddingLeft: leftOffset } : null]}
+      className="bg-background"
+      style={style}
+      contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
       {items.map((item, idx) => {
         if (item.type === 'article') {

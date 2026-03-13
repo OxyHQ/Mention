@@ -1,31 +1,32 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { TouchableOpacity, Text, StyleProp, ViewStyle } from 'react-native';
+import { cn } from '@/lib/utils';
 
 interface PostArticlePreviewProps {
   title?: string;
   body?: string;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  className?: string;
 }
 
-const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, onPress, style }) => {
-  const theme = useTheme();
+const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, onPress, style, className }) => {
   const trimmedTitle = title?.trim();
   const trimmedBody = body?.trim();
 
   return (
     <TouchableOpacity
-      style={[styles.container, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }, style]}
+      className={cn('w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] p-4 justify-between', className)}
+      style={style}
       activeOpacity={0.85}
       onPress={onPress}
       disabled={!onPress}
     >
-      <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
+      <Text className="text-foreground text-lg font-bold mb-3" numberOfLines={2}>
         {trimmedTitle || 'Untitled article'}
       </Text>
       {trimmedBody ? (
-        <Text style={[styles.body, { color: theme.colors.textSecondary }]} numberOfLines={3}>
+        <Text className="text-muted-foreground text-[13px] leading-[18px]" numberOfLines={3}>
           {trimmedBody}
         </Text>
       ) : null}
@@ -33,25 +34,4 @@ const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, on
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    width: 200,
-    minHeight: 140,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  body: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-});
-
 export default PostArticlePreview;
-

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 import UserName from '@/components/UserName';
 import LinkifiedText from '@/components/common/LinkifiedText';
 import {
@@ -53,9 +54,9 @@ export const ProfileContent = memo(function ProfileContent({
 
   return (
     <View
+      className="bg-background"
       style={[
         styles.container,
-        { backgroundColor: theme.colors.background },
         minimalistMode && styles.containerMinimalist,
       ]}
       onLayout={handleLayout}
@@ -118,16 +119,16 @@ export const ProfileContent = memo(function ProfileContent({
           <View style={styles.badgeRow}>
             {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
             {profileData.isFederated && profileData.instance && (
-              <View style={[styles.fediverseBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <View className="bg-muted" style={styles.fediverseBadge}>
                 <FediverseIcon size={12} color={theme.colors.textSecondary} />
-                <Text style={[styles.fediverseText, { color: theme.colors.textSecondary }]}>
+                <Text className="text-muted-foreground" style={styles.fediverseText}>
                   {profileData.instance}
                 </Text>
               </View>
             )}
             {!isOwnProfile && profileData.followsYou && (
-              <View style={[styles.followsYouBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Text style={[styles.followsYouText, { color: theme.colors.textSecondary }]}>
+              <View className="bg-muted" style={styles.followsYouBadge}>
+                <Text className="text-muted-foreground" style={styles.followsYouText}>
                   {t('profile.followsYou', { defaultValue: 'Follows you' })}
                 </Text>
               </View>
@@ -140,7 +141,8 @@ export const ProfileContent = memo(function ProfileContent({
       {!minimalistMode && profileData.bio && (
         <LinkifiedText
           text={profileData.bio}
-          style={[styles.profileBio, { color: theme.colors.text }]}
+          className="text-foreground"
+          style={styles.profileBio}
           linkStyle={{ color: theme.colors.primary }}
         />
       )}
@@ -149,13 +151,14 @@ export const ProfileContent = memo(function ProfileContent({
       {profileData.isFederated && profileData.fields && profileData.fields.length > 0 && (
         <View style={styles.fieldsContainer}>
           {profileData.fields.map((field: any, i: number) => (
-            <View key={i} style={[styles.fieldItem, { borderColor: theme.colors.border }]}>
-              <Text style={[styles.fieldName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            <View key={i} className="border-border" style={styles.fieldItem}>
+              <Text className="text-muted-foreground" style={styles.fieldName} numberOfLines={1}>
                 {field.name}
               </Text>
               <LinkifiedText
                 text={field.value?.replace(/<[^>]*>/g, '') || ''}
-                style={[styles.fieldValue, { color: theme.colors.text }]}
+                className="text-foreground"
+                style={styles.fieldValue}
                 linkStyle={{ color: theme.colors.primary }}
               />
               {field.verifiedAt && (

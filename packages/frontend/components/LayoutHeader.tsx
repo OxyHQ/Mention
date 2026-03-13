@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { ThemedText } from './ThemedText';
 import { TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,22 +36,20 @@ export function HeaderOuter({
     sticky = true,
     style,
 }: HeaderOuterProps) {
-    const theme = useTheme();
-
     return (
         <View
+            className={cn(
+                "bg-background border-border",
+                !noBottomBorder && "border-b",
+            )}
             style={[
                 styles.outer,
-                {
-                    backgroundColor: theme.colors.background,
-                    borderBottomColor: theme.colors.border,
-                    borderBottomWidth: noBottomBorder ? 0 : StyleSheet.hairlineWidth,
-                    ...(sticky && Platform.OS === 'web' && {
-                        position: 'sticky' as const,
-                        top: 0,
-                        zIndex: 100,
-                    }),
-                },
+                noBottomBorder ? { borderBottomWidth: 0 } : { borderBottomWidth: StyleSheet.hairlineWidth },
+                sticky && Platform.OS === 'web' ? {
+                    position: 'sticky' as const,
+                    top: 0,
+                    zIndex: 100,
+                } : {},
                 style,
             ]}>
             {children}
@@ -173,13 +172,11 @@ export function HeaderSubtitleText({
     children,
     style,
 }: HeaderSubtitleTextProps) {
-    const theme = useTheme();
-
     return (
         <ThemedText
+            className="text-muted-foreground"
             style={[
                 styles.subtitleText,
-                { color: theme.colors.textSecondary },
                 style,
             ]}>
             {children}

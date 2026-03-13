@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { ThemedText } from './ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,10 +48,10 @@ export function Error({
 
   return (
     <View
+      className="bg-background"
       style={[
         styles.container,
         {
-          backgroundColor: theme.colors.background,
           paddingTop: 175,
           paddingBottom: 110,
         },
@@ -68,10 +69,8 @@ export function Error({
         <ThemedText style={styles.title}>{title}</ThemedText>
 
         <ThemedText
-          style={[
-            styles.message,
-            { color: theme.colors.textSecondary },
-          ]}>
+          className="text-muted-foreground"
+          style={styles.message}>
           {message}
         </ThemedText>
       </View>

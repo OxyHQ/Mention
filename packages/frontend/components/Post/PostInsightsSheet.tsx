@@ -8,6 +8,7 @@ import {
 import { Loading } from '@/components/ui/Loading';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/lib/utils';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';

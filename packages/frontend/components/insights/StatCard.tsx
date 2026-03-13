@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -44,28 +44,31 @@ const StatCard: React.FC<StatCardProps> = ({
     ];
 
     return (
-        <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={styles.header}>
-                <View style={styles.titleRow}>
-                    <Ionicons name={icon as any} size={20} color={defaultIconColor} style={styles.icon} />
-                    <Text style={[styles.title, { color: theme.colors.text }]}>
+        <View className="bg-card border border-border rounded-[15px] p-4 mb-3 overflow-hidden">
+            <View className="mb-3">
+                <View className="flex-row items-center">
+                    <Ionicons name={icon as any} size={20} color={defaultIconColor} style={{ marginRight: 8 }} />
+                    <Text className="text-foreground text-sm font-semibold">
                         {title}
                     </Text>
                 </View>
             </View>
-            <View style={styles.content}>
-                <Text style={[styles.value, { color: theme.colors.text }]}>
+            <View className="gap-2">
+                <Text
+                    className="text-foreground font-black"
+                    style={{ fontSize: 28, letterSpacing: -0.5 }}
+                >
                     {formatNumber(value)}{unit ? ` ${unit}` : ''}
                 </Text>
                 {previous !== undefined && (
-                    <View style={styles.previousRow}>
-                        <Text style={[styles.previousText, { color: theme.colors.textSecondary }]}>
+                    <View className="mt-1">
+                        <Text className="text-muted-foreground text-xs font-medium">
                             {t('insights.weeklyRecap.previous')}: {formatNumber(previous)}{unit ? ` ${unit}` : ''}
                         </Text>
                     </View>
                 )}
                 {showChart && chartData.length > 0 && (
-                    <View style={styles.chartContainer}>
+                    <View className="mt-2">
                         <MiniChart
                             values={chartData}
                             labels={dayLabels}
@@ -79,47 +82,4 @@ const StatCard: React.FC<StatCardProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
-    card: {
-        borderRadius: 15,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    header: {
-        marginBottom: 12,
-    },
-    titleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    icon: {
-        marginRight: 8,
-    },
-    title: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    content: {
-        gap: 8,
-    },
-    value: {
-        fontSize: 28,
-        fontWeight: '900',
-        letterSpacing: -0.5,
-    },
-    previousRow: {
-        marginTop: 4,
-    },
-    previousText: {
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    chartContainer: {
-        marginTop: 8,
-    },
-});
-
 export default StatCard;
-

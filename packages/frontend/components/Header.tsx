@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router"
 import { ReactNode } from "react"
 import { useTheme } from "@/hooks/useTheme";
+import { cn } from "@/lib/utils";
 
 interface Props {
     style?: ViewStyle
@@ -54,13 +55,17 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
     const headerStyle = [
         styles.topRow,
         isSticky && styles.stickyHeader,
-        { backgroundColor: theme.colors.background },
-        hideBottomBorder ? { borderBottomWidth: 0 } : { borderBottomColor: theme.colors.border },
+        hideBottomBorder ? { borderBottomWidth: 0 } : {},
         disableSticky && Platform.OS === 'web' ? { position: 'relative' as const } : {},
     ];
 
     return (
-        <View style={headerStyle}>
+        <View
+            className={cn(
+                "bg-background",
+                !hideBottomBorder && "border-border",
+            )}
+            style={headerStyle}>
             <View style={styles.leftContainer}>
                 {options?.showBackButton && (
                     <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -73,12 +78,12 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
                 {titlePosition === "left" && (
                     <View style={[options?.headerTitleStyle, { flex: 1 }]}>
                         {options?.title && (
-                            <Text style={[styles.topRowText, options?.subtitle && { fontSize: 16 }, { color: theme.colors.text }]}>
+                            <Text className="text-foreground" style={[styles.topRowText, options?.subtitle && { fontSize: 16 }]}>
                                 {options.title}
                             </Text>
                         )}
                         {options?.subtitle && (typeof options.subtitle === 'string' ? (
-                            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
+                            <Text className="text-muted-foreground" style={{ fontSize: 13 }}>
                                 {options.subtitle}
                             </Text>
                         ) : (
@@ -93,12 +98,12 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
             {titlePosition === "center" && (
                 <View style={styles.centerContainer}>
                     {options?.title && (
-                        <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }, { color: theme.colors.text }]}>
+                        <Text className="text-foreground" style={[styles.topRowText, options?.subtitle && { fontSize: 14 }]}>
                             {options.title}
                         </Text>
                     )}
                     {options?.subtitle && (typeof options.subtitle === 'string' ? (
-                        <Text style={{ color: theme.colors.textSecondary }}>{options.subtitle}</Text>
+                        <Text className="text-muted-foreground">{options.subtitle}</Text>
                     ) : (
                         options.subtitle
                     ))}
@@ -125,7 +130,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderBottomWidth: 0.01,
         paddingHorizontal: 16,
-        // borderBottomColor and backgroundColor applied inline with theme
         paddingVertical: 8,
         position: "relative",
         ...Platform.select({
@@ -134,12 +138,10 @@ const styles = StyleSheet.create({
             },
         }),
         top: 0,
-        // backgroundColor applied inline with theme
         zIndex: 100,
     } as ViewStyle,
     topRowText: {
         fontSize: 18,
-        // color applied inline with theme
         fontWeight: "800",
         paddingStart: 0,
     },

@@ -1,9 +1,8 @@
 import React, { memo, useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
-import { useTheme } from '@/hooks/useTheme';
 import { useUsersStore } from '@/stores/usersStore';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
@@ -25,7 +24,6 @@ export const SuggestedUsers = memo(function SuggestedUsers({
 }: SuggestedUsersProps) {
   const { oxyServices, isAuthenticated } = useAuth();
   const { t } = useTranslation();
-  const theme = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<SuggestedUserData[]>([]);
@@ -97,8 +95,8 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   }
 
   return (
-    <View style={styles.container}>
-      <ThemedText style={[styles.title, { color: theme.colors.text }]}>
+    <View className="pt-3">
+      <ThemedText className="text-foreground text-[15px] font-bold px-4 mb-1">
         {title || t('Suggested for you')}
       </ThemedText>
       {displayedUsers.map((user) => (
@@ -106,16 +104,4 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       ))}
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  container: {
-    paddingTop: 12,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    paddingHorizontal: 16,
-    marginBottom: 4,
-  },
 });
