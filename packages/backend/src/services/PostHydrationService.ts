@@ -995,6 +995,7 @@ export class PostHydrationService {
       visibility: post.visibility,
       replyPermission: post.replyPermission,
       reviewReplies: Boolean(post.reviewReplies),
+      quotesDisabled: Boolean((post as any).quotesDisabled),
       isPinned: Boolean(post.metadata?.isPinned),
       isSensitive: Boolean(post.metadata?.isSensitive),
       isThread: Boolean(post.threadId),
@@ -1197,6 +1198,8 @@ export class PostHydrationService {
     switch (permission) {
       case 'anyone':
         return true;
+      case 'nobody':
+        return false;
       case 'followers':
         return viewerContext.follows.has(authorId);
       case 'following':

@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { PostType, PostVisibility, PostContent, PostStats, PostMetadata } from '@mention/shared-types';
 
-export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned';
+export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
 export interface PostFederationData {
   activityId?: string;   // AP activity URI
@@ -30,6 +30,7 @@ export interface IPost extends Document {
   threadId?: string; // for thread posts
   replyPermission?: ReplyPermission; // Who can reply and quote this post
   reviewReplies?: boolean; // Whether to review and approve replies before they're visible
+  quotesDisabled?: boolean; // Whether quote posts are disabled
   stats: PostStats;
   metadata: PostMetadata;
   location?: { // Post creation location metadata
@@ -292,12 +293,13 @@ const PostSchema = new Schema<IPost>({
   quoteOf: { type: String, index: true },
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
-  replyPermission: { 
-    type: String, 
-    enum: ['anyone', 'followers', 'following', 'mentioned'],
+  replyPermission: {
+    type: String,
+    enum: ['anyone', 'followers', 'following', 'mentioned', 'nobody'],
     default: 'anyone'
   },
   reviewReplies: { type: Boolean, default: false },
+  quotesDisabled: { type: Boolean, default: false },
   status: {
     type: String,
     enum: ['draft', 'published', 'scheduled'],

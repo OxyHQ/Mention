@@ -654,5 +654,7 @@
     "emptyFollowingSubtitle": "Quando {{name}} seguirà delle persone, appariranno qui.",
     "emptyRecommendationsSubtitle": "Torna più tardi per i suggerimenti."
   },
-  "Who May Know": "Persone che potresti conoscere"
+  "Who May Know": "Persone che potresti conoscere",
+  "chat.comingSoon": "Prossimamente",
+  "chat.comingSoonDescription": "Stiamo costruendo un'esperienza di messaggistica in tempo reale per permetterti di connetterti direttamente con la tua community. Resta sintonizzato!"
 }

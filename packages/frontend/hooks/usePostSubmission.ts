@@ -41,6 +41,7 @@ interface PostSubmissionProps {
   postingMode: 'thread' | 'beast';
   replyPermission: string;
   reviewReplies: boolean;
+  quotesDisabled: boolean;
   scheduledAt: Date | null;
   scheduleEnabled: boolean;
   sanitizeSourcesForSubmit: (sources: any[]) => any[];
@@ -71,6 +72,7 @@ export const usePostSubmission = ({
   postingMode,
   replyPermission,
   reviewReplies,
+  quotesDisabled,
   scheduledAt,
   scheduleEnabled,
   sanitizeSourcesForSubmit,
@@ -165,6 +167,7 @@ export const usePostSubmission = ({
       hashtags: [],
       replyPermission: replyPermission,
       reviewReplies: reviewReplies,
+      quotesDisabled: quotesDisabled,
       ...(wasScheduled && scheduledAtRef.current ? {
         status: 'scheduled' as const,
         scheduledFor: scheduledAtRef.current.toISOString()
@@ -183,6 +186,7 @@ export const usePostSubmission = ({
     attachmentOrder,
     replyPermission,
     reviewReplies,
+    quotesDisabled,
     sanitizeSourcesForSubmit,
   ]);
 
@@ -234,13 +238,14 @@ export const usePostSubmission = ({
           mentions: item.mentions?.map(m => m.userId) || [],
           hashtags: [],
           replyPermission: replyPermission,
-          reviewReplies: reviewReplies
+          reviewReplies: reviewReplies,
+          quotesDisabled: quotesDisabled,
         });
       }
     });
 
     return posts;
-  }, [threadItems, replyPermission, reviewReplies]);
+  }, [threadItems, replyPermission, reviewReplies, quotesDisabled]);
 
   const handlePost = useCallback(async (t: any) => {
     if (isPosting || !user) return { success: false };

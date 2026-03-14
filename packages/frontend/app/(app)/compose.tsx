@@ -234,6 +234,7 @@ const ComposeScreen = () => {
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
   const [reviewReplies, setReviewReplies] = useState(false);
+  const [quotesDisabled, setQuotesDisabled] = useState(false);
   const [showModeToggle, setShowModeToggle] = useState(false);
   const [isSensitive, setIsSensitive] = useState(false);
 
@@ -466,6 +467,7 @@ const ComposeScreen = () => {
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
         replyPermission,
         reviewReplies,
+        quotesDisabled,
         scheduledAt: scheduledAtRef.current,
         isSensitive,
       });
@@ -474,7 +476,7 @@ const ComposeScreen = () => {
       // Add thread items if any
       threadItems.forEach(item => {
         if (shouldIncludeThreadItem(item)) {
-          const threadPost = buildThreadPost(item, replyPermission, reviewReplies);
+          const threadPost = buildThreadPost(item, replyPermission, reviewReplies, quotesDisabled);
           allPosts.push(threadPost);
         }
       });
@@ -653,20 +655,10 @@ const ComposeScreen = () => {
 
   const { t: tCompose } = useTranslation();
 
-  const getReplyPermissionText = () => {
-    switch (replyPermission) {
-      case 'anyone':
-        return t('Anyone can reply & quote');
-      case 'followers':
-        return t('Your followers can reply & quote');
-      case 'following':
-        return t('Profiles you follow can reply & quote');
-      case 'mentioned':
-        return t('Profiles you mention can reply & quote');
-      default:
-        return t('Anyone can reply & quote');
-    }
-  };
+  const anyoneCanInteract = replyPermission === 'anyone' && !quotesDisabled;
+  const interactionLabel = anyoneCanInteract
+    ? t('Anyone can interact')
+    : t('Interaction limited');
 
   const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
@@ -687,13 +679,13 @@ const ComposeScreen = () => {
             }}
             replyPermission={replyPermission}
             onReplyPermissionChange={setReplyPermission}
-            reviewReplies={reviewReplies}
-            onReviewRepliesChange={setReviewReplies}
+            quotesDisabled={quotesDisabled}
+            onQuotesDisabledChange={setQuotesDisabled}
           />
         </Suspense>
       );
     }
-  }, [replyPermission, reviewReplies, isReplySettingsOpen]);
+  }, [replyPermission, quotesDisabled, isReplySettingsOpen]);
 
   const openReplySettings = () => {
     setIsReplySettingsOpen(true);
@@ -706,8 +698,8 @@ const ComposeScreen = () => {
           }}
           replyPermission={replyPermission}
           onReplyPermissionChange={setReplyPermission}
-          reviewReplies={reviewReplies}
-          onReviewRepliesChange={setReviewReplies}
+          quotesDisabled={quotesDisabled}
+          onQuotesDisabledChange={setQuotesDisabled}
         />
       </Suspense>
     );
@@ -1476,8 +1468,39 @@ const ComposeScreen = () => {
             </View>
 
             <View style={styles.bottomBar}>
-              <TouchableOpacity onPress={openReplySettings} activeOpacity={0.7}>
-                <Text style={styles.bottomText}>{getReplyPermissionText()}</Text>
+              <TouchableOpacity
+                onPress={openReplySettings}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: theme.colors.backgroundSecondary,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  gap: 5,
+                }}
+              >
+                <Ionicons
+                  name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
+                  size={16}
+                  color={theme.colors.textSecondary}
+                />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontSize: 13,
+                    fontWeight: '500',
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  {interactionLabel}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={12}
+                  color={theme.colors.textTertiary}
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setIsSensitive(!isSensitive)}

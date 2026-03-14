@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,10 @@ import {
   Modal,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Pressable,
 } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@/hooks/useTheme';
@@ -30,6 +30,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { toast } from '@/lib/sonner';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import * as OxyServicesNS from '@oxyhq/services';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
@@ -52,110 +53,204 @@ const TABS = [
   { id: 'reviews', label: 'Reviews' },
 ];
 
-const AVATAR_GRID_SIZE = 38;
-const AVATAR_GRID_GAP = 3;
+// Compact header bar matching Bluesky's ProfileFeedHeader
+const FeedHeaderBar = React.memo(function FeedHeaderBar({
+  feed,
+  likeCount,
+  isLiked,
+  isPinned,
+  onTogglePin,
+  onOpenInfo,
+}: {
+  feed: { title: string; avatar?: string; owner?: { username?: string; displayName?: string } };
+  likeCount: number;
+  isLiked: boolean;
+  isPinned: boolean;
+  onTogglePin: () => void;
+  onOpenInfo: () => void;
+}) {
+  const theme = useTheme();
+  const creatorHandle = feed.owner?.username ? `@${feed.owner.username}` : '';
 
-// 2x2 avatar grid matching Threads design
-const AvatarGrid = React.memo(function AvatarGrid({ avatars }: { avatars: string[] }) {
-  if (!avatars.length) return null;
-  const displayed = avatars.slice(0, 4);
   return (
-    <View style={styles.avatarGrid}>
-      {displayed.map((uri, i) => (
-        <View
-          key={`${uri}-${i}`}
-          style={{
-            position: 'absolute',
-            top: i < 2 ? 0 : AVATAR_GRID_SIZE + AVATAR_GRID_GAP,
-            left: i % 2 === 0 ? 0 : AVATAR_GRID_SIZE + AVATAR_GRID_GAP,
-          }}
-        >
-          <Avatar source={uri} size={AVATAR_GRID_SIZE} />
-        </View>
-      ))}
+    <View
+      className="flex-row items-center px-2 bg-background"
+      style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
+    >
+      <IconButton variant="icon" onPress={() => router.back()}>
+        <BackArrowIcon size={20} className="text-foreground" />
+      </IconButton>
+
+      <Pressable
+        className="flex-1 flex-row items-center gap-2.5 py-1 px-1"
+        onPress={onOpenInfo}
+        accessibilityRole="button"
+        accessibilityLabel="Open feed info"
+      >
+        {({ pressed }) => (
+          <>
+            <View style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]} className="bg-secondary" />
+            <Avatar source={feed.avatar} size={36} />
+            <View className="flex-1">
+              <Text className="text-[15px] font-bold leading-snug text-foreground" numberOfLines={2}>
+                {feed.title}
+              </Text>
+              <View className="flex-row items-center" style={{ gap: 6 }}>
+                {creatorHandle ? (
+                  <Text className="text-sm leading-snug text-muted-foreground shrink" numberOfLines={1}>
+                    {creatorHandle}
+                  </Text>
+                ) : null}
+                <View className="flex-row items-center" style={{ gap: 2 }}>
+                  <Ionicons
+                    name="heart"
+                    size={12}
+                    color={isLiked ? theme.colors.primary : theme.colors.textSecondary}
+                  />
+                  <Text className="text-sm leading-snug text-muted-foreground" numberOfLines={1}>
+                    {formatCompactNumber(likeCount)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
+          </>
+        )}
+      </Pressable>
+
+      <IconButton variant="icon" onPress={onTogglePin}>
+        <Ionicons
+          name={isPinned ? 'pin' : 'pin-outline'}
+          size={22}
+          color={isPinned ? theme.colors.primary : theme.colors.text}
+        />
+      </IconButton>
     </View>
   );
 });
 
-// Hero section
-const FeedHero = React.memo(function FeedHero({
+// Feed info bottom sheet content matching Bluesky's DialogInner
+const FeedInfoContent = React.memo(function FeedInfoContent({
   feed,
-  memberAvatars,
-  memberCount,
-  topicCount,
   likeCount,
   isLiked,
   isTogglingLike,
-  onShare,
+  isPinned,
   onToggleLike,
+  onTogglePin,
+  onShare,
+  onClose,
 }: {
-  feed: any;
-  memberAvatars: string[];
-  memberCount: number;
-  topicCount: number;
+  feed: { title: string; avatar?: string; description?: string; owner?: { username?: string; displayName?: string } };
   likeCount: number;
   isLiked: boolean;
   isTogglingLike: boolean;
-  onShare: () => void;
+  isPinned: boolean;
   onToggleLike: () => void;
+  onTogglePin: () => void;
+  onShare: () => void;
+  onClose: () => void;
 }) {
   const theme = useTheme();
-
-  const subtitleParts = useMemo(() => {
-    const parts: string[] = [];
-    if (topicCount > 0) parts.push(`${topicCount} ${topicCount === 1 ? 'topic' : 'topics'}`);
-    if (memberCount > 0) parts.push(`${memberCount} ${memberCount === 1 ? 'profile' : 'profiles'}`);
-    return parts.join(' \u00B7 ');
-  }, [topicCount, memberCount]);
-
-  const metaLine = useMemo(() => {
-    const parts: string[] = [];
-    if (feed.owner) parts.push(`Feed by ${feed.owner.displayName || feed.owner.username}`);
-    if (likeCount > 0) parts.push(`Pinned by ${formatCompactNumber(likeCount)}`);
-    return parts.join(' \u00B7 ');
-  }, [feed.owner, likeCount]);
+  const creatorHandle = feed.owner?.username ? `@${feed.owner.username}` : '';
 
   return (
-    <View className="p-5 gap-3">
-      <View className="flex-row items-start justify-between gap-4">
-        <View className="flex-1 gap-1">
-          <Text className="text-[26px] font-extrabold leading-8 text-foreground">{feed.title}</Text>
-          {subtitleParts ? (
-            <Text className="text-[15px] leading-5 text-muted-foreground">
-              {subtitleParts}
-            </Text>
+    <View className="gap-4 px-5 pb-8 pt-2">
+      {/* Avatar + title + share */}
+      <View className="flex-row items-center gap-3.5">
+        <Avatar source={feed.avatar} size={48} />
+        <View className="flex-1 gap-0.5">
+          <Text className="text-2xl font-bold leading-tight text-foreground" numberOfLines={2}>
+            {feed.title}
+          </Text>
+          {creatorHandle ? (
+            <TouchableOpacity
+              onPress={() => {
+                onClose();
+                router.push(`/@${feed.owner?.username}` as any);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text className="text-sm leading-relaxed text-muted-foreground">
+                By{' '}
+                <Text className="underline text-muted-foreground">{creatorHandle}</Text>
+              </Text>
+            </TouchableOpacity>
           ) : null}
         </View>
-        {memberAvatars.length > 0 && <AvatarGrid avatars={memberAvatars} />}
+        <IconButton variant="icon" onPress={onShare}>
+          <Ionicons name="share-outline" size={22} color={theme.colors.text} />
+        </IconButton>
       </View>
 
+      {/* Description */}
       {feed.description ? (
-        <Text className="text-[15px] leading-[22px] text-muted-foreground">
+        <Text className="text-base leading-relaxed text-foreground">
           {feed.description}
         </Text>
       ) : null}
 
-      {metaLine ? (
-        <Text className="text-sm leading-[18px] text-muted-foreground">{metaLine}</Text>
+      {/* Like count */}
+      {likeCount > 0 ? (
+        <Text className="text-sm text-muted-foreground">
+          Liked by {formatCompactNumber(likeCount)} {likeCount === 1 ? 'user' : 'users'}
+        </Text>
       ) : null}
 
-      <View className="flex-row gap-2.5 mt-1">
+      {/* Action buttons */}
+      <View className="flex-row gap-2.5 pt-1">
         <TouchableOpacity
-          className="flex-1 h-10 rounded-[10px] border border-border items-center justify-center"
-          onPress={onShare}
-          activeOpacity={0.7}
-        >
-          <Text className="text-[15px] font-semibold text-foreground">Share feed</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          className="flex-1 h-10 rounded-[10px] border border-border items-center justify-center"
+          className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
+          style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
           onPress={onToggleLike}
           disabled={isTogglingLike}
           activeOpacity={0.7}
         >
-          <Text className="text-[15px] font-semibold text-foreground">
-            {isLiked ? 'Pinned' : 'Pin feed'}
+          <Ionicons
+            name={isLiked ? 'heart' : 'heart-outline'}
+            size={18}
+            color={isLiked ? theme.colors.primary : theme.colors.text}
+          />
+          <Text className="text-[15px] font-medium text-foreground">
+            {isLiked ? 'Unlike' : 'Like'}
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
+          style={{ backgroundColor: isPinned ? theme.colors.primary : (theme.colors.backgroundSecondary || theme.colors.border + '40') }}
+          onPress={onTogglePin}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={isPinned ? 'pin' : 'pin-outline'}
+            size={18}
+            color={isPinned ? '#fff' : theme.colors.text}
+          />
+          <Text
+            className="text-[15px] font-medium"
+            style={{ color: isPinned ? '#fff' : theme.colors.text }}
+          >
+            {isPinned ? 'Unpin feed' : 'Pin feed'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Divider + report */}
+      <View style={[infoStyles.divider, { backgroundColor: theme.colors.border }]} />
+      <View className="flex-row items-center justify-between">
+        <Text className="text-sm italic text-muted-foreground">
+          Something wrong? Let us know.
+        </Text>
+        <TouchableOpacity
+          className="px-3 h-8 rounded-lg items-center justify-center"
+          style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
+          activeOpacity={0.7}
+          onPress={() => {
+            toast.info('Report submitted');
+            onClose();
+          }}
+        >
+          <Text className="text-sm font-medium text-foreground">Report feed</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -492,6 +587,24 @@ export default function CustomFeedTimelineScreen() {
   const [isTogglingLike, setIsTogglingLike] = useState(false);
   const [activeTab, setActiveTab] = useState<FeedTab>('recent');
 
+  const infoSheetRef = useRef<BottomSheet>(null);
+  const infoSnapPoints = useMemo(() => ['50%', '75%'], []);
+
+  const openInfoSheet = useCallback(() => {
+    infoSheetRef.current?.expand();
+  }, []);
+
+  const closeInfoSheet = useCallback(() => {
+    infoSheetRef.current?.close();
+  }, []);
+
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
+
   useEffect(() => {
     (async () => {
       try {
@@ -594,7 +707,6 @@ export default function CustomFeedTimelineScreen() {
 
   const members: MemberProfile[] = feed?.members || [];
   const keywords: string[] = feed?.keywords || [];
-  const memberAvatars: string[] = feed?.memberAvatars || [];
   const memberCount = feed?.memberCount ?? (feed?.memberOxyUserIds || []).length;
   const topicCount = feed?.topicCount ?? keywords.length;
 
@@ -619,54 +731,34 @@ export default function CustomFeedTimelineScreen() {
 
   const listHeader = useMemo(() => {
     if (!feed) return null;
-    return (
-      <View>
-        <FeedHero
-          feed={feed}
-          memberAvatars={memberAvatars}
-          memberCount={memberCount}
-          topicCount={topicCount}
-          likeCount={likeCount}
-          isLiked={isLiked}
-          isTogglingLike={isTogglingLike}
-          onShare={onShare}
-          onToggleLike={onToggleLike}
-        />
-        {tabBar}
-      </View>
-    );
-  }, [feed, memberAvatars, memberCount, topicCount, likeCount, isLiked, isTogglingLike, onShare, onToggleLike, tabBar]);
+    return <View>{tabBar}</View>;
+  }, [feed, tabBar]);
 
   return (
     <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: feed?.title || 'Feed',
-          headerTitleStyle: { justifyContent: 'flex-start', flex: 1 },
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: [
-            <IconButton variant="icon" key="pin" onPress={onTogglePin}>
-              <Ionicons name={isPinned ? 'pin' : 'pin-outline'} size={22} color={theme.colors.text} />
-            </IconButton>,
-            <IconButton variant="icon" key="share" onPress={onShare}>
-              <Ionicons name="share-outline" size={22} color={theme.colors.text} />
-            </IconButton>,
-            <IconButton variant="icon" key="like" onPress={onToggleLike}>
-              <Ionicons
-                name={isLiked ? 'heart' : 'heart-outline'}
-                size={22}
-                color={isLiked ? theme.colors.primary : theme.colors.text}
-              />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky={false}
-      />
+      {/* Compact Bluesky-style header */}
+      {feed ? (
+        <FeedHeaderBar
+          feed={feed}
+          likeCount={likeCount}
+          isLiked={isLiked}
+          isPinned={isPinned}
+          onTogglePin={onTogglePin}
+          onOpenInfo={openInfoSheet}
+        />
+      ) : (
+        <View
+          className="flex-row items-center px-2 bg-background"
+          style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
+        >
+          <IconButton variant="icon" onPress={() => router.back()}>
+            <BackArrowIcon size={20} className="text-foreground" />
+          </IconButton>
+          <View className="flex-1 py-3 px-2">
+            <Text className="text-[15px] font-bold text-foreground">Feed</Text>
+          </View>
+        </View>
+      )}
 
       {error ? (
         <View className="flex-1 items-center justify-center">
@@ -679,18 +771,7 @@ export default function CustomFeedTimelineScreen() {
       ) : activeTab === 'recent' ? (
         <Feed type="mixed" filters={feedFilters} listHeaderComponent={listHeader} />
       ) : (
-        <ScrollView stickyHeaderIndices={[1]}>
-          <FeedHero
-            feed={feed}
-            memberAvatars={memberAvatars}
-            memberCount={memberCount}
-            topicCount={topicCount}
-            likeCount={likeCount}
-            isLiked={isLiked}
-            isTogglingLike={isTogglingLike}
-            onShare={onShare}
-            onToggleLike={onToggleLike}
-          />
+        <ScrollView stickyHeaderIndices={[0]}>
           {tabBar}
           {activeTab === 'profiles' && <ProfilesTab members={members} />}
           {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
@@ -705,15 +786,57 @@ export default function CustomFeedTimelineScreen() {
           customIcon={<ComposeIcon size={22} className="text-primary-foreground" />}
         />
       )}
+
+      {/* Feed info bottom sheet */}
+      {feed && (
+        <BottomSheet
+          ref={infoSheetRef}
+          index={-1}
+          snapPoints={infoSnapPoints}
+          enablePanDownToClose
+          backdropComponent={renderBackdrop}
+          backgroundStyle={{ backgroundColor: theme.colors.background }}
+          handleIndicatorStyle={{ backgroundColor: theme.colors.border }}
+        >
+          <BottomSheetScrollView>
+            <FeedInfoContent
+              feed={feed}
+              likeCount={likeCount}
+              isLiked={isLiked}
+              isTogglingLike={isTogglingLike}
+              isPinned={isPinned}
+              onToggleLike={onToggleLike}
+              onTogglePin={onTogglePin}
+              onShare={onShare}
+              onClose={closeInfoSheet}
+            />
+          </BottomSheetScrollView>
+        </BottomSheet>
+      )}
     </ThemedView>
   );
 }
 
-const styles = StyleSheet.create({
-  avatarGrid: {
-    width: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
-    height: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
+const headerStyles = StyleSheet.create({
+  bar: {
+    minHeight: 52,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  pressHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 8,
+    opacity: 0,
+  },
+});
+
+const infoStyles = StyleSheet.create({
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    width: '100%',
+  },
+});
+
+const styles = StyleSheet.create({
   profilesList: {
     padding: 16,
     gap: 4,

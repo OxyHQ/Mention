@@ -1,5 +1,6 @@
 import React, { memo, useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -7,8 +8,12 @@ import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
 import { FeedCard, type FeedCardData } from '@/components/FeedCard';
+import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { feedService } from '@/services/feedService';
 import { customFeedsService } from '@/services/customFeedsService';
+import { ListCard, type ListCardData } from '@/components/ListCard';
+import { starterPacksService } from '@/services/starterPacksService';
+import { listsService } from '@/services/listsService';
 import type { FeedType } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 
@@ -63,6 +68,26 @@ export const ProfileTabs = memo(function ProfileTabs({
           {t('profile.private.subtext', { defaultValue: 'Follow this account to see their posts' })}
         </Text>
       </View>
+    );
+  }
+
+  // Starter Packs tab (local profiles only)
+  if (tab === 'starter_packs' && !isFederated) {
+    return (
+      <ProfileStarterPacks
+        profileId={profileId}
+        isOwnProfile={isOwnProfile}
+      />
+    );
+  }
+
+  // Lists tab (local profiles only)
+  if (tab === 'lists' && !isFederated) {
+    return (
+      <ProfileLists
+        profileId={profileId}
+        isOwnProfile={isOwnProfile}
+      />
     );
   }
 
@@ -200,6 +225,173 @@ const ProfileFeeds = memo(function ProfileFeeds({
             creator: feed.owner,
             likeCount: feed.likeCount,
           }}
+        />
+      ))}
+    </View>
+  );
+});
+
+const ProfileStarterPacks = memo(function ProfileStarterPacks({
+  profileId,
+  isOwnProfile,
+}: {
+  profileId?: string;
+  isOwnProfile: boolean;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [packs, setPacks] = useState<StarterPackCardData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+
+    const fetchPacks = async () => {
+      try {
+        const params = isOwnProfile ? { mine: true } : { userId: profileId };
+        const res = await starterPacksService.list(params);
+        if (!cancelled) {
+          const items: StarterPackCardData[] = (res.items || []).map((pack: Record<string, unknown>) => {
+            const memberIds = (pack.memberOxyUserIds || []) as string[];
+            return {
+              id: String(pack._id || pack.id),
+              name: (pack.name as string) || 'Untitled Pack',
+              description: pack.description as string | undefined,
+              creator: (pack.creator || pack.owner) as StarterPackCardData['creator'],
+              memberCount: memberIds.length,
+              useCount: (pack.useCount as number) || 0,
+              memberAvatars: (pack.memberAvatars || []) as string[],
+              totalMembers: memberIds.length,
+            };
+          });
+          setPacks(items);
+        }
+      } catch (e) {
+        console.warn('Failed to load profile starter packs', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchPacks();
+
+    return () => { cancelled = true; };
+  }, [profileId, isOwnProfile]);
+
+  if (loading) {
+    return (
+      <View className="p-4 gap-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <StarterPackCardSkeleton key={i} />
+        ))}
+      </View>
+    );
+  }
+
+  if (packs.length === 0) {
+    return (
+      <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
+        <Ionicons name="rocket-outline" size={48} color={theme.colors.textSecondary} />
+        <Text className="text-muted-foreground text-base font-medium">
+          {t('profile.starterPacks.empty', { defaultValue: 'No starter packs yet' })}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="p-4 gap-3">
+      {packs.map((pack) => (
+        <StarterPackCard
+          key={pack.id}
+          pack={pack}
+          onPress={() => router.push(`/starter-packs/${pack.id}`)}
+        />
+      ))}
+    </View>
+  );
+});
+
+const ProfileLists = memo(function ProfileLists({
+  profileId,
+  isOwnProfile,
+}: {
+  profileId?: string;
+  isOwnProfile: boolean;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [lists, setLists] = useState<ListCardData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+
+    const fetchLists = async () => {
+      try {
+        const params = isOwnProfile ? { mine: true } : { userId: profileId };
+        const res = await listsService.list(params);
+        if (!cancelled) {
+          const items: ListCardData[] = (res.items || []).map((l: Record<string, unknown>) => {
+            const listId = String(l._id || l.id);
+            const owner = (l.owner || l.createdBy || l.creator) as Record<string, string> | undefined;
+            return {
+              id: listId,
+              uri: (l.uri as string) || `list:${listId}`,
+              name: (l.title as string) || 'Untitled List',
+              description: l.description as string | undefined,
+              avatar: l.avatar as string | undefined,
+              creator: owner
+                ? {
+                    username: owner.username || '',
+                    displayName: owner.displayName,
+                    avatar: owner.avatar,
+                  }
+                : undefined,
+              purpose: (l.purpose as string) || 'curatelist',
+              itemCount: ((l.memberOxyUserIds || []) as string[]).length,
+            };
+          });
+          setLists(items);
+        }
+      } catch (e) {
+        console.warn('Failed to load profile lists', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchLists();
+
+    return () => { cancelled = true; };
+  }, [profileId, isOwnProfile]);
+
+  if (loading) {
+    return (
+      <View className="items-center justify-center p-8">
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (lists.length === 0) {
+    return (
+      <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
+        <Ionicons name="list-outline" size={48} color={theme.colors.textSecondary} />
+        <Text className="text-muted-foreground text-base font-medium">
+          {t('profile.lists.empty', { defaultValue: 'No lists yet' })}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="p-4 gap-3">
+      {lists.map((list) => (
+        <ListCard
+          key={list.id}
+          list={list}
+          onPress={() => router.push(`/lists/${list.id}`)}
         />
       ))}
     </View>

@@ -294,6 +294,7 @@ class FeedService {
       ...((request as any).metadata && { metadata: (request as any).metadata }),
       ...((request as any).replyPermission && { replyPermission: (request as any).replyPermission }),
       ...((request as any).reviewReplies !== undefined && { reviewReplies: (request as any).reviewReplies }),
+      ...((request as any).quotesDisabled !== undefined && { quotesDisabled: (request as any).quotesDisabled }),
     };
 
     const response = await authenticatedClient.post('/posts', backendRequest);
@@ -446,8 +447,9 @@ class FeedService {
   async updatePostSettings(postId: string, settings: {
     isPinned?: boolean;
     hideEngagementCounts?: boolean;
-    replyPermission?: 'anyone' | 'followers' | 'following' | 'mentioned';
+    replyPermission?: 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
     reviewReplies?: boolean;
+    quotesDisabled?: boolean;
   }): Promise<{ success: boolean; data: unknown }> {
     const response = await authenticatedClient.patch(`/posts/${postId}/settings`, settings);
     return { success: true, data: response.data };

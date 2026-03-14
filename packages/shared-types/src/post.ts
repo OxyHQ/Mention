@@ -86,7 +86,7 @@ export interface PollData {
   userVotes: Record<string, string>; // userId -> option index
 }
 
-export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned';
+export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
 export interface Post {
   id: string;
@@ -107,6 +107,7 @@ export interface Post {
   threadId?: string; // for thread posts
   replyPermission?: ReplyPermission; // Who can reply and quote this post
   reviewReplies?: boolean; // Whether to review and approve replies before they're visible
+  quotesDisabled?: boolean; // Whether quote posts are disabled
   stats: PostStats;
   metadata: PostMetadata;
   location?: GeoJSONPoint; // Post creation location metadata
@@ -150,6 +151,7 @@ export interface CreatePostRequest {
   hashtags?: string[];
   replyPermission?: ReplyPermission;
   reviewReplies?: boolean;
+  quotesDisabled?: boolean;
   status?: 'draft' | 'published' | 'scheduled';
   scheduledFor?: string;
 }
@@ -164,6 +166,7 @@ export interface CreateThreadRequest {
     hashtags?: string[];
     replyPermission?: ReplyPermission;
     reviewReplies?: boolean;
+    quotesDisabled?: boolean;
   }[];
 }
 
@@ -267,6 +270,7 @@ export interface PostMetadataState {
   visibility: PostVisibility;
   replyPermission?: ReplyPermission;
   reviewReplies?: boolean;
+  quotesDisabled?: boolean;
   isPinned?: boolean;
   isSensitive?: boolean;
   hideEngagementCounts?: boolean;

@@ -25,6 +25,7 @@ interface BuildMainPostParams {
   attachmentOrder: string[];
   replyPermission: string;
   reviewReplies: boolean;
+  quotesDisabled: boolean;
   scheduledAt: Date | null;
   isSensitive?: boolean;
 }
@@ -61,6 +62,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     attachmentOrder,
     replyPermission,
     reviewReplies,
+    quotesDisabled,
     scheduledAt,
     isSensitive,
   } = params;
@@ -127,6 +129,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     hashtags: [],
     replyPermission: replyPermission,
     reviewReplies: reviewReplies,
+    quotesDisabled: quotesDisabled,
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt ? {
       status: 'scheduled' as const,
@@ -138,7 +141,8 @@ export const buildMainPost = (params: BuildMainPostParams) => {
 export const buildThreadPost = (
   item: ThreadItem,
   replyPermission: string,
-  reviewReplies: boolean
+  reviewReplies: boolean,
+  quotesDisabled: boolean = false
 ) => {
   const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
   const threadHasLocation = Boolean(item.location);
@@ -182,7 +186,8 @@ export const buildThreadPost = (
     mentions: item.mentions?.map(m => m.userId) || [],
     hashtags: [],
     replyPermission: replyPermission,
-    reviewReplies: reviewReplies
+    reviewReplies: reviewReplies,
+    quotesDisabled: quotesDisabled,
   };
 };
 

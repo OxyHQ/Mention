@@ -21,8 +21,8 @@ const ChatScreen: React.FC = () => {
                     <Text className="text-2xl font-bold text-foreground mb-2">
                         {t('chat.comingSoon', 'Coming Soon')}
                     </Text>
-                    <Text className="text-base text-muted-foreground text-center">
-                        {t('chat.comingSoonDescription', 'Chat is under development. Stay tuned!')}
+                    <Text className="text-lg text-muted-foreground text-center leading-relaxed max-w-[320px]">
+                        {t('chat.comingSoonDescription', 'We\'re building a real-time messaging experience so you can connect with your community directly. Stay tuned!')}
                     </Text>
                 </View>
             </ThemedView>

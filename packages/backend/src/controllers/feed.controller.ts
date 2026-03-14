@@ -1407,6 +1407,9 @@ class FeedController {
           
           try {
             switch (replyPermission) {
+              case 'nobody':
+                canReply = false;
+                break;
               case 'followers':
                 // Check if current user is a follower of the post author
                 const authorFollowers = await oxyClient.getUserFollowers(parentAuthorId);

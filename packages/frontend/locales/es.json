@@ -660,5 +660,7 @@
     "emptyFollowingSubtitle": "Cuando {{name}} siga a personas, aparecerán aquí.",
     "emptyRecommendationsSubtitle": "Vuelve más tarde para ver sugerencias."
   },
-  "Who May Know": "Quizás conozcas"
+  "Who May Know": "Quizás conozcas",
+  "chat.comingSoon": "Próximamente",
+  "chat.comingSoonDescription": "Estamos creando una experiencia de mensajería en tiempo real para que puedas conectar directamente con tu comunidad. ¡Estate atento!"
 }

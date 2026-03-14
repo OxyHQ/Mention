@@ -7,7 +7,7 @@ import type { ProfileData } from '@/hooks/useProfileData';
  */
 
 // Tab configuration
-export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'reposts', 'feeds'] as const;
+export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'reposts', 'feeds', 'starter_packs', 'lists'] as const;
 export type ProfileTab = typeof TAB_NAMES[number];
 
 // Props for the main ProfileScreen component

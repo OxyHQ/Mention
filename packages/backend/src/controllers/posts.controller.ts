@@ -354,7 +354,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, status: incomingStatus, scheduledFor } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor } = req.body;
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -608,6 +608,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       visibility: PostVisibility.PUBLIC, // Explicitly set visibility
       replyPermission: replyPermission || 'anyone',
       reviewReplies: reviewReplies || false,
+      quotesDisabled: quotesDisabled || false,
       status: postStatus,
       scheduledFor: scheduledForDate || undefined,
       metadata: postMetadata,
@@ -838,7 +839,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     for (let i = 0; i < posts.length; i++) {
       const postData = posts[i];
-      const { content, hashtags, mentions, visibility, replyPermission, reviewReplies } = postData;
+      const { content, hashtags, mentions, visibility, replyPermission, reviewReplies, quotesDisabled } = postData;
 
       // Process content location data
       let processedContentLocation = null;
@@ -955,6 +956,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         visibility: (visibility as PostVisibility) || PostVisibility.PUBLIC,
         replyPermission: replyPermission || 'anyone',
         reviewReplies: reviewReplies || false,
+        quotesDisabled: quotesDisabled || false,
         stats: {
           likesCount: 0,
           repostsCount: 0,
@@ -1311,7 +1313,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const { isPinned, hideEngagementCounts, replyPermission, reviewReplies } = req.body;
+    const { isPinned, hideEngagementCounts, replyPermission, reviewReplies, quotesDisabled } = req.body;
 
     if (isPinned !== undefined) {
       if (typeof isPinned !== 'boolean') {
@@ -1328,7 +1330,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
     }
 
     if (replyPermission !== undefined) {
-      const validPermissions = ['anyone', 'followers', 'following', 'mentioned'];
+      const validPermissions = ['anyone', 'followers', 'following', 'mentioned', 'nobody'];
       if (!validPermissions.includes(replyPermission)) {
         return res.status(400).json({ message: `replyPermission must be one of: ${validPermissions.join(', ')}` });
       }
@@ -1342,6 +1344,13 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       post.reviewReplies = reviewReplies;
     }
 
+    if (quotesDisabled !== undefined) {
+      if (typeof quotesDisabled !== 'boolean') {
+        return res.status(400).json({ message: 'quotesDisabled must be a boolean' });
+      }
+      (post as any).quotesDisabled = quotesDisabled;
+    }
+
     post.markModified('metadata');
     await post.save();
 
@@ -1351,6 +1360,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       hideEngagementCounts: post.metadata.hideEngagementCounts,
       replyPermission: post.replyPermission,
       reviewReplies: post.reviewReplies,
+      quotesDisabled: (post as any).quotesDisabled,
     });
   } catch (error) {
     logger.error('Error updating post settings', error);

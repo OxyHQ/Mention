@@ -189,6 +189,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 t('profile.tabs.likes'),
                 t('profile.tabs.reposts'),
                 t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
+                t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
+                t('profile.tabs.lists', { defaultValue: 'Lists' }),
             ],
         [t, isFederated]
     );

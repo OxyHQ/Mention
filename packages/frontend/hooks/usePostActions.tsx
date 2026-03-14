@@ -22,7 +22,7 @@ import { MuteIcon } from '@/assets/icons/mute-icon';
 import { ReportIcon } from '@/assets/icons/report-icon';
 import { Ionicons } from '@expo/vector-icons';
 import PostInsightsSheet from '@/components/Post/PostInsightsSheet';
-import ReplySettingsSheet from '@/components/Compose/ReplySettingsSheet';
+import ReplySettingsSheet, { type ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import ReportModal from '@/components/report/ReportModal';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
@@ -199,7 +199,7 @@ export function usePostActions({
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
                         <ReplySettingsSheet
-                            replyPermission={viewPost?.replyPermission || 'anyone'}
+                            replyPermission={(viewPost?.metadata?.replyPermission as ReplyPermission) || 'anyone'}
                             onReplyPermissionChange={async (permission) => {
                                 try {
                                     await feedService.updatePostSettings(postId, { replyPermission: permission });
@@ -207,12 +207,12 @@ export function usePostActions({
                                     Alert.alert('Error', 'Failed to update reply permissions');
                                 }
                             }}
-                            reviewReplies={viewPost?.reviewReplies || false}
-                            onReviewRepliesChange={async (enabled) => {
+                            quotesDisabled={viewPost?.metadata?.quotesDisabled || false}
+                            onQuotesDisabledChange={async (disabled) => {
                                 try {
-                                    await feedService.updatePostSettings(postId, { reviewReplies: enabled });
+                                    await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
                                 } catch (e) {
-                                    Alert.alert('Error', 'Failed to update review replies setting');
+                                    Alert.alert('Error', 'Failed to update quote settings');
                                 }
                             }}
                             onClose={() => bottomSheet.openBottomSheet(false)}
