@@ -47,6 +47,8 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 // Lazy load sheets - only loaded when user opens them
 const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
@@ -123,7 +125,10 @@ const ComposeScreen = () => {
   const theme = useTheme();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
-  const { user, showBottomSheet, oxyServices } = useAuth();
+  const { user, showBottomSheet, oxyServices, isAuthenticated } = useAuth();
+  const isScreenNotMobile = useIsScreenNotMobile();
+  const keyboardVisible = useKeyboardVisibility();
+  const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
   const { editPostId } = useLocalSearchParams<{ editPostId?: string }>();
@@ -1467,7 +1472,7 @@ const ComposeScreen = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.bottomBar}>
+            <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
               <TouchableOpacity
                 onPress={openReplySettings}
                 activeOpacity={0.7}
@@ -1530,6 +1535,7 @@ const ComposeScreen = () => {
           style={[
             styles.floatingPostButton,
             { backgroundColor: theme.colors.primary },
+            bottomBarVisible && { bottom: 96 },
             !isPostButtonEnabled && [styles.floatingPostButtonDisabled, { backgroundColor: theme.colors.border }]
           ]}
         >
