@@ -28,10 +28,10 @@ function getPanelRounding(adjacent?: Adjacent) {
   const leading = adjacent === 'leading' || adjacent === 'both';
   const trailing = adjacent === 'trailing' || adjacent === 'both';
   return {
-    borderTopLeftRadius: leading ? 4 : 8,
-    borderTopRightRadius: leading ? 4 : 8,
-    borderBottomLeftRadius: trailing ? 4 : 8,
-    borderBottomRightRadius: trailing ? 4 : 8,
+    borderTopLeftRadius: leading ? 6 : 12,
+    borderTopRightRadius: leading ? 6 : 12,
+    borderBottomLeftRadius: trailing ? 6 : 12,
+    borderBottomRightRadius: trailing ? 6 : 12,
   };
 }
 
@@ -80,11 +80,11 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   }, [replyPermission, onReplyPermissionChange]);
 
   return (
-    <View style={{ paddingBottom: 20, paddingHorizontal: 16, gap: 16, backgroundColor: theme.colors.background }}>
+    <View style={{ paddingBottom: 16, paddingHorizontal: 16, gap: 12, backgroundColor: theme.colors.background }}>
       {/* Title */}
       <Text
         style={{
-          fontSize: 24,
+          fontSize: 22,
           fontWeight: '700',
           color: theme.colors.text,
         }}
@@ -93,10 +93,10 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
       </Text>
 
       {/* Who can reply section */}
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: 6 }}>
         <Text
           style={{
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: '500',
             color: theme.colors.text,
           }}
@@ -105,7 +105,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
         </Text>
 
         {/* Anyone / Nobody radio row */}
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
           <Pressable
             onPress={() => handleRadioPress('anyone')}
             style={{ flex: 1 }}
@@ -115,9 +115,9 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 8,
-                paddingHorizontal: 14,
-                paddingVertical: 14,
-                minHeight: 56,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                minHeight: 44,
                 ...getPanelRounding(),
                 backgroundColor: isAnyone ? panelActiveBg : panelInactiveBg,
               }}
@@ -130,7 +130,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
               />
               <Text
                 style={{
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: isAnyone ? '500' : '400',
                   color: isAnyone ? theme.colors.text : mutedTextColor,
                 }}
@@ -149,9 +149,9 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 8,
-                paddingHorizontal: 14,
-                paddingVertical: 14,
-                minHeight: 56,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                minHeight: 44,
                 ...getPanelRounding(),
                 backgroundColor: isNobody ? panelActiveBg : panelInactiveBg,
               }}
@@ -164,7 +164,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
               />
               <Text
                 style={{
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: isNobody ? '500' : '400',
                   color: isNobody ? theme.colors.text : mutedTextColor,
                 }}
@@ -207,7 +207,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                   />
                   <Text
                     style={{
-                      fontSize: 16,
+                      fontSize: 15,
                       flex: 1,
                       fontWeight: isSelected ? '500' : '400',
                       color: isSelected ? theme.colors.text : mutedTextColor,
@@ -238,7 +238,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
         >
           <Text
             style={{
-              fontSize: 16,
+              fontSize: 15,
               flex: 1,
               fontWeight: !quotesDisabled ? '500' : '400',
               color: !quotesDisabled ? theme.colors.text : mutedTextColor,
@@ -260,14 +260,14 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
         style={{
           alignItems: 'center',
           justifyContent: 'center',
-          paddingVertical: 14,
+          paddingVertical: 12,
           borderRadius: 999,
           backgroundColor: theme.colors.primary,
         }}
       >
         <Text
           style={{
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: '600',
             color: '#fff',
           }}
@@ -293,9 +293,9 @@ function RadioIndicator({
   return (
     <View
       style={{
-        width: 25,
-        height: 25,
-        borderRadius: 12.5,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
         borderWidth: 1,
         borderColor: selected ? primaryColor : borderColor,
         backgroundColor: selected ? primaryColor : inactiveBg,
@@ -307,9 +307,9 @@ function RadioIndicator({
       {selected && (
         <View
           style={{
-            width: 12,
-            height: 12,
-            borderRadius: 6,
+            width: 10,
+            height: 10,
+            borderRadius: 5,
             backgroundColor: '#fff',
           }}
         />
@@ -332,8 +332,8 @@ function CheckboxIndicator({
   return (
     <View
       style={{
-        width: 24,
-        height: 24,
+        width: 22,
+        height: 22,
         borderRadius: 6,
         borderWidth: 1,
         borderColor: selected ? primaryColor : borderColor,
@@ -343,7 +343,7 @@ function CheckboxIndicator({
       }}
     >
       {selected && (
-        <Ionicons name="checkmark" size={14} color="#fff" />
+        <Ionicons name="checkmark" size={13} color="#fff" />
       )}
     </View>
   );
@@ -371,10 +371,10 @@ function ToggleSwitch({
   return (
     <View
       style={{
-        width: 48,
-        height: 28,
-        borderRadius: 14,
-        padding: 3,
+        width: 44,
+        height: 26,
+        borderRadius: 13,
+        padding: 2,
         backgroundColor: value ? primaryColor : mutedColor,
       }}
     >
@@ -388,7 +388,7 @@ function ToggleSwitch({
             {
               translateX: switchAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 20],
+                outputRange: [0, 18],
               }),
             },
           ],

@@ -17,9 +17,9 @@ const ComposeForm: React.FC<Props> = ({ id, value, onChange, onRemove, placehold
     return (
         <View className="flex-row items-start px-4 gap-3" key={id}>
             <View className="w-12 items-center">
-                <View className="w-0.5 h-2 rounded-sm bg-muted" />
+                <View className="w-0.5 h-2 rounded-sm bg-primary" />
                 {showAvatar && <Avatar source={avatarSrc ? { uri: avatarSrc } : undefined} size={36} />}
-                <View className="w-0.5 flex-1 rounded-sm min-h-[16px] bg-muted" />
+                <View className="w-0.5 flex-1 rounded-sm min-h-[16px] bg-primary" />
             </View>
 
             <View className="flex-1">
