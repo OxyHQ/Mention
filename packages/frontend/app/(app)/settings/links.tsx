@@ -10,7 +10,7 @@ import { authenticatedClient } from "@/utils/api";
 import { confirmDialog, alertDialog } from "@/utils/alerts";
 import { useTheme } from "@/hooks/useTheme";
 import { useLinksStore } from "@/stores/linksStore";
-import { SettingsItem, SettingsGroup, SettingsDivider } from "@/components/settings/SettingsItem";
+import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem";
 
 export default function LinkSettingsScreen() {
     const { t } = useTranslation();

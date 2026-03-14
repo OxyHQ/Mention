@@ -12,7 +12,7 @@ import { Slider } from '@/components/Slider';
 import { useFeedSettings, FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { SettingsItem, SettingsGroup, SettingsDivider } from '@/components/settings/SettingsItem';
+import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
@@ -343,15 +343,15 @@ export default function FeedSettingsScreen() {
           />
         </SettingsGroup>
 
-        <SettingsDivider />
-
         {/* Reset */}
-        <SettingsItem
-          icon="refresh"
-          title={t('settings.feed.resetToDefaults')}
-          onPress={resetToDefaults}
-          destructive
-        />
+        <SettingsGroup>
+          <SettingsItem
+            icon="refresh"
+            title={t('settings.feed.resetToDefaults')}
+            onPress={resetToDefaults}
+            destructive
+          />
+        </SettingsGroup>
       </ScrollView>
     </ThemedView>
   );
