@@ -56,9 +56,9 @@ export const AppProviders = memo(function AppProviders({
             theme={colorScheme ?? undefined}
           >
             <I18nextProvider i18n={i18n}>
-              <BottomSheetModalProvider>
-                <AgoraProvider config={agoraConfig}>
-                  <LiveRoomProvider>
+              <AgoraProvider config={agoraConfig}>
+                <LiveRoomProvider>
+                  <BottomSheetModalProvider>
                     <BottomSheetProvider>
                       <MenuProvider>
                         <ErrorBoundary>
@@ -77,9 +77,9 @@ export const AppProviders = memo(function AppProviders({
                         </ErrorBoundary>
                       </MenuProvider>
                     </BottomSheetProvider>
-                  </LiveRoomProvider>
-                </AgoraProvider>
-              </BottomSheetModalProvider>
+                  </BottomSheetModalProvider>
+                </LiveRoomProvider>
+              </AgoraProvider>
             </I18nextProvider>
           </OxyProvider>
         </QueryClientProvider>

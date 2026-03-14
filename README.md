@@ -56,6 +56,8 @@ This is a **monorepo** using npm workspaces with the following structure:
 │   │   │   ├── types/       # TypeScript types
 │   │   │   └── utils/       # Utility functions
 │   │   └── ...
+│   ├── agora/           # Agora audio/video spaces app (Expo)
+│   ├── agora-shared/    # Shared utilities for Agora
 │   └── shared-types/    # Shared TypeScript types
 │       ├── src/         # Type definitions
 │       └── dist/        # Compiled types
@@ -165,6 +167,7 @@ All project documentation is available in the [`docs/`](./docs/) folder:
 - [Theming Troubleshooting](./docs/THEMING_TROUBLESHOOTING.md) - Common theming issues and solutions
 - [Compose Refactoring](./docs/COMPOSE_REFACTORING.md) - Compose screen architecture
 - [Performance Optimizations](./docs/PERFORMANCE_OPTIMIZATIONS.md) - Performance best practices
+- [DigitalOcean Deployment](./docs/DIGITALOCEAN_DEPLOYMENT.md) - Production deployment guide for DigitalOcean App Platform
 - [Vercel Deployment](./docs/VERCEL_DEPLOYMENT.md) - Deployment guide for Vercel
 
 ### API Documentation

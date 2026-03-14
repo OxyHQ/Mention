@@ -5,8 +5,13 @@ import {
   ComposerMediaItem,
   POLL_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
+  SOURCES_ATTACHMENT_KEY,
+  ARTICLE_ATTACHMENT_KEY,
+  EVENT_ATTACHMENT_KEY,
+  ROOM_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from './composeUtils';
+import type { ThreadItem } from '@/hooks/useThreadManager';
 
 interface BuildMainPostParams {
   postContent: string;
@@ -28,20 +33,6 @@ interface BuildMainPostParams {
   quotesDisabled: boolean;
   scheduledAt: Date | null;
   isSensitive?: boolean;
-}
-
-interface ThreadItem {
-  id: string;
-  text: string;
-  mentions?: MentionData[];
-  mediaIds: ComposerMediaItem[];
-  pollTitle?: string;
-  pollOptions: string[];
-  location?: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  } | null;
 }
 
 export const buildMainPost = (params: BuildMainPostParams) => {
@@ -138,34 +129,51 @@ export const buildMainPost = (params: BuildMainPostParams) => {
   };
 };
 
-export const buildThreadPost = (
-  item: ThreadItem,
-  replyPermission: string,
-  reviewReplies: boolean,
-  quotesDisabled: boolean = false
-) => {
+export const buildThreadPost = (item: ThreadItem) => {
   const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
   const threadHasLocation = Boolean(item.location);
-  const threadOrder: string[] = [];
-  
-  if (threadHasPoll) threadOrder.push(POLL_ATTACHMENT_KEY);
-  item.mediaIds.forEach((media) => {
-    threadOrder.push(createMediaAttachmentKey(media.id));
-  });
-  if (threadHasLocation) threadOrder.push(LOCATION_ATTACHMENT_KEY);
+  const threadHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));
+  const threadHasEvent = Boolean(item.event && item.event.name?.trim());
+  const threadHasRoom = Boolean(item.room && item.room.roomId);
+  const threadFormattedSources = (item.sources || []).filter(s => s.url.trim().length > 0);
+  const threadHasSources = threadFormattedSources.length > 0;
+
+  // Use explicit attachment order if provided, otherwise auto-build
+  let threadOrder: string[];
+  if (item.attachmentOrder && item.attachmentOrder.length > 0) {
+    threadOrder = item.attachmentOrder;
+  } else {
+    threadOrder = [];
+    if (threadHasPoll) threadOrder.push(POLL_ATTACHMENT_KEY);
+    if (threadHasArticle) threadOrder.push(ARTICLE_ATTACHMENT_KEY);
+    if (threadHasEvent) threadOrder.push(EVENT_ATTACHMENT_KEY);
+    if (threadHasRoom) threadOrder.push(ROOM_ATTACHMENT_KEY);
+    item.mediaIds.forEach((media) => {
+      threadOrder.push(createMediaAttachmentKey(media.id));
+    });
+    if (threadHasSources) threadOrder.push(SOURCES_ATTACHMENT_KEY);
+    if (threadHasLocation) threadOrder.push(LOCATION_ATTACHMENT_KEY);
+  }
 
   const threadAttachmentsPayload = buildAttachmentsPayload(threadOrder, item.mediaIds, {
     includePoll: threadHasPoll,
-    includeArticle: false,
+    includeArticle: threadHasArticle,
+    includeEvent: threadHasEvent,
+    includeRoom: threadHasRoom,
     includeLocation: threadHasLocation,
-    includeSources: false,
+    includeSources: threadHasSources,
   });
+
+  const threadArticlePayload = threadHasArticle && item.article ? {
+    ...(item.article.title?.trim() ? { title: item.article.title.trim() } : {}),
+    ...(item.article.body?.trim() ? { body: item.article.body.trim() } : {}),
+  } : undefined;
 
   return {
     content: {
       text: item.text.trim(),
       media: item.mediaIds.map(m => ({ id: m.id, type: m.type })),
-      ...(item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0) && {
+      ...(threadHasPoll && {
         poll: {
           question: (item.pollTitle && item.pollTitle.trim()) || item.text.trim() || 'Poll',
           options: item.pollOptions.filter(opt => opt.trim().length > 0),
@@ -181,18 +189,42 @@ export const buildThreadPost = (
           address: item.location.address
         } as GeoJSONPoint
       }),
+      ...(threadHasSources && { sources: threadFormattedSources.map(s => ({ url: s.url.trim(), title: s.title?.trim() || '' })) }),
+      ...(threadArticlePayload && { article: threadArticlePayload }),
+      ...(threadHasEvent && item.event && {
+        event: {
+          name: item.event.name.trim(),
+          date: item.event.date,
+          ...(item.event.location?.trim() && { location: item.event.location.trim() }),
+          ...(item.event.description?.trim() && { description: item.event.description.trim() }),
+        }
+      }),
+      ...(threadHasRoom && item.room && {
+        room: {
+          roomId: item.room.roomId,
+          title: item.room.title.trim(),
+          ...(item.room.status && { status: item.room.status }),
+          ...(item.room.topic?.trim() && { topic: item.room.topic.trim() }),
+          ...(item.room.host && { host: item.room.host }),
+        }
+      }),
       ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload })
     },
     mentions: item.mentions?.map(m => m.userId) || [],
     hashtags: [],
-    replyPermission: replyPermission,
-    reviewReplies: reviewReplies,
-    quotesDisabled: quotesDisabled,
+    replyPermission: item.replyPermission || 'anyone',
+    reviewReplies: item.reviewReplies || false,
+    quotesDisabled: item.quotesDisabled || false,
+    ...(item.isSensitive ? { metadata: { isSensitive: true } } : {}),
   };
 };
 
 export const shouldIncludeThreadItem = (item: ThreadItem): boolean => {
-  return item.text.trim().length > 0 || 
+  return item.text.trim().length > 0 ||
          item.mediaIds.length > 0 ||
-         (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0));
+         (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) ||
+         Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim())) ||
+         Boolean(item.event && item.event.name?.trim()) ||
+         Boolean(item.room && item.room.roomId) ||
+         Boolean(item.sources && item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0));
 };

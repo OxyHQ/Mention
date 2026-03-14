@@ -181,6 +181,23 @@ const ComposeScreen = () => {
     updateThreadPollTitle,
     setThreadLocation,
     removeThreadLocation,
+    setThreadSources,
+    addThreadSource,
+    updateThreadSourceField,
+    removeThreadSource,
+    setThreadArticle,
+    removeThreadArticle,
+    setThreadEvent,
+    removeThreadEvent,
+    setThreadRoom,
+    removeThreadRoom,
+    setThreadAttachmentOrder,
+    addThreadAttachment,
+    removeThreadAttachment,
+    setThreadReplyPermission,
+    setThreadReviewReplies,
+    setThreadQuotesDisabled,
+    setThreadSensitive,
     clearAllThreads,
     loadThreadsFromDraft,
   } = threadManager;
@@ -242,6 +259,16 @@ const ComposeScreen = () => {
   const [quotesDisabled, setQuotesDisabled] = useState(false);
   const [showModeToggle, setShowModeToggle] = useState(false);
   const [isSensitive, setIsSensitive] = useState(false);
+
+  // Thread item article/event editor state
+  const [editingThreadArticleId, setEditingThreadArticleId] = useState<string | null>(null);
+  const [threadArticleDraftTitle, setThreadArticleDraftTitle] = useState('');
+  const [threadArticleDraftBody, setThreadArticleDraftBody] = useState('');
+  const [editingThreadEventId, setEditingThreadEventId] = useState<string | null>(null);
+  const [threadEventDraftName, setThreadEventDraftName] = useState('');
+  const [threadEventDraftDate, setThreadEventDraftDate] = useState('');
+  const [threadEventDraftLocation, setThreadEventDraftLocation] = useState('');
+  const [threadEventDraftDescription, setThreadEventDraftDescription] = useState('');
 
   const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
 
@@ -481,7 +508,7 @@ const ComposeScreen = () => {
       // Add thread items if any
       threadItems.forEach(item => {
         if (shouldIncludeThreadItem(item)) {
-          const threadPost = buildThreadPost(item, replyPermission, reviewReplies, quotesDisabled);
+          const threadPost = buildThreadPost(item);
           allPosts.push(threadPost);
         }
       });
@@ -671,6 +698,61 @@ const ComposeScreen = () => {
   const handleSchedulePress = useCallback(() => {
     openScheduleSheet(ScheduleSheet);
   }, [openScheduleSheet]);
+
+  // Thread item article editor helpers
+  const openThreadArticleEditor = useCallback((threadId: string) => {
+    const threadItem = threadItems.find(t => t.id === threadId);
+    setThreadArticleDraftTitle(threadItem?.article?.title || '');
+    setThreadArticleDraftBody(threadItem?.article?.body || '');
+    setEditingThreadArticleId(threadId);
+  }, [threadItems]);
+
+  const closeThreadArticleEditor = useCallback(() => {
+    setEditingThreadArticleId(null);
+  }, []);
+
+  const saveThreadArticle = useCallback(() => {
+    if (!editingThreadArticleId) return;
+    const title = threadArticleDraftTitle.trim();
+    const body = threadArticleDraftBody.trim();
+    if (!title && !body) {
+      setThreadArticle(editingThreadArticleId, null);
+    } else {
+      setThreadArticle(editingThreadArticleId, { title, body });
+    }
+    setEditingThreadArticleId(null);
+  }, [editingThreadArticleId, threadArticleDraftTitle, threadArticleDraftBody, setThreadArticle]);
+
+  // Thread item event editor helpers
+  const openThreadEventEditor = useCallback((threadId: string) => {
+    const threadItem = threadItems.find(t => t.id === threadId);
+    setThreadEventDraftName(threadItem?.event?.name || '');
+    setThreadEventDraftDate(threadItem?.event?.date || new Date().toISOString());
+    setThreadEventDraftLocation(threadItem?.event?.location || '');
+    setThreadEventDraftDescription(threadItem?.event?.description || '');
+    setEditingThreadEventId(threadId);
+  }, [threadItems]);
+
+  const closeThreadEventEditor = useCallback(() => {
+    setEditingThreadEventId(null);
+  }, []);
+
+  const saveThreadEvent = useCallback(() => {
+    if (!editingThreadEventId) return;
+    const name = threadEventDraftName.trim();
+    const date = threadEventDraftDate;
+    if (!name) {
+      setThreadEvent(editingThreadEventId, null);
+    } else {
+      setThreadEvent(editingThreadEventId, {
+        name,
+        date,
+        location: threadEventDraftLocation.trim() || undefined,
+        description: threadEventDraftDescription.trim() || undefined,
+      });
+    }
+    setEditingThreadEventId(null);
+  }, [editingThreadEventId, threadEventDraftName, threadEventDraftDate, threadEventDraftLocation, threadEventDraftDescription, setThreadEvent]);
 
   // Update bottom sheet content when replyPermission or reviewReplies changes
   useEffect(() => {
@@ -1089,8 +1171,9 @@ const ComposeScreen = () => {
                     </View>
                   ) : null}
 
-                  <View style={[styles.toolbarWrapper, { paddingLeft: BOTTOM_LEFT_PAD }]}>
+                  <View style={styles.toolbarWrapper}>
                     <ComposeToolbar
+                      contentPaddingLeft={BOTTOM_LEFT_PAD}
                       onMediaPress={openMediaPicker}
                       onPollPress={focusPollCreator}
                       onLocationPress={requestLocation}
@@ -1211,6 +1294,53 @@ const ComposeScreen = () => {
                       style={{ marginLeft: BOTTOM_LEFT_PAD }}
                     />
                   )}
+
+                  {/* Main post interaction settings (beast mode with thread items) */}
+                  {postingMode === 'beast' && threadItems.length > 0 && (
+                    <View style={[styles.threadItemSettings, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                      <TouchableOpacity
+                        onPress={openReplySettings}
+                        activeOpacity={0.7}
+                        style={[styles.threadSettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
+                      >
+                        <Ionicons
+                          name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
+                          size={14}
+                          color={theme.colors.textSecondary}
+                        />
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            fontSize: 12,
+                            fontWeight: '500',
+                            color: theme.colors.textSecondary,
+                          }}
+                        >
+                          {anyoneCanInteract
+                            ? t('Anyone can interact')
+                            : t('Interaction limited')}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setIsSensitive(!isSensitive)}
+                        activeOpacity={0.7}
+                        style={styles.threadSettingsPill}
+                      >
+                        <Ionicons
+                          name={isSensitive ? 'warning' : 'warning-outline'}
+                          size={14}
+                          color={isSensitive ? theme.colors.error : theme.colors.textSecondary}
+                        />
+                        <Text style={{
+                          fontSize: 12,
+                          fontWeight: '500',
+                          color: isSensitive ? theme.colors.error : theme.colors.textSecondary,
+                        }}>
+                          {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -1277,9 +1407,59 @@ const ComposeScreen = () => {
                                 );
                                 bottomSheet.openBottomSheet(true);
                               }}
+                              onSourcesPress={() => {
+                                const currentThreadId = item.id;
+                                bottomSheet.setBottomSheetContent(
+                                  <Suspense fallback={null}>
+                                    <SourcesSheet
+                                      sources={item.sources}
+                                      onAdd={() => {
+                                        const newSource = { id: generateSourceId(), title: '', url: '' };
+                                        addThreadSource(currentThreadId, newSource);
+                                      }}
+                                      onUpdate={(id: string, field: 'url' | 'title', value: string) => {
+                                        updateThreadSourceField(currentThreadId, id, field, value);
+                                      }}
+                                      onRemove={(id: string) => {
+                                        removeThreadSource(currentThreadId, id);
+                                      }}
+                                      onClose={() => bottomSheet.openBottomSheet(false)}
+                                      validateUrl={isValidSourceUrl}
+                                    />
+                                  </Suspense>
+                                );
+                                bottomSheet.openBottomSheet(true);
+                              }}
+                              onArticlePress={() => openThreadArticleEditor(item.id)}
+                              onEventPress={() => openThreadEventEditor(item.id)}
+                              onRoomPress={() => {
+                                const currentThreadId = item.id;
+                                bottomSheet.setBottomSheetContent(
+                                  <Suspense fallback={null}>
+                                    <CreateRoomSheet
+                                      onClose={() => bottomSheet.openBottomSheet(false)}
+                                      mode="embed"
+                                      onRoomCreated={(createdRoom) => {
+                                        setThreadRoom(currentThreadId, {
+                                          roomId: createdRoom._id,
+                                          title: createdRoom.title,
+                                          status: createdRoom.status,
+                                          topic: createdRoom.topic,
+                                          host: createdRoom.host,
+                                        });
+                                      }}
+                                    />
+                                  </Suspense>
+                                );
+                                bottomSheet.openBottomSheet(true);
+                              }}
                               hasLocation={!!item.location}
                               hasPoll={item.showPollCreator}
                               hasMedia={item.mediaIds.length > 0}
+                              hasSources={item.sources.length > 0}
+                              hasArticle={Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()))}
+                              hasEvent={Boolean(item.event && item.event.name?.trim())}
+                              hasRoom={Boolean(item.room && item.room.roomId)}
                               disabled={isPosting}
                             />
                             {item.text.length > 0 && (
@@ -1299,7 +1479,11 @@ const ComposeScreen = () => {
                     </View>
 
                     {/* Thread item attachments row */}
-                    {(item.showPollCreator || item.mediaIds.length > 0) && (
+                    {(item.showPollCreator || item.mediaIds.length > 0 ||
+                      Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim())) ||
+                      Boolean(item.event && item.event.name?.trim()) ||
+                      Boolean(item.room && item.room.roomId) ||
+                      (item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0))) && (
                       <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
                       >
                         <ScrollView
@@ -1417,6 +1601,85 @@ const ComposeScreen = () => {
                               </View>
                             );
                           })}
+                          {/* Thread item article preview */}
+                          {item.article && (item.article.title?.trim() || item.article.body?.trim()) && (
+                            <View style={styles.pollAttachmentWrapper}>
+                              <TouchableOpacity
+                                className="border-border bg-secondary"
+                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                activeOpacity={0.85}
+                                onPress={() => openThreadArticleEditor(item.id)}
+                              >
+                                <PostArticlePreview
+                                  title={item.article.title}
+                                  body={item.article.body}
+                                  onPress={() => openThreadArticleEditor(item.id)}
+                                  style={styles.articleAttachmentPreview}
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => removeThreadArticle(item.id)}
+                                className="bg-background" style={styles.pollAttachmentRemoveButton}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <CloseIcon size={16} className="text-foreground" />
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          {/* Thread item event preview */}
+                          {item.event && item.event.name?.trim() && (
+                            <View style={styles.pollAttachmentWrapper}>
+                              <TouchableOpacity
+                                className="border-border bg-secondary"
+                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                activeOpacity={0.85}
+                                onPress={() => openThreadEventEditor(item.id)}
+                              >
+                                <PostAttachmentEvent
+                                  name={item.event.name}
+                                  date={item.event.date}
+                                  location={item.event.location}
+                                  onPress={() => openThreadEventEditor(item.id)}
+                                  style={styles.articleAttachmentPreview}
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => removeThreadEvent(item.id)}
+                                className="bg-background" style={styles.pollAttachmentRemoveButton}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <CloseIcon size={16} className="text-foreground" />
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          {/* Thread item room preview */}
+                          {item.room && item.room.roomId && (
+                            <View style={styles.pollAttachmentWrapper}>
+                              <View
+                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              >
+                                <RoomCard
+                                  room={{
+                                    _id: item.room.roomId,
+                                    title: item.room.title,
+                                    status: item.room.status || 'scheduled',
+                                    topic: item.room.topic,
+                                    participants: [],
+                                    host: item.room.host || '',
+                                  }}
+                                  variant="compact"
+                                  style={styles.articleAttachmentPreview}
+                                />
+                              </View>
+                              <TouchableOpacity
+                                onPress={() => removeThreadRoom(item.id)}
+                                className="bg-background" style={styles.pollAttachmentRemoveButton}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <CloseIcon size={16} className="text-foreground" />
+                              </TouchableOpacity>
+                            </View>
+                          )}
                         </ScrollView>
                       </View>
                     )}
@@ -1443,6 +1706,67 @@ const ComposeScreen = () => {
                         style={{ marginLeft: BOTTOM_LEFT_PAD }}
                       />
                     )}
+
+                    {/* Per-item interaction settings (beast mode only) */}
+                    {postingMode === 'beast' && (
+                      <View style={[styles.threadItemSettings, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const currentThreadId = item.id;
+                            bottomSheet.setBottomSheetContent(
+                              <Suspense fallback={null}>
+                                <ReplySettingsSheet
+                                  onClose={() => bottomSheet.openBottomSheet(false)}
+                                  replyPermission={item.replyPermission}
+                                  onReplyPermissionChange={(permission) => setThreadReplyPermission(currentThreadId, permission)}
+                                  quotesDisabled={item.quotesDisabled}
+                                  onQuotesDisabledChange={(disabled) => setThreadQuotesDisabled(currentThreadId, disabled)}
+                                />
+                              </Suspense>
+                            );
+                            bottomSheet.openBottomSheet(true);
+                          }}
+                          activeOpacity={0.7}
+                          style={[styles.threadSettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
+                        >
+                          <Ionicons
+                            name={item.replyPermission === 'anyone' && !item.quotesDisabled ? 'earth-outline' : 'people-outline'}
+                            size={14}
+                            color={theme.colors.textSecondary}
+                          />
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              fontSize: 12,
+                              fontWeight: '500',
+                              color: theme.colors.textSecondary,
+                            }}
+                          >
+                            {item.replyPermission === 'anyone' && !item.quotesDisabled
+                              ? t('Anyone can interact')
+                              : t('Interaction limited')}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setThreadSensitive(item.id, !item.isSensitive)}
+                          activeOpacity={0.7}
+                          style={styles.threadSettingsPill}
+                        >
+                          <Ionicons
+                            name={item.isSensitive ? 'warning' : 'warning-outline'}
+                            size={14}
+                            color={item.isSensitive ? theme.colors.error : theme.colors.textSecondary}
+                          />
+                          <Text style={{
+                            fontSize: 12,
+                            fontWeight: '500',
+                            color: item.isSensitive ? theme.colors.error : theme.colors.textSecondary,
+                          }}>
+                            {item.isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 </View>
               ))}
@@ -1450,7 +1774,7 @@ const ComposeScreen = () => {
               {/* Add thread/post button */}
               <TouchableOpacity
                 style={styles.postContainer}
-                onPress={addThread}
+                onPress={() => addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined)}
               >
                 <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                   <TouchableOpacity activeOpacity={0.7}>
@@ -1473,57 +1797,61 @@ const ComposeScreen = () => {
             </View>
 
             <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
-              <TouchableOpacity
-                onPress={openReplySettings}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: theme.colors.backgroundSecondary,
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 20,
-                  gap: 5,
-                }}
-              >
-                <Ionicons
-                  name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
-                  size={16}
-                  color={theme.colors.textSecondary}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    fontSize: 13,
-                    fontWeight: '500',
-                    color: theme.colors.textSecondary,
-                  }}
-                >
-                  {interactionLabel}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={12}
-                  color={theme.colors.textTertiary}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setIsSensitive(!isSensitive)}
-                activeOpacity={0.7}
-                style={styles.sensitiveToggle}
-              >
-                <Ionicons
-                  name={isSensitive ? 'warning' : 'warning-outline'}
-                  size={16}
-                  color={isSensitive ? theme.colors.error : theme.colors.textSecondary}
-                />
-                <Text style={[
-                  styles.bottomText,
-                  isSensitive && { color: theme.colors.error },
-                ]}>
-                  {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
-                </Text>
-              </TouchableOpacity>
+              {!(postingMode === 'beast' && threadItems.length > 0) && (
+                <>
+                  <TouchableOpacity
+                    onPress={openReplySettings}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: theme.colors.backgroundSecondary,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 20,
+                      gap: 5,
+                    }}
+                  >
+                    <Ionicons
+                      name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
+                      size={16}
+                      color={theme.colors.textSecondary}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '500',
+                        color: theme.colors.textSecondary,
+                      }}
+                    >
+                      {interactionLabel}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={12}
+                      color={theme.colors.textTertiary}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setIsSensitive(!isSensitive)}
+                    activeOpacity={0.7}
+                    style={styles.sensitiveToggle}
+                  >
+                    <Ionicons
+                      name={isSensitive ? 'warning' : 'warning-outline'}
+                      size={16}
+                      color={isSensitive ? theme.colors.error : theme.colors.textSecondary}
+                    />
+                    <Text style={[
+                      styles.bottomText,
+                      isSensitive && { color: theme.colors.error },
+                    ]}>
+                      {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </ThemedView>
         </KeyboardAvoidingView>
@@ -1567,6 +1895,28 @@ const ComposeScreen = () => {
           onDescriptionChange={setEventDraftDescription}
           onClose={closeEventEditor}
           onSave={handleEventSave}
+        />
+        <ArticleEditor
+          visible={Boolean(editingThreadArticleId)}
+          title={threadArticleDraftTitle}
+          body={threadArticleDraftBody}
+          onTitleChange={setThreadArticleDraftTitle}
+          onBodyChange={setThreadArticleDraftBody}
+          onClose={closeThreadArticleEditor}
+          onSave={saveThreadArticle}
+        />
+        <EventEditor
+          visible={Boolean(editingThreadEventId)}
+          name={threadEventDraftName}
+          date={threadEventDraftDate}
+          location={threadEventDraftLocation}
+          description={threadEventDraftDescription}
+          onNameChange={setThreadEventDraftName}
+          onDateChange={setThreadEventDraftDate}
+          onLocationChange={setThreadEventDraftLocation}
+          onDescriptionChange={setThreadEventDraftDescription}
+          onClose={closeThreadEventEditor}
+          onSave={saveThreadEvent}
         />
       </SafeAreaView>
     </>
@@ -1718,6 +2068,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingLeft: 8,
+  },
+  threadItemSettings: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: HPAD,
+  },
+  threadSettingsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   floatingPostButton: {
     position: 'absolute',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -15,6 +15,7 @@ import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ComposeToolbarProps {
+    contentPaddingLeft?: number;
     onMediaPress?: () => void;
     onPollPress?: () => void;
     onLocationPress?: () => void;
@@ -40,6 +41,7 @@ interface ComposeToolbarProps {
 }
 
 const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
+    contentPaddingLeft,
     onMediaPress,
     onPollPress,
     onLocationPress,
@@ -78,7 +80,12 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
             : theme.colors.textSecondary;
 
     return (
-        <View className="flex-row items-center gap-2 py-2">
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ alignItems: 'center', gap: 8, paddingVertical: 8, paddingLeft: contentPaddingLeft }}
+        >
             {onMediaPress && (
                 <PressableScale
                     onPress={withHaptic(onMediaPress)}
@@ -222,7 +229,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     )}
                 </PressableScale>
             )}
-        </View>
+        </ScrollView>
     );
 };
 

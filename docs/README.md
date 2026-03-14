@@ -49,6 +49,9 @@ Welcome to the Mention project documentation.
 - **[Performance Optimizations](./PERFORMANCE_OPTIMIZATIONS.md)**
   Performance best practices including memoization, React Query, Zustand selectors, FlashList, and monitoring guidelines.
 
+- **[DigitalOcean Deployment](./DIGITALOCEAN_DEPLOYMENT.md)**
+  Production deployment guide for DigitalOcean App Platform, including build configuration, environment variables, and troubleshooting.
+
 - **[Vercel Deployment](./VERCEL_DEPLOYMENT.md)**
   Complete guide for deploying the Mention monorepo to Vercel, including frontend and backend configurations.
 
@@ -57,7 +60,7 @@ Welcome to the Mention project documentation.
 ### For Developers
 - New to the project? Start with [Mention System Overview](./MENTION_SYSTEM_README.md)
 - Working on theming? Check [Theme Quick Reference](./THEME_QUICK_REFERENCE.md)
-- Need to deploy? See [Vercel Deployment](./VERCEL_DEPLOYMENT.md)
+- Need to deploy? See [DigitalOcean Deployment](./DIGITALOCEAN_DEPLOYMENT.md) or [Vercel Deployment](./VERCEL_DEPLOYMENT.md)
 
 ### For Contributors
 - [Theming Guide](./THEMING_REFACTOR_SUMMARY.md) - Complete theming implementation

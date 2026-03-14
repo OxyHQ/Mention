@@ -1,6 +1,11 @@
 import { useState, useCallback } from "react";
 import { MentionData } from "@/components/MentionTextInput";
 import { ComposerMediaItem } from "@/utils/composeUtils";
+import { Source } from "@/hooks/useSourcesManager";
+import { ArticleData } from "@/hooks/useArticleManager";
+import { EventData } from "@/hooks/useEventManager";
+import { RoomAttachmentData } from "@/hooks/useRoomManager";
+import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
 
 export interface ThreadItem {
   id: string;
@@ -11,12 +16,28 @@ export interface ThreadItem {
   showPollCreator: boolean;
   location: { latitude: number; longitude: number; address?: string } | null;
   mentions: MentionData[];
+  sources: Source[];
+  article: ArticleData | null;
+  event: EventData | null;
+  room: RoomAttachmentData | null;
+  attachmentOrder: string[];
+  replyPermission: ReplyPermission;
+  reviewReplies: boolean;
+  quotesDisabled: boolean;
+  isSensitive: boolean;
+}
+
+export interface ThreadItemDefaults {
+  replyPermission?: ReplyPermission;
+  reviewReplies?: boolean;
+  quotesDisabled?: boolean;
+  isSensitive?: boolean;
 }
 
 export const useThreadManager = () => {
   const [threadItems, setThreadItems] = useState<ThreadItem[]>([]);
 
-  const addThread = useCallback(() => {
+  const addThread = useCallback((defaults?: ThreadItemDefaults) => {
     const newThread: ThreadItem = {
       id: `thread-${Date.now()}`,
       text: "",
@@ -26,6 +47,15 @@ export const useThreadManager = () => {
       showPollCreator: false,
       location: null,
       mentions: [],
+      sources: [],
+      article: null,
+      event: null,
+      room: null,
+      attachmentOrder: [],
+      replyPermission: defaults?.replyPermission ?? "anyone",
+      reviewReplies: defaults?.reviewReplies ?? false,
+      quotesDisabled: defaults?.quotesDisabled ?? false,
+      isSensitive: defaults?.isSensitive ?? false,
     };
     setThreadItems((prev) => [...prev, newThread]);
   }, []);
@@ -215,6 +245,200 @@ export const useThreadManager = () => {
     );
   }, []);
 
+  // Per-item interaction settings
+  const setThreadReplyPermission = useCallback(
+    (threadId: string, replyPermission: ReplyPermission) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId ? { ...item, replyPermission } : item
+        )
+      );
+    },
+    []
+  );
+
+  const setThreadReviewReplies = useCallback(
+    (threadId: string, reviewReplies: boolean) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId ? { ...item, reviewReplies } : item
+        )
+      );
+    },
+    []
+  );
+
+  const setThreadQuotesDisabled = useCallback(
+    (threadId: string, quotesDisabled: boolean) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId ? { ...item, quotesDisabled } : item
+        )
+      );
+    },
+    []
+  );
+
+  const setThreadSensitive = useCallback(
+    (threadId: string, isSensitive: boolean) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId ? { ...item, isSensitive } : item
+        )
+      );
+    },
+    []
+  );
+
+  // Sources management
+  const setThreadSources = useCallback(
+    (threadId: string, sources: Source[]) => {
+      setThreadItems((prev) =>
+        prev.map((item) => (item.id === threadId ? { ...item, sources } : item))
+      );
+    },
+    []
+  );
+
+  const addThreadSource = useCallback(
+    (threadId: string, source: Source) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId
+            ? { ...item, sources: [...item.sources, source] }
+            : item
+        )
+      );
+    },
+    []
+  );
+
+  const updateThreadSourceField = useCallback(
+    (threadId: string, sourceId: string, field: keyof Source, value: string) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId
+            ? {
+                ...item,
+                sources: item.sources.map((s) =>
+                  s.id === sourceId ? { ...s, [field]: value } : s
+                ),
+              }
+            : item
+        )
+      );
+    },
+    []
+  );
+
+  const removeThreadSource = useCallback(
+    (threadId: string, sourceId: string) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId
+            ? { ...item, sources: item.sources.filter((s) => s.id !== sourceId) }
+            : item
+        )
+      );
+    },
+    []
+  );
+
+  // Article management
+  const setThreadArticle = useCallback(
+    (threadId: string, article: ArticleData | null) => {
+      setThreadItems((prev) =>
+        prev.map((item) => (item.id === threadId ? { ...item, article } : item))
+      );
+    },
+    []
+  );
+
+  const removeThreadArticle = useCallback((threadId: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId ? { ...item, article: null } : item
+      )
+    );
+  }, []);
+
+  // Event management
+  const setThreadEvent = useCallback(
+    (threadId: string, event: EventData | null) => {
+      setThreadItems((prev) =>
+        prev.map((item) => (item.id === threadId ? { ...item, event } : item))
+      );
+    },
+    []
+  );
+
+  const removeThreadEvent = useCallback((threadId: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId ? { ...item, event: null } : item
+      )
+    );
+  }, []);
+
+  // Room management
+  const setThreadRoom = useCallback(
+    (threadId: string, room: RoomAttachmentData | null) => {
+      setThreadItems((prev) =>
+        prev.map((item) => (item.id === threadId ? { ...item, room } : item))
+      );
+    },
+    []
+  );
+
+  const removeThreadRoom = useCallback((threadId: string) => {
+    setThreadItems((prev) =>
+      prev.map((item) =>
+        item.id === threadId ? { ...item, room: null } : item
+      )
+    );
+  }, []);
+
+  // Attachment order management
+  const setThreadAttachmentOrder = useCallback(
+    (threadId: string, attachmentOrder: string[]) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId ? { ...item, attachmentOrder } : item
+        )
+      );
+    },
+    []
+  );
+
+  const addThreadAttachment = useCallback(
+    (threadId: string, key: string) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId && !item.attachmentOrder.includes(key)
+            ? { ...item, attachmentOrder: [...item.attachmentOrder, key] }
+            : item
+        )
+      );
+    },
+    []
+  );
+
+  const removeThreadAttachment = useCallback(
+    (threadId: string, key: string) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId
+            ? {
+                ...item,
+                attachmentOrder: item.attachmentOrder.filter((k) => k !== key),
+              }
+            : item
+        )
+      );
+    },
+    []
+  );
+
   const clearAllThreads = useCallback(() => {
     setThreadItems([]);
   }, []);
@@ -242,6 +466,23 @@ export const useThreadManager = () => {
     updateThreadPollTitle,
     setThreadLocation,
     removeThreadLocation,
+    setThreadSources,
+    addThreadSource,
+    updateThreadSourceField,
+    removeThreadSource,
+    setThreadArticle,
+    removeThreadArticle,
+    setThreadEvent,
+    removeThreadEvent,
+    setThreadRoom,
+    removeThreadRoom,
+    setThreadAttachmentOrder,
+    addThreadAttachment,
+    removeThreadAttachment,
+    setThreadReplyPermission,
+    setThreadReviewReplies,
+    setThreadQuotesDisabled,
+    setThreadSensitive,
     clearAllThreads,
     loadThreadsFromDraft,
   };

@@ -13,6 +13,14 @@ interface ThreadItem {
   mediaIds: ComposerMediaItem[];
   pollOptions: string[];
   location: any;
+  sources?: Array<{ id: string; url: string; title: string }>;
+  article?: { title: string; body: string } | null;
+  event?: { name: string; date: string; location?: string; description?: string } | null;
+  room?: { roomId: string; title: string; status?: string; topic?: string; host?: string } | null;
+  replyPermission?: string;
+  reviewReplies?: boolean;
+  quotesDisabled?: boolean;
+  isSensitive?: boolean;
 }
 
 interface UseComposeValidationProps {
@@ -49,7 +57,11 @@ export const useComposeValidation = ({
           item.text.trim().length > 0 ||
           item.mediaIds.length > 0 ||
           (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) ||
-          item.location
+          item.location ||
+          Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim())) ||
+          Boolean(item.event && item.event.name?.trim()) ||
+          Boolean(item.room && item.room.roomId) ||
+          Boolean(item.sources && item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0))
       )
     );
   }, [postContent, mediaIds, pollOptions, location, hasArticleContent, threadItems]);

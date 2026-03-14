@@ -21,6 +21,15 @@ interface ThreadItem {
     longitude: number;
     address?: string;
   } | null;
+  sources?: Array<{ id: string; url: string; title: string }>;
+  article?: { title: string; body: string } | null;
+  event?: { name: string; date: string; location?: string; description?: string } | null;
+  room?: { roomId: string; title: string; status?: string; topic?: string; host?: string } | null;
+  attachmentOrder?: string[];
+  replyPermission?: string;
+  reviewReplies?: boolean;
+  quotesDisabled?: boolean;
+  isSensitive?: boolean;
 }
 
 interface PostSubmissionProps {
@@ -237,9 +246,10 @@ export const usePostSubmission = ({
           },
           mentions: item.mentions?.map(m => m.userId) || [],
           hashtags: [],
-          replyPermission: replyPermission,
-          reviewReplies: reviewReplies,
-          quotesDisabled: quotesDisabled,
+          replyPermission: item.replyPermission || replyPermission,
+          reviewReplies: item.reviewReplies ?? reviewReplies,
+          quotesDisabled: item.quotesDisabled ?? quotesDisabled,
+          ...(item.isSensitive ? { metadata: { isSensitive: true } } : {}),
         });
       }
     });
