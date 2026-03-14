@@ -41,8 +41,9 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   const isNobody = replyPermission === 'nobody';
 
   const panelActiveBg = theme.colors.primary + '12';
-  const panelInactiveBg = theme.colors.backgroundSecondary;
+  const panelInactiveBg = theme.colors.backgroundTertiary;
   const mutedTextColor = theme.colors.textSecondary;
+  const indicatorBorderColor = theme.colors.border;
 
   return (
     <View style={{ paddingBottom: 20, paddingHorizontal: 16, gap: 16, backgroundColor: theme.colors.background }}>
@@ -90,7 +91,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                 <RadioIndicator
                   selected={isEveryone}
                   primaryColor={theme.colors.primary}
-                  mutedColor={mutedTextColor}
+                  borderColor={indicatorBorderColor}
                 />
                 <Text
                   style={{
@@ -99,7 +100,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                     color: isEveryone ? theme.colors.text : mutedTextColor,
                   }}
                 >
-                  {t('Everyone')}
+                  {t('Anyone')}
                 </Text>
               </View>
             </Pressable>
@@ -123,7 +124,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                 <RadioIndicator
                   selected={isNobody}
                   primaryColor={theme.colors.primary}
-                  mutedColor={mutedTextColor}
+                  borderColor={indicatorBorderColor}
                 />
                 <Text
                   style={{
@@ -170,7 +171,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                     <CheckboxIndicator
                       selected={isSelected}
                       primaryColor={theme.colors.primary}
-                      mutedColor={mutedTextColor}
+                      borderColor={indicatorBorderColor}
                     />
                     <Text
                       style={{
@@ -204,7 +205,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
             }}
           >
             <Ionicons
-              name="chatbubble-outline"
+              name="chatbubble-ellipses-outline"
               size={18}
               color={!quotesDisabled ? theme.colors.text : mutedTextColor}
             />
@@ -254,11 +255,11 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
 function RadioIndicator({
   selected,
   primaryColor,
-  mutedColor,
+  borderColor,
 }: {
   selected: boolean;
   primaryColor: string;
-  mutedColor: string;
+  borderColor: string;
 }) {
   return (
     <View
@@ -267,8 +268,8 @@ function RadioIndicator({
         height: 25,
         borderRadius: 12.5,
         borderWidth: 1,
-        borderColor: selected ? primaryColor : mutedColor,
-        backgroundColor: selected ? primaryColor : 'transparent',
+        borderColor: selected ? primaryColor : borderColor,
+        backgroundColor: selected ? primaryColor : borderColor + '25',
         justifyContent: 'center',
         alignItems: 'center',
         margin: -1,
@@ -291,11 +292,11 @@ function RadioIndicator({
 function CheckboxIndicator({
   selected,
   primaryColor,
-  mutedColor,
+  borderColor,
 }: {
   selected: boolean;
   primaryColor: string;
-  mutedColor: string;
+  borderColor: string;
 }) {
   return (
     <View
@@ -304,8 +305,8 @@ function CheckboxIndicator({
         height: 24,
         borderRadius: 6,
         borderWidth: 1,
-        borderColor: selected ? primaryColor : mutedColor,
-        backgroundColor: selected ? primaryColor : 'transparent',
+        borderColor: selected ? primaryColor : borderColor,
+        backgroundColor: selected ? primaryColor : borderColor + '25',
         justifyContent: 'center',
         alignItems: 'center',
       }}
