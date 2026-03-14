@@ -65,7 +65,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10'),
         maxIdleTimeMS: 60000,
         // Use primary in dev (required for autoIndex/autoCreate), secondaryPreferred in prod
-        readPreference: process.env.MONGODB_READ_PREFERENCE || (process.env.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary'),
+        readPreference: (process.env.MONGODB_READ_PREFERENCE || (process.env.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary')) as 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest',
         // Write concern for data durability
         w: 'majority',
         wtimeoutMS: 5000, // Fixed: use wtimeoutMS instead of deprecated wtimeout
@@ -155,8 +155,6 @@ export function getDatabaseStats() {
     host: mongoose.connection.host,
     port: mongoose.connection.port,
     name: mongoose.connection.name,
-    // Connection pool stats (if available)
-    poolSize: (mongoose.connection.db as any)?.serverConfig?.poolSize,
   };
 }
 
