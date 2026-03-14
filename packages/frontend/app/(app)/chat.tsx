@@ -17,7 +17,7 @@ const ChatScreen: React.FC = () => {
             <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
                 <Stack.Screen options={{ title: t('Chat'), headerShown: true }} />
                 <View className="flex-1 items-center justify-center px-6">
-                    <Chat size={64} className="text-muted-foreground mb-4" />
+                    <Chat size={64} className="text-primary mb-4" />
                     <Text className="text-2xl font-bold text-foreground mb-2">
                         {t('chat.comingSoon', 'Coming Soon')}
                     </Text>
