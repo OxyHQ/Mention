@@ -33,7 +33,7 @@ export default function SettingsScreen() {
         }
     }, []);
 
-    const assignScrollViewRef = useCallback((node: ScrollView | null) => {
+    const assignScrollViewRef = useCallback((node: any) => {
         scrollViewRef.current = node;
         clearScrollRegistration();
         if (node && registerScrollable) {
