@@ -1,9 +1,6 @@
-// Use built-in fetch if available (Node 18+), otherwise fallback to node-fetch
-const fetch = globalThis.fetch || require('node-fetch');
-
 const KLIPY_BASE_URL = 'https://api.klipy.com';
 
-// Get KLIPY_APP_KEY from environment (ensure dotenv is loaded in server.ts)
+// Get KLIPY_APP_KEY from environment
 function getKlipyAppKey(): string {
   const key = process.env.KLIPY_APP_KEY;
   if (!key) {

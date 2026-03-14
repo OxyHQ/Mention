@@ -6,11 +6,11 @@
   "type": "commonjs",
   "main": "server.ts",
   "scripts": {
-    "start": "ts-node --transpile-only server.ts",
-    "dev": "nodemon --watch \"**/*.ts\" --exec ts-node --transpile-only server.ts",
+    "start": "bun server.ts",
+    "dev": "bun --watch server.ts",
     "build": "tsc",
-    "migrate": "ts-node --transpile-only scripts/migrate.ts",
-    "migrate:dev": "NODE_ENV=development ts-node --transpile-only scripts/migrate.ts",
+    "migrate": "bun scripts/migrate.ts",
+    "migrate:dev": "NODE_ENV=development bun scripts/migrate.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "clean": "rm -rf dist"
   },
@@ -29,7 +29,6 @@
     "body-parser": "^1.20.3",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-rate-limit": "^8.0.1",
     "express-slow-down": "^2.1.0",
@@ -57,9 +56,6 @@
   },
   "devDependencies": {
     "@types/sanitize-html": "^2.16.1",
-    "node-fetch": "^2.7.0",
-    "nodemon": "^3.1.10",
-    "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
 }

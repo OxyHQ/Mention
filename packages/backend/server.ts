@@ -1,9 +1,3 @@
-// --- Config ---
-// CRITICAL: Load environment variables FIRST, before any other imports
-// Use require() so it executes immediately, before ES6 imports are processed
-// This ensures REDIS_URL and other env vars are available when modules are imported
-require('dotenv').config();
-
 // --- Global Error Handlers ---
 // Must be registered early, before any async work begins
 process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {

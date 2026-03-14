@@ -1,15 +1,12 @@
 /**
  * Test script to verify UserBehavior creation
- * Run with: npm run test:behavior or ts-node --transpile-only src/scripts/testUserBehavior.ts
+ * Run with: bun src/scripts/testUserBehavior.ts
  */
 
 import mongoose from 'mongoose';
 import UserBehavior from '../models/UserBehavior';
 import { Post } from '../models/Post';
 import { userPreferenceService } from '../services/UserPreferenceService';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 async function testUserBehavior() {
   try {
