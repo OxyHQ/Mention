@@ -10,13 +10,14 @@ import { useLayoutScroll } from "@/context/LayoutScrollContext";
 import { useRouter } from "expo-router";
 import { useProfileData } from "@/hooks/useProfileData";
 import Avatar from "@/components/Avatar";
+import { Button } from "@/components/ui/Button";
 import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem";
 import { confirmDialog } from "@/utils/alerts";
 
 export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
-    const { user } = useAuth();
+    const { user, showBottomSheet } = useAuth();
     const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
@@ -103,18 +104,23 @@ export default function SettingsScreen() {
                     <Text className="text-base text-muted-foreground" numberOfLines={1}>
                         @{user?.username || 'username'}
                     </Text>
+                    <View className="mt-3">
+                        <Button
+                            variant="secondary"
+                            size="small"
+                            onPress={() => showBottomSheet?.('AccountSettings')}
+                        >
+                            {t('settings.account.manageAccount', { defaultValue: 'Manage account' })}
+                        </Button>
+                    </View>
                 </View>
 
-                {/* Account */}
+                {/* Privacy */}
                 <SettingsGroup>
-                    <SettingsItem
-                        icon="person"
-                        title={t('settings.account.title', { defaultValue: 'Account' })}
-                        onPress={() => router.push('/settings/account')}
-                    />
                     <SettingsItem
                         icon="lock-closed"
                         title={t('settings.privacy.title')}
+                        description={t('settings.privacy.description', { defaultValue: 'Profile visibility, blocked profiles, hidden words' })}
                         onPress={() => router.push('/settings/privacy')}
                     />
                 </SettingsGroup>
@@ -124,16 +130,19 @@ export default function SettingsScreen() {
                     <SettingsItem
                         icon="notifications"
                         title={t('settings.preferences.notifications')}
+                        description={t('settings.preferences.notificationsDesc', { defaultValue: 'Push notifications, email alerts' })}
                         onPress={() => router.push('/settings/notifications')}
                     />
                     <SettingsItem
                         icon="newspaper-outline"
                         title={t('settings.feed.title')}
+                        description={t('settings.feed.description', { defaultValue: 'Content preferences, feed algorithm' })}
                         onPress={() => router.push('/settings/feed')}
                     />
                     <SettingsItem
                         icon="chatbubbles-outline"
                         title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
+                        description={t('settings.threadPreferences.description', { defaultValue: 'Reply sorting, thread display' })}
                         onPress={() => router.push('/settings/thread-preferences')}
                     />
                 </SettingsGroup>
@@ -143,16 +152,19 @@ export default function SettingsScreen() {
                     <SettingsItem
                         icon="color-palette"
                         title={t('settings.preferences.appearance')}
+                        description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, colors, display' })}
                         onPress={() => router.push('/settings/appearance')}
                     />
                     <SettingsItem
                         icon="accessibility"
                         title={t('settings.accessibility.title', { defaultValue: 'Accessibility' })}
+                        description={t('settings.accessibility.description', { defaultValue: 'Haptic feedback, alt text' })}
                         onPress={() => router.push('/settings/accessibility')}
                     />
                     <SettingsItem
                         icon="language"
                         title={t('Language')}
+                        description={t('settings.language.description', { defaultValue: 'App display language' })}
                         onPress={() => router.push('/settings/language')}
                     />
                 </SettingsGroup>
@@ -162,11 +174,13 @@ export default function SettingsScreen() {
                     <SettingsItem
                         icon="person-circle-outline"
                         title={t('settings.preferences.profileCustomization')}
+                        description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, badges, display name' })}
                         onPress={() => router.push('/settings/profile-customization')}
                     />
                     <SettingsItem
                         icon="heart-outline"
                         title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
+                        description={t('settings.preferences.interestsDesc', { defaultValue: 'Topics and categories you follow' })}
                         onPress={() => router.push('/settings/interests')}
                     />
                 </SettingsGroup>
@@ -176,16 +190,19 @@ export default function SettingsScreen() {
                     <SettingsItem
                         icon="link"
                         title={t('settings.data.linkManagement')}
+                        description={t('settings.data.linkManagementDesc', { defaultValue: 'Link previews and cache' })}
                         onPress={() => router.push('/settings/links')}
                     />
                     <SettingsItem
                         icon="help-circle"
                         title={t('settings.supportFeedback.helpSupport')}
+                        description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => router.push('/settings/about')}
                     />
                     <SettingsItem
                         icon="information-circle"
                         title={t('settings.aboutMention.title', { defaultValue: 'About' })}
+                        description={t('settings.aboutMention.description', { defaultValue: 'Version, system info, debug' })}
                         onPress={() => router.push('/settings/about')}
                     />
                 </SettingsGroup>

@@ -98,17 +98,20 @@ export default function PrivacySettingsScreen() {
                     <SettingsItem
                         icon="lock-closed"
                         title={t('settings.privacy.privateProfile')}
+                        description={t('settings.privacy.privateProfileDesc', { defaultValue: 'Control who can see your profile' })}
                         badgeText={getProfileVisibilityText()}
                         onPress={() => router.push('/settings/privacy/profile-visibility')}
                     />
                     <SettingsItem
                         icon="at"
                         title={t('settings.privacy.tagsAndMentions')}
+                        description={t('settings.privacy.tagsAndMentionsDesc', { defaultValue: 'Choose who can tag or mention you' })}
                         onPress={() => router.push('/settings/privacy/tags-mentions')}
                     />
                     <SettingsItem
                         icon="ellipse"
                         title={t('settings.privacy.onlineStatus')}
+                        description={t('settings.privacy.onlineStatusDesc', { defaultValue: 'Show when you are active' })}
                         onPress={() => router.push('/settings/privacy/online-status')}
                     />
                 </SettingsGroup>
@@ -117,11 +120,13 @@ export default function PrivacySettingsScreen() {
                     <SettingsItem
                         icon="people"
                         title={t('settings.privacy.restrictedProfiles')}
+                        description={t('settings.privacy.restrictedProfilesDesc', { defaultValue: 'Limit interactions from specific people' })}
                         onPress={() => router.push('/settings/privacy/restricted')}
                     />
                     <SettingsItem
                         icon="close-circle"
                         title={t('settings.privacy.blockedProfiles')}
+                        description={t('settings.privacy.blockedProfilesDesc', { defaultValue: 'People you have blocked' })}
                         onPress={() => router.push('/settings/privacy/blocked')}
                     />
                 </SettingsGroup>
@@ -130,11 +135,13 @@ export default function PrivacySettingsScreen() {
                     <SettingsItem
                         icon="eye-off"
                         title={t('settings.privacy.hiddenWords')}
+                        description={t('settings.privacy.hiddenWordsDesc', { defaultValue: 'Filter posts containing specific words' })}
                         onPress={() => router.push('/settings/privacy/hidden-words')}
                     />
                     <SettingsItem
                         icon="heart-outline"
                         title={t('settings.privacy.hideLikeShareCounts')}
+                        description={t('settings.privacy.hideLikeShareCountsDesc', { defaultValue: 'Hide engagement counts on posts' })}
                         onPress={() => router.push('/settings/privacy/hide-counts')}
                     />
                 </SettingsGroup>
