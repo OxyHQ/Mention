@@ -403,6 +403,8 @@
     "common.options": "Options",
     "common.clearAll": "Clear all",
     "common.cleared": "Cleared",
+    "chat.comingSoon": "Coming Soon",
+    "chat.comingSoonDescription": "Chat is under development. Stay tuned!",
     "compose.draftsComingSoon": "Drafts feature coming soon",
     "compose.drafts": "Drafts",
     "compose.noDrafts": "No drafts yet",
