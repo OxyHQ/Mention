@@ -23,7 +23,7 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
   }) as T;
 }
 
-const IconComponent = Ionicons as any;
+const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
 export default function InterestsSettingsScreen() {
   const { t } = useTranslation();

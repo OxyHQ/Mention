@@ -41,7 +41,7 @@ export default function AccessibilitySettingsScreen() {
                         <SettingsItem
                             icon="hand-left"
                             title={t('settings.accessibility.hapticFeedback', { defaultValue: 'Haptic feedback' })}
-                            subtitle={t('settings.accessibility.hapticFeedbackDesc', { defaultValue: 'Vibration feedback on interactions' })}
+                            description={t('settings.accessibility.hapticFeedbackDesc', { defaultValue: 'Vibration feedback on interactions' })}
                             showChevron={false}
                             rightElement={
                                 <Toggle
@@ -58,7 +58,7 @@ export default function AccessibilitySettingsScreen() {
                     <SettingsItem
                         icon="text"
                         title={t('settings.accessibility.requireAltText', { defaultValue: 'Require alt text' })}
-                        subtitle={t('settings.accessibility.requireAltTextDesc', { defaultValue: 'Require alt text before posting images' })}
+                        description={t('settings.accessibility.requireAltTextDesc', { defaultValue: 'Require alt text before posting images' })}
                         showChevron={false}
                         rightElement={
                             <Toggle

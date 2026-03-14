@@ -6,7 +6,6 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { confirmDialog, alertDialog } from '@/utils/alerts';
@@ -14,7 +13,7 @@ import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem'
 
 export default function AccountSettingsScreen() {
     const { t } = useTranslation();
-    const { user, showBottomSheet } = useAuth() as any;
+    const { user, showBottomSheet } = useAuth();
 
     const handleExportData = async () => {
         const confirmed = await confirmDialog({
@@ -112,11 +111,10 @@ export default function AccountSettingsScreen() {
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="px-4 pt-4 pb-8"
+                contentContainerClassName="py-2"
                 showsVerticalScrollIndicator={false}
             >
-                {/* Account info */}
-                <SettingsGroup title={t('settings.account.info', { defaultValue: 'Account info' })}>
+                <SettingsGroup>
                     <SettingsItem
                         icon="person"
                         title={t('settings.account.editProfile', { defaultValue: 'Edit profile' })}
@@ -129,35 +127,30 @@ export default function AccountSettingsScreen() {
                     />
                 </SettingsGroup>
 
-                {/* Your data */}
-                <SettingsGroup title={t('settings.yourData', { defaultValue: 'Your data' })}>
+                <SettingsGroup>
                     <SettingsItem
                         icon="download-outline"
-                        title={t('settings.data.requestExport', { defaultValue: 'Request data export' })}
-                        subtitle={t('settings.data.requestExportDesc', { defaultValue: 'Download a copy of your posts, likes, and bookmarks' })}
+                        title={t('settings.data.requestExport', { defaultValue: 'Export my data' })}
                         onPress={handleExportData}
                     />
                     <SettingsItem
                         icon="refresh"
                         title={t('settings.data.resetPersonalization')}
-                        subtitle={t('settings.data.resetPersonalizationDesc')}
                         onPress={handleResetPersonalization}
                         destructive
                     />
                 </SettingsGroup>
 
-                {/* Danger zone */}
-                <SettingsGroup title={t('settings.account.dangerZone', { defaultValue: 'Danger zone' })}>
+                <SettingsGroup>
                     <SettingsItem
                         icon="eye-off-outline"
                         title={t('settings.account.deactivate', { defaultValue: 'Deactivate account' })}
-                        subtitle={t('settings.account.deactivateDesc', { defaultValue: 'Temporarily hide your account' })}
                         onPress={handleDeactivateAccount}
+                        destructive
                     />
                     <SettingsItem
                         icon="trash-outline"
                         title={t('settings.account.delete', { defaultValue: 'Delete account' })}
-                        subtitle={t('settings.account.deleteDesc', { defaultValue: 'Permanently delete your account and all data' })}
                         onPress={handleDeleteAccount}
                         destructive
                     />

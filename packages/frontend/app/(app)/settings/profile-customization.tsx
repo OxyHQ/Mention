@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Toggle } from '@/components/Toggle';
 
-const IconComponent = Ionicons as any;
+const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
 type ProfileStyle = 'default' | 'minimalist';
 
@@ -96,7 +96,7 @@ export default function ProfileCustomizationScreen() {
         coverPhotoEnabled,
         minimalistMode,
       },
-    } as any);
+    } as Record<string, unknown>);
     setSaving(false);
   };
 
@@ -113,7 +113,7 @@ export default function ProfileCustomizationScreen() {
           coverPhotoEnabled: newCoverPhotoEnabled,
           minimalistMode: newMinimalistMode,
         },
-      } as any);
+      } as Record<string, unknown>);
 
       if (result) {
         await loadMySettings();
@@ -138,7 +138,7 @@ export default function ProfileCustomizationScreen() {
           coverPhotoEnabled: newCoverPhotoEnabled,
           minimalistMode: newMinimalistMode,
         },
-      } as any);
+      } as Record<string, unknown>);
 
       if (result) {
         await loadMySettings();
@@ -160,7 +160,7 @@ export default function ProfileCustomizationScreen() {
           coverPhotoEnabled: style.coverPhotoEnabled,
           minimalistMode: style.minimalistMode,
         },
-      } as any);
+      } as Record<string, unknown>);
 
       if (result) {
         await loadMySettings();

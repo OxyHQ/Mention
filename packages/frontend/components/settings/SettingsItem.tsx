@@ -1,15 +1,14 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, Pressable } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-
-const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
+import { Icon, type IconName } from '@/lib/icons';
 
 interface SettingsItemProps {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  icon?: IconName;
   iconColor?: string;
   title: string;
   subtitle?: string;
+  description?: string;
   onPress?: () => void;
   rightElement?: React.ReactNode;
   showChevron?: boolean;
@@ -22,6 +21,7 @@ export function SettingsItem({
   iconColor,
   title,
   subtitle,
+  description,
   onPress,
   rightElement,
   showChevron = true,
@@ -29,47 +29,62 @@ export function SettingsItem({
   badgeText,
 }: SettingsItemProps) {
   const { colors } = useTheme();
-  const resolvedIconColor = iconColor ?? (destructive ? colors.error : colors.textSecondary);
+  const resolvedIconColor = iconColor ?? (destructive ? colors.error : colors.text);
   const titleColor = destructive ? 'text-destructive' : 'text-foreground';
 
   const content = (
-    <View className="px-4 py-3.5 flex-row items-center justify-between">
-      <View className="flex-row items-center flex-1 mr-3">
-        <View className="w-7 items-center justify-center mr-3">
-          <IconComponent name={icon} size={20} color={resolvedIconColor} />
+    <View className="px-4 py-3 flex-row items-center gap-3" style={{ minHeight: 48 }}>
+      {icon ? (
+        <View className="w-6 items-center justify-center">
+          <Icon name={icon} size={22} color={resolvedIconColor} />
         </View>
+      ) : null}
+      {description ? (
         <View className="flex-1">
-          <Text className={`text-[15px] font-medium ${titleColor}`}>
+          <Text className={`text-[16px] ${titleColor}`} style={{ lineHeight: 22 }}>
             {title}
           </Text>
-          {subtitle ? (
-            <Text className="text-[13px] text-muted-foreground mt-0.5" numberOfLines={2}>
-              {subtitle}
-            </Text>
-          ) : null}
+          <Text className="text-[13px] text-muted-foreground mt-0.5" style={{ lineHeight: 18 }}>
+            {description}
+          </Text>
         </View>
-      </View>
-      <View className="flex-row items-center gap-2">
-        {badgeText ? (
-          <Text className="text-[13px] text-muted-foreground">{badgeText}</Text>
-        ) : null}
-        {rightElement}
-        {showChevron && onPress ? (
-          <IconComponent name="chevron-forward" size={16} color={colors.textTertiary} />
-        ) : null}
-      </View>
+      ) : (
+        <Text className={`text-[16px] flex-1 ${titleColor}`} style={{ lineHeight: 22 }}>
+          {title}
+        </Text>
+      )}
+      {subtitle ? (
+        <Text className="text-[14px] text-muted-foreground" numberOfLines={1}>
+          {subtitle}
+        </Text>
+      ) : null}
+      {badgeText ? (
+        <Text className="text-[14px] text-muted-foreground">{badgeText}</Text>
+      ) : null}
+      {rightElement}
+      {showChevron && onPress ? (
+        <Icon name="chevron-forward" size={18} color={colors.textTertiary} />
+      ) : null}
     </View>
   );
 
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <Pressable
+        onPress={onPress}
+        android_ripple={{ color: colors.border }}
+        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+      >
         {content}
-      </TouchableOpacity>
+      </Pressable>
     );
   }
 
   return content;
+}
+
+export function SettingsDivider() {
+  return <View className="h-px mx-5 bg-border" />;
 }
 
 interface SettingsGroupProps {
@@ -78,18 +93,21 @@ interface SettingsGroupProps {
 }
 
 export function SettingsGroup({ title, children }: SettingsGroupProps) {
+  const filteredChildren = React.Children.toArray(children).filter(Boolean);
   return (
     <View className="mb-6">
       {title ? (
-        <Text className="text-[11px] font-semibold uppercase tracking-wider mb-2 ml-3 text-muted-foreground">
-          {title}
-        </Text>
+        <View className="px-5 pt-2 pb-2">
+          <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {title}
+          </Text>
+        </View>
       ) : null}
-      <View className="rounded-xl border border-border bg-card overflow-hidden">
-        {React.Children.toArray(children).filter(Boolean).map((child, index, arr) => (
+      <View className="mx-4 rounded-xl border border-border bg-card overflow-hidden">
+        {filteredChildren.map((child, index) => (
           <React.Fragment key={index}>
             {child}
-            {index < arr.length - 1 ? <View className="h-px mx-4 bg-border" /> : null}
+            {index < filteredChildren.length - 1 ? <View className="h-px mx-4 bg-border" /> : null}
           </React.Fragment>
         ))}
       </View>

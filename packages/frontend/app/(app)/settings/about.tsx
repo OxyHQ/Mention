@@ -16,7 +16,7 @@ import { confirmDialog, alertDialog } from '@/utils/alerts';
 export default function AboutScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
-    const { showBottomSheet } = useAuth() as any;
+    const { showBottomSheet } = useAuth() as { showBottomSheet?: (screen: string) => void };
 
     const appVersion = Constants.expoConfig?.version || '1.0.0';
     const runtimeVersion = typeof Constants.expoConfig?.runtimeVersion === 'string'
@@ -135,7 +135,7 @@ export default function AboutScreen() {
                     <SettingsItem
                         icon="help-circle"
                         title={t('settings.supportFeedback.helpSupport')}
-                        subtitle={t('settings.supportFeedback.helpSupportDesc')}
+                        description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => {
                             Alert.alert(
                                 t('settings.supportFeedback.helpSupport'),
@@ -147,7 +147,7 @@ export default function AboutScreen() {
                     <SettingsItem
                         icon="chatbubble"
                         title={t('settings.supportFeedback.sendFeedback')}
-                        subtitle={t('settings.supportFeedback.sendFeedbackDesc')}
+                        description={t('settings.supportFeedback.sendFeedbackDesc')}
                         onPress={() => {
                             Alert.alert(
                                 t('settings.supportFeedback.sendFeedback'),
@@ -174,7 +174,7 @@ export default function AboutScreen() {
                     <SettingsItem
                         icon="trash"
                         title={t('settings.data.clearCache')}
-                        subtitle={t('settings.data.clearCacheDesc')}
+                        description={t('settings.data.clearCacheDesc')}
                         onPress={handleClearCache}
                         destructive
                     />
