@@ -41,18 +41,20 @@ npm ci --include=dev && npm run -w @mention/backend build && npm prune --omit=de
 ### Frontend (`mention-frontend`)
 
 ```
-npm ci --include=dev && rm -rf node_modules/.cache .expo packages/frontend/.expo && npm run build -w @mention/shared-types && npm run build -w @mention/frontend
+npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/frontend/.expo && npm run build -w @mention/shared-types && npm run build -w @mention/frontend
 ```
 
+- Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
 - Builds shared-types first (frontend depends on them), then builds the frontend.
 - Output directory: `packages/frontend/dist`
 
 ### Agora (`agora-frontend`)
 
 ```
-npm ci --include=dev && rm -rf node_modules/.cache .expo packages/agora/.expo && npm run build -w @mention/agora
+npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/agora/.expo && npm run build -w @mention/agora
 ```
 
+- Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
 - Output directory: `packages/agora/dist`
 
 ## Build Environment Variables
@@ -113,6 +115,10 @@ Check build logs via the DO API:
 curl "https://api.digitalocean.com/v2/apps/{app-id}/deployments/{deploy-id}/components/{component-name}/logs?type=BUILD" \
   -H "Authorization: Bearer $DIGITALOCEAN_TOKEN"
 ```
+
+### npm EEXIST During Build
+
+If a static site build fails with `npm error code EEXIST` pointing to a path under `/tmp/npmcache.*`, this is caused by multiple components sharing the same build container's `/tmp` directory. Stale npm cache files from one component's `npm ci` collide with the next. The fix is to prepend `npm cache clean --force &&` to the build command for affected static site components.
 
 ### Multiple Lock Files
 
