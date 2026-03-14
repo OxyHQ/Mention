@@ -1,5 +1,11 @@
-import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { memo, useCallback } from 'react';
+import { View, Pressable, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { useAuth } from '@oxyhq/services';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import Avatar from '@/components/Avatar';
+import { ThemedText } from '@/components/ThemedText';
+import { useTheme } from '@/hooks/useTheme';
 
 interface FeedHeaderProps {
     showComposeButton?: boolean;
@@ -8,33 +14,76 @@ interface FeedHeaderProps {
 }
 
 /**
- * Feed header component
- * Displays compose button when enabled
+ * Composer prompt matching Bluesky's ComposerPrompt layout:
+ * [Avatar 42px] ["What's up?" text] [Camera icon (native)] [Image icon]
+ *
+ * Sits flush at the top of the feed list. Only renders for authenticated users.
  */
 export const FeedHeader = memo<FeedHeaderProps>(
     ({ showComposeButton, onComposePress, hideHeader }) => {
-        if (!showComposeButton || hideHeader) return null;
+        const { user } = useAuth();
+        const theme = useTheme();
+
+        const handlePress = useCallback(() => {
+            if (onComposePress) {
+                onComposePress();
+            } else {
+                router.push('/compose');
+            }
+        }, [onComposePress]);
+
+        const handleCameraPress = useCallback(() => {
+            router.push('/compose');
+        }, []);
+
+        const handleImagePress = useCallback(() => {
+            router.push('/compose');
+        }, []);
+
+        if (!showComposeButton || hideHeader || !user) return null;
+
+        const iconColor = theme.colors.textSecondary;
 
         return (
-            <View className="bg-background">
-                <TouchableOpacity
-                    className="bg-surface border-border"
-                    style={styles.composeButton}
-                    onPress={onComposePress}
-                    activeOpacity={0.7}
-                    accessible={true}
-                    accessibilityRole="button"
-                    accessibilityLabel="Compose new post"
-                    accessibilityHint="Opens the compose screen to create a new post"
-                >
-                    <Text
+            <Pressable
+                onPress={handlePress}
+                style={({ pressed }) => [
+                    styles.container,
+                    pressed && styles.pressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Compose new post"
+                accessibilityHint="Opens the post composer">
+                <Avatar
+                    source={user.avatar || undefined}
+                    size={42}
+                />
+                <View style={styles.textRow}>
+                    <ThemedText
                         className="text-muted-foreground"
-                        style={styles.composeButtonText}
-                    >
-                        What&apos;s happening?
-                    </Text>
-                </TouchableOpacity>
-            </View>
+                        style={styles.promptText}>
+                        What&apos;s up?
+                    </ThemedText>
+                    <View style={styles.actions}>
+                        {Platform.OS !== 'web' && (
+                            <TouchableOpacity
+                                onPress={handleCameraPress}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                accessibilityLabel="Open camera"
+                                accessibilityHint="Opens device camera">
+                                <Ionicons name="camera-outline" size={22} color={iconColor} />
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                            onPress={handleImagePress}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityLabel="Add image"
+                            accessibilityHint="Opens image picker">
+                            <Ionicons name="image-outline" size={22} color={iconColor} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Pressable>
         );
     }
 );
@@ -42,18 +91,29 @@ export const FeedHeader = memo<FeedHeaderProps>(
 FeedHeader.displayName = 'FeedHeader';
 
 const styles = StyleSheet.create({
-    composeButton: {
-        marginHorizontal: 16,
-        marginVertical: 12,
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        boxShadow: '0px 1px 2px 0px rgba(0, 0, 0, 0.05)',
-        elevation: 1,
+    container: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        paddingLeft: 18,
+        paddingRight: 15,
+        paddingVertical: 10,
     },
-    composeButtonText: {
+    pressed: {
+        opacity: 0.7,
+    },
+    textRow: {
+        flex: 1,
+        marginLeft: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: 40,
+    },
+    promptText: {
         fontSize: 16,
-        fontWeight: '400',
+    },
+    actions: {
+        flexDirection: 'row',
+        gap: 16,
     },
 });
-

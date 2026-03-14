@@ -196,6 +196,8 @@ const HomeScreen: React.FC = () => {
                             customFeedId: feedId
                         }}
                         reloadKey={refreshKey}
+                        showComposeButton
+                        onComposePress={() => router.push('/compose')}
                     />
                 );
             }
@@ -212,11 +214,11 @@ const HomeScreen: React.FC = () => {
 
         switch (activeTab) {
             case 'following':
-                return <Feed key="following" type="following" reloadKey={refreshKey} />;
+                return <Feed key="following" type="following" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
             case 'trending':
-                return <Feed key="trending" type="explore" reloadKey={refreshKey} />;
+                return <Feed key="trending" type="explore" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
             default:
-                return <Feed key="for_you" type="for_you" reloadKey={refreshKey} />;
+                return <Feed key="for_you" type="for_you" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
         }
     };
 
