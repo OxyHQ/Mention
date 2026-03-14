@@ -33,7 +33,7 @@ export interface FeedItem {
 }
 
 export interface FeedResponse {
-  items: any[]; // HydratedPost[] - using any[] for flexibility during migration
+  items: HydratedPost[];
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;

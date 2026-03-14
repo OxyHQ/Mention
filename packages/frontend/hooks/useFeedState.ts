@@ -1,9 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FeedType, FeedPostSlice } from '@mention/shared-types';
+import { FeedType, FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
-
-// FeedItem type matches what the store returns (HydratedPost-like structure)
-type FeedItem = any; // Store returns items that match PostItem's expected types
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
 import { createScopedLogger } from '@/utils/logger';
@@ -76,7 +73,7 @@ export interface UseFeedStateOptions {
 
 export interface UseFeedStateReturn {
     // Feed data
-    items: FeedItem[];
+    items: HydratedPost[];
     slices?: FeedPostSlice[];
     hasMore: boolean;
     isLoading: boolean;
@@ -113,7 +110,7 @@ export function useFeedState({
     } = usePostsStore();
 
     // Local state for scoped feeds
-    const [localItems, setLocalItems] = useState<FeedItem[]>([]);
+    const [localItems, setLocalItems] = useState<HydratedPost[]>([]);
     const [localSlices, setLocalSlices] = useState<FeedPostSlice[] | undefined>(undefined);
     const [localHasMore, setLocalHasMore] = useState<boolean>(true);
     const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(undefined);
@@ -416,8 +413,8 @@ export function useFeedState({
             logger.error('[useFeedState] Error loading more', err);
             if (useScoped) {
                 let errorMessage = 'Failed to load more posts';
-                if (err && typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string') {
-                    errorMessage = (err as any).message;
+                if (err instanceof Error) {
+                    errorMessage = err.message;
                 }
                 setLocalError(errorMessage);
             }

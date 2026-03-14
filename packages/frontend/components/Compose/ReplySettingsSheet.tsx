@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import Animated, { Easing, LinearTransition } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { Toggle } from '@/components/Toggle';
+import { BORDER_RADIUS } from '@/styles/shared';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
@@ -21,10 +22,10 @@ function getPanelRounding(adjacent?: Adjacent) {
   const leading = adjacent === 'leading' || adjacent === 'both';
   const trailing = adjacent === 'trailing' || adjacent === 'both';
   return {
-    borderTopLeftRadius: leading ? 4 : 8,
-    borderTopRightRadius: leading ? 4 : 8,
-    borderBottomLeftRadius: trailing ? 4 : 8,
-    borderBottomRightRadius: trailing ? 4 : 8,
+    borderTopLeftRadius: leading ? BORDER_RADIUS.small : BORDER_RADIUS.medium,
+    borderTopRightRadius: leading ? BORDER_RADIUS.small : BORDER_RADIUS.medium,
+    borderBottomLeftRadius: trailing ? BORDER_RADIUS.small : BORDER_RADIUS.medium,
+    borderBottomRightRadius: trailing ? BORDER_RADIUS.small : BORDER_RADIUS.medium,
   };
 }
 
@@ -80,7 +81,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                 backgroundColor: isEveryone ? panelActiveBg : panelInactiveBg,
               }}
             >
-              <RadioIndicator selected={isEveryone} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
+              <SelectionIndicator variant="radio" selected={isEveryone} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
               <Text
                 className="text-base"
                 style={{
@@ -102,7 +103,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                 backgroundColor: isNobody ? panelActiveBg : panelInactiveBg,
               }}
             >
-              <RadioIndicator selected={isNobody} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
+              <SelectionIndicator variant="radio" selected={isNobody} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
               <Text
                 className="text-base"
                 style={{
@@ -141,7 +142,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                     backgroundColor: isSelected ? panelActiveBg : panelInactiveBg,
                   }}
                 >
-                  <CheckboxIndicator selected={isSelected} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
+                  <SelectionIndicator variant="checkbox" selected={isSelected} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
                   <Text
                     className="text-base flex-1"
                     style={{
@@ -185,10 +186,9 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                 {t('Allow quote posts')}
               </Text>
             </View>
-            <ToggleSwitch
+            <Toggle
               value={!quotesDisabled}
-              primaryColor={theme.colors.primary}
-              mutedColor={theme.colors.border}
+              onValueChange={() => onQuotesDisabledChange(!quotesDisabled)}
             />
           </View>
         </Pressable>
@@ -213,21 +213,26 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   );
 };
 
-function RadioIndicator({
+function SelectionIndicator({
   selected,
+  variant,
   primaryColor,
   mutedColor,
 }: {
   selected: boolean;
+  variant: 'radio' | 'checkbox';
   primaryColor: string;
   mutedColor: string;
 }) {
+  const isRadio = variant === 'radio';
+  const size = 24;
+
   return (
     <View
       style={{
-        width: 25,
-        height: 25,
-        borderRadius: 12.5,
+        width: size,
+        height: size,
+        borderRadius: isRadio ? size / 2 : BORDER_RADIUS.small + 2,
         borderWidth: 1,
         borderColor: selected ? primaryColor : mutedColor,
         backgroundColor: selected ? primaryColor : 'transparent',
@@ -236,77 +241,19 @@ function RadioIndicator({
       }}
     >
       {selected && (
-        <View
-          style={{
-            width: 12,
-            height: 12,
-            borderRadius: 6,
-            backgroundColor: '#fff',
-          }}
-        />
+        isRadio ? (
+          <View
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 6,
+              backgroundColor: '#fff',
+            }}
+          />
+        ) : (
+          <Ionicons name="checkmark" size={14} color="#fff" />
+        )
       )}
-    </View>
-  );
-}
-
-function CheckboxIndicator({
-  selected,
-  primaryColor,
-  mutedColor,
-}: {
-  selected: boolean;
-  primaryColor: string;
-  mutedColor: string;
-}) {
-  return (
-    <View
-      style={{
-        width: 24,
-        height: 24,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: selected ? primaryColor : mutedColor,
-        backgroundColor: selected ? primaryColor : 'transparent',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
-      {selected && (
-        <Ionicons name="checkmark" size={14} color="#fff" />
-      )}
-    </View>
-  );
-}
-
-function ToggleSwitch({
-  value,
-  primaryColor,
-  mutedColor,
-}: {
-  value: boolean;
-  primaryColor: string;
-  mutedColor: string;
-}) {
-  return (
-    <View
-      style={{
-        width: 48,
-        height: 28,
-        borderRadius: 14,
-        padding: 3,
-        backgroundColor: value ? primaryColor : mutedColor,
-      }}
-    >
-      <Animated.View
-        layout={LinearTransition.duration(200).easing(Easing.inOut(Easing.cubic))}
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: 11,
-          backgroundColor: '#fff',
-          alignSelf: value ? 'flex-end' : 'flex-start',
-        }}
-      />
     </View>
   );
 }
