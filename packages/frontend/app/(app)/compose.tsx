@@ -1089,7 +1089,7 @@ const ComposeScreen = () => {
                     </View>
                   ) : null}
 
-                  <View style={styles.toolbarWrapper}>
+                  <View style={[styles.toolbarWrapper, { paddingLeft: BOTTOM_LEFT_PAD }]}>
                     <ComposeToolbar
                       onMediaPress={openMediaPicker}
                       onPollPress={focusPollCreator}
