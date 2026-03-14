@@ -28,7 +28,7 @@ export interface IPost extends Document {
   quoteOf?: string; // quoted post id
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
-  replyPermission?: ReplyPermission; // Who can reply and quote this post
+  replyPermission?: ReplyPermission[]; // Who can reply and quote this post
   reviewReplies?: boolean; // Whether to review and approve replies before they're visible
   quotesDisabled?: boolean; // Whether quote posts are disabled
   stats: PostStats;
@@ -294,9 +294,9 @@ const PostSchema = new Schema<IPost>({
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
   replyPermission: {
-    type: String,
+    type: [String],
     enum: ['anyone', 'followers', 'following', 'mentioned', 'nobody'],
-    default: 'anyone'
+    default: ['anyone']
   },
   reviewReplies: { type: Boolean, default: false },
   quotesDisabled: { type: Boolean, default: false },

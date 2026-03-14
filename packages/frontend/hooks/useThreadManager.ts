@@ -21,14 +21,14 @@ export interface ThreadItem {
   event: EventData | null;
   room: RoomAttachmentData | null;
   attachmentOrder: string[];
-  replyPermission: ReplyPermission;
+  replyPermission: ReplyPermission[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
   isSensitive: boolean;
 }
 
 export interface ThreadItemDefaults {
-  replyPermission?: ReplyPermission;
+  replyPermission?: ReplyPermission[];
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
   isSensitive?: boolean;
@@ -52,7 +52,7 @@ export const useThreadManager = () => {
       event: null,
       room: null,
       attachmentOrder: [],
-      replyPermission: defaults?.replyPermission ?? "anyone",
+      replyPermission: defaults?.replyPermission ?? ["anyone"],
       reviewReplies: defaults?.reviewReplies ?? false,
       quotesDisabled: defaults?.quotesDisabled ?? false,
       isSensitive: defaults?.isSensitive ?? false,
@@ -247,7 +247,7 @@ export const useThreadManager = () => {
 
   // Per-item interaction settings
   const setThreadReplyPermission = useCallback(
-    (threadId: string, replyPermission: ReplyPermission) => {
+    (threadId: string, replyPermission: ReplyPermission[]) => {
       setThreadItems((prev) =>
         prev.map((item) =>
           item.id === threadId ? { ...item, replyPermission } : item

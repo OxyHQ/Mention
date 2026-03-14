@@ -447,7 +447,7 @@ class FeedService {
   async updatePostSettings(postId: string, settings: {
     isPinned?: boolean;
     hideEngagementCounts?: boolean;
-    replyPermission?: 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
+    replyPermission?: ('anyone' | 'followers' | 'following' | 'mentioned' | 'nobody')[];
     reviewReplies?: boolean;
     quotesDisabled?: boolean;
   }): Promise<{ success: boolean; data: unknown }> {

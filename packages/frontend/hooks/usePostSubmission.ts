@@ -8,29 +8,7 @@ import {
   LOCATION_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from '@/utils/composeUtils';
-
-interface ThreadItem {
-  id: string;
-  text: string;
-  mentions?: MentionData[];
-  mediaIds: ComposerMediaItem[];
-  pollTitle?: string;
-  pollOptions: string[];
-  location?: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  } | null;
-  sources?: Array<{ id: string; url: string; title: string }>;
-  article?: { title: string; body: string } | null;
-  event?: { name: string; date: string; location?: string; description?: string } | null;
-  room?: { roomId: string; title: string; status?: string; topic?: string; host?: string } | null;
-  attachmentOrder?: string[];
-  replyPermission?: string;
-  reviewReplies?: boolean;
-  quotesDisabled?: boolean;
-  isSensitive?: boolean;
-}
+import type { ThreadItem } from '@/hooks/useThreadManager';
 
 interface PostSubmissionProps {
   user: any;
@@ -48,7 +26,7 @@ interface PostSubmissionProps {
   attachmentOrder: string[];
   threadItems: ThreadItem[];
   postingMode: 'thread' | 'beast';
-  replyPermission: string;
+  replyPermission: string[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
   scheduledAt: Date | null;

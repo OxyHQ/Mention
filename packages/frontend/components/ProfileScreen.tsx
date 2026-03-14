@@ -391,14 +391,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     ? insets.top + 60
                     : LAYOUT.HEADER_HEIGHT_EXPANDED - insets.top,
             },
-            fabStyle: {
-                position: 'absolute' as const,
-                bottom: LAYOUT.FAB_BOTTOM_MARGIN + insets.bottom,
-                right: LAYOUT.FAB_RIGHT_MARGIN,
-                zIndex: 1000,
-            },
         }),
-        [insets.top, insets.bottom, minimalistMode]
+        [insets.top, minimalistMode]
     );
 
     return (
@@ -598,7 +592,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         <FAB
                             onPress={() => router.push('/compose')}
                             customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
-                            style={themedStyles.fabStyle}
                         />
                     </>
                 )}

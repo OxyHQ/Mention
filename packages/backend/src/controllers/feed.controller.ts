@@ -1394,59 +1394,65 @@ class FeedController {
         return res.status(404).json({ error: 'Post not found' });
       }
 
-      // Check reply permissions
-      const replyPermission = parentPost.replyPermission || 'anyone';
-      if (replyPermission !== 'anyone') {
+      // Check reply permissions (supports both legacy string and new array format)
+      const rawPermission = parentPost.replyPermission;
+      const permissions: string[] = Array.isArray(rawPermission)
+        ? rawPermission
+        : [rawPermission || 'anyone'];
+
+      if (!permissions.includes('anyone')) {
         const parentAuthorId = parentPost.oxyUserId?.toString?.() || (parentPost as any).oxyUserId;
-        
+
         // If replying to own post, always allow
         if (parentAuthorId === currentUserId) {
           // Allow
         } else {
           let canReply = false;
-          
-          try {
-            switch (replyPermission) {
-              case 'nobody':
-                canReply = false;
-                break;
-              case 'followers':
-                // Check if current user is a follower of the post author
-                const authorFollowers = await oxyClient.getUserFollowers(parentAuthorId);
-                canReply = authorFollowers?.followers?.some((f: any) => {
-                  const followerId = f.id || f._id || f;
-                  return followerId === currentUserId || String(followerId) === String(currentUserId);
-                }) || false;
-                break;
-              case 'following':
-                // Check if post author follows current user (current user is in author's following list)
-                try {
-                const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
-                  const followingIds = extractFollowingIds(authorFollowing);
-                  canReply = followingIds.includes(currentUserId);
-                } catch (error) {
-                  logger.warn('Failed to check author following', error);
-                  canReply = false;
-                }
-                break;
-              case 'mentioned':
-                // Check if current user is mentioned in the post
-                canReply = (parentPost.mentions || []).some((m: any) => {
-                  const mentionId = typeof m === 'string' ? m : (m.id || m._id);
-                  return mentionId === currentUserId || String(mentionId) === String(currentUserId);
-                });
-                break;
-            }
-          } catch (error) {
-            logger.error('Error checking reply permissions', error);
-            // If we can't verify, deny for safety
+
+          if (permissions.includes('nobody')) {
             canReply = false;
+          } else {
+            try {
+              for (const perm of permissions) {
+                if (canReply) break;
+                switch (perm) {
+                  case 'followers': {
+                    const authorFollowers = await oxyClient.getUserFollowers(parentAuthorId);
+                    canReply = authorFollowers?.followers?.some((f: any) => {
+                      const followerId = f.id || f._id || f;
+                      return followerId === currentUserId || String(followerId) === String(currentUserId);
+                    }) || false;
+                    break;
+                  }
+                  case 'following': {
+                    try {
+                      const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
+                      const followingIds = extractFollowingIds(authorFollowing);
+                      canReply = followingIds.includes(currentUserId);
+                    } catch (error) {
+                      logger.warn('Failed to check author following', error);
+                    }
+                    break;
+                  }
+                  case 'mentioned': {
+                    canReply = (parentPost.mentions || []).some((m: any) => {
+                      const mentionId = typeof m === 'string' ? m : (m.id || m._id);
+                      return mentionId === currentUserId || String(mentionId) === String(currentUserId);
+                    });
+                    break;
+                  }
+                }
+              }
+            } catch (error) {
+              logger.error('Error checking reply permissions', error);
+              canReply = false;
+            }
           }
-          
+
           if (!canReply) {
-            return res.status(403).json({ 
+            return res.status(403).json({
               error: 'You do not have permission to reply to this post',
-              replyPermission 
+              replyPermission: permissions
             });
           }
         }

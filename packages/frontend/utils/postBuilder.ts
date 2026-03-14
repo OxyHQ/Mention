@@ -28,7 +28,7 @@ interface BuildMainPostParams {
   location: any;
   formattedSources: any[];
   attachmentOrder: string[];
-  replyPermission: string;
+  replyPermission: string[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
   scheduledAt: Date | null;
@@ -212,7 +212,7 @@ export const buildThreadPost = (item: ThreadItem) => {
     },
     mentions: item.mentions?.map(m => m.userId) || [],
     hashtags: [],
-    replyPermission: item.replyPermission || 'anyone',
+    replyPermission: item.replyPermission || ['anyone'],
     reviewReplies: item.reviewReplies || false,
     quotesDisabled: item.quotesDisabled || false,
     ...(item.isSensitive ? { metadata: { isSensitive: true } } : {}),

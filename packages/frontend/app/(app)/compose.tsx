@@ -93,6 +93,7 @@ import {
   LocationDisplay,
   AttachmentCarouselItem,
 } from '@/components/Compose';
+import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
 import { buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
@@ -254,7 +255,7 @@ const ComposeScreen = () => {
   const [mentions, setMentions] = useState<MentionData[]>([]);
   const [isPosting, setIsPosting] = useState(false);
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
-  const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
+  const [replyPermission, setReplyPermission] = useState<ReplyPermission[]>(['anyone']);
   const [reviewReplies, setReviewReplies] = useState(false);
   const [quotesDisabled, setQuotesDisabled] = useState(false);
   const [showModeToggle, setShowModeToggle] = useState(false);
@@ -687,7 +688,7 @@ const ComposeScreen = () => {
 
   const { t: tCompose } = useTranslation();
 
-  const anyoneCanInteract = replyPermission === 'anyone' && !quotesDisabled;
+  const anyoneCanInteract = replyPermission.includes('anyone') && !quotesDisabled;
   const interactionLabel = anyoneCanInteract
     ? t('Anyone can interact')
     : t('Interaction limited');
@@ -701,11 +702,11 @@ const ComposeScreen = () => {
 
   // Thread item article editor helpers
   const openThreadArticleEditor = useCallback((threadId: string) => {
-    const threadItem = threadItems.find(t => t.id === threadId);
+    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
     setThreadArticleDraftTitle(threadItem?.article?.title || '');
     setThreadArticleDraftBody(threadItem?.article?.body || '');
     setEditingThreadArticleId(threadId);
-  }, [threadItems]);
+  }, [threadItemsRef]);
 
   const closeThreadArticleEditor = useCallback(() => {
     setEditingThreadArticleId(null);
@@ -725,13 +726,13 @@ const ComposeScreen = () => {
 
   // Thread item event editor helpers
   const openThreadEventEditor = useCallback((threadId: string) => {
-    const threadItem = threadItems.find(t => t.id === threadId);
+    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
     setThreadEventDraftName(threadItem?.event?.name || '');
     setThreadEventDraftDate(threadItem?.event?.date || new Date().toISOString());
     setThreadEventDraftLocation(threadItem?.event?.location || '');
     setThreadEventDraftDescription(threadItem?.event?.description || '');
     setEditingThreadEventId(threadId);
-  }, [threadItems]);
+  }, [threadItemsRef]);
 
   const closeThreadEventEditor = useCallback(() => {
     setEditingThreadEventId(null);
@@ -1297,55 +1298,28 @@ const ComposeScreen = () => {
 
                   {/* Main post interaction settings (beast mode with thread items) */}
                   {postingMode === 'beast' && threadItems.length > 0 && (
-                    <View style={[styles.threadItemSettings, { marginLeft: BOTTOM_LEFT_PAD }]}>
-                      <TouchableOpacity
-                        onPress={openReplySettings}
-                        activeOpacity={0.7}
-                        style={[styles.threadSettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
-                      >
-                        <Ionicons
-                          name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
-                          size={14}
-                          color={theme.colors.textSecondary}
-                        />
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            fontSize: 12,
-                            fontWeight: '500',
-                            color: theme.colors.textSecondary,
-                          }}
-                        >
-                          {anyoneCanInteract
-                            ? t('Anyone can interact')
-                            : t('Interaction limited')}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => setIsSensitive(!isSensitive)}
-                        activeOpacity={0.7}
-                        style={styles.threadSettingsPill}
-                      >
-                        <Ionicons
-                          name={isSensitive ? 'warning' : 'warning-outline'}
-                          size={14}
-                          color={isSensitive ? theme.colors.error : theme.colors.textSecondary}
-                        />
-                        <Text style={{
-                          fontSize: 12,
-                          fontWeight: '500',
-                          color: isSensitive ? theme.colors.error : theme.colors.textSecondary,
-                        }}>
-                          {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
-                        </Text>
-                      </TouchableOpacity>
+                    <View style={{ marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD }}>
+                      <InteractionSettingsPills
+                        replyPermission={replyPermission}
+                        quotesDisabled={quotesDisabled}
+                        isSensitive={isSensitive}
+                        onReplySettingsPress={openReplySettings}
+                        onSensitiveToggle={() => setIsSensitive(!isSensitive)}
+                      />
                     </View>
                   )}
                 </View>
               </View>
 
               {/* Thread items */}
-              {threadItems.map((item, _index) => (
+              {threadItems.map((item, _index) => {
+                const itemHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));
+                const itemHasEvent = Boolean(item.event && item.event.name?.trim());
+                const itemHasRoom = Boolean(item.room && item.room.roomId);
+                const itemHasSources = item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0);
+                const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasSources;
+
+                return (
                 <View key={`thread-${item.id}`} style={styles.postContainer}>
                   <View style={styles.threadItemWithTimeline}>
                     <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
@@ -1457,9 +1431,9 @@ const ComposeScreen = () => {
                               hasPoll={item.showPollCreator}
                               hasMedia={item.mediaIds.length > 0}
                               hasSources={item.sources.length > 0}
-                              hasArticle={Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()))}
-                              hasEvent={Boolean(item.event && item.event.name?.trim())}
-                              hasRoom={Boolean(item.room && item.room.roomId)}
+                              hasArticle={itemHasArticle}
+                              hasEvent={itemHasEvent}
+                              hasRoom={itemHasRoom}
                               disabled={isPosting}
                             />
                             {item.text.length > 0 && (
@@ -1479,11 +1453,7 @@ const ComposeScreen = () => {
                     </View>
 
                     {/* Thread item attachments row */}
-                    {(item.showPollCreator || item.mediaIds.length > 0 ||
-                      Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim())) ||
-                      Boolean(item.event && item.event.name?.trim()) ||
-                      Boolean(item.room && item.room.roomId) ||
-                      (item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0))) && (
+                    {itemHasAttachments && (
                       <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
                       >
                         <ScrollView
@@ -1602,7 +1572,7 @@ const ComposeScreen = () => {
                             );
                           })}
                           {/* Thread item article preview */}
-                          {item.article && (item.article.title?.trim() || item.article.body?.trim()) && (
+                          {itemHasArticle && item.article && (
                             <View style={styles.pollAttachmentWrapper}>
                               <TouchableOpacity
                                 className="border-border bg-secondary"
@@ -1627,7 +1597,7 @@ const ComposeScreen = () => {
                             </View>
                           )}
                           {/* Thread item event preview */}
-                          {item.event && item.event.name?.trim() && (
+                          {itemHasEvent && item.event && (
                             <View style={styles.pollAttachmentWrapper}>
                               <TouchableOpacity
                                 className="border-border bg-secondary"
@@ -1653,7 +1623,7 @@ const ComposeScreen = () => {
                             </View>
                           )}
                           {/* Thread item room preview */}
-                          {item.room && item.room.roomId && (
+                          {itemHasRoom && item.room && (
                             <View style={styles.pollAttachmentWrapper}>
                               <View
                                 style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
@@ -1709,9 +1679,12 @@ const ComposeScreen = () => {
 
                     {/* Per-item interaction settings (beast mode only) */}
                     {postingMode === 'beast' && (
-                      <View style={[styles.threadItemSettings, { marginLeft: BOTTOM_LEFT_PAD }]}>
-                        <TouchableOpacity
-                          onPress={() => {
+                      <View style={{ marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD }}>
+                        <InteractionSettingsPills
+                          replyPermission={item.replyPermission}
+                          quotesDisabled={item.quotesDisabled}
+                          isSensitive={item.isSensitive}
+                          onReplySettingsPress={() => {
                             const currentThreadId = item.id;
                             bottomSheet.setBottomSheetContent(
                               <Suspense fallback={null}>
@@ -1726,50 +1699,14 @@ const ComposeScreen = () => {
                             );
                             bottomSheet.openBottomSheet(true);
                           }}
-                          activeOpacity={0.7}
-                          style={[styles.threadSettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
-                        >
-                          <Ionicons
-                            name={item.replyPermission === 'anyone' && !item.quotesDisabled ? 'earth-outline' : 'people-outline'}
-                            size={14}
-                            color={theme.colors.textSecondary}
-                          />
-                          <Text
-                            numberOfLines={1}
-                            style={{
-                              fontSize: 12,
-                              fontWeight: '500',
-                              color: theme.colors.textSecondary,
-                            }}
-                          >
-                            {item.replyPermission === 'anyone' && !item.quotesDisabled
-                              ? t('Anyone can interact')
-                              : t('Interaction limited')}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => setThreadSensitive(item.id, !item.isSensitive)}
-                          activeOpacity={0.7}
-                          style={styles.threadSettingsPill}
-                        >
-                          <Ionicons
-                            name={item.isSensitive ? 'warning' : 'warning-outline'}
-                            size={14}
-                            color={item.isSensitive ? theme.colors.error : theme.colors.textSecondary}
-                          />
-                          <Text style={{
-                            fontSize: 12,
-                            fontWeight: '500',
-                            color: item.isSensitive ? theme.colors.error : theme.colors.textSecondary,
-                          }}>
-                            {item.isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
-                          </Text>
-                        </TouchableOpacity>
+                          onSensitiveToggle={() => setThreadSensitive(item.id, !item.isSensitive)}
+                        />
                       </View>
                     )}
                   </View>
                 </View>
-              ))}
+                );
+              })}
 
               {/* Add thread/post button */}
               <TouchableOpacity
@@ -2068,21 +2005,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingLeft: 8,
-  },
-  threadItemSettings: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-    paddingHorizontal: HPAD,
-  },
-  threadSettingsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
   floatingPostButton: {
     position: 'absolute',

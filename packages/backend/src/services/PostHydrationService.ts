@@ -1194,27 +1194,34 @@ export class PostHydrationService {
     if (!viewerId) return false;
     if (viewerId === authorId) return true;
 
-    const permission = post?.replyPermission || 'anyone';
-    switch (permission) {
-      case 'anyone':
-        return true;
-      case 'nobody':
-        return false;
-      case 'followers':
-        return viewerContext.follows.has(authorId);
-      case 'following':
-        return viewerContext.followedBy.has(authorId);
-      case 'mentioned':
-        return Array.isArray(post?.mentions)
-          ? post.mentions.some((mention: any) => {
-              const mentionId =
-                typeof mention === 'string' ? mention : mention?.id || mention?._id || mention?.oxyUserId;
-              return mentionId && String(mentionId) === viewerId;
-            })
-          : false;
-      default:
-        return false;
+    // Support both legacy single-string and new array format
+    const rawPermission = post?.replyPermission;
+    const permissions: string[] = Array.isArray(rawPermission)
+      ? rawPermission
+      : [rawPermission || 'anyone'];
+
+    if (permissions.includes('anyone')) return true;
+    if (permissions.includes('nobody')) return false;
+
+    for (const perm of permissions) {
+      switch (perm) {
+        case 'followers':
+          if (viewerContext.follows.has(authorId)) return true;
+          break;
+        case 'following':
+          if (viewerContext.followedBy.has(authorId)) return true;
+          break;
+        case 'mentioned':
+          if (Array.isArray(post?.mentions) && post.mentions.some((mention: any) => {
+            const mentionId =
+              typeof mention === 'string' ? mention : mention?.id || mention?._id || mention?.oxyUserId;
+            return mentionId && String(mentionId) === viewerId;
+          })) return true;
+          break;
+      }
     }
+
+    return false;
   }
 
   private buildEngagement(

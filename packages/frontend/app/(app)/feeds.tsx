@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 
 import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
+import { IconButton, FloatingActionButton as FAB } from '@/components/ui/Button';
 import { ThemedView } from '@/components/ThemedView';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
@@ -293,14 +293,10 @@ const FeedsScreen: React.FC = () => {
         </ScrollView>
 
         {/* FAB */}
-        <TouchableOpacity
-          style={styles.fab}
-          className="bg-primary"
+        <FAB
           onPress={() => router.push('/feeds/create')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={28} color="#fff" />
-        </TouchableOpacity>
+          icon="add"
+        />
       </SafeAreaView>
     </>
   );
@@ -335,21 +331,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
-    ...Platform.select({
-      web: { boxShadow: '0 2px 6px rgba(0,0,0,0.12)' },
-      default: {},
-    }),
   },
 });
 

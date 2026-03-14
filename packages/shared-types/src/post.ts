@@ -105,7 +105,7 @@ export interface Post {
   quoteOf?: string; // quoted post id
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
-  replyPermission?: ReplyPermission; // Who can reply and quote this post
+  replyPermission?: ReplyPermission[]; // Who can reply and quote this post
   reviewReplies?: boolean; // Whether to review and approve replies before they're visible
   quotesDisabled?: boolean; // Whether quote posts are disabled
   stats: PostStats;
@@ -149,7 +149,7 @@ export interface CreatePostRequest {
   tags?: string[];
   mentions?: string[];
   hashtags?: string[];
-  replyPermission?: ReplyPermission;
+  replyPermission?: ReplyPermission[];
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
   status?: 'draft' | 'published' | 'scheduled';
@@ -164,7 +164,7 @@ export interface CreateThreadRequest {
     tags?: string[];
     mentions?: string[];
     hashtags?: string[];
-    replyPermission?: ReplyPermission;
+    replyPermission?: ReplyPermission[];
     reviewReplies?: boolean;
     quotesDisabled?: boolean;
   }[];
@@ -268,7 +268,7 @@ export interface PostFeedContext {
 
 export interface PostMetadataState {
   visibility: PostVisibility;
-  replyPermission?: ReplyPermission;
+  replyPermission?: ReplyPermission[];
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
   isPinned?: boolean;

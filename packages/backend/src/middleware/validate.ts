@@ -91,7 +91,7 @@ export const schemas = {
     visibility: z.enum(['public', 'private', 'followers_only']).optional().default('public'),
     parentPostId: z.string().optional().nullable(),
     threadId: z.string().optional().nullable(),
-    replyPermission: z.enum(['anyone', 'followers', 'following', 'mentioned', 'nobody']).optional().default('anyone'),
+    replyPermission: z.array(z.enum(['anyone', 'followers', 'following', 'mentioned', 'nobody'])).optional().default(['anyone']),
     reviewReplies: z.boolean().optional().default(false),
     quotesDisabled: z.boolean().optional().default(false),
     status: z.enum(['draft', 'published', 'scheduled']).optional(),

@@ -606,7 +606,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: PostVisibility.PUBLIC, // Explicitly set visibility
-      replyPermission: replyPermission || 'anyone',
+      replyPermission: replyPermission || ['anyone'],
       reviewReplies: reviewReplies || false,
       quotesDisabled: quotesDisabled || false,
       status: postStatus,
@@ -954,7 +954,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         hashtags: uniqueTags,
         mentions: mentions || [],
         visibility: (visibility as PostVisibility) || PostVisibility.PUBLIC,
-        replyPermission: replyPermission || 'anyone',
+        replyPermission: replyPermission || ['anyone'],
         reviewReplies: reviewReplies || false,
         quotesDisabled: quotesDisabled || false,
         stats: {
@@ -1331,10 +1331,12 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
 
     if (replyPermission !== undefined) {
       const validPermissions = ['anyone', 'followers', 'following', 'mentioned', 'nobody'];
-      if (!validPermissions.includes(replyPermission)) {
-        return res.status(400).json({ message: `replyPermission must be one of: ${validPermissions.join(', ')}` });
+      const permissions = Array.isArray(replyPermission) ? replyPermission : [replyPermission];
+      const allValid = permissions.every((p: string) => validPermissions.includes(p));
+      if (!allValid || permissions.length === 0) {
+        return res.status(400).json({ message: `replyPermission must be an array of: ${validPermissions.join(', ')}` });
       }
-      post.replyPermission = replyPermission;
+      post.replyPermission = permissions;
     }
 
     if (reviewReplies !== undefined) {
