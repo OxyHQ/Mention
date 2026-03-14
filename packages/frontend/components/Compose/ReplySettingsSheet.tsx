@@ -28,10 +28,10 @@ function getPanelRounding(adjacent?: Adjacent) {
   const leading = adjacent === 'leading' || adjacent === 'both';
   const trailing = adjacent === 'trailing' || adjacent === 'both';
   return {
-    borderTopLeftRadius: leading ? 6 : 12,
-    borderTopRightRadius: leading ? 6 : 12,
-    borderBottomLeftRadius: trailing ? 6 : 12,
-    borderBottomRightRadius: trailing ? 6 : 12,
+    borderTopLeftRadius: leading ? 6 : 16,
+    borderTopRightRadius: leading ? 6 : 16,
+    borderBottomLeftRadius: trailing ? 6 : 16,
+    borderBottomRightRadius: trailing ? 6 : 16,
   };
 }
 
@@ -192,9 +192,9 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 8,
-                    paddingHorizontal: 14,
-                    paddingVertical: 14,
-                    minHeight: 56,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    minHeight: 44,
                     ...getPanelRounding(adjacent),
                     backgroundColor: isSelected ? panelActiveBg : panelInactiveBg,
                   }}
@@ -229,9 +229,9 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
             flexDirection: 'row',
             alignItems: 'center',
             gap: 8,
-            paddingHorizontal: 14,
-            paddingVertical: 14,
-            minHeight: 56,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            minHeight: 44,
             ...getPanelRounding(),
             backgroundColor: !quotesDisabled ? panelActiveBg : panelInactiveBg,
           }}
@@ -260,7 +260,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
         style={{
           alignItems: 'center',
           justifyContent: 'center',
-          paddingVertical: 12,
+          paddingVertical: 10,
           borderRadius: 999,
           backgroundColor: theme.colors.primary,
         }}
