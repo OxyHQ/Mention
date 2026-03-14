@@ -45,21 +45,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   const mutedTextColor = theme.colors.textSecondary;
 
   return (
-    <View style={{ paddingBottom: 20, backgroundColor: theme.colors.background }}>
-      {/* Drag handle */}
-      <View style={{ alignItems: 'center', marginTop: 8, marginBottom: 4 }}>
-        <View
-          style={{
-            width: 36,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: theme.colors.border,
-          }}
-        />
-      </View>
-
-      {/* Content */}
-      <View style={{ paddingHorizontal: 16, gap: 16 }}>
+    <View style={{ paddingBottom: 20, paddingHorizontal: 16, gap: 16, backgroundColor: theme.colors.background }}>
         {/* Title */}
         <Text
           style={{
@@ -261,7 +247,6 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
             {t('Save')}
           </Text>
         </Pressable>
-      </View>
     </View>
   );
 };
