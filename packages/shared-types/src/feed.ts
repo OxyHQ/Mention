@@ -4,27 +4,17 @@
  */
 
 import {
-  HydratedPost as DomainPost,
+  HydratedPost,
   PostContent,
   PostVisibility,
   PostActorSummary,
-  PostEngagementSummary,
 } from './post';
 
-// Common user interface for feed items
-export type FeedUser = PostActorSummary;
-
-// Common engagement interface for feed items
-export type FeedEngagement = PostEngagementSummary;
-
-// Feed item types for frontend components
-export type Post = DomainPost;
-
-export interface Reply extends DomainPost {
+export interface Reply extends HydratedPost {
   postId?: string;
 }
 
-export interface FeedRepost extends DomainPost {
+export interface FeedRepost extends HydratedPost {
   originalPostId?: string;
 }
 
@@ -37,13 +27,13 @@ export type PostAction = 'reply' | 'repost' | 'like' | 'share';
 export interface FeedItem {
   id: string;
   type: 'post' | 'reply' | 'repost';
-  data: DomainPost | Reply | FeedRepost;
+  data: HydratedPost | Reply | FeedRepost;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface FeedResponse {
-  items: any[]; // DomainPost[] - using any[] for flexibility during migration
+  items: any[]; // HydratedPost[] - using any[] for flexibility during migration
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;
@@ -112,7 +102,7 @@ export interface ShareRequest {
 // Thread slicing types for grouped feed rendering
 
 export interface FeedSliceItem {
-  post: DomainPost;
+  post: HydratedPost;
   isThreadParent: boolean;
   isThreadChild: boolean;
   isThreadLastChild: boolean;
@@ -132,7 +122,7 @@ export interface FeedPostSlice {
 
 export interface SlicedFeedResponse {
   slices: FeedPostSlice[];
-  items: DomainPost[]; // backward compat: flattened slices
+  items: HydratedPost[]; // backward compat: flattened slices
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;

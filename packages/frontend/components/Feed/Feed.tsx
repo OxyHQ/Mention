@@ -8,11 +8,11 @@ import {
     Text,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { FeedType, UIPost, Reply, FeedRepost as Repost, FeedPostSlice } from '@mention/shared-types';
+import { FeedType, HydratedPost, Reply, FeedRepost as Repost, FeedPostSlice } from '@mention/shared-types';
 import PostItem from './PostItem';
 
 // Type alias for feed items (what PostItem expects)
-type FeedItem = UIPost | Reply | Repost;
+type FeedItem = HydratedPost | Reply | Repost;
 
 // Row type for FlashList with thread state
 interface FeedRow {

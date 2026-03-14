@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { FeedType, FeedPostSlice } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 
-// FeedItem type matches what the store returns (UIPost-like structure)
+// FeedItem type matches what the store returns (HydratedPost-like structure)
 type FeedItem = any; // Store returns items that match PostItem's expected types
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';

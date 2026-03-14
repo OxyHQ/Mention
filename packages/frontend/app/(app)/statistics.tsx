@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
-import { UIPost } from '@mention/shared-types';
+import { HydratedPost } from '@mention/shared-types';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { FONT_FAMILIES } from '@/styles/typography';
 
@@ -42,7 +42,7 @@ const InsightsScreen: React.FC = () => {
     const [engagementRatios, setEngagementRatios] = useState<EngagementRatios | null>(null);
     const [selectedPeriod, setSelectedPeriod] = useState(30);
     const [activeTab, setActiveTab] = useState<'overview' | 'engagement'>('overview');
-    const [topPostsData, setTopPostsData] = useState<UIPost[]>([]);
+    const [topPostsData, setTopPostsData] = useState<HydratedPost[]>([]);
     const [loadingTopPosts, setLoadingTopPosts] = useState(false);
 
     const { getPostById } = usePostsStore();
@@ -71,7 +71,7 @@ const InsightsScreen: React.FC = () => {
                         }
                     });
                     const posts = await Promise.all(postsPromises);
-                    setTopPostsData(posts.filter((p): p is UIPost => p !== null));
+                    setTopPostsData(posts.filter((p): p is HydratedPost => p !== null));
                 } catch (error) {
                     // Silently ignore top posts loading errors
                 } finally {

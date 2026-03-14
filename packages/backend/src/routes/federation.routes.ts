@@ -31,7 +31,7 @@ const apRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too Many Requests' },
-  keyGenerator: (req) => req.ip || req.socket.remoteAddress || 'unknown',
+  // Default keyGenerator uses req.ip, which is what we want
 });
 router.use(apRateLimiter);
 

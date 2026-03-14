@@ -16,7 +16,7 @@ import { useAuth } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
 import { colors } from '../styles/colors';
 import PostItem from './Feed/PostItem';
-import { UIPost, Reply, FeedRepost as Repost, FeedType } from '@mention/shared-types';
+import { HydratedPost, Reply, FeedRepost as Repost, FeedType } from '@mention/shared-types';
 import Avatar from './Avatar';
 import UserName from './UserName';
 
@@ -30,7 +30,7 @@ const ReplyScreen: React.FC = () => {
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [originalPost, setOriginalPost] = useState<UIPost | Reply | Repost | null>(null);
+    const [originalPost, setOriginalPost] = useState<HydratedPost | Reply | Repost | null>(null);
     const [isLoadingPost, setIsLoadingPost] = useState(true);
     const textInputRef = useRef<TextInput>(null);
 

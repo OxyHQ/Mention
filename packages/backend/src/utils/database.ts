@@ -57,17 +57,15 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     try {
       await mongoose.connect(mongoUri, {
         dbName,
-        autoIndex: process.env.NODE_ENV !== 'production', // Disable in production for performance
-        autoCreate: process.env.NODE_ENV !== 'production', // Disable in production (incompatible with secondaryPreferred readPreference)
+        autoIndex: process.env.NODE_ENV !== 'production',
+        autoCreate: process.env.NODE_ENV !== 'production',
         serverSelectionTimeoutMS: 20000,
         socketTimeoutMS: 45000,
-        // Connection pool configuration optimized for millions of users
-        // Increased pool size to handle high concurrent load
-        maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '100'), // Maximum number of connections in pool (increased from 50)
-        minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10'), // Minimum number of connections to maintain (increased from 5)
-        maxIdleTimeMS: 60000, // Close connections after 60 seconds of inactivity (increased from 30s for better connection reuse)
-        // Read preference for read replicas (if configured)
-        readPreference: process.env.MONGODB_READ_PREFERENCE as any || 'secondaryPreferred',
+        maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '100'),
+        minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10'),
+        maxIdleTimeMS: 60000,
+        // Use primary in dev (required for autoIndex/autoCreate), secondaryPreferred in prod
+        readPreference: process.env.MONGODB_READ_PREFERENCE || (process.env.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary'),
         // Write concern for data durability
         w: 'majority',
         wtimeoutMS: 5000, // Fixed: use wtimeoutMS instead of deprecated wtimeout

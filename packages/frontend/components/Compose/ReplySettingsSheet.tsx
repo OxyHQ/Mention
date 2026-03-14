@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, Pressable, Switch } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import Animated, { Easing, LinearTransition } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { cn } from '@/lib/utils';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
@@ -13,6 +13,19 @@ interface ReplySettingsSheetProps {
   onReplyPermissionChange: (permission: ReplyPermission) => void;
   quotesDisabled: boolean;
   onQuotesDisabledChange: (disabled: boolean) => void;
+}
+
+type Adjacent = 'leading' | 'trailing' | 'both';
+
+function getPanelRounding(adjacent?: Adjacent) {
+  const leading = adjacent === 'leading' || adjacent === 'both';
+  const trailing = adjacent === 'trailing' || adjacent === 'both';
+  return {
+    borderTopLeftRadius: leading ? 4 : 8,
+    borderTopRightRadius: leading ? 4 : 8,
+    borderBottomLeftRadius: trailing ? 4 : 8,
+    borderBottomRightRadius: trailing ? 4 : 8,
+  };
 }
 
 const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
@@ -27,113 +40,75 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
 
   const isEveryone = replyPermission === 'anyone';
   const isNobody = replyPermission === 'nobody';
+  const isGranular = !isEveryone && !isNobody;
 
-  const handleEveryonePress = () => {
-    onReplyPermissionChange('anyone');
-  };
-
-  const handleNobodyPress = () => {
-    onReplyPermissionChange('nobody');
-  };
-
-  const handleGranularToggle = (option: 'followers' | 'following' | 'mentioned') => {
-    // When toggling a granular option, switch to that permission
-    onReplyPermissionChange(option);
-  };
+  const panelActiveBg = theme.colors.primary + '12';
+  const panelInactiveBg = theme.colors.backgroundSecondary;
+  const mutedTextColor = theme.colors.textSecondary;
 
   return (
     <View className="rounded-t-3xl pb-5 bg-background">
       {/* Header */}
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border bg-background">
         <Pressable onPress={onClose} className="mr-1.5 z-[1] p-2">
-          <Ionicons name="close" size={20} color={theme.colors.foreground} />
+          <Ionicons name="close" size={20} color={theme.colors.text} />
         </Pressable>
         <View className="flex-1" />
       </View>
 
       {/* Title */}
-      <View className="px-4 pt-4 pb-2">
+      <View className="px-4 pt-4 pb-4">
         <Text className="text-2xl font-bold text-foreground">
           {t('Post interaction settings')}
         </Text>
       </View>
 
       {/* Who can reply */}
-      <View className="px-4 pt-2">
+      <View className="px-4">
         <Text className="text-base font-medium text-foreground mb-2">
           {t('Who can reply')}
         </Text>
 
         {/* Everyone / Nobody radio row */}
         <View className="flex-row gap-2 mb-2">
-          <Pressable
-            onPress={handleEveryonePress}
-            className="flex-1"
-          >
+          <Pressable onPress={() => onReplyPermissionChange('anyone')} className="flex-1">
             <View
-              className="flex-row items-center justify-center py-3 rounded-xl"
+              className="flex-row items-center gap-2 px-3.5"
               style={{
-                backgroundColor: isEveryone
-                  ? theme.colors.primary + '15'
-                  : theme.colors.backgroundSecondary,
-                borderWidth: isEveryone ? 1.5 : 1,
-                borderColor: isEveryone ? theme.colors.primary : theme.colors.border,
+                minHeight: 56,
+                ...getPanelRounding(),
+                backgroundColor: isEveryone ? panelActiveBg : panelInactiveBg,
               }}
             >
-              <View
-                className="w-4 h-4 rounded-full mr-2 items-center justify-center"
-                style={{
-                  borderWidth: isEveryone ? 0 : 1.5,
-                  borderColor: theme.colors.textTertiary,
-                  backgroundColor: isEveryone ? theme.colors.primary : 'transparent',
-                }}
-              >
-                {isEveryone && (
-                  <View className="w-1.5 h-1.5 rounded-full bg-white" />
-                )}
-              </View>
+              <RadioIndicator selected={isEveryone} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
               <Text
-                className={cn(
-                  'text-base text-foreground',
-                  isEveryone ? 'font-semibold' : 'font-normal'
-                )}
+                className="text-base"
+                style={{
+                  fontWeight: isEveryone ? '500' : '400',
+                  color: isEveryone ? theme.colors.text : mutedTextColor,
+                }}
               >
                 {t('Everyone')}
               </Text>
             </View>
           </Pressable>
 
-          <Pressable
-            onPress={handleNobodyPress}
-            className="flex-1"
-          >
+          <Pressable onPress={() => onReplyPermissionChange('nobody')} className="flex-1">
             <View
-              className="flex-row items-center justify-center py-3 rounded-xl"
+              className="flex-row items-center gap-2 px-3.5"
               style={{
-                backgroundColor: isNobody
-                  ? theme.colors.primary + '15'
-                  : theme.colors.backgroundSecondary,
-                borderWidth: isNobody ? 1.5 : 1,
-                borderColor: isNobody ? theme.colors.primary : theme.colors.border,
+                minHeight: 56,
+                ...getPanelRounding(),
+                backgroundColor: isNobody ? panelActiveBg : panelInactiveBg,
               }}
             >
-              <View
-                className="w-4 h-4 rounded-full mr-2 items-center justify-center"
-                style={{
-                  borderWidth: isNobody ? 0 : 1.5,
-                  borderColor: theme.colors.textTertiary,
-                  backgroundColor: isNobody ? theme.colors.primary : 'transparent',
-                }}
-              >
-                {isNobody && (
-                  <View className="w-1.5 h-1.5 rounded-full bg-white" />
-                )}
-              </View>
+              <RadioIndicator selected={isNobody} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
               <Text
-                className={cn(
-                  'text-base text-foreground',
-                  isNobody ? 'font-semibold' : 'font-normal'
-                )}
+                className="text-base"
+                style={{
+                  fontWeight: isNobody ? '500' : '400',
+                  color: isNobody ? theme.colors.text : mutedTextColor,
+                }}
               >
                 {t('Nobody')}
               </Text>
@@ -141,49 +116,38 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
           </Pressable>
         </View>
 
-        {/* Granular checkboxes */}
-        <View className="rounded-xl overflow-hidden" style={{ backgroundColor: theme.colors.backgroundSecondary }}>
-          {(['followers', 'following', 'mentioned'] as const).map((option, index) => {
+        {/* Granular checkboxes - connected panel group */}
+        <View className="gap-1">
+          {(['followers', 'following', 'mentioned'] as const).map((option, index, arr) => {
             const isSelected = replyPermission === option;
             const labels: Record<string, string> = {
               followers: t('Your followers'),
               following: t('People you follow'),
               mentioned: t('People you mention'),
             };
+            const adjacent: Adjacent =
+              index === 0 ? 'trailing' : index === arr.length - 1 ? 'leading' : 'both';
 
             return (
               <Pressable
                 key={option}
-                onPress={() => handleGranularToggle(option)}
+                onPress={() => onReplyPermissionChange(option)}
               >
                 <View
-                  className="flex-row items-center px-4 py-3.5"
+                  className="flex-row items-center gap-2 px-3.5"
                   style={{
-                    backgroundColor: isSelected
-                      ? theme.colors.primary + '10'
-                      : 'transparent',
-                    borderTopWidth: index > 0 ? 0.5 : 0,
-                    borderTopColor: theme.colors.border,
+                    minHeight: 56,
+                    ...getPanelRounding(adjacent),
+                    backgroundColor: isSelected ? panelActiveBg : panelInactiveBg,
                   }}
                 >
-                  <View
-                    className="w-5 h-5 rounded mr-3 items-center justify-center"
-                    style={{
-                      borderWidth: isSelected ? 0 : 1.5,
-                      borderColor: theme.colors.textTertiary,
-                      backgroundColor: isSelected ? theme.colors.primary : 'transparent',
-                      borderRadius: 4,
-                    }}
-                  >
-                    {isSelected && (
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                    )}
-                  </View>
+                  <CheckboxIndicator selected={isSelected} primaryColor={theme.colors.primary} mutedColor={mutedTextColor} />
                   <Text
-                    className={cn(
-                      'text-base text-foreground flex-1',
-                      isSelected ? 'font-medium' : 'font-normal'
-                    )}
+                    className="text-base flex-1"
+                    style={{
+                      fontWeight: isSelected ? '500' : '400',
+                      color: isSelected ? theme.colors.text : mutedTextColor,
+                    }}
                   >
                     {labels[option]}
                   </Text>
@@ -196,38 +160,49 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
 
       {/* Quote posts toggle */}
       <View className="px-4 pt-4">
-        <View
-          className="flex-row items-center justify-between px-4 py-3.5 rounded-xl"
-          style={{ backgroundColor: theme.colors.backgroundSecondary }}
-        >
-          <View className="flex-row items-center flex-1 mr-3">
-            <Ionicons
-              name="chatbubble-outline"
-              size={18}
-              color={theme.colors.textSecondary}
-              style={{ marginRight: 10 }}
-            />
-            <Text className="text-base text-foreground">
-              {t('Allow quote posts')}
-            </Text>
-          </View>
-          <Switch
-            value={!quotesDisabled}
-            onValueChange={(value) => onQuotesDisabledChange(!value)}
-            trackColor={{
-              false: theme.colors.border,
-              true: theme.colors.primary,
+        <Pressable onPress={() => onQuotesDisabledChange(!quotesDisabled)}>
+          <View
+            className="flex-row items-center gap-2 px-3.5"
+            style={{
+              minHeight: 56,
+              ...getPanelRounding(),
+              backgroundColor: !quotesDisabled ? panelActiveBg : panelInactiveBg,
             }}
-          />
-        </View>
+          >
+            <View className="flex-row items-center gap-1.5 flex-1">
+              <Ionicons
+                name="chatbubble-outline"
+                size={18}
+                color={!quotesDisabled ? theme.colors.text : mutedTextColor}
+              />
+              <Text
+                className="text-base flex-1"
+                style={{
+                  fontWeight: !quotesDisabled ? '500' : '400',
+                  color: !quotesDisabled ? theme.colors.text : mutedTextColor,
+                }}
+              >
+                {t('Allow quote posts')}
+              </Text>
+            </View>
+            <ToggleSwitch
+              value={!quotesDisabled}
+              primaryColor={theme.colors.primary}
+              mutedColor={theme.colors.border}
+            />
+          </View>
+        </Pressable>
       </View>
 
       {/* Save button */}
       <View className="px-4 pt-4">
         <Pressable
           onPress={onClose}
-          className="items-center justify-center py-3.5 rounded-xl"
-          style={{ backgroundColor: theme.colors.primary }}
+          className="items-center justify-center py-3.5"
+          style={{
+            backgroundColor: theme.colors.primary,
+            borderRadius: 8,
+          }}
         >
           <Text className="text-base font-semibold text-white">
             {t('Save')}
@@ -237,5 +212,103 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
     </View>
   );
 };
+
+function RadioIndicator({
+  selected,
+  primaryColor,
+  mutedColor,
+}: {
+  selected: boolean;
+  primaryColor: string;
+  mutedColor: string;
+}) {
+  return (
+    <View
+      style={{
+        width: 25,
+        height: 25,
+        borderRadius: 12.5,
+        borderWidth: 1,
+        borderColor: selected ? primaryColor : mutedColor,
+        backgroundColor: selected ? primaryColor : 'transparent',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      {selected && (
+        <View
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 6,
+            backgroundColor: '#fff',
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+function CheckboxIndicator({
+  selected,
+  primaryColor,
+  mutedColor,
+}: {
+  selected: boolean;
+  primaryColor: string;
+  mutedColor: string;
+}) {
+  return (
+    <View
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: selected ? primaryColor : mutedColor,
+        backgroundColor: selected ? primaryColor : 'transparent',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      {selected && (
+        <Ionicons name="checkmark" size={14} color="#fff" />
+      )}
+    </View>
+  );
+}
+
+function ToggleSwitch({
+  value,
+  primaryColor,
+  mutedColor,
+}: {
+  value: boolean;
+  primaryColor: string;
+  mutedColor: string;
+}) {
+  return (
+    <View
+      style={{
+        width: 48,
+        height: 28,
+        borderRadius: 14,
+        padding: 3,
+        backgroundColor: value ? primaryColor : mutedColor,
+      }}
+    >
+      <Animated.View
+        layout={LinearTransition.duration(200).easing(Easing.inOut(Easing.cubic))}
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          backgroundColor: '#fff',
+          alignSelf: value ? 'flex-end' : 'flex-start',
+        }}
+      />
+    </View>
+  );
+}
 
 export default ReplySettingsSheet;

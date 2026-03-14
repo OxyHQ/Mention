@@ -20,7 +20,7 @@ import ThreadedReplies from '@/components/Feed/ThreadedReplies';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
 import { usePostsStore } from '@/stores/postsStore';
 import { FeedType } from '@mention/shared-types';
-import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
+import { HydratedPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useFeedState } from '@/hooks/useFeedState';
 import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
@@ -51,8 +51,8 @@ const PostDetailScreen: React.FC = () => {
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
 
-    const [post, setPost] = useState<UIPost | Reply | Repost | null>(null);
-    const [parentPost, setParentPost] = useState<UIPost | Reply | Repost | null>(null);
+    const [post, setPost] = useState<HydratedPost | Reply | Repost | null>(null);
+    const [parentPost, setParentPost] = useState<HydratedPost | Reply | Repost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [content, setContent] = useState('');
