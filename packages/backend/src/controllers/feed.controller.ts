@@ -1394,11 +1394,8 @@ class FeedController {
         return res.status(404).json({ error: 'Post not found' });
       }
 
-      // Check reply permissions (supports both legacy string and new array format)
-      const rawPermission = parentPost.replyPermission;
-      const permissions: string[] = Array.isArray(rawPermission)
-        ? rawPermission
-        : [rawPermission || 'anyone'];
+      // Check reply permissions
+      const permissions: string[] = parentPost.replyPermission || ['anyone'];
 
       if (!permissions.includes('anyone')) {
         const parentAuthorId = parentPost.oxyUserId?.toString?.() || (parentPost as any).oxyUserId;

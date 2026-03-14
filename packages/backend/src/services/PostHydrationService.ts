@@ -1194,11 +1194,7 @@ export class PostHydrationService {
     if (!viewerId) return false;
     if (viewerId === authorId) return true;
 
-    // Support both legacy single-string and new array format
-    const rawPermission = post?.replyPermission;
-    const permissions: string[] = Array.isArray(rawPermission)
-      ? rawPermission
-      : [rawPermission || 'anyone'];
+    const permissions: string[] = post?.replyPermission || ['anyone'];
 
     if (permissions.includes('anyone')) return true;
     if (permissions.includes('nobody')) return false;

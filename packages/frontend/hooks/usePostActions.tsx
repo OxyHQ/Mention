@@ -199,7 +199,7 @@ export function usePostActions({
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
                         <ReplySettingsSheet
-                            replyPermission={(viewPost?.metadata?.replyPermission as ReplyPermission) || 'anyone'}
+                            replyPermission={viewPost?.metadata?.replyPermission ?? ['anyone']}
                             onReplyPermissionChange={async (permission) => {
                                 try {
                                     await feedService.updatePostSettings(postId, { replyPermission: permission });

@@ -1331,12 +1331,14 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
 
     if (replyPermission !== undefined) {
       const validPermissions = ['anyone', 'followers', 'following', 'mentioned', 'nobody'];
-      const permissions = Array.isArray(replyPermission) ? replyPermission : [replyPermission];
-      const allValid = permissions.every((p: string) => validPermissions.includes(p));
-      if (!allValid || permissions.length === 0) {
-        return res.status(400).json({ message: `replyPermission must be an array of: ${validPermissions.join(', ')}` });
+      if (!Array.isArray(replyPermission) || replyPermission.length === 0) {
+        return res.status(400).json({ message: 'replyPermission must be a non-empty array' });
       }
-      post.replyPermission = permissions;
+      const allValid = replyPermission.every((p: string) => validPermissions.includes(p));
+      if (!allValid) {
+        return res.status(400).json({ message: `replyPermission values must be one of: ${validPermissions.join(', ')}` });
+      }
+      post.replyPermission = replyPermission;
     }
 
     if (reviewReplies !== undefined) {

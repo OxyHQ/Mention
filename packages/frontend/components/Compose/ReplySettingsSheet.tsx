@@ -8,7 +8,9 @@ export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned'
 
 type Adjacent = 'leading' | 'trailing' | 'both';
 
-const GRANULAR_OPTIONS: { value: ReplyPermission; labelKey: string }[] = [
+type GranularPermission = 'followers' | 'following' | 'mentioned';
+
+const GRANULAR_OPTIONS: { value: GranularPermission; labelKey: string }[] = [
   { value: 'followers', labelKey: 'Your followers' },
   { value: 'following', labelKey: 'People you follow' },
   { value: 'mentioned', labelKey: 'People you mention' },
@@ -56,10 +58,10 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
     onReplyPermissionChange([value]);
   }, [onReplyPermissionChange]);
 
-  const handleCheckboxToggle = useCallback((value: ReplyPermission) => {
-    // Filter out 'anyone' and 'nobody' — only keep granular values
+  const handleCheckboxToggle = useCallback((value: 'followers' | 'following' | 'mentioned') => {
     const currentGranular = replyPermission.filter(
-      (p) => p !== 'anyone' && p !== 'nobody'
+      (p): p is 'followers' | 'following' | 'mentioned' =>
+        p === 'followers' || p === 'following' || p === 'mentioned'
     );
 
     let next: ReplyPermission[];
