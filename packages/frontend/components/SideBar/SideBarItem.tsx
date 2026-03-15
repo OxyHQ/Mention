@@ -57,7 +57,17 @@ export function SideBarItem({
                 "flex-row items-center w-full justify-start",
                 isExpanded ? "gap-3" : "gap-0",
             )}>
-                <View className="items-center justify-center w-6 h-6">
+                <View
+                    className={cn(
+                        "items-center justify-center w-6 h-6",
+                        isActive || isHovered ? "text-primary" : "text-foreground",
+                    )}
+                    style={Platform.select({
+                        web: {
+                            transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
+                        },
+                    })}
+                >
                     {icon}
                 </View>
                 {isExpanded ? (
