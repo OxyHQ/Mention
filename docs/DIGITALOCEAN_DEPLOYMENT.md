@@ -41,20 +41,22 @@ npm ci --include=dev && npm run -w @mention/backend build && npm prune --omit=de
 ### Frontend (`mention-frontend`)
 
 ```
-npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/frontend/.expo && npm run build -w @mention/shared-types && npm run build -w @mention/frontend
+npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/frontend/.expo && npm run build -w @mention/shared-types && npm run build -w @mention/frontend && rm -rf node_modules
 ```
 
 - Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
 - Builds shared-types first (frontend depends on them), then builds the frontend.
+- Removes `node_modules` after build to reduce the buildpack image layer size (static sites only need `dist/`).
 - Output directory: `packages/frontend/dist`
 
 ### Agora (`agora-frontend`)
 
 ```
-npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/agora/.expo && npm run build -w @mention/agora
+npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/agora/.expo && npm run build -w @mention/agora && rm -rf node_modules
 ```
 
 - Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
+- Removes `node_modules` after build to reduce the buildpack image layer size (static sites only need `dist/`).
 - Output directory: `packages/agora/dist`
 
 ## Build Environment Variables
@@ -105,7 +107,10 @@ curl -X POST "https://api.digitalocean.com/v2/apps/{app-id}/deployments" \
 
 ### BuildJobTerminated (Resource Exhaustion)
 
-If builds complete but the deployment fails with `BuildJobTerminated`, the build container ran out of resources during the post-build phase. Ensure `NODE_MODULES_CACHE=false` is set on both static site components.
+If builds complete but the deployment fails with `BuildJobTerminated`, the build container ran out of resources during the post-build image export phase. Two measures prevent this:
+
+1. **`NODE_MODULES_CACHE=false`** on static sites — prevents the buildpack from caching `node_modules` after each build.
+2. **`rm -rf node_modules`** at the end of static site build commands — removes ~1.7GB of dependencies before the buildpack exports the image layer. Static sites only need the `dist/` output; without this cleanup, the buildpack must upload the full workspace (including `node_modules`) as a container image layer, which exhausts the build container's resources.
 
 ### Build Errors
 
