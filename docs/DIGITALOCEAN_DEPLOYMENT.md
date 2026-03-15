@@ -41,22 +41,22 @@ npm ci --include=dev && npm run -w @mention/backend build && npm prune --omit=de
 ### Frontend (`mention-frontend`)
 
 ```
-npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/frontend/.expo && npm run build -w @mention/shared-types && npm run build -w @mention/frontend && rm -rf node_modules
+npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/frontend/.expo && npm run build -w @mention/shared-types && npm run build -w @mention/frontend && mv packages/frontend/dist /tmp/_dist && rm -rf * .* 2>/dev/null; mv /tmp/_dist packages/frontend/dist
 ```
 
 - Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
 - Builds shared-types first (frontend depends on them), then builds the frontend.
-- Removes `node_modules` after build to reduce the buildpack image layer size (static sites only need `dist/`).
+- After build, moves `dist/` to `/tmp`, wipes the workspace, then restores only `dist/`. This keeps the buildpack image layer minimal (only the static output), preventing resource exhaustion during image export.
 - Output directory: `packages/frontend/dist`
 
 ### Agora (`agora-frontend`)
 
 ```
-npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/agora/.expo && npm run build -w @mention/agora && rm -rf node_modules
+npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/agora/.expo && npm run build -w @mention/agora && mv packages/agora/dist /tmp/_dist && rm -rf * .* 2>/dev/null; mv /tmp/_dist packages/agora/dist
 ```
 
 - Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
-- Removes `node_modules` after build to reduce the buildpack image layer size (static sites only need `dist/`).
+- After build, moves `dist/` to `/tmp`, wipes the workspace, then restores only `dist/`. This keeps the buildpack image layer minimal (only the static output), preventing resource exhaustion during image export.
 - Output directory: `packages/agora/dist`
 
 ## Build Environment Variables
@@ -110,7 +110,7 @@ curl -X POST "https://api.digitalocean.com/v2/apps/{app-id}/deployments" \
 If builds complete but the deployment fails with `BuildJobTerminated`, the build container ran out of resources during the post-build image export phase. Two measures prevent this:
 
 1. **`NODE_MODULES_CACHE=false`** on static sites — prevents the buildpack from caching `node_modules` after each build.
-2. **`rm -rf node_modules`** at the end of static site build commands — removes ~1.7GB of dependencies before the buildpack exports the image layer. Static sites only need the `dist/` output; without this cleanup, the buildpack must upload the full workspace (including `node_modules`) as a container image layer, which exhausts the build container's resources.
+2. **Workspace cleanup** at the end of static site build commands — after building, the `dist/` output is moved to `/tmp`, the entire workspace is wiped, and only `dist/` is restored. Without this, the buildpack must compress and upload the full workspace (~1.7GB including `node_modules`) as a container image layer, which exhausts the build container's resources. This is especially critical for newly added components that have no prior image layers to reuse.
 
 ### Build Errors
 
