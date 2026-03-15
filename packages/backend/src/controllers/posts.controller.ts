@@ -1466,9 +1466,16 @@ export const likePost = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      // Switching vote direction: update the Like document and adjust both counters
-      existingLike.value = value;
-      await existingLike.save();
+      // Switching vote direction: atomic update to avoid race condition
+      const updated = await Like.findOneAndUpdate(
+        { userId, postId },
+        { value },
+        { new: true }
+      );
+      if (!updated) {
+        // Document was deleted between findOne and findOneAndUpdate — create fresh
+        await Like.create({ userId, postId, value });
+      }
 
       const statsUpdate = value === 1
         ? { $inc: { 'stats.likesCount': 1, 'stats.downvotesCount': -1 } }
