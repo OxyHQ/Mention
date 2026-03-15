@@ -370,7 +370,6 @@ const PostItem: React.FC<PostItemProps> = ({
                     style,
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
-                accessibilityRole={isPostDetail ? undefined : 'button'}
                 {...(isPostDetail ? {} : { onPress: goToPost })}
             >
                 {/* Thread line above avatar — connects from previous post's bottom */}

@@ -9,12 +9,12 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { getData, storeData } from '@/utils/storage';
+import { storeData } from '@/utils/storage';
 import { SettingsGroup } from '@/components/settings/SettingsItem';
+import { STORAGE_KEYS } from '@/lib/constants';
+import { useThreadPreferences, type SortOrder } from '@/hooks/useThreadPreferences';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
-
-type SortOrder = 'top' | 'oldest' | 'newest';
 
 const SORT_OPTIONS: { value: SortOrder; labelKey: string; defaultLabel: string }[] = [
     { value: 'top', labelKey: 'settings.threadPreferences.sortTop', defaultLabel: 'Most liked' },
@@ -22,36 +22,27 @@ const SORT_OPTIONS: { value: SortOrder; labelKey: string; defaultLabel: string }
     { value: 'newest', labelKey: 'settings.threadPreferences.sortNewest', defaultLabel: 'Newest first' },
 ];
 
-const STORAGE_KEY_SORT = 'pref:thread:sortOrder';
-const STORAGE_KEY_TREE = 'pref:thread:treeView';
-
 export default function ThreadPreferencesScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
-    const [sortOrder, setSortOrder] = useState<SortOrder>('top');
-    const [treeView, setTreeView] = useState(false);
+    const savedPrefs = useThreadPreferences();
+    const [sortOrder, setSortOrder] = useState<SortOrder>(savedPrefs.sortOrder);
+    const [treeView, setTreeView] = useState(savedPrefs.treeView);
 
+    // Sync local state when async preferences load from storage
     useEffect(() => {
-        let mounted = true;
-        const load = async () => {
-            const savedSort = await getData<SortOrder>(STORAGE_KEY_SORT);
-            const savedTree = await getData<boolean>(STORAGE_KEY_TREE);
-            if (!mounted) return;
-            if (savedSort) setSortOrder(savedSort);
-            if (typeof savedTree === 'boolean') setTreeView(savedTree);
-        };
-        load();
-        return () => { mounted = false; };
-    }, []);
+        setSortOrder(savedPrefs.sortOrder);
+        setTreeView(savedPrefs.treeView);
+    }, [savedPrefs.sortOrder, savedPrefs.treeView]);
 
     const onSortChange = useCallback(async (value: SortOrder) => {
         setSortOrder(value);
-        await storeData(STORAGE_KEY_SORT, value);
+        await storeData(STORAGE_KEYS.THREAD_SORT, value);
     }, []);
 
     const onTreeToggle = useCallback(async (value: boolean) => {
         setTreeView(value);
-        await storeData(STORAGE_KEY_TREE, value);
+        await storeData(STORAGE_KEYS.THREAD_TREE_VIEW, value);
     }, []);
 
     return (

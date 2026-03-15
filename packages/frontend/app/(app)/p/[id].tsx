@@ -17,7 +17,9 @@ import * as Location from 'expo-location';
 import Avatar from '@/components/Avatar';
 import PostItem from '@/components/Feed/PostItem';
 import ThreadedReplies from '@/components/Feed/ThreadedReplies';
+import { PostErrorBoundary } from '@/components/Feed/PostErrorBoundary';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
+import { useThreadPreferences } from '@/hooks/useThreadPreferences';
 import { usePostsStore } from '@/stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import { HydratedPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
@@ -48,6 +50,7 @@ const PostDetailScreen: React.FC = () => {
     const theme = useTheme();
     const { t } = useTranslation();
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
+    const { treeView } = useThreadPreferences();
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
 
@@ -572,12 +575,18 @@ const PostDetailScreen: React.FC = () => {
                                     No replies yet. Be the first to reply!
                                 </Text>
                             </View>
-                        ) : (
+                        ) : treeView ? (
                             <ThreadedReplies
                                 replies={repliesFeed.items}
                                 postId={String(id)}
                                 onReply={handleFocusInput}
                             />
+                        ) : (
+                            repliesFeed.items.map((reply) => (
+                                <PostErrorBoundary key={String(reply.id || reply._id)} postId={reply.id || reply._id}>
+                                    <PostItem post={reply} onReply={handleFocusInput} />
+                                </PostErrorBoundary>
+                            ))
                         )}
                     </View>
                 </ScrollView>

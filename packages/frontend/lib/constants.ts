@@ -5,6 +5,9 @@
 
 export const STORAGE_KEYS = {
   LANGUAGE_PREFERENCE: 'user_language_preference',
+  THREAD_SORT: 'pref:thread:sortOrder',
+  THREAD_TREE_VIEW: 'pref:thread:treeView',
+  VOTE_STYLE: 'pref:post:voteStyle',
 } as const;
 
 export const DEFAULT_LANGUAGE = 'en-US';
