@@ -119,6 +119,7 @@ export interface Post {
 
 export interface PostStats {
   likesCount: number;
+  downvotesCount: number;
   repostsCount: number;
   commentsCount: number;
   viewsCount: number;
@@ -217,6 +218,7 @@ export interface PostActorSummary {
 export interface PostViewerState {
   isOwner: boolean;
   isLiked: boolean;
+  isDownvoted: boolean;
   isReposted: boolean;
   isSaved: boolean;
 }
@@ -231,6 +233,7 @@ export interface PostPermissions {
 
 export interface PostEngagementSummary {
   likes: number | null;
+  downvotes: number | null;
   reposts: number | null;
   replies: number | null;
   saves?: number | null;

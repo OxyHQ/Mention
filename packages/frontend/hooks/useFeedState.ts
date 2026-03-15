@@ -195,7 +195,7 @@ export function useFeedState({
                     setLocalError(null);
 
                     const resp = await withRetry(
-                        () => feedService.getFeed({ type, limit: 20, filters } as any, { signal }),
+                        () => feedService.getFeed({ type, limit: 20, filters } as any, { signal, skipCache: forceRefresh }),
                         {
                             signal,
                             onRetry: (attempt) => {
@@ -279,7 +279,7 @@ export function useFeedState({
                 setLocalError(null);
 
                 const resp = await withRetry(
-                    () => feedService.getFeed({ type, limit: 20, filters } as any, { signal }),
+                    () => feedService.getFeed({ type, limit: 20, filters } as any, { signal, skipCache: true }),
                     {
                         signal,
                         onRetry: (attempt) => {

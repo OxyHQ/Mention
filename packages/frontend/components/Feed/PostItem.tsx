@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import { useImagePreload } from '@/hooks/useImagePreload';
 import { usePostLike } from '@/hooks/usePostLike';
+import { usePostVote } from '@/hooks/usePostVote';
 import { usePostSave } from '@/hooks/usePostSave';
 import { usePostRepost } from '@/hooks/usePostRepost';
 import { usePostShare } from '@/hooks/usePostShare';
@@ -83,7 +84,7 @@ const PostItem: React.FC<PostItemProps> = ({
     }
 
     const viewerState =
-        viewPost.viewerState ?? { isOwner: false, isLiked: false, isReposted: false, isSaved: false };
+        viewPost.viewerState ?? { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
 
     const metadata = viewPost.metadata ?? {};
     const content: PostContent = viewPost.content ?? {};
@@ -93,6 +94,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const isOwner = viewerState.isOwner ?? false;
     const isLiked = viewerState.isLiked ?? false;
+    const isDownvoted = viewerState.isDownvoted ?? false;
     const isReposted = viewerState.isReposted ?? false;
     const isSaved = viewerState.isSaved ?? false;
 
@@ -189,6 +191,7 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [router, viewPost.user?.handle, viewPost.user?.id, viewPost.user?.isFederated, viewPost.user?.instance]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
+    const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
     const handleSave = usePostSave(viewPostId, isSaved);
     const handleRepost = usePostRepost(viewPostId, isReposted);
     const handleShare = usePostShare(viewPost);
@@ -548,16 +551,19 @@ const PostItem: React.FC<PostItemProps> = ({
                                 replies: engagement.replies ?? 0,
                                 reposts: engagement.reposts ?? 0,
                                 likes: engagement.likes ?? 0,
+                                downvotes: engagement.downvotes ?? 0,
                                 saves: engagement.saves ?? null,
                                 views: engagement.views ?? null,
                                 recentReplierAvatars: engagement.recentReplierAvatars,
                             }}
                             isLiked={isLiked}
+                            isDownvoted={isDownvoted}
                             isReposted={isReposted}
                             isSaved={isSaved}
                             onReply={handleReply}
                             onRepost={handleRepost}
                             onLike={handleLike}
+                            onDownvote={handleDownvote}
                             onSave={handleSave}
                             onShare={handleShare}
                             postId={viewPostId}
@@ -639,9 +645,11 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
     return (
         prev?.id === next?.id &&
         prev?.viewerState?.isLiked === next?.viewerState?.isLiked &&
+        prev?.viewerState?.isDownvoted === next?.viewerState?.isDownvoted &&
         prev?.viewerState?.isReposted === next?.viewerState?.isReposted &&
         prev?.viewerState?.isSaved === next?.viewerState?.isSaved &&
         prev?.engagement?.likes === next?.engagement?.likes &&
+        prev?.engagement?.downvotes === next?.engagement?.downvotes &&
         prev?.engagement?.reposts === next?.engagement?.reposts &&
         prev?.engagement?.replies === next?.engagement?.replies &&
         prev?.metadata?.updatedAt === next?.metadata?.updatedAt &&

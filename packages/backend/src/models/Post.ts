@@ -235,6 +235,7 @@ const PostContentSchema = new Schema({
 
 const PostStatsSchema = new Schema({
   likesCount: { type: Number, default: 0 },
+  downvotesCount: { type: Number, default: 0 },
   repostsCount: { type: Number, default: 0 },
   commentsCount: { type: Number, default: 0 },
   viewsCount: { type: Number, default: 0 },
@@ -244,6 +245,7 @@ const PostStatsSchema = new Schema({
 // Ensure stats are always initialized
 PostStatsSchema.pre('save', function() {
   if (!this.likesCount && this.likesCount !== 0) this.likesCount = 0;
+  if (!this.downvotesCount && this.downvotesCount !== 0) this.downvotesCount = 0;
   if (!this.repostsCount && this.repostsCount !== 0) this.repostsCount = 0;
   if (!this.commentsCount && this.commentsCount !== 0) this.commentsCount = 0;
   if (!this.viewsCount && this.viewsCount !== 0) this.viewsCount = 0;
@@ -307,10 +309,11 @@ const PostSchema = new Schema<IPost>({
     index: true
   },
   scheduledFor: { type: Date },
-  stats: { 
-    type: PostStatsSchema, 
+  stats: {
+    type: PostStatsSchema,
     default: () => ({
       likesCount: 0,
+      downvotesCount: 0,
       repostsCount: 0,
       commentsCount: 0,
       viewsCount: 0,

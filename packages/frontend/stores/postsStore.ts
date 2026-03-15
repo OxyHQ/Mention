@@ -23,6 +23,7 @@ import { markLocalAction } from '../services/echoGuard';
 type FeedItem = HydratedPost & {
   date?: string;
   isLiked?: boolean;
+  isDownvoted?: boolean;
   isReposted?: boolean;
   isSaved?: boolean;
   user: HydratedPost['user'] & {
@@ -81,6 +82,7 @@ interface FeedState {
   unrepostPost: (request: { postId: string }) => Promise<void>;
   likePost: (request: LikeRequest) => Promise<void>;
   unlikePost: (request: UnlikeRequest) => Promise<void>;
+  downvotePost: (request: { postId: string; type: string }) => Promise<void>;
   savePost: (request: { postId: string }) => Promise<void>;
   unsavePost: (request: { postId: string }) => Promise<void>;
   getPostById: (postId: string) => Promise<any>;
@@ -242,6 +244,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   const viewerState = {
     isOwner: raw?.viewerState?.isOwner ?? false,
     isLiked: raw?.viewerState?.isLiked ?? raw?.isLiked ?? false,
+    isDownvoted: raw?.viewerState?.isDownvoted ?? raw?.isDownvoted ?? false,
     isReposted: raw?.viewerState?.isReposted ?? raw?.isReposted ?? false,
     isSaved: raw?.viewerState?.isSaved ?? raw?.isSaved ?? false,
   };
@@ -259,6 +262,10 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
       raw?.engagement?.likes !== undefined
         ? raw.engagement.likes
         : raw?.stats?.likesCount ?? 0,
+    downvotes:
+      raw?.engagement?.downvotes !== undefined
+        ? raw.engagement.downvotes
+        : raw?.stats?.downvotesCount ?? 0,
     reposts:
       raw?.engagement?.reposts !== undefined
         ? raw.engagement.reposts
@@ -329,6 +336,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     },
     date: metadata.createdAt,
     isLiked: viewerState.isLiked,
+    isDownvoted: viewerState.isDownvoted,
     isSaved: viewerState.isSaved,
     isReposted: viewerState.isReposted,
     mediaIds,
@@ -370,10 +378,37 @@ const MAX_POSTS_CACHE_SIZE = 2000;
 const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
 
 // In-flight engagement operations to prevent race conditions
-const inFlightEngagements = new Map<string, 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave'>();
+const inFlightEngagements = new Map<string, 'like' | 'unlike' | 'downvote' | 'repost' | 'unrepost' | 'save' | 'unsave'>();
 
 // Helper to get engagement lock key
 const getEngagementKey = (postId: string, action: string) => `${postId}:${action.replace('un', '')}`;
+
+// Sync vote state from server response into local store
+const syncVoteStateFromServer = (
+  get: () => FeedState,
+  postId: string,
+  responseData: unknown
+) => {
+  const data = responseData as Record<string, unknown> | undefined;
+  const serverLikesCount = data?.likesCount as number | undefined;
+  const serverDownvotesCount = data?.downvotesCount as number | undefined;
+  const serverLiked = data?.liked === true;
+  const serverDownvoted = data?.downvoted === true;
+
+  if (serverLikesCount !== undefined) {
+    get().updatePostEverywhere(postId, (prev) => ({
+      ...prev,
+      isLiked: serverLiked,
+      isDownvoted: serverDownvoted,
+      viewerState: { ...prev.viewerState, isLiked: serverLiked, isDownvoted: serverDownvoted },
+      engagement: {
+        ...prev.engagement,
+        likes: serverLikesCount,
+        downvotes: serverDownvotesCount ?? prev.engagement.downvotes,
+      },
+    }));
+  }
+};
 
 export const usePostsStore = create<FeedState>()(
   subscribeWithSelector((set, get) => ({
@@ -1453,7 +1488,7 @@ export const usePostsStore = create<FeedState>()(
           }
         }
 
-        const response = await feedService.likeItem(request);
+        const response = await feedService.voteItem(request.postId, 1);
 
         if (!response.success) {
           // Rollback on failure
@@ -1463,28 +1498,7 @@ export const usePostsStore = create<FeedState>()(
           throw new Error('Failed to like post');
         }
 
-        // Server response has accurate count - use it to sync
-        // Also ensure isLiked is set correctly based on server response
-        const serverLikesCount = response.data?.likesCount;
-        const serverLiked = response.data?.liked !== false; // Default to true if not specified
-
-        if (serverLikesCount !== undefined) {
-          get().updatePostEverywhere(postId, (prev) => {
-            // Update count if different
-            const countChanged = prev.engagement.likes !== serverLikesCount;
-            // Update isLiked if server says different (handles race conditions)
-            const stateChanged = prev.isLiked !== serverLiked;
-
-            if (!countChanged && !stateChanged) return null as any;
-
-            return {
-              ...prev,
-              isLiked: serverLiked,
-              viewerState: { ...prev.viewerState, isLiked: serverLiked },
-              engagement: { ...prev.engagement, likes: serverLikesCount },
-            };
-          });
-        }
+        syncVoteStateFromServer(get, postId, response.data);
       } catch (error) {
         // Rollback optimistic update on error
         if (previousState) {
@@ -1532,7 +1546,7 @@ export const usePostsStore = create<FeedState>()(
           }
         }
 
-        const response = await feedService.unlikeItem(request);
+        const response = await feedService.removeVote(request.postId);
 
         if (!response.success) {
           // Rollback on failure
@@ -1542,34 +1556,69 @@ export const usePostsStore = create<FeedState>()(
           throw new Error('Failed to unlike post');
         }
 
-        // Server response has accurate count - use it to sync
-        // Also ensure isLiked is set correctly based on server response
-        const serverLikesCount = response.data?.likesCount;
-        const serverLiked = response.data?.liked === true; // Default to false if not specified
-
-        if (serverLikesCount !== undefined) {
-          get().updatePostEverywhere(postId, (prev) => {
-            // Update count if different
-            const countChanged = prev.engagement.likes !== serverLikesCount;
-            // Update isLiked if server says different (handles race conditions)
-            const stateChanged = prev.isLiked !== serverLiked;
-
-            if (!countChanged && !stateChanged) return null as any;
-
-            return {
-              ...prev,
-              isLiked: serverLiked,
-              viewerState: { ...prev.viewerState, isLiked: serverLiked },
-              engagement: { ...prev.engagement, likes: serverLikesCount },
-            };
-          });
-        }
+        syncVoteStateFromServer(get, postId, response.data);
       } catch (error) {
         // Rollback optimistic update on error
         if (previousState) {
           get().updatePostEverywhere(postId, () => previousState!);
         }
         const errorMessage = error instanceof Error ? error.message : 'Failed to unlike post';
+        set({ error: errorMessage });
+        throw error;
+      } finally {
+        inFlightEngagements.delete(engagementKey);
+      }
+    },
+
+    // Downvote post - with optimistic update and race condition prevention
+    downvotePost: async (request: { postId: string; type: string }) => {
+      const postId = request.postId;
+      const engagementKey = getEngagementKey(postId, 'downvote');
+      let previousState: FeedItem | null = null;
+
+      const currentOp = inFlightEngagements.get(engagementKey);
+      if (currentOp) return;
+
+      inFlightEngagements.set(engagementKey, 'downvote');
+
+      try {
+        markLocalAction(postId, 'downvote');
+
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+
+          if (!currentPost.isDownvoted) {
+            const wasLiked = currentPost.isLiked;
+            get().updatePostEverywhere(postId, (prev) => ({
+              ...prev,
+              isLiked: false,
+              isDownvoted: true,
+              viewerState: { ...prev.viewerState, isLiked: false, isDownvoted: true },
+              engagement: {
+                ...prev.engagement,
+                likes: wasLiked ? Math.max(0, (prev.engagement.likes ?? 0) - 1) : prev.engagement.likes,
+                downvotes: (prev.engagement.downvotes ?? 0) + 1,
+              },
+            }));
+          }
+        }
+
+        const response = await feedService.voteItem(request.postId, -1);
+
+        if (!response.success) {
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to downvote post');
+        }
+
+        syncVoteStateFromServer(get, postId, response.data);
+      } catch (error) {
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
+        const errorMessage = error instanceof Error ? error.message : 'Failed to downvote post';
         set({ error: errorMessage });
         throw error;
       } finally {
@@ -1704,9 +1753,11 @@ export const usePostsStore = create<FeedState>()(
         if (!prev || !next) return prev === next;
         return (
           prev.isLiked === next.isLiked &&
+          prev.isDownvoted === next.isDownvoted &&
           prev.isReposted === next.isReposted &&
           prev.isSaved === next.isSaved &&
           prev.engagement?.likes === next.engagement?.likes &&
+          prev.engagement?.downvotes === next.engagement?.downvotes &&
           prev.engagement?.reposts === next.engagement?.reposts &&
           prev.engagement?.replies === next.engagement?.replies
         );

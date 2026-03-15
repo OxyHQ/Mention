@@ -38,6 +38,7 @@ interface ViewerContext {
   follows: Set<string>;
   followedBy: Set<string>;
   likedPosts: Set<string>;
+  downvotedPosts: Set<string>;
   savedPosts: Set<string>;
   repostedPosts: Set<string>;
   /** Author IDs with private or followers_only profile visibility */
@@ -210,6 +211,7 @@ export class PostHydrationService {
       follows: new Set<string>(),
       followedBy: new Set<string>(),
       likedPosts: new Set<string>(),
+      downvotedPosts: new Set<string>(),
       savedPosts: new Set<string>(),
       repostedPosts: new Set<string>(),
       privateProfileIds: new Set<string>(),
@@ -425,14 +427,20 @@ export class PostHydrationService {
 
     try {
       const [likes, bookmarks, reposts] = await Promise.all([
-        Like.find({ userId: viewerId, postId: { $in: postIds } }).select('postId').lean(),
+        Like.find({ userId: viewerId, postId: { $in: postIds } }).select('postId value').lean(),
         Bookmark.find({ userId: viewerId, postId: { $in: postIds } }).select('postId').lean(),
         Post.find({ oxyUserId: viewerId, repostOf: { $in: postIds } }).select('repostOf').lean(),
       ]);
 
       likes.forEach((like: any) => {
         const id = like?.postId ? String(like.postId) : undefined;
-        if (id) viewerContext.likedPosts.add(id);
+        if (!id) return;
+        const value = like.value ?? 1;
+        if (value === 1) {
+          viewerContext.likedPosts.add(id);
+        } else {
+          viewerContext.downvotedPosts.add(id);
+        }
       });
 
       bookmarks.forEach((bookmark: any) => {
@@ -1171,6 +1179,7 @@ export class PostHydrationService {
     return {
       isOwner,
       isLiked: viewerContext.likedPosts.has(postId),
+      isDownvoted: viewerContext.downvotedPosts.has(postId),
       isReposted: viewerContext.repostedPosts.has(postId),
       isSaved: viewerContext.savedPosts.has(postId),
     };
@@ -1229,6 +1238,7 @@ export class PostHydrationService {
     const metadata = post?.metadata || {};
 
     const likesCount = typeof stats.likesCount === 'number' ? stats.likesCount : 0;
+    const downvotesCount = typeof stats.downvotesCount === 'number' ? stats.downvotesCount : 0;
     const repostsCount = typeof stats.repostsCount === 'number' ? stats.repostsCount : 0;
     const repliesCount = typeof stats.commentsCount === 'number' ? stats.commentsCount : 0;
     const savesCount = Array.isArray(metadata.savedBy) ? metadata.savedBy.length : undefined;
@@ -1237,6 +1247,7 @@ export class PostHydrationService {
 
     return {
       likes: authorPrivacy.hideLikeCounts ? null : likesCount,
+      downvotes: authorPrivacy.hideLikeCounts ? null : downvotesCount,
       reposts: authorPrivacy.hideShareCounts ? null : repostsCount,
       replies: authorPrivacy.hideReplyCounts ? null : repliesCount,
       saves: authorPrivacy.hideSaveCounts ? null : savesCount ?? null,

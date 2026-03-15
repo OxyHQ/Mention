@@ -11,6 +11,8 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
+import { useVoteStyle } from '@/hooks/useVoteStyle';
+import VotePill from './VotePill';
 
 const ICON_SIZE = 20;
 const MINI_AVATAR = 16;
@@ -20,6 +22,7 @@ interface Engagement {
   replies: number | null;
   reposts: number | null;
   likes: number | null;
+  downvotes?: number | null;
   saves?: number | null;
   views?: number | null;
   recentReplierAvatars?: string[];
@@ -28,11 +31,13 @@ interface Engagement {
 interface Props {
   engagement: Engagement;
   isLiked?: boolean;
+  isDownvoted?: boolean;
   isReposted?: boolean;
   isSaved?: boolean;
   onReply: () => void;
   onRepost: () => void;
   onLike: () => void;
+  onDownvote?: () => void;
   onSave: () => void;
   onShare: () => void;
   onLikesPress?: () => void;
@@ -44,10 +49,12 @@ interface Props {
 const PostActions: React.FC<Props> = ({
   engagement,
   isLiked,
+  isDownvoted,
   isReposted,
   onReply,
   onRepost,
   onLike,
+  onDownvote,
   onShare,
   onLikesPress,
   onRepostsPress,
@@ -56,9 +63,11 @@ const PostActions: React.FC<Props> = ({
   const theme = useTheme();
   const haptic = useHaptics();
   const hasBeenToggled = useRef(false);
+  const voteStyle = useVoteStyle();
 
   const replies = engagement?.replies ?? 0;
   const likes = engagement?.likes ?? 0;
+  const downvotes = engagement?.downvotes ?? 0;
   const replierAvatars = engagement?.recentReplierAvatars ?? [];
 
   // Build summary parts like Threads: "X replies · Y likes"
@@ -69,28 +78,42 @@ const PostActions: React.FC<Props> = ({
     <View>
       {/* Icon row -- icon-only, left-aligned */}
       <View className="flex-row items-center" style={{ gap: 18 }}>
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            hasBeenToggled.current = true;
-            haptic('Light');
-            onLike();
-          }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-        >
-          <View className="flex-row items-center gap-1">
-            <AnimatedLikeIcon
-              isLiked={!!isLiked}
-              hasBeenToggled={hasBeenToggled.current}
-            />
-            <CountWheel
-              likeCount={likes}
-              isLiked={!!isLiked}
-              hasBeenToggled={hasBeenToggled.current}
-            />
-          </View>
-        </PressableScale>
+        {voteStyle === 'pill' && onDownvote ? (
+          <VotePill
+            likeCount={likes}
+            downvoteCount={downvotes}
+            isLiked={!!isLiked}
+            isDownvoted={!!isDownvoted}
+            onUpvote={() => {
+              hasBeenToggled.current = true;
+              onLike();
+            }}
+            onDownvote={onDownvote}
+          />
+        ) : (
+          <PressableScale
+            style={styles.iconButton}
+            onPress={() => {
+              hasBeenToggled.current = true;
+              haptic('Light');
+              onLike();
+            }}
+            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
+          >
+            <View className="flex-row items-center gap-1">
+              <AnimatedLikeIcon
+                isLiked={!!isLiked}
+                hasBeenToggled={hasBeenToggled.current}
+              />
+              <CountWheel
+                likeCount={likes}
+                isLiked={!!isLiked}
+                hasBeenToggled={hasBeenToggled.current}
+              />
+            </View>
+          </PressableScale>
+        )}
 
         <PressableScale
           style={styles.iconButton}

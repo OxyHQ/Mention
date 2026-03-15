@@ -1420,6 +1420,19 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Clamp vote counts to zero and persist corrections if needed
+const clampVoteCounts = async (postId: string, post: any): Promise<{ likesCount: number; downvotesCount: number }> => {
+  const likesCount = Math.max(0, post?.stats?.likesCount ?? 0);
+  const downvotesCount = Math.max(0, post?.stats?.downvotesCount ?? 0);
+  const corrections: Record<string, number> = {};
+  if (likesCount !== (post?.stats?.likesCount ?? 0)) corrections['stats.likesCount'] = 0;
+  if (downvotesCount !== (post?.stats?.downvotesCount ?? 0)) corrections['stats.downvotesCount'] = 0;
+  if (Object.keys(corrections).length > 0) {
+    await Post.findByIdAndUpdate(postId, { $set: corrections });
+  }
+  return { likesCount, downvotesCount };
+};
+
 // Like post
 export const likePost = async (req: AuthRequest, res: Response) => {
   try {
@@ -1429,86 +1442,109 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = req.params.id as string;
+    const value: 1 | -1 = req.body?.value === -1 ? -1 : 1;
 
-    logger.debug(`Like request received: userId=${userId}, postId=${postId}`);
+    logger.debug(`Vote request received: userId=${userId}, postId=${postId}, value=${value}`);
 
-    // Check if already liked
+    // Check if user already has a vote on this post
     const existingLike = await Like.findOne({ userId, postId });
+
     if (existingLike) {
-      logger.debug(`Post ${postId} already liked by user ${userId}`);
-      const currentPost = await Post.findById(postId).select('stats.likesCount metadata.likedBy').lean();
-      
-      // Still record the interaction even if already liked (user expressed interest)
+      const existingValue = existingLike.value ?? 1;
+
+      // Same vote already exists — no-op
+      if (existingValue === value) {
+        logger.debug(`Post ${postId} already voted ${value} by user ${userId}`);
+        const currentPost = await Post.findById(postId).select('stats.likesCount stats.downvotesCount').lean();
+
+        return res.json({
+          message: 'Vote unchanged',
+          likesCount: currentPost?.stats?.likesCount ?? 0,
+          downvotesCount: currentPost?.stats?.downvotesCount ?? 0,
+          liked: value === 1,
+          downvoted: value === -1
+        });
+      }
+
+      // Switching vote direction: update the Like document and adjust both counters
+      existingLike.value = value;
+      await existingLike.save();
+
+      const statsUpdate = value === 1
+        ? { $inc: { 'stats.likesCount': 1, 'stats.downvotesCount': -1 } }
+        : { $inc: { 'stats.likesCount': -1, 'stats.downvotesCount': 1 } };
+
+      const updatedPost = await Post.findByIdAndUpdate(postId, statsUpdate, { new: true }).lean();
+
+      const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
+
       try {
         await userPreferenceService.recordInteraction(userId, postId, 'like');
-        logger.debug('Recorded interaction for already-liked post');
+        await feedCacheService.invalidateUserCache(userId);
       } catch (error) {
-        logger.warn('Failed to record interaction for already-liked post', error);
+        logger.error('Failed to record interaction for vote switch', error);
       }
-      
-      return res.json({ 
-        message: 'Post already liked',
-        likesCount: currentPost?.stats?.likesCount ?? 0,
-        liked: true
+
+      return res.json({
+        message: 'Vote switched successfully',
+        likesCount,
+        downvotesCount,
+        liked: value === 1,
+        downvoted: value === -1
       });
     }
 
-    logger.debug(`User ${userId} liking post ${postId} (not already liked)`);
+    // No existing vote — create new
+    logger.debug(`User ${userId} voting ${value} on post ${postId}`);
+    await Like.create({ userId, postId, value });
 
-    // Create like record (legacy tracking)
-    await Like.create({ userId, postId });
-
-    // Update post stats only (use Like collection as source of truth, not metadata.likedBy)
+    const statField = value === 1 ? 'stats.likesCount' : 'stats.downvotesCount';
     const likedPost = await Post.findByIdAndUpdate(
       postId,
-      {
-        $inc: { 'stats.likesCount': 1 }
-      },
+      { $inc: { [statField]: 1 } },
       { new: true }
     ).lean();
 
     // Record interaction for user preference learning
-    logger.debug(`Recording interaction for user ${userId}, post ${postId}`);
     try {
       await userPreferenceService.recordInteraction(userId, postId, 'like');
-      logger.debug('Successfully recorded interaction');
-      // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
       logger.error('Failed to record interaction for preferences', error);
-      // Don't fail the request if preference tracking fails, but log the error
     }
 
-    // Create like notification to the post author
-    try {
-      const recipientId = likedPost?.oxyUserId?.toString?.() || (likedPost as any)?.oxyUserId || null;
-      if (recipientId && recipientId !== userId) {
-        await createNotification({
-          recipientId,
-          actorId: userId,
-          type: 'like',
-          entityId: postId,
-          entityType: 'post'
-        });
+    // Create notification for upvotes only (not downvotes)
+    if (value === 1) {
+      try {
+        const recipientId = likedPost?.oxyUserId?.toString?.() || (likedPost as any)?.oxyUserId || null;
+        if (recipientId && recipientId !== userId) {
+          await createNotification({
+            recipientId,
+            actorId: userId,
+            type: 'like',
+            entityId: postId,
+            entityType: 'post'
+          });
+        }
+      } catch (e) {
+        logger.error('Failed to create like notification', e);
       }
-    } catch (e) {
-      logger.error('Failed to create like notification', e);
     }
 
-    const likesCount = likedPost?.stats?.likesCount ?? 0;
-
-    res.json({ 
-      message: 'Post liked successfully',
-      likesCount,
-      liked: true
+    res.json({
+      message: value === 1 ? 'Post liked successfully' : 'Post downvoted successfully',
+      likesCount: likedPost?.stats?.likesCount ?? 0,
+      downvotesCount: likedPost?.stats?.downvotesCount ?? 0,
+      liked: value === 1,
+      downvoted: value === -1
     });
   } catch (error) {
-    logger.error('Error liking post', error);
-    res.status(500).json({ message: 'Error liking post' });
+    logger.error('Error voting on post', error);
+    res.status(500).json({ message: 'Error voting on post' });
   }
 };
 
-// Unlike post
+// Remove vote (unlike or remove downvote)
 export const unlikePost = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -1518,23 +1554,26 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id as string;
 
-    // Remove like record
-    const result = await Like.deleteOne({ userId, postId });
-    if (result.deletedCount === 0) {
-      const currentPost = await Post.findById(postId).select('stats.likesCount metadata.likedBy').lean();
-      return res.json({ 
-        message: 'Post not liked',
+    // Find and remove the vote record to know which count to decrement
+    const existingLike = await Like.findOneAndDelete({ userId, postId });
+    if (!existingLike) {
+      const currentPost = await Post.findById(postId).select('stats.likesCount stats.downvotesCount').lean();
+      return res.json({
+        message: 'No vote to remove',
         likesCount: currentPost?.stats?.likesCount ?? 0,
-        liked: false
+        downvotesCount: currentPost?.stats?.downvotesCount ?? 0,
+        liked: false,
+        downvoted: false
       });
     }
 
-    // Update post stats only (use Like collection as source of truth, not metadata.likedBy)
+    // Decrement the appropriate counter based on the vote's value
+    const voteValue = existingLike.value ?? 1;
+    const statField = voteValue === 1 ? 'stats.likesCount' : 'stats.downvotesCount';
+
     const updatedPost = await Post.findByIdAndUpdate(
       postId,
-      {
-        $inc: { 'stats.likesCount': -1 }
-      },
+      { $inc: { [statField]: -1 } },
       { new: true }
     ).lean();
 
@@ -1545,20 +1584,18 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       logger.warn('Failed to invalidate cache', error);
     }
 
-    let likesCount = updatedPost?.stats?.likesCount ?? 0;
-    if (likesCount < 0) {
-      likesCount = 0;
-      await Post.findByIdAndUpdate(postId, { $set: { 'stats.likesCount': 0 } });
-    }
+    const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
 
-    res.json({ 
-      message: 'Post unliked successfully',
+    res.json({
+      message: 'Vote removed successfully',
       likesCount,
-      liked: false
+      downvotesCount,
+      liked: false,
+      downvoted: false
     });
   } catch (error) {
-    logger.error('Error unliking post', error);
-    res.status(500).json({ message: 'Error unliking post' });
+    logger.error('Error removing vote', error);
+    res.status(500).json({ message: 'Error removing vote' });
   }
 };
 

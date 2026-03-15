@@ -36,6 +36,7 @@ const makePublicRequest = async (endpoint: string, params?: Record<string, any>)
 
 interface FeedServiceOptions {
   signal?: AbortSignal;
+  skipCache?: boolean;
 }
 
 interface CachedFeedResponse {
@@ -78,7 +79,7 @@ class FeedService {
    */
   async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedServiceResponse> {
       // Check cache first (only for non-cursor requests to avoid stale pagination)
-      if (!request.cursor) {
+      if (!request.cursor && !options?.skipCache) {
         const cacheKey = getCacheKey(request);
         const cached = feedCache.get(cacheKey);
         if (cached && Date.now() < cached.expiresAt) {
@@ -88,10 +89,12 @@ class FeedService {
       }
 
       // Deduplicate in-flight requests
-      const dedupeKey = getCacheKey(request);
-      const inFlight = inFlightRequests.get(dedupeKey);
-      if (inFlight) {
-        return inFlight;
+      const dedupeKey = options?.skipCache ? undefined : getCacheKey(request);
+      if (dedupeKey) {
+        const inFlight = inFlightRequests.get(dedupeKey);
+        if (inFlight) {
+          return inFlight;
+        }
       }
 
       const fetchPromise = (async () => {
@@ -232,12 +235,16 @@ class FeedService {
         }
       })();
 
-      inFlightRequests.set(dedupeKey, fetchPromise);
-      try {
-        return await fetchPromise;
-      } finally {
-        inFlightRequests.delete(dedupeKey);
+      if (dedupeKey) {
+        inFlightRequests.set(dedupeKey, fetchPromise);
+        try {
+          return await fetchPromise;
+        } finally {
+          inFlightRequests.delete(dedupeKey);
+        }
       }
+
+      return fetchPromise;
   }
 
   /**
@@ -351,18 +358,18 @@ class FeedService {
   }
 
   /**
-   * Like a post
+   * Vote on a post (like = 1, downvote = -1)
    */
-  async likeItem(request: LikeRequest): Promise<{ success: boolean; data: unknown }> {
-    const response = await authenticatedClient.post(`/posts/${request.postId}/like`);
+  async voteItem(postId: string, value: 1 | -1): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.post(`/posts/${postId}/like`, { value });
     return { success: true, data: response.data };
   }
 
   /**
-   * Unlike a post
+   * Remove vote from a post
    */
-  async unlikeItem(request: UnlikeRequest): Promise<{ success: boolean; data: unknown }> {
-    const response = await authenticatedClient.delete(`/posts/${request.postId}/like`);
+  async removeVote(postId: string): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.delete(`/posts/${postId}/like`);
     return { success: true, data: response.data };
   }
 
