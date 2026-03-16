@@ -94,9 +94,8 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'flex-start',
-        paddingLeft: 18,
-        paddingRight: 15,
-        paddingVertical: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
     },
     pressed: {
         opacity: 0.7,
