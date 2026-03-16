@@ -1,9 +1,11 @@
 name: Deploy Frontends
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/deploy-frontends.yml'
       - 'packages/frontend/**'
       - 'packages/agora/**'
       - 'packages/agora-shared/**'
@@ -50,6 +52,7 @@ jobs:
         run: npm run build --workspace=@mention/shared-types
       - name: Build frontend
         run: npm run build --workspace=@mention/frontend
+        timeout-minutes: 60
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
           NODE_ENV: production
@@ -76,6 +79,7 @@ jobs:
         run: npm run build --workspace=@mention/shared-types
       - name: Build agora
         run: npm run build --workspace=@mention/agora
+        timeout-minutes: 60
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
           NODE_ENV: production
