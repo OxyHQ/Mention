@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
+import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { feedService } from '@/services/feedService';
 import { authenticatedClient } from '@/utils/api';
 import SEO from '@/components/SEO';
@@ -212,7 +213,10 @@ const SavedPostsScreen: React.FC = () => {
                             title={searchQuery.trim()
                                 ? t("search.noResults", "No results found")
                                 : t("search.startSearching", "No saved posts yet")}
-                            customIcon={<Search size={48} className="text-muted-foreground" />}
+                            customIcon={searchQuery.trim()
+                                ? <Search size={48} className="text-muted-foreground" />
+                                : <Bookmark size={48} className="text-muted-foreground" />
+                            }
                             containerStyle={{ flex: 1, paddingTop: 60 }}
                         />
                     )}

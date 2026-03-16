@@ -1,6 +1,9 @@
 import React, { memo } from 'react';
 import { FeedType } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Home } from '@/assets/icons/home-icon';
+import { Bookmark } from '@/assets/icons/bookmark-icon';
+import { Hashtag } from '@/assets/icons/hashtag-icon';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -40,17 +43,31 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
 
         const emptyText = showOnlySaved ? 'No saved posts yet' : 'No posts yet';
         const emptySubtext = getEmptySubtext(type, showOnlySaved);
+        const icon = getEmptyIcon(type, showOnlySaved);
 
         return (
             <EmptyState
                 title={emptyText}
                 subtitle={emptySubtext}
+                customIcon={icon}
             />
         );
     }
 );
 
 FeedEmptyState.displayName = 'FeedEmptyState';
+
+function getEmptyIcon(type: FeedType, showOnlySaved?: boolean): React.ReactNode {
+    if (showOnlySaved) {
+        return <Bookmark size={48} className="text-muted-foreground" />;
+    }
+    switch (type) {
+        case 'custom':
+            return <Hashtag size={48} className="text-muted-foreground" />;
+        default:
+            return <Home size={48} className="text-muted-foreground" />;
+    }
+}
 
 function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
     if (showOnlySaved) {

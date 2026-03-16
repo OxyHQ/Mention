@@ -21,7 +21,8 @@ import { FeedResponse } from '@mention/shared-types';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { createScopedLogger } from '@/utils/logger';
 import SEO from '@/components/SEO';
-import { FeedEmptyState } from '@/components/Feed/FeedEmptyState';
+import { EmptyState } from '@/components/common/EmptyState';
+import { Hashtag as HashtagIcon } from '@/assets/icons/hashtag-icon';
 
 const logger = createScopedLogger('HashtagScreen');
 
@@ -151,12 +152,13 @@ const HashtagScreen: React.FC = () => {
     const renderEmpty = () => {
         if (loading) return null;
         return (
-            <FeedEmptyState
+            <EmptyState
                 title={t('hashtag.noPosts', { defaultValue: 'No posts found' })}
-                message={t('hashtag.noPostsMessage', {
+                subtitle={t('hashtag.noPostsMessage', {
                     defaultValue: `No posts have been tagged with ${displayTag} yet.`,
                     hashtag: displayTag
                 })}
+                customIcon={<HashtagIcon size={48} className="text-muted-foreground" />}
             />
         );
     };
