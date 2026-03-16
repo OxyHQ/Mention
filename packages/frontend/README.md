@@ -47,7 +47,7 @@ This package contains the complete React Native application that runs on Android
 ```
 ├── app/                # App entry, screens, and routing
 │   ├── [username]/     # User profile, followers, following
-│   ├── kaana/          # AI assistant or help section
+│   ├── ai/             # AI assistant (Alia chat)
 │   ├── p/[id]/         # Post details, replies, quotes
 │   └── ...
 ├── components/         # UI components (Feed, Post, SideBar, etc.)

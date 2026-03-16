@@ -344,7 +344,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const handleDM = useCallback(() => {
         if (!profileData?.id) return;
         // Navigate to DM conversation with this user
-        router.push(`/kaana?userId=${profileData.id}&username=${profileData.username}` as any);
+        router.push(`/ai?userId=${profileData.id}&username=${profileData.username}` as any);
     }, [profileData?.id, profileData?.username]);
 
     // Open on remote instance (federated only)

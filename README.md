@@ -29,7 +29,7 @@ This is a **monorepo** using npm workspaces with the following structure:
 │   ├── frontend/        # Expo React Native app
 │   │   ├── app/         # App entry, screens, and routing
 │   │   │   ├── [username]/  # User profile, followers, following
-│   │   │   ├── kaana/       # AI assistant or help section
+│   │   │   ├── ai/          # AI assistant (Alia chat)
 │   │   │   ├── p/[id]/      # Post details, replies, quotes
 │   │   │   └── ...
 │   │   ├── components/  # UI components
