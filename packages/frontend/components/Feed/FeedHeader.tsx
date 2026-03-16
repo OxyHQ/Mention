@@ -59,7 +59,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                 style={({ pressed }) => [
                     styles.container,
                     shadowStyle,
-                    { backgroundColor: theme.colors.card },
+                    { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
                     pressed && styles.pressed,
                 ]}
                 accessibilityRole="button"
@@ -109,6 +109,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 16,
         margin: 12,
+        borderWidth: StyleSheet.hairlineWidth,
     },
     pressed: {
         opacity: 0.7,
