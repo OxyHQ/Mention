@@ -1,78 +1,74 @@
-# DigitalOcean App Platform Deployment
+# Deployment Architecture
 
-Guide for deploying the Mention monorepo to DigitalOcean App Platform.
+Guide for the Mention monorepo deployment across DigitalOcean and Cloudflare.
 
 ## Architecture
 
-The `mention-production` app deploys 3 components from the same monorepo:
-
-| Component | Type | Domain | Description |
+| Component | Platform | Domain | Description |
 |---|---|---|---|
-| `mention` | Service | `api.mention.earth` | Node.js backend API |
-| `mention-frontend` | Static Site | `mention.earth` | Expo web frontend |
-| `agora-frontend` | Static Site | `agora.mention.earth` | Agora web frontend |
+| `mention` | DigitalOcean App Platform | `api.mention.earth` | Node.js backend API + ActivityPub |
+| `mention-frontend` | Cloudflare Pages | `mention.earth` | Expo web frontend |
+| `agora-frontend` | Cloudflare Pages | `agora.mention.earth` | Agora web frontend |
 
-## Ingress Routing
-
-All components share a single app with domain-based and path-based routing:
+## Routing
 
 ```
-mention.earth/.well-known/*  → mention (backend, ActivityPub)
-mention.earth/ap/*           → mention (backend, ActivityPub)
-api.mention.earth/*          → mention (backend)
-agora.mention.earth/*        → agora-frontend
-mention.earth/*              → mention-frontend (catch-all)
+mention.earth/*              → mention-frontend (Cloudflare Pages)
+mention.earth/.well-known/*  → 301 → api.mention.earth/.well-known/* (CF Redirect Rule)
+mention.earth/ap/*           → 301 → api.mention.earth/ap/* (CF Redirect Rule)
+agora.mention.earth/*        → agora-frontend (Cloudflare Pages)
+api.mention.earth/*          → mention backend (DigitalOcean)
 ```
 
-## Build Configuration
+ActivityPub identity remains `@user@mention.earth`. WebFinger and AP routes are redirected to `api.mention.earth` via Cloudflare zone-level Redirect Rules (phase `http_request_dynamic_redirect`) with `preserve_query_string: true`.
 
-Each component runs its own buildpack-based build using the heroku/nodejs buildpack.
+## Frontend Deployment (Cloudflare Pages)
 
-### Backend (`mention`)
+Frontends deploy automatically via GitHub Actions (`.github/workflows/deploy-frontends.yml`) on push to `main`.
+
+### Change Detection
+
+The workflow uses `dorny/paths-filter@v3` for per-job granularity:
+- **mention-frontend** rebuilds when `packages/frontend/**`, `packages/shared-types/**`, `package.json`, or `package-lock.json` change
+- **agora-frontend** rebuilds when `packages/agora/**`, `packages/agora-shared/**`, `packages/shared-types/**`, `package.json`, or `package-lock.json` change
+
+Both jobs run in parallel when both apps have changes. Neither runs if only backend code changed.
+
+### Build Process
+
+Each frontend job:
+1. Installs dependencies with `npm ci`
+2. Builds `@mention/shared-types` first (dependency)
+3. Builds the frontend with `NODE_OPTIONS=--max-old-space-size=4096`
+4. Deploys `dist/` to Cloudflare Pages via `wrangler pages deploy`
+
+### SPA Routing
+
+Both frontends include a `public/_redirects` file (`/* /index.html 200`) that Cloudflare Pages uses for SPA catch-all routing.
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Pages write access |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
+
+## Backend Deployment (DigitalOcean)
+
+The `mention-production` DO app deploys the backend service only.
+
+### Build Command
 
 ```
 npm ci --include=dev && npm run -w @mention/backend build && npm prune --omit=dev
 ```
 
-- Installs all dependencies, builds the backend, then prunes dev dependencies for a smaller runtime image.
 - Instance: `apps-s-1vcpu-1gb-fixed`
 - Run command: `node packages/backend/dist/server.js`
 
-### Frontend (`mention-frontend`)
+### Environment Variables
 
-```
-npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/frontend/.expo && npm run build -w @mention/shared-types && npm run build -w @mention/frontend && mv packages/frontend/dist /tmp/_dist && rm -rf * .* 2>/dev/null; mv /tmp/_dist packages/frontend/dist
-```
-
-- Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
-- Builds shared-types first (frontend depends on them), then builds the frontend.
-- After build, moves `dist/` to `/tmp`, wipes the workspace, then restores only `dist/`. This keeps the buildpack image layer minimal (only the static output), preventing resource exhaustion during image export.
-- Output directory: `packages/frontend/dist`
-
-### Agora (`agora-frontend`)
-
-```
-npm cache clean --force && npm ci --include=dev && rm -rf node_modules/.cache .expo packages/agora/.expo && npm run build -w @mention/agora && mv packages/agora/dist /tmp/_dist && rm -rf * .* 2>/dev/null; mv /tmp/_dist packages/agora/dist
-```
-
-- Clears the npm cache first to avoid EEXIST collisions from prior component builds in the same container.
-- After build, moves `dist/` to `/tmp`, wipes the workspace, then restores only `dist/`. This keeps the buildpack image layer minimal (only the static output), preventing resource exhaustion during image export.
-- Output directory: `packages/agora/dist`
-
-## Build Environment Variables
-
-### Static Sites (mention-frontend, agora-frontend)
-
-| Variable | Value | Scope | Purpose |
-|---|---|---|---|
-| `NODE_OPTIONS` | `--max-old-space-size=1536` | `BUILD_TIME` | Prevents OOM during Expo bundling |
-| `NODE_MODULES_CACHE` | `false` | `BUILD_TIME` | Disables buildpack node_modules caching to prevent resource exhaustion during cache upload |
-
-The `NODE_MODULES_CACHE=false` setting is required because all 3 components build in the same build container. Without it, the buildpack tries to cache 3 copies of the full monorepo's `node_modules`, which exhausts the container's resources during the post-build cache upload phase. Static sites don't need cached `node_modules` since only the `dist/` output matters.
-
-### App-Level Environment Variables
-
-These are shared across all components:
+App-level (shared):
 
 | Variable | Value | Scope |
 |---|---|---|
@@ -81,50 +77,48 @@ These are shared across all components:
 | `EXPO_PUBLIC_API_URL` | `https://api.mention.earth` | `RUN_AND_BUILD_TIME` |
 | `NODE_ENV` | `production` | `RUN_AND_BUILD_TIME` |
 
-### Backend-Specific Environment Variables
+Backend-specific variables are configured on the `mention` service component. See [Backend README](../packages/backend/README.md) for the full list.
 
-Configured on the `mention` service component. See [Backend README](../packages/backend/README.md) for the full list.
+### Deployment Trigger
 
-## Database
-
-The app connects to a managed MongoDB cluster (`db-oxy`) on DigitalOcean. Per Oxy ecosystem conventions, the database name is `mention-production` (built from `APP_NAME + NODE_ENV`), passed via the `dbName` option in `mongoose.connect()`.
-
-## Deployment
-
-Deployments trigger automatically on push to `main` (deploy-on-push is enabled for all components).
+Deployments trigger automatically on push to `main` (deploy-on-push enabled).
 
 ### Manual Deployment
 
 ```bash
-# Via DO API
 curl -X POST "https://api.digitalocean.com/v2/apps/{app-id}/deployments" \
   -H "Authorization: Bearer $DIGITALOCEAN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"force_build": true}'
 ```
 
+## Database
+
+The app connects to a managed MongoDB cluster (`db-oxy`) on DigitalOcean. Per Oxy ecosystem conventions, the database name is `mention-production` (built from `APP_NAME + NODE_ENV`), passed via the `dbName` option in `mongoose.connect()`.
+
+## DNS
+
+DNS is managed by Cloudflare (zone `mention.earth`):
+
+| Record | Type | Target |
+|---|---|---|
+| `mention.earth` | CNAME | `mention-frontend.pages.dev` (via CF Pages custom domain) |
+| `agora.mention.earth` | CNAME | `agora-frontend.pages.dev` (via CF Pages custom domain) |
+| `api.mention.earth` | CNAME | `mention-production-mt7zg.ondigitalocean.app` (DNS-only) |
+
 ## Troubleshooting
-
-### BuildJobTerminated (Resource Exhaustion)
-
-If builds complete but the deployment fails with `BuildJobTerminated`, the build container ran out of resources during the post-build image export phase. Two measures prevent this:
-
-1. **`NODE_MODULES_CACHE=false`** on static sites — prevents the buildpack from caching `node_modules` after each build.
-2. **Workspace cleanup** at the end of static site build commands — after building, the `dist/` output is moved to `/tmp`, the entire workspace is wiped, and only `dist/` is restored. Without this, the buildpack must compress and upload the full workspace (~1.7GB including `node_modules`) as a container image layer, which exhausts the build container's resources. This is especially critical for newly added components that have no prior image layers to reuse.
 
 ### Build Errors
 
-Check build logs via the DO API:
+**Backend (DO):** Check build logs via the DO API:
 
 ```bash
 curl "https://api.digitalocean.com/v2/apps/{app-id}/deployments/{deploy-id}/components/{component-name}/logs?type=BUILD" \
   -H "Authorization: Bearer $DIGITALOCEAN_TOKEN"
 ```
 
-### npm EEXIST During Build
-
-If a static site build fails with `npm error code EEXIST` pointing to a path under `/tmp/npmcache.*`, this is caused by multiple components sharing the same build container's `/tmp` directory. Stale npm cache files from one component's `npm ci` collide with the next. The fix is to prepend `npm cache clean --force &&` to the build command for affected static site components.
+**Frontends (CF Pages):** Check the GitHub Actions workflow run logs.
 
 ### Multiple Lock Files
 
-The buildpack rejects builds if multiple package manager lock files exist (e.g., both `bun.lock` and `package-lock.json`). The `.gitignore` excludes `bun.lock` to prevent this.
+The DO buildpack rejects builds if multiple package manager lock files exist (e.g., both `bun.lock` and `package-lock.json`). The `.gitignore` excludes `bun.lock` to prevent this.

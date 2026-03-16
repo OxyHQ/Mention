@@ -1,0 +1,88 @@
+name: Deploy Frontends
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/frontend/**'
+      - 'packages/agora/**'
+      - 'packages/agora-shared/**'
+      - 'packages/shared-types/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+      agora: ${{ steps.changes.outputs.agora }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            frontend:
+              - 'packages/frontend/**'
+              - 'packages/shared-types/**'
+              - 'package.json'
+              - 'package-lock.json'
+            agora:
+              - 'packages/agora/**'
+              - 'packages/agora-shared/**'
+              - 'packages/shared-types/**'
+              - 'package.json'
+              - 'package-lock.json'
+
+  deploy-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Build shared types
+        run: npm run build --workspace=@mention/shared-types
+      - name: Build frontend
+        run: npm run build --workspace=@mention/frontend
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          NODE_ENV: production
+          EXPO_PUBLIC_API_URL: 'https://api.mention.earth'
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy packages/frontend/dist --project-name=mention-frontend --branch=main
+
+  deploy-agora:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.agora == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Build shared types
+        run: npm run build --workspace=@mention/shared-types
+      - name: Build agora
+        run: npm run build --workspace=@mention/agora
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          NODE_ENV: production
+          EXPO_PUBLIC_API_URL: 'https://api.mention.earth'
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy packages/agora/dist --project-name=agora-frontend --branch=main
