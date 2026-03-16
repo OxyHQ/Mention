@@ -491,10 +491,7 @@ export default function SearchIndex() {
                             <EmptyState
                                 title={t("search.noResults", "No results found")}
                                 subtitle={t("search.tryDifferent", "Try searching for something else")}
-                                icon={{
-                                    name: 'search-outline',
-                                    size: 48,
-                                }}
+                                customIcon={<Search size={48} className="text-muted-foreground" />}
                             />
                         )}
 
@@ -575,10 +572,7 @@ export default function SearchIndex() {
                                     <EmptyState
                                         title={t("search.startSearching", "Search Mention")}
                                         subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
-                                        icon={{
-                                            name: 'search-outline',
-                                            size: 48,
-                                        }}
+                                        customIcon={<Search size={48} className="text-muted-foreground" />}
                                     />
                                 )}
                             </View>

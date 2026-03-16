@@ -13,6 +13,7 @@ import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Video } from '@/assets/icons/video-icon';
 
 interface VideosGridProps {
     userId?: string;
@@ -223,10 +224,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         return (
             <EmptyState
                 title="No videos yet"
-                icon={{
-                    name: 'videocam-outline',
-                    size: 48,
-                }}
+                customIcon={<Video size={48} className="text-muted-foreground" />}
                 containerStyle={{ flex: 1 }}
             />
         );

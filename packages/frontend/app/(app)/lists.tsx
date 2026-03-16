@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import SEO from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 import { EmptyState } from '@/components/common/EmptyState';
+import { List } from '@/assets/icons/list-icon';
 
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
@@ -58,10 +59,7 @@ export default function ListsScreen() {
             <EmptyState
               title={t('lists.empty.title')}
               subtitle={t('lists.empty.subtitle')}
-              icon={{
-                name: 'list',
-                size: 48,
-              }}
+              customIcon={<List size={48} className="text-muted-foreground" />}
               action={{
                 label: t('lists.createList'),
                 onPress: () => router.push('/lists/create'),

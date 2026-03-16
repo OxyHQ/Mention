@@ -17,6 +17,7 @@ import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
 // Constants
@@ -755,10 +756,7 @@ export default function VideosScreen() {
                 <EmptyState
                     title={t('videos.no_video_posts_yet')}
                     subtitle={t('videos.no_posts_found')}
-                    icon={{
-                        name: 'videocam-outline',
-                        size: 48,
-                    }}
+                    customIcon={<Video size={48} className="text-muted-foreground" />}
                     containerStyle={styles.emptyState}
                 />
             )}
