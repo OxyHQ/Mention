@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         paddingHorizontal: 12,
         paddingVertical: 12,
-        borderRadius: 16,
+        borderRadius: 9999,
         margin: 12,
         borderWidth: StyleSheet.hairlineWidth,
     },
