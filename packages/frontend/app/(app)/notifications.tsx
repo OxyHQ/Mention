@@ -31,6 +31,7 @@ import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Bell } from '@/assets/icons/bell-icon';
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
@@ -252,11 +253,20 @@ const NotificationsScreen: React.FC = () => {
         <EmptyState
             title={t('notification.empty.title', { defaultValue: "You're all caught up" })}
             subtitle={t('notification.empty.subtitle', { defaultValue: 'We will let you know when something new happens.' })}
-            icon={{
-                name: 'notifications-outline',
-                size: 48,
-                backgroundColor: theme.colors.surfaceSecondary ?? `${theme.colors.border}33`,
-            }}
+            customIcon={
+                <View
+                    style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 36,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: theme.colors.surfaceSecondary ?? `${theme.colors.border}33`,
+                    }}
+                >
+                    <Bell color={theme.colors.textSecondary} size={36} />
+                </View>
+            }
         />
     ), [t, theme]);
 
