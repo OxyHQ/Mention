@@ -448,17 +448,11 @@ export const usePostsStore = create<FeedState>()(
       
       // Create abort controller for this request
       const abortController = new AbortController();
-      pendingRequests.set(requestKey, { timestamp: now, abortController });
-      
+
       // Check if filters changed - if so, clear old items before fetching
       const filtersChanged = !request.cursor && currentFeed?.items && currentFeed.items.length > 0 &&
         JSON.stringify(request.filters || {}) !== JSON.stringify(currentFeed.filters || {});
-      
-      // Skip if we have items AND no cursor AND no filters change
-      if (!request.cursor && currentFeed?.items && currentFeed.items.length > 0 && !filtersChanged) {
-        return;
-      }
-      
+
       // If filters changed, clear old items to show new filtered results
       // Clear items immediately so UI doesn't show stale data
       set(state => ({
@@ -472,6 +466,9 @@ export const usePostsStore = create<FeedState>()(
           }
         }
       }));
+
+      // Set pending request inside try block so finally always cleans it up
+      pendingRequests.set(requestKey, { timestamp: now, abortController });
 
       try {
         const response = await feedService.getFeed(request, { signal: abortController.signal });

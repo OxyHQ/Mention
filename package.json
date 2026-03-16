@@ -23,6 +23,10 @@
     "start:frontend": "npm run start --workspace=@mention/frontend",
     "start:backend": "npm run start --workspace=@mention/backend",
     "start:agora": "npm run start --workspace=@mention/agora",
+    "start:mcp": "npm run start --workspace=@mention/mcp",
+    "start:mcp:http": "npm run start:http --workspace=@mention/mcp",
+    "dev:mcp": "npm run dev --workspace=@mention/mcp",
+    "dev:mcp:http": "npm run dev:http --workspace=@mention/mcp",
     "postinstall": "npm run build:shared-types"
   },
   "devDependencies": {

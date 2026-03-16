@@ -174,9 +174,10 @@ export function useFeedState({
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
             const currentFeed = !useScoped ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
             const hasItems = currentFeed?.items && currentFeed.items.length > 0;
+            const wasFetched = currentFeed?.lastUpdated && currentFeed.lastUpdated > 0;
 
-            // Skip if feed already has items and not forcing refresh
-            if (!useScoped && hasItems && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
+            // Skip if feed was properly fetched (lastUpdated > 0) and has items
+            if (!useScoped && hasItems && wasFetched && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
                 logger.debug('[useFeedState] Skipping - feed has items and not saved');
                 isFetchingRef.current = false;
                 return;
@@ -458,7 +459,7 @@ export function useFeedState({
         if (!useScoped && !showOnlySaved) {
             const feedTypeToCheck = type;
             const currentFeed = usePostsStore.getState().feeds[feedTypeToCheck];
-            const hasItems = currentFeed?.items && currentFeed.items.length > 0;
+            const hasItems = currentFeed?.items && currentFeed.items.length > 0 && currentFeed.lastUpdated > 0;
 
             if (hasItems && !filters?.searchQuery) {
                 logger.debug('[useFeedState] Skipping - feed has items and no search query');

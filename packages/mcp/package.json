@@ -1,0 +1,22 @@
+{
+  "name": "@mention/mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Mention social platform",
+  "type": "module",
+  "main": "server.ts",
+  "scripts": {
+    "start": "bun server.ts",
+    "start:http": "bun server-http.ts",
+    "dev": "bun --watch server.ts",
+    "dev:http": "bun --watch server-http.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.8.3"
+  }
+}
