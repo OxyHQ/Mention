@@ -15,7 +15,7 @@ interface FeedHeaderProps {
 
 /**
  * Composer prompt matching Bluesky's ComposerPrompt layout:
- * [Avatar 42px] ["What's up?" text] [Camera icon (native)] [Image icon]
+ * [Avatar 40px] ["What's up?" text] [Camera icon (native)] [Image icon]
  *
  * Sits flush at the top of the feed list. Only renders for authenticated users.
  */
@@ -56,7 +56,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                 accessibilityHint="Opens the post composer">
                 <Avatar
                     source={user.avatar || undefined}
-                    size={42}
+                    size={40}
                 />
                 <View style={styles.textRow}>
                     <ThemedText
