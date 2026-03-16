@@ -1927,7 +1927,6 @@ export const usePostsStore = create<FeedState>()(
               ...currentFeed,
               items: finalItems,
               totalCount: finalItems.length,
-              lastUpdated: Date.now()
             }
           },
           postsById: newCache
@@ -1969,7 +1968,6 @@ export const usePostsStore = create<FeedState>()(
               ...currentFeed,
               items: finalItems,
               totalCount: finalItems.length,
-              lastUpdated: Date.now()
             }
           },
           postsById: newCache
