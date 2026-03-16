@@ -283,8 +283,8 @@ export class FeedQueryBuilder {
   ): Record<string, unknown> {
     const match: Record<string, unknown> = {
       visibility: PostVisibility.PUBLIC,
+      // No parentPostId filter — replies flow through for thread slicing
       $and: [
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
       ]
     };

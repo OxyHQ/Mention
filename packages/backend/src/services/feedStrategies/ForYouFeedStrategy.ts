@@ -225,8 +225,8 @@ export class ForYouFeedStrategy implements IFeedStrategy {
   private async generatePopularFeed(cursor?: string, limit: number = 20): Promise<FeedResponse> {
     const match: any = {
       visibility: 'public',
+      // No parentPostId filter — replies flow through for thread slicing
       $and: [
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
       ]
     };

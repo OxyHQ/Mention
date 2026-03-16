@@ -8,7 +8,7 @@ import {
     Text,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { FeedType, HydratedPost, Reply, FeedRepost as Repost, FeedPostSlice } from '@mention/shared-types';
+import { FeedType, HydratedPost, Reply, FeedRepost as Repost, FeedPostSlice, FeedSliceReason } from '@mention/shared-types';
 import PostItem from './PostItem';
 
 // Type alias for feed items (what PostItem expects)
@@ -22,6 +22,7 @@ interface FeedRow {
     isThreadChild: boolean;
     isThreadLastChild: boolean;
     isIncompleteThread: boolean;
+    sliceReason?: FeedSliceReason;
 }
 import ErrorBoundary from '../ErrorBoundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
@@ -162,6 +163,7 @@ const Feed = memo((props: FeedProps) => {
                         isThreadChild: i > 0,
                         isThreadLastChild: i === slice.items.length - 1 && i > 0,
                         isIncompleteThread: slice.isIncompleteThread,
+                        sliceReason: slice.reason,
                     });
                 }
             }
@@ -228,9 +230,19 @@ const Feed = memo((props: FeedProps) => {
         }
 
         const showThreadLink = row.isIncompleteThread && row.isThreadLastChild;
+        const replyContextAuthor = row.isThreadChild && row.sliceReason?.type === 'replyContext'
+            ? row.sliceReason.parentAuthor
+            : undefined;
 
         return (
             <PostErrorBoundary postId={post.id}>
+                {replyContextAuthor && (
+                    <View style={styles.replyContextLabel}>
+                        <Text className="text-muted-foreground text-xs">
+                            Replying to <Text className="text-primary text-xs">@{replyContextAuthor.handle || replyContextAuthor.displayName}</Text>
+                        </Text>
+                    </View>
+                )}
                 <PostItem
                     post={post}
                     isThreadParent={row.isThreadParent}
@@ -518,5 +530,10 @@ const styles = StyleSheet.create({
         paddingLeft: 64, // HPAD + AVATAR_SIZE + AVATAR_GAP
         paddingRight: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    replyContextLabel: {
+        paddingLeft: 64, // HPAD + AVATAR_SIZE + AVATAR_GAP
+        paddingTop: 8,
+        paddingBottom: 2,
     },
 });

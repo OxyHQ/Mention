@@ -589,22 +589,44 @@ class FeedController {
         filteredPosts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
       }
 
-      // Use FeedResponseBuilder for consistent response building
-      const response = feedType === 'saved'
-        ? await FeedResponseBuilder.buildSavedPostsResponse(
-            filteredPosts,
-            limit,
-            cursor,
-            (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
-            currentUserId
-          )
-        : await FeedResponseBuilder.buildResponse({
-            posts: filteredPosts,
-            limit,
-            previousCursor: cursor,
-            transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
-            currentUserId
-          });
+      // Build response: saved posts use flat response, other feeds use thread slicing
+      let response;
+      if (feedType === 'saved') {
+        response = await FeedResponseBuilder.buildSavedPostsResponse(
+          filteredPosts,
+          limit,
+          cursor,
+          (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
+          currentUserId
+        );
+      } else {
+        // Thread slicing for mixed/posts/replies feeds
+        const hasMore = filteredPosts.length > limit;
+        const postsToSlice = hasMore ? filteredPosts.slice(0, limit) : filteredPosts;
+
+        const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToSlice, {
+          enableThreadGrouping: true,
+          enableReplyContext: true,
+          maxSliceSize: 3,
+          viewerId: currentUserId,
+        });
+
+        const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+          viewerId: currentUserId,
+          oxyClient: createScopedOxyClient(req),
+          maxDepth: 0,
+          includeLinkMetadata: true,
+          includeFullArticleBody: false,
+          includeFullMetadata: false,
+        });
+
+        response = FeedResponseBuilder.buildSlicedResponse({
+          slices: hydratedSlices,
+          limit,
+          previousCursor: cursor,
+          hasMore,
+        });
+      }
 
       // DON'T emit feed:updated for fetch requests - this causes duplicates!
       // Socket feed:updated events should only be emitted when new posts are created,
@@ -671,8 +693,8 @@ class FeedController {
       if (!currentUserId) {
         const match: any = {
           visibility: PostVisibility.PUBLIC,
+          // No parentPostId filter — replies flow through for thread slicing
           $and: [
-            { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
             { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
           ]
         };
@@ -721,13 +743,29 @@ class FeedController {
         // Validate result size
         validateResultSize(posts, limit + 1);
 
-        // Use FeedResponseBuilder for consistent response building
-        const response = await FeedResponseBuilder.buildResponse({
-          posts,
+        const hasMore = posts.length > limit;
+        const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+
+        // Thread slicing for unauthenticated For You feed
+        const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+          enableThreadGrouping: true,
+          enableReplyContext: true,
+          maxSliceSize: 3,
+        });
+
+        const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+          oxyClient: createScopedOxyClient(req),
+          maxDepth: 0,
+          includeLinkMetadata: true,
+          includeFullArticleBody: false,
+          includeFullMetadata: false,
+        });
+
+        const response = FeedResponseBuilder.buildSlicedResponse({
+          slices: hydratedSlices,
           limit,
           previousCursor: cursor,
-          transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
-          currentUserId
+          hasMore,
         });
 
         return res.json(response);
@@ -1349,13 +1387,31 @@ class FeedController {
       // Validate result size
       validateResultSize(posts, limit + 1);
 
-      // Use FeedResponseBuilder for consistent response building
-      const response = await FeedResponseBuilder.buildResponse({
-        posts,
+      // Thread slicing for user profile feeds
+      const hasMore = posts.length > limit;
+      const postsToSlice = hasMore ? posts.slice(0, limit) : posts;
+
+      const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToSlice, {
+        enableThreadGrouping: true,
+        enableReplyContext: false, // Profile feeds show user's own posts, no reply context needed
+        maxSliceSize: 3,
+        viewerId: currentUserId,
+      });
+
+      const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+        viewerId: currentUserId,
+        oxyClient: createScopedOxyClient(req),
+        maxDepth: 0,
+        includeLinkMetadata: true,
+        includeFullArticleBody: false,
+        includeFullMetadata: false,
+      });
+
+      const response = FeedResponseBuilder.buildSlicedResponse({
+        slices: hydratedSlices,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
-        currentUserId
+        hasMore,
       });
 
       res.json(response);
@@ -1466,6 +1522,7 @@ class FeedController {
         content: replyContent,
         visibility: parentPost.reviewReplies ? PostVisibility.PRIVATE : PostVisibility.PUBLIC,
         parentPostId: postId,
+        threadId: parentPost.threadId || parentPost._id.toString(),
         hashtags: mergedTags,
         mentions: mentions || [],
         stats: {
