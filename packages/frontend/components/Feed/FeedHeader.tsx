@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, Pressable, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useAuth } from '@oxyhq/services';
 import { router } from 'expo-router';
@@ -43,12 +43,23 @@ export const FeedHeader = memo<FeedHeaderProps>(
         if (!showComposeButton || hideHeader || !user) return null;
 
         const iconColor = theme.colors.textSecondary;
+        const primaryColor = theme.colors.primary;
+
+        const shadowStyle = useMemo(() => ({
+            shadowColor: primaryColor,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: theme.isDark ? 0.3 : 0.15,
+            shadowRadius: 8,
+            elevation: 3,
+        }), [primaryColor, theme.isDark]);
 
         return (
             <Pressable
                 onPress={handlePress}
                 style={({ pressed }) => [
                     styles.container,
+                    shadowStyle,
+                    { backgroundColor: theme.colors.card },
                     pressed && styles.pressed,
                 ]}
                 accessibilityRole="button"
@@ -96,6 +107,8 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         paddingHorizontal: 12,
         paddingVertical: 12,
+        borderRadius: 16,
+        margin: 12,
     },
     pressed: {
         opacity: 0.7,
