@@ -47,7 +47,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
 
         const shadowStyle = useMemo(() => ({
             shadowColor: primaryColor,
-            shadowOffset: { width: 0, height: 2 },
+            shadowOffset: { width: 0, height: 0 },
             shadowOpacity: theme.isDark ? 0.3 : 0.15,
             shadowRadius: 8,
             elevation: 3,
