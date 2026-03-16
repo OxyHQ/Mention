@@ -45,21 +45,24 @@ export const FeedHeader = memo<FeedHeaderProps>(
         const iconColor = theme.colors.textSecondary;
         const primaryColor = theme.colors.primary;
 
-        const shadowStyle = useMemo(() => ({
+        const dynamicStyle = useMemo(() => ({
+            backgroundColor: theme.colors.card,
+            borderColor: theme.isDark
+                ? `${primaryColor}20`
+                : `${primaryColor}15`,
             shadowColor: primaryColor,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: theme.isDark ? 0.3 : 0.15,
-            shadowRadius: 8,
-            elevation: 3,
-        }), [primaryColor, theme.isDark]);
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: theme.isDark ? 0.35 : 0.12,
+            shadowRadius: 12,
+            elevation: 4,
+        }), [primaryColor, theme.isDark, theme.colors.card]);
 
         return (
             <Pressable
                 onPress={handlePress}
                 style={({ pressed }) => [
                     styles.container,
-                    shadowStyle,
-                    { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+                    dynamicStyle,
                     pressed && styles.pressed,
                 ]}
                 accessibilityRole="button"
