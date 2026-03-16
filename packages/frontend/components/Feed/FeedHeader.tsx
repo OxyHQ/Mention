@@ -70,7 +70,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                 accessibilityHint="Opens the post composer">
                 <Avatar
                     source={user.avatar || undefined}
-                    size={40}
+                    size={32}
                 />
                 <View style={styles.textRow}>
                     <ThemedText
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: 40,
+        height: 32,
     },
     promptText: {
         fontSize: 16,
