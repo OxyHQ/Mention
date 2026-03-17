@@ -23,7 +23,11 @@ interface FeedRow {
     isThreadLastChild: boolean;
     isIncompleteThread: boolean;
     sliceReason?: FeedSliceReason;
+    nestingDepth: number;
+    truncatedChildCount: number;
 }
+
+const MAX_THREAD_NESTING_DEPTH = 3;
 import ErrorBoundary from '../ErrorBoundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
@@ -35,7 +39,7 @@ import { useRouter } from 'expo-router';
 import { createScopedLogger } from '@/utils/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, getItemKey, deduplicateItems, deepEqual } from '@/utils/feedUtils';
+import { FeedFilters, getItemKey, deduplicateItems, deepEqual, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
@@ -58,6 +62,8 @@ interface FeedProps {
     style?: React.ComponentProps<typeof View>['style'];
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     listHeaderComponent?: React.ReactElement | null;
+    threaded?: boolean;
+    threadPostId?: string;
 }
 
 const DEFAULT_FEED_PROPS = {
@@ -83,6 +89,8 @@ const Feed = memo((props: FeedProps) => {
         style,
         contentContainerStyle,
         listHeaderComponent,
+        threaded,
+        threadPostId,
     } = { ...DEFAULT_FEED_PROPS, ...props };
 
     const theme = useTheme();
@@ -164,6 +172,8 @@ const Feed = memo((props: FeedProps) => {
                         isThreadLastChild: i === slice.items.length - 1 && i > 0,
                         isIncompleteThread: slice.isIncompleteThread,
                         sliceReason: slice.reason,
+                        nestingDepth: 0,
+                        truncatedChildCount: 0,
                     });
                 }
             }
@@ -180,6 +190,40 @@ const Feed = memo((props: FeedProps) => {
                 return authorId ? !blockedSet.has(authorId) : true;
             })
             : deduped;
+
+        // Threaded mode: build reply tree and flatten with nesting depth
+        if (threaded && threadPostId && filteredByPrivacy.length > 0) {
+            const tree = buildReplyTree(filteredByPrivacy, threadPostId);
+            const rows: FeedRow[] = [];
+
+            const flattenNode = (node: ReplyNode, depth: number) => {
+                const item = node.reply as FeedItem;
+                const isTruncated = depth >= MAX_THREAD_NESTING_DEPTH && node.children.length > 0;
+
+                rows.push({
+                    item,
+                    sliceKey: getItemKey(item),
+                    isThreadParent: node.children.length > 0 && !isTruncated,
+                    isThreadChild: depth > 0,
+                    isThreadLastChild: false,
+                    isIncompleteThread: isTruncated,
+                    nestingDepth: depth,
+                    truncatedChildCount: isTruncated ? node.children.length : 0,
+                });
+
+                if (!isTruncated) {
+                    for (const child of node.children) {
+                        flattenNode(child, depth + 1);
+                    }
+                }
+            };
+
+            for (const node of tree) {
+                flattenNode(node, 0);
+            }
+
+            return rows;
+        }
 
         // Sort recent user posts to top for for_you feed
         let finalItems = filteredByPrivacy;
@@ -218,8 +262,10 @@ const Feed = memo((props: FeedProps) => {
             isThreadChild: false,
             isThreadLastChild: false,
             isIncompleteThread: false,
+            nestingDepth: 0,
+            truncatedChildCount: 0,
         }));
-    }, [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet]);
+    }, [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
 
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item: row }: { item: FeedRow; index: number }) => {
@@ -230,11 +276,13 @@ const Feed = memo((props: FeedProps) => {
         }
 
         const showThreadLink = row.isIncompleteThread && row.isThreadLastChild;
+        const showMoreReplies = row.isIncompleteThread && row.truncatedChildCount > 0;
         const replyContextAuthor = row.isThreadChild && row.sliceReason?.type === 'replyContext'
             ? row.sliceReason.parentAuthor
             : undefined;
+        const nestPadding = row.nestingDepth > 0 ? { paddingLeft: 16 * row.nestingDepth } : undefined;
 
-        return (
+        const content = (
             <PostErrorBoundary postId={post.id}>
                 {replyContextAuthor && (
                     <View style={styles.replyContextLabel}>
@@ -248,6 +296,7 @@ const Feed = memo((props: FeedProps) => {
                     isThreadParent={row.isThreadParent}
                     isThreadChild={row.isThreadChild}
                     isThreadLastChild={row.isThreadLastChild}
+                    nestingDepth={row.nestingDepth}
                 />
                 {showThreadLink && (
                     <Pressable
@@ -260,8 +309,29 @@ const Feed = memo((props: FeedProps) => {
                         </Text>
                     </Pressable>
                 )}
+                {showMoreReplies && (
+                    <Pressable
+                        style={[styles.showMoreReplies, nestPadding]}
+                        onPress={() => router.push(`/p/${post.id}`)}
+                    >
+                        <Text className="text-primary text-sm font-medium">
+                            Show more replies ({row.truncatedChildCount})
+                        </Text>
+                    </Pressable>
+                )}
             </PostErrorBoundary>
         );
+
+        if (nestPadding) {
+            return (
+                <View style={[styles.nestedRow, nestPadding]}>
+                    <View className="bg-border" style={styles.nestedThreadLine} />
+                    {content}
+                </View>
+            );
+        }
+
+        return content;
     }, [router]);
 
     const keyExtractor = useCallback((row: FeedRow) => {
@@ -272,6 +342,7 @@ const Feed = memo((props: FeedProps) => {
 
     // CRITICAL: getItemType helps FlashList properly recycle components
     const getItemType = useCallback((row: FeedRow) => {
+        if (row.nestingDepth > 0) return `nested_${row.nestingDepth}`;
         if (row.isThreadParent) return 'threadParent';
         if (row.isThreadChild) return 'threadChild';
         const item = row.item;
@@ -455,6 +526,7 @@ const Feed = memo((props: FeedProps) => {
                         onEndReached: handleLoadMore,
                         onEndReachedThreshold: 0.7,
                         showsVerticalScrollIndicator: false,
+                        keyboardShouldPersistTaps: 'handled',
                         onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
                         scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
                         onWheel: Platform.OS === 'web' ? handleWheelEvent : undefined,
@@ -490,7 +562,9 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.type !== nextProps.type ||
         prevProps.userId !== nextProps.userId ||
         prevProps.showOnlySaved !== nextProps.showOnlySaved ||
-        prevProps.scrollEnabled !== nextProps.scrollEnabled
+        prevProps.scrollEnabled !== nextProps.scrollEnabled ||
+        prevProps.threaded !== nextProps.threaded ||
+        prevProps.threadPostId !== nextProps.threadPostId
     ) {
         return false;
     }
@@ -535,5 +609,21 @@ const styles = StyleSheet.create({
         paddingLeft: 64, // HPAD + AVATAR_SIZE + AVATAR_GAP
         paddingTop: 8,
         paddingBottom: 2,
+    },
+    nestedRow: {
+        position: 'relative',
+    },
+    nestedThreadLine: {
+        position: 'absolute',
+        left: 32,
+        top: 0,
+        bottom: 0,
+        width: 2,
+        borderRadius: 1,
+    },
+    showMoreReplies: {
+        paddingVertical: 10,
+        paddingLeft: 16,
+        paddingRight: 12,
     },
 });

@@ -80,7 +80,7 @@ function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
         case 'media':
             return 'No media posts found';
         case 'replies':
-            return 'No replies yet';
+            return 'No replies yet. Be the first to reply!';
         case 'reposts':
             return 'No reposts yet';
         case 'explore':

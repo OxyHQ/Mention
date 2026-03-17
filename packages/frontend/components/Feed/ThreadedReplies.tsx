@@ -4,56 +4,14 @@ import { useRouter } from 'expo-router';
 import PostItem from './PostItem';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import { useTranslation } from 'react-i18next';
+import { buildReplyTree, ReplyNode } from '@/utils/feedUtils';
 
 const MAX_NESTING_DEPTH = 3;
-
-interface ReplyNode {
-    reply: any;
-    children: ReplyNode[];
-}
 
 interface ThreadedRepliesProps {
     replies: any[];
     postId: string;
     onReply?: () => void;
-}
-
-/**
- * Build a tree of replies from a flat list.
- * Top-level replies have parentPostId === postId.
- * Nested replies have parentPostId pointing to another reply.
- */
-function buildReplyTree(replies: any[], postId: string): ReplyNode[] {
-    const replyMap = new Map<string, ReplyNode>();
-    const topLevel: ReplyNode[] = [];
-
-    // Create nodes for all replies
-    for (const reply of replies) {
-        const id = String(reply.id || reply._id);
-        replyMap.set(id, { reply, children: [] });
-    }
-
-    // Build tree
-    for (const reply of replies) {
-        const id = String(reply.id || reply._id);
-        const parentId = String(reply.parentPostId || '');
-        const node = replyMap.get(id)!;
-
-        if (parentId === postId || !replyMap.has(parentId)) {
-            // Top-level reply to the post, or parent not in this set
-            topLevel.push(node);
-        } else {
-            // Nested reply - add to parent's children
-            const parentNode = replyMap.get(parentId);
-            if (parentNode) {
-                parentNode.children.push(node);
-            } else {
-                topLevel.push(node);
-            }
-        }
-    }
-
-    return topLevel;
 }
 
 const ThreadedReplyNode: React.FC<{

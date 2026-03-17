@@ -71,6 +71,48 @@ export function deepEqual<T>(a: T, b: T): boolean {
 }
 
 /**
+ * Node in a reply tree, used for threaded display
+ */
+export interface ReplyNode {
+    reply: any;
+    children: ReplyNode[];
+}
+
+/**
+ * Build a tree of replies from a flat list.
+ * Top-level replies have parentPostId === postId.
+ * Nested replies have parentPostId pointing to another reply.
+ */
+export function buildReplyTree(replies: any[], postId: string): ReplyNode[] {
+    const replyMap = new Map<string, ReplyNode>();
+    const topLevel: ReplyNode[] = [];
+
+    for (const reply of replies) {
+        const id = String(reply.id || reply._id);
+        replyMap.set(id, { reply, children: [] });
+    }
+
+    for (const reply of replies) {
+        const id = String(reply.id || reply._id);
+        const parentId = String(reply.parentPostId || '');
+        const node = replyMap.get(id)!;
+
+        if (parentId === postId || !replyMap.has(parentId)) {
+            topLevel.push(node);
+        } else {
+            const parentNode = replyMap.get(parentId);
+            if (parentNode) {
+                parentNode.children.push(node);
+            } else {
+                topLevel.push(node);
+            }
+        }
+    }
+
+    return topLevel;
+}
+
+/**
  * Deduplicate items using Map for O(1) lookups
  */
 export function deduplicateItems<T>(
