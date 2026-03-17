@@ -1,34 +1,14 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { Toggle } from '@/components/Toggle';
+import { Icon } from '@/lib/icons';
+import { RadioIndicator } from '@/components/ui/RadioIndicator';
 import { SettingsGroup } from '@/components/settings/SettingsItem';
 import {
     useThreadPreferencesStore,
-    type SortOrder,
+    SORT_OPTIONS,
 } from '@/hooks/useThreadPreferences';
-
-const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
-
-const SORT_OPTIONS: { value: SortOrder; icon: string; labelKey: string; defaultLabel: string }[] = [
-    { value: 'top', icon: 'trending-up', labelKey: 'replyPreferences.sortTop', defaultLabel: 'Top replies first' },
-    { value: 'oldest', icon: 'time-outline', labelKey: 'replyPreferences.sortOldest', defaultLabel: 'Oldest replies first' },
-    { value: 'newest', icon: 'arrow-down', labelKey: 'replyPreferences.sortNewest', defaultLabel: 'Newest replies first' },
-];
-
-function RadioIndicator({ selected }: { selected: boolean }) {
-    return (
-        <View
-            className={`w-5 h-5 rounded-full border-2 items-center justify-center ${
-                selected ? 'border-primary bg-primary' : 'border-border'
-            }`}
-        >
-            {selected ? <View className="w-2 h-2 rounded-full bg-white" /> : null}
-        </View>
-    );
-}
 
 export default function ReplyPreferencesSheet() {
     const { t } = useTranslation();
@@ -48,7 +28,7 @@ export default function ReplyPreferencesSheet() {
                 >
                     <View className="flex-row items-center gap-3">
                         <View className="w-7 items-center justify-center">
-                            <IconComponent name="list-outline" size={20} color={colors.textSecondary} />
+                            <Icon name="list-outline" size={20} color={colors.textSecondary} />
                         </View>
                         <Text className="text-[15px] font-medium text-foreground">
                             {t('replyPreferences.linear', { defaultValue: 'Linear' })}
@@ -62,7 +42,7 @@ export default function ReplyPreferencesSheet() {
                 >
                     <View className="flex-row items-center gap-3">
                         <View className="w-7 items-center justify-center">
-                            <IconComponent name="git-branch-outline" size={20} color={colors.textSecondary} />
+                            <Icon name="git-branch-outline" size={20} color={colors.textSecondary} />
                         </View>
                         <Text className="text-[15px] font-medium text-foreground">
                             {t('replyPreferences.threaded', { defaultValue: 'Threaded' })}
@@ -82,8 +62,8 @@ export default function ReplyPreferencesSheet() {
                     >
                         <View className="flex-row items-center gap-3">
                             <View className="w-7 items-center justify-center">
-                                <IconComponent
-                                    name={option.icon as React.ComponentProps<typeof Ionicons>['name']}
+                                <Icon
+                                    name={option.icon}
                                     size={20}
                                     color={colors.textSecondary}
                                 />

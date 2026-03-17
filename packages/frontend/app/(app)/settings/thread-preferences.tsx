@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -12,18 +11,12 @@ import { useTranslation } from 'react-i18next';
 import { storeData } from '@/utils/storage';
 import { SettingsGroup } from '@/components/settings/SettingsItem';
 import { STORAGE_KEYS } from '@/lib/constants';
-import { useThreadPreferencesStore, type SortOrder } from '@/hooks/useThreadPreferences';
+import { Icon, type IconName } from '@/lib/icons';
+import { RadioIndicator } from '@/components/ui/RadioIndicator';
+import { useThreadPreferencesStore, SORT_OPTIONS } from '@/hooks/useThreadPreferences';
 import { useVoteStyle, type VoteStyle } from '@/hooks/useVoteStyle';
 
-const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
-
-const SORT_OPTIONS: { value: SortOrder; labelKey: string; defaultLabel: string }[] = [
-    { value: 'top', labelKey: 'settings.threadPreferences.sortTop', defaultLabel: 'Most liked' },
-    { value: 'oldest', labelKey: 'settings.threadPreferences.sortOldest', defaultLabel: 'Oldest first' },
-    { value: 'newest', labelKey: 'settings.threadPreferences.sortNewest', defaultLabel: 'Newest first' },
-];
-
-const VOTE_STYLE_OPTIONS: { value: VoteStyle; icon: string; labelKey: string; defaultLabel: string }[] = [
+const VOTE_STYLE_OPTIONS: { value: VoteStyle; icon: IconName; labelKey: string; defaultLabel: string }[] = [
     { value: 'heart', icon: 'heart-outline', labelKey: 'settings.threadPreferences.voteStyleHeart', defaultLabel: 'Heart' },
     { value: 'pill', icon: 'chevron-up-outline', labelKey: 'settings.threadPreferences.voteStylePill', defaultLabel: 'Up/down vote' },
 ];
@@ -75,12 +68,8 @@ export default function ThreadPreferencesScreen() {
                         >
                             <View className="flex-row items-center gap-3">
                                 <View className="w-7 items-center justify-center">
-                                    <IconComponent
-                                        name={
-                                            option.value === 'top' ? 'trending-up' :
-                                            option.value === 'oldest' ? 'time-outline' :
-                                            'arrow-down'
-                                        }
+                                    <Icon
+                                        name={option.icon}
                                         size={20}
                                         color={colors.textSecondary}
                                     />
@@ -89,15 +78,7 @@ export default function ThreadPreferencesScreen() {
                                     {t(option.labelKey, { defaultValue: option.defaultLabel })}
                                 </Text>
                             </View>
-                            <View
-                                className={`w-5 h-5 rounded-full border-2 items-center justify-center ${
-                                    sortOrder === option.value ? 'border-primary bg-primary' : 'border-border'
-                                }`}
-                            >
-                                {sortOrder === option.value ? (
-                                    <View className="w-2 h-2 rounded-full bg-white" />
-                                ) : null}
-                            </View>
+                            <RadioIndicator selected={sortOrder === option.value} />
                         </Pressable>
                     ))}
                 </SettingsGroup>
@@ -112,8 +93,8 @@ export default function ThreadPreferencesScreen() {
                         >
                             <View className="flex-row items-center gap-3">
                                 <View className="w-7 items-center justify-center">
-                                    <IconComponent
-                                        name={option.icon as any}
+                                    <Icon
+                                        name={option.icon}
                                         size={20}
                                         color={colors.textSecondary}
                                     />
@@ -122,15 +103,7 @@ export default function ThreadPreferencesScreen() {
                                     {t(option.labelKey, { defaultValue: option.defaultLabel })}
                                 </Text>
                             </View>
-                            <View
-                                className={`w-5 h-5 rounded-full border-2 items-center justify-center ${
-                                    voteStyle === option.value ? 'border-primary bg-primary' : 'border-border'
-                                }`}
-                            >
-                                {voteStyle === option.value ? (
-                                    <View className="w-2 h-2 rounded-full bg-white" />
-                                ) : null}
-                            </View>
+                            <RadioIndicator selected={voteStyle === option.value} />
                         </Pressable>
                     ))}
                 </SettingsGroup>
@@ -140,7 +113,7 @@ export default function ThreadPreferencesScreen() {
                     <View className="px-4 py-3.5 flex-row items-center justify-between">
                         <View className="flex-row items-center gap-3 flex-1 mr-3">
                             <View className="w-7 items-center justify-center">
-                                <IconComponent name="git-branch-outline" size={20} color={colors.textSecondary} />
+                                <Icon name="git-branch-outline" size={20} color={colors.textSecondary} />
                             </View>
                             <View className="flex-1">
                                 <Text className="text-[15px] font-medium text-foreground">

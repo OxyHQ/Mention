@@ -18,7 +18,7 @@ import Avatar from '@/components/Avatar';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
-import { useThreadPreferences, type SortOrder } from '@/hooks/useThreadPreferences';
+import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
 import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
@@ -36,12 +36,6 @@ import { useTranslation } from 'react-i18next';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import { statisticsService } from '@/services/statisticsService';
 import SEO from '@/components/SEO';
-
-const SORT_TO_API: Record<SortOrder, string> = {
-    top: 'best',
-    oldest: 'oldest',
-    newest: 'recent',
-};
 
 const MAX_CHARACTERS = 280;
 

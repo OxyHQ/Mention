@@ -1,8 +1,21 @@
 import { create } from 'zustand';
 import { getData, storeData } from '@/utils/storage';
 import { STORAGE_KEYS } from '@/lib/constants';
+import type { IconName } from '@/lib/icons';
 
 export type SortOrder = 'top' | 'oldest' | 'newest';
+
+export const SORT_TO_API: Record<SortOrder, string> = {
+    top: 'best',
+    oldest: 'oldest',
+    newest: 'recent',
+};
+
+export const SORT_OPTIONS: { value: SortOrder; icon: IconName; labelKey: string; defaultLabel: string }[] = [
+    { value: 'top', icon: 'trending-up', labelKey: 'replyPreferences.sortTop', defaultLabel: 'Top replies first' },
+    { value: 'oldest', icon: 'time-outline', labelKey: 'replyPreferences.sortOldest', defaultLabel: 'Oldest replies first' },
+    { value: 'newest', icon: 'arrow-down', labelKey: 'replyPreferences.sortNewest', defaultLabel: 'Newest replies first' },
+];
 
 interface ThreadPreferencesState {
     treeView: boolean;
@@ -48,7 +61,7 @@ export const useThreadPreferencesStore = create<ThreadPreferencesState>((set, ge
 }));
 
 // Load preferences from storage on first import
-useThreadPreferencesStore.getState().load();
+useThreadPreferencesStore.getState().load().catch(() => {});
 
 /**
  * Convenience hook that returns just the preference values (backward-compatible).
