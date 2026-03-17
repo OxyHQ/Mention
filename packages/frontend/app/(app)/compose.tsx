@@ -936,6 +936,12 @@ const ComposeScreen = () => {
             )}
 
             {/* Main composer and thread section */}
+            <ScrollView
+              style={styles.threadScrollView}
+              contentContainerStyle={styles.threadScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
             <View style={styles.threadContainer}>
               {/* Main composer */}
               <View style={[styles.postContainer, focusedItemId !== 'main' && threadItems.length > 0 && styles.unfocusedItem]}>
@@ -1748,6 +1754,7 @@ const ComposeScreen = () => {
                 </View>
               </TouchableOpacity>
             </View>
+            </ScrollView>
 
             <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
               {!(postingMode === 'beast' && threadItems.length > 0) && (
@@ -2214,6 +2221,12 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   // Timeline connector styles
+  threadScrollView: {
+    flex: 1,
+  },
+  threadScrollContent: {
+    flexGrow: 1,
+  },
   threadContainer: {
     position: 'relative',
   },
