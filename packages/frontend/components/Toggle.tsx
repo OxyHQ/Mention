@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Switch } from '@oxyhq/bloom/switch';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -21,10 +21,10 @@ export const Toggle: React.FC<ToggleProps> = ({
 }) => {
   const haptic = useHaptics();
 
-  const handleValueChange = (newValue: boolean) => {
+  const handleValueChange = useCallback((newValue: boolean) => {
     haptic('Light');
     onValueChange(newValue);
-  };
+  }, [haptic, onValueChange]);
 
   return (
     <View style={[styles.container, containerStyle]}>
