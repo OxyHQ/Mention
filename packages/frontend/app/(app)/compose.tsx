@@ -2205,7 +2205,7 @@ const styles = StyleSheet.create({
     bottom: 60, // End above add button avatar (12px pad + 40px avatar + 8px gap)
     width: 2,
     backgroundColor: '#ededed',
-    borderRadius: 1,
+    borderRadius: 9999,
     zIndex: -1, // Behind the avatars
   },
   composerWithTimeline: {
