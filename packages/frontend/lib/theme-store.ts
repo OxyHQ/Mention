@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { type AppColorName, applyAppColorToDocument } from './app-color-presets';
-import { setColorSchemeSafe } from './set-color-scheme-safe';
-import { applyDarkClass } from './apply-dark-class';
+import { type AppColorName } from '@oxyhq/bloom/theme';
+import { setColorSchemeSafe } from '@oxyhq/bloom/theme';
+import { applyDarkClass } from '@oxyhq/bloom/theme';
+import { applyAppColorToDocument } from './app-color-presets';
 
 export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { api, publicApi, isUnauthorizedError } from '@/utils/api';
 import { Storage } from '@/utils/storage';
 import { useThemeStore } from '@/lib/theme-store';
-import { hexToAppColorName } from '@/lib/app-color-presets';
+import { hexToAppColorName } from '@oxyhq/bloom/theme';
 
 import type { ThemeMode as StoreThemeMode } from '@/lib/theme-store';
 
