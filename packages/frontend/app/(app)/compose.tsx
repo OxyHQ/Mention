@@ -754,7 +754,6 @@ const ComposeScreen = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, threadItemsRef, generateSourceId, addThreadSource, updateThreadSourceField, removeThreadSource, isValidSourceUrl]);
 
-  // Thread item article editor helpers (must be before handleThreadArticlePress)
   const openThreadArticleEditor = useCallback((threadId: string) => {
     const threadItem = threadItemsRef.current.find(t => t.id === threadId);
     setThreadArticleDraftTitle(threadItem?.article?.title || '');
@@ -762,7 +761,6 @@ const ComposeScreen = () => {
     setEditingThreadArticleId(threadId);
   }, [threadItemsRef]);
 
-  // Thread item event editor helpers (must be before handleThreadEventPress)
   const openThreadEventEditor = useCallback((threadId: string) => {
     const threadItem = threadItemsRef.current.find(t => t.id === threadId);
     setThreadEventDraftName(threadItem?.event?.name || '');
@@ -771,14 +769,6 @@ const ComposeScreen = () => {
     setThreadEventDraftDescription(threadItem?.event?.description || '');
     setEditingThreadEventId(threadId);
   }, [threadItemsRef]);
-
-  const handleThreadArticlePress = useCallback((threadId: string) => {
-    openThreadArticleEditor(threadId);
-  }, [openThreadArticleEditor]);
-
-  const handleThreadEventPress = useCallback((threadId: string) => {
-    openThreadEventEditor(threadId);
-  }, [openThreadEventEditor]);
 
   const handleThreadRoomPress = useCallback((threadId: string) => {
     bottomSheet.setBottomSheetContent(
@@ -1531,8 +1521,8 @@ const ComposeScreen = () => {
                   onGifPress={handleThreadGifPress}
                   onEmojiPress={handleThreadEmojiPress}
                   onSourcesPress={handleThreadSourcesPress}
-                  onArticlePress={handleThreadArticlePress}
-                  onEventPress={handleThreadEventPress}
+                  onArticlePress={openThreadArticleEditor}
+                  onEventPress={openThreadEventEditor}
                   onRoomPress={handleThreadRoomPress}
                   onPollTitleChange={handleThreadPollTitleChange}
                   onPollOptionChange={handleThreadPollOptionChange}
