@@ -11,8 +11,9 @@ import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query'
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AppState, Platform, Text, TextInput, type AppStateStatus } from "react-native";
+import { AppState, Platform, Text, TextInput, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
+import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -23,7 +24,6 @@ import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@/components/Portal';
 
 // Hooks
-import { useColorScheme } from "@/lib/useColorScheme";
 import { useThemeStore } from "@/lib/theme-store";
 import { APP_COLOR_PRESETS, getAppColorCSSVariables, applyAppColorToDocument } from "@/lib/app-color-presets";
 
@@ -139,7 +139,15 @@ export default function RootLayout() {
     }
   }, [splashState.initializationComplete, splashState.fadeComplete, appIsReady]);
 
-  const { colorScheme } = useColorScheme();
+  const rnScheme = useRNColorScheme();
+  const mode = useThemeStore((s) => s.mode);
+  const setMode = useThemeStore((s) => s.setMode);
+  const setAppColor = useThemeStore((s) => s.setAppColor);
+  const isAdaptive = mode === 'adaptive';
+  const effectiveMode = isAdaptive ? 'system' : mode;
+  const colorScheme: 'light' | 'dark' = effectiveMode === 'system'
+    ? (rnScheme === 'dark' ? 'dark' : 'light')
+    : effectiveMode;
   const appColor = useThemeStore((s) => s.appColor);
 
   // Apply color preset to web document and compute NativeWind CSS vars for native
@@ -190,9 +198,16 @@ export default function RootLayout() {
   ]);
 
   return (
-    <ThemedView style={[{ flex: 1 }, colorVars]}>
-      {appContent}
-    </ThemedView>
+    <BloomThemeProvider
+      mode={mode}
+      colorPreset={appColor}
+      onModeChange={setMode}
+      onColorPresetChange={setAppColor}
+    >
+      <ThemedView style={[{ flex: 1 }, colorVars]}>
+        {appContent}
+      </ThemedView>
+    </BloomThemeProvider>
   );
 }
 
