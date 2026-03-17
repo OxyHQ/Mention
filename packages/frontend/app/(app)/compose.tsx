@@ -1062,7 +1062,15 @@ const ComposeScreen = () => {
             <View className="bg-background border-border" style={styles.header}>
               <IconButton variant="icon"
                 onPress={() => {
-                  const hasContent = postContent.trim().length > 0 || mediaIds.length > 0 || pollOptions.length > 0 || threadItems.length > 0;
+                  const hasContent =
+                    postContent.trim().length > 0 ||
+                    mediaIds.length > 0 ||
+                    pollOptions.length > 0 ||
+                    threadItems.length > 0 ||
+                    sources.length > 0 ||
+                    location !== null ||
+                    hasArticleContent ||
+                    hasEventContent;
                   if (hasContent && !isEditMode) {
                     discardControl.open();
                   } else {
@@ -1724,7 +1732,7 @@ const ComposeScreen = () => {
             />
             <Prompt.Action
               cta={t('compose.keepEditing', 'Keep editing')}
-              onPress={() => {}}
+              onPress={() => discardControl.close()}
               color="primary_subtle"
             />
           </Prompt.Actions>

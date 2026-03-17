@@ -4,16 +4,18 @@ import { Storage } from '@/utils/storage';
 import { useThemeStore } from '@/lib/theme-store';
 import { hexToAppColorName } from '@oxyhq/bloom/theme';
 
-import type { ThemeMode as StoreThemeMode } from '@/lib/theme-store';
+import type { ThemeMode } from '@/lib/theme-store';
 
-const VALID_THEME_MODES = new Set<StoreThemeMode>(['light', 'dark', 'system', 'adaptive']);
+export type { ThemeMode } from '@/lib/theme-store';
+
+const VALID_THEME_MODES = new Set<ThemeMode>(['light', 'dark', 'system', 'adaptive']);
 
 /** Push appearance settings into the local theme store for immediate effect. */
 function syncToThemeStore(appearance: { themeMode?: string; primaryColor?: string } | undefined) {
   if (!appearance) return;
   const store = useThemeStore.getState();
-  if (appearance.themeMode && VALID_THEME_MODES.has(appearance.themeMode as StoreThemeMode)) {
-    const newMode = appearance.themeMode as StoreThemeMode;
+  if (appearance.themeMode && VALID_THEME_MODES.has(appearance.themeMode as ThemeMode)) {
+    const newMode = appearance.themeMode as ThemeMode;
     if (store.mode !== newMode) {
       store.setMode(newMode);
     }
@@ -43,8 +45,6 @@ function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
 
   return value as T;
 }
-
-export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
 export interface AppearanceSettings {
   themeMode: ThemeMode;

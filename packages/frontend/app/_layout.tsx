@@ -141,14 +141,12 @@ export default function RootLayout() {
 
   const rnScheme = useRNColorScheme();
   const mode = useThemeStore((s) => s.mode);
-  const setMode = useThemeStore((s) => s.setMode);
-  const setAppColor = useThemeStore((s) => s.setAppColor);
-  const isAdaptive = mode === 'adaptive';
-  const effectiveMode = isAdaptive ? 'system' : mode;
-  const colorScheme: 'light' | 'dark' = effectiveMode === 'system'
-    ? (rnScheme === 'dark' ? 'dark' : 'light')
-    : effectiveMode;
   const appColor = useThemeStore((s) => s.appColor);
+  const { setMode, setAppColor } = useThemeStore.getState();
+  const colorScheme: 'light' | 'dark' =
+    (mode === 'adaptive' || mode === 'system')
+      ? (rnScheme === 'dark' ? 'dark' : 'light')
+      : mode;
 
   // Apply color preset to web document and compute NativeWind CSS vars for native
   useEffect(() => {
