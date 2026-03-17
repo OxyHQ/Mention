@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef, useEffect } from "react";
+import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef, useEffect, useMemo, memo } from "react";
 import {
     View,
     TextInput,
@@ -34,7 +34,7 @@ interface MentionTextInputProps extends Omit<TextInputProps, "onChangeText" | "v
     style?: any;
 }
 
-const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProps>(({
+const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInputProps>(({
     value,
     onChangeText,
     onMentionsChange,
@@ -242,7 +242,16 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
     }), [value, cursorPosition, mentions, onChangeText, convertToDisplayFormat, convertToStorageFormat]);
 
     // Convert storage format to display format for rendering
-    const displayValue = convertToDisplayFormat(value, mentions);
+    const displayValue = useMemo(
+        () => convertToDisplayFormat(value, mentions),
+        [value, mentions, convertToDisplayFormat],
+    );
+
+    const inputStyle = useMemo(() => [
+        styles.textInput,
+        Platform.OS !== 'web' && multiline && contentHeight !== undefined && { height: contentHeight },
+        style,
+    ], [multiline, contentHeight, style]);
 
     return (
         <View style={styles.container}>
@@ -257,11 +266,7 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
                 maxLength={maxLength}
                 multiline={multiline}
                 className="text-foreground"
-                style={[
-                    styles.textInput,
-                    Platform.OS !== 'web' && multiline && contentHeight !== undefined && { height: contentHeight },
-                    style,
-                ]}
+                style={inputStyle}
                 {...textInputProps}
             />
 
@@ -276,7 +281,7 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
             )}
         </View>
     );
-});
+}));
 
 MentionTextInput.displayName = 'MentionTextInput';
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
@@ -40,7 +40,7 @@ interface ComposeToolbarProps {
     disabled?: boolean;
 }
 
-const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
+const ComposeToolbar: React.FC<ComposeToolbarProps> = memo(({
     contentPaddingLeft,
     onMediaPress,
     onPollPress,
@@ -68,10 +68,10 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     const theme = useTheme();
     const haptic = useHaptics();
 
-    const withHaptic = (handler?: () => void) => () => {
+    const withHaptic = useCallback((handler?: () => void) => () => {
         haptic('Light');
         handler?.();
-    };
+    }, [haptic]);
 
     const scheduleColor = (disabled || !scheduleEnabled)
         ? theme.colors.textTertiary
@@ -79,12 +79,19 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
             ? theme.colors.primary
             : theme.colors.textSecondary;
 
+    const contentContainerStyle = useMemo(() => ({
+        alignItems: 'center' as const,
+        gap: 8,
+        paddingVertical: 8,
+        paddingLeft: contentPaddingLeft,
+    }), [contentPaddingLeft]);
+
     return (
         <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ alignItems: 'center', gap: 8, paddingVertical: 8, paddingLeft: contentPaddingLeft }}
+            contentContainerStyle={contentContainerStyle}
         >
             {onMediaPress && (
                 <PressableScale
@@ -231,6 +238,8 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
             )}
         </ScrollView>
     );
-};
+});
+
+ComposeToolbar.displayName = 'ComposeToolbar';
 
 export default ComposeToolbar;

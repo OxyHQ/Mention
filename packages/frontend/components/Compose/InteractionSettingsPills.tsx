@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -12,7 +12,7 @@ interface InteractionSettingsPillsProps {
   onSensitiveToggle: () => void;
 }
 
-const InteractionSettingsPills: React.FC<InteractionSettingsPillsProps> = ({
+const InteractionSettingsPills: React.FC<InteractionSettingsPillsProps> = memo(({
   replyPermission,
   quotesDisabled,
   isSensitive,
@@ -24,26 +24,34 @@ const InteractionSettingsPills: React.FC<InteractionSettingsPillsProps> = ({
 
   const anyoneCanInteract = replyPermission.includes('anyone') && !quotesDisabled;
 
+  const replyPillStyle = useMemo(
+    () => [styles.pill, { backgroundColor: theme.colors.backgroundSecondary }],
+    [theme.colors.backgroundSecondary],
+  );
+
+  const replyTextStyle = useMemo(
+    () => [styles.pillText, { color: theme.colors.textSecondary }],
+    [theme.colors.textSecondary],
+  );
+
+  const sensitiveTextStyle = useMemo(
+    () => [styles.pillText, { color: isSensitive ? theme.colors.error : theme.colors.textSecondary }],
+    [isSensitive, theme.colors.error, theme.colors.textSecondary],
+  );
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
         onPress={onReplySettingsPress}
         activeOpacity={0.7}
-        style={[styles.pill, { backgroundColor: theme.colors.backgroundSecondary }]}
+        style={replyPillStyle}
       >
         <Ionicons
           name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
           size={14}
           color={theme.colors.textSecondary}
         />
-        <Text
-          numberOfLines={1}
-          style={{
-            fontSize: 12,
-            fontWeight: '500',
-            color: theme.colors.textSecondary,
-          }}
-        >
+        <Text numberOfLines={1} style={replyTextStyle}>
           {anyoneCanInteract
             ? t('Anyone can interact')
             : t('Interaction limited')}
@@ -59,17 +67,15 @@ const InteractionSettingsPills: React.FC<InteractionSettingsPillsProps> = ({
           size={14}
           color={isSensitive ? theme.colors.error : theme.colors.textSecondary}
         />
-        <Text style={{
-          fontSize: 12,
-          fontWeight: '500',
-          color: isSensitive ? theme.colors.error : theme.colors.textSecondary,
-        }}>
+        <Text style={sensitiveTextStyle}>
           {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
         </Text>
       </TouchableOpacity>
     </View>
   );
-};
+});
+
+InteractionSettingsPills.displayName = 'InteractionSettingsPills';
 
 const styles = StyleSheet.create({
   container: {
@@ -85,6 +91,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
 

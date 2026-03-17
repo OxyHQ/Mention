@@ -118,6 +118,11 @@ import {
 // Keep this in sync with PostItem constants
 import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
 
+// Pre-computed stable style objects using layout constants
+const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
+const bottomLeftPadWithHPadStyle = { marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD };
+const avatarMarginStyle = { marginRight: 12 };
+
 const ComposeScreen = () => {
   const theme = useTheme();
   const bottomSheet = React.useContext(BottomSheetContext);
@@ -242,9 +247,9 @@ const ComposeScreen = () => {
     clearRoom,
   } = roomManager;
 
-  const hasArticleContent = articleHasContent();
-  const hasEventContent = eventHasContent();
-  const hasRoomContent = roomHasContent();
+  const hasArticleContent = useMemo(() => articleHasContent(), [articleHasContent]);
+  const hasEventContent = useMemo(() => eventHasContent(), [eventHasContent]);
+  const hasRoomContent = useMemo(() => roomHasContent(), [roomHasContent]);
 
   // Remaining local state
   const [postContent, setPostContent] = useState('');
@@ -855,10 +860,14 @@ const ComposeScreen = () => {
 
   const { t: tCompose } = useTranslation();
 
-  const anyoneCanInteract = replyPermission.includes('anyone') && !quotesDisabled;
-  const interactionLabel = anyoneCanInteract
-    ? t('Anyone can interact')
-    : t('Interaction limited');
+  const anyoneCanInteract = useMemo(
+    () => replyPermission.includes('anyone') && !quotesDisabled,
+    [replyPermission, quotesDisabled],
+  );
+  const interactionLabel = useMemo(
+    () => anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited'),
+    [anyoneCanInteract, t],
+  );
 
   const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
@@ -873,6 +882,71 @@ const ComposeScreen = () => {
   const handleSchedulePress = useCallback(() => {
     openScheduleSheet(ScheduleSheet);
   }, [openScheduleSheet]);
+
+  // Main post toolbar handlers — stable references for memoized ComposeToolbar
+  const handleMainGifPress = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <GifPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelectGif={async (gifUrl: string, gifId: string) => {
+            try {
+              const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
+              setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
+              toast.success(t('GIF attached'));
+            } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : t('Failed to attach GIF');
+              toast.error(message);
+            }
+          }}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, t]);
+
+  const handleMainEmojiPress = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <EmojiPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelectEmoji={(emoji: string) => {
+            mainTextInputRef.current?.insertTextAtCursor(emoji);
+          }}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet]);
+
+  const handleMainRoomPress = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <CreateRoomSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          mode="embed"
+          onRoomCreated={(createdRoom) => {
+            attachRoom({
+              roomId: createdRoom._id,
+              title: createdRoom.title,
+              status: createdRoom.status,
+              topic: createdRoom.topic,
+              host: createdRoom.host,
+            });
+          }}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, attachRoom]);
+
+  const handleSensitiveToggle = useCallback(() => {
+    setIsSensitive(prev => !prev);
+  }, []);
+
+  const handleClearSchedule = useCallback(() => {
+    clearSchedule();
+  }, [clearSchedule]);
 
   // Thread item article editor helpers
   const openThreadArticleEditor = useCallback((threadId: string) => {
@@ -949,7 +1023,7 @@ const ComposeScreen = () => {
     }
   }, [replyPermission, quotesDisabled, isReplySettingsOpen]);
 
-  const openReplySettings = () => {
+  const openReplySettings = useCallback(() => {
     setIsReplySettingsOpen(true);
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
@@ -966,7 +1040,7 @@ const ComposeScreen = () => {
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  };
+  }, [replyPermission, quotesDisabled, bottomSheet]);
 
   useEffect(() => {
     if (!scheduleEnabled && scheduledAt) {
@@ -1358,62 +1432,13 @@ const ComposeScreen = () => {
                       onMediaPress={openMediaPicker}
                       onPollPress={focusPollCreator}
                       onLocationPress={requestLocation}
-                      onGifPress={() => {
-                        bottomSheet.setBottomSheetContent(
-                          <Suspense fallback={null}>
-                            <GifPickerSheet
-                              onClose={() => bottomSheet.openBottomSheet(false)}
-                              onSelectGif={async (gifUrl: string, gifId: string) => {
-                                try {
-                                  const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-                                  setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
-                                  toast.success(t('GIF attached'));
-                                } catch (error: any) {
-                                  toast.error(error?.message || t('Failed to attach GIF'));
-                                }
-                              }}
-                            />
-                          </Suspense>
-                        );
-                        bottomSheet.openBottomSheet(true);
-                      }}
-                      onEmojiPress={() => {
-                        bottomSheet.setBottomSheetContent(
-                          <Suspense fallback={null}>
-                            <EmojiPickerSheet
-                              onClose={() => bottomSheet.openBottomSheet(false)}
-                              onSelectEmoji={(emoji: string) => {
-                                mainTextInputRef.current?.insertTextAtCursor(emoji);
-                              }}
-                            />
-                          </Suspense>
-                        );
-                        bottomSheet.openBottomSheet(true);
-                      }}
+                      onGifPress={handleMainGifPress}
+                      onEmojiPress={handleMainEmojiPress}
                       onSchedulePress={handleSchedulePress}
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
-                      onRoomPress={() => {
-                        bottomSheet.setBottomSheetContent(
-                          <Suspense fallback={null}>
-                            <CreateRoomSheet
-                              onClose={() => bottomSheet.openBottomSheet(false)}
-                              mode="embed"
-                              onRoomCreated={(createdRoom) => {
-                                attachRoom({
-                                  roomId: createdRoom._id,
-                                  title: createdRoom.title,
-                                  status: createdRoom.status,
-                                  topic: createdRoom.topic,
-                                  host: createdRoom.host,
-                                });
-                              }}
-                            />
-                          </Suspense>
-                        );
-                        bottomSheet.openBottomSheet(true);
-                      }}
+                      onRoomPress={handleMainRoomPress}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -1442,7 +1467,7 @@ const ComposeScreen = () => {
                           time: formatScheduledLabel(scheduledAt)
                         })}
                       </Text>
-                      <TouchableOpacity onPress={() => clearSchedule()} style={styles.scheduleInfoClearButton}>
+                      <TouchableOpacity onPress={handleClearSchedule} style={styles.scheduleInfoClearButton}>
                         <Text className="text-primary" style={styles.scheduleInfoClearText}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
                       </TouchableOpacity>
                     </View>
@@ -1458,7 +1483,7 @@ const ComposeScreen = () => {
                       onOptionChange={updatePollOption}
                       onRemoveOption={removePollOption}
                       onRemove={removePoll}
-                      style={{ marginLeft: BOTTOM_LEFT_PAD }}
+                      style={bottomLeftPadStyle}
                     />
                   )}
 
@@ -1467,19 +1492,19 @@ const ComposeScreen = () => {
                     <LocationDisplay
                       location={location}
                       onRemove={removeLocation}
-                      style={{ marginLeft: BOTTOM_LEFT_PAD }}
+                      style={bottomLeftPadStyle}
                     />
                   )}
 
                   {/* Main post interaction settings (beast mode with thread items) */}
                   {postingMode === 'beast' && threadItems.length > 0 && (
-                    <View style={{ marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD }}>
+                    <View style={bottomLeftPadWithHPadStyle}>
                       <InteractionSettingsPills
                         replyPermission={replyPermission}
                         quotesDisabled={quotesDisabled}
                         isSensitive={isSensitive}
                         onReplySettingsPress={openReplySettings}
-                        onSensitiveToggle={() => setIsSensitive(!isSensitive)}
+                        onSensitiveToggle={handleSensitiveToggle}
                       />
                     </View>
                   )}
@@ -1558,7 +1583,7 @@ const ComposeScreen = () => {
                       source={user?.avatar}
                       size={40}
                       verified={Boolean(user?.verified)}
-                      style={{ marginRight: 12 }}
+                      style={avatarMarginStyle}
                     />
                   </TouchableOpacity>
                   <View style={styles.headerMeta}>
@@ -1579,15 +1604,7 @@ const ComposeScreen = () => {
                   <TouchableOpacity
                     onPress={openReplySettings}
                     activeOpacity={0.7}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: theme.colors.backgroundSecondary,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 20,
-                      gap: 5,
-                    }}
+                    style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
                   >
                     <Ionicons
                       name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
@@ -1596,11 +1613,7 @@ const ComposeScreen = () => {
                     />
                     <Text
                       numberOfLines={1}
-                      style={{
-                        fontSize: 13,
-                        fontWeight: '500',
-                        color: theme.colors.textSecondary,
-                      }}
+                      style={[styles.replySettingsText, { color: theme.colors.textSecondary }]}
                     >
                       {interactionLabel}
                     </Text>
@@ -1611,7 +1624,7 @@ const ComposeScreen = () => {
                     />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => setIsSensitive(!isSensitive)}
+                    onPress={handleSensitiveToggle}
                     activeOpacity={0.7}
                     style={styles.sensitiveToggle}
                   >
@@ -1858,6 +1871,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingLeft: 8,
+  },
+  replySettingsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 5,
+  },
+  replySettingsText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   floatingCharCount: {
     position: 'absolute',
