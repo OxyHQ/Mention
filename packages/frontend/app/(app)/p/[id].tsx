@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -39,6 +40,7 @@ const MAX_CHARACTERS = 280;
 const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
+    const safeBack = useSafeBack();
     const { getPostById, createReply } = usePostsStore();
     const { user, showBottomSheet, oxyServices } = useAuth();
     const theme = useTheme();
@@ -280,7 +282,7 @@ const PostDetailScreen: React.FC = () => {
     }, [id, getPostById, user]);
 
     const handleBack = () => {
-        router.back();
+        safeBack();
     };
 
     // Generate SEO data for the post (must be before any early returns)
@@ -356,7 +358,13 @@ const PostDetailScreen: React.FC = () => {
 
     // List header for Feed: parent post + main post + sort toggle
     const listHeader = useMemo(() => {
-        if (!post) return null;
+        if (!post) {
+            return (
+                <View className="items-center justify-center py-12">
+                    <Loading size="large" />
+                </View>
+            );
+        }
         return (
             <View>
                 {parentPost && (post as any)?.parentPostId && (
@@ -418,33 +426,7 @@ const PostDetailScreen: React.FC = () => {
         );
     }, [post, parentPost, replySort, handleFocusInput, theme.colors.background, theme.colors.text, theme.colors.textSecondary]);
 
-    if (loading) {
-        return (
-            <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-                <Header
-                    options={{
-                        title: 'Post',
-                        leftComponents: [
-                            <IconButton variant="icon"
-                                key="back"
-                                onPress={handleBack}
-                            >
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder={true}
-                    disableSticky={true}
-                />
-                <View className="flex-1 items-center justify-center px-8">
-                    <Loading size="large" />
-                    <Text className="mt-4 text-base text-muted-foreground">Loading post...</Text>
-                </View>
-            </ThemedView>
-        );
-    }
-
-    if (error || !post) {
+    if (!loading && (error || !post)) {
         return (
             <>
                 <SEO
@@ -473,7 +455,7 @@ const PostDetailScreen: React.FC = () => {
                         <Text className="text-base text-center leading-[22px] mb-6 text-muted-foreground">
                             {error || 'The post you\'re looking for doesn\'t exist or has been deleted.'}
                         </Text>
-                        <TouchableOpacity className="px-6 py-3 rounded-lg bg-primary" onPress={() => router.back()}>
+                        <TouchableOpacity className="px-6 py-3 rounded-lg bg-primary" onPress={() => safeBack()}>
                             <Text className="text-base font-semibold" style={{ color: theme.colors.card }}>Go Back</Text>
                         </TouchableOpacity>
                     </View>

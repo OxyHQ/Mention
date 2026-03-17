@@ -35,6 +35,7 @@ import { usePostRepost } from '@/hooks/usePostRepost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
+import { TIMELINE_LINE_OFFSET, THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -348,9 +349,9 @@ const PostItem: React.FC<PostItemProps> = ({
         ? `${postAuthor}: ${postTextSummary}`
         : `Post by ${postAuthor}`;
 
-    // Thread line positioning: center of avatar column
-    const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1; // 31px
-    const THREAD_LINE_WIDTH = 2;
+    // Thread line positioning: use shared constants from composeLayout for consistency
+    const THREAD_LINE_LEFT = TIMELINE_LINE_OFFSET;
+    const THREAD_LINE_W = THREAD_LINE_WIDTH;
 
     return (
         <>
@@ -382,10 +383,11 @@ const PostItem: React.FC<PostItemProps> = ({
                             position: 'absolute',
                             top: 0,
                             left: THREAD_LINE_LEFT,
-                            width: THREAD_LINE_WIDTH,
+                            width: THREAD_LINE_W,
                             height: VPAD,
-                            backgroundColor: theme.colors.border,
-                            zIndex: 1,
+                            backgroundColor: `${theme.colors.primary}30`,
+                            borderRadius: THREAD_LINE_BORDER_RADIUS,
+                            zIndex: THREAD_LINE_Z_INDEX,
                         }}
                     />
                 )}
@@ -396,10 +398,11 @@ const PostItem: React.FC<PostItemProps> = ({
                             position: 'absolute',
                             top: VPAD + AVATAR_SIZE,
                             left: THREAD_LINE_LEFT,
-                            width: THREAD_LINE_WIDTH,
+                            width: THREAD_LINE_W,
                             bottom: 0,
-                            backgroundColor: theme.colors.border,
-                            zIndex: 1,
+                            backgroundColor: `${theme.colors.primary}30`,
+                            borderRadius: THREAD_LINE_BORDER_RADIUS,
+                            zIndex: THREAD_LINE_Z_INDEX,
                         }}
                     />
                 )}

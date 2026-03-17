@@ -40,6 +40,7 @@ import { createScopedLogger } from '@/utils/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, deduplicateItems, deepEqual, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
+import { TIMELINE_LINE_OFFSET, THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
@@ -325,14 +326,14 @@ const Feed = memo((props: FeedProps) => {
         if (nestPadding) {
             return (
                 <View style={[styles.nestedRow, nestPadding]}>
-                    <View className="bg-border" style={styles.nestedThreadLine} />
+                    <View style={[styles.nestedThreadLine, { backgroundColor: `${theme.colors.primary}30` }]} />
                     {content}
                 </View>
             );
         }
 
         return content;
-    }, [router]);
+    }, [router, theme.colors.primary]);
 
     const keyExtractor = useCallback((row: FeedRow) => {
         // Use sliceKey + item id for unique key within a slice
@@ -615,11 +616,12 @@ const styles = StyleSheet.create({
     },
     nestedThreadLine: {
         position: 'absolute',
-        left: 32,
+        left: TIMELINE_LINE_OFFSET,
         top: 0,
         bottom: 0,
-        width: 2,
-        borderRadius: 1,
+        width: THREAD_LINE_WIDTH,
+        borderRadius: THREAD_LINE_BORDER_RADIUS,
+        zIndex: THREAD_LINE_Z_INDEX,
     },
     showMoreReplies: {
         paddingVertical: 10,
