@@ -1718,8 +1718,10 @@ const ComposeScreen = () => {
 
               {/* Add thread/post button */}
               <View style={{ position: 'relative' }}>
-                {/* Connector line above add button's avatar */}
-                <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                {/* Connector line above add button's avatar — only when there are items above */}
+                {threadItems.length > 0 && (
+                  <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                )}
               <TouchableOpacity
                 style={styles.postContainer}
                 onPress={() => addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined)}
