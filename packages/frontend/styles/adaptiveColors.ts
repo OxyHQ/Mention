@@ -36,6 +36,14 @@ function getAndroidColors(): ThemeColors {
     warning: '#F59E0B',
     info: '#3B82F6',
 
+    primarySubtle: c(d.primaryContainer),
+    primarySubtleForeground: c(d.onPrimaryContainer),
+    negative: '#B91C1C',
+    negativeForeground: '#FFFFFF',
+    negativeSubtle: c(d.errorContainer),
+    negativeSubtleForeground: c(d.onErrorContainer),
+    contrast50: c(d.surfaceContainerLow),
+
     card: c(d.surfaceContainerLow),
     shadow: 'rgba(0, 0, 0, 0.2)',
     overlay: 'rgba(0, 0, 0, 0.5)',
@@ -70,6 +78,14 @@ function getIOSColors(): ThemeColors {
     error: c(i.systemRed),
     warning: c(i.systemOrange),
     info: c(i.systemBlue),
+
+    primarySubtle: c(i.systemGray6),
+    primarySubtleForeground: c(i.systemBlue),
+    negative: c(i.systemRed),
+    negativeForeground: '#FFFFFF',
+    negativeSubtle: c(i.systemGray6),
+    negativeSubtleForeground: c(i.systemRed),
+    contrast50: c(i.systemGray6),
 
     card: c(i.secondarySystemBackground),
     shadow: 'rgba(0, 0, 0, 0.15)',

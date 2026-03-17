@@ -114,7 +114,7 @@ export function Cancel({ cta }: { cta?: string }) {
     <TouchableOpacity
       className="rounded-full items-center justify-center"
       style={{
-        backgroundColor: theme.isDark ? '#19222E' : '#EFF2F6',
+        backgroundColor: theme.colors.contrast50,
         paddingVertical: 12,
         paddingHorizontal: 24,
       }}
@@ -159,23 +159,23 @@ export function Action({
   );
 
   const backgroundColor = color === 'negative'
-    ? '#E91646'
+    ? theme.colors.negative
     : color === 'negative_subtle'
-      ? (theme.isDark ? '#430413' : '#FEE7EC')
+      ? theme.colors.negativeSubtle
       : color === 'primary_subtle'
-        ? (theme.isDark ? '#002B2E' : '#E0F5F7')
+        ? theme.colors.primarySubtle
         : color === 'secondary'
-          ? (theme.isDark ? '#19222E' : '#EFF2F6')
+          ? theme.colors.contrast50
           : theme.colors.primary;
 
   const textColor = color === 'negative'
-    ? { color: '#FFFFFF' }
+    ? { color: theme.colors.negativeForeground }
     : color === 'negative_subtle'
-      ? { color: theme.isDark ? '#F65A7F' : '#CA123D' }
+      ? { color: theme.colors.negativeSubtleForeground }
       : color === 'primary_subtle'
-        ? { color: theme.isDark ? '#4DD9E0' : '#006066' }
+        ? { color: theme.colors.primarySubtleForeground }
         : color === 'secondary'
-          ? { color: theme.isDark ? '#EEEEEE' : '#19222E' }
+          ? { color: theme.colors.text }
           : { color: '#FFFFFF' };
 
   return (

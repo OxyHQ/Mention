@@ -42,6 +42,15 @@ export interface ThemeColors {
   warning: string;
   info: string;
 
+  // Subtle button variants (derived from primary/destructive hue)
+  primarySubtle: string;
+  primarySubtleForeground: string;
+  negative: string;
+  negativeForeground: string;
+  negativeSubtle: string;
+  negativeSubtleForeground: string;
+  contrast50: string;
+
   // Component-specific
   card: string;
   shadow: string;
@@ -98,6 +107,14 @@ export function useTheme(): Theme {
       error: "#EF4444",
       warning: "#F59E0B",
       info: "#3B82F6",
+
+      primarySubtle: colors.primarySubtle,
+      primarySubtleForeground: colors.primarySubtleForeground,
+      negative: colors.negative,
+      negativeForeground: colors.negativeForeground,
+      negativeSubtle: colors.negativeSubtle,
+      negativeSubtleForeground: colors.negativeSubtleForeground,
+      contrast50: colors.contrast50,
 
       card: colors.surface,
       shadow: isDark ? "rgba(0, 0, 0, 0.3)" : "rgba(0, 0, 0, 0.1)",

@@ -15,6 +15,16 @@ function hslVarToCSS(value: string): string {
   return `hsl(${value.replace(/ /g, ', ')})`;
 }
 
+/** Extract hue from an HSL variable string like "185 100% 20%" → 185 */
+function extractHue(hslVar: string): number {
+  return parseInt(hslVar.split(' ')[0], 10);
+}
+
+/** Build an HSL color string from hue, saturation, lightness */
+function hsl(h: number, s: number, l: number): string {
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
 export function useColorScheme() {
   const rnScheme = useRNColorScheme();
   const { mode, setMode, appColor } = useThemeStore();
@@ -40,6 +50,10 @@ export function useColorScheme() {
   const colors = useMemo(() => {
     const preset = APP_COLOR_PRESETS[appColor];
     const vars = resolved === 'light' ? preset.light : preset.dark;
+    const isDark = resolved === 'dark';
+    const primaryHue = extractHue(vars['--primary']);
+    const destructiveHue = extractHue(vars['--destructive']);
+
     return {
       background: hslVarToCSS(vars['--background']),
       foreground: hslVarToCSS(vars['--foreground']),
@@ -55,6 +69,21 @@ export function useColorScheme() {
       accent: hslVarToCSS(vars['--accent']),
       accentForeground: hslVarToCSS(vars['--accent-foreground']),
       destructive: hslVarToCSS(vars['--destructive']),
+
+      // Subtle primary: tinted bg + prominent primary text (like Bluesky primary_subtle)
+      primarySubtle: isDark ? hsl(primaryHue, 50, 10) : hsl(primaryHue, 70, 93),
+      primarySubtleForeground: isDark ? hsl(primaryHue, 70, 65) : hsl(primaryHue, 90, 25),
+
+      // Solid negative: vibrant red for destructive actions
+      negative: hsl(destructiveHue, 84, 45),
+      negativeForeground: '#FFFFFF',
+
+      // Subtle negative: soft red bg + dark red text (like Bluesky negative_subtle)
+      negativeSubtle: isDark ? hsl(destructiveHue, 50, 10) : hsl(destructiveHue, 90, 95),
+      negativeSubtleForeground: isDark ? hsl(destructiveHue, 70, 65) : hsl(destructiveHue, 80, 40),
+
+      // Contrast-50: neutral subtle bg for secondary/cancel buttons
+      contrast50: isDark ? hsl(primaryHue, 15, 12) : hsl(primaryHue, 10, 93),
     };
   }, [resolved, appColor]);
 
