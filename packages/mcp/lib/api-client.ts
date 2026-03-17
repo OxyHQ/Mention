@@ -1,9 +1,9 @@
 /**
  * HTTP client wrapper for the Mention REST API.
  *
- * Token resolution order:
- *   1. Per-request user token from AsyncLocalStorage context (set by HTTP transport)
- *   2. OXY_SERVICE_TOKEN env var (service-level fallback)
+ * Token resolution:
+ *   Per-request user token from AsyncLocalStorage context (set by HTTP transport).
+ *   Returns an empty string when no token is present (unauthenticated read operations).
  *
  * Reads MENTION_API_URL from the environment for the base URL.
  */
