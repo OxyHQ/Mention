@@ -457,8 +457,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 { zIndex: 10, position: 'absolute', left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
                                 themedStyles.headerNameOverlay,
                                 { opacity: headerNameOpacity },
+                                { pointerEvents: 'none' },
                             ]}
-                            pointerEvents="none"
                         >
                             <Avatar
                                 source={avatarUri}

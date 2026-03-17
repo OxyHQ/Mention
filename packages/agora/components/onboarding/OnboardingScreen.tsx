@@ -238,8 +238,7 @@ const OnboardingScreen = forwardRef<OnboardingScreenHandle, OnboardingScreenProp
         onLayout={handleLayout}
       >
         <Animated.View
-          style={[styles.skipContainer, skipStyle]}
-          pointerEvents="box-none"
+          style={[styles.skipContainer, skipStyle, { pointerEvents: 'box-none' }]}
         >
           <Pressable onPress={handleSkip} hitSlop={12}>
             <Text style={[styles.skipText, { color: theme.colors.textSecondary }]}>Skip</Text>
