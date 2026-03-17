@@ -754,6 +754,24 @@ const ComposeScreen = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, threadItemsRef, generateSourceId, addThreadSource, updateThreadSourceField, removeThreadSource, isValidSourceUrl]);
 
+  // Thread item article editor helpers (must be before handleThreadArticlePress)
+  const openThreadArticleEditor = useCallback((threadId: string) => {
+    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
+    setThreadArticleDraftTitle(threadItem?.article?.title || '');
+    setThreadArticleDraftBody(threadItem?.article?.body || '');
+    setEditingThreadArticleId(threadId);
+  }, [threadItemsRef]);
+
+  // Thread item event editor helpers (must be before handleThreadEventPress)
+  const openThreadEventEditor = useCallback((threadId: string) => {
+    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
+    setThreadEventDraftName(threadItem?.event?.name || '');
+    setThreadEventDraftDate(threadItem?.event?.date || new Date().toISOString());
+    setThreadEventDraftLocation(threadItem?.event?.location || '');
+    setThreadEventDraftDescription(threadItem?.event?.description || '');
+    setEditingThreadEventId(threadId);
+  }, [threadItemsRef]);
+
   const handleThreadArticlePress = useCallback((threadId: string) => {
     openThreadArticleEditor(threadId);
   }, [openThreadArticleEditor]);
@@ -948,14 +966,6 @@ const ComposeScreen = () => {
     clearSchedule();
   }, [clearSchedule]);
 
-  // Thread item article editor helpers
-  const openThreadArticleEditor = useCallback((threadId: string) => {
-    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
-    setThreadArticleDraftTitle(threadItem?.article?.title || '');
-    setThreadArticleDraftBody(threadItem?.article?.body || '');
-    setEditingThreadArticleId(threadId);
-  }, [threadItemsRef]);
-
   const closeThreadArticleEditor = useCallback(() => {
     setEditingThreadArticleId(null);
   }, []);
@@ -971,16 +981,6 @@ const ComposeScreen = () => {
     }
     setEditingThreadArticleId(null);
   }, [editingThreadArticleId, threadArticleDraftTitle, threadArticleDraftBody, setThreadArticle]);
-
-  // Thread item event editor helpers
-  const openThreadEventEditor = useCallback((threadId: string) => {
-    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
-    setThreadEventDraftName(threadItem?.event?.name || '');
-    setThreadEventDraftDate(threadItem?.event?.date || new Date().toISOString());
-    setThreadEventDraftLocation(threadItem?.event?.location || '');
-    setThreadEventDraftDescription(threadItem?.event?.description || '');
-    setEditingThreadEventId(threadId);
-  }, [threadItemsRef]);
 
   const closeThreadEventEditor = useCallback(() => {
     setEditingThreadEventId(null);
