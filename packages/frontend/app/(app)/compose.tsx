@@ -260,6 +260,7 @@ const ComposeScreen = () => {
   const [quotesDisabled, setQuotesDisabled] = useState(false);
   const [showModeToggle, setShowModeToggle] = useState(false);
   const [isSensitive, setIsSensitive] = useState(false);
+  const [focusedItemId, setFocusedItemId] = useState<string>('main');
 
   // Thread item article/event editor state
   const [editingThreadArticleId, setEditingThreadArticleId] = useState<string | null>(null);
@@ -940,7 +941,7 @@ const ComposeScreen = () => {
               <View style={[styles.continuousTimelineLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
 
               {/* Main composer */}
-              <View style={styles.postContainer}>
+              <View style={[styles.postContainer, focusedItemId !== 'main' && threadItems.length > 0 && styles.unfocusedItem]}>
                 <View style={styles.composerWithTimeline}>
                   <PostHeader
                     paddingHorizontal={HPAD}
@@ -962,6 +963,7 @@ const ComposeScreen = () => {
                       value={postContent}
                       onChangeText={setPostContent}
                       onMentionsChange={setMentions}
+                      onFocus={() => setFocusedItemId('main')}
                       multiline
                       autoFocus
                     />
@@ -1320,7 +1322,7 @@ const ComposeScreen = () => {
                 const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasSources;
 
                 return (
-                <View key={`thread-${item.id}`} style={styles.postContainer}>
+                <View key={`thread-${item.id}`} style={[styles.postContainer, focusedItemId !== item.id && styles.unfocusedItem]}>
                   <View style={styles.threadItemWithTimeline}>
                     <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                       <TouchableOpacity activeOpacity={0.7}>
@@ -1340,6 +1342,7 @@ const ComposeScreen = () => {
                             value={item.text}
                             onChangeText={(v) => updateThreadText(item.id, v)}
                             onMentionsChange={(m) => updateThreadMentions(item.id, m)}
+                            onFocus={() => setFocusedItemId(item.id)}
                             multiline
                           />
                           <View style={styles.toolbarWrapper}>
@@ -2113,6 +2116,9 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     gap: 12,
     paddingVertical: 12,
+  },
+  unfocusedItem: {
+    opacity: 0.4,
   },
   headerRow: {
     flexDirection: 'row',
