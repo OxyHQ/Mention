@@ -101,6 +101,11 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       } else if (profileCustomization.coverImage === null) {
         update['profileCustomization.coverImage'] = undefined;
       }
+      if (typeof profileCustomization.profileColor === 'string') {
+        update['profileCustomization.profileColor'] = profileCustomization.profileColor.trim() || undefined;
+      } else if (profileCustomization.profileColor === null) {
+        update['profileCustomization.profileColor'] = undefined;
+      }
     }
     
     if (privacy) {

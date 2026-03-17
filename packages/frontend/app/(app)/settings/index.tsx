@@ -176,7 +176,7 @@ export default function SettingsScreen() {
                     <SettingsItem
                         icon="person-circle-outline"
                         title={t('settings.preferences.profileCustomization')}
-                        description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, badges, display name' })}
+                        description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, profile color' })}
                         onPress={() => router.push('/settings/profile-customization')}
                     />
                     <SettingsItem

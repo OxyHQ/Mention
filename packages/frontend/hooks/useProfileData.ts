@@ -12,6 +12,7 @@ export interface ProfileDesign {
   coverPhotoEnabled: boolean;
   minimalistMode: boolean;
   primaryColor?: string;
+  profileColor?: string;
 }
 
 export interface ProfileData {
@@ -60,6 +61,7 @@ function computeDesign(
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
     primaryColor: appearance?.appearance?.primaryColor,
+    profileColor: customization?.profileColor,
   };
 }
 
