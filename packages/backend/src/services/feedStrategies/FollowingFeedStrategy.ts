@@ -45,7 +45,7 @@ export class FollowingFeedStrategy implements IFeedStrategy {
     // Build query for posts from followed users
     // No longer excludes replies — slicing handles thread grouping and reply context
     const match: any = {
-      oxyUserId: { $in: followingIds },
+      oxyUserId: { $in: [currentUserId, ...followingIds] },
       visibility: { $in: ['public', 'followers'] },
     };
 

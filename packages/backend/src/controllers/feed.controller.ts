@@ -964,8 +964,8 @@ class FeedController {
 
       // Get following list from Oxy
       const followingRes = await oxyClient.getUserFollowing(currentUserId);
-      // Only include people the user follows, NOT the user's own posts
-      const followingIds = [...new Set(extractFollowingIds(followingRes))];
+      // Include the user's own posts alongside posts from people they follow
+      const followingIds = [...new Set([currentUserId, ...extractFollowingIds(followingRes)])];
 
       // Get federated following (remote actors the user follows)
       let federatedActorIds: any[] = [];
