@@ -81,12 +81,12 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
     const viewerState =
-        viewPost.viewerState ?? { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
+        viewPost?.viewerState ?? { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
 
-    const metadata = viewPost.metadata ?? {};
-    const content: PostContent = viewPost.content ?? {};
-    const attachmentsBundle: PostAttachmentBundle = viewPost.attachments ?? {};
-    const linkPreview = viewPost.linkPreview ?? null;
+    const metadata = viewPost?.metadata ?? {};
+    const content: PostContent = viewPost?.content ?? {};
+    const attachmentsBundle: PostAttachmentBundle = viewPost?.attachments ?? {};
+    const linkPreview = viewPost?.linkPreview ?? null;
     const isSensitiveContent = metadata.isSensitive === true;
 
     const isOwner = viewerState.isOwner ?? false;
@@ -115,6 +115,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const mediaItems = attachmentsBundle.media ?? content.media ?? [];
 
     const nestedPost = useMemo(() => {
+        if (!viewPost) return null;
         if (viewPost.repost?.originalPost) return viewPost.repost.originalPost;
         if ((viewPost as any).original) return (viewPost as any).original;
         if (viewPost.originalPost) return viewPost.originalPost;
@@ -137,7 +138,7 @@ const PostItem: React.FC<PostItemProps> = ({
         ? content.attachments
         : undefined;
 
-    const rawAvatar = viewPost.user?.avatarUrl || (viewPost.user as any)?.avatar;
+    const rawAvatar = viewPost?.user?.avatarUrl || (viewPost?.user as any)?.avatar;
     const avatarFileId = typeof rawAvatar === 'string' && !rawAvatar.startsWith('http') ? rawAvatar : undefined;
     const resolvedAvatarUrl = useImageUrl(avatarFileId, 'thumb', oxyServices);
 

@@ -1,3 +1,3 @@
-export function initLiveKit() {
-  // LiveKit WebRTC not used on web — rooms use Socket.IO
-}
+// Base module for ESLint import resolution.
+// At build time, bundlers resolve livekit.native.ts or livekit.web.ts instead.
+export { initLiveKit } from './livekit.web';
