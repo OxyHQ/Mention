@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -30,6 +30,7 @@ const VOTE_STYLE_OPTIONS: { value: VoteStyle; icon: string; labelKey: string; de
 
 export default function ThreadPreferencesScreen() {
     const { t } = useTranslation();
+    const safeBack = useSafeBack();
     const { colors } = useTheme();
     const savedPrefs = useThreadPreferences();
     const savedVoteStyle = useVoteStyle();
@@ -68,7 +69,7 @@ export default function ThreadPreferencesScreen() {
                 options={{
                     title: t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' }),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

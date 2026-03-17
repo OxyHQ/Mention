@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, Platform } from 'react-native';
-import { router } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -12,6 +12,7 @@ import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem'
 
 export default function AccessibilitySettingsScreen() {
     const { t } = useTranslation();
+    const safeBack = useSafeBack();
     const hapticsDisabled = useHapticsStore((s) => s.disabled);
     const setHapticsDisabled = useHapticsStore((s) => s.setDisabled);
 
@@ -21,7 +22,7 @@ export default function AccessibilitySettingsScreen() {
                 options={{
                     title: t('settings.accessibility.title', { defaultValue: 'Accessibility' }),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, ScrollView, Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { router } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -15,6 +15,7 @@ import { confirmDialog, alertDialog } from '@/utils/alerts';
 
 export default function AboutScreen() {
     const { t } = useTranslation();
+    const safeBack = useSafeBack();
     const { colors } = useTheme();
     const { showBottomSheet } = useAuth() as { showBottomSheet?: (screen: string) => void };
 
@@ -69,7 +70,7 @@ export default function AboutScreen() {
                 options={{
                     title: t('settings.aboutMention.title', { defaultValue: 'About' }),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

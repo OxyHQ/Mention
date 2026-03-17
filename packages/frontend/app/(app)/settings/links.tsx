@@ -5,8 +5,8 @@ import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTranslation } from "react-i18next";
-import { useRouter } from "expo-router";
 import { authenticatedClient } from "@/utils/api";
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog, alertDialog } from "@/utils/alerts";
 import { useTheme } from "@/hooks/useTheme";
 import { useLinksStore } from "@/stores/linksStore";
@@ -14,7 +14,7 @@ import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem"
 
 export default function LinkSettingsScreen() {
     const { t } = useTranslation();
-    const router = useRouter();
+    const safeBack = useSafeBack();
     const { colors } = useTheme();
     const { clearAll } = useLinksStore();
 
@@ -108,7 +108,7 @@ export default function LinkSettingsScreen() {
                 options={{
                     title: t("settings.links.title"),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

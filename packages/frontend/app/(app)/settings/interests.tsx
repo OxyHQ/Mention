@@ -4,8 +4,8 @@ import { Loading } from '@/components/ui/Loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +27,7 @@ const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeo
 
 export default function InterestsSettingsScreen() {
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
   const { colors } = useTheme();
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
@@ -105,7 +106,7 @@ export default function InterestsSettingsScreen() {
             leftComponents: [
               <IconButton variant="icon"
                 key="back"
-                onPress={() => router.back()}
+                onPress={() => safeBack()}
               >
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
@@ -129,7 +130,7 @@ export default function InterestsSettingsScreen() {
           leftComponents: [
             <IconButton variant="icon"
               key="back"
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,

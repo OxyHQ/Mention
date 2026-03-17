@@ -6,8 +6,8 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
-import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { toast } from 'sonner';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
@@ -36,6 +36,7 @@ const DEFAULT_PREFS: NotificationPreferences = {
 
 export default function NotificationSettingsScreen() {
     const { t } = useTranslation();
+    const safeBack = useSafeBack();
 
     const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS);
     const [loading, setLoading] = useState(true);
@@ -89,7 +90,7 @@ export default function NotificationSettingsScreen() {
                     options={{
                         title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
                         leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                                 <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
@@ -110,7 +111,7 @@ export default function NotificationSettingsScreen() {
                 options={{
                     title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

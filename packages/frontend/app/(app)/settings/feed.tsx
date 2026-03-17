@@ -4,8 +4,8 @@ import { Loading } from '@/components/ui/Loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
@@ -64,6 +64,7 @@ const PRESETS = {
 
 export default function FeedSettingsScreen() {
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
   const { colors } = useTheme();
   const { settings, loading, updateSettings } = useFeedSettings();
 
@@ -176,7 +177,7 @@ export default function FeedSettingsScreen() {
           options={{
             title: t('settings.feed.title'),
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
@@ -197,7 +198,7 @@ export default function FeedSettingsScreen() {
         options={{
           title: t('settings.feed.title'),
           leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],

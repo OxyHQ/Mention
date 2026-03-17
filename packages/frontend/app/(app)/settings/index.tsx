@@ -8,6 +8,7 @@ import { useAuth } from "@oxyhq/services";
 import { useTranslation } from "react-i18next";
 import { useLayoutScroll } from "@/context/LayoutScrollContext";
 import { useRouter } from "expo-router";
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from "@/hooks/useProfileData";
 import Avatar from "@/components/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +18,7 @@ import { confirmDialog } from "@/utils/alerts";
 export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
+    const safeBack = useSafeBack();
     const { user, showBottomSheet } = useAuth();
     const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
@@ -74,7 +76,7 @@ export default function SettingsScreen() {
                 options={{
                     title: t("settings.title"),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

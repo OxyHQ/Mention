@@ -4,8 +4,8 @@ import { useAppearanceStore } from '@/store/appearanceStore';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,7 @@ interface StyleOption {
 
 export default function ProfileCustomizationScreen() {
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loading = useAppearanceStore((state) => state.loading);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
@@ -192,7 +193,7 @@ export default function ProfileCustomizationScreen() {
           leftComponents: [
             <IconButton variant="icon"
               key="back"
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,

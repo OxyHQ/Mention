@@ -5,8 +5,8 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { storeData, getData } from '@/utils/storage';
@@ -23,6 +23,7 @@ const LANGUAGE_STORAGE_KEY = 'user_language_preference';
 
 export default function LanguageSettingsScreen() {
     const { t } = useTranslation();
+    const safeBack = useSafeBack();
     const { colors } = useTheme();
     const [currentLanguage, setCurrentLanguage] = useState<string>('en-US');
     const [saving, setSaving] = useState(false);
@@ -64,7 +65,7 @@ export default function LanguageSettingsScreen() {
                 options={{
                     title: t('Language'),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

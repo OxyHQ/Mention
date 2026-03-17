@@ -6,8 +6,8 @@ import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@/lib/app
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Loading } from '@/components/ui/Loading';
@@ -27,6 +27,7 @@ export default function AppearanceSettingsScreen() {
   const setAppColor = useThemeStore((s) => s.setAppColor);
   const setMode = useThemeStore((s) => s.setMode);
   const { showBottomSheet, oxyServices } = useAuth();
+  const safeBack = useSafeBack();
   const { colors } = useTheme();
   const { t } = useTranslation();
 
@@ -100,7 +101,7 @@ export default function AppearanceSettingsScreen() {
         options={{
           title: t('settings.appearance', 'Appearance'),
           leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],
