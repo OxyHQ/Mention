@@ -696,6 +696,13 @@ const ComposeScreen = () => {
 
   const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
+  // Character count for the currently focused item
+  const focusedCharCount = useMemo(() => {
+    if (focusedItemId === 'main') return postContent.length;
+    const item = threadItems.find(t => t.id === focusedItemId);
+    return item ? item.text.length : 0;
+  }, [focusedItemId, postContent, threadItems]);
+
   // Wrapper for openScheduleSheet to pass ScheduleSheet component
   const handleSchedulePress = useCallback(() => {
     openScheduleSheet(ScheduleSheet);
@@ -1254,11 +1261,6 @@ const ComposeScreen = () => {
                       hasSourceErrors={invalidSources}
                       disabled={isPosting}
                     />
-                    {postContent.length > 0 && (
-                      <Text className="text-muted-foreground" style={styles.characterCountText}>
-                        {postContent.length}
-                      </Text>
-                    )}
                   </View>
 
                   {scheduledAt && (
@@ -1448,11 +1450,6 @@ const ComposeScreen = () => {
                               hasRoom={itemHasRoom}
                               disabled={isPosting}
                             />
-                            {item.text.length > 0 && (
-                              <Text className="text-muted-foreground" style={styles.characterCountText}>
-                                {item.text.length}
-                              </Text>
-                            )}
                           </View>
                           <TouchableOpacity
                             style={styles.removeThreadBtn}
@@ -1825,6 +1822,19 @@ const ComposeScreen = () => {
           </ThemedView>
         </KeyboardAvoidingView>
 
+        {/* Floating character counter */}
+        {focusedCharCount > 0 && (
+          <Text
+            className="text-muted-foreground"
+            style={[
+              styles.floatingCharCount,
+              bottomBarVisible && { bottom: 96 + 48 + 8 },
+            ]}
+          >
+            {focusedCharCount}
+          </Text>
+        )}
+
         {/* Floating post button */}
         <TouchableOpacity
           onPress={handlePost}
@@ -2038,6 +2048,13 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingLeft: 8,
   },
+  floatingCharCount: {
+    position: 'absolute',
+    right: 20,
+    bottom: 16 + 48 + 8, // above floating post button
+    fontSize: 12,
+    fontWeight: '500',
+  },
   floatingPostButton: {
     position: 'absolute',
     right: 16,
@@ -2119,11 +2136,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 4,
-  },
-  characterCountText: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 12,
   },
   addToThreadBtn: {
     flexDirection: 'row',
