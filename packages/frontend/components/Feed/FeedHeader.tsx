@@ -51,10 +51,10 @@ export const FeedHeader = memo<FeedHeaderProps>(
                 ? `${primaryColor}20`
                 : `${primaryColor}15`,
             shadowColor: primaryColor,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: theme.isDark ? 0.35 : 0.12,
-            shadowRadius: 12,
-            elevation: 4,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: theme.isDark ? 0.2 : 0.08,
+            shadowRadius: 6,
+            elevation: 2,
         }), [primaryColor, theme.isDark, theme.colors.card]);
 
         return (

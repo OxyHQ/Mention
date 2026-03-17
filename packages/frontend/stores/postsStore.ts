@@ -1900,38 +1900,7 @@ export const usePostsStore = create<FeedState>()(
     },
 
     addPostToFeed: (post: FeedItem, feedType: FeedType) => {
-      set(state => {
-        const currentFeed = state.feeds[feedType];
-        if (!currentFeed) return state;
-        
-        // Transform and merge, then deduplicate
-        const transformedPost = transformToUIItem(post);
-        const mergedItems = [transformedPost, ...currentFeed.items];
-        const finalItems = deduplicateItems(mergedItems, `addPostToFeed:${feedType}`);
-        
-        // Update cache
-        const newCache = { ...state.postsById };
-        const postId = normalizeId(transformedPost);
-        if (postId) {
-          newCache[postId] = transformedPost;
-          primeRelatedPosts(newCache, transformedPost);
-        }
-        
-        try { useUsersStore.getState().primeFromPosts([transformedPost] as any); } catch {}
-        
-        return {
-          ...state,
-          feeds: {
-            ...state.feeds,
-            [feedType]: {
-              ...currentFeed,
-              items: finalItems,
-              totalCount: finalItems.length,
-            }
-          },
-          postsById: newCache
-        };
-      });
+      get().addPostsToFeed([post], feedType);
     },
 
     addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => {
