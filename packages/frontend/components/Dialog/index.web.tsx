@@ -1,5 +1,5 @@
 import React, { useCallback, useImperativeHandle, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, View, type ViewStyle } from 'react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import { Portal } from '@/components/Portal';
@@ -70,7 +70,7 @@ export function Outer({
             alignItems: 'center',
             justifyContent: webOptions?.alignCenter ? 'center' : undefined,
             paddingHorizontal: 20,
-            paddingVertical: '10%',
+            paddingVertical: '10vh' as unknown as number,
             overflowY: 'auto',
           }}
         >
@@ -107,28 +107,28 @@ export function Inner({
       aria-label={label}
       onStartShouldSetResponder={() => true}
       onResponderRelease={stopPropagation}
-      // @ts-expect-error web-only onClick
-      onClick={stopPropagation}
+      {...({ onClick: stopPropagation } as Record<string, unknown>)}
       style={[
         {
           position: 'relative',
-          borderRadius: 16,
+          borderRadius: 10,
           width: '100%',
           maxWidth: 600,
           backgroundColor: theme.colors.background,
           borderWidth: 1,
-          borderColor: theme.colors.border,
-          shadowColor: theme.colors.shadow,
+          borderColor: theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          shadowColor: '#000',
           shadowOpacity: theme.isDark ? 0.4 : 0.1,
           shadowRadius: 30,
           shadowOffset: { width: 0, height: 4 },
           overflow: 'hidden',
         },
+        { animation: 'dialogZoomFadeIn cubic-bezier(0.16, 1, 0.3, 1) 0.3s' } as ViewStyle,
         style,
       ]}
     >
       {header}
-      <View style={[{ padding: 24 }, contentContainerStyle]}>
+      <View style={[{ padding: 20 }, contentContainerStyle]}>
         {children}
       </View>
     </View>
@@ -145,36 +145,49 @@ export function Handle() {
 
 export function Close() {
   const { close } = React.useContext(Context);
+  const theme = useTheme();
 
   return (
     <View
       style={{
         position: 'absolute',
-        top: 12,
-        right: 12,
+        top: 10,
+        right: 10,
         zIndex: 10,
       }}
     >
-      <IconButton variant="icon" onPress={() => close()}>
-        <CloseIcon size={20} />
+      <IconButton
+        variant="icon"
+        onPress={() => close()}
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          backgroundColor: theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <CloseIcon size={18} />
       </IconButton>
     </View>
   );
 }
 
 export function Backdrop() {
-  const theme = useTheme();
-
   return (
     <View
-      style={{
-        position: 'fixed' as 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: theme.colors.overlay,
-      }}
+      style={[
+        {
+          position: 'fixed' as 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+        },
+        { animation: 'dialogFadeIn ease-out 0.15s' } as ViewStyle,
+      ]}
     />
   );
 }

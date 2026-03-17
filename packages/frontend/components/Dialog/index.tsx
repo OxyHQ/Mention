@@ -1,10 +1,10 @@
 import React, { useCallback, useImperativeHandle, useMemo, useRef } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/useTheme';
-import { Context } from './context';
+import { Context, useDialogContext } from './context';
 import type { DialogControlProps, DialogInnerProps, DialogOuterProps } from './types';
 
 export { useDialogContext, useDialogControl } from './context';
@@ -67,7 +67,7 @@ export function Outer({
         appearsOnIndex={0}
         disappearsOnIndex={-1}
         pressBehavior="close"
-        opacity={0.5}
+        opacity={0.4}
       />
     ),
     [],
@@ -80,8 +80,17 @@ export function Outer({
       enableDismissOnClose
       enableDynamicSizing={!preventExpansion}
       snapPoints={preventExpansion ? ['40%'] : undefined}
-      backgroundStyle={{ backgroundColor: theme.colors.background }}
-      handleIndicatorStyle={{ backgroundColor: theme.colors.textSecondary, width: 40 }}
+      backgroundStyle={{
+        backgroundColor: theme.colors.background,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+      }}
+      handleIndicatorStyle={{
+        backgroundColor: theme.colors.text,
+        width: 35,
+        height: 5,
+        opacity: 0.5,
+      }}
       backdropComponent={renderBackdrop}
       onDismiss={handleDismiss}
       style={{ maxWidth: 500, margin: 'auto' }}
@@ -105,7 +114,7 @@ export function Inner({ children, style, header, contentContainerStyle }: Dialog
       {header}
       <View
         style={[
-          { paddingTop: 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 20 },
+          { paddingTop: 20, paddingHorizontal: 20, paddingBottom: insets.bottom + insets.top },
           contentContainerStyle,
           style,
         ]}
@@ -121,7 +130,31 @@ export function ScrollableInner(props: DialogInnerProps) {
 }
 
 export function Handle() {
-  return null;
+  const theme = useTheme();
+  const { close } = useDialogContext();
+
+  return (
+    <View style={{ position: 'absolute', width: '100%', alignItems: 'center', zIndex: 10, height: 20 }}>
+      <Pressable
+        onPress={() => close()}
+        accessibilityLabel="Dismiss"
+        accessibilityHint="Tap to close the dialog"
+        hitSlop={{ top: 10, bottom: 10, left: 40, right: 40 }}
+      >
+        <View
+          style={{
+            top: 8,
+            width: 35,
+            height: 5,
+            borderRadius: 3,
+            alignSelf: 'center',
+            backgroundColor: theme.colors.text,
+            opacity: 0.5,
+          }}
+        />
+      </Pressable>
+    </View>
+  );
 }
 
 export function Close() {

@@ -1720,7 +1720,7 @@ const ComposeScreen = () => {
             <Prompt.Action
               cta={t('common.discard', 'Discard')}
               onPress={() => safeBack()}
-              color="negative"
+              color="negative_subtle"
             />
             <Prompt.Cancel cta={t('compose.keepEditing', 'Keep editing')} />
           </Prompt.Actions>
@@ -1732,7 +1732,7 @@ const ComposeScreen = () => {
           title={t('compose.clearAllTitle', 'Clear all content?')}
           description={t('compose.clearAllDescription', 'This will remove all text, media, and attachments from your post.')}
           confirmButtonCta={t('common.clearAll', 'Clear All')}
-          confirmButtonColor="negative"
+          confirmButtonColor="negative_subtle"
           onConfirm={() => {
             setPostContent('');
             setMediaIds([]);

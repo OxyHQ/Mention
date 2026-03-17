@@ -99,7 +99,7 @@ export function Content({ children }: { children: React.ReactNode }) {
   return <View className="pb-2">{children}</View>;
 }
 
-export type ActionColor = 'primary' | 'secondary' | 'negative';
+export type ActionColor = 'primary' | 'secondary' | 'negative' | 'negative_subtle';
 
 export function Cancel({ cta }: { cta?: string }) {
   const { t } = useTranslation();
@@ -112,12 +112,16 @@ export function Cancel({ cta }: { cta?: string }) {
 
   return (
     <TouchableOpacity
-      className="py-3.5 rounded-xl items-center justify-center min-h-[50px] border border-border"
-      style={{ backgroundColor: theme.colors.card }}
+      className="rounded-full items-center justify-center"
+      style={{
+        backgroundColor: theme.isDark ? '#19222E' : '#EFF2F6',
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+      }}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Text className="text-base font-semibold text-foreground">
+      <Text className="text-base font-medium text-foreground">
         {cta || t('common.cancel')}
       </Text>
     </TouchableOpacity>
@@ -155,26 +159,36 @@ export function Action({
   );
 
   const backgroundColor = color === 'negative'
-    ? theme.colors.error
-    : color === 'secondary'
-      ? theme.colors.card
-      : theme.colors.primary;
+    ? (theme.isDark ? '#E91646' : '#E91646')
+    : color === 'negative_subtle'
+      ? (theme.isDark ? '#430413' : '#FEE7EC')
+      : color === 'secondary'
+        ? (theme.isDark ? '#19222E' : '#EFF2F6')
+        : theme.colors.primary;
 
-  const textColor = color === 'secondary' ? 'text-foreground' : 'text-white';
+  const textColor = color === 'negative'
+    ? { color: '#FFFFFF' }
+    : color === 'negative_subtle'
+      ? { color: theme.isDark ? '#F65A7F' : '#CA123D' }
+      : color === 'secondary'
+        ? { color: theme.isDark ? '#EEEEEE' : '#19222E' }
+        : { color: '#FFFFFF' };
 
   return (
     <TouchableOpacity
-      className={`py-3.5 rounded-xl items-center justify-center min-h-[50px]`}
+      className="rounded-full items-center justify-center"
       style={{
         backgroundColor,
         opacity: disabled ? 0.5 : 1,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
       }}
       onPress={handleOnPress}
       disabled={disabled}
       activeOpacity={0.7}
       testID={testID}
     >
-      <Text className={`text-base font-semibold ${textColor}`}>
+      <Text className="text-base font-medium" style={textColor}>
         {cta || t('common.confirm')}
       </Text>
     </TouchableOpacity>
