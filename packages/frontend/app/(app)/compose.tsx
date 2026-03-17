@@ -937,11 +937,12 @@ const ComposeScreen = () => {
 
             {/* Main composer and thread section */}
             <View style={styles.threadContainer}>
-              {/* Continuous timeline line for all items - from composer to add button */}
-              <View style={[styles.continuousTimelineLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
-
               {/* Main composer */}
               <View style={[styles.postContainer, focusedItemId !== 'main' && threadItems.length > 0 && styles.unfocusedItem]}>
+                {/* Connector line below main avatar — only when thread items exist */}
+                {threadItems.length > 0 && (
+                  <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                )}
                 <View style={styles.composerWithTimeline}>
                   <PostHeader
                     paddingHorizontal={HPAD}
@@ -1323,6 +1324,10 @@ const ComposeScreen = () => {
 
                 return (
                 <View key={`thread-${item.id}`} style={[styles.postContainer, focusedItemId !== item.id && styles.unfocusedItem]}>
+                  {/* Connector line above this thread item's avatar */}
+                  <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                  {/* Connector line below this thread item's avatar */}
+                  <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
                   <View style={styles.threadItemWithTimeline}>
                     <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                       <TouchableOpacity activeOpacity={0.7}>
@@ -1712,6 +1717,9 @@ const ComposeScreen = () => {
               })}
 
               {/* Add thread/post button */}
+              <View style={{ position: 'relative' }}>
+                {/* Connector line above add button's avatar */}
+                <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
               <TouchableOpacity
                 style={styles.postContainer}
                 onPress={() => addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined)}
@@ -1734,6 +1742,7 @@ const ComposeScreen = () => {
                   </View>
                 </View>
               </TouchableOpacity>
+              </View>
             </View>
 
             <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
@@ -2204,15 +2213,21 @@ const styles = StyleSheet.create({
   threadContainer: {
     position: 'relative',
   },
-  continuousTimelineLine: {
+  itemConnectorLine: {
     position: 'absolute',
-    left: 0,
-    top: 60, // Start below main composer avatar (12px pad + 40px avatar + 8px gap)
-    bottom: 60, // End above add button avatar (12px pad + 40px avatar + 8px gap)
+    top: 60, // below avatar: 12px pad + 40px avatar + 8px gap
+    bottom: 0,
     width: 2,
-    backgroundColor: '#ededed',
     borderRadius: 9999,
-    zIndex: -1, // Behind the avatars
+    zIndex: -1,
+  },
+  itemConnectorLineAbove: {
+    position: 'absolute',
+    top: 0,
+    height: 4, // from container top to 8px before avatar (12px pad - 8px gap)
+    width: 2,
+    borderRadius: 9999,
+    zIndex: -1,
   },
   composerWithTimeline: {
     position: 'relative',
