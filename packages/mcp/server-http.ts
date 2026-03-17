@@ -7,9 +7,9 @@
  *
  * Environment variables:
  *   MENTION_API_URL   — Base URL of the Mention API (default: https://api.mention.earth)
- *   MENTION_API_TOKEN — Oxy JWT Bearer token for authentication
+ *   OXY_SERVICE_TOKEN — Service-level Oxy JWT (fallback when no user token)
  *   MCP_PORT          — Port to listen on (default: 3100)
- *   MCP_AUTH_TOKEN    — Optional Bearer token to protect the MCP server itself
+ *   MCP_AUTH_TOKEN    — Optional token to protect the MCP endpoint (X-MCP-Token header)
  */
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -24,6 +24,7 @@ import { registerNotificationsTools } from "./tools/notifications.js";
 import { registerPollsTools } from "./tools/polls.js";
 import { registerHashtagsTools } from "./tools/hashtags.js";
 import { SERVER_INSTRUCTIONS } from "./lib/instructions.js";
+import { requestContext } from "./lib/context.js";
 
 const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
 const AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
@@ -45,6 +46,7 @@ setInterval(() => {
       transport.close().catch(() => {});
       delete transports[id];
       sessionLastActivity.delete(id);
+      sessionUserTokens.delete(id);
       cleaned++;
     }
   }
@@ -66,7 +68,7 @@ interface SimpleResponse {
   on?(event: string, handler: () => void): void;
 }
 
-function extractToken(req: SimpleRequest): string | undefined {
+function extractBearerToken(req: SimpleRequest): string | undefined {
   const authHeader = req.headers.authorization;
   const header = Array.isArray(authHeader) ? authHeader[0] : authHeader;
   if (header?.startsWith("Bearer ")) return header.slice(7);
@@ -74,17 +76,30 @@ function extractToken(req: SimpleRequest): string | undefined {
   return Array.isArray(queryToken) ? queryToken[0] : queryToken;
 }
 
-function checkAuth(req: SimpleRequest, res: SimpleResponse): boolean {
+/**
+ * Check endpoint protection. If MCP_AUTH_TOKEN is set, the request must
+ * include it as an X-MCP-Token header or ?mcp_token query param.
+ * The Bearer token is reserved for the user's Oxy JWT (forwarded to the API).
+ */
+function checkEndpointAuth(req: SimpleRequest, res: SimpleResponse): boolean {
   if (!AUTH_TOKEN) return true;
-  const token = extractToken(req);
-  if (token === AUTH_TOKEN) return true;
+  const mcpToken =
+    (Array.isArray(req.headers["x-mcp-token"]) ? req.headers["x-mcp-token"][0] : req.headers["x-mcp-token"]) ||
+    (Array.isArray(req.query?.mcp_token) ? req.query?.mcp_token[0] : req.query?.mcp_token);
+  if (mcpToken === AUTH_TOKEN) return true;
+  // Also accept Bearer token matching MCP_AUTH_TOKEN for backward compatibility
+  const bearer = extractBearerToken(req);
+  if (bearer === AUTH_TOKEN) return true;
   res.status(401).json({
     jsonrpc: "2.0",
-    error: { code: -32000, message: "Unauthorized: Invalid or missing Bearer token" },
+    error: { code: -32000, message: "Unauthorized: Invalid or missing auth token" },
     id: null,
   });
   return false;
 }
+
+/** Map session IDs to their user tokens for SSE sessions (long-lived). */
+const sessionUserTokens: Map<string, string> = new Map();
 
 // ── Create MCP server ────────────────────────────────────────
 function createMcpServer(): McpServer {
@@ -183,7 +198,8 @@ async function main() {
 
     // ── Streamable HTTP: POST /mcp ───────────────────────────
     if (pathname === "/mcp" && req.method === "POST") {
-      if (!checkAuth(simpleReq, simpleRes)) return;
+      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
+      const userToken = extractBearerToken(simpleReq);
       try {
         const sessionId = req.headers["mcp-session-id"] as string | undefined;
         let transport: StreamableHTTPServerTransport;
@@ -209,13 +225,16 @@ async function main() {
             if (transport.sessionId) {
               delete transports[transport.sessionId];
               sessionLastActivity.delete(transport.sessionId);
+              sessionUserTokens.delete(transport.sessionId);
             }
           };
           await server.connect(transport);
         }
 
         const body = await readBody();
-        await transport.handleRequest(req, res, body);
+        await requestContext.run({ userToken }, () =>
+          transport.handleRequest(req, res, body),
+        );
 
         if (transport.sessionId && !transports[transport.sessionId]) {
           transports[transport.sessionId] = transport;
@@ -238,7 +257,7 @@ async function main() {
 
     // ── Streamable HTTP: GET /mcp ────────────────────────────
     if (pathname === "/mcp" && req.method === "GET") {
-      if (!checkAuth(simpleReq, simpleRes)) return;
+      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
         res.setHeader("Content-Type", "application/json");
@@ -258,7 +277,7 @@ async function main() {
 
     // ── Streamable HTTP: DELETE /mcp ─────────────────────────
     if (pathname === "/mcp" && req.method === "DELETE") {
-      if (!checkAuth(simpleReq, simpleRes)) return;
+      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
         res.setHeader("Content-Type", "application/json");
@@ -274,19 +293,25 @@ async function main() {
       await transport.handleRequest(req, res);
       delete transports[sessionId];
       sessionLastActivity.delete(sessionId);
+      sessionUserTokens.delete(sessionId);
       return;
     }
 
     // ── SSE: GET /sse ────────────────────────────────────────
     if (pathname === "/sse" && req.method === "GET") {
-      if (!checkAuth(simpleReq, simpleRes)) return;
+      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
+      const userToken = extractBearerToken(simpleReq);
       const server = createMcpServer();
       const transport = new SSEServerTransport("/messages", res);
       transports[transport.sessionId] = transport;
+      if (userToken) {
+        sessionUserTokens.set(transport.sessionId, userToken);
+      }
 
       res.on("close", () => {
         delete transports[transport.sessionId];
         sessionLastActivity.delete(transport.sessionId);
+        sessionUserTokens.delete(transport.sessionId);
       });
 
       await server.connect(transport);
@@ -295,7 +320,7 @@ async function main() {
 
     // ── SSE: POST /messages ──────────────────────────────────
     if (pathname === "/messages" && req.method === "POST") {
-      if (!checkAuth(simpleReq, simpleRes)) return;
+      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
       const sessionId = query.sessionId;
       const transport = sessionId ? transports[sessionId] : undefined;
 
@@ -310,8 +335,12 @@ async function main() {
         return;
       }
 
+      // Use per-request Bearer token, or fall back to the token from session init
+      const userToken = extractBearerToken(simpleReq) || (sessionId ? sessionUserTokens.get(sessionId) : undefined);
       const body = await readBody();
-      await transport.handlePostMessage(req, res, body);
+      await requestContext.run({ userToken }, () =>
+        transport.handlePostMessage(req, res, body),
+      );
       return;
     }
 
@@ -343,6 +372,7 @@ async function main() {
       transport.close();
       delete transports[id];
       sessionLastActivity.delete(id);
+      sessionUserTokens.delete(id);
     }
     httpServer.close();
     process.exit(0);

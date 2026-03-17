@@ -15,7 +15,9 @@ Mention (mention.earth) is a social platform for sharing posts, following users,
 - **Polls**: Create polls with multiple options and vote
 
 ## Authentication
-All write operations and most read operations require authentication. The server uses an Oxy JWT Bearer token configured via the MENTION_API_TOKEN environment variable.
+All write operations and most read operations require authentication. The server authenticates to the Mention API using either:
+- A per-request user token (Oxy JWT forwarded from the MCP client's Bearer token)
+- A service-level token (OXY_SERVICE_TOKEN environment variable) as fallback
 
 ## Tool Usage Guide
 

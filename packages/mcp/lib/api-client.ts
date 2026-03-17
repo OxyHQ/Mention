@@ -1,14 +1,13 @@
 /**
  * HTTP client wrapper for the Mention REST API.
  *
- * Reads MENTION_API_URL and MENTION_API_TOKEN from the environment and
- * provides typed helper methods for every HTTP verb the API uses.
+ * Token resolution order:
+ *   1. Per-request user token from AsyncLocalStorage context (set by HTTP transport)
+ *   2. OXY_SERVICE_TOKEN env var (service-level fallback)
+ *
+ * Reads MENTION_API_URL from the environment for the base URL.
  */
-
-export interface ApiClientOptions {
-  baseUrl: string;
-  token: string;
-}
+import { requestContext } from "./context.js";
 
 export interface ApiError {
   status: number;
@@ -16,32 +15,34 @@ export interface ApiError {
   body: unknown;
 }
 
-function getConfig(): ApiClientOptions {
-  const baseUrl = (process.env.MENTION_API_URL || "https://api.mention.earth").replace(/\/+$/, "");
-  const token = process.env.MENTION_API_TOKEN || "";
-  if (!token) {
-    process.stderr.write(
-      "[mention-mcp] WARNING: MENTION_API_TOKEN is not set. Authenticated requests will fail.\n",
-    );
-  }
-  return { baseUrl, token };
+const BASE_URL = (process.env.MENTION_API_URL || "https://api.mention.earth").replace(/\/+$/, "");
+const SERVICE_TOKEN = process.env.OXY_SERVICE_TOKEN || "";
+
+if (!SERVICE_TOKEN) {
+  process.stderr.write(
+    "[mention-mcp] WARNING: OXY_SERVICE_TOKEN is not set. Requests without a user token will fail.\n",
+  );
 }
 
-const config = getConfig();
+function resolveToken(): string {
+  const ctx = requestContext.getStore();
+  return ctx?.userToken || SERVICE_TOKEN;
+}
 
 function headers(): Record<string, string> {
   const h: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  if (config.token) {
-    h["Authorization"] = `Bearer ${config.token}`;
+  const token = resolveToken();
+  if (token) {
+    h["Authorization"] = `Bearer ${token}`;
   }
   return h;
 }
 
 function buildUrl(path: string, query?: Record<string, string | number | boolean | undefined>): string {
-  const url = new URL(`${config.baseUrl}${path}`);
+  const url = new URL(`${BASE_URL}${path}`);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== "") {
