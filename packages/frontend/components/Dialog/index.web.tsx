@@ -1,4 +1,4 @@
-import React, { useCallback, useImperativeHandle, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Pressable, View, type ViewStyle } from 'react-native';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -11,7 +11,11 @@ import type { DialogControlProps, DialogInnerProps, DialogOuterProps } from './t
 export { useDialogContext, useDialogControl } from './context';
 export type { DialogControlProps, DialogOuterProps, DialogInnerProps } from './types';
 
+const FADE_OUT_DURATION = 150;
+
 const stopPropagation = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
+const ClosingContext = createContext(false);
 
 export function Outer({
   children,
@@ -21,22 +25,38 @@ export function Outer({
   webOptions,
 }: React.PropsWithChildren<DialogOuterProps>) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const closeCallbackRef = useRef<(() => void) | undefined>(undefined);
 
   const open = useCallback(() => {
+    setIsClosing(false);
     setIsOpen(true);
   }, []);
 
   const close = useCallback<DialogControlProps['close']>((cb) => {
-    setIsOpen(false);
-    try {
-      if (cb && typeof cb === 'function') {
-        setTimeout(cb);
-      }
-    } catch (e) {
-      console.error('Dialog close callback error:', e);
+    if (cb && typeof cb === 'function') {
+      closeCallbackRef.current = cb;
     }
-    onClose?.();
-  }, [onClose]);
+    setIsClosing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClosing) return;
+
+    const timer = setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+      try {
+        closeCallbackRef.current?.();
+      } catch (e) {
+        console.error('Dialog close callback error:', e);
+      }
+      closeCallbackRef.current = undefined;
+      onClose?.();
+    }, FADE_OUT_DURATION);
+
+    return () => clearTimeout(timer);
+  }, [isClosing, onClose]);
 
   useImperativeHandle(
     control.ref,
@@ -58,35 +78,37 @@ export function Outer({
   return (
     <Portal>
       <Context.Provider value={context}>
-        <Pressable
-          onPress={handleBackdropPress}
-          style={{
-            position: 'fixed' as 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 50,
-            alignItems: 'center',
-            justifyContent: webOptions?.alignCenter ? 'center' : undefined,
-            paddingHorizontal: 20,
-            paddingVertical: '10vh' as unknown as number,
-            overflowY: 'auto',
-          }}
-        >
-          <Backdrop />
-          <View
-            testID={testID}
+        <ClosingContext.Provider value={isClosing}>
+          <Pressable
+            onPress={handleBackdropPress}
             style={{
-              width: '100%',
-              zIndex: 60,
+              position: 'fixed' as 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 50,
               alignItems: 'center',
-              minHeight: webOptions?.alignCenter ? undefined : '60%',
+              justifyContent: webOptions?.alignCenter ? 'center' : undefined,
+              paddingHorizontal: 20,
+              paddingVertical: '10vh' as unknown as number,
+              overflowY: 'auto',
             }}
           >
-            {children}
-          </View>
-        </Pressable>
+            <Backdrop isClosing={isClosing} />
+            <View
+              testID={testID}
+              style={{
+                width: '100%',
+                zIndex: 60,
+                alignItems: 'center',
+                minHeight: webOptions?.alignCenter ? undefined : '60%',
+              }}
+            >
+              {children}
+            </View>
+          </Pressable>
+        </ClosingContext.Provider>
       </Context.Provider>
     </Portal>
   );
@@ -100,6 +122,7 @@ export function Inner({
   contentContainerStyle,
 }: DialogInnerProps) {
   const theme = useTheme();
+  const isClosing = useContext(ClosingContext);
 
   return (
     <View
@@ -123,7 +146,9 @@ export function Inner({
           shadowOffset: { width: 0, height: 4 },
           overflow: 'hidden',
         },
-        { animation: 'dialogZoomFadeIn cubic-bezier(0.16, 1, 0.3, 1) 0.3s' } as ViewStyle,
+        isClosing
+          ? { animation: `dialogZoomFadeOut ease-in ${FADE_OUT_DURATION}ms forwards` } as ViewStyle
+          : { animation: 'dialogZoomFadeIn cubic-bezier(0.16, 1, 0.3, 1) 0.3s' } as ViewStyle,
         style,
       ]}
     >
@@ -174,18 +199,20 @@ export function Close() {
   );
 }
 
-const backdropStyle: ViewStyle[] = [
-  {
-    position: 'fixed' as 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-  },
-  { animation: 'dialogFadeIn ease-out 0.15s' } as ViewStyle,
-];
+function Backdrop({ isClosing }: { isClosing: boolean }) {
+  const style: ViewStyle[] = [
+    {
+      position: 'fixed' as 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.8)',
+    },
+    isClosing
+      ? { animation: `dialogFadeOut ease-in ${FADE_OUT_DURATION}ms forwards` } as ViewStyle
+      : { animation: 'dialogFadeIn ease-out 0.15s' } as ViewStyle,
+  ];
 
-export function Backdrop() {
-  return <View style={backdropStyle} />;
+  return <View style={style} />;
 }
