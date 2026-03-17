@@ -75,37 +75,48 @@ export class PostHydrationService {
     const postIds = Array.from(graph.keys());
     const postsForHydration = Array.from(graph.values());
 
-    await this.populateViewerInteractions(postIds, viewerContext);
-
-    // Pre-collect replier user IDs so we can batch them into the main user fetch
-    const replierAggResult = await this.aggregateRecentReplierIds(postIds);
-
-    const pollMap = await this.buildPollMap(postsForHydration);
-    const userMap = await this.buildUserMap(postsForHydration, replierAggResult.allReplierIds);
+    // Run independent hydration steps in parallel to minimize waterfall latency.
+    // Dependency chain: aggregateRecentReplierIds → buildUserMap → buildReplierAvatarsFromUserMap
+    // Everything else is independent and can run concurrently.
+    const [
+      ,
+      { userMap, recentReplierMap },
+      pollMap,
+      authorPrivacyMap,
+      linkPreviewMap,
+    ] = await Promise.all([
+      this.populateViewerInteractions(postIds, viewerContext),
+      (async () => {
+        const replierAggResult = await this.aggregateRecentReplierIds(postIds);
+        const uMap = await this.buildUserMap(postsForHydration, replierAggResult.allReplierIds);
+        const rMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, uMap);
+        return { userMap: uMap, recentReplierMap: rMap };
+      })(),
+      this.buildPollMap(postsForHydration),
+      this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
+      options.includeLinkMetadata !== false
+        ? this.buildLinkPreviewMap(postsForHydration)
+        : Promise.resolve(new Map<string, PostLinkPreview>()),
+    ]);
     const mentionCache: Map<string, PostActorSummary> = new Map(userMap);
-    const authorPrivacyMap = await this.buildAuthorPrivacyMap(postsForHydration, viewerContext);
-
-    const linkPreviewMap = options.includeLinkMetadata !== false
-      ? await this.buildLinkPreviewMap(postsForHydration)
-      : new Map<string, PostLinkPreview>();
-
-    // Build replier avatar map using the already-populated userMap (no extra fetches)
-    const recentReplierMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, userMap);
 
     const summaryMap = new Map<string, HydratedPostSummary>();
 
-    for (const { post } of postsForHydration) {
-      const summary = await this.buildPostSummary({
-        post,
-        viewerContext,
-        pollMap,
-        userMap,
-        mentionCache,
-        linkPreviewMap,
-        authorPrivacyMap,
-        recentReplierMap,
-      });
-
+    const summaries = await Promise.all(
+      postsForHydration.map(({ post }) =>
+        this.buildPostSummary({
+          post,
+          viewerContext,
+          pollMap,
+          userMap,
+          mentionCache,
+          linkPreviewMap,
+          authorPrivacyMap,
+          recentReplierMap,
+        })
+      )
+    );
+    for (const summary of summaries) {
       if (summary) {
         summaryMap.set(summary.id, summary);
       }
@@ -992,7 +1003,7 @@ export class PostHydrationService {
     const attachments = this.buildAttachments(post, pollMap);
     const linkPreview = linkPreviewMap.get(postId) ?? null;
     const viewerState = this.buildViewerState(postId, authorId, viewerContext);
-    const permissions = await this.buildPermissions(post, authorId, viewerContext);
+    const permissions = this.buildPermissions(post, authorId, viewerContext);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
     const replierAvatars = recentReplierMap?.get(postId);
     const engagement = this.buildEngagement(post, authorPrivacy, replierAvatars);
@@ -1185,9 +1196,9 @@ export class PostHydrationService {
     };
   }
 
-  private async buildPermissions(post: any, authorId: string, viewerContext: ViewerContext): Promise<PostPermissions> {
+  private buildPermissions(post: any, authorId: string, viewerContext: ViewerContext): PostPermissions {
     const isOwner = viewerContext.viewerId === authorId;
-    const canReply = await this.computeReplyPermission(post, authorId, viewerContext);
+    const canReply = this.computeReplyPermission(post, authorId, viewerContext);
 
     return {
       canReply,
@@ -1198,7 +1209,7 @@ export class PostHydrationService {
     };
   }
 
-  private async computeReplyPermission(post: any, authorId: string, viewerContext: ViewerContext): Promise<boolean> {
+  private computeReplyPermission(post: any, authorId: string, viewerContext: ViewerContext): boolean {
     const viewerId = viewerContext.viewerId;
     if (!viewerId) return false;
     if (viewerId === authorId) return true;
