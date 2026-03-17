@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useTheme } from '@/hooks/useTheme';
-import { ConfirmBottomSheet } from './ConfirmBottomSheet';
+import { type GestureResponderEvent } from 'react-native';
+
+import { useDialogControl } from '@/components/Dialog';
+import * as Prompt from '@/components/Prompt';
 import type { ConfirmOptions } from '@/utils/alerts';
 
 type ConfirmRequest = ConfirmOptions & {
@@ -11,9 +12,9 @@ type ConfirmRequest = ConfirmOptions & {
 let globalShowConfirm: ((request: ConfirmRequest) => void) | null = null;
 
 /**
- * Show a confirm dialog using the in-app bottom sheet instead of window.confirm/Alert.alert.
+ * Show a confirm dialog using the Dialog system.
  * Returns a Promise<boolean> just like the old confirmDialog.
- * Falls back to native Alert if the provider isn't mounted yet.
+ * Falls back to resolving false if the provider isn't mounted yet.
  */
 export function showConfirmPrompt(options: ConfirmOptions): Promise<boolean> {
   if (globalShowConfirm) {
@@ -22,17 +23,15 @@ export function showConfirmPrompt(options: ConfirmOptions): Promise<boolean> {
     });
   }
 
-  // Fallback if provider not mounted (shouldn't happen in normal app flow)
   return Promise.resolve(false);
 }
 
 /**
  * Mount this provider once near the root of the app (inside BottomSheetModalProvider).
- * It renders the ConfirmBottomSheet when confirmDialog is called.
+ * It renders a Prompt dialog when confirmDialog is called.
  */
 export function ConfirmPromptProvider() {
-  const theme = useTheme();
-  const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const control = useDialogControl();
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
   const requestRef = useRef<ConfirmRequest | null>(null);
 
@@ -40,28 +39,22 @@ export function ConfirmPromptProvider() {
     globalShowConfirm = (req) => {
       requestRef.current = req;
       setRequest(req);
-      bottomSheetRef.current?.present();
+      // Open on next tick so the Prompt component has time to mount with the new request
+      setTimeout(() => control.open(), 0);
     };
 
     return () => {
       globalShowConfirm = null;
     };
-  }, []);
+  }, [control]);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback((_e: GestureResponderEvent) => {
     requestRef.current?.resolve(true);
     requestRef.current = null;
-    bottomSheetRef.current?.dismiss();
   }, []);
 
-  const handleCancel = useCallback(() => {
-    requestRef.current?.resolve(false);
-    requestRef.current = null;
-    bottomSheetRef.current?.dismiss();
-  }, []);
-
-  const handleDismiss = useCallback(() => {
-    // If dismissed without explicit confirm/cancel, treat as cancel
+  const handleClose = useCallback(() => {
+    // If dismissed without explicit confirm, treat as cancel
     if (requestRef.current) {
       requestRef.current.resolve(false);
       requestRef.current = null;
@@ -69,44 +62,27 @@ export function ConfirmPromptProvider() {
     setRequest(null);
   }, []);
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        pressBehavior="close"
-        opacity={0.5}
-      />
-    ),
-    [],
-  );
-
   return (
-    <BottomSheetModal
-      ref={bottomSheetRef}
-      enablePanDownToClose
-      enableDismissOnClose
-      enableDynamicSizing
-      backgroundStyle={{ backgroundColor: theme.colors.background }}
-      handleIndicatorStyle={{ backgroundColor: theme.colors.text, width: 40 }}
-      backdropComponent={renderBackdrop}
-      onDismiss={handleDismiss}
-      style={{ maxWidth: 500, margin: 'auto' }}
-    >
-      <BottomSheetView style={{ backgroundColor: theme.colors.background }}>
-        {request && (
-          <ConfirmBottomSheet
-            title={request.title}
-            message={request.message}
-            confirmText={request.okText}
-            cancelText={request.cancelText}
-            destructive={request.destructive}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-          />
-        )}
-      </BottomSheetView>
-    </BottomSheetModal>
+    <Prompt.Outer control={control} testID="confirmModal" onClose={handleClose}>
+      {request && (
+        <>
+          <Prompt.Content>
+            <Prompt.TitleText>{request.title}</Prompt.TitleText>
+            {request.message && (
+              <Prompt.DescriptionText>{request.message}</Prompt.DescriptionText>
+            )}
+          </Prompt.Content>
+          <Prompt.Actions>
+            <Prompt.Action
+              cta={request.okText}
+              onPress={handleConfirm}
+              color={request.destructive ? 'negative' : 'primary'}
+              testID="confirmBtn"
+            />
+            <Prompt.Cancel cta={request.cancelText} />
+          </Prompt.Actions>
+        </>
+      )}
+    </Prompt.Outer>
   );
 }
