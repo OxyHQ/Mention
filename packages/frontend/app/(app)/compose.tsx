@@ -94,6 +94,7 @@ import {
   AttachmentCarouselItem,
 } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
+import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
 import { buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
@@ -607,8 +608,8 @@ const ComposeScreen = () => {
 
   // back navigation
 
-  // Thread item functions
-  const openThreadMediaPicker = (threadId: string) => {
+  // Thread item functions — wrapped in useCallback for stable references
+  const openThreadMediaPicker = useCallback((threadId: string) => {
     showBottomSheet?.({
       screen: 'FileManagement',
       props: {
@@ -648,10 +649,10 @@ const ComposeScreen = () => {
         }
       }
     });
-  };
+  }, [showBottomSheet, addThreadMedia, addThreadMediaMultiple, t]);
 
   // Thread location functions
-  const requestThreadLocation = async (threadId: string) => {
+  const requestThreadLocation = useCallback(async (threadId: string) => {
     try {
       // Request permissions
       const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
@@ -685,7 +686,185 @@ const ComposeScreen = () => {
     } catch (error) {
       toast.error(t('Failed to get location'));
     }
-  };
+  }, [setThreadLocation, t]);
+
+  // Stable callbacks for ComposeThreadItem — these receive threadId as first arg
+  const handleThreadTextChange = useCallback((threadId: string, text: string) => {
+    updateThreadText(threadId, text);
+  }, [updateThreadText]);
+
+  const handleThreadMentionsChange = useCallback((threadId: string, m: any[]) => {
+    updateThreadMentions(threadId, m);
+  }, [updateThreadMentions]);
+
+  const handleThreadFocus = useCallback((threadId: string) => {
+    setFocusedItemId(threadId);
+  }, []);
+
+  const handleThreadRemove = useCallback((threadId: string) => {
+    removeThread(threadId);
+  }, [removeThread]);
+
+  const handleThreadGifPress = useCallback((threadId: string) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <GifPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelectGif={async (gifUrl: string, gifId: string) => {
+            try {
+              const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
+              addThreadMedia(threadId, mediaItem);
+              toast.success(t('GIF attached'));
+            } catch (error: any) {
+              toast.error(error?.message || t('Failed to attach GIF'));
+            }
+          }}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, addThreadMedia, t]);
+
+  const handleThreadEmojiPress = useCallback((threadId: string) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <EmojiPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelectEmoji={(emoji: string) => {
+            threadTextInputRefs.current[threadId]?.insertTextAtCursor(emoji);
+          }}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet]);
+
+  const handleThreadSourcesPress = useCallback((threadId: string) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <SourcesSheet
+          sources={threadItemsRef.current.find(t => t.id === threadId)?.sources || []}
+          onAdd={() => {
+            const newSource = { id: generateSourceId(), title: '', url: '' };
+            addThreadSource(threadId, newSource);
+          }}
+          onUpdate={(id: string, field: 'url' | 'title', value: string) => {
+            updateThreadSourceField(threadId, id, field, value);
+          }}
+          onRemove={(id: string) => {
+            removeThreadSource(threadId, id);
+          }}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          validateUrl={isValidSourceUrl}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, threadItemsRef, generateSourceId, addThreadSource, updateThreadSourceField, removeThreadSource, isValidSourceUrl]);
+
+  const handleThreadArticlePress = useCallback((threadId: string) => {
+    openThreadArticleEditor(threadId);
+  }, [openThreadArticleEditor]);
+
+  const handleThreadEventPress = useCallback((threadId: string) => {
+    openThreadEventEditor(threadId);
+  }, [openThreadEventEditor]);
+
+  const handleThreadRoomPress = useCallback((threadId: string) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <CreateRoomSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          mode="embed"
+          onRoomCreated={(createdRoom) => {
+            setThreadRoom(threadId, {
+              roomId: createdRoom._id,
+              title: createdRoom.title,
+              status: createdRoom.status,
+              topic: createdRoom.topic,
+              host: createdRoom.host,
+            });
+          }}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, setThreadRoom]);
+
+  const handleThreadPollTitleChange = useCallback((threadId: string, value: string) => {
+    updateThreadPollTitle(threadId, value);
+  }, [updateThreadPollTitle]);
+
+  const handleThreadPollOptionChange = useCallback((threadId: string, index: number, value: string) => {
+    updateThreadPollOption(threadId, index, value);
+  }, [updateThreadPollOption]);
+
+  const handleThreadPollOptionAdd = useCallback((threadId: string) => {
+    addThreadPollOption(threadId);
+  }, [addThreadPollOption]);
+
+  const handleThreadPollOptionRemove = useCallback((threadId: string, index: number) => {
+    removeThreadPollOption(threadId, index);
+  }, [removeThreadPollOption]);
+
+  const handleThreadPollRemove = useCallback((threadId: string) => {
+    removeThreadPoll(threadId);
+  }, [removeThreadPoll]);
+
+  const handleThreadLocationRemove = useCallback((threadId: string) => {
+    removeThreadLocation(threadId);
+  }, [removeThreadLocation]);
+
+  const handleThreadMediaRemove = useCallback((threadId: string, mediaId: string) => {
+    removeThreadMedia(threadId, mediaId);
+  }, [removeThreadMedia]);
+
+  const handleThreadMediaMove = useCallback((threadId: string, mediaId: string, direction: 'left' | 'right') => {
+    moveThreadMedia(threadId, mediaId, direction);
+  }, [moveThreadMedia]);
+
+  const handleThreadArticleRemove = useCallback((threadId: string) => {
+    removeThreadArticle(threadId);
+  }, [removeThreadArticle]);
+
+  const handleThreadEventRemove = useCallback((threadId: string) => {
+    removeThreadEvent(threadId);
+  }, [removeThreadEvent]);
+
+  const handleThreadRoomRemove = useCallback((threadId: string) => {
+    removeThreadRoom(threadId);
+  }, [removeThreadRoom]);
+
+  const handleThreadReplySettingsPress = useCallback((threadId: string) => {
+    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
+    if (!threadItem) return;
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <ReplySettingsSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          replyPermission={threadItem.replyPermission}
+          onReplyPermissionChange={(permission) => setThreadReplyPermission(threadId, permission)}
+          quotesDisabled={threadItem.quotesDisabled}
+          onQuotesDisabledChange={(disabled) => setThreadQuotesDisabled(threadId, disabled)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, threadItemsRef, setThreadReplyPermission, setThreadQuotesDisabled]);
+
+  const handleThreadSensitiveToggle = useCallback((threadId: string) => {
+    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
+    if (!threadItem) return;
+    setThreadSensitive(threadId, !threadItem.isSensitive);
+  }, [threadItemsRef, setThreadSensitive]);
+
+  const handleThreadTextInputRef = useCallback((threadId: string, el: MentionTextInputHandle | null) => {
+    threadTextInputRefs.current[threadId] = el;
+  }, []);
+
+  const getFileDownloadUrl = useCallback((id: string) => {
+    return oxyServices.getFileDownloadUrl(id);
+  }, [oxyServices]);
 
   const { t: tCompose } = useTranslation();
 
@@ -1321,401 +1500,46 @@ const ComposeScreen = () => {
               </View>
 
               {/* Thread items */}
-              {threadItems.map((item, _index) => {
-                const itemHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));
-                const itemHasEvent = Boolean(item.event && item.event.name?.trim());
-                const itemHasRoom = Boolean(item.room && item.room.roomId);
-                const itemHasSources = item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0);
-                const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasSources;
-
-                return (
-                <View key={`thread-${item.id}`} style={[styles.postContainer, focusedItemId !== item.id && styles.unfocusedItem]}>
-                  {/* Connector line above this thread item's avatar */}
-                  <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
-                  {/* Connector line below this thread item's avatar */}
-                  <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
-                  <View style={styles.threadItemWithTimeline}>
-                    <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-                      <TouchableOpacity activeOpacity={0.7}>
-                        <Avatar
-                          source={user?.avatar}
-                          size={40}
-                          verified={Boolean(user?.verified)}
-                          style={{ marginRight: 12 }}
-                        />
-                      </TouchableOpacity>
-                      <View style={styles.headerMeta}>
-                        <View style={styles.headerChildren}>
-                          <MentionTextInput
-                            ref={(el) => { threadTextInputRefs.current[item.id] = el; }}
-                            style={styles.threadTextInput}
-                            placeholder={t('Say more...')}
-                            value={item.text}
-                            onChangeText={(v) => updateThreadText(item.id, v)}
-                            onMentionsChange={(m) => updateThreadMentions(item.id, m)}
-                            onFocus={() => setFocusedItemId(item.id)}
-                            multiline
-                          />
-                          <View style={styles.toolbarWrapper}>
-                            <ComposeToolbar
-                              onMediaPress={() => openThreadMediaPicker(item.id)}
-                              onPollPress={() => openThreadPollCreator(item.id)}
-                              onLocationPress={() => requestThreadLocation(item.id)}
-                              onGifPress={() => {
-                                const currentThreadId = item.id;
-                                bottomSheet.setBottomSheetContent(
-                                  <Suspense fallback={null}>
-                                    <GifPickerSheet
-                                      onClose={() => bottomSheet.openBottomSheet(false)}
-                                      onSelectGif={async (gifUrl: string, gifId: string) => {
-                                        try {
-                                          const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-                                          addThreadMedia(currentThreadId, mediaItem);
-                                          toast.success(t('GIF attached'));
-                                        } catch (error: any) {
-                                          toast.error(error?.message || t('Failed to attach GIF'));
-                                        }
-                                      }}
-                                    />
-                                  </Suspense>
-                                );
-                                bottomSheet.openBottomSheet(true);
-                              }}
-                              onEmojiPress={() => {
-                                const currentThreadId = item.id;
-                                bottomSheet.setBottomSheetContent(
-                                  <Suspense fallback={null}>
-                                    <EmojiPickerSheet
-                                      onClose={() => bottomSheet.openBottomSheet(false)}
-                                      onSelectEmoji={(emoji: string) => {
-                                        threadTextInputRefs.current[currentThreadId]?.insertTextAtCursor(emoji);
-                                      }}
-                                    />
-                                  </Suspense>
-                                );
-                                bottomSheet.openBottomSheet(true);
-                              }}
-                              onSourcesPress={() => {
-                                const currentThreadId = item.id;
-                                bottomSheet.setBottomSheetContent(
-                                  <Suspense fallback={null}>
-                                    <SourcesSheet
-                                      sources={item.sources}
-                                      onAdd={() => {
-                                        const newSource = { id: generateSourceId(), title: '', url: '' };
-                                        addThreadSource(currentThreadId, newSource);
-                                      }}
-                                      onUpdate={(id: string, field: 'url' | 'title', value: string) => {
-                                        updateThreadSourceField(currentThreadId, id, field, value);
-                                      }}
-                                      onRemove={(id: string) => {
-                                        removeThreadSource(currentThreadId, id);
-                                      }}
-                                      onClose={() => bottomSheet.openBottomSheet(false)}
-                                      validateUrl={isValidSourceUrl}
-                                    />
-                                  </Suspense>
-                                );
-                                bottomSheet.openBottomSheet(true);
-                              }}
-                              onArticlePress={() => openThreadArticleEditor(item.id)}
-                              onEventPress={() => openThreadEventEditor(item.id)}
-                              onRoomPress={() => {
-                                const currentThreadId = item.id;
-                                bottomSheet.setBottomSheetContent(
-                                  <Suspense fallback={null}>
-                                    <CreateRoomSheet
-                                      onClose={() => bottomSheet.openBottomSheet(false)}
-                                      mode="embed"
-                                      onRoomCreated={(createdRoom) => {
-                                        setThreadRoom(currentThreadId, {
-                                          roomId: createdRoom._id,
-                                          title: createdRoom.title,
-                                          status: createdRoom.status,
-                                          topic: createdRoom.topic,
-                                          host: createdRoom.host,
-                                        });
-                                      }}
-                                    />
-                                  </Suspense>
-                                );
-                                bottomSheet.openBottomSheet(true);
-                              }}
-                              hasLocation={!!item.location}
-                              hasPoll={item.showPollCreator}
-                              hasMedia={item.mediaIds.length > 0}
-                              hasSources={item.sources.length > 0}
-                              hasArticle={itemHasArticle}
-                              hasEvent={itemHasEvent}
-                              hasRoom={itemHasRoom}
-                              disabled={isPosting}
-                            />
-                          </View>
-                          <TouchableOpacity
-                            style={styles.removeThreadBtn}
-                            onPress={() => removeThread(item.id)}
-                          >
-                            <CloseIcon size={18} color="#5e5e5e" />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* Thread item attachments row */}
-                    {itemHasAttachments && (
-                      <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
-                      >
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
-                        >
-                          {item.showPollCreator ? (
-                            <View style={styles.pollAttachmentWrapper}>
-                              <TouchableOpacity
-                                className="border-border bg-secondary" style={styles.pollAttachmentCard}
-                                activeOpacity={0.85}
-                                onPress={() => {
-                                  openThreadPollCreator(item.id);
-                                  setTimeout(() => {
-                                    threadPollTitleRefs.current[item.id]?.focus();
-                                  }, 50);
-                                }}
-                              >
-                                <View style={styles.pollAttachmentHeader}>
-                                  <View className="bg-background" style={styles.pollAttachmentBadge}
-                                  >
-                                    <PollIcon size={16} className="text-primary" />
-                                    <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
-                                      {t('compose.poll.title', { defaultValue: 'Poll' })}
-                                    </Text>
-                                  </View>
-                                  <Text className="text-muted-foreground" style={styles.pollAttachmentMeta}>
-                                    {t('compose.poll.optionCount', {
-                                      count: item.pollOptions.length,
-                                      defaultValue:
-                                        item.pollOptions.length === 0
-                                          ? 'No options yet'
-                                          : item.pollOptions.length === 1
-                                            ? '1 option'
-                                            : `${item.pollOptions.length} options`
-                                    })}
-                                  </Text>
-                                </View>
-                                <Text className="text-foreground" style={styles.pollAttachmentQuestion} numberOfLines={2}>
-                                  {item.pollTitle?.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
-                                </Text>
-                                <View style={styles.pollAttachmentOptions}>
-                                  {(item.pollOptions.length > 0 ? item.pollOptions : ['', '']).slice(0, 2).map((option, index) => {
-                                    const trimmed = option?.trim?.() || '';
-                                    return (
-                                      <View
-                                        key={`thread-${item.id}-poll-opt-${index}`}
-                                        className="border-border bg-background" style={styles.pollAttachmentOption}
-                                      >
-                                        <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
-                                          {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
-                                        </Text>
-                                      </View>
-                                    );
-                                  })}
-                                  {item.pollOptions.length > 2 ? (
-                                    <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
-                                      {t('compose.poll.moreOptions', { count: item.pollOptions.length - 2, defaultValue: `+${item.pollOptions.length - 2} more` })}
-                                    </Text>
-                                  ) : null}
-                                </View>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => removeThreadPoll(item.id)}
-                                className="bg-background" style={styles.pollAttachmentRemoveButton}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <CloseIcon size={16} className="text-foreground" />
-                              </TouchableOpacity>
-                            </View>
-                          ) : null}
-                          {item.mediaIds.map((mediaItem, mediaIndex) => {
-                            const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
-                            const mediaCount = item.mediaIds.length;
-                            return (
-                              <View
-                                key={mediaItem.id}
-                                className="border-border bg-secondary" style={styles.mediaPreviewItem}
-                              >
-                                {mediaItem.type === 'video' ? (
-                                  <VideoPreview src={mediaUrl} />
-                                ) : (
-                                  <Image
-                                    source={{ uri: mediaUrl }}
-                                    style={styles.mediaPreviewImage}
-                                    resizeMode="cover"
-                                  />
-                                )}
-                                {mediaCount > 1 ? (
-                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
-                                    <TouchableOpacity
-                                      onPress={() => moveThreadMedia(item.id, mediaItem.id, 'left')}
-                                      disabled={mediaIndex === 0}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === 0 && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <BackArrowIcon size={14} color={mediaIndex === 0 ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={() => moveThreadMedia(item.id, mediaItem.id, 'right')}
-                                      disabled={mediaIndex === mediaCount - 1}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <ChevronRightIcon size={14} color={mediaIndex === mediaCount - 1 ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                  </View>
-                                ) : null}
-                                <TouchableOpacity
-                                  onPress={() => removeThreadMedia(item.id, mediaItem.id)}
-                                  className="bg-background" style={styles.mediaRemoveButton}
-                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                >
-                                  <CloseIcon size={16} className="text-foreground" />
-                                </TouchableOpacity>
-                              </View>
-                            );
-                          })}
-                          {/* Thread item article preview */}
-                          {itemHasArticle && item.article && (
-                            <View style={styles.pollAttachmentWrapper}>
-                              <TouchableOpacity
-                                className="border-border bg-secondary"
-                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                                activeOpacity={0.85}
-                                onPress={() => openThreadArticleEditor(item.id)}
-                              >
-                                <PostArticlePreview
-                                  title={item.article.title}
-                                  body={item.article.body}
-                                  onPress={() => openThreadArticleEditor(item.id)}
-                                  style={styles.articleAttachmentPreview}
-                                />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => removeThreadArticle(item.id)}
-                                className="bg-background" style={styles.pollAttachmentRemoveButton}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <CloseIcon size={16} className="text-foreground" />
-                              </TouchableOpacity>
-                            </View>
-                          )}
-                          {/* Thread item event preview */}
-                          {itemHasEvent && item.event && (
-                            <View style={styles.pollAttachmentWrapper}>
-                              <TouchableOpacity
-                                className="border-border bg-secondary"
-                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                                activeOpacity={0.85}
-                                onPress={() => openThreadEventEditor(item.id)}
-                              >
-                                <PostAttachmentEvent
-                                  name={item.event.name}
-                                  date={item.event.date}
-                                  location={item.event.location}
-                                  onPress={() => openThreadEventEditor(item.id)}
-                                  style={styles.articleAttachmentPreview}
-                                />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => removeThreadEvent(item.id)}
-                                className="bg-background" style={styles.pollAttachmentRemoveButton}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <CloseIcon size={16} className="text-foreground" />
-                              </TouchableOpacity>
-                            </View>
-                          )}
-                          {/* Thread item room preview */}
-                          {itemHasRoom && item.room && (
-                            <View style={styles.pollAttachmentWrapper}>
-                              <View
-                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                              >
-                                <RoomCard
-                                  room={{
-                                    _id: item.room.roomId,
-                                    title: item.room.title,
-                                    status: item.room.status || 'scheduled',
-                                    topic: item.room.topic,
-                                    participants: [],
-                                    host: item.room.host || '',
-                                  }}
-                                  variant="compact"
-                                  style={styles.articleAttachmentPreview}
-                                />
-                              </View>
-                              <TouchableOpacity
-                                onPress={() => removeThreadRoom(item.id)}
-                                className="bg-background" style={styles.pollAttachmentRemoveButton}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <CloseIcon size={16} className="text-foreground" />
-                              </TouchableOpacity>
-                            </View>
-                          )}
-                        </ScrollView>
-                      </View>
-                    )}
-
-                    {/* Thread item poll creator */}
-                    {item.showPollCreator && (
-                      <PollCreator
-                        pollTitle={item.pollTitle || ''}
-                        onTitleChange={(value) => updateThreadPollTitle(item.id, value)}
-                        pollOptions={item.pollOptions}
-                        onOptionChange={(index, value) => updateThreadPollOption(item.id, index, value)}
-                        onAddOption={() => addThreadPollOption(item.id)}
-                        onRemoveOption={(index) => removeThreadPollOption(item.id, index)}
-                        onRemove={() => removeThreadPoll(item.id)}
-                        style={{ marginLeft: BOTTOM_LEFT_PAD }}
-                      />
-                    )}
-
-                    {/* Thread item location display */}
-                    {item.location && (
-                      <LocationDisplay
-                        location={item.location}
-                        onRemove={() => removeThreadLocation(item.id)}
-                        style={{ marginLeft: BOTTOM_LEFT_PAD }}
-                      />
-                    )}
-
-                    {/* Per-item interaction settings (beast mode only) */}
-                    {postingMode === 'beast' && (
-                      <View style={{ marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD }}>
-                        <InteractionSettingsPills
-                          replyPermission={item.replyPermission}
-                          quotesDisabled={item.quotesDisabled}
-                          isSensitive={item.isSensitive}
-                          onReplySettingsPress={() => {
-                            const currentThreadId = item.id;
-                            bottomSheet.setBottomSheetContent(
-                              <Suspense fallback={null}>
-                                <ReplySettingsSheet
-                                  onClose={() => bottomSheet.openBottomSheet(false)}
-                                  replyPermission={item.replyPermission}
-                                  onReplyPermissionChange={(permission) => setThreadReplyPermission(currentThreadId, permission)}
-                                  quotesDisabled={item.quotesDisabled}
-                                  onQuotesDisabledChange={(disabled) => setThreadQuotesDisabled(currentThreadId, disabled)}
-                                />
-                              </Suspense>
-                            );
-                            bottomSheet.openBottomSheet(true);
-                          }}
-                          onSensitiveToggle={() => setThreadSensitive(item.id, !item.isSensitive)}
-                        />
-                      </View>
-                    )}
-                  </View>
-                </View>
-                );
-              })}
+              {threadItems.map((item) => (
+                <ComposeThreadItem
+                  key={`thread-${item.id}`}
+                  item={item}
+                  isFocused={focusedItemId === item.id}
+                  isPosting={isPosting}
+                  postingMode={postingMode}
+                  userAvatar={user?.avatar}
+                  userVerified={Boolean(user?.verified)}
+                  onTextChange={handleThreadTextChange}
+                  onMentionsChange={handleThreadMentionsChange}
+                  onFocus={handleThreadFocus}
+                  onRemove={handleThreadRemove}
+                  onMediaPress={openThreadMediaPicker}
+                  onPollPress={openThreadPollCreator}
+                  onLocationPress={requestThreadLocation}
+                  onGifPress={handleThreadGifPress}
+                  onEmojiPress={handleThreadEmojiPress}
+                  onSourcesPress={handleThreadSourcesPress}
+                  onArticlePress={handleThreadArticlePress}
+                  onEventPress={handleThreadEventPress}
+                  onRoomPress={handleThreadRoomPress}
+                  onPollTitleChange={handleThreadPollTitleChange}
+                  onPollOptionChange={handleThreadPollOptionChange}
+                  onPollOptionAdd={handleThreadPollOptionAdd}
+                  onPollOptionRemove={handleThreadPollOptionRemove}
+                  onPollRemove={handleThreadPollRemove}
+                  onLocationRemove={handleThreadLocationRemove}
+                  onMediaRemove={handleThreadMediaRemove}
+                  onMediaMove={handleThreadMediaMove}
+                  onArticleRemove={handleThreadArticleRemove}
+                  onEventRemove={handleThreadEventRemove}
+                  onRoomRemove={handleThreadRoomRemove}
+                  onReplySettingsPress={handleThreadReplySettingsPress}
+                  onSensitiveToggle={handleThreadSensitiveToggle}
+                  getFileDownloadUrl={getFileDownloadUrl}
+                  textInputRef={handleThreadTextInputRef}
+                  styles={styles}
+                />
+              ))}
 
               {/* Add thread/post button */}
               <TouchableOpacity
