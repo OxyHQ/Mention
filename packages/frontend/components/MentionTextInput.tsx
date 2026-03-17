@@ -4,6 +4,7 @@ import {
     TextInput,
     StyleSheet,
     TextInputProps,
+    Platform,
 } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import MentionPicker, { MentionUser } from "./MentionPicker";
@@ -248,6 +249,7 @@ const styles = StyleSheet.create({
     textInput: {
         fontSize: 16,
         textAlignVertical: "top",
+        ...Platform.select({ web: { outlineStyle: 'none' as any } }),
     },
     pickerContainer: {
         position: "absolute",
