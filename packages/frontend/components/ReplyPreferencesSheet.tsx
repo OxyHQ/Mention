@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/lib/icons';
-import { RadioIndicator } from '@/components/ui/RadioIndicator';
+import { RadioIndicator } from '@oxyhq/bloom/radio-indicator';
 import { SettingsGroup } from '@/components/settings/SettingsItem';
 import {
     useThreadPreferencesStore,

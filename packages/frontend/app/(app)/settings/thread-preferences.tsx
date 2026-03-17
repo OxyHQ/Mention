@@ -12,7 +12,7 @@ import { storeData } from '@/utils/storage';
 import { SettingsGroup } from '@/components/settings/SettingsItem';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { Icon, type IconName } from '@/lib/icons';
-import { RadioIndicator } from '@/components/ui/RadioIndicator';
+import { RadioIndicator } from '@oxyhq/bloom/radio-indicator';
 import { useThreadPreferencesStore, SORT_OPTIONS } from '@/hooks/useThreadPreferences';
 import { useVoteStyle, type VoteStyle } from '@/hooks/useVoteStyle';
 

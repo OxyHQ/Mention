@@ -28,7 +28,7 @@ interface FeedRow {
 }
 
 const MAX_THREAD_NESTING_DEPTH = 3;
-import ErrorBoundary from '../ErrorBoundary';
+import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
@@ -36,6 +36,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { createScopedLogger } from '@/utils/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
@@ -94,6 +95,7 @@ const Feed = memo((props: FeedProps) => {
         threadPostId,
     } = { ...DEFAULT_FEED_PROPS, ...props };
 
+    const { t } = useTranslation();
     const theme = useTheme();
     const router = useRouter();
     const flatListRef = useRef<any>(null);
@@ -498,8 +500,17 @@ const Feed = memo((props: FeedProps) => {
         [showOnlySaved, feedState.hasMore, isLoadingMore, feedRows.length]
     );
 
+    const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
+        logger.error('Error caught by boundary', { error, errorInfo });
+    }, []);
+
     return (
-        <ErrorBoundary>
+        <ErrorBoundary
+            title={t("error.boundary.title")}
+            message={t("error.boundary.message")}
+            retryLabel={t("error.boundary.retry")}
+            onError={handleBoundaryError}
+        >
             <View
                 className="flex-1 bg-background"
                 style={[{ minHeight: 0 }, containerStyle]}

@@ -12,7 +12,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { TrendingTopic } from "@/services/trendingService";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
-import { Divider } from "@/components/Divider";
+import { Divider } from "@oxyhq/bloom/divider";
 
 interface TrendingListProps {
   topics: TrendingTopic[];

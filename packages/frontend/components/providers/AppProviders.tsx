@@ -4,7 +4,7 @@
  * Memoized to prevent unnecessary re-renders
  */
 
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,7 +16,7 @@ import { OxyServices } from '@oxyhq/core';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
-import ErrorBoundary from '@/components/ErrorBoundary';
+import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
@@ -24,7 +24,10 @@ import { Toaster } from '@/lib/sonner';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import i18n from '@/lib/i18n';
 import { agoraConfig } from '@/lib/agoraConfig';
+import { createScopedLogger } from '@/utils/logger';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
+
+const logger = createScopedLogger('AppProviders');
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -44,6 +47,10 @@ export const AppProviders = memo(function AppProviders({
   colorScheme,
   queryClient,
 }: AppProvidersProps) {
+  const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
+    logger.error('Error caught by boundary', { error, errorInfo });
+  }, []);
+
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -61,7 +68,12 @@ export const AppProviders = memo(function AppProviders({
                   <BottomSheetModalProvider>
                     <BottomSheetProvider>
                       <MenuProvider>
-                        <ErrorBoundary>
+                        <ErrorBoundary
+                          title={i18n.t("error.boundary.title")}
+                          message={i18n.t("error.boundary.message")}
+                          retryLabel={i18n.t("error.boundary.retry")}
+                          onError={handleBoundaryError}
+                        >
                           <LayoutScrollProvider>
                             <HomeRefreshProvider>
                               {children}

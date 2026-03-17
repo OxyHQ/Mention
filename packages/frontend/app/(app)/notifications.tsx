@@ -13,7 +13,8 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Loading } from '@oxyhq/bloom/loading';
 import { NotificationItem } from '@/components/NotificationItem';
-import ErrorBoundary from '@/components/ErrorBoundary';
+import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
+import { createScopedLogger } from '@/utils/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
@@ -32,6 +33,8 @@ import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Bell } from '@/assets/icons/bell-icon';
+
+const notificationLogger = createScopedLogger('Notifications');
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
@@ -233,8 +236,17 @@ const NotificationsScreen: React.FC = () => {
         return { layoutscroll: 'true' };
     }, []);
 
+    const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
+        notificationLogger.error('Error caught by boundary', { error, errorInfo });
+    }, []);
+
     const renderNotification = ({ item }: { item: GroupedNotification }) => (
-        <ErrorBoundary>
+        <ErrorBoundary
+            title={t("error.boundary.title")}
+            message={t("error.boundary.message")}
+            retryLabel={t("error.boundary.retry")}
+            onError={handleBoundaryError}
+        >
             {item.isGroup ? (
                 <GroupedNotificationItem
                     group={item}
