@@ -2201,8 +2201,8 @@ const styles = StyleSheet.create({
   continuousTimelineLine: {
     position: 'absolute',
     left: 0,
-    top: 20, // Start at center of main composer avatar (20px from top of PostHeader avatar)
-    bottom: 20, // End at center of add button avatar (20px from bottom)
+    top: 48, // Start below main composer avatar (40px avatar + 8px gap)
+    bottom: 48, // End above add button avatar (40px avatar + 8px gap)
     width: 2,
     backgroundColor: '#ededed',
     borderRadius: 1,
