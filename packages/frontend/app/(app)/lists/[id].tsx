@@ -114,6 +114,27 @@ export default function ListDetailScreen() {
     return 'List';
   }, [isOwnList, listOwner, t]);
 
+  const headerRightComponents = useMemo(() => [
+    <IconButton variant="icon" key="share" onPress={handleShare}>
+      <Ionicons
+        name={Platform.OS === 'web' ? 'link-outline' : 'share-outline'}
+        size={22}
+        color={theme.colors.text}
+      />
+    </IconButton>,
+    ...(isOwnList
+      ? [
+          <IconButton
+            variant="icon"
+            key="edit"
+            onPress={() => router.push(`/lists/${listId}/edit`)}
+          >
+            <Ionicons name="create-outline" size={22} color={theme.colors.text} />
+          </IconButton>,
+        ]
+      : []),
+  ], [handleShare, isOwnList, listId, theme.colors.text]);
+
   // Loading state
   if (loading) {
     return (
@@ -165,27 +186,6 @@ export default function ListDetailScreen() {
       </ThemedView>
     );
   }
-
-  const headerRightComponents = useMemo(() => [
-    <IconButton variant="icon" key="share" onPress={handleShare}>
-      <Ionicons
-        name={Platform.OS === 'web' ? 'link-outline' : 'share-outline'}
-        size={22}
-        color={theme.colors.text}
-      />
-    </IconButton>,
-    ...(isOwnList
-      ? [
-          <IconButton
-            variant="icon"
-            key="edit"
-            onPress={() => router.push(`/lists/${listId}/edit`)}
-          >
-            <Ionicons name="create-outline" size={22} color={theme.colors.text} />
-          </IconButton>,
-        ]
-      : []),
-  ], [handleShare, isOwnList, listId, theme.colors.text]);
 
   return (
     <ThemedView className="flex-1">

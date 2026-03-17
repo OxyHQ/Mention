@@ -80,10 +80,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPost = storePost ?? post;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
-    if (!viewPost || !viewPost.user) {
-        return null;
-    }
-
     const viewerState =
         viewPost.viewerState ?? { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
 
@@ -308,6 +304,10 @@ const PostItem: React.FC<PostItemProps> = ({
         );
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, postActions]);
+
+    if (!viewPost || !viewPost.user) {
+        return null;
+    }
 
     const engagement: PostEngagementSummary = viewPost.engagement ?? {
         likes: 0,

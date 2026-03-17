@@ -40,8 +40,6 @@ export const FeedHeader = memo<FeedHeaderProps>(
             router.push('/compose');
         }, []);
 
-        if (!showComposeButton || hideHeader || !user) return null;
-
         const iconColor = theme.colors.textSecondary;
         const primaryColor = theme.colors.primary;
 
@@ -56,6 +54,8 @@ export const FeedHeader = memo<FeedHeaderProps>(
             shadowRadius: 6,
             elevation: 2,
         }), [primaryColor, theme.isDark, theme.colors.card]);
+
+        if (!showComposeButton || hideHeader || !user) return null;
 
         return (
             <Pressable

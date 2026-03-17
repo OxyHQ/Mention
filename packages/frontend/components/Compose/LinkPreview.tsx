@@ -164,6 +164,8 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
   );
 });
 
+LinkPreview.displayName = 'LinkPreview';
+
 interface LinkPreviewLoadingProps {
   style?: any;
 }

@@ -22,7 +22,7 @@ export default function NotFoundScreen() {
 
                 {/* Message */}
                 <ThemedText className="text-muted-foreground" style={styles.message}>
-                    The page you're looking for doesn't exist or has been moved.
+                    The page you&apos;re looking for doesn&apos;t exist or has been moved.
                 </ThemedText>
 
                 {/* Buttons */}

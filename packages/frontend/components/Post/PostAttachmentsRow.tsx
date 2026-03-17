@@ -453,6 +453,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   );
 });
 
+PostAttachmentsRow.displayName = 'PostAttachmentsRow';
+
 const styles = StyleSheet.create({
   scroller: {
     paddingRight: 12,

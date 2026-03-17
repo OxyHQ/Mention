@@ -197,6 +197,8 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   );
 });
 
+FollowRowComponent.displayName = 'FollowRowComponent';
+
 const styles = StyleSheet.create({
   centerContainer: {
     paddingVertical: 12,
