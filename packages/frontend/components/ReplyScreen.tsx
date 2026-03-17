@@ -8,10 +8,11 @@ import {
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    Alert,
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import { toast } from 'sonner';
+import * as Prompt from '@/components/Prompt';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
@@ -32,6 +33,7 @@ const ReplyScreen: React.FC = () => {
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const discardControl = Prompt.usePromptControl();
     const [originalPost, setOriginalPost] = useState<HydratedPost | Reply | Repost | null>(null);
     const [isLoadingPost, setIsLoadingPost] = useState(true);
     const textInputRef = useRef<TextInput>(null);
@@ -106,10 +108,10 @@ const ReplyScreen: React.FC = () => {
             safeBack();
 
             // Show success feedback
-            Alert.alert('Success', 'Your reply has been posted!');
+            toast.success('Your reply has been posted!');
         } catch (error) {
             console.error('Error posting reply:', error);
-            Alert.alert('Error', 'Failed to post reply. Please try again.');
+            toast.error('Failed to post reply. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -117,14 +119,7 @@ const ReplyScreen: React.FC = () => {
 
     const handleCancel = () => {
         if (content.trim().length > 0) {
-            Alert.alert(
-                'Discard Reply?',
-                'You have unsaved changes. Are you sure you want to discard them?',
-                [
-                    { text: 'Keep Editing', style: 'cancel' },
-                    { text: 'Discard', style: 'destructive', onPress: () => safeBack() }
-                ]
-            );
+            discardControl.open();
         } else {
             safeBack();
         }
@@ -206,6 +201,16 @@ const ReplyScreen: React.FC = () => {
                     </View>
                 </View>
             </KeyboardAvoidingView>
+
+            <Prompt.Basic
+                control={discardControl}
+                title="Discard Reply?"
+                description="You have unsaved changes. Are you sure you want to discard them?"
+                confirmButtonCta="Discard"
+                confirmButtonColor="negative"
+                cancelButtonCta="Keep Editing"
+                onConfirm={() => safeBack()}
+            />
         </View>
     );
 };

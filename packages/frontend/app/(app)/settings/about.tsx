@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, Platform } from 'react-native';
+import { toast } from 'sonner';
 import Constants from 'expo-constants';
 import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -138,34 +139,23 @@ export default function AboutScreen() {
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => {
-                            Alert.alert(
-                                t('settings.supportFeedback.helpSupport'),
-                                t('settings.supportFeedback.helpSupportMessage'),
-                                [{ text: t('common.ok') }],
-                            );
+                            toast.info(t('settings.supportFeedback.helpSupportMessage'));
                         }}
                     />
                     <SettingsItem
                         icon="chatbubble"
                         title={t('settings.supportFeedback.sendFeedback')}
                         description={t('settings.supportFeedback.sendFeedbackDesc')}
-                        onPress={() => {
-                            Alert.alert(
-                                t('settings.supportFeedback.sendFeedback'),
-                                t('settings.supportFeedback.sendFeedbackMessage'),
-                                [
-                                    { text: t('common.cancel'), style: 'cancel' },
-                                    {
-                                        text: t('common.sendFeedback'),
-                                        onPress: () => {
-                                            Alert.alert(
-                                                t('common.success'),
-                                                t('settings.supportFeedback.sendFeedbackThankYou'),
-                                            );
-                                        },
-                                    },
-                                ],
-                            );
+                        onPress={async () => {
+                            const confirmed = await confirmDialog({
+                                title: t('settings.supportFeedback.sendFeedback'),
+                                message: t('settings.supportFeedback.sendFeedbackMessage'),
+                                okText: t('common.sendFeedback'),
+                                cancelText: t('common.cancel'),
+                            });
+                            if (confirmed) {
+                                toast.success(t('settings.supportFeedback.sendFeedbackThankYou'));
+                            }
                         }}
                     />
                 </SettingsGroup>

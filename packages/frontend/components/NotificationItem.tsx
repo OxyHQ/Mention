@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { confirmDialog } from '@/utils/alerts';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -197,22 +198,16 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         }
     }, [notification, onMarkAsRead, router]);
 
-    const handleLongPress = useCallback(() => {
-        Alert.alert(
-            'Notification Options',
-            'What would you like to do?',
-            [
-                {
-                    text: 'Mark as Read',
-                    onPress: () => onMarkAsRead(notification._id),
-                    style: 'default'
-                },
-                {
-                    text: 'Cancel',
-                    style: 'cancel'
-                }
-            ]
-        );
+    const handleLongPress = useCallback(async () => {
+        const confirmed = await confirmDialog({
+            title: 'Notification Options',
+            message: 'What would you like to do?',
+            okText: 'Mark as Read',
+            cancelText: 'Cancel',
+        });
+        if (confirmed) {
+            onMarkAsRead(notification._id);
+        }
     }, [notification._id, onMarkAsRead]);
 
     const formatTimeAgo = (dateString: string): string => {

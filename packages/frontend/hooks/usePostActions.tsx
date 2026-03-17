@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { toast } from 'sonner';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import type { HydratedPost, FeedType } from '@mention/shared-types';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
@@ -95,7 +96,7 @@ export function usePostActions({
                 await feedService.deletePost(postId);
             } catch (e) {
                 console.error('Delete API failed', e);
-                Alert.alert('Error', 'Failed to delete post');
+                toast.error('Failed to delete post');
                 return;
             }
             try {
@@ -171,7 +172,7 @@ export function usePostActions({
                     try {
                         await feedService.updatePostSettings(postId, { isPinned: !isPinned });
                     } catch (e) {
-                        Alert.alert('Error', isPinned ? 'Failed to unpin post' : 'Failed to pin post');
+                        toast.error(isPinned ? 'Failed to unpin post' : 'Failed to pin post');
                     }
                     bottomSheet.openBottomSheet(false);
                 }
@@ -187,7 +188,7 @@ export function usePostActions({
                     try {
                         await feedService.updatePostSettings(postId, { hideEngagementCounts: !isHidden });
                     } catch (e) {
-                        Alert.alert('Error', 'Failed to update engagement count visibility');
+                        toast.error('Failed to update engagement count visibility');
                     }
                     bottomSheet.openBottomSheet(false);
                 }
@@ -206,7 +207,7 @@ export function usePostActions({
                                 try {
                                     await feedService.updatePostSettings(postId, { replyPermission: permission });
                                 } catch (e) {
-                                    Alert.alert('Error', 'Failed to update reply permissions');
+                                    toast.error('Failed to update reply permissions');
                                 }
                             }}
                             quotesDisabled={viewPost?.metadata?.quotesDisabled || false}
@@ -214,7 +215,7 @@ export function usePostActions({
                                 try {
                                     await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
                                 } catch (e) {
-                                    Alert.alert('Error', 'Failed to update quote settings');
+                                    toast.error('Failed to update quote settings');
                                 }
                             }}
                             onClose={() => bottomSheet.openBottomSheet(false)}
@@ -251,7 +252,7 @@ export function usePostActions({
             const username = viewPost?.user?.handle || viewPost?.user?.name || 'this user';
 
             if (!userId) {
-                Alert.alert('Error', 'Unable to mute user');
+                toast.error('Unable to mute user');
                 return;
             }
 
@@ -267,9 +268,9 @@ export function usePostActions({
 
             const success = await muteService.muteUser(userId);
             if (success) {
-                Alert.alert('Success', `@${username} has been muted`);
+                toast.success(`@${username} has been muted`);
             } else {
-                Alert.alert('Error', 'Failed to mute user');
+                toast.error('Failed to mute user');
             }
         };
 
@@ -281,9 +282,9 @@ export function usePostActions({
                     onSubmit={async (categories, details) => {
                         const success = await reportService.reportPost(postId, categories, details);
                         if (success) {
-                            Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+                            toast.success('Thank you for helping keep our community safe.');
                         } else {
-                            Alert.alert('Error', 'Failed to submit report. Please try again.');
+                            toast.error('Failed to submit report. Please try again.');
                         }
                     }}
                 />

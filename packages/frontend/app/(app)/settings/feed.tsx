@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
+import { confirmDialog } from '@/utils/alerts';
 import { Loading } from '@/components/ui/Loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -152,22 +153,18 @@ export default function FeedSettingsScreen() {
     saveSettings(newSettings);
   }, [saveSettings]);
 
-  const resetToDefaults = useCallback(() => {
-    Alert.alert(
-      t('settings.feed.resetToDefaults'),
-      t('settings.feed.resetToDefaultsMessage'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.reset'),
-          style: 'destructive',
-          onPress: () => {
-            setLocalSettings(DEFAULT_FEED_SETTINGS);
-            saveSettings(DEFAULT_FEED_SETTINGS);
-          },
-        },
-      ]
-    );
+  const resetToDefaults = useCallback(async () => {
+    const confirmed = await confirmDialog({
+      title: t('settings.feed.resetToDefaults'),
+      message: t('settings.feed.resetToDefaultsMessage'),
+      okText: t('common.reset'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+    if (confirmed) {
+      setLocalSettings(DEFAULT_FEED_SETTINGS);
+      saveSettings(DEFAULT_FEED_SETTINGS);
+    }
   }, [saveSettings, t]);
 
   if (loading) {

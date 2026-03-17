@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ScrollView,
   Image,
   Modal,
@@ -48,6 +47,7 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
+import * as Prompt from '@/components/Prompt';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 // Lazy load sheets - only loaded when user opens them
@@ -129,6 +129,8 @@ const ComposeScreen = () => {
   const safeBack = useSafeBack();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
+  const discardControl = Prompt.usePromptControl();
+  const clearAllControl = Prompt.usePromptControl();
   const { user, showBottomSheet, oxyServices, isAuthenticated } = useAuth();
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
@@ -1060,7 +1062,12 @@ const ComposeScreen = () => {
             <View className="bg-background border-border" style={styles.header}>
               <IconButton variant="icon"
                 onPress={() => {
-                  safeBack();
+                  const hasContent = postContent.trim().length > 0 || mediaIds.length > 0 || pollOptions.length > 0 || threadItems.length > 0;
+                  if (hasContent && !isEditMode) {
+                    discardControl.open();
+                  } else {
+                    safeBack();
+                  }
                 }}
                 style={styles.backBtn}
               >
@@ -1097,41 +1104,7 @@ const ComposeScreen = () => {
                 </IconButton>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
-                  onPress={() => {
-                    // Menu icon - show compose options
-                    Alert.alert(
-                      t('common.options'),
-                      '',
-                      [
-                        {
-                          text: t('common.clearAll'),
-                          style: 'destructive',
-                          onPress: () => {
-                            setPostContent('');
-                            setMediaIds([]);
-                            setPollOptions([]);
-                            setPollTitle('');
-                            setShowPollCreator(false);
-                            setLocation(null);
-                            setSources([]);
-                            clearArticle();
-                            clearEvent();
-                            clearRoom();
-                            clearAllThreads();
-                            clearAttachmentOrder();
-                            setMentions([]);
-                            clearSchedule({ silent: true });
-                            toast.success(t('common.cleared'));
-                          },
-                        },
-                        {
-                          text: t('common.cancel'),
-                          style: 'cancel',
-                        },
-                      ],
-                      { cancelable: true }
-                    );
-                  }}
+                  onPress={() => clearAllControl.open()}
                 >
                   <DotIcon size={20} className="text-foreground" />
                 </IconButton>
@@ -1712,6 +1685,71 @@ const ComposeScreen = () => {
           onDescriptionChange={setThreadEventDraftDescription}
           onClose={closeThreadEventEditor}
           onSave={saveThreadEvent}
+        />
+        {/* Save draft / discard prompt */}
+        <Prompt.Outer control={discardControl}>
+          <Prompt.Content>
+            <Prompt.TitleText>{t('compose.saveDraftTitle', 'Save draft?')}</Prompt.TitleText>
+            <Prompt.DescriptionText>
+              {t('compose.saveDraftDescription', 'Would you like to save this as a draft to edit later?')}
+            </Prompt.DescriptionText>
+          </Prompt.Content>
+          <Prompt.Actions>
+            <Prompt.Action
+              cta={t('compose.saveDraft', 'Save draft')}
+              onPress={() => {
+                saveDraft({
+                  postContent,
+                  mediaIds,
+                  pollOptions,
+                  pollTitle,
+                  showPollCreator,
+                  location,
+                  sources,
+                  threadItems,
+                  mentions,
+                  postingMode,
+                  attachmentOrder,
+                  scheduledAt,
+                  article,
+                });
+                safeBack();
+              }}
+              color="primary"
+            />
+            <Prompt.Action
+              cta={t('common.discard', 'Discard')}
+              onPress={() => safeBack()}
+              color="negative"
+            />
+            <Prompt.Cancel cta={t('compose.keepEditing', 'Keep editing')} />
+          </Prompt.Actions>
+        </Prompt.Outer>
+
+        {/* Clear all confirmation prompt */}
+        <Prompt.Basic
+          control={clearAllControl}
+          title={t('compose.clearAllTitle', 'Clear all content?')}
+          description={t('compose.clearAllDescription', 'This will remove all text, media, and attachments from your post.')}
+          confirmButtonCta={t('common.clearAll', 'Clear All')}
+          confirmButtonColor="negative"
+          onConfirm={() => {
+            setPostContent('');
+            setMediaIds([]);
+            setPollOptions([]);
+            setPollTitle('');
+            setShowPollCreator(false);
+            setLocation(null);
+            setSources([]);
+            clearArticle();
+            clearEvent();
+            clearRoom();
+            clearAllThreads();
+            clearAttachmentOrder();
+            setMentions([]);
+            clearSchedule({ silent: true });
+            toast.success(t('common.cleared'));
+          }}
         />
       </SafeAreaView>
     </>

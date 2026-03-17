@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { Share, Platform, Alert } from 'react-native';
+import { Share, Platform } from 'react-native';
+import { toast } from 'sonner';
 import { useUsersStore } from '@/stores/usersStore';
 
 export function usePostShare(post: any) {
@@ -52,12 +53,7 @@ export function usePostShare(post: any) {
             }
         } catch (error) {
             console.error('Error sharing post:', error);
-            try { 
-                const { alertDialog } = await import('@/utils/alerts');
-                await alertDialog({ title: 'Error', message: 'Failed to share post' }); 
-            } catch {
-                Alert.alert('Error', 'Failed to share post');
-            }
+            toast.error('Failed to share post');
         }
     }, [post]);
 

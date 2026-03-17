@@ -9,8 +9,8 @@ import {
     View,
     Share,
     Platform,
-    Alert,
 } from 'react-native';
+import { toast } from 'sonner';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +24,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
 import ReportModal from '@/components/report/ReportModal';
-import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
+import { confirmDialog } from '@/utils/alerts';
 import type { FeedType } from '@mention/shared-types';
 
 // Icons
@@ -259,34 +259,28 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             bottomSheet.openBottomSheet(false);
             const success = await muteService.muteUser(profileData.id);
             if (success) {
-                Alert.alert(t('common.success', { defaultValue: 'Success' }), t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }));
+                toast.success(t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }));
             } else {
-                Alert.alert(t('common.error', { defaultValue: 'Error' }), t('profile.muteFailed', { defaultValue: 'Failed to mute user' }));
+                toast.error(t('profile.muteFailed', { defaultValue: 'Failed to mute user' }));
             }
         };
 
-        const handleBlock = () => {
-            bottomSheet.setBottomSheetContent(
-                <ConfirmBottomSheet
-                    title={t('profile.blockUser', { defaultValue: `Block @${displayUsername}` })}
-                    message={t('profile.blockConfirm', { username: displayUsername, defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.` })}
-                    confirmText={t('profile.block', { defaultValue: 'Block' })}
-                    cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-                    destructive={true}
-                    onConfirm={async () => {
-                        try {
-                            await oxyServices.blockUser(profileData.id);
-                            bottomSheet.openBottomSheet(false);
-                            Alert.alert(t('common.success', { defaultValue: 'Success' }), t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }));
-                        } catch {
-                            bottomSheet.openBottomSheet(false);
-                            Alert.alert(t('common.error', { defaultValue: 'Error' }), t('profile.blockFailed', { defaultValue: 'Failed to block user' }));
-                        }
-                    }}
-                    onCancel={() => bottomSheet.openBottomSheet(false)}
-                />
-            );
-            bottomSheet.openBottomSheet(true);
+        const handleBlock = async () => {
+            bottomSheet.openBottomSheet(false);
+            const confirmed = await confirmDialog({
+                title: t('profile.blockUser', { defaultValue: `Block @${displayUsername}` }),
+                message: t('profile.blockConfirm', { username: displayUsername, defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.` }),
+                okText: t('profile.block', { defaultValue: 'Block' }),
+                cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+                destructive: true,
+            });
+            if (!confirmed) return;
+            try {
+                await oxyServices.blockUser(profileData.id);
+                toast.success(t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }));
+            } catch {
+                toast.error(t('profile.blockFailed', { defaultValue: 'Failed to block user' }));
+            }
         };
 
         const handleReport = () => {
@@ -297,9 +291,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     onSubmit={async (categories, details) => {
                         const success = await reportService.reportUser(profileData.id, categories, details);
                         if (success) {
-                            Alert.alert(t('report.submitted', { defaultValue: 'Report Submitted' }), t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }));
+                            toast.success(t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }));
                         } else {
-                            Alert.alert(t('common.error', { defaultValue: 'Error' }), t('report.failed', { defaultValue: 'Failed to submit report.' }));
+                            toast.error(t('report.failed', { defaultValue: 'Failed to submit report.' }));
                         }
                     }}
                 />

@@ -7,11 +7,12 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
 } from "react-native";
+import { toast } from 'sonner';
+import * as Prompt from '@/components/Prompt';
 import Avatar from "./Avatar";
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,6 +32,7 @@ const RepostScreen: React.FC = () => {
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const discardControl = Prompt.usePromptControl();
     const [originalPost, setOriginalPost] = useState<any>(null);
     const textInputRef = useRef<TextInput>(null);
 
@@ -92,10 +94,10 @@ const RepostScreen: React.FC = () => {
             safeBack();
 
             // Show success feedback
-            Alert.alert('Success', 'Post reposted successfully!');
+            toast.success('Post reposted successfully!');
         } catch (error) {
             console.error('Error reposting:', error);
-            Alert.alert('Error', 'Failed to repost. Please try again.');
+            toast.error('Failed to repost. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -103,18 +105,7 @@ const RepostScreen: React.FC = () => {
 
     const handleCancel = () => {
         if (content.trim().length > 0) {
-            Alert.alert(
-                'Discard Repost?',
-                'Are you sure you want to discard this repost?',
-                [
-                    { text: 'Keep Editing', style: 'cancel' },
-                    {
-                        text: 'Discard',
-                        style: 'destructive',
-                        onPress: () => safeBack()
-                    },
-                ]
-            );
+            discardControl.open();
         } else {
             safeBack();
         }
@@ -229,6 +220,16 @@ const RepostScreen: React.FC = () => {
                     </View>
                 </View>
             </ScrollView>
+
+            <Prompt.Basic
+                control={discardControl}
+                title="Discard Repost?"
+                description="Are you sure you want to discard this repost?"
+                confirmButtonCta="Discard"
+                confirmButtonColor="negative"
+                cancelButtonCta="Keep Editing"
+                onConfirm={() => safeBack()}
+            />
         </KeyboardAvoidingView>
     );
 };
