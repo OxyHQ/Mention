@@ -1727,9 +1727,18 @@ const ComposeScreen = () => {
                   const newId = addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined);
                   if (newId) {
                     setFocusedItemId(newId);
-                    setTimeout(() => {
-                      threadTextInputRefs.current[newId]?.focus();
-                    }, 100);
+                    const tryFocus = (attempt: number) => {
+                      if (attempt > 5) return;
+                      requestAnimationFrame(() => {
+                        const ref = threadTextInputRefs.current[newId];
+                        if (ref) {
+                          ref.focus();
+                        } else {
+                          setTimeout(() => tryFocus(attempt + 1), 50);
+                        }
+                      });
+                    };
+                    tryFocus(0);
                   }
                 }}
               >
@@ -2102,7 +2111,7 @@ const styles = StyleSheet.create({
   mainTextInput: {
     fontSize: 16,
     color: '#111111',
-    minHeight: 80,
+    minHeight: 40,
     textAlignVertical: 'top',
   },
   toolbarWrapper: {
@@ -2211,7 +2220,7 @@ const styles = StyleSheet.create({
   threadTextInput: {
     fontSize: 16,
     color: '#111111',
-    minHeight: 60,
+    minHeight: 32,
     textAlignVertical: 'top',
   },
   removeThreadBtn: {
@@ -2226,6 +2235,7 @@ const styles = StyleSheet.create({
   },
   threadScrollContent: {
     flexGrow: 1,
+    paddingBottom: 80,
   },
   threadContainer: {
     position: 'relative',

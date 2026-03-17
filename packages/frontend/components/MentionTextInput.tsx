@@ -5,6 +5,8 @@ import {
     StyleSheet,
     TextInputProps,
     Platform,
+    NativeSyntheticEvent,
+    TextInputContentSizeChangeEventData,
 } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import MentionPicker, { MentionUser } from "./MentionPicker";
@@ -48,6 +50,16 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
     const [cursorPosition, setCursorPosition] = useState(0);
     const [mentions, setMentions] = useState<MentionData[]>([]);
     const textInputRef = useRef<TextInput>(null);
+    const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
+
+    const handleContentSizeChange = useCallback(
+        (event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
+            if (multiline) {
+                setContentHeight(event.nativeEvent.contentSize.height);
+            }
+        },
+        [multiline]
+    );
 
     // Convert display text with @username to storage format with [mention:userId]
     const convertToStorageFormat = useCallback((displayText: string, currentMentions: MentionData[]): string => {
@@ -215,6 +227,7 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
                 value={displayValue}
                 onChangeText={handleTextChange}
                 onSelectionChange={handleSelectionChange}
+                onContentSizeChange={handleContentSizeChange}
                 placeholder={placeholder}
                 placeholderTextColor={theme.colors.textTertiary}
                 maxLength={maxLength}
@@ -222,6 +235,7 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
                 className="text-foreground"
                 style={[
                     styles.textInput,
+                    multiline && contentHeight !== undefined && { height: contentHeight },
                     style,
                 ]}
                 {...textInputProps}
@@ -249,7 +263,13 @@ const styles = StyleSheet.create({
     textInput: {
         fontSize: 16,
         textAlignVertical: "top",
-        ...Platform.select({ web: { outlineStyle: 'none', resize: 'vertical' } as any }),
+        ...Platform.select({
+            web: {
+                outlineStyle: 'none',
+                outlineWidth: 0,
+                resize: 'vertical',
+            } as any,
+        }),
     },
     pickerContainer: {
         position: "absolute",
