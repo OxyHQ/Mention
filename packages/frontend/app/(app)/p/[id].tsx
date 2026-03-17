@@ -8,13 +8,13 @@ import {
     Platform,
     TextInput,
 } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import Avatar from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import PostItem from '@/components/Feed/PostItem';
 import PostDetailView from '@/components/Post/PostDetailView';
 import Feed from '@/components/Feed/Feed';

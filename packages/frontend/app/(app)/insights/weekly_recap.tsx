@@ -6,7 +6,7 @@ import {
     TouchableOpacity,
     Dimensions,
 } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +18,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { statisticsService, UserStatistics } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
-import Avatar from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 

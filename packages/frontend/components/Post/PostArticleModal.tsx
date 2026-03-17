@@ -8,7 +8,7 @@ import {
   Platform,
   Pressable,
 } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,

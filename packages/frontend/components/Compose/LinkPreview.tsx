@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { LinkMetadata } from '../../stores/linksStore';
 import { useTheme } from '@/hooks/useTheme';
 import { CloseIcon } from '@/assets/icons/close-icon';

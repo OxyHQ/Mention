@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';

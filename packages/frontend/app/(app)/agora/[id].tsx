@@ -17,8 +17,8 @@ import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import Avatar from '@/components/Avatar';
-import { Loading } from '@/components/ui/Loading';
+import { Avatar } from '@oxyhq/bloom/avatar';
+import { Loading } from '@oxyhq/bloom/loading';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';

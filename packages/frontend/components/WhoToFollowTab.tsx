@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View, Share, Linking } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
-import Avatar from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { useUsersStore } from '@/stores/usersStore';
 import { useTheme } from '@/hooks/useTheme';
 import LegendList from '@/components/LegendList';

@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { View, ScrollView } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@/hooks/useTheme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { PressableScale } from '@/lib/animations/PressableScale';

@@ -10,7 +10,7 @@ import { useAuth } from '@oxyhq/services';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/settings/SegmentedControl';

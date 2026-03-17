@@ -8,10 +8,10 @@ import {
     FlatList,
     Keyboard,
 } from "react-native";
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { cn } from "@/lib/utils";
 import { useAuth } from "@oxyhq/services";
-import Avatar from "./Avatar";
+import { Avatar } from '@oxyhq/bloom/avatar';
 
 export interface MentionUser {
     id: string;

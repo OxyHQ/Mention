@@ -9,7 +9,7 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +18,7 @@ import { router } from 'expo-router';
 import { Header } from '@/components/Header';
 import { IconButton, FloatingActionButton as FAB } from '@/components/ui/Button';
 import { ThemedView } from '@/components/ThemedView';
-import Avatar from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import SEO from '@/components/SEO';
 
 import { getData, storeData } from '@/utils/storage';

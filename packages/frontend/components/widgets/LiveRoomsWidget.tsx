@@ -11,7 +11,7 @@ import { roomsService, type Room } from '@/services/roomsService';
 import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/stores/usersStore';
 import { Agora as AgoraIcon } from '@mention/agora-shared';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 
 const MAX_ROOMS_DISPLAYED = 3;
 const REFRESH_INTERVAL_MS = 30_000;

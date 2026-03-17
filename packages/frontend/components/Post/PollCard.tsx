@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { pollService } from '@/services/pollService';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';

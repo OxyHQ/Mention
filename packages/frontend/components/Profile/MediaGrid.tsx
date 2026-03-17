@@ -6,7 +6,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';

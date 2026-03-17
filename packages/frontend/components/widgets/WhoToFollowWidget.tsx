@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { useAuth } from "@oxyhq/services";
 import * as OxyServicesNS from "@oxyhq/services";
-import Avatar from "@/components/Avatar";
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
 import { useUsersStore } from "@/stores/usersStore";

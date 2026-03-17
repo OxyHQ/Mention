@@ -4,7 +4,7 @@ import {
     StyleSheet,
     RefreshControl,
 } from 'react-native';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 import { LocationIcon } from "@/assets/icons/location-icon";
 import { CloseIcon } from "@/assets/icons/close-icon";
 import { colors } from "@/styles/colors";

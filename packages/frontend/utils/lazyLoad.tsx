@@ -5,7 +5,7 @@
 
 import { lazy, ComponentType, LazyExoticComponent } from 'react';
 import { Suspense, ReactNode } from 'react';
-import { Loading } from '@/components/ui/Loading';
+import { Loading } from '@oxyhq/bloom/loading';
 
 /**
  * Type for lazy-loaded components
