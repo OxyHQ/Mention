@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef, useEffect } from "react";
 import {
     View,
     TextInput,
@@ -52,14 +52,38 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
     const textInputRef = useRef<TextInput>(null);
     const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
 
+    // Native: use onContentSizeChange to track height
     const handleContentSizeChange = useCallback(
         (event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
-            if (multiline) {
+            if (Platform.OS !== 'web' && multiline) {
                 setContentHeight(event.nativeEvent.contentSize.height);
             }
         },
         [multiline]
     );
+
+    // Web: auto-grow textarea using scrollHeight technique
+    // (CSS Tricks: set height to auto, then to scrollHeight)
+    const autoGrowWeb = useCallback(() => {
+        if (Platform.OS !== 'web' || !multiline || !textInputRef.current) return;
+        // RNW TextInput exposes the DOM node directly or via _node
+        const rnwRef = textInputRef.current as Record<string, unknown>;
+        const node = (
+            rnwRef instanceof HTMLElement
+                ? rnwRef
+                : typeof rnwRef._node === 'object'
+                    ? rnwRef._node as HTMLElement
+                    : null
+        );
+        if (!node || !('style' in node)) return;
+        const el = node as HTMLTextAreaElement;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [multiline]);
+
+    useEffect(() => {
+        autoGrowWeb();
+    }, [value, autoGrowWeb]);
 
     // Convert display text with @username to storage format with [mention:userId]
     const convertToStorageFormat = useCallback((displayText: string, currentMentions: MentionData[]): string => {
@@ -235,7 +259,7 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
                 className="text-foreground"
                 style={[
                     styles.textInput,
-                    multiline && contentHeight !== undefined && { height: contentHeight },
+                    Platform.OS !== 'web' && multiline && contentHeight !== undefined && { height: contentHeight },
                     style,
                 ]}
                 {...textInputProps}
@@ -267,7 +291,8 @@ const styles = StyleSheet.create({
             web: {
                 outlineStyle: 'none',
                 outlineWidth: 0,
-                resize: 'vertical',
+                resize: 'none',
+                overflow: 'hidden',
             } as any,
         }),
     },
