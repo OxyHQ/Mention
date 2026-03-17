@@ -38,7 +38,6 @@ export interface ProfileCustomization {
   minimalistMode?: boolean;
   displayName?: string; // Custom display name (overrides Oxy profile name)
   coverImage?: string; // Custom cover image (alternative to profileHeaderImage)
-  profileColor?: string; // Public profile accent color (hex) — visible to profile visitors
 }
 
 export interface InterestsSettings {
@@ -122,7 +121,6 @@ const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
   minimalistMode: { type: Boolean, default: false },
   displayName: { type: String },
   coverImage: { type: String },
-  profileColor: { type: String },
 }, { _id: false });
 
 const InterestsSchema = new Schema<InterestsSettings>({

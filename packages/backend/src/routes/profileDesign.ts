@@ -29,7 +29,6 @@ interface PublicProfileDesignResponse {
     minimalistMode: boolean;
     displayName?: string;
     coverImage?: string;
-    profileColor?: string;
   };
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';

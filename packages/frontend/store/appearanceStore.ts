@@ -61,7 +61,6 @@ export interface UserAppearance {
     minimalistMode?: boolean;
     displayName?: string;
     coverImage?: string;
-    profileColor?: string;
   };
   followsYou?: boolean;
   privacy?: {

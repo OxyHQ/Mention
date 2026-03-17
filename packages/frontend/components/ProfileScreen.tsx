@@ -165,6 +165,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             : undefined;
     const minimalistMode = design?.minimalistMode ?? false;
 
+    // Use the visited user's primary color for profile accent when viewing someone else's profile
+    const accentColor = (!isOwnProfile && design?.primaryColor) || theme.colors.primary;
+
     // Memoized checks
     const isOwnProfile = useMemo(() => {
         if (isFederated) return false;
@@ -506,7 +509,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     className="absolute left-0 right-0 overflow-hidden"
                                     style={{
                                         height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
-                                        backgroundColor: `${theme.colors.primary}20`,
+                                        backgroundColor: `${accentColor}20`,
                                     }}
                                 >
                                     <Animated.View
@@ -548,6 +551,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         followingCount={followingCount}
                                         followerCount={followerCount}
                                         username={username}
+                                        accentColor={accentColor}
                                         FollowButtonComponent={FollowButtonComponent}
                                         showBottomSheet={showBottomSheet}
                                         onPostsPress={handlePostsPress}

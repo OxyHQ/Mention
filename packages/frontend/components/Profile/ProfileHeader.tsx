@@ -36,8 +36,10 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   UserNameComponent,
   FollowButtonComponent,
   showBottomSheet,
+  accentColor,
 }: ProfileHeaderDefaultProps) {
   const { t } = useTranslation();
+  const accent = accentColor || theme.colors.primary;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
 
   // Federated follow state — initialized from profileData
@@ -125,8 +127,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             <TouchableOpacity
               className="border rounded-full px-6 py-2"
               style={{
-                backgroundColor: fedFollowing || fedFollowPending ? theme.colors.background : theme.colors.primary,
-                borderColor: fedFollowing || fedFollowPending ? theme.colors.border : theme.colors.primary,
+                backgroundColor: fedFollowing || fedFollowPending ? theme.colors.background : accent,
+                borderColor: fedFollowing || fedFollowPending ? theme.colors.border : accent,
               }}
               onPress={handleFederatedFollow}
               disabled={fedFollowLoading}
@@ -150,8 +152,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
                 width: 40,
                 height: 40,
                 borderRadius: 20,
-                backgroundColor: poked ? theme.colors.primary : theme.colors.background,
-                borderColor: poked ? theme.colors.primary : theme.colors.border,
+                backgroundColor: poked ? accent : theme.colors.background,
+                borderColor: poked ? accent : theme.colors.border,
               }}
               onPress={togglePoke}
               disabled={pokeLoading}
@@ -182,7 +184,9 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   isOwnProfile,
   theme,
   UserNameComponent,
-}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean }) {
+  accentColor,
+}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean; accentColor?: string }) {
+  const accent = accentColor || theme.colors.primary;
   return (
     <View className="flex-row justify-between items-start mb-4 relative w-full">
       <View className="flex-1 mr-4">
@@ -215,7 +219,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
         />
         {verified && (
           <View className="absolute rounded-[10px] p-0.5" style={{ left: -6, bottom: -2, backgroundColor: theme.colors.background }}>
-            <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+            <Ionicons name="checkmark-circle" size={18} color={accent} />
           </View>
         )}
         {!isOwnProfile && profileId && (
@@ -238,6 +242,7 @@ export const ProfileActions = memo(function ProfileActions({
   currentUsername,
   profileUsername,
   profileId,
+  accentColor,
   FollowButtonComponent,
   showBottomSheet,
 }: {
@@ -245,11 +250,13 @@ export const ProfileActions = memo(function ProfileActions({
   currentUsername?: string;
   profileUsername?: string;
   profileId?: string;
+  accentColor?: string;
   FollowButtonComponent: React.ComponentType<{ userId: string }>;
   showBottomSheet?: (sheet: string) => void;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const accent = accentColor || theme.colors.primary;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
@@ -262,8 +269,8 @@ export const ProfileActions = memo(function ProfileActions({
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: poked ? theme.colors.primary : theme.colors.background,
-            borderColor: poked ? theme.colors.primary : theme.colors.border,
+            backgroundColor: poked ? accent : theme.colors.background,
+            borderColor: poked ? accent : theme.colors.border,
           }}
           onPress={togglePoke}
           disabled={pokeLoading}
