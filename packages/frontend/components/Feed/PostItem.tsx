@@ -370,7 +370,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     // Thread spacing adjustments
                     isThreadParent && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
                     isThreadChild && !isThreadLastChild && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
-                    isThreadChild && !isNested && { paddingTop: 0 },
+                    isThreadChild && !isNested && { paddingTop: 4 },
                     style,
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
@@ -384,7 +384,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             top: 0,
                             left: THREAD_LINE_LEFT,
                             width: THREAD_LINE_W,
-                            height: VPAD,
+                            height: 4,
                             backgroundColor: `${theme.colors.primary}30`,
                             borderRadius: THREAD_LINE_BORDER_RADIUS,
                             zIndex: THREAD_LINE_Z_INDEX,
@@ -396,7 +396,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     <View
                         style={{
                             position: 'absolute',
-                            top: VPAD + AVATAR_SIZE,
+                            top: (isThreadChild ? 4 : VPAD) + AVATAR_SIZE,
                             left: THREAD_LINE_LEFT,
                             width: THREAD_LINE_W,
                             bottom: 0,
