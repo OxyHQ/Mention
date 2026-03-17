@@ -12,7 +12,6 @@ import { usePostsStore } from '@/stores/postsStore';
 import PostAvatar from './PostAvatar';
 import UserName from '../UserName';
 import PostContentText from './PostContentText';
-import PostActions from './PostActions';
 import PostLocation from './PostLocation';
 import PostAttachmentsRow from './PostAttachmentsRow';
 const PostSourcesSheet = lazy(() => import('./PostSourcesSheet'));
@@ -79,6 +78,9 @@ function formatFullTimestamp(dateString: string): string {
     return `${displayHours}:${displayMinutes} ${ampm} \u00B7 ${month} ${day}, ${year}`;
 }
 
+const EMPTY_VIEWER_STATE = { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
+const EMPTY_ENGAGEMENT: PostEngagementSummary = { likes: 0, reposts: 0, replies: 0, saves: null, views: null, impressions: null };
+
 const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) => {
     const { oxyServices } = useAuth();
     const theme = useTheme();
@@ -92,22 +94,18 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
     const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
 
+    // Derive view post from store (reactive) or prop
     const postId = post?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[String(postId)] : null));
     const viewPost = (storePost ?? post) as PostEntity;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
-    if (!viewPost || !viewPost.user) {
-        return null;
-    }
-
-    const viewerState = viewPost.viewerState ?? {
-        isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false,
-    };
-    const metadata = viewPost.metadata ?? {};
-    const content: PostContent = viewPost.content ?? {};
-    const attachmentsBundle: PostAttachmentBundle = viewPost.attachments ?? {};
-    const linkPreview = viewPost.linkPreview ?? null;
+    // Extract all data with safe defaults (hooks must not be conditional)
+    const viewerState = viewPost?.viewerState ?? EMPTY_VIEWER_STATE;
+    const metadata = viewPost?.metadata ?? {};
+    const content: PostContent = viewPost?.content ?? {};
+    const attachmentsBundle: PostAttachmentBundle = viewPost?.attachments ?? {};
+    const linkPreview = viewPost?.linkPreview ?? null;
     const isSensitiveContent = metadata.isSensitive === true;
 
     const isOwner = viewerState.isOwner ?? false;
@@ -128,7 +126,19 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     const hasValidLocation = Boolean(location?.coordinates && location.coordinates.length >= 2);
     const mediaItems = attachmentsBundle.media ?? content.media ?? [];
 
+    const rawAvatar = viewPost?.user?.avatarUrl || (viewPost?.user as any)?.avatar;
+    const avatarFileId = typeof rawAvatar === 'string' && !rawAvatar.startsWith('http') ? rawAvatar : undefined;
+    const resolvedAvatarUrl = useImageUrl(avatarFileId, 'thumb', oxyServices);
+    const avatarUri = useMemo(() => {
+        if (!rawAvatar) return undefined;
+        if (typeof rawAvatar === 'string' && rawAvatar.startsWith('http')) return rawAvatar;
+        return resolvedAvatarUrl ?? rawAvatar;
+    }, [rawAvatar, resolvedAvatarUrl]);
+
+    const engagement: PostEngagementSummary = viewPost?.engagement ?? EMPTY_ENGAGEMENT;
+
     const nestedPost = useMemo(() => {
+        if (!viewPost) return null;
         if (viewPost.repost?.originalPost) return viewPost.repost.originalPost;
         if (viewPost.original) return viewPost.original;
         if (viewPost.originalPost) return viewPost.originalPost;
@@ -151,34 +161,22 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
         ? content.attachments
         : undefined;
 
-    const rawAvatar = viewPost.user?.avatarUrl || (viewPost.user as any)?.avatar;
-    const avatarFileId = typeof rawAvatar === 'string' && !rawAvatar.startsWith('http') ? rawAvatar : undefined;
-    const resolvedAvatarUrl = useImageUrl(avatarFileId, 'thumb', oxyServices);
-    const avatarUri = useMemo(() => {
-        if (!rawAvatar) return undefined;
-        if (typeof rawAvatar === 'string' && rawAvatar.startsWith('http')) return rawAvatar;
-        return resolvedAvatarUrl ?? rawAvatar;
-    }, [rawAvatar, resolvedAvatarUrl]);
-
-    const engagement: PostEngagementSummary = viewPost.engagement ?? {
-        likes: 0, reposts: 0, replies: 0, saves: null, views: null, impressions: null,
-    };
-
     const goToUser = useCallback(() => {
-        if (viewPost.user?.isFederated && viewPost.user?.handle && viewPost.user?.instance) {
+        if (!viewPost?.user) return;
+        if (viewPost.user.isFederated && viewPost.user.handle && viewPost.user.instance) {
             router.push(`/@${viewPost.user.handle}@${viewPost.user.instance}`);
             return;
         }
-        const handle = viewPost.user?.handle;
+        const handle = viewPost.user.handle;
         if (handle) {
             router.push(`/@${handle}`);
             return;
         }
-        const id = viewPost.user?.id;
+        const id = viewPost.user.id;
         if (id) {
             router.push(`/${id}`);
         }
-    }, [router, viewPost.user?.handle, viewPost.user?.id, viewPost.user?.isFederated, viewPost.user?.instance]);
+    }, [router, viewPost?.user?.handle, viewPost?.user?.id, viewPost?.user?.isFederated, viewPost?.user?.instance]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
@@ -305,6 +303,11 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
         );
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, viewPostId]);
+
+    // Guard: all hooks above, render guard below
+    if (!viewPost || !viewPost.user) {
+        return null;
+    }
 
     const replies = engagement.replies ?? 0;
     const reposts = engagement.reposts ?? 0;
