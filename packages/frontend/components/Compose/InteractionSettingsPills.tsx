@@ -12,7 +12,7 @@ interface InteractionSettingsPillsProps {
   onSensitiveToggle: () => void;
 }
 
-const InteractionSettingsPills: React.FC<InteractionSettingsPillsProps> = memo(({
+const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(({
   replyPermission,
   quotesDisabled,
   isSensitive,

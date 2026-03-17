@@ -40,7 +40,7 @@ interface ComposeToolbarProps {
     disabled?: boolean;
 }
 
-const ComposeToolbar: React.FC<ComposeToolbarProps> = memo(({
+const ComposeToolbar = memo<ComposeToolbarProps>(({
     contentPaddingLeft,
     onMediaPress,
     onPollPress,
