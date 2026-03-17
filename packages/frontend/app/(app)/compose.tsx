@@ -939,10 +939,8 @@ const ComposeScreen = () => {
             <View style={styles.threadContainer}>
               {/* Main composer */}
               <View style={[styles.postContainer, focusedItemId !== 'main' && threadItems.length > 0 && styles.unfocusedItem]}>
-                {/* Connector line below main avatar — only when thread items exist */}
-                {threadItems.length > 0 && (
-                  <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
-                )}
+                {/* Connector line below main avatar */}
+                <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
                 <View style={styles.composerWithTimeline}>
                   <PostHeader
                     paddingHorizontal={HPAD}
@@ -1717,15 +1715,12 @@ const ComposeScreen = () => {
               })}
 
               {/* Add thread/post button */}
-              <View style={{ position: 'relative' }}>
-                {/* Connector line above add button's avatar — only when there are items above */}
-                {threadItems.length > 0 && (
-                  <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
-                )}
               <TouchableOpacity
                 style={styles.postContainer}
                 onPress={() => addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined)}
               >
+                {/* Connector line above add button's avatar */}
+                <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
                 <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                   <TouchableOpacity activeOpacity={0.7}>
                     <Avatar
@@ -1744,7 +1739,6 @@ const ComposeScreen = () => {
                   </View>
                 </View>
               </TouchableOpacity>
-              </View>
             </View>
 
             <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
