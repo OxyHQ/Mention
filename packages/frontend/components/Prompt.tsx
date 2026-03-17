@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, type GestureResponderEvent, Platform } fr
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/hooks/useTheme';
+import type { ThemeColors } from '@/hooks/useTheme';
 import * as Dialog from '@/components/Dialog';
 
 export {
@@ -101,10 +102,27 @@ export function Content({ children }: { children: React.ReactNode }) {
 
 export type ActionColor = 'primary' | 'primary_subtle' | 'secondary' | 'negative' | 'negative_subtle';
 
+function getActionColors(color: ActionColor, colors: ThemeColors) {
+  switch (color) {
+    case 'negative':
+      return { background: colors.negative, foreground: colors.negativeForeground };
+    case 'negative_subtle':
+      return { background: colors.negativeSubtle, foreground: colors.negativeSubtleForeground };
+    case 'primary_subtle':
+      return { background: colors.primarySubtle, foreground: colors.primarySubtleForeground };
+    case 'secondary':
+      return { background: colors.contrast50, foreground: colors.text };
+    case 'primary':
+    default:
+      return { background: colors.primary, foreground: '#FFFFFF' };
+  }
+}
+
 export function Cancel({ cta }: { cta?: string }) {
   const { t } = useTranslation();
   const { close } = Dialog.useDialogContext();
   const theme = useTheme();
+  const { background } = getActionColors('secondary', theme.colors);
 
   const onPress = useCallback(() => {
     close();
@@ -114,7 +132,7 @@ export function Cancel({ cta }: { cta?: string }) {
     <TouchableOpacity
       className="rounded-full items-center justify-center"
       style={{
-        backgroundColor: theme.colors.contrast50,
+        backgroundColor: background,
         paddingVertical: 12,
         paddingHorizontal: 24,
       }}
@@ -158,31 +176,13 @@ export function Action({
     [close, onPress, shouldCloseOnPress],
   );
 
-  const backgroundColor = color === 'negative'
-    ? theme.colors.negative
-    : color === 'negative_subtle'
-      ? theme.colors.negativeSubtle
-      : color === 'primary_subtle'
-        ? theme.colors.primarySubtle
-        : color === 'secondary'
-          ? theme.colors.contrast50
-          : theme.colors.primary;
-
-  const textColor = color === 'negative'
-    ? { color: theme.colors.negativeForeground }
-    : color === 'negative_subtle'
-      ? { color: theme.colors.negativeSubtleForeground }
-      : color === 'primary_subtle'
-        ? { color: theme.colors.primarySubtleForeground }
-        : color === 'secondary'
-          ? { color: theme.colors.text }
-          : { color: '#FFFFFF' };
+  const { background, foreground } = getActionColors(color, theme.colors);
 
   return (
     <TouchableOpacity
       className="rounded-full items-center justify-center"
       style={{
-        backgroundColor,
+        backgroundColor: background,
         opacity: disabled ? 0.5 : 1,
         paddingVertical: 12,
         paddingHorizontal: 24,
@@ -192,7 +192,7 @@ export function Action({
       activeOpacity={0.7}
       testID={testID}
     >
-      <Text className="text-base font-medium" style={textColor}>
+      <Text className="text-base font-medium" style={{ color: foreground }}>
         {cta || t('common.confirm')}
       </Text>
     </TouchableOpacity>

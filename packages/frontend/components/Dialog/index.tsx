@@ -1,5 +1,5 @@
 import React, { useCallback, useImperativeHandle, useMemo, useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -129,29 +129,24 @@ export function ScrollableInner(props: DialogInnerProps) {
   return <Inner {...props} />;
 }
 
+const handleStyles = StyleSheet.create({
+  container: { position: 'absolute', width: '100%', alignItems: 'center', zIndex: 10, height: 20 },
+  bar: { top: 8, width: 35, height: 5, borderRadius: 3, alignSelf: 'center', opacity: 0.5 },
+});
+
 export function Handle() {
   const theme = useTheme();
   const { close } = useDialogContext();
 
   return (
-    <View style={{ position: 'absolute', width: '100%', alignItems: 'center', zIndex: 10, height: 20 }}>
+    <View style={handleStyles.container}>
       <Pressable
         onPress={() => close()}
         accessibilityLabel="Dismiss"
         accessibilityHint="Tap to close the dialog"
         hitSlop={{ top: 10, bottom: 10, left: 40, right: 40 }}
       >
-        <View
-          style={{
-            top: 8,
-            width: 35,
-            height: 5,
-            borderRadius: 3,
-            alignSelf: 'center',
-            backgroundColor: theme.colors.text,
-            opacity: 0.5,
-          }}
-        />
+        <View style={[handleStyles.bar, { backgroundColor: theme.colors.text }]} />
       </Pressable>
     </View>
   );

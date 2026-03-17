@@ -174,20 +174,18 @@ export function Close() {
   );
 }
 
+const backdropStyle: ViewStyle[] = [
+  {
+    position: 'fixed' as 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  { animation: 'dialogFadeIn ease-out 0.15s' } as ViewStyle,
+];
+
 export function Backdrop() {
-  return (
-    <View
-      style={[
-        {
-          position: 'fixed' as 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.8)',
-        },
-        { animation: 'dialogFadeIn ease-out 0.15s' } as ViewStyle,
-      ]}
-    />
-  );
+  return <View style={backdropStyle} />;
 }
