@@ -1725,7 +1725,7 @@ const ComposeScreen = () => {
             <Prompt.Action
               cta={t('compose.keepEditing', 'Keep editing')}
               onPress={() => {}}
-              color="primary"
+              color="primary_subtle"
             />
           </Prompt.Actions>
         </Prompt.Outer>

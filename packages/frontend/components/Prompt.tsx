@@ -99,7 +99,7 @@ export function Content({ children }: { children: React.ReactNode }) {
   return <View className="pb-2">{children}</View>;
 }
 
-export type ActionColor = 'primary' | 'secondary' | 'negative' | 'negative_subtle';
+export type ActionColor = 'primary' | 'primary_subtle' | 'secondary' | 'negative' | 'negative_subtle';
 
 export function Cancel({ cta }: { cta?: string }) {
   const { t } = useTranslation();
@@ -159,20 +159,24 @@ export function Action({
   );
 
   const backgroundColor = color === 'negative'
-    ? (theme.isDark ? '#E91646' : '#E91646')
+    ? '#E91646'
     : color === 'negative_subtle'
       ? (theme.isDark ? '#430413' : '#FEE7EC')
-      : color === 'secondary'
-        ? (theme.isDark ? '#19222E' : '#EFF2F6')
-        : theme.colors.primary;
+      : color === 'primary_subtle'
+        ? (theme.isDark ? '#002B2E' : '#E0F5F7')
+        : color === 'secondary'
+          ? (theme.isDark ? '#19222E' : '#EFF2F6')
+          : theme.colors.primary;
 
   const textColor = color === 'negative'
     ? { color: '#FFFFFF' }
     : color === 'negative_subtle'
       ? { color: theme.isDark ? '#F65A7F' : '#CA123D' }
-      : color === 'secondary'
-        ? { color: theme.isDark ? '#EEEEEE' : '#19222E' }
-        : { color: '#FFFFFF' };
+      : color === 'primary_subtle'
+        ? { color: theme.isDark ? '#4DD9E0' : '#006066' }
+        : color === 'secondary'
+          ? { color: theme.isDark ? '#EEEEEE' : '#19222E' }
+          : { color: '#FFFFFF' };
 
   return (
     <TouchableOpacity
