@@ -19,7 +19,8 @@ import { usePostsStore } from '../stores/postsStore';
 import { colors } from '../styles/colors';
 import PostItem from './Feed/PostItem';
 import { HydratedPost, Reply, FeedRepost as Repost, FeedType } from '@mention/shared-types';
-import Avatar from './Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
+import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import UserName from './UserName';
 
 const MAX_CHARACTERS = 280;
@@ -171,7 +172,7 @@ const ReplyScreen: React.FC = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <View style={styles.userInfo}>
-                    <Avatar source={user?.avatar} size={40} verified={!!(user as any)?.verified} />
+                    <Avatar source={user?.avatar} size={40} verified={!!(user as any)?.verified} verifiedIcon={<VerifiedIcon size={Math.round(40 * 0.36)} color="#005c67" />} />
                     <View style={styles.userDetails}>
                         <UserName name={user?.name?.full || user?.username} verified={!!(user as any)?.verified} />
                     </View>

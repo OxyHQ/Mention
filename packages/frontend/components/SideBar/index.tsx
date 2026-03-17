@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
 import { Button } from "@/components/ui/Button";
 import { Logo } from "@/components/Logo";
-import Avatar from "@/components/Avatar";
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { Gear, GearActive } from "@/assets/icons/gear-icon";

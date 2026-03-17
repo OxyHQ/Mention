@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import Avatar from './Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 /**

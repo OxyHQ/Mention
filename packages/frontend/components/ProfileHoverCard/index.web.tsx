@@ -8,7 +8,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useProfileData } from '@/hooks/useProfileData';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@/components/Portal';
-import Avatar from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from '@/components/UserName';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { type ProfileHoverCardProps } from './types';

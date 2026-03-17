@@ -330,7 +330,6 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Avatar
                         source={avatarUri}
                         size={72}
-                        label={(typeof user?.name === 'string' ? user.name[0] : null) || (typeof user?.handle === 'string' ? user.handle[0] : null) || ''}
                     />
                     <Text className="text-2xl font-bold mt-4 mb-2 text-foreground" style={{ letterSpacing: -0.3 }}>
                         {t('insights.weeklyRecap.pageTitle')}

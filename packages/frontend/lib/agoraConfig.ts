@@ -4,7 +4,7 @@ import { API_URL_SOCKET } from '@/config';
 import { useTheme } from '@/hooks/useTheme';
 import { useUserById, useUsersStore } from '@/stores/usersStore';
 import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
-import Avatar from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { toast } from 'sonner';
 
 export const agoraConfig: AgoraConfig = {

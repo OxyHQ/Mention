@@ -514,7 +514,6 @@ export default function RestrictedUsersScreen() {
                                         <Avatar
                                             source={avatarUri}
                                             size={40}
-                                            label={displayName?.[0] || handle?.[0]}
                                         />
                                         <View className="flex-1 ml-3">
                                             <Text className="text-base font-medium mb-0.5 text-foreground">
@@ -576,7 +575,6 @@ export default function RestrictedUsersScreen() {
                                             <Avatar
                                                 source={avatarUri}
                                                 size={48}
-                                                label={displayName?.[0] || handle?.[0]}
                                             />
                                             <View className="flex-1 ml-3">
                                                 <Text className="text-base font-medium mb-0.5 text-foreground">

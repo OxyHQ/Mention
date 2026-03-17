@@ -2,7 +2,7 @@ import { View, Pressable, Platform, LayoutChangeEvent } from 'react-native';
 import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
-import Avatar from './Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { useHaptics } from '@/hooks/useHaptics';

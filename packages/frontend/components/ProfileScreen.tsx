@@ -34,7 +34,7 @@ import { ShareIcon } from '@/assets/icons/share-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 
 // Components
-import Avatar from './Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';

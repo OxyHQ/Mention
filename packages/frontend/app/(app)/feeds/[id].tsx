@@ -25,7 +25,7 @@ import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
-import Avatar from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
@@ -524,7 +524,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
               style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
             >
               <View className="flex-row items-start gap-2.5">
-                <Avatar source={reviewerAvatar} size={36} label={reviewerName} />
+                <Avatar source={reviewerAvatar} size={36} />
                 <View className="flex-1 gap-[3px]">
                   <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                     {reviewerName}
