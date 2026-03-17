@@ -47,7 +47,7 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import * as Prompt from '@/components/Prompt';
+import * as Prompt from '@oxyhq/bloom/prompt';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 // Lazy load sheets - only loaded when user opens them

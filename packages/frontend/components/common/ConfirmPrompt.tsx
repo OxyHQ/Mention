@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { type GestureResponderEvent } from 'react-native';
 
-import { useDialogControl } from '@/components/Dialog';
-import * as Prompt from '@/components/Prompt';
+import { useDialogControl } from '@oxyhq/bloom/dialog';
+import * as Prompt from '@oxyhq/bloom/prompt';
 import type { ConfirmOptions } from '@/utils/alerts';
 
 type ConfirmRequest = ConfirmOptions & {

@@ -12,7 +12,7 @@ import {
     Platform,
 } from 'react-native';
 import { toast } from 'sonner';
-import * as Prompt from '@/components/Prompt';
+import * as Prompt from '@oxyhq/bloom/prompt';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
