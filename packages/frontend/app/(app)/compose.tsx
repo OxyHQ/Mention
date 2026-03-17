@@ -937,7 +937,7 @@ const ComposeScreen = () => {
             {/* Main composer and thread section */}
             <View style={styles.threadContainer}>
               {/* Continuous timeline line for all items - from composer to add button */}
-              <View style={[styles.continuousTimelineLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: theme.colors.primary }]} />
+              <View style={[styles.continuousTimelineLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
 
               {/* Main composer */}
               <View style={styles.postContainer}>
