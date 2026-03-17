@@ -47,6 +47,7 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
     const [mentionQuery, setMentionQuery] = useState("");
     const [cursorPosition, setCursorPosition] = useState(0);
     const [mentions, setMentions] = useState<MentionData[]>([]);
+    const [inputHeight, setInputHeight] = useState<number | undefined>(undefined);
     const textInputRef = useRef<TextInput>(null);
 
     // Convert display text with @username to storage format with [mention:userId]
@@ -215,6 +216,9 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
                 value={displayValue}
                 onChangeText={handleTextChange}
                 onSelectionChange={handleSelectionChange}
+                onContentSizeChange={multiline ? (e) => {
+                    setInputHeight(e.nativeEvent.contentSize.height);
+                } : undefined}
                 placeholder={placeholder}
                 placeholderTextColor={theme.colors.textTertiary}
                 maxLength={maxLength}
@@ -223,6 +227,7 @@ const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProp
                 style={[
                     styles.textInput,
                     style,
+                    multiline && inputHeight ? { height: inputHeight } : undefined,
                 ]}
                 {...textInputProps}
             />
