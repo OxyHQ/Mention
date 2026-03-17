@@ -13,7 +13,8 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -124,6 +125,7 @@ const LabelerDetailScreen: React.FC = () => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const safeBack = useSafeBack();
 
   const [labeler, setLabeler] = useState<LabelerDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -250,7 +252,7 @@ const LabelerDetailScreen: React.FC = () => {
           options={{
             title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
@@ -272,7 +274,7 @@ const LabelerDetailScreen: React.FC = () => {
           options={{
             title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
@@ -295,7 +297,7 @@ const LabelerDetailScreen: React.FC = () => {
         options={{
           title: labeler.name,
           leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],

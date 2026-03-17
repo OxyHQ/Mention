@@ -7,12 +7,14 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
 import { starterPacksService } from '@/services/starterPacksService';
 import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string } };
 
 export default function CreateStarterPackScreen() {
   const { oxyServices } = useAuth();
+  const safeBack = useSafeBack();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [search, setSearch] = useState('');
@@ -63,7 +65,7 @@ export default function CreateStarterPackScreen() {
           leftComponents: [
             <IconButton variant="icon"
               key="back"
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,

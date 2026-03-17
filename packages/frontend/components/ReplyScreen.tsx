@@ -1,5 +1,6 @@
 // Ionicons removed; VerifiedIcon used via UserName/Avatar
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
@@ -27,6 +28,7 @@ const ReplyScreen: React.FC = () => {
     const { createReply, feeds, getPostById } = usePostsStore();
     const insets = useSafeAreaInsets();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
+    const safeBack = useSafeBack();
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,7 +103,7 @@ const ReplyScreen: React.FC = () => {
             await createReply(replyRequest);
 
             // Navigate back
-            router.back();
+            safeBack();
 
             // Show success feedback
             Alert.alert('Success', 'Your reply has been posted!');
@@ -120,11 +122,11 @@ const ReplyScreen: React.FC = () => {
                 'You have unsaved changes. Are you sure you want to discard them?',
                 [
                     { text: 'Keep Editing', style: 'cancel' },
-                    { text: 'Discard', style: 'destructive', onPress: () => router.back() }
+                    { text: 'Discard', style: 'destructive', onPress: () => safeBack() }
                 ]
             );
         } else {
-            router.back();
+            safeBack();
         }
     };
 

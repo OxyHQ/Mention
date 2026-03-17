@@ -11,6 +11,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@oxyhq/services';
@@ -56,6 +57,7 @@ export default function ListDetailScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
 
   const [list, setList] = useState<ListData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,7 +122,7 @@ export default function ListDetailScreen() {
           options={{
             title: '',
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
@@ -143,7 +145,7 @@ export default function ListDetailScreen() {
           options={{
             title: 'List',
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
@@ -191,7 +193,7 @@ export default function ListDetailScreen() {
         options={{
           title: list.title || 'List',
           leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],

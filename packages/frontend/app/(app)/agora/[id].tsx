@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner';
 
@@ -60,6 +61,7 @@ const RoomDetailScreen = () => {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, oxyServices } = useAuth();
+  const safeBack = useSafeBack();
   const { joinLiveRoom } = useLiveRoom();
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,7 +105,7 @@ const RoomDetailScreen = () => {
     setActionLoading(true);
     const success = await roomsService.endRoom(id);
     if (success) {
-      router.back();
+      safeBack();
     } else {
       toast.error('Failed to end room');
     }
@@ -144,7 +146,7 @@ const RoomDetailScreen = () => {
           options={{
             title: 'Room',
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],
@@ -165,7 +167,7 @@ const RoomDetailScreen = () => {
           options={{
             title: '',
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],

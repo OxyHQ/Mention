@@ -4,7 +4,8 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import Avatar from '@/components/Avatar';
-import { Link, useLocalSearchParams, router } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
@@ -15,6 +16,7 @@ import { useProfileData } from '@/hooks/useProfileData';
 
 export default function AccountInfoScreen() {
   const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack();
   const { username } = useLocalSearchParams<{ username: string }>();
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const { t } = useTranslation();
@@ -60,7 +62,7 @@ export default function AccountInfoScreen() {
             <IconButton
               key="back"
               variant="icon"
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,

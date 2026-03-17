@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedView } from '@/components/ThemedView';
@@ -36,6 +36,7 @@ const WeeklyRecapScreen: React.FC = () => {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
+    const safeBack = useSafeBack();
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<WeeklyRecapData | null>(null);
@@ -221,7 +222,7 @@ const WeeklyRecapScreen: React.FC = () => {
                             leftComponents: [
                                 <IconButton variant="icon"
                                     key="back"
-                                    onPress={() => router.back()}
+                                    onPress={() => safeBack()}
                                 >
                                     <BackArrowIcon size={20} className="text-foreground" />
                                 </IconButton>,
@@ -248,7 +249,7 @@ const WeeklyRecapScreen: React.FC = () => {
                             leftComponents: [
                                 <IconButton variant="icon"
                                     key="back"
-                                    onPress={() => router.back()}
+                                    onPress={() => safeBack()}
                                 >
                                     <BackArrowIcon size={20} className="text-foreground" />
                                 </IconButton>,

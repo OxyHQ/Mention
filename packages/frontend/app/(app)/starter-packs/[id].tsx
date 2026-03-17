@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -31,6 +32,7 @@ export default function StarterPackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { user, oxyServices } = useAuth();
+  const safeBack = useSafeBack();
   const haptics = useHaptics();
   const [pack, setPack] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,7 +125,7 @@ export default function StarterPackDetailScreen() {
           options={{
             title: pack?.name || 'Starter Pack',
             leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>,
             ],

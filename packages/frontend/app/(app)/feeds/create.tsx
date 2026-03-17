@@ -20,6 +20,7 @@ import { useAuth } from '@oxyhq/services';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +31,7 @@ const CreateFeedScreen: React.FC = () => {
   const theme = useTheme();
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -150,7 +152,7 @@ const CreateFeedScreen: React.FC = () => {
         options={{
           title: t('feeds.create.title', { defaultValue: 'Create feed' }),
           leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],

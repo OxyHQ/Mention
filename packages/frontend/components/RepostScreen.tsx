@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
+import { useSafeBack } from "@/hooks/useSafeBack";
 import React, { useState, useRef, useEffect } from "react";
 import {
     View,
@@ -26,6 +27,7 @@ const RepostScreen: React.FC = () => {
     const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const theme = useTheme();
+    const safeBack = useSafeBack();
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,7 +89,7 @@ const RepostScreen: React.FC = () => {
             await createRepost(repostRequest);
 
             // Navigate back
-            router.back();
+            safeBack();
 
             // Show success feedback
             Alert.alert('Success', 'Post reposted successfully!');
@@ -109,12 +111,12 @@ const RepostScreen: React.FC = () => {
                     {
                         text: 'Discard',
                         style: 'destructive',
-                        onPress: () => router.back()
+                        onPress: () => safeBack()
                     },
                 ]
             );
         } else {
-            router.back();
+            safeBack();
         }
     };
 

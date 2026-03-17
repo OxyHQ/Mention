@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
@@ -54,6 +55,7 @@ const EMPTY_RESULTS: LocalSearchResults = {
 export default function SearchIndex() {
     const { t } = useTranslation();
     const theme = useTheme();
+    const safeBack = useSafeBack();
     const params = useLocalSearchParams();
     const urlQuery = (params.q as string) || "";
 
@@ -428,7 +430,7 @@ export default function SearchIndex() {
                             leftComponents: [
                                 <IconButton variant="icon"
                                     key="back"
-                                    onPress={() => router.back()}
+                                    onPress={() => safeBack()}
                                 >
                                     <BackArrowIcon size={20} className="text-foreground" />
                                 </IconButton>,

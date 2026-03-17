@@ -11,6 +11,7 @@ import { Loading } from '@/components/ui/Loading';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedView } from '@/components/ThemedView';
@@ -97,6 +98,7 @@ const InsightsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const { user } = useAuth();
+    const safeBack = useSafeBack();
 
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<UserStatistics | null>(null);
@@ -375,7 +377,7 @@ const InsightsScreen: React.FC = () => {
                         options={{
                             title: t('Insights'),
                             leftComponents: [
-                                <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                                <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                                     <BackArrowIcon size={20} className="text-foreground" />
                                 </IconButton>,
                             ],

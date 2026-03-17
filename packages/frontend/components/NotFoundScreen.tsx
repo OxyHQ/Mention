@@ -1,13 +1,13 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { Button } from '@/components/ui/Button';
 export default function NotFoundScreen() {
-    const router = useRouter();
+    const safeBack = useSafeBack();
 
     return (
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
@@ -27,12 +27,8 @@ export default function NotFoundScreen() {
 
                 {/* Buttons */}
                 <View style={styles.buttonsContainer}>
-                    <Button variant="primary" onPress={() => router.back()}>
+                    <Button variant="primary" onPress={safeBack}>
                         Go Back
-                    </Button>
-
-                    <Button variant="secondary" onPress={() => router.push('/')}>
-                        Home
                     </Button>
                 </View>
             </ThemedView>

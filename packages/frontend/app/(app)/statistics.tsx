@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedView } from '@/components/ThemedView';
@@ -36,6 +36,7 @@ const InsightsScreen: React.FC = () => {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
+    const safeBack = useSafeBack();
 
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<UserStatistics | null>(null);
@@ -455,7 +456,7 @@ const InsightsScreen: React.FC = () => {
         <ThemedView className="flex-1">
             {/* Header */}
             <View className="bg-background" style={[styles.header, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => safeBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
                 <Text className="text-foreground" style={styles.headerTitle}>Insights</Text>

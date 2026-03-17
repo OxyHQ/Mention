@@ -5,7 +5,8 @@ import {
     RefreshControl,
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import { ThemedView } from '@/components/ThemedView';
@@ -29,6 +30,7 @@ const logger = createScopedLogger('HashtagScreen');
 const HashtagScreen: React.FC = () => {
     const { tag } = useLocalSearchParams<{ tag: string }>();
     const theme = useTheme();
+    const safeBack = useSafeBack();
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
@@ -120,7 +122,7 @@ const HashtagScreen: React.FC = () => {
     }, [loadingMore, hasMore, nextCursor, fetchPosts]);
 
     const handleBack = useCallback(() => {
-        router.back();
+        safeBack();
     }, []);
 
     const renderItem = useCallback(({ item }: { item: any }) => {

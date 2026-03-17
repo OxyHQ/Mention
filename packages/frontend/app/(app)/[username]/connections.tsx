@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/ThemedText';
 import Avatar from '@/components/Avatar';
 import * as OxyServicesNS from '@oxyhq/services';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform, StyleSheet } from 'react-native';
@@ -24,6 +25,7 @@ type TabType = 'followers' | 'following' | 'who-may-know';
 
 export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack();
   const { username } = useLocalSearchParams<{ username: string }>();
   const pathname = usePathname();
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
@@ -415,7 +417,7 @@ export default function ConnectionsScreen() {
           leftComponents: [
             <IconButton variant="icon"
               key="back"
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,

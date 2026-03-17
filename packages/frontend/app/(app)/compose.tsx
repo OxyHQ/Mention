@@ -21,6 +21,7 @@ import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -125,6 +126,7 @@ const avatarMarginStyle = { marginRight: 12 };
 
 const ComposeScreen = () => {
   const theme = useTheme();
+  const safeBack = useSafeBack();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
   const { user, showBottomSheet, oxyServices, isAuthenticated } = useAuth();
@@ -548,7 +550,7 @@ const ComposeScreen = () => {
       clearRoom();
 
       // Navigate back after posting
-      router.back();
+      safeBack();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[Compose] Failed to publish post', message);
@@ -1058,7 +1060,7 @@ const ComposeScreen = () => {
             <View className="bg-background border-border" style={styles.header}>
               <IconButton variant="icon"
                 onPress={() => {
-                  router.back();
+                  safeBack();
                 }}
                 style={styles.backBtn}
               >

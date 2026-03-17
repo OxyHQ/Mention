@@ -16,6 +16,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -125,6 +126,7 @@ LabelerCard.displayName = 'LabelerCard';
 const LabelersScreen: React.FC = () => {
   const theme = useTheme();
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
 
   const [labelers, setLabelers] = useState<Labeler[]>([]);
   const [loading, setLoading] = useState(true);
@@ -265,7 +267,7 @@ const LabelersScreen: React.FC = () => {
         options={{
           title: t('labelers.title', { defaultValue: 'Content Labels' }),
           leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],

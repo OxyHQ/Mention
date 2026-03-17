@@ -18,7 +18,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@/hooks/useTheme';
 import { customFeedsService } from '@/services/customFeedsService';
-import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -164,6 +164,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
 export default function FeedMarketplaceScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
 
   const [feeds, setFeeds] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -453,7 +454,7 @@ export default function FeedMarketplaceScreen() {
           title: t('marketplace.title', { defaultValue: 'Feed Marketplace' }),
           headerTitleStyle: { justifyContent: 'flex-start', flex: 1 },
           leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
           ],

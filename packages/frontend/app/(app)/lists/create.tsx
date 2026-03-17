@@ -7,6 +7,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +16,7 @@ type MinimalUser = { id: string; username: string; name?: { full?: string } };
 export default function CreateListScreen() {
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -66,7 +68,7 @@ export default function CreateListScreen() {
           leftComponents: [
             <IconButton variant="icon"
               key="back"
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,

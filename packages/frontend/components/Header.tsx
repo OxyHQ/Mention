@@ -8,9 +8,9 @@ import {
 } from "react-native"
 import { Pressable } from "react-native"
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router"
 import { ReactNode } from "react"
 import { useTheme } from "@/hooks/useTheme";
+import { useSafeBack } from "@/hooks/useSafeBack";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -29,7 +29,7 @@ interface Props {
 }
 
 export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, disableSticky = false }) => {
-    const router = useRouter();
+    const safeBack = useSafeBack();
     const [isSticky, setIsSticky] = useState(false);
     const theme = useTheme();
 
@@ -68,7 +68,7 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
             style={headerStyle}>
             <View style={styles.leftContainer}>
                 {options?.showBackButton && (
-                    <Pressable onPress={() => router.back()} style={styles.backButton}>
+                    <Pressable onPress={safeBack} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
                     </Pressable>
                 )}

@@ -6,11 +6,13 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import SEO from '@/components/SEO';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { EmptyState } from '@/components/common/EmptyState';
 
 export default function StarterPacksScreen() {
+  const safeBack = useSafeBack();
   const [myPacks, setMyPacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +41,7 @@ export default function StarterPacksScreen() {
           leftComponents: [
             <IconButton variant="icon"
               key="back"
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,
