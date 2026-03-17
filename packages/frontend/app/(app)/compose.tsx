@@ -116,12 +116,7 @@ import {
 } from '@/utils/composeUtils';
 
 // Keep this in sync with PostItem constants
-const HPAD = 16;
-const AVATAR_SIZE = 40;
-const AVATAR_GAP = 12;
-const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
-const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET; // 68
-const TIMELINE_LINE_OFFSET = HPAD + AVATAR_SIZE / 2 - 1; // Center timeline on avatar
+import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
 
 const ComposeScreen = () => {
   const theme = useTheme();
@@ -451,14 +446,6 @@ const ComposeScreen = () => {
     })();
     return () => { cancelled = true; };
   }, [editPostId]);
-
-  // Keep this in sync with PostItem constants
-  const HPAD = 16;
-  const AVATAR_SIZE = 40;
-  const AVATAR_GAP = 12;
-  const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
-  const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET; // 68
-  const TIMELINE_LINE_OFFSET = HPAD + AVATAR_SIZE / 2 - 1; // Center timeline on avatar
 
   const handlePost = async () => {
     if (isPosting || !user) return;

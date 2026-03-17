@@ -25,13 +25,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 
 const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 
-// Shared layout constants (keep in sync with compose.tsx)
-const HPAD = 16;
-const AVATAR_SIZE = 40;
-const AVATAR_GAP = 12;
-const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP;
-const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET;
-const TIMELINE_LINE_OFFSET = HPAD + AVATAR_SIZE / 2 - 1;
+import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from './composeLayout';
 
 interface ComposeThreadItemProps {
   item: ThreadItem;
