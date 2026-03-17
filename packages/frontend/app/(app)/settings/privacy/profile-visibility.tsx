@@ -5,7 +5,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +21,7 @@ type VisibilityOption = 'public' | 'private' | 'followers_only';
 export default function ProfileVisibilityScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
+    const safeBack = useSafeBack();
 
     const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>('public');
     const [loading, setLoading] = useState(true);
@@ -44,7 +45,7 @@ export default function ProfileVisibilityScreen() {
 
     const handleSave = async (newVisibility: VisibilityOption) => {
         if (newVisibility === profileVisibility) {
-            router.back();
+            safeBack();
             return;
         }
 
@@ -86,7 +87,7 @@ export default function ProfileVisibilityScreen() {
             });
             // Small delay to ensure backend has processed the update
             setTimeout(() => {
-                router.back();
+                safeBack();
             }, 300);
         } catch (error: any) {
             console.error('Error updating profile visibility:', error);
@@ -108,7 +109,7 @@ export default function ProfileVisibilityScreen() {
                         leftComponents: [
                             <IconButton variant="icon"
                                 key="back"
-                                onPress={() => router.back()}
+                                onPress={() => safeBack()}
                             >
                                 <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
@@ -153,7 +154,7 @@ export default function ProfileVisibilityScreen() {
                     leftComponents: [
                         <IconButton variant="icon"
                             key="back"
-                            onPress={() => router.back()}
+                            onPress={() => safeBack()}
                         >
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,

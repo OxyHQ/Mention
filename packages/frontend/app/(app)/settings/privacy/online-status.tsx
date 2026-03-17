@@ -5,13 +5,14 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 
 export default function OnlineStatusScreen() {
     const { t } = useTranslation();
+    const safeBack = useSafeBack();
     const [showOnlineStatus, setShowOnlineStatus] = useState(true);
     const [loading, setLoading] = useState(true);
 
@@ -52,7 +53,7 @@ export default function OnlineStatusScreen() {
                         leftComponents: [
                             <IconButton variant="icon"
                                 key="back"
-                                onPress={() => router.back()}
+                                onPress={() => safeBack()}
                             >
                                 <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
@@ -76,7 +77,7 @@ export default function OnlineStatusScreen() {
                     leftComponents: [
                         <IconButton variant="icon"
                             key="back"
-                            onPress={() => router.back()}
+                            onPress={() => safeBack()}
                         >
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,

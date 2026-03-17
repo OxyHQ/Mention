@@ -7,6 +7,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
 
@@ -24,6 +25,7 @@ interface PrivacySettings {
 
 export default function PrivacySettingsScreen() {
     const { t } = useTranslation();
+    const safeBack = useSafeBack();
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
     const [loading, setLoading] = useState(true);
@@ -59,7 +61,7 @@ export default function PrivacySettingsScreen() {
                     options={{
                         title: t('settings.privacy.title'),
                         leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                                 <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
@@ -80,7 +82,7 @@ export default function PrivacySettingsScreen() {
                 options={{
                     title: t('settings.privacy.title'),
                     leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => router.back()}>
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],

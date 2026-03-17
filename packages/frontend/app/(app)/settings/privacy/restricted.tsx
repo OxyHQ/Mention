@@ -5,7 +5,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { searchService } from '@/services/searchService';
@@ -37,6 +37,7 @@ interface RestrictedUser {
 export default function RestrictedUsersScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
+    const safeBack = useSafeBack();
     const { user: currentUser, isAuthenticated, oxyServices } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
@@ -452,7 +453,7 @@ export default function RestrictedUsersScreen() {
                     leftComponents: [
                         <IconButton variant="icon"
                             key="back"
-                            onPress={() => router.back()}
+                            onPress={() => safeBack()}
                         >
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
