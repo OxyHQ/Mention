@@ -7,7 +7,7 @@ import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useUsersStore } from '@/stores/usersStore';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import LegendList from '@/components/LegendList';
 import { ThemedText } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';

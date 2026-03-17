@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { IconProps } from '@/assets/icons/types';
 
 interface IconCircleProps {

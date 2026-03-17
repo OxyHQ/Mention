@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { Color } from 'expo-router';
-import type { ThemeColors } from '@/hooks/useTheme';
+import type { ThemeColors } from '@oxyhq/bloom/theme';
 
 // Color API returns PlatformColor (ColorValue) objects which work at runtime
 // in all RN style props but TypeScript types them as OpaqueColorValue.

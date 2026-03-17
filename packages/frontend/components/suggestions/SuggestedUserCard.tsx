@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from '@/components/ThemedText';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 interface SuggestedUserData {
   id: string;

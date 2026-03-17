@@ -16,7 +16,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@/lib/sonner';

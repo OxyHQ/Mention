@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@oxyhq/services";
 import { usePostsStore } from "../stores/postsStore";
 import { CreateRepostRequest } from "@mention/shared-types";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 
 const MAX_CHARACTERS = 280;
 

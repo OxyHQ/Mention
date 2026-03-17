@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Context, useDialogContext } from './context';
 import type { DialogControlProps, DialogInnerProps, DialogOuterProps } from './types';
 

@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 
 import { BaseWidget } from './BaseWidget';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';
 import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';

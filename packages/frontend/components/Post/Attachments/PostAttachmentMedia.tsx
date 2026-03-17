@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, View, StyleSheet, ViewStyle, Platform } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';

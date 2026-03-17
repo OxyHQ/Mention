@@ -14,7 +14,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { feedService } from '@/services/feedService';
 import PostItem from '@/components/Feed/PostItem';

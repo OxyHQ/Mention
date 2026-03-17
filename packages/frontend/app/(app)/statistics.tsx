@@ -12,7 +12,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
 import { statisticsService, UserStatistics, EngagementRatios } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';

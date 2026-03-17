@@ -4,7 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, ViewStyle } from 'react-native'
 import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@/hooks/useTheme'
+import { useTheme } from '@oxyhq/bloom/theme'
 import { cn } from '@/lib/utils'
 import { Search } from '@/assets/icons/search-icon'
 import { SPACING } from '@/styles/spacing'

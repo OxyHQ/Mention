@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { SearchFilters as SearchFiltersType } from "@/services/searchService";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";

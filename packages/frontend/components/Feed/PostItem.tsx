@@ -23,7 +23,7 @@ import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useImageUrl } from '@/hooks/useImageUrl';

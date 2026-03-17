@@ -1,7 +1,7 @@
 import React from "react";
 import { View, ScrollView, Image, TouchableOpacity, StyleSheet } from "react-native";
 import Animated from "react-native-reanimated";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { CloseIcon } from "@/assets/icons/close-icon";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { ChevronRightIcon } from "@/assets/icons/chevron-right-icon";

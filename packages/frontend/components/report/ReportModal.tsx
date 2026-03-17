@@ -6,7 +6,7 @@ import {
     TextInput,
     ScrollView,
 } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { REPORT_CATEGORIES } from '@/services/reportService';

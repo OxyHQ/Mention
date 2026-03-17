@@ -8,7 +8,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Ionicons } from '@expo/vector-icons';

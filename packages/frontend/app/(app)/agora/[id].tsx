@@ -21,7 +21,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import SEO from '@/components/SEO';
 
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/stores/usersStore';
 import { useLiveRoom } from '@/context/LiveRoomContext';

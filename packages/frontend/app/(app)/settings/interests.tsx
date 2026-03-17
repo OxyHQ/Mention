@@ -7,7 +7,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { authenticatedClient } from '@/utils/api';

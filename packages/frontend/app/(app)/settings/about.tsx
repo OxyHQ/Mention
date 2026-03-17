@@ -8,7 +8,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { LogoIcon } from '@/assets/logo';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Pressable, View, type ViewStyle } from 'react-native';
 
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Portal } from '@/components/Portal';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';

@@ -10,7 +10,7 @@ import {
     Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from "@/assets/icons/close-icon";

@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
 import { PollIcon } from "@/assets/icons/poll-icon";
 import { CloseIcon } from "@/assets/icons/close-icon";

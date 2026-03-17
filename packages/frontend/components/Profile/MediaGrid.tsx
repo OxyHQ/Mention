@@ -9,7 +9,7 @@ import {
 import { Loading } from '@oxyhq/bloom/loading';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';

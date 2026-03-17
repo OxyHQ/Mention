@@ -2,7 +2,7 @@ import React, { useMemo, useContext } from 'react';
 import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from './useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';

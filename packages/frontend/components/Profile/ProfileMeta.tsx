@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { ProfileMetaProps } from './types';
 

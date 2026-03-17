@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ChevronUpIcon } from '@/assets/icons/chevron-up-icon';
 import { ChevronDownIcon } from '@/assets/icons/chevron-down-icon';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { PressableScale } from '@/lib/animations/PressableScale';

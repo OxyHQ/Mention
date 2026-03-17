@@ -11,7 +11,7 @@ import { useAuth } from '@oxyhq/services';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';

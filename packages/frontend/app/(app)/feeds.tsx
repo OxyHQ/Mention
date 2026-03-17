@@ -23,7 +23,7 @@ import SEO from '@/components/SEO';
 
 import { getData, storeData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 

@@ -32,7 +32,7 @@ import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
 import { useRouter } from 'expo-router';

@@ -3,7 +3,7 @@ import { StyleSheet, Text } from 'react-native';
 import LinkifiedText from '../common/LinkifiedText';
 import { useRouter, usePathname } from 'expo-router';
 import { PostContent } from '@mention/shared-types';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 interface Props {
   content?: string | PostContent;

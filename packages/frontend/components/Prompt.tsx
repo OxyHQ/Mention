@@ -2,8 +2,7 @@ import React, { createContext, useCallback, useContext, useId, useMemo } from 'r
 import { View, Text, TouchableOpacity, type GestureResponderEvent, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '@/hooks/useTheme';
-import type { ThemeColors } from '@/hooks/useTheme';
+import { useTheme, type ThemeColors } from '@oxyhq/bloom/theme';
 import * as Dialog from '@/components/Dialog';
 
 export {

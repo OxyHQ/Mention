@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';

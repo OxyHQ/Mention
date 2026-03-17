@@ -16,7 +16,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { VideoPreview, PollCreator, LocationDisplay } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';

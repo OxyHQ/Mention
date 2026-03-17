@@ -9,7 +9,7 @@ import {
 import { Pressable } from "react-native"
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode } from "react"
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from "@/hooks/useSafeBack";
 import { cn } from "@/lib/utils";
 

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
 import * as OxyServicesNS from '@oxyhq/services';
 
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useProfileData } from '@/hooks/useProfileData';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@/components/Portal';

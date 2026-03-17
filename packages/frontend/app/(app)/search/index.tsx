@@ -16,7 +16,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { searchService, SEARCH_OPERATORS } from "@/services/searchService";
 import { federationService } from "@/services/federationService";
 import { Loading } from '@oxyhq/bloom/loading';

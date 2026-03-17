@@ -3,7 +3,7 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-
 import Animated from 'react-native-reanimated';
 import { Loading } from '@oxyhq/bloom/loading';
 import { LinkMetadata } from '../../stores/linksStore';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { ScaleAndFadeIn, ScaleAndFadeOut } from '@/lib/animations/ScaleAndFade';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';

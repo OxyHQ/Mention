@@ -5,7 +5,7 @@ import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { PressableScale } from '@/lib/animations/PressableScale';

@@ -8,7 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 import { Logo } from './Logo';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 interface SignInPromptProps {
     onSignInPress?: () => void;

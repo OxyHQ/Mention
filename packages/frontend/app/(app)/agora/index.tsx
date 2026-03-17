@@ -19,7 +19,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import RoomCard from '@/components/RoomCard';
 import SEO from '@/components/SEO';
 
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';

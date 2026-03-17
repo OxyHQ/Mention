@@ -19,7 +19,7 @@ import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { validateNotifications, TRawNotification } from '@/types/validation';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { groupNotifications, GroupedNotification } from '@/utils/groupNotifications';
 import { GroupedNotificationItem } from '@/components/GroupedNotificationItem';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';

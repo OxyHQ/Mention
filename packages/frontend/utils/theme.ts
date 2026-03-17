@@ -3,7 +3,7 @@
  */
 
 import { StyleSheet, ViewStyle, TextStyle, ImageStyle, StyleProp } from "react-native";
-import { Theme } from "@/hooks/useTheme";
+import type { Theme } from '@oxyhq/bloom/theme';
 
 /**
  * Convert hex color to rgba string

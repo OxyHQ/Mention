@@ -24,7 +24,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { listsService } from '@/services/listsService';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 
 interface ListOwner {

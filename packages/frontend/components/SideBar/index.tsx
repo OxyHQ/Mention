@@ -27,7 +27,7 @@ import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { ThemedText } from './ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Ionicons } from '@expo/vector-icons';

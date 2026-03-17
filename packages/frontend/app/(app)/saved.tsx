@@ -6,7 +6,7 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import PostItem from '@/components/Feed/PostItem';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';

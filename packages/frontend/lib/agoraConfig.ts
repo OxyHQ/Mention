@@ -1,7 +1,7 @@
 import type { AgoraConfig } from '@mention/agora-shared';
 import { authenticatedClient } from '@/utils/api';
 import { API_URL_SOCKET } from '@/config';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById, useUsersStore } from '@/stores/usersStore';
 import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { Avatar } from '@oxyhq/bloom/avatar';

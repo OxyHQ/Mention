@@ -10,7 +10,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
 

@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import PostAvatar from './PostAvatar';
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 // Spacing tokens for consistent layout

@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { authenticatedClient } from "@/utils/api";
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog, alertDialog } from "@/utils/alerts";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useLinksStore } from "@/stores/linksStore";
 import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem";
 

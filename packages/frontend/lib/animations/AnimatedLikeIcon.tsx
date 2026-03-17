@@ -6,7 +6,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 const keyframe = new Keyframe({
   0: {

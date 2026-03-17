@@ -8,7 +8,7 @@ import {
     NativeSyntheticEvent,
     TextInputContentSizeChangeEventData,
 } from "react-native";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from '@oxyhq/bloom/theme';
 import MentionPicker, { MentionUser } from "./MentionPicker";
 
 export interface MentionData {

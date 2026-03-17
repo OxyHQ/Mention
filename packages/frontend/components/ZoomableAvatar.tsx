@@ -25,7 +25,7 @@ import {
   Gesture,
   GestureDetector,
 } from 'react-native-gesture-handler';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@/components/Portal';

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
 import { useUsersStore } from '@/stores/usersStore';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useAuth } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';

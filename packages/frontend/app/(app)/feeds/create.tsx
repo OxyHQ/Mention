@@ -15,7 +15,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Toggle } from '@/components/Toggle';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';

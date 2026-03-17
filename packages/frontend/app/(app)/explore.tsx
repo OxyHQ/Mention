@@ -8,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';

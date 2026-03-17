@@ -7,7 +7,7 @@ import {
     Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { ThemedText } from './ThemedText';
 import { TouchableOpacity } from 'react-native';

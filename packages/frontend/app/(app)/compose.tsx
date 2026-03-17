@@ -32,7 +32,7 @@ import { toast } from 'sonner';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { GeoJSONPoint } from '@mention/shared-types';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';

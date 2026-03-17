@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, StyleProp, TextStyle, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 interface LinkifiedTextProps {
   text: string;

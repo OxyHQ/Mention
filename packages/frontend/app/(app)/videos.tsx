@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindow
 import { toast } from '@/lib/sonner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { VideoView, useVideoPlayer } from 'expo-video';

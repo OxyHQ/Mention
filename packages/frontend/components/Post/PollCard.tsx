@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { pollService } from '@/services/pollService';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 
 interface PollCardProps {

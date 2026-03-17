@@ -30,7 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pressable as WebPressable } from 'react-native-web-hover';
 import { useMediaQuery } from 'react-responsive';
 
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';

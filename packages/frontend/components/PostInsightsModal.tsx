@@ -10,7 +10,7 @@ import {
 import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { statisticsService, PostInsights } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';

@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { usePresence } from '@/hooks/usePresence';
 
 interface PresenceIndicatorProps {

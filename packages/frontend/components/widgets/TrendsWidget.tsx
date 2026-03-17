@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Polyline } from 'react-native-svg';
 import { BaseWidget } from './BaseWidget';
 import { useTrendsStore } from '@/store/trendsStore';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
 

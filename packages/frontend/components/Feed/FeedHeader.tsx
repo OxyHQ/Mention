@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from '@/components/ThemedText';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 
 interface FeedHeaderProps {
     showComposeButton?: boolean;

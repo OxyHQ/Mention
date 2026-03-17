@@ -2,7 +2,7 @@ import React, { memo, useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';

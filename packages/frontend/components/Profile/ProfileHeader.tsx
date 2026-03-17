@@ -2,7 +2,7 @@ import React, { memo, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';

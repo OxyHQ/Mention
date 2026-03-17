@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
