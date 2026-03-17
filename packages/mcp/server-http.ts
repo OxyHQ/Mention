@@ -6,10 +6,8 @@
  *   2. SSE (protocol 2024-11-05) on GET /sse + POST /messages
  *
  * Environment variables:
- *   MENTION_API_URL   — Base URL of the Mention API (default: https://api.mention.earth)
- *   OXY_SERVICE_TOKEN — Service-level Oxy JWT (fallback when no user token)
- *   MCP_PORT          — Port to listen on (default: 3100)
- *   MCP_AUTH_TOKEN    — Optional token to protect the MCP endpoint (X-MCP-Token header)
+ *   MENTION_API_URL — Base URL of the Mention API (default: https://api.mention.earth)
+ *   MCP_PORT        — Port to listen on (default: 3100)
  */
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -27,7 +25,6 @@ import { SERVER_INSTRUCTIONS } from "./lib/instructions.js";
 import { requestContext } from "./lib/context.js";
 
 const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
-const AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
 
 // ── Transport store ──────────────────────────────────────────
 const transports: Record<string, StreamableHTTPServerTransport | SSEServerTransport> = {};
@@ -55,17 +52,10 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// ── Auth ─────────────────────────────────────────────────────
+// ── Auth helpers ─────────────────────────────────────────────
 interface SimpleRequest {
   headers: Record<string, string | string[] | undefined>;
   query?: Record<string, string | string[] | undefined>;
-}
-
-interface SimpleResponse {
-  status(code: number): SimpleResponse;
-  json(body: unknown): void;
-  headersSent?: boolean;
-  on?(event: string, handler: () => void): void;
 }
 
 function extractBearerToken(req: SimpleRequest): string | undefined {
@@ -74,28 +64,6 @@ function extractBearerToken(req: SimpleRequest): string | undefined {
   if (header?.startsWith("Bearer ")) return header.slice(7);
   const queryToken = req.query?.token;
   return Array.isArray(queryToken) ? queryToken[0] : queryToken;
-}
-
-/**
- * Check endpoint protection. If MCP_AUTH_TOKEN is set, the request must
- * include it as an X-MCP-Token header or ?mcp_token query param.
- * The Bearer token is reserved for the user's Oxy JWT (forwarded to the API).
- */
-function checkEndpointAuth(req: SimpleRequest, res: SimpleResponse): boolean {
-  if (!AUTH_TOKEN) return true;
-  const mcpToken =
-    (Array.isArray(req.headers["x-mcp-token"]) ? req.headers["x-mcp-token"][0] : req.headers["x-mcp-token"]) ||
-    (Array.isArray(req.query?.mcp_token) ? req.query?.mcp_token[0] : req.query?.mcp_token);
-  if (mcpToken === AUTH_TOKEN) return true;
-  // Also accept Bearer token matching MCP_AUTH_TOKEN for backward compatibility
-  const bearer = extractBearerToken(req);
-  if (bearer === AUTH_TOKEN) return true;
-  res.status(401).json({
-    jsonrpc: "2.0",
-    error: { code: -32000, message: "Unauthorized: Invalid or missing auth token" },
-    id: null,
-  });
-  return false;
 }
 
 /** Map session IDs to their user tokens for SSE sessions (long-lived). */
@@ -165,20 +133,10 @@ async function main() {
         req.on("error", reject);
       });
 
-    // Helper response wrapper
+    // Helper to extract user token from request
     const simpleReq: SimpleRequest = {
       headers: req.headers as Record<string, string | string[] | undefined>,
       query,
-    };
-    const simpleRes: SimpleResponse = {
-      status(code: number) {
-        res.statusCode = code;
-        return this;
-      },
-      json(body: unknown) {
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify(body));
-      },
     };
 
     // ── Health check ─────────────────────────────────────────
@@ -198,7 +156,7 @@ async function main() {
 
     // ── Streamable HTTP: POST /mcp ───────────────────────────
     if (pathname === "/mcp" && req.method === "POST") {
-      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
+
       const userToken = extractBearerToken(simpleReq);
       try {
         const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -257,7 +215,7 @@ async function main() {
 
     // ── Streamable HTTP: GET /mcp ────────────────────────────
     if (pathname === "/mcp" && req.method === "GET") {
-      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
+
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
         res.setHeader("Content-Type", "application/json");
@@ -277,7 +235,7 @@ async function main() {
 
     // ── Streamable HTTP: DELETE /mcp ─────────────────────────
     if (pathname === "/mcp" && req.method === "DELETE") {
-      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
+
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
         res.setHeader("Content-Type", "application/json");
@@ -299,7 +257,7 @@ async function main() {
 
     // ── SSE: GET /sse ────────────────────────────────────────
     if (pathname === "/sse" && req.method === "GET") {
-      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
+
       const userToken = extractBearerToken(simpleReq);
       const server = createMcpServer();
       const transport = new SSEServerTransport("/messages", res);
@@ -320,7 +278,7 @@ async function main() {
 
     // ── SSE: POST /messages ──────────────────────────────────
     if (pathname === "/messages" && req.method === "POST") {
-      if (!checkEndpointAuth(simpleReq, simpleRes)) return;
+
       const sessionId = query.sessionId;
       const transport = sessionId ? transports[sessionId] : undefined;
 
@@ -355,7 +313,6 @@ async function main() {
 ╔══════════════════════════════════════════════════╗
 ║  Mention MCP Server (HTTP/SSE)                   ║
 ║  Port: ${String(PORT).padEnd(41)}║
-║  Auth: ${AUTH_TOKEN ? "Enabled (Bearer token)" : "Disabled (open access)       "}║
 ╠══════════════════════════════════════════════════╣
 ║  Endpoints:                                      ║
 ║  • POST/GET/DELETE /mcp  (Streamable HTTP)       ║

@@ -2,11 +2,10 @@
  * Mention MCP Server — stdio transport
  *
  * Usage:
- *   MENTION_API_URL=https://api.mention.earth OXY_SERVICE_TOKEN=<jwt> bun server.ts
+ *   MENTION_API_URL=https://api.mention.earth bun server.ts
  *
  * Environment variables:
- *   MENTION_API_URL   — Base URL of the Mention API (default: https://api.mention.earth)
- *   OXY_SERVICE_TOKEN — Oxy JWT for authenticating API requests
+ *   MENTION_API_URL — Base URL of the Mention API (default: https://api.mention.earth)
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

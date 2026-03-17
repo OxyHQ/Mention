@@ -16,17 +16,10 @@ export interface ApiError {
 }
 
 const BASE_URL = (process.env.MENTION_API_URL || "https://api.mention.earth").replace(/\/+$/, "");
-const SERVICE_TOKEN = process.env.OXY_SERVICE_TOKEN || "";
-
-if (!SERVICE_TOKEN) {
-  process.stderr.write(
-    "[mention-mcp] WARNING: OXY_SERVICE_TOKEN is not set. Requests without a user token will fail.\n",
-  );
-}
 
 function resolveToken(): string {
   const ctx = requestContext.getStore();
-  return ctx?.userToken || SERVICE_TOKEN;
+  return ctx?.userToken || "";
 }
 
 function headers(): Record<string, string> {
@@ -82,12 +75,16 @@ async function request<T = unknown>(
       body = await response.text().catch(() => "");
     }
 
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? String((body as Record<string, unknown>).message)
-        : typeof body === "object" && body !== null && "error" in body
-          ? String((body as Record<string, unknown>).error)
-          : `HTTP ${response.status} ${response.statusText}`;
+    let message: string;
+    if (response.status === 401) {
+      message = "Authentication required. Provide your Oxy access token as a Bearer token to perform this action.";
+    } else if (typeof body === "object" && body !== null && "message" in body) {
+      message = String((body as Record<string, unknown>).message);
+    } else if (typeof body === "object" && body !== null && "error" in body) {
+      message = String((body as Record<string, unknown>).error);
+    } else {
+      message = `HTTP ${response.status} ${response.statusText}`;
+    }
 
     const error: ApiError = { status: response.status, message, body };
     throw error;
