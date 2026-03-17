@@ -1722,7 +1722,11 @@ const ComposeScreen = () => {
               onPress={() => safeBack()}
               color="negative_subtle"
             />
-            <Prompt.Cancel cta={t('compose.keepEditing', 'Keep editing')} />
+            <Prompt.Action
+              cta={t('compose.keepEditing', 'Keep editing')}
+              onPress={() => {}}
+              color="primary"
+            />
           </Prompt.Actions>
         </Prompt.Outer>
 
