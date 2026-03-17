@@ -6,6 +6,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import SEO from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
@@ -15,6 +16,7 @@ import { List } from '@/assets/icons/list-icon';
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
   const { t } = useTranslation();
+  const safeBack = useSafeBack();
 
   useEffect(() => {
     (async () => {
@@ -39,7 +41,7 @@ export default function ListsScreen() {
           leftComponents: [
             <IconButton variant="icon"
               key="back"
-              onPress={() => router.back()}
+              onPress={safeBack}
             >
               <BackArrowIcon size={20} className="text-foreground" />
             </IconButton>,

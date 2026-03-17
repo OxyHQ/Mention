@@ -1,5 +1,6 @@
 import React, { useMemo, useContext } from 'react';
 import { useRouter } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from './useTheme';
 import { useTranslation } from 'react-i18next';
@@ -69,6 +70,7 @@ export function usePostActions({
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
+    const safeBack = useSafeBack();
     const bottomSheet = useContext(BottomSheetContext);
     const removePostEverywhere = usePostsStore((s) => s.removePostEverywhere);
 
@@ -106,7 +108,7 @@ export function usePostActions({
                         try { store.removePostLocally(postId, feedType); } catch (e) { console.warn(`[usePostActions] Failed to remove post from ${feedType} feed:`, e); }
                     });
                 }
-                if (isPostDetail) router.back();
+                if (isPostDetail) safeBack();
             } catch (err) {
                 console.error('Error removing post locally:', err);
             }
@@ -332,6 +334,6 @@ export function usePostActions({
             muteReportAction,
             copyLinkAction,
         };
-    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, removePostEverywhere]);
+    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, safeBack, removePostEverywhere]);
 }
 

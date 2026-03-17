@@ -18,6 +18,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@/hooks/useTheme';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
@@ -70,6 +71,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   onOpenInfo: () => void;
 }) {
   const theme = useTheme();
+  const safeBack = useSafeBack();
   const creatorHandle = feed.owner?.username ? `@${feed.owner.username}` : '';
 
   return (
@@ -77,7 +79,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       className="flex-row items-center px-2 bg-background"
       style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
     >
-      <IconButton variant="icon" onPress={() => router.back()}>
+      <IconButton variant="icon" onPress={safeBack}>
         <BackArrowIcon size={20} className="text-foreground" />
       </IconButton>
 
@@ -576,6 +578,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 
 export default function CustomFeedTimelineScreen() {
   const theme = useTheme();
+  const safeBack = useSafeBack();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [feed, setFeed] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -751,7 +754,7 @@ export default function CustomFeedTimelineScreen() {
           className="flex-row items-center px-2 bg-background"
           style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
         >
-          <IconButton variant="icon" onPress={() => router.back()}>
+          <IconButton variant="icon" onPress={safeBack}>
             <BackArrowIcon size={20} className="text-foreground" />
           </IconButton>
           <View className="flex-1 py-3 px-2">
