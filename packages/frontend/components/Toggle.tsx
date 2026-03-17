@@ -1,14 +1,15 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Switch } from '@oxyhq/bloom/switch';
 import { useHaptics } from '@/hooks/useHaptics';
+import type { StyleProp, ViewStyle } from 'react-native';
 
 interface ToggleProps {
   value: boolean;
   onValueChange: (value: boolean) => void;
   label?: string;
   disabled?: boolean;
-  containerStyle?: any;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 export const Toggle: React.FC<ToggleProps> = ({
@@ -18,17 +19,12 @@ export const Toggle: React.FC<ToggleProps> = ({
   disabled = false,
   containerStyle,
 }) => {
-  const theme = useTheme();
   const haptic = useHaptics();
-  const switchAnimation = useRef(new Animated.Value(value ? 1 : 0)).current;
 
-  useEffect(() => {
-    Animated.timing(switchAnimation, {
-      toValue: value ? 1 : 0,
-      duration: 200,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-  }, [value]);
+  const handleValueChange = (newValue: boolean) => {
+    haptic('Light');
+    onValueChange(newValue);
+  };
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -37,39 +33,11 @@ export const Toggle: React.FC<ToggleProps> = ({
           {label}
         </Text>
       )}
-      <TouchableOpacity
-        style={[
-          styles.switchContainer,
-          {
-            backgroundColor: value ? theme.colors.primary : theme.colors.border,
-            opacity: disabled ? 0.5 : 1,
-          }
-        ]}
-        onPress={() => {
-          if (disabled) return;
-          haptic('Light');
-          onValueChange(!value);
-        }}
-        activeOpacity={0.8}
+      <Switch
+        value={value}
+        onValueChange={handleValueChange}
         disabled={disabled}
-      >
-        <Animated.View
-          style={[
-            styles.switchThumb,
-            {
-              backgroundColor: theme.colors.card,
-              transform: [
-                {
-                  translateX: switchAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 18],
-                  }),
-                },
-              ],
-            }
-          ]}
-        />
-      </TouchableOpacity>
+      />
     </View>
   );
 };
@@ -84,17 +52,4 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-  switchContainer: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  switchThumb: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
 });
-
