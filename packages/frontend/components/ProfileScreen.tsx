@@ -165,15 +165,15 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             : undefined;
     const minimalistMode = design?.minimalistMode ?? false;
 
-    // Use the visited user's primary color for profile accent when viewing someone else's profile
-    const accentColor = (!isOwnProfile && design?.primaryColor) || theme.colors.primary;
-
     // Memoized checks
     const isOwnProfile = useMemo(() => {
         if (isFederated) return false;
         if (!currentUser?.id || !profileData?.id) return false;
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
+
+    // Use the visited user's primary color for profile accent when viewing someone else's profile
+    const accentColor = (!isOwnProfile && design?.primaryColor) || theme.colors.primary;
 
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),
