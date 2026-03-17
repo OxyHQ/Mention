@@ -9,7 +9,6 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { Toggle } from '@/components/Toggle';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
@@ -28,14 +27,12 @@ export default function ProfileCustomizationScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const mySettings = useAppearanceStore((state) => state.mySettings);
-  const loading = useAppearanceStore((state) => state.loading);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const { colors } = useTheme();
 
   const [coverPhotoEnabled, setCoverPhotoEnabled] = useState<boolean>(true);
   const [minimalistMode, setMinimalistMode] = useState<boolean>(false);
-  const [saving, setSaving] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(0.5)).current;
 
@@ -89,67 +86,6 @@ export default function ProfileCustomizationScreen() {
       setMinimalistMode(mySettings.profileCustomization?.minimalistMode ?? false);
     }
   }, [mySettings]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    await updateMySettings({
-      profileCustomization: {
-        coverPhotoEnabled,
-        minimalistMode,
-      },
-    } as Record<string, unknown>);
-    setSaving(false);
-  };
-
-  const handleCoverPhotoToggle = async (value: boolean) => {
-    try {
-      const newCoverPhotoEnabled = value;
-      const newMinimalistMode = !newCoverPhotoEnabled;
-
-      setCoverPhotoEnabled(newCoverPhotoEnabled);
-      setMinimalistMode(newMinimalistMode);
-
-      const result = await updateMySettings({
-        profileCustomization: {
-          coverPhotoEnabled: newCoverPhotoEnabled,
-          minimalistMode: newMinimalistMode,
-        },
-      } as Record<string, unknown>);
-
-      if (result) {
-        await loadMySettings();
-      }
-    } catch (error) {
-      console.error('Error updating cover photo setting:', error);
-      setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
-      setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
-    }
-  };
-
-  const handleMinimalistModeToggle = async (value: boolean) => {
-    try {
-      const newMinimalistMode = value;
-      const newCoverPhotoEnabled = !newMinimalistMode;
-
-      setMinimalistMode(newMinimalistMode);
-      setCoverPhotoEnabled(newCoverPhotoEnabled);
-
-      const result = await updateMySettings({
-        profileCustomization: {
-          coverPhotoEnabled: newCoverPhotoEnabled,
-          minimalistMode: newMinimalistMode,
-        },
-      } as Record<string, unknown>);
-
-      if (result) {
-        await loadMySettings();
-      }
-    } catch (error) {
-      console.error('Error updating minimalist mode setting:', error);
-      setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
-      setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
-    }
-  };
 
   const handleStyleSelect = async (style: StyleOption) => {
     try {
@@ -290,57 +226,6 @@ export default function ProfileCustomizationScreen() {
               </TouchableOpacity>
             );
           })}
-        </View>
-
-        {/* Advanced Options */}
-        <Text className="text-lg font-bold mb-4 mt-8 text-foreground">
-          {t('settings.profileCustomization.advancedOptions')}
-        </Text>
-
-        {/* Cover Photo Toggle */}
-        <View className="rounded-xl border border-border bg-card p-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center flex-1 mr-4">
-              <View className="mr-3">
-                <IconComponent name="image-outline" size={20} color={colors.textSecondary} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-semibold mb-1 text-foreground">
-                  {t('settings.profileCustomization.coverPhoto')}
-                </Text>
-                <Text className="text-sm leading-5 text-muted-foreground">
-                  {t('settings.profileCustomization.coverPhotoDesc')}
-                </Text>
-              </View>
-            </View>
-            <Toggle
-              value={coverPhotoEnabled}
-              onValueChange={handleCoverPhotoToggle}
-            />
-          </View>
-        </View>
-
-        {/* Minimalist Mode Toggle */}
-        <View className="rounded-xl border border-border bg-card p-4 mt-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center flex-1 mr-4">
-              <View className="mr-3">
-                <IconComponent name="remove-outline" size={20} color={colors.textSecondary} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-semibold mb-1 text-foreground">
-                  {t('settings.profileCustomization.minimalistMode')}
-                </Text>
-                <Text className="text-sm leading-5 text-muted-foreground">
-                  {t('settings.profileCustomization.minimalistModeDesc')}
-                </Text>
-              </View>
-            </View>
-            <Toggle
-              value={minimalistMode}
-              onValueChange={handleMinimalistModeToggle}
-            />
-          </View>
         </View>
 
         {/* Info Text */}
