@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { storeData } from '@/utils/storage';
 import { SettingsGroup } from '@/components/settings/SettingsItem';
 import { STORAGE_KEYS } from '@/lib/constants';
-import { useThreadPreferences, type SortOrder } from '@/hooks/useThreadPreferences';
+import { useThreadPreferencesStore, type SortOrder } from '@/hooks/useThreadPreferences';
 import { useVoteStyle, type VoteStyle } from '@/hooks/useVoteStyle';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
@@ -32,31 +32,13 @@ export default function ThreadPreferencesScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
     const { colors } = useTheme();
-    const savedPrefs = useThreadPreferences();
+    const { sortOrder, treeView, setSortOrder, setTreeView } = useThreadPreferencesStore();
     const savedVoteStyle = useVoteStyle();
-    const [sortOrder, setSortOrder] = useState<SortOrder>(savedPrefs.sortOrder);
-    const [treeView, setTreeView] = useState(savedPrefs.treeView);
     const [voteStyle, setVoteStyle] = useState<VoteStyle>(savedVoteStyle);
-
-    // Sync local state when async preferences load from storage
-    useEffect(() => {
-        setSortOrder(savedPrefs.sortOrder);
-        setTreeView(savedPrefs.treeView);
-    }, [savedPrefs.sortOrder, savedPrefs.treeView]);
 
     useEffect(() => {
         setVoteStyle(savedVoteStyle);
     }, [savedVoteStyle]);
-
-    const onSortChange = useCallback(async (value: SortOrder) => {
-        setSortOrder(value);
-        await storeData(STORAGE_KEYS.THREAD_SORT, value);
-    }, []);
-
-    const onTreeToggle = useCallback(async (value: boolean) => {
-        setTreeView(value);
-        await storeData(STORAGE_KEYS.THREAD_TREE_VIEW, value);
-    }, []);
 
     const onVoteStyleChange = useCallback(async (value: VoteStyle) => {
         setVoteStyle(value);
@@ -89,7 +71,7 @@ export default function ThreadPreferencesScreen() {
                         <Pressable
                             key={option.value}
                             className="px-4 py-3.5 flex-row items-center justify-between"
-                            onPress={() => onSortChange(option.value)}
+                            onPress={() => setSortOrder(option.value)}
                         >
                             <View className="flex-row items-center gap-3">
                                 <View className="w-7 items-center justify-center">
@@ -169,7 +151,7 @@ export default function ThreadPreferencesScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Toggle value={treeView} onValueChange={onTreeToggle} />
+                        <Toggle value={treeView} onValueChange={setTreeView} />
                     </View>
                 </SettingsGroup>
             </ScrollView>

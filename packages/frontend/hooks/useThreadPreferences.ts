@@ -1,49 +1,60 @@
-import { useState, useEffect } from 'react';
-import { getData } from '@/utils/storage';
+import { create } from 'zustand';
+import { getData, storeData } from '@/utils/storage';
 import { STORAGE_KEYS } from '@/lib/constants';
 
 export type SortOrder = 'top' | 'oldest' | 'newest';
 
-interface ThreadPreferences {
+interface ThreadPreferencesState {
     treeView: boolean;
     sortOrder: SortOrder;
+    loaded: boolean;
+    setTreeView: (value: boolean) => void;
+    setSortOrder: (value: SortOrder) => void;
+    load: () => Promise<void>;
 }
 
-const DEFAULTS: ThreadPreferences = {
+const DEFAULTS = {
     treeView: false,
-    sortOrder: 'top',
+    sortOrder: 'top' as SortOrder,
 };
 
-export function useThreadPreferences(): ThreadPreferences {
-    const [preferences, setPreferences] = useState<ThreadPreferences>(DEFAULTS);
+export const useThreadPreferencesStore = create<ThreadPreferencesState>((set, get) => ({
+    treeView: DEFAULTS.treeView,
+    sortOrder: DEFAULTS.sortOrder,
+    loaded: false,
 
-    useEffect(() => {
-        let mounted = true;
+    setTreeView: (value: boolean) => {
+        set({ treeView: value });
+        storeData(STORAGE_KEYS.THREAD_TREE_VIEW, value);
+    },
 
-        async function load() {
-            const [savedTree, savedSort] = await Promise.all([
-                getData<boolean>(STORAGE_KEYS.THREAD_TREE_VIEW),
-                getData<SortOrder>(STORAGE_KEYS.THREAD_SORT),
-            ]);
+    setSortOrder: (value: SortOrder) => {
+        set({ sortOrder: value });
+        storeData(STORAGE_KEYS.THREAD_SORT, value);
+    },
 
-            if (!mounted) return;
+    load: async () => {
+        if (get().loaded) return;
+        const [savedTree, savedSort] = await Promise.all([
+            getData<boolean>(STORAGE_KEYS.THREAD_TREE_VIEW),
+            getData<SortOrder>(STORAGE_KEYS.THREAD_SORT),
+        ]);
+        set({
+            treeView: typeof savedTree === 'boolean' ? savedTree : DEFAULTS.treeView,
+            sortOrder: savedSort ?? DEFAULTS.sortOrder,
+            loaded: true,
+        });
+    },
+}));
 
-            const loaded: ThreadPreferences = {
-                treeView: typeof savedTree === 'boolean' ? savedTree : DEFAULTS.treeView,
-                sortOrder: savedSort ?? DEFAULTS.sortOrder,
-            };
+// Load preferences from storage on first import
+useThreadPreferencesStore.getState().load();
 
-            setPreferences((prev) => {
-                if (prev.treeView === loaded.treeView && prev.sortOrder === loaded.sortOrder) {
-                    return prev;
-                }
-                return loaded;
-            });
-        }
-
-        load();
-        return () => { mounted = false; };
-    }, []);
-
-    return preferences;
+/**
+ * Convenience hook that returns just the preference values (backward-compatible).
+ */
+export function useThreadPreferences(): { treeView: boolean; sortOrder: SortOrder } {
+    const treeView = useThreadPreferencesStore((s) => s.treeView);
+    const sortOrder = useThreadPreferencesStore((s) => s.sortOrder);
+    return { treeView, sortOrder };
 }

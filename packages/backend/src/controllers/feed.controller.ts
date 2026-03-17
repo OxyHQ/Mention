@@ -279,7 +279,7 @@ class FeedController {
       const feedType: FeedType = validFeedTypes.includes(type as FeedType) ? (type as FeedType) : 'mixed';
 
       // Validate sort parameter
-      const validSorts = ['recent', 'best'];
+      const validSorts = ['recent', 'best', 'oldest'];
       const feedSort = validSorts.includes(sort as string) ? sort as string : undefined;
 
       // Parse and validate limit parameter using utility
@@ -532,6 +532,14 @@ class FeedController {
             logger.debug(`[Saved Feed] Sample post mentions`, samplePost?.mentions);
             logger.debug(`[Saved Feed] Sample post content.text`, samplePost?.content?.text?.substring(0, 100));
           }
+        } else if (feedSort === 'oldest' && feedType === 'replies') {
+          // Sort replies by creation date ascending for "oldest first"
+          posts = await Post.find(query)
+            .select(this.FEED_FIELDS)
+            .sort({ createdAt: 1 })
+            .limit(limit + 1)
+            .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+            .lean();
         } else if (feedSort === 'best' && feedType === 'replies') {
           // Sort replies by engagement (likes + reposts) for "best" sort
           posts = await Post.aggregate([

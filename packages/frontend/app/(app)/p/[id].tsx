@@ -18,8 +18,10 @@ import Avatar from '@/components/Avatar';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
-import { useThreadPreferences } from '@/hooks/useThreadPreferences';
+import { useThreadPreferences, type SortOrder } from '@/hooks/useThreadPreferences';
 import { usePostsStore } from '@/stores/postsStore';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
 import { FeedType } from '@mention/shared-types';
 import { HydratedPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useAuth } from '@oxyhq/services';
@@ -35,6 +37,12 @@ import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import { statisticsService } from '@/services/statisticsService';
 import SEO from '@/components/SEO';
 
+const SORT_TO_API: Record<SortOrder, string> = {
+    top: 'best',
+    oldest: 'oldest',
+    newest: 'recent',
+};
+
 const MAX_CHARACTERS = 280;
 
 const PostDetailScreen: React.FC = () => {
@@ -45,7 +53,8 @@ const PostDetailScreen: React.FC = () => {
     const { user, showBottomSheet, oxyServices } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
-    const { treeView } = useThreadPreferences();
+    const { treeView, sortOrder } = useThreadPreferences();
+    const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
 
     const [post, setPost] = useState<HydratedPost | Reply | Repost | null>(null);
     const [parentPost, setParentPost] = useState<HydratedPost | Reply | Repost | null>(null);
@@ -65,7 +74,6 @@ const PostDetailScreen: React.FC = () => {
     const [isGettingLocation, setIsGettingLocation] = useState(false);
     const textInputRef = useRef<TextInput>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
-    const [replySort, setReplySort] = useState<'best' | 'recent'>('best');
 
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;
@@ -76,8 +84,13 @@ const PostDetailScreen: React.FC = () => {
     const feedFilters = useMemo(() => ({
         postId: String(id),
         parentPostId: String(id),
-        sort: replySort
-    }), [id, replySort]);
+        sort: SORT_TO_API[sortOrder],
+    }), [id, sortOrder]);
+
+    const openReplyPreferences = useCallback(() => {
+        setBottomSheetContent(<ReplyPreferencesSheet />);
+        openBottomSheet(true);
+    }, [setBottomSheetContent, openBottomSheet]);
 
     // Memoize callbacks to prevent child re-renders
     const handleFocusInput = useCallback(() => {
@@ -385,46 +398,12 @@ const PostDetailScreen: React.FC = () => {
                     />
                 </View>
 
-                <View className="flex-row items-center justify-between px-4 pt-4 pb-2">
+                <View className="px-4 pt-4 pb-2">
                     <Text className="text-lg font-semibold text-foreground">Replies</Text>
-                    <View className="flex-row rounded-lg p-0.5 bg-secondary">
-                        <TouchableOpacity
-                            onPress={() => setReplySort('best')}
-                            style={[
-                                styles.sortOption,
-                                replySort === 'best' && [styles.sortOptionActive, { backgroundColor: theme.colors.background }]
-                            ]}
-                            activeOpacity={0.7}
-                        >
-                            <Text
-                                className="text-[13px]"
-                                style={{
-                                    color: replySort === 'best' ? theme.colors.text : theme.colors.textSecondary,
-                                    fontWeight: replySort === 'best' ? '600' : '500',
-                                }}
-                            >Best</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => setReplySort('recent')}
-                            style={[
-                                styles.sortOption,
-                                replySort === 'recent' && [styles.sortOptionActive, { backgroundColor: theme.colors.background }]
-                            ]}
-                            activeOpacity={0.7}
-                        >
-                            <Text
-                                className="text-[13px]"
-                                style={{
-                                    color: replySort === 'recent' ? theme.colors.text : theme.colors.textSecondary,
-                                    fontWeight: replySort === 'recent' ? '600' : '500',
-                                }}
-                            >Recent</Text>
-                        </TouchableOpacity>
-                    </View>
                 </View>
             </View>
         );
-    }, [post, parentPost, replySort, handleFocusInput, theme.colors.background, theme.colors.text, theme.colors.textSecondary]);
+    }, [post, parentPost, handleFocusInput]);
 
     if (!loading && (error || !post)) {
         return (
@@ -490,6 +469,11 @@ const PostDetailScreen: React.FC = () => {
                                 onPress={handleBack}
                             >
                                 <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                        rightComponents: [
+                            <IconButton variant="icon" key="reply-prefs" onPress={openReplyPreferences}>
+                                <Ionicons name="options-outline" size={22} color={theme.colors.text} />
                             </IconButton>,
                         ],
                     }}
@@ -639,18 +623,6 @@ const PostDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
     feedContent: {
         paddingBottom: 120,
-    },
-    sortOption: {
-        paddingHorizontal: 14,
-        paddingVertical: 5,
-        borderRadius: 6,
-    },
-    sortOptionActive: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 1,
     },
     composerContainer: {
         borderTopWidth: 1,
