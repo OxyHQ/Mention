@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import Avatar from '@/components/Avatar';
 import PostItem from '@/components/Feed/PostItem';
+import PostDetailView from '@/components/Post/PostDetailView';
 import Feed from '@/components/Feed/Feed';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
@@ -385,12 +386,10 @@ const PostDetailScreen: React.FC = () => {
                     </View>
                 )}
 
-                <View className="pb-2">
-                    <PostItem
-                        post={post}
-                        onReply={handleFocusInput}
-                    />
-                </View>
+                <PostDetailView
+                    post={post}
+                    onFocusReply={handleFocusInput}
+                />
 
                 <View className="px-4 pt-4 pb-2">
                     <Text className="text-lg font-semibold text-foreground">Replies</Text>

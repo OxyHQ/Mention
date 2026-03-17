@@ -43,16 +43,22 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
         []
     );
 
-    const openBottomSheet = (isOpen: boolean) => {
+    const openBottomSheet = useCallback((isOpen: boolean) => {
         if (isOpen) {
             bottomSheetModalRef.current?.present();
         } else {
             bottomSheetModalRef.current?.dismiss();
         }
-    };
+    }, []);
+
+    const contextValue = useMemo(() => ({
+        openBottomSheet,
+        setBottomSheetContent,
+        bottomSheetRef: bottomSheetModalRef,
+    }), [openBottomSheet]);
 
     return (
-        <BottomSheetContext.Provider value={{ openBottomSheet, setBottomSheetContent, bottomSheetRef: bottomSheetModalRef }}>
+        <BottomSheetContext.Provider value={contextValue}>
             {children}
             <BottomSheetModal
                 ref={bottomSheetModalRef}
