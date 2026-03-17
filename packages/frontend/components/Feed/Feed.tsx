@@ -40,7 +40,7 @@ import { createScopedLogger } from '@/utils/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, deduplicateItems, deepEqual, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
-import { TIMELINE_LINE_OFFSET, THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
+import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     },
     nestedThreadLine: {
         position: 'absolute',
-        left: TIMELINE_LINE_OFFSET,
+        left: 31, // PostItem HPAD(12) + AVATAR_SIZE(40)/2 - 1
         top: 0,
         bottom: 0,
         width: THREAD_LINE_WIDTH,

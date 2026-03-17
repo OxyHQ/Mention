@@ -35,7 +35,7 @@ import { usePostRepost } from '@/hooks/usePostRepost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
-import { TIMELINE_LINE_OFFSET, THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
+import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -349,8 +349,8 @@ const PostItem: React.FC<PostItemProps> = ({
         ? `${postAuthor}: ${postTextSummary}`
         : `Post by ${postAuthor}`;
 
-    // Thread line positioning: use shared constants from composeLayout for consistency
-    const THREAD_LINE_LEFT = TIMELINE_LINE_OFFSET;
+    // Thread line positioning: center on avatar, use shared style constants from composeLayout
+    const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1;
     const THREAD_LINE_W = THREAD_LINE_WIDTH;
 
     return (
