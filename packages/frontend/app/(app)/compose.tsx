@@ -1717,7 +1717,15 @@ const ComposeScreen = () => {
               {/* Add thread/post button */}
               <TouchableOpacity
                 style={styles.postContainer}
-                onPress={() => addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined)}
+                onPress={() => {
+                  const newId = addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined);
+                  if (newId) {
+                    setFocusedItemId(newId);
+                    setTimeout(() => {
+                      threadTextInputRefs.current[newId]?.focus();
+                    }, 100);
+                  }
+                }}
               >
                 {/* Connector line above add button's avatar */}
                 <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />

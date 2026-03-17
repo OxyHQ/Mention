@@ -58,6 +58,7 @@ export const useThreadManager = () => {
       isSensitive: defaults?.isSensitive ?? false,
     };
     setThreadItems((prev) => [...prev, newThread]);
+    return newThread.id;
   }, []);
 
   const removeThread = useCallback((threadId: string) => {
