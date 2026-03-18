@@ -9,16 +9,14 @@ export function SideBarItem({
     icon,
     text,
     href,
-    isExpanded,
-    onHoverExpand,
+    isExpanded = false,
     onPress,
 }: {
     isActive: boolean;
     icon: React.ReactNode;
     text: string;
     href?: string;
-    isExpanded: boolean;
-    onHoverExpand?: () => void;
+    isExpanded?: boolean;
     onPress?: () => void;
 }) {
     const router = useRouter();
@@ -30,15 +28,12 @@ export function SideBarItem({
                     if (onPress) return onPress();
                     if (href) router.push(href);
                 },
-                onHoverIn: () => {
-                    setIsHovered(true);
-                    onHoverExpand?.();
-                },
+                onHoverIn: () => setIsHovered(true),
                 onHoverOut: () => setIsHovered(false),
             } as any)}
             className={cn(
                 "flex-row items-center rounded-[35px] py-2.5 mb-1.5",
-                isExpanded ? "w-full self-stretch px-4" : "self-end px-3",
+                isExpanded ? "w-full self-stretch px-4" : "self-center px-3",
                 isActive && "bg-primary/10",
                 isHovered && !isActive && "bg-primary/5",
             )}
@@ -46,16 +41,15 @@ export function SideBarItem({
                 pressed ? { backgroundColor: 'hsla(var(--primary), 0.13)' } : {},
                 Platform.select({
                     web: {
-                        transition: 'all 200ms cubic-bezier(0.2, 0, 0, 1)',
-                        willChange: 'background-color, border-color, transform',
+                        transition: 'background-color 200ms cubic-bezier(0.2, 0, 0, 1)',
                         cursor: 'pointer',
                     },
                 }),
             ]}
         >
             <View className={cn(
-                "flex-row items-center w-full justify-start",
-                isExpanded ? "gap-3" : "gap-0",
+                "flex-row items-center w-full",
+                isExpanded ? "justify-start gap-3" : "justify-center gap-0",
             )}>
                 <View
                     className={cn(
@@ -70,7 +64,7 @@ export function SideBarItem({
                 >
                     {icon}
                 </View>
-                {isExpanded ? (
+                {isExpanded && (
                     <Text
                         className={cn(
                             "text-[15px] whitespace-nowrap",
@@ -85,7 +79,7 @@ export function SideBarItem({
                     >
                         {text}
                     </Text>
-                ) : null}
+                )}
             </View>
         </Pressable>
     );

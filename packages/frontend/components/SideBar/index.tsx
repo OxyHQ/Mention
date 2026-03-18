@@ -7,7 +7,6 @@ import {
     ViewStyle,
     StyleSheet,
 } from "react-native";
-import { Pressable } from "react-native-web-hover";
 import { usePathname, useRouter } from "expo-router";
 import { useMediaQuery } from "react-responsive";
 import { useTranslation } from "react-i18next";
@@ -143,153 +142,93 @@ export function SideBar() {
 
     const pathname = usePathname();
     const isSideBarVisible = useMediaQuery({ minWidth: 500 });
-    const [isExpanded, setIsExpanded] = React.useState(false);
-    const hoverCollapseTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(
-        null
-    );
-
-    const handleHoverIn = React.useCallback(() => {
-        if (hoverCollapseTimeout.current) {
-            clearTimeout(hoverCollapseTimeout.current);
-            hoverCollapseTimeout.current = null;
-        }
-        setIsExpanded(true);
-    }, []);
-
-    const handleHoverOut = React.useCallback(() => {
-        if (hoverCollapseTimeout.current) {
-            clearTimeout(hoverCollapseTimeout.current);
-        }
-        hoverCollapseTimeout.current = setTimeout(() => setIsExpanded(false), 200);
-    }, []);
+    const isExpanded = useMediaQuery({ minWidth: 1300 });
 
     if (!isSideBarVisible) return null;
 
-    if (isSideBarVisible) {
-        return (
-            <Pressable
-                {...({ onHoverIn: handleHoverIn, onHoverOut: handleHoverOut } as any)}
-                className="bg-background"
-                style={[
-                    styles.container,
-                    {
-                        width: isExpanded ? 240 : 60,
-                        padding: 6,
-                        ...(Platform.select({
-                            web: {
-                                transition: 'width 220ms cubic-bezier(0.2, 0, 0, 1)',
-                                willChange: 'width',
-                            },
-                        }) as ViewStyle),
-                        ...(pathname === '/search' ? {
-                            boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
-                            elevation: 5,
-                        } : {}),
-                    },
-                ]}
-            >
-                <View style={styles.inner}>
-                    <View style={styles.headerSection}>
-                        <Logo />
-                    </View>
-                    <View style={styles.navigationSection}>
-                        {sideBarData.map(({ title, icon, iconActive, route }) => (
-                            <SideBarItem
-                                href={route}
-                                key={title}
-                                icon={pathname === route ? iconActive : icon}
-                                text={title}
-                                isActive={pathname === route}
-                                isExpanded={isExpanded}
-                                onHoverExpand={handleHoverIn}
-                            />
-                        ))}
+    return (
+        <View
+            className="bg-background"
+            style={[
+                styles.container,
+                { width: isExpanded ? 240 : 60 },
+                pathname === '/search' ? {
+                    boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
+                    elevation: 5,
+                } : {},
+            ]}
+        >
+            <View style={styles.inner}>
+                <View style={styles.headerSection}>
+                    <Logo />
+                </View>
+                <View style={[
+                    styles.navigationSection,
+                    { alignItems: isExpanded ? 'flex-start' : 'center' },
+                ]}>
+                    {sideBarData.map(({ title, icon, iconActive, route }) => (
+                        <SideBarItem
+                            href={route}
+                            key={title}
+                            icon={pathname === route ? iconActive : icon}
+                            text={title}
+                            isActive={pathname === route}
+                            isExpanded={isExpanded}
+                        />
+                    ))}
 
-                        <View style={styles.addPropertyButtonContainer}>
-                            <Button
-                                href="/compose"
-                                renderText={() => (
-                                    <Text
-                                        className="text-primary-foreground text-base font-bold text-center m-0 whitespace-nowrap"
-                                        style={{
-                                            opacity: isExpanded ? 1 : 0,
-                                            width: isExpanded ? 'auto' : 0,
-                                            overflow: 'hidden',
-                                            ...(Platform.select({
-                                                web: {
-                                                    transition: 'opacity 220ms cubic-bezier(0.2, 0, 0, 1), width 220ms cubic-bezier(0.2, 0, 0, 1)',
-                                                    willChange: 'opacity, width',
-                                                },
-                                            }) as any),
-                                        }}
-                                    >{t("New Post")}</Text>
-                                )}
-                                renderIcon={() => (
-                                    <View style={{
-                                        opacity: isExpanded ? 0 : 1,
-                                        position: isExpanded ? 'absolute' : 'relative',
-                                        left: isExpanded ? '50%' : 'auto',
-                                        top: isExpanded ? '50%' : 'auto',
-                                        transform: isExpanded ? 'translate(-50%, -50%)' : 'none',
-                                        ...(Platform.select({
-                                            web: {
-                                                transition: 'opacity 220ms cubic-bezier(0.2, 0, 0, 1)',
-                                                willChange: 'opacity',
-                                            },
-                                        }) as any),
-                                    }}>
-                                        <ComposeIcon size={20} className="text-primary-foreground" />
-                                    </View>
-                                )}
-                                containerStyle={() => ({
-                                    ...styles.addPropertyButton,
-                                    backgroundColor: theme.colors.primary,
-                                    height: isExpanded ? 40 : 48,
-                                    width: isExpanded ? '100%' : 48,
-                                    alignSelf: isExpanded ? 'stretch' : 'center',
-                                    ...(Platform.select({
-                                        web: {
-                                            transition: 'width 220ms cubic-bezier(0.2, 0, 0, 1), height 220ms cubic-bezier(0.2, 0, 0, 1)',
-                                            willChange: 'width, height',
-                                        },
-                                    }) as ViewStyle),
-                                })}
-                            />
-                        </View>
-                    </View>
-
-                    <View style={styles.footer}>
-                        {user && user.id ? (
-                            <SideBarItem
-                                isActive={false}
-                                icon={<IconComponent name="log-out-outline" size={20} color={theme.colors.text} />}
-                                text={t('settings.signOut')}
-                                isExpanded={isExpanded}
-                                onHoverExpand={handleHoverIn}
-                                onPress={handleSignOut}
-                            />
-                        ) : (
-                            <SideBarItem
-                                isActive={false}
-                                icon={<IconComponent name="log-in-outline" size={20} color={theme.colors.text} />}
-                                text={t('Sign In')}
-                                isExpanded={isExpanded}
-                                onHoverExpand={handleHoverIn}
-                                onPress={() => signIn().catch(() => {})}
-                            />
-                        )}
+                    <View style={styles.composeButtonContainer}>
+                        <Button
+                            href="/compose"
+                            renderText={isExpanded ? () => (
+                                <Text
+                                    className="text-primary-foreground text-base font-bold text-center m-0 whitespace-nowrap"
+                                >{t("New Post")}</Text>
+                            ) : undefined}
+                            renderIcon={!isExpanded ? () => (
+                                <ComposeIcon size={20} className="text-primary-foreground" />
+                            ) : undefined}
+                            containerStyle={() => ({
+                                ...styles.composeButton,
+                                backgroundColor: theme.colors.primary,
+                                height: isExpanded ? 40 : 48,
+                                width: isExpanded ? '100%' : 48,
+                                alignSelf: isExpanded ? 'stretch' : 'center',
+                            })}
+                        />
                     </View>
                 </View>
-            </Pressable>
-        );
-    }
 
-    return null;
+                <View style={[
+                    styles.footer,
+                    { alignItems: isExpanded ? 'flex-start' : 'center' },
+                ]}>
+                    {user && user.id ? (
+                        <SideBarItem
+                            isActive={false}
+                            icon={<IconComponent name="log-out-outline" size={20} color={theme.colors.text} />}
+                            text={t('settings.signOut')}
+                            isExpanded={isExpanded}
+                            onPress={handleSignOut}
+                        />
+                    ) : (
+                        <SideBarItem
+                            isActive={false}
+                            icon={<IconComponent name="log-in-outline" size={20} color={theme.colors.text} />}
+                            text={t('Sign In')}
+                            isExpanded={isExpanded}
+                            onPress={() => signIn().catch(() => {})}
+                        />
+                    )}
+                </View>
+            </View>
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
     container: {
-        padding: 12,
+        padding: 6,
         ...(Platform.select({
             web: {
                 position: 'sticky' as any,
@@ -308,103 +247,33 @@ const styles = StyleSheet.create({
         flex: 1,
         width: '100%',
         justifyContent: 'flex-start',
-        alignItems: 'flex-end',
+        alignItems: 'center',
     },
     headerSection: {
         marginBottom: 16,
     },
-    content: {
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
-        width: '100%',
-    },
-    heroSection: {
-        marginTop: 8,
-    },
-    heroTagline: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        flexWrap: 'wrap',
-        textAlign: 'left',
-        maxWidth: 200,
-        lineHeight: 24,
-    },
-    authButtonsContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginVertical: 12,
-        gap: 8,
-    },
-    signUpButton: {
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: 25,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-    },
-    signUpButtonText: {
-        fontSize: 13,
-        fontWeight: "bold",
-    },
-    signInButton: {
-        justifyContent: "center",
-        alignItems: "center",
-        borderRadius: 25,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-    },
-    signInButtonText: {
-        fontSize: 13,
-        fontWeight: "bold",
-    },
     navigationSection: {
         flex: 1,
         justifyContent: 'center',
-        alignItems: 'flex-end',
         width: '100%',
         gap: 2,
-        paddingLeft: 0,
-        paddingRight: 0,
     },
-    addPropertyButton: {
+    composeButton: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 100,
-        display: 'flex',
-        alignSelf: 'flex-end',
-        marginTop: 4,
     },
-    addPropertyButtonContainer: {
+    composeButtonContainer: {
         minHeight: 60,
         width: '100%',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    addPostButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        margin: 0,
-    },
     footer: {
         flexDirection: 'column',
         justifyContent: 'flex-end',
-        alignItems: 'flex-end',
         width: '100%',
         marginTop: 'auto',
     },
-    title: {
-        fontSize: 24,
-        marginBottom: 16,
-    },
-    menuItemText: {
-        fontSize: 16,
-        marginLeft: 12,
-    },
-    footerText: {
-        fontSize: 14,
-        textAlign: 'center',
-    },
 });
-
