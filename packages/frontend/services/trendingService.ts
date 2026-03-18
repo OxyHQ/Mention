@@ -12,8 +12,8 @@ export interface TrendingTopic {
   calculatedAt: string;
 }
 
-export interface TrendingBatch {
-  calculatedAt: string;
+export interface TrendingDay {
+  date: string;
   trends: TrendingTopic[];
 }
 
@@ -32,7 +32,7 @@ class TrendingService {
   }
 
   async getTrendingHistory(page: number = 1, limit: number = 10): Promise<{
-    batches: TrendingBatch[];
+    days: TrendingDay[];
     page: number;
     totalPages: number;
   }> {
@@ -43,7 +43,7 @@ class TrendingService {
       return res.data;
     } catch (error) {
       logger.warn("Failed fetching trending history", { error });
-      return { batches: [], page, totalPages: 0 };
+      return { days: [], page, totalPages: 0 };
     }
   }
 }

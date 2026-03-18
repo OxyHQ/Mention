@@ -350,49 +350,69 @@ class TrendingService {
   }
 
   /**
-   * Get paginated history of trend batches grouped by calculatedAt.
+   * Get paginated trending history grouped by day.
+   * Deduplicates trends by name within each day, keeping the highest score.
    */
   public async getTrendingHistory(
     page: number = 1,
     limit: number = 10,
-  ): Promise<{ batches: Array<{ calculatedAt: Date; trends: ITrending[] }>; page: number; totalPages: number }> {
-    // Get distinct timestamps for pagination math
-    const allTimestamps = await Trending.distinct('calculatedAt') as Date[];
-    allTimestamps.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-
-    const totalPages = Math.ceil(allTimestamps.length / limit);
-    const start = (page - 1) * limit;
-    const pageTimestamps = allTimestamps.slice(start, start + limit);
-
-    if (pageTimestamps.length === 0) {
-      return { batches: [], page, totalPages };
-    }
-
-    // Single aggregation instead of N+1 queries
-    const grouped = await Trending.aggregate([
-      { $match: { calculatedAt: { $in: pageTimestamps } } },
-      { $sort: { calculatedAt: -1, score: -1 } },
+  ): Promise<{ days: Array<{ date: string; trends: ITrending[] }>; page: number; totalPages: number }> {
+    // Get distinct days
+    const allDays = await Trending.aggregate([
       {
         $group: {
-          _id: '$calculatedAt',
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$calculatedAt' } },
+        },
+      },
+      { $sort: { _id: -1 } },
+    ]);
+
+    const totalPages = Math.ceil(allDays.length / limit);
+    const start = (page - 1) * limit;
+    const pageDays = allDays.slice(start, start + limit).map((d: any) => d._id as string);
+
+    if (pageDays.length === 0) {
+      return { days: [], page, totalPages };
+    }
+
+    // For each day, get unique trends with highest score
+    const grouped = await Trending.aggregate([
+      {
+        $addFields: {
+          day: { $dateToString: { format: '%Y-%m-%d', date: '$calculatedAt' } },
+        },
+      },
+      { $match: { day: { $in: pageDays } } },
+      { $sort: { score: -1 } },
+      {
+        $group: {
+          _id: { day: '$day', name: '$name' },
+          doc: { $first: '$$ROOT' },
+        },
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { day: -1, score: -1 } },
+      {
+        $group: {
+          _id: '$day',
           trends: { $push: '$$ROOT' },
         },
       },
       {
         $project: {
-          calculatedAt: '$_id',
+          date: '$_id',
           trends: { $slice: ['$trends', 20] },
         },
       },
-      { $sort: { calculatedAt: -1 } },
+      { $sort: { date: -1 } },
     ]);
 
-    const batches = grouped.map((g: any) => ({
-      calculatedAt: g.calculatedAt,
+    const days = grouped.map((g: any) => ({
+      date: g.date as string,
       trends: g.trends as ITrending[],
     }));
 
-    return { batches, page, totalPages };
+    return { days, page, totalPages };
   }
 
   /**

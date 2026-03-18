@@ -14,7 +14,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { ThemedView } from '@/components/ThemedView';
 import { Divider } from '@oxyhq/bloom/divider';
-import { trendingService, TrendingTopic, TrendingBatch } from '@/services/trendingService';
+import { trendingService, TrendingTopic, TrendingDay } from '@/services/trendingService';
 import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES } from '@/styles/typography';
 
@@ -23,59 +23,21 @@ interface TrendSection {
   data: TrendingTopic[];
 }
 
-function formatBatchDate(dateStr: string): string {
-  const date = new Date(dateStr);
+function formatDayLabel(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
   const now = new Date();
-  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-
-  const isToday = date.toDateString() === now.toDateString();
-  const yesterday = new Date(now);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = date.toDateString() === yesterday.toDateString();
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-  if (isToday) return `Today at ${time}`;
-  if (isYesterday) return `Yesterday at ${time}`;
+  if (target.getTime() === today.getTime()) return 'Today';
+  if (target.getTime() === yesterday.getTime()) return 'Yesterday';
 
   return date.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
-  }) + ` at ${time}`;
-}
-
-function getBatchFingerprint(trends: TrendingTopic[]): string {
-  return trends.map(t => t.name).sort().join('|');
-}
-
-function deduplicateBatches(batches: TrendingBatch[]): TrendSection[] {
-  const sections: TrendSection[] = [];
-  let skipCount = 0;
-
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-    const fingerprint = getBatchFingerprint(batch.trends);
-
-    // Check how many subsequent batches have the same content
-    let duplicateCount = 0;
-    for (let j = i + 1; j < batches.length; j++) {
-      if (getBatchFingerprint(batches[j].trends) === fingerprint) {
-        duplicateCount++;
-      } else {
-        break;
-      }
-    }
-
-    const trendCount = batch.trends.length;
-    let title = `${formatBatchDate(batch.calculatedAt)} · ${trendCount} trend${trendCount !== 1 ? 's' : ''}`;
-
-    if (duplicateCount > 0) {
-      title += ` (${duplicateCount + 1} identical batches)`;
-      i += duplicateCount; // skip the duplicates
-    }
-
-    sections.push({ title, data: batch.trends });
-  }
-
-  return sections;
+  });
 }
 
 export default function TrendingHistoryScreen() {
@@ -92,7 +54,10 @@ export default function TrendingHistoryScreen() {
       const result = await trendingService.getTrendingHistory(pageNum, 5);
       setTotalPages(result.totalPages);
 
-      const newSections = deduplicateBatches(result.batches);
+      const newSections: TrendSection[] = result.days.map((day: TrendingDay) => ({
+        title: `${formatDayLabel(day.date)} · ${day.trends.length} trend${day.trends.length !== 1 ? 's' : ''}`,
+        data: day.trends,
+      }));
 
       if (append) {
         setSections(prev => [...prev, ...newSections]);
@@ -216,7 +181,7 @@ export default function TrendingHistoryScreen() {
       <ThemedView className="flex-1">
         <SafeAreaView className="flex-1" edges={['top']}>
           <Header
-            options={{ title: 'Trending History', headerBackVisible: true }}
+            options={{ title: 'Trending', headerBackVisible: true }}
           />
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -230,7 +195,7 @@ export default function TrendingHistoryScreen() {
     <ThemedView className="flex-1">
       <SafeAreaView className="flex-1" edges={['top']}>
         <Header
-          options={{ title: 'Trending History', headerBackVisible: true }}
+          options={{ title: 'Trending', headerBackVisible: true }}
         />
         <SectionList
           sections={sections}
