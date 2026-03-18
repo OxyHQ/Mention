@@ -50,6 +50,8 @@ config.resolver = {
   ],
   // Enable symlinks for npm workspace resolution
   unstable_enableSymlinks: true,
+  // Enable package.json "exports" field resolution (required by @oxyhq/bloom subpath exports)
+  unstable_enablePackageExports: true,
   sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
   assetExts: config.resolver.assetExts.filter((ext) => ext !== 'svg'),
 };
