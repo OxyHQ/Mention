@@ -2,13 +2,18 @@ import { Post } from '../models/Post';
 import Trending, { TrendingType, ITrending, TrendBatch } from '../models/Trending';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
-import { aliaChat, aliaJSON } from '../utils/alia';
+import { aliaJSON } from '../utils/alia';
 
 interface AITrendItem {
   type: 'topic' | 'entity';
   name: string;
   description: string;
   relevanceScore: number;
+}
+
+interface AITrendResponse {
+  trends: AITrendItem[];
+  summary: string;
 }
 
 interface TrendItem {
@@ -22,13 +27,17 @@ interface TrendItem {
 
 const TREND_ANALYSIS_PROMPT = `You are a social media trend analyst. Analyze the following recent posts and identify what is currently trending.
 
-For each trend, provide:
+Return a JSON object with two keys:
+
+"trends": array of up to 10 objects, each with:
 - type: "topic" (abstract theme like politics, sports, tech) or "entity" (specific person, place, organization, or event)
 - name: A short, clear label (e.g., "Barcelona", "Donald Trump", "Justin Bieber Wedding", "Climate Summit")
 - description: 1-2 sentences explaining why this is trending based on the posts
 - relevanceScore: 1-10 how prominently this appears across posts
 
-Return ONLY valid JSON: an array of objects. Return up to 10 items. Do not include hashtags (those are tracked separately).`;
+"summary": 1-2 sentences summarizing what people are talking about right now. Be natural and engaging. Vary the phrasing.
+
+Do not include hashtags in the trends array (those are tracked separately). Return ONLY valid JSON.`;
 
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
@@ -101,15 +110,11 @@ class TrendingService {
 
       const calculatedAt = new Date();
       const hashtagTrends = await this.aggregateHashtags();
-      const aiTrends = await this.generateAITrends(hashtagTrends);
+      const { trends: aiTrends, summary } = await this.generateAITrends(hashtagTrends);
 
-      // Merge hashtag trends and AI trends
       const allTrends: TrendItem[] = [...hashtagTrends, ...aiTrends];
 
       await this.saveTrendingBatch(allTrends, calculatedAt);
-
-      // Generate an overall summary of what's trending
-      const summary = await this.generateSummary(allTrends);
       await TrendBatch.create({ calculatedAt, summary });
 
       logger.info(
@@ -125,14 +130,14 @@ class TrendingService {
   }
 
   /**
-   * Aggregate trending hashtags from recent posts.
+   * Aggregate trending hashtags from recent posts in a single pipeline.
    */
   private async aggregateHashtags(): Promise<TrendItem[]> {
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
 
-    const hashtags24h = await Post.aggregate([
+    const hashtagCounts = await Post.aggregate([
       {
         $match: {
           createdAt: { $gte: oneDayAgo },
@@ -144,37 +149,18 @@ class TrendingService {
         $group: {
           _id: '$hashtags',
           count24h: { $sum: 1 },
+          count6h: {
+            $sum: { $cond: [{ $gte: ['$createdAt', sixHoursAgo] }, 1, 0] },
+          },
         },
       },
     ]);
 
-    const hashtags6h = await Post.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: sixHoursAgo },
-          hashtags: { $exists: true, $ne: [] },
-        },
-      },
-      { $unwind: '$hashtags' },
-      {
-        $group: {
-          _id: '$hashtags',
-          count6h: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const count6hMap = new Map<string, number>();
-    for (const item of hashtags6h) {
-      count6hMap.set(item._id.toLowerCase(), item.count6h);
-    }
-
-    const trends: TrendItem[] = hashtags24h.map(item => {
+    const trends: TrendItem[] = hashtagCounts.map(item => {
       const hashtagName = item._id.toLowerCase();
       const volume24h = item.count24h;
-      const volume6h = count6hMap.get(hashtagName) || 0;
+      const volume6h = item.count6h;
 
-      // Momentum: ratio of recent to overall activity
       const momentum = volume24h > 0 ? (volume6h * 4) / volume24h : 0;
       const score = volume24h * (1 + momentum * 0.5);
 
@@ -193,13 +179,15 @@ class TrendingService {
   }
 
   /**
-   * Use Alia AI to identify trending topics and entities from recent post content.
-   * Falls back gracefully if the API is unavailable.
+   * Use Alia AI to identify trending topics/entities and generate a summary.
+   * Single API call returns both trends and summary. Falls back gracefully.
    */
-  private async generateAITrends(hashtagTrends: TrendItem[]): Promise<TrendItem[]> {
+  private async generateAITrends(
+    hashtagTrends: TrendItem[],
+  ): Promise<{ trends: TrendItem[]; summary: string }> {
     if (!process.env.ALIA_API_KEY) {
       logger.debug('[Trending] ALIA_API_KEY not set, skipping AI trend generation');
-      return [];
+      return { trends: [], summary: '' };
     }
 
     try {
@@ -217,10 +205,9 @@ class TrendingService {
 
       if (posts.length === 0) {
         logger.debug('[Trending] No recent posts found for AI analysis');
-        return [];
+        return { trends: [], summary: '' };
       }
 
-      // Build corpus, truncating each post and capping total size
       let corpus = '';
       for (const post of posts) {
         const text = (post as any)?.content?.text || '';
@@ -232,29 +219,32 @@ class TrendingService {
 
       if (corpus.length < 50) {
         logger.debug('[Trending] Post corpus too small for AI analysis');
-        return [];
+        return { trends: [], summary: '' };
       }
 
-      const aiResults = await aliaJSON<AITrendItem[]>(
+      // Include hashtag names as context for better summary generation
+      const hashtagContext = hashtagTrends.slice(0, 10).map(h => `#${h.name}`).join(', ');
+      const userContent = hashtagContext
+        ? `Current hashtags: ${hashtagContext}\n\nPosts:\n${corpus}`
+        : `Posts:\n${corpus}`;
+
+      const aiResult = await aliaJSON<AITrendResponse>(
         [
           { role: 'system', content: TREND_ANALYSIS_PROMPT },
-          { role: 'user', content: `Posts:\n${corpus}` },
+          { role: 'user', content: userContent },
         ],
         { temperature: 0.3, maxTokens: 2000 },
       );
 
-      if (!Array.isArray(aiResults)) {
-        logger.warn('[Trending] AI returned non-array response');
-        return [];
-      }
+      const aiTrends = Array.isArray(aiResult?.trends) ? aiResult.trends : [];
+      const summary = typeof aiResult?.summary === 'string' ? aiResult.summary.trim() : '';
 
-      // Normalize AI scores to the hashtag score range
       const maxHashtagScore = hashtagTrends.length > 0
         ? hashtagTrends[0].score
         : 10;
 
       const trends: TrendItem[] = [];
-      for (const item of aiResults) {
+      for (const item of aiTrends) {
         if (!item.name || !item.type || !item.description) continue;
         if (item.type !== 'topic' && item.type !== 'entity') continue;
 
@@ -271,48 +261,10 @@ class TrendingService {
       }
 
       logger.info(`[Trending] AI generated ${trends.length} topics/entities`);
-      return trends;
+      return { trends, summary };
     } catch (error) {
       logger.warn('[Trending] AI trend generation failed, falling back to hashtags only:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Generate a 1-2 sentence natural-language summary of what's trending.
-   */
-  private async generateSummary(trends: TrendItem[]): Promise<string> {
-    if (!process.env.ALIA_API_KEY || trends.length === 0) {
-      return '';
-    }
-
-    try {
-      const trendNames = trends
-        .slice(0, 15)
-        .map(t => {
-          const prefix = t.type === TrendingType.HASHTAG ? '#' : '';
-          return `${prefix}${t.name}${t.description ? ` (${t.description})` : ''}`;
-        })
-        .join(', ');
-
-      const summary = await aliaChat(
-        [
-          {
-            role: 'system',
-            content: 'You write concise social media trend summaries. Write 1-2 sentences summarizing what people are talking about right now. Be natural and engaging. Do not use bullet points or lists. Do not start with "People are talking about" every time — vary the phrasing.',
-          },
-          {
-            role: 'user',
-            content: `Current trends: ${trendNames}`,
-          },
-        ],
-        { temperature: 0.7, maxTokens: 150 },
-      );
-
-      return summary.trim();
-    } catch (error) {
-      logger.warn('[Trending] Summary generation failed:', error);
-      return '';
+      return { trends: [], summary: '' };
     }
   }
 
@@ -366,16 +318,15 @@ class TrendingService {
       }
     }
 
-    // Find the most recent calculatedAt timestamp
-    const latestDoc = await Trending.findOne()
+    // Use TrendBatch to find the latest timestamp and summary in one query
+    const latestBatch = await TrendBatch.findOne()
       .sort({ calculatedAt: -1 })
-      .select({ calculatedAt: 1 })
       .lean();
 
-    if (!latestDoc) return { trending: [], summary: '' };
+    if (!latestBatch) return { trending: [], summary: '' };
 
     const query: Record<string, unknown> = {
-      calculatedAt: latestDoc.calculatedAt,
+      calculatedAt: latestBatch.calculatedAt,
     };
     if (type) query.type = type;
 
@@ -384,13 +335,7 @@ class TrendingService {
       .limit(limit)
       .lean() as unknown as ITrending[];
 
-    // Get the batch summary
-    const batch = await TrendBatch.findOne({ calculatedAt: latestDoc.calculatedAt })
-      .select({ summary: 1 })
-      .lean();
-    const summary = batch?.summary || '';
-
-    const result = { trending, summary };
+    const result = { trending, summary: latestBatch.summary || '' };
 
     if (redis && trending.length > 0) {
       try {
@@ -410,7 +355,7 @@ class TrendingService {
     page: number = 1,
     limit: number = 10,
   ): Promise<{ batches: Array<{ calculatedAt: Date; trends: ITrending[] }>; page: number; totalPages: number }> {
-    // Get distinct calculatedAt timestamps, most recent first
+    // Get distinct timestamps for pagination math
     const allTimestamps = await Trending.distinct('calculatedAt') as Date[];
     allTimestamps.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
@@ -422,16 +367,29 @@ class TrendingService {
       return { batches: [], page, totalPages };
     }
 
-    const batches: Array<{ calculatedAt: Date; trends: ITrending[] }> = [];
+    // Single aggregation instead of N+1 queries
+    const grouped = await Trending.aggregate([
+      { $match: { calculatedAt: { $in: pageTimestamps } } },
+      { $sort: { calculatedAt: -1, score: -1 } },
+      {
+        $group: {
+          _id: '$calculatedAt',
+          trends: { $push: '$$ROOT' },
+        },
+      },
+      {
+        $project: {
+          calculatedAt: '$_id',
+          trends: { $slice: ['$trends', 20] },
+        },
+      },
+      { $sort: { calculatedAt: -1 } },
+    ]);
 
-    for (const timestamp of pageTimestamps) {
-      const trends = await Trending.find({ calculatedAt: timestamp })
-        .sort({ score: -1 })
-        .limit(20)
-        .lean() as unknown as ITrending[];
-
-      batches.push({ calculatedAt: timestamp, trends });
-    }
+    const batches = grouped.map((g: any) => ({
+      calculatedAt: g.calculatedAt,
+      trends: g.trends as ITrending[],
+    }));
 
     return { batches, page, totalPages };
   }

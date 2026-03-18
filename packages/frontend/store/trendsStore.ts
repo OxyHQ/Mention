@@ -9,6 +9,7 @@ interface TrendsStore {
   summary: string;
   isLoading: boolean;
   error: string | null;
+  _pollHandle: ReturnType<typeof setInterval> | null;
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
   startPolling: () => void;
   stopPolling: () => void;
@@ -20,13 +21,12 @@ function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
   return 'flat';
 }
 
-let pollInterval: ReturnType<typeof setInterval> | null = null;
-
 export const useTrendsStore = create<TrendsStore>((set, get) => ({
   trends: [],
   summary: '',
   isLoading: false,
   error: null,
+  _pollHandle: null,
 
   fetchTrends: async (opts?: { silent?: boolean }) => {
     const silent = !!opts?.silent;
@@ -47,7 +47,7 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
         direction: momentumToDirection(item.momentum || 0),
       })) as Trend[];
 
-      const prev = get().trends || [];
+      const { trends: prev, summary: prevSummary } = get();
       let changed = prev.length !== next.length;
       if (!changed) {
         for (let i = 0; i < next.length; i++) {
@@ -62,7 +62,7 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
 
       const nextSummary = response.data.summary || '';
 
-      if (changed || get().summary !== nextSummary) {
+      if (changed || prevSummary !== nextSummary) {
         set({ trends: next, summary: nextSummary, isLoading: false });
       } else if (!silent) {
         set({ isLoading: false });
@@ -74,15 +74,17 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
   },
 
   startPolling: () => {
-    if (pollInterval) return;
+    if (get()._pollHandle) return;
     get().fetchTrends();
-    pollInterval = setInterval(() => get().fetchTrends({ silent: true }), POLL_INTERVAL_MS);
+    const handle = setInterval(() => get().fetchTrends({ silent: true }), POLL_INTERVAL_MS);
+    set({ _pollHandle: handle });
   },
 
   stopPolling: () => {
-    if (pollInterval) {
-      clearInterval(pollInterval);
-      pollInterval = null;
+    const handle = get()._pollHandle;
+    if (handle) {
+      clearInterval(handle);
+      set({ _pollHandle: null });
     }
   },
 }));

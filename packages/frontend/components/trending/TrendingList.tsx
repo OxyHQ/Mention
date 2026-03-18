@@ -13,6 +13,7 @@ import { TrendingTopic } from "@/services/trendingService";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
 import { Divider } from "@oxyhq/bloom/divider";
+import { formatCompactNumber } from "@/utils/formatNumber";
 
 interface TrendingListProps {
   topics: TrendingTopic[];
@@ -33,13 +34,7 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
   }, []);
 
   const formatVolume = useCallback((volume: number): string => {
-    if (volume >= 1000000) {
-      return `${(volume / 1000000).toFixed(1)}M posts`;
-    }
-    if (volume >= 1000) {
-      return `${(volume / 1000).toFixed(1)}K posts`;
-    }
-    return `${volume} posts`;
+    return `${formatCompactNumber(volume)} posts`;
   }, []);
 
   const getMomentumIcon = useCallback((momentum: number): string => {

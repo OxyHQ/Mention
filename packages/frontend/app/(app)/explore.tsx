@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -79,7 +79,9 @@ const ExploreScreen: React.FC = () => {
     }
   };
 
-  // Subscribe to scroll for header/FAB hide — valid external subscription
+  // Subscribe to scroll for header/FAB hide — external subscription (valid useEffect per React docs)
+  const lastScrollStateRef = useRef<'hidden' | 'visible' | null>(null);
+
   React.useEffect(() => {
     let isScrollingDown = false;
     let lastKnownScrollY = 0;
@@ -92,8 +94,12 @@ const ExploreScreen: React.FC = () => {
         isScrollingDown = scrollDelta > 0;
       }
 
-      if (currentScrollY > 50) {
-        if (isScrollingDown) {
+      const nextState: 'hidden' | 'visible' =
+        currentScrollY > 50 && isScrollingDown ? 'hidden' : 'visible';
+
+      if (nextState !== lastScrollStateRef.current) {
+        lastScrollStateRef.current = nextState;
+        if (nextState === 'hidden') {
           headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
           headerOpacity.value = withTiming(0, { duration: 200 });
           fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
@@ -104,11 +110,6 @@ const ExploreScreen: React.FC = () => {
           fabTranslateY.value = withTiming(0, { duration: 200 });
           fabOpacity.value = withTiming(1, { duration: 200 });
         }
-      } else {
-        headerTranslateY.value = withTiming(0, { duration: 200 });
-        headerOpacity.value = withTiming(1, { duration: 200 });
-        fabTranslateY.value = withTiming(0, { duration: 200 });
-        fabOpacity.value = withTiming(1, { duration: 200 });
       }
 
       lastKnownScrollY = currentScrollY;
