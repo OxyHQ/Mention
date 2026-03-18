@@ -2,7 +2,6 @@ import React, { useCallback } from "react";
 import {
     Dimensions,
     Platform,
-    Text,
     View,
     ViewStyle,
     StyleSheet,
@@ -187,26 +186,22 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                         />
                     ))}
 
-                    <View style={styles.composeButtonContainer}>
+                    <View style={[styles.composeButtonContainer, { alignItems: showExpanded ? 'stretch' : 'center' }]}>
                         <Button
+                            variant="primary"
                             href={asDrawer ? undefined : "/compose"}
                             onPress={asDrawer ? () => handleNavPress('/compose') : undefined}
-                            renderText={showExpanded ? () => (
-                                <Text
-                                    className="text-primary-foreground text-base font-bold text-center m-0 whitespace-nowrap"
-                                >{t("New Post")}</Text>
-                            ) : undefined}
-                            renderIcon={!showExpanded ? () => (
-                                <ComposeIcon size={20} className="text-primary-foreground" />
-                            ) : undefined}
-                            containerStyle={() => ({
-                                ...styles.composeButton,
-                                backgroundColor: theme.colors.primary,
+                            customIcon={!showExpanded ? <ComposeIcon size={20} className="text-primary-foreground" /> : undefined}
+                            style={{
+                                borderRadius: 100,
                                 height: showExpanded ? 40 : 48,
-                                width: showExpanded ? '100%' : 48,
-                                alignSelf: showExpanded ? 'stretch' : 'center',
-                            })}
-                        />
+                                width: showExpanded ? undefined : 48,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                            }}
+                        >
+                            {showExpanded ? t("New Post") : undefined}
+                        </Button>
                     </View>
                 </View>
 
@@ -273,12 +268,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         width: '100%',
         gap: 2,
-    },
-    composeButton: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: 100,
     },
     composeButtonContainer: {
         minHeight: 60,
