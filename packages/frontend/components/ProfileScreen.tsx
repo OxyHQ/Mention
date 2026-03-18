@@ -128,28 +128,28 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const [justFollowed, setJustFollowed] = useState(false);
     const followSettledRef = useRef(false);
     const prevFollowRef = useRef(isFollowingProfileUser);
+    const prevUserIdRef = useRef(stableUserId);
 
-    // Reset transition tracking when navigating to a different profile
-    useEffect(() => {
+    // Compute follow transition during render instead of chained effects
+    if (prevUserIdRef.current !== stableUserId) {
+        // Reset tracking when navigating to a different profile
+        prevUserIdRef.current = stableUserId;
         followSettledRef.current = false;
         prevFollowRef.current = false;
-        setJustFollowed(false);
-    }, [stableUserId]);
-
-    useEffect(() => {
-        // Skip the initial store hydration (false → true on page load)
-        if (!followSettledRef.current) {
-            followSettledRef.current = true;
-            return;
-        }
-        // Detect user-initiated follow
-        if (isFollowingProfileUser && !prevFollowRef.current) {
+        if (justFollowed) setJustFollowed(false);
+    } else if (!followSettledRef.current) {
+        // Skip initial store hydration
+        followSettledRef.current = true;
+        prevFollowRef.current = isFollowingProfileUser;
+    } else if (isFollowingProfileUser !== prevFollowRef.current) {
+        // Detect user-initiated follow/unfollow
+        if (isFollowingProfileUser) {
             setJustFollowed(true);
-        } else if (!isFollowingProfileUser && justFollowed) {
+        } else if (justFollowed) {
             setJustFollowed(false);
         }
         prevFollowRef.current = isFollowingProfileUser;
-    }, [isFollowingProfileUser]);
+    }
 
     // Subscription handling — disabled for federated profiles
     const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(

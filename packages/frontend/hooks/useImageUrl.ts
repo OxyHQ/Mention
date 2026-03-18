@@ -21,14 +21,8 @@ export function useImageUrl(
     return imageUrlCache.get(fileId, variant) ?? undefined;
   }, [fileId, variant]);
 
-  const [resolvedUrl, setResolvedUrl] = useState<string | undefined>(cachedUrl);
-
-  // Reset resolved URL when fileId changes and we have a cache hit
-  useEffect(() => {
-    if (cachedUrl) {
-      setResolvedUrl(cachedUrl);
-    }
-  }, [cachedUrl]);
+  // Only used for async-resolved URLs; cachedUrl is preferred in the return
+  const [resolvedUrl, setResolvedUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!fileId || cachedUrl) return;
