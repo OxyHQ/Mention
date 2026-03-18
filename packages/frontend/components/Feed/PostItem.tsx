@@ -462,13 +462,6 @@ const PostItem: React.FC<PostItemProps> = ({
                     paddingHorizontal={HPAD}
                 >
                     {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} /> : null}
-                    {translatedText && (
-                        <TouchableOpacity onPress={() => setTranslatedText(null)} activeOpacity={0.7}>
-                            <Text className="text-muted-foreground text-[12px] mt-1">
-                                {t('post.translate.showOriginal', { defaultValue: 'Translated · Show original' })}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
                 </PostHeader>
 
                 {hasValidLocation && location && (
