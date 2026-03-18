@@ -10,7 +10,6 @@ import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RightBar } from "@/components/RightBar";
-import { ScrollToTopButton } from "@/components/ScrollToTopButton";
 import { SideBar } from "@/components/SideBar";
 import { SignInBanner } from "@/components/SignInBanner";
 import { ThemedView } from "@/components/ThemedView";
@@ -112,7 +111,6 @@ export default function AppLayout() {
       <MainLayout isScreenNotMobile={isScreenNotMobile} />
       <RegisterPush />
       {isAuthenticated && !isScreenNotMobile && !keyboardVisible && <BottomBar />}
-      {isScreenNotMobile && <ScrollToTopButton />}
       {!isScreenNotMobile && <DrawerOverlay />}
       {!isAuthenticated && <SignInBanner />}
       <WelcomeModalGate appIsReady={true} />

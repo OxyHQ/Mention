@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -14,11 +14,12 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
+import { ArrowUp } from '@/assets/icons/arrow-up-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { LogoIcon } from '@/assets/logo';
@@ -44,17 +45,30 @@ const HomeScreen: React.FC = () => {
     const { open: openDrawer } = useDrawer();
     const isScreenNotMobile = useIsScreenNotMobile();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
-    const { scrollY } = useLayoutScroll();
+    const { scrollY, scrollToTop } = useLayoutScroll();
+    const [isScrolledDown, setIsScrolledDown] = useState(false);
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const headerTranslateY = useSharedValue(0);
     const headerOpacity = useSharedValue(1);
-    const fabTranslateY = useSharedValue(0);
-    const fabOpacity = useSharedValue(1);
     const headerHeight = 48;
-    const fabHeight = 80;
+    const fabIconRotation = useSharedValue(0);
+
+    useEffect(() => {
+        fabIconRotation.value = withSpring(isScrolledDown ? 1 : 0, {
+            damping: 15,
+            stiffness: 150,
+        });
+    }, [isScrolledDown, fabIconRotation]);
+
+    const fabIconAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [
+            { rotate: `${fabIconRotation.value * 180}deg` },
+            { scale: 1 - Math.abs(fabIconRotation.value - 0.5) * 0.4 },
+        ],
+    }));
 
     const loadFeeds = React.useCallback(async () => {
         if (!isAuthenticated) return;
@@ -140,23 +154,19 @@ const HomeScreen: React.FC = () => {
                 isScrollingDown = scrollDelta > 0;
             }
 
+            setIsScrolledDown(currentScrollY > 200);
+
             if (currentScrollY > 50) {
                 if (isScrollingDown) {
                     headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
                     headerOpacity.value = withTiming(0, { duration: 200 });
-                    fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
-                    fabOpacity.value = withTiming(0, { duration: 200 });
                 } else {
                     headerTranslateY.value = withTiming(0, { duration: 200 });
                     headerOpacity.value = withTiming(1, { duration: 200 });
-                    fabTranslateY.value = withTiming(0, { duration: 200 });
-                    fabOpacity.value = withTiming(1, { duration: 200 });
                 }
             } else {
                 headerTranslateY.value = withTiming(0, { duration: 200 });
                 headerOpacity.value = withTiming(1, { duration: 200 });
-                fabTranslateY.value = withTiming(0, { duration: 200 });
-                fabOpacity.value = withTiming(1, { duration: 200 });
             }
 
             lastKnownScrollY = currentScrollY;
@@ -165,7 +175,7 @@ const HomeScreen: React.FC = () => {
         return () => {
             scrollY.removeListener(listenerId);
         };
-    }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, fabOpacity, headerHeight, fabHeight, insets.top]);
+    }, [scrollY, headerTranslateY, headerOpacity, headerHeight, insets.top]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
@@ -293,13 +303,18 @@ const HomeScreen: React.FC = () => {
                     {/* Content */}
                     {renderContent()}
 
-                    {/* Floating Action Button */}
+                    {/* Floating Action Button — compose or scroll-to-top */}
                     {isAuthenticated && (
                         <FAB
-                            onPress={() => router.push('/compose')}
-                            customIcon={<ComposeIcon size={22} className="text-primary-foreground" />}
-                            animatedTranslateY={fabTranslateY}
-                            animatedOpacity={fabOpacity}
+                            onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
+                            customIcon={
+                                <Animated.View style={fabIconAnimatedStyle}>
+                                    {isScrolledDown
+                                        ? <ArrowUp size={22} className="text-primary-foreground" />
+                                        : <ComposeIcon size={22} className="text-primary-foreground" />
+                                    }
+                                </Animated.View>
+                            }
                         />
                     )}
                 </ThemedView>
