@@ -55,6 +55,7 @@ interface TrendItemRowProps {
   onPress: (trend: Trend) => void;
   onMenuPress?: (trend: Trend) => void;
   showBorder?: boolean;
+  size?: 'compact' | 'large';
 }
 
 export const TrendItemRow = memo(function TrendItemRow({
@@ -62,12 +63,14 @@ export const TrendItemRow = memo(function TrendItemRow({
   onPress,
   onMenuPress,
   showBorder = false,
+  size = 'compact',
 }: TrendItemRowProps) {
   const theme = useTheme();
+  const isLarge = size === 'large';
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center justify-between py-2 ${showBorder ? "border-border" : ""}`}
+      className={`flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-2'} ${showBorder ? "border-border" : ""}`}
       style={[
         styles.webCursor,
         showBorder && styles.itemBorder,
@@ -77,14 +80,20 @@ export const TrendItemRow = memo(function TrendItemRow({
     >
       <View className="flex-1 flex-row items-center justify-between mr-2">
         <View className="flex-1 mr-3">
-          <Text className="text-muted-foreground text-[12px] mb-0.5">
+          <Text className={`text-muted-foreground ${isLarge ? 'text-[13px]' : 'text-[12px]'} mb-0.5`}>
             {getTrendLabel(trend)}
           </Text>
-          <Text className="text-foreground text-[14px] font-bold" numberOfLines={1}>
+          <Text
+            className={`text-foreground font-bold ${isLarge ? 'text-[16px]' : 'text-[14px]'}`}
+            numberOfLines={1}
+          >
             {getTrendDisplayName(trend)}
           </Text>
           {trend.description ? (
-            <Text className="text-muted-foreground text-[12px] mt-0.5" numberOfLines={1}>
+            <Text
+              className={`text-muted-foreground ${isLarge ? 'text-[13px] mt-1' : 'text-[12px] mt-0.5'}`}
+              numberOfLines={isLarge ? 2 : 1}
+            >
               {trend.description}
             </Text>
           ) : null}

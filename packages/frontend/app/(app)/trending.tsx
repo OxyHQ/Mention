@@ -120,6 +120,7 @@ export default function TrendingHistoryScreen() {
         trend={item}
         onPress={handleTrendPress}
         showBorder
+        size="large"
       />
     </View>
   ), [handleTrendPress]);

@@ -37,6 +37,7 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
         trend={item}
         onPress={handleTopicPress}
         showBorder
+        size="large"
       />
     </View>
   ), [handleTopicPress]);
