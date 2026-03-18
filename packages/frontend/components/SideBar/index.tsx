@@ -2,6 +2,8 @@ import React, { useCallback } from "react";
 import {
     Dimensions,
     Platform,
+    Pressable,
+    Text,
     View,
     ViewStyle,
     StyleSheet,
@@ -10,7 +12,6 @@ import { usePathname, useRouter } from "expo-router";
 import { useIsScreenNotMobile, useIsSideBarExpanded } from "@/hooks/useOptimizedMediaQuery";
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
-import { Button } from "@/components/ui/Button";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
@@ -186,25 +187,26 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                         />
                     ))}
 
-                    <View style={[styles.composeButtonContainer, { alignItems: showExpanded ? 'stretch' : 'center' }]}>
-                        <Button
-                            variant="primary"
+                    <View style={styles.composeButtonContainer}>
+                        <Pressable
                             onPress={() => asDrawer ? handleNavPress('/compose') : router.push('/compose')}
-                            customIcon={!showExpanded ? <ComposeIcon size={26} color={theme.colors.card} /> : undefined}
-                            style={{
-                                borderRadius: 100,
-                                height: showExpanded ? 46 : 50,
-                                width: showExpanded ? undefined : 50,
-                                paddingHorizontal: showExpanded ? 12 : 0,
-                                paddingVertical: 0,
-                                minHeight: 0,
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                            }}
-                            textStyle={{ fontSize: 17, fontWeight: '800' }}
+                            style={[
+                                styles.composeButton,
+                                { backgroundColor: theme.colors.primary },
+                                showExpanded
+                                    ? { width: '100%', paddingVertical: 12, paddingHorizontal: 12 }
+                                    : { width: 50, height: 50 },
+                                Platform.select({ web: { cursor: 'pointer' as any } }),
+                            ]}
                         >
-                            {showExpanded ? t("New Post") : undefined}
-                        </Button>
+                            {showExpanded ? (
+                                <Text style={{ color: theme.colors.card, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
+                                    {t("New Post")}
+                                </Text>
+                            ) : (
+                                <ComposeIcon size={26} color={theme.colors.card} />
+                            )}
+                        </Pressable>
                     </View>
                 </View>
 
@@ -271,6 +273,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         width: '100%',
         gap: 2,
+    },
+    composeButton: {
+        borderRadius: 100,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     composeButtonContainer: {
         minHeight: 60,
