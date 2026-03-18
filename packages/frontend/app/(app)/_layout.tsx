@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, memo } from "react";
-import { Platform, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { Slot } from "expo-router";
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 
 import { useAuth } from '@oxyhq/services';
 
@@ -19,11 +20,36 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
 import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
   isScreenNotMobile: boolean;
 }
+
+const DrawerOverlay = memo(function DrawerOverlay() {
+  const { isOpen, close } = useDrawer();
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(isOpen ? 1 : 0, { duration: 200 }),
+    pointerEvents: isOpen ? 'auto' as const : 'none' as const,
+  }));
+
+  const drawerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: withTiming(isOpen ? 0 : -300, { duration: 250 }) },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.backdrop, backdropStyle]}>
+      <Pressable style={styles.backdropPressable} onPress={close} />
+      <Animated.View style={[styles.drawer, drawerStyle]}>
+        <SideBar asDrawer onNavigate={close} />
+      </Animated.View>
+    </Animated.View>
+  );
+});
 
 const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
   const { forwardWheelEvent } = useLayoutScroll();
@@ -66,6 +92,7 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
         </ThemedView>
         <RightBar />
       </View>
+      {!isScreenNotMobile && <DrawerOverlay />}
     </View>
   );
 });
@@ -79,7 +106,7 @@ export default function AppLayout() {
   const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
 
   return (
-    <>
+    <DrawerProvider>
       <ConnectionStatus />
       <RealtimePostsBridge />
       <MainLayout isScreenNotMobile={isScreenNotMobile} />
@@ -93,6 +120,36 @@ export default function AppLayout() {
           onClose={() => setShowHelpModal(false)}
         />
       )}
-    </>
+    </DrawerProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  backdrop: {
+    ...Platform.select({
+      web: {
+        position: 'fixed' as any,
+      },
+      default: {
+        position: 'absolute',
+      },
+    }),
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    zIndex: 2000,
+  },
+  backdropPressable: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  drawer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 280,
+    zIndex: 2001,
+  },
+});

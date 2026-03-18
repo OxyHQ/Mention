@@ -21,6 +21,10 @@ import { Bell } from '@/assets/icons/bell-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
+import { LogoIcon } from '@/assets/logo';
+import { Ionicons } from '@expo/vector-icons';
+import { useDrawer } from '@/context/DrawerContext';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -37,6 +41,8 @@ const HomeScreen: React.FC = () => {
     const { isAuthenticated } = useAuth();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
+    const { open: openDrawer } = useDrawer();
+    const isScreenNotMobile = useIsScreenNotMobile();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const { scrollY } = useLayoutScroll();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
@@ -237,6 +243,17 @@ const HomeScreen: React.FC = () => {
                         <Header
                             options={{
                                 title: 'Mention',
+                                leftComponents: [
+                                    ...(!isScreenNotMobile ? [
+                                        <IconButton variant="icon"
+                                            key="menu"
+                                            onPress={openDrawer}
+                                        >
+                                            <Ionicons name="menu" size={22} color={theme.colors.text} />
+                                        </IconButton>
+                                    ] : []),
+                                    <LogoIcon key="logo" size={24} className="text-foreground" />,
+                                ],
                                 rightComponents: [
                                     <IconButton variant="icon"
                                         key="search"

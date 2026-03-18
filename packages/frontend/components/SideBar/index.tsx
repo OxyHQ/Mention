@@ -12,7 +12,6 @@ import { useMediaQuery } from "react-responsive";
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
 import { Button } from "@/components/ui/Button";
-import { Logo } from "@/components/Logo";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
@@ -36,7 +35,12 @@ const IconComponent = Ionicons as any;
 
 const WindowHeight = Dimensions.get('window').height;
 
-export function SideBar() {
+interface SideBarProps {
+    asDrawer?: boolean;
+    onNavigate?: () => void;
+}
+
+export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const { t } = useTranslation();
     const router = useRouter();
     const { isAuthenticated: _isAuthenticated, user, signIn, logout, oxyServices } = useAuth();
@@ -54,10 +58,16 @@ export function SideBar() {
         if (!confirmed) return;
         try {
             await logout();
+            onNavigate?.();
             router.replace('/');
         } catch (error) {
             logger.error('Logout failed');
         }
+    };
+
+    const handleNavPress = (route: string) => {
+        onNavigate?.();
+        router.push(route);
     };
 
     const sideBarData: {
@@ -144,56 +154,58 @@ export function SideBar() {
     const isSideBarVisible = useMediaQuery({ minWidth: 500 });
     const isExpanded = useMediaQuery({ minWidth: 1300 });
 
-    if (!isSideBarVisible) return null;
+    // In drawer mode, always render expanded regardless of media queries
+    if (!asDrawer && !isSideBarVisible) return null;
+
+    const showExpanded = asDrawer || isExpanded;
 
     return (
         <View
             className="bg-background"
             style={[
-                styles.container,
-                { width: isExpanded ? 240 : 60 },
-                pathname === '/search' ? {
+                asDrawer ? styles.drawerContainer : styles.container,
+                !asDrawer && { width: showExpanded ? 240 : 60 },
+                !asDrawer && pathname === '/search' ? {
                     boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
                     elevation: 5,
                 } : {},
             ]}
         >
             <View style={styles.inner}>
-                <View style={styles.headerSection}>
-                    <Logo />
-                </View>
                 <View style={[
                     styles.navigationSection,
-                    { alignItems: isExpanded ? 'flex-start' : 'center' },
+                    { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
                     {sideBarData.map(({ title, icon, iconActive, route }) => (
                         <SideBarItem
-                            href={route}
+                            href={asDrawer ? undefined : route}
                             key={title}
                             icon={pathname === route ? iconActive : icon}
                             text={title}
                             isActive={pathname === route}
-                            isExpanded={isExpanded}
+                            isExpanded={showExpanded}
+                            onPress={asDrawer ? () => handleNavPress(route) : undefined}
                         />
                     ))}
 
                     <View style={styles.composeButtonContainer}>
                         <Button
-                            href="/compose"
-                            renderText={isExpanded ? () => (
+                            href={asDrawer ? undefined : "/compose"}
+                            onPress={asDrawer ? () => handleNavPress('/compose') : undefined}
+                            renderText={showExpanded ? () => (
                                 <Text
                                     className="text-primary-foreground text-base font-bold text-center m-0 whitespace-nowrap"
                                 >{t("New Post")}</Text>
                             ) : undefined}
-                            renderIcon={!isExpanded ? () => (
+                            renderIcon={!showExpanded ? () => (
                                 <ComposeIcon size={20} className="text-primary-foreground" />
                             ) : undefined}
                             containerStyle={() => ({
                                 ...styles.composeButton,
                                 backgroundColor: theme.colors.primary,
-                                height: isExpanded ? 40 : 48,
-                                width: isExpanded ? '100%' : 48,
-                                alignSelf: isExpanded ? 'stretch' : 'center',
+                                height: showExpanded ? 40 : 48,
+                                width: showExpanded ? '100%' : 48,
+                                alignSelf: showExpanded ? 'stretch' : 'center',
                             })}
                         />
                     </View>
@@ -201,14 +213,14 @@ export function SideBar() {
 
                 <View style={[
                     styles.footer,
-                    { alignItems: isExpanded ? 'flex-start' : 'center' },
+                    { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
                     {user && user.id ? (
                         <SideBarItem
                             isActive={false}
                             icon={<IconComponent name="log-out-outline" size={20} color={theme.colors.text} />}
                             text={t('settings.signOut')}
-                            isExpanded={isExpanded}
+                            isExpanded={showExpanded}
                             onPress={handleSignOut}
                         />
                     ) : (
@@ -216,8 +228,11 @@ export function SideBar() {
                             isActive={false}
                             icon={<IconComponent name="log-in-outline" size={20} color={theme.colors.text} />}
                             text={t('Sign In')}
-                            isExpanded={isExpanded}
-                            onPress={() => signIn().catch(() => {})}
+                            isExpanded={showExpanded}
+                            onPress={() => {
+                                onNavigate?.();
+                                signIn().catch(() => {});
+                            }}
                         />
                     )}
                 </View>
@@ -243,14 +258,16 @@ const styles = StyleSheet.create({
         top: 0,
         zIndex: 1000,
     },
+    drawerContainer: {
+        flex: 1,
+        width: 280,
+        padding: 12,
+    },
     inner: {
         flex: 1,
         width: '100%',
         justifyContent: 'flex-start',
         alignItems: 'center',
-    },
-    headerSection: {
-        marginBottom: 16,
     },
     navigationSection: {
         flex: 1,
