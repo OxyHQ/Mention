@@ -57,7 +57,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
       logger.debug('Drafts reloaded');
       toast.success(t('compose.draftDeleted'));
     } catch (error) {
-      logger.error('Error deleting draft');
+      logger.error('Error deleting draft', { error });
       toast.error(t('compose.deleteDraftError'));
     } finally {
       setDeletingId(null);

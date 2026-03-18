@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { useImageUrl } from '@/hooks/useImageUrl';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
@@ -447,7 +448,7 @@ const ComposeScreen = () => {
           setMentions(post.mentions.map((m: any) => (typeof m === 'string' ? { id: m, display: m } : m)));
         }
       } catch (e) {
-        logger.error('[Compose] Failed to load post for editing', e);
+        logger.error('Failed to load post for editing', e);
         toast.error(t('Failed to load post for editing'));
       } finally {
         if (!cancelled) setEditLoading(false);
@@ -555,7 +556,7 @@ const ComposeScreen = () => {
       safeBack();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('[Compose] Failed to publish post', message);
+      logger.error('Failed to publish post', message);
       toast.error(t('Failed to publish post'));
     } finally {
       setIsPosting(false);

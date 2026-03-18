@@ -17,7 +17,7 @@ export function usePostRepost(postId: string | undefined, isReposted: boolean) {
 
             await action;
         } catch (error) {
-            logger.error('Error toggling repost');
+            logger.error('Error toggling repost', { error });
         } finally {
             pendingRef.current = false;
         }

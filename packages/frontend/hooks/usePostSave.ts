@@ -17,7 +17,7 @@ export function usePostSave(postId: string | undefined, isSaved: boolean) {
 
             await action;
         } catch (error) {
-            logger.error('Error toggling save');
+            logger.error('Error toggling save', { error });
         } finally {
             pendingRef.current = false;
         }

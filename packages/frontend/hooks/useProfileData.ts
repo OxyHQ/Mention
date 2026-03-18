@@ -232,7 +232,7 @@ function useLocalProfileData(username?: string): {
           await loadForUser(data.id, true);
         }
       } catch (err) {
-        logger.debug('Profile fetch error');
+        logger.debug('Profile fetch error', { error: err });
       }
     };
 

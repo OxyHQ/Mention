@@ -68,7 +68,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
             setError(undefined);
         } catch (error: any) {
             const message = error?.message || 'Failed to load privacy data';
-            logger.error('[usePrivacyControls] Unable to load privacy lists');
+            logger.error('[usePrivacyControls] Unable to load privacy lists', { error });
             setError(message);
         } finally {
             setLoading(false);

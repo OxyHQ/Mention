@@ -150,7 +150,7 @@ export function useFeedState({
         async (forceRefresh: boolean = false) => {
             // Prevent duplicate calls
             if (isFetchingRef.current) {
-                logger.debug('[useFeedState] Already fetching, skipping');
+                logger.debug('Already fetching, skipping');
                 return;
             }
 
@@ -166,7 +166,7 @@ export function useFeedState({
             const signal = abortControllerRef.current.signal;
 
             if (isAuthenticated && !currentUserId) {
-                logger.debug('[useFeedState] Not authenticated, skipping');
+                logger.debug('Not authenticated, skipping');
                 isFetchingRef.current = false;
                 return;
             }
@@ -178,7 +178,7 @@ export function useFeedState({
 
             // Skip if feed was properly fetched (lastUpdated > 0) and has items
             if (!useScoped && hasItems && wasFetched && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
-                logger.debug('[useFeedState] Skipping - feed has items and not saved');
+                logger.debug('Skipping - feed has items and not saved');
                 isFetchingRef.current = false;
                 return;
             }
@@ -200,7 +200,7 @@ export function useFeedState({
                         {
                             signal,
                             onRetry: (attempt) => {
-                                logger.debug(`[useFeedState] Retrying feed request (attempt ${attempt})`);
+                                logger.debug(`Retrying feed request (attempt ${attempt})`);
                             },
                         }
                     );
@@ -231,11 +231,11 @@ export function useFeedState({
                 }
             } catch (err: unknown) {
                 if (signal.aborted) {
-                    logger.debug('[useFeedState] Request aborted');
+                    logger.debug('Request aborted');
                     return;
                 }
 
-                logger.error('[useFeedState] Error fetching feed', err);
+                logger.error('Error fetching feed', err);
                 if (useScoped) {
                     setLocalError('Failed to load');
                 }
@@ -284,7 +284,7 @@ export function useFeedState({
                     {
                         signal,
                         onRetry: (attempt) => {
-                            logger.debug(`[useFeedState] Retrying refresh (attempt ${attempt})`);
+                            logger.debug(`Retrying refresh (attempt ${attempt})`);
                         },
                     }
                 );
@@ -312,7 +312,7 @@ export function useFeedState({
         } catch (err: unknown) {
             if (signal.aborted) return;
 
-            logger.error('[useFeedState] Error refreshing feed after retries', err);
+            logger.error('Error refreshing feed after retries', err);
             if (useScoped) {
                 setLocalError('Failed to refresh');
             }
@@ -323,7 +323,7 @@ export function useFeedState({
 
     const loadMore = useCallback(async () => {
         if (isLoadingMoreRef.current) {
-            logger.debug('[useFeedState] Already loading more, skipping');
+            logger.debug('Already loading more, skipping');
             return;
         }
 
@@ -360,7 +360,7 @@ export function useFeedState({
                         signal,
                         maxRetries: 2, // Fewer retries for load more
                         onRetry: (attempt) => {
-                            logger.debug(`[useFeedState] Retrying load more (attempt ${attempt})`);
+                            logger.debug(`Retrying load more (attempt ${attempt})`);
                         },
                     }
                 );
@@ -407,11 +407,11 @@ export function useFeedState({
             }
         } catch (err: unknown) {
             if (signal.aborted) {
-                logger.debug('[useFeedState] Load more aborted');
+                logger.debug('Load more aborted');
                 return;
             }
 
-            logger.error('[useFeedState] Error loading more', err);
+            logger.error('Error loading more', err);
             if (useScoped) {
                 let errorMessage = 'Failed to load more posts';
                 if (err instanceof Error) {
@@ -462,7 +462,7 @@ export function useFeedState({
             const hasItems = currentFeed?.items && currentFeed.items.length > 0 && currentFeed.lastUpdated > 0;
 
             if (hasItems && !filters?.searchQuery) {
-                logger.debug('[useFeedState] Skipping - feed has items and no search query');
+                logger.debug('Skipping - feed has items and no search query');
                 return;
             }
         }

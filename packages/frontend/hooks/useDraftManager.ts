@@ -148,7 +148,7 @@ export const useDraftManager = ({
       const draftId = await saveDraft(draftData);
       setCurrentDraftId(draftId);
     } catch (error) {
-      logger.error('Error auto-saving draft');
+      logger.error('Error auto-saving draft', { error });
     }
   }, [hasContent, buildDraftData, saveDraft, deleteDraft]);
 

@@ -29,7 +29,7 @@ export function useAppColorSave() {
         } as Record<string, unknown>),
       ]);
     } catch (error) {
-      logger.error('Error updating color');
+      logger.error('Error updating color', { error });
     } finally {
       setSaving(false);
     }

@@ -53,7 +53,7 @@ export function usePostShare(post: any) {
                 });
             }
         } catch (error) {
-            logger.error('Error sharing post');
+            logger.error('Error sharing post', { error });
             toast.error('Failed to share post');
         }
     }, [post]);

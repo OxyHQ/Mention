@@ -93,7 +93,7 @@ export function useOriginalPost({ post, isNested, nestingDepth }: UseOriginalPos
             } catch (error: any) {
                 // Silently handle 404s - post may have been deleted
                 if (error?.response?.status !== 404) {
-                    logger.error('Error loading original/quoted post');
+                    logger.error('Error loading original/quoted post', { error });
                 }
             }
         };

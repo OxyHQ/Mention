@@ -51,7 +51,7 @@ export const useDrafts = () => {
         setDrafts([]);
       }
     } catch (error) {
-      logger.error('Error loading drafts');
+      logger.error('Error loading drafts', { error });
       setDrafts([]);
     } finally {
       setIsLoading(false);
@@ -64,7 +64,7 @@ export const useDrafts = () => {
       await storeData(DRAFTS_STORAGE_KEY, newDrafts);
       setDrafts(newDrafts);
     } catch (error) {
-      logger.error('Error saving drafts');
+      logger.error('Error saving drafts', { error });
     }
   }, []);
 
@@ -99,7 +99,7 @@ export const useDrafts = () => {
       await saveDrafts(newDrafts);
       return draftId;
     } catch (error) {
-      logger.error('Error saving draft');
+      logger.error('Error saving draft', { error });
       throw error;
     }
   }, [drafts, saveDrafts]);
@@ -125,7 +125,7 @@ export const useDrafts = () => {
       setDrafts(newDrafts);
       logger.debug('State updated');
     } catch (error) {
-      logger.error('Error deleting draft');
+      logger.error('Error deleting draft', { error });
       throw error;
     }
   }, [saveDrafts]);
@@ -141,7 +141,7 @@ export const useDrafts = () => {
       await removeData(DRAFTS_STORAGE_KEY);
       setDrafts([]);
     } catch (error) {
-      logger.error('Error clearing drafts');
+      logger.error('Error clearing drafts', { error });
       throw error;
     }
   }, []);

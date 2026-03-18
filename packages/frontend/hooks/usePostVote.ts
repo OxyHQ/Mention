@@ -22,7 +22,7 @@ export function usePostVote(
                 await likePost({ postId, type: 'post' });
             }
         } catch (error) {
-            logger.error('Error toggling upvote');
+            logger.error('Error toggling upvote', { error });
         } finally {
             upvotePendingRef.current = false;
         }
@@ -39,7 +39,7 @@ export function usePostVote(
                 await downvotePost({ postId, type: 'post' });
             }
         } catch (error) {
-            logger.error('Error toggling downvote');
+            logger.error('Error toggling downvote', { error });
         } finally {
             downvotePendingRef.current = false;
         }

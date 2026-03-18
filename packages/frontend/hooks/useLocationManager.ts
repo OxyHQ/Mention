@@ -48,7 +48,7 @@ export const useLocationManager = () => {
       setLocation(locationData);
       toast.success(t("Location added"));
     } catch (error) {
-      logger.error("Error getting location");
+      logger.error("Error getting location", { error });
       toast.error(t("Failed to get location"));
     } finally {
       setIsGettingLocation(false);

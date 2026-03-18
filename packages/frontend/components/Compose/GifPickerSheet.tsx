@@ -88,7 +88,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         setGifs([]);
       }
     } catch (error: any) {
-      logger.error('Error fetching GIFs');
+      logger.error('Error fetching GIFs', { error });
       toast.error(error?.message || t('Failed to load GIFs'));
       setGifs([]);
     } finally {
@@ -196,7 +196,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         }
       }
     } catch (error: any) {
-      logger.error('Error selecting GIF');
+      logger.error('Error selecting GIF', { error });
       toast.error(error?.message || t('Failed to add GIF'));
     } finally {
       setUploading(false);

@@ -1,10 +1,8 @@
 import React, { useMemo, useContext } from 'react';
 import { useRouter } from 'expo-router';
-import { createScopedLogger } from '@/lib/logger';
-
-const logger = createScopedLogger('usePostActions');
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@oxyhq/services';
+import { createScopedLogger } from '@/lib/logger';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { usePostsStore } from '@/stores/postsStore';
@@ -31,6 +29,8 @@ import ReplySettingsSheet, { type ReplyPermission } from '@/components/Compose/R
 import ReportModal from '@/components/report/ReportModal';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
+
+const logger = createScopedLogger('usePostActions');
 
 interface ActionItem {
     icon: React.ReactNode;
@@ -85,7 +85,7 @@ export function usePostActions({
         const isPostDetail = (router.pathname || '').startsWith('/p/');
 
         const handleDelete = async () => {
-            try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('[usePostActions] Failed to close bottom sheet'); }
+            try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
             const confirmed = await confirmDialog({
                 title: 'Delete post',
                 message: 'Are you sure you want to delete this post? This action cannot be undone.',
@@ -98,7 +98,7 @@ export function usePostActions({
             try {
                 await feedService.deletePost(postId);
             } catch (e) {
-                logger.error('Delete API failed');
+                logger.error('Delete API failed', { error: e });
                 toast.error('Failed to delete post');
                 return;
             }
@@ -109,12 +109,12 @@ export function usePostActions({
                     const store = usePostsStore.getState();
                     const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'];
                     types.forEach((feedType) => {
-                        try { store.removePostLocally(postId, feedType); } catch (e) { logger.warn(`[usePostActions] Failed to remove post from ${feedType} feed`); }
+                        try { store.removePostLocally(postId, feedType); } catch (e) { logger.warn(`Failed to remove post from ${feedType} feed`); }
                     });
                 }
                 if (isPostDetail) safeBack();
             } catch (err) {
-                logger.error('Error removing post locally');
+                logger.error('Error removing post locally', { error: err });
             }
         };
 
@@ -250,7 +250,7 @@ export function usePostActions({
         }] : [];
 
         const handleMuteUser = async () => {
-            try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('[usePostActions] Failed to close bottom sheet'); }
+            try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
             const userId = viewPost?.user?.id;
             const username = viewPost?.user?.handle || viewPost?.user?.name || 'this user';
 
@@ -324,7 +324,7 @@ export function usePostActions({
                         const { Clipboard } = require('react-native');
                         Clipboard.setString(postUrl);
                     }
-                } catch (e) { logger.warn('[usePostActions] Failed to copy link'); }
+                } catch (e) { logger.warn('Failed to copy link'); }
                 bottomSheet.openBottomSheet(false);
             }
         }];

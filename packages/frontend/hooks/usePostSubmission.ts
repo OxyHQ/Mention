@@ -1,8 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { MentionData } from '@/components/MentionTextInput';
 import { createScopedLogger } from '@/lib/logger';
-
-const logger = createScopedLogger('usePostSubmission');
 import { GeoJSONPoint } from '@mention/shared-types';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import {
@@ -12,6 +10,8 @@ import {
   createMediaAttachmentKey,
 } from '@/utils/composeUtils';
 import type { ThreadItem } from '@/hooks/useThreadManager';
+
+const logger = createScopedLogger('usePostSubmission');
 
 interface PostSubmissionProps {
   user: any;
@@ -121,9 +121,9 @@ export const usePostSubmission = ({
     } : undefined;
 
     if (__DEV__ && hasEventContent) {
-      logger.debug('[PostSubmission] Event data', { event });
-      logger.debug('[PostSubmission] Event payload', { eventPayload });
-      logger.debug(`[PostSubmission] hasEventContent: ${hasEventContent}`);
+      logger.debug('Event data', { event });
+      logger.debug('Event payload', { eventPayload });
+      logger.debug(`hasEventContent: ${hasEventContent}`);
     }
 
     const wasScheduled = Boolean(scheduledAtRef.current);
@@ -286,7 +286,7 @@ export const usePostSubmission = ({
         scheduledAt: scheduledAtRef.current 
       };
     } catch (error) {
-      logger.error('Error creating post');
+      logger.error('Error creating post', { error });
       return { success: false, error: 'submission.failed' };
     } finally {
       setIsPosting(false);

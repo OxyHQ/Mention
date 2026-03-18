@@ -17,7 +17,7 @@ export function usePostLike(postId: string | undefined, isLiked: boolean) {
 
             await action;
         } catch (error) {
-            logger.error('Error toggling like');
+            logger.error('Error toggling like', { error });
         } finally {
             pendingRef.current = false;
         }

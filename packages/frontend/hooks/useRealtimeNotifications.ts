@@ -80,11 +80,11 @@ export const useRealtimeNotifications = () => {
       });
 
       socket.on('connect_error', (error) => {
-        logger.error('Socket connection error');
+        logger.error('Socket connection error', { error });
       });
 
     } catch (error) {
-      logger.error('Failed to connect to notifications socket');
+      logger.error('Failed to connect to notifications socket', { error });
     }
   }, [isAuthenticated, isReady, user?.id, oxyServices, queryClient]);
 
