@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { subscriptionService } from '@/services/subscriptionService';
+import { useDeferredToggle } from './useDeferredToggle';
 import type { UseSubscriptionReturn } from '../types';
-
-const LAZY_FETCH_DELAY_MS = 500;
 
 /**
  * Hook for managing profile subscription state.
@@ -16,89 +15,45 @@ export function useSubscription(
   isOwnProfile: boolean
 ): UseSubscriptionReturn {
   const { t } = useTranslation();
-  const [subscribed, setSubscribed] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const fetchedRef = useRef(false);
-  const subscribedRef = useRef(subscribed);
-  subscribedRef.current = subscribed;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Defer subscription status fetch — non-critical data
-  useEffect(() => {
-    if (isOwnProfile || !profileId || !currentUserId) return;
+  const fetchStatus = useCallback(async () => {
+    if (!profileId) return false;
+    const { subscribed } = await subscriptionService.getStatus(profileId);
+    return !!subscribed;
+  }, [profileId]);
 
-    fetchedRef.current = false;
-    let cancelled = false;
+  const onEnable = useCallback(async () => {
+    if (!profileId) return;
+    await subscriptionService.subscribe(profileId);
+    toast.success(t('subscription.subscribed'));
+  }, [profileId, t]);
 
-    timerRef.current = setTimeout(async () => {
-      timerRef.current = null;
-      try {
-        const { subscribed: isSubscribed } = await subscriptionService.getStatus(profileId);
-        if (!cancelled) {
-          setSubscribed(!!isSubscribed);
-          fetchedRef.current = true;
-        }
-      } catch {
-        // Silently ignore errors (including 401 for unauthenticated users)
-      }
-    }, LAZY_FETCH_DELAY_MS);
+  const onDisable = useCallback(async () => {
+    if (!profileId) return;
+    await subscriptionService.unsubscribe(profileId);
+    toast.success(t('subscription.unsubscribed'));
+  }, [profileId, t]);
 
-    return () => {
-      cancelled = true;
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [profileId, isOwnProfile, currentUserId]);
+  const { active, loading, toggle } = useDeferredToggle({
+    skip: isOwnProfile || !profileId || !currentUserId,
+    fetchStatus,
+    onEnable,
+    onDisable,
+  });
 
-  // Toggle subscription — fetches status first if not yet loaded
-  const toggle = useCallback(async () => {
-    if (!profileId || loading || isOwnProfile) return;
-
-    // Cancel the deferred timer to prevent concurrent fetches
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
-    // If we haven't fetched yet, fetch now and use the result directly
-    if (!fetchedRef.current) {
-      try {
-        const { subscribed: isSubscribed } = await subscriptionService.getStatus(profileId);
-        setSubscribed(!!isSubscribed);
-        subscribedRef.current = !!isSubscribed;
-        fetchedRef.current = true;
-      } catch {
-        // Continue with default state
-      }
-    }
-
-    setLoading(true);
-    // Read from ref to get the latest value (not stale closure)
-    const previousState = subscribedRef.current;
-    setSubscribed(!previousState);
-
+  // Wrap toggle to handle errors with toast
+  const safeToggle = useCallback(async () => {
     try {
-      if (!previousState) {
-        await subscriptionService.subscribe(profileId);
-        toast.success(t('subscription.subscribed'));
-      } else {
-        await subscriptionService.unsubscribe(profileId);
-        toast.success(t('subscription.unsubscribed'));
-      }
+      await toggle();
     } catch (error: any) {
-      setSubscribed(previousState);
       const errorMessage = error?.response?.data?.message || error?.message || t('subscription.error');
       toast.error(errorMessage);
-    } finally {
-      setLoading(false);
     }
-  }, [profileId, loading, isOwnProfile, t]);
+  }, [toggle, t]);
 
   return {
-    subscribed,
+    subscribed: active,
     loading,
-    toggle,
+    toggle: safeToggle,
   };
 }

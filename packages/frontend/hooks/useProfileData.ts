@@ -211,6 +211,7 @@ function useLocalProfileData(username?: string): {
 
   // Fetch profile and appearance data when username changes.
   // Parallelizes requests when user is already cached (common — primed from post feeds).
+  // Skips the appearance network call if data was fetched recently.
   useEffect(() => {
     if (!username) return;
 
@@ -225,9 +226,13 @@ function useLocalProfileData(username?: string): {
         const cachedId = useUsersStore.getState().idByUsername[username.toLowerCase()];
 
         if (cachedId) {
+          // Only force-refresh appearance if we don't already have it cached.
+          // loadForUser with forceRefresh=false returns cached data immediately
+          // without a network call, while forceRefresh=true always hits the API.
+          const hasAppearance = Boolean(useAppearanceStore.getState().byUserId[cachedId]);
           await Promise.all([
             ensureByUsername(username, profileLoader),
-            loadForUser(cachedId, true),
+            loadForUser(cachedId, hasAppearance ? false : true),
           ]);
         } else {
           // Cold cache — must fetch profile first to get the ID,
