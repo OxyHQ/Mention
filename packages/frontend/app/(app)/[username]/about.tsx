@@ -158,19 +158,21 @@ export default function AccountInfoScreen() {
           )}
 
           {/* Username Changes */}
-          <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-            <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
-              <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
+          {(profileData?.usernameChangeCount ?? 0) > 0 && (
+            <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
+              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
+                <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
+              </View>
+              <View className="flex-1 gap-0.5">
+                <ThemedText className="text-sm font-semibold text-foreground">
+                  {t('Username changes', { defaultValue: 'Username changes' })}
+                </ThemedText>
+                <ThemedText className="text-[13px] text-muted-foreground">
+                  {profileData?.usernameChangeCount}
+                </ThemedText>
+              </View>
             </View>
-            <View className="flex-1 gap-0.5">
-              <ThemedText className="text-sm font-semibold text-foreground">
-                {t('Username changes', { defaultValue: 'Username changes' })}
-              </ThemedText>
-              <ThemedText className="text-[13px] text-muted-foreground">
-                {profileData?.usernameChangeCount ?? 0}
-              </ThemedText>
-            </View>
-          </View>
+          )}
 
           {/* Connected Via - could be expanded later with app store info */}
           {profileData?.connectedVia && (
