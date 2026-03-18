@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, Image } from 'react-native';
+import { View, Text, ScrollView, Image, Pressable } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useThemeStore } from '@/lib/theme-store';
 import { APP_COLOR_PRESETS } from '@oxyhq/bloom/theme';
