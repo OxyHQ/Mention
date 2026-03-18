@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   SectionList,
   ActivityIndicator,
   SectionListData,
@@ -13,14 +12,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { ThemedView } from '@/components/ThemedView';
-import { Divider } from '@oxyhq/bloom/divider';
 import { trendingService, TrendingTopic, TrendingDay } from '@/services/trendingService';
+import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES } from '@/styles/typography';
+import type { Trend } from '@/interfaces/Trend';
 
 interface TrendSection {
   title: string;
-  data: TrendingTopic[];
+  data: Trend[];
 }
 
 function formatDayLabel(dateStr: string): string {
@@ -40,6 +40,27 @@ function formatDayLabel(dateStr: string): string {
   });
 }
 
+function topicToTrend(topic: TrendingTopic): Trend {
+  const momentum = topic.momentum || 0;
+  let direction: Trend['direction'] = 'flat';
+  if (momentum > 0.3) direction = 'up';
+  else if (momentum < -0.1) direction = 'down';
+
+  return {
+    id: topic.name,
+    type: (topic.type || 'hashtag') as Trend['type'],
+    text: topic.name,
+    hashtag: topic.type === 'hashtag' ? `#${topic.name}` : topic.name,
+    description: topic.description || '',
+    score: topic.score || 0,
+    volume: topic.volume || 0,
+    momentum,
+    rank: topic.rank || 0,
+    created_at: topic.calculatedAt || '',
+    direction,
+  };
+}
+
 export default function TrendingHistoryScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -56,7 +77,7 @@ export default function TrendingHistoryScreen() {
 
       const newSections: TrendSection[] = result.days.map((day: TrendingDay) => ({
         title: `${formatDayLabel(day.date)} · ${day.trends.length} trend${day.trends.length !== 1 ? 's' : ''}`,
-        data: day.trends,
+        data: day.trends.map(topicToTrend),
       }));
 
       if (append) {
@@ -84,74 +105,26 @@ export default function TrendingHistoryScreen() {
     fetchHistory(nextPage, true);
   }, [isLoadingMore, page, totalPages, fetchHistory]);
 
-  const handleTopicPress = useCallback((topic: TrendingTopic) => {
-    if (topic.type === 'hashtag') {
-      const cleanedName = topic.name.replace(/^#/, '');
-      router.push(`/search/%23${encodeURIComponent(cleanedName)}` as any);
+  const handleTrendPress = useCallback((trend: Trend) => {
+    if (trend.type === 'hashtag') {
+      const tag = trend.text.replace(/^#/, '');
+      router.push(`/search/%23${encodeURIComponent(tag)}` as any);
     } else {
-      router.push(`/search/${encodeURIComponent(topic.name)}` as any);
+      router.push(`/search/${encodeURIComponent(trend.text)}` as any);
     }
   }, [router]);
 
-  const getDisplayName = useCallback((topic: TrendingTopic): string => {
-    if (topic.type === 'hashtag') {
-      return topic.name.startsWith('#') ? topic.name : `#${topic.name}`;
-    }
-    return topic.name;
-  }, []);
+  const renderItem = useCallback(({ item, index }: { item: Trend; index: number }) => (
+    <View className="px-4">
+      <TrendItemRow
+        trend={item}
+        onPress={handleTrendPress}
+        showBorder
+      />
+    </View>
+  ), [handleTrendPress]);
 
-  const getTypeIcon = useCallback((type: string): string => {
-    if (type === 'entity') return 'person-outline';
-    if (type === 'topic') return 'chatbubble-outline';
-    return 'pricetag-outline';
-  }, []);
-
-  const renderItem = useCallback(({ item }: { item: TrendingTopic }) => (
-    <TouchableOpacity
-      className="flex-row items-center px-4 py-3"
-      style={{ gap: SPACING.md }}
-      onPress={() => handleTopicPress(item)}
-      activeOpacity={0.7}
-    >
-      <View
-        className="items-center justify-center rounded-full"
-        style={{
-          width: 36,
-          height: 36,
-          backgroundColor: theme.colors.backgroundSecondary,
-        }}
-      >
-        <Ionicons
-          name={getTypeIcon(item.type)}
-          size={18}
-          color={theme.colors.textSecondary}
-        />
-      </View>
-
-      <View className="flex-1">
-        <Text
-          className="text-foreground font-semibold"
-          style={{ fontSize: FONT_SIZES.md }}
-          numberOfLines={1}
-        >
-          {getDisplayName(item)}
-        </Text>
-        {item.description ? (
-          <Text
-            className="text-muted-foreground"
-            style={{ fontSize: FONT_SIZES.sm, marginTop: 2 }}
-            numberOfLines={2}
-          >
-            {item.description}
-          </Text>
-        ) : null}
-      </View>
-
-      <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-    </TouchableOpacity>
-  ), [theme, handleTopicPress, getDisplayName, getTypeIcon]);
-
-  const renderSectionHeader = useCallback(({ section }: { section: SectionListData<TrendingTopic, TrendSection> }) => (
+  const renderSectionHeader = useCallback(({ section }: { section: SectionListData<Trend, TrendSection> }) => (
     <View
       className="px-4 py-2"
       style={{ backgroundColor: theme.colors.backgroundSecondary }}
@@ -173,8 +146,6 @@ export default function TrendingHistoryScreen() {
       </View>
     );
   }, [isLoadingMore, theme]);
-
-  const renderSeparator = useCallback(() => <Divider />, []);
 
   if (isLoading) {
     return (
@@ -201,9 +172,8 @@ export default function TrendingHistoryScreen() {
           sections={sections}
           renderItem={renderItem}
           renderSectionHeader={renderSectionHeader}
-          ItemSeparatorComponent={renderSeparator}
           ListFooterComponent={renderFooter}
-          keyExtractor={(item, index) => `${item.name}-${index}`}
+          keyExtractor={(item, index) => `${item.text}-${index}`}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           stickySectionHeadersEnabled
