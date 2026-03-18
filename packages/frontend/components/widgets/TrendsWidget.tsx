@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, memo } from 'react';
+import React, { useCallback, memo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
@@ -66,15 +66,12 @@ interface TrendsWidgetProps {
 
 export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
   const { t } = useTranslation();
-  const { trends, summary, isLoading, error, fetchTrends } = useTrendsStore();
+  const { trends, summary, isLoading, error, startPolling } = useTrendsStore();
   const router = useRouter();
   const theme = useTheme();
 
-  useEffect(() => {
-    fetchTrends();
-    const id = setInterval(() => fetchTrends({ silent: true }), 60000);
-    return () => clearInterval(id);
-  }, [fetchTrends]);
+  // Start polling on first render — idempotent, no useEffect needed
+  startPolling();
 
   const handleTrendPress = useCallback((trend: Trend) => {
     if (trend.type === 'hashtag') {

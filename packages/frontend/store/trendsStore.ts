@@ -2,12 +2,16 @@ import { create } from 'zustand';
 import { api } from '@/utils/api';
 import { Trend } from '@/interfaces/Trend';
 
+const POLL_INTERVAL_MS = 60000;
+
 interface TrendsStore {
   trends: Trend[];
   summary: string;
   isLoading: boolean;
   error: string | null;
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
+  startPolling: () => void;
+  stopPolling: () => void;
 }
 
 function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
@@ -16,11 +20,14 @@ function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
   return 'flat';
 }
 
+let pollInterval: ReturnType<typeof setInterval> | null = null;
+
 export const useTrendsStore = create<TrendsStore>((set, get) => ({
   trends: [],
   summary: '',
   isLoading: false,
   error: null,
+
   fetchTrends: async (opts?: { silent?: boolean }) => {
     const silent = !!opts?.silent;
     if (!silent) set({ isLoading: true, error: null });
@@ -40,7 +47,6 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
         direction: momentumToDirection(item.momentum || 0),
       })) as Trend[];
 
-      // Only update if data changed
       const prev = get().trends || [];
       let changed = prev.length !== next.length;
       if (!changed) {
@@ -64,6 +70,19 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
     } catch (error: any) {
       const message = error?.message || 'Failed to fetch trends';
       if (!silent) set({ error: message, isLoading: false });
+    }
+  },
+
+  startPolling: () => {
+    if (pollInterval) return;
+    get().fetchTrends();
+    pollInterval = setInterval(() => get().fetchTrends({ silent: true }), POLL_INTERVAL_MS);
+  },
+
+  stopPolling: () => {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
     }
   },
 }));
