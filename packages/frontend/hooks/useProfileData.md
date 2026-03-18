@@ -5,8 +5,9 @@
 `useProfileData` is a **unified hook** that combines multiple data sources into a single, consistent profile data object:
 
 1. **Oxy Profile Data** - Basic user info from `usersStore` (username, bio, avatar, etc.)
-2. **Appearance/Customization Settings** - From `appearanceStore` (displayName, coverImage, minimalistMode, etc.)
-3. **Privacy Settings** - From `usePrivacySettings` (profileVisibility, etc.)
+2. **Appearance/Customization Settings** - From `appearanceStore` (displayName, coverImage, minimalistMode, privacy, etc.)
+
+Profile and appearance fetches are parallelized when the user is already cached in the store (e.g., primed from post feeds). Privacy data comes from the appearance endpoint, eliminating a redundant API call.
 
 ## Key Benefits
 

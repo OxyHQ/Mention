@@ -3,7 +3,6 @@ import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { usePrivacySettings } from './usePrivacySettings';
 import { federationService } from '@/services/federationService';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 
@@ -167,11 +166,11 @@ function useFederatedProfileData(handle: string): {
 /**
  * Unified hook for profile data that combines:
  * - Oxy profile data (from usersStore)
- * - Appearance/customization settings (from appearanceStore)
- * - Privacy settings
+ * - Appearance/customization settings including privacy (from appearanceStore)
  * - Federation data (for federated handles)
  *
- * Uses proper Zustand selectors to avoid unnecessary re-renders
+ * Profile + appearance fetches are parallelized when user data is cached.
+ * Uses proper Zustand selectors to avoid unnecessary re-renders.
  */
 export function useProfileData(username?: string): {
   data: ProfileData | null;
@@ -199,6 +198,7 @@ function useLocalProfileData(username?: string): {
 
   // Use existing hooks for store access
   const ensureByUsername = useUsersStore((state) => state.ensureByUsername);
+  const getCachedByUsername = useUsersStore((state) => state.getCachedByUsername);
   const loadForUser = useAppearanceStore((state) => state.loadForUser);
 
   // Get user from store using existing hook
@@ -210,10 +210,7 @@ function useLocalProfileData(username?: string): {
     return id ? state.byUserId[id] : undefined;
   });
 
-  // Load privacy settings
-  const privacySettings = usePrivacySettings(oxyProfile?.id);
-
-  // Fetch profile data when username changes
+  // Fetch profile + appearance data, parallelized when possible
   useEffect(() => {
     if (!username) return;
 
@@ -221,15 +218,25 @@ function useLocalProfileData(username?: string): {
 
     const fetchProfile = async () => {
       try {
-        // Fetch fresh data - this will update the store
-        const data = await ensureByUsername(
-          username,
-          (u) => oxyServices.getProfileByUsername(u)
-        );
+        const cachedUser = getCachedByUsername(username);
 
-        if (!cancelled && data?.id) {
-          // Load appearance settings for this user
-          await loadForUser(data.id, true);
+        if (cachedUser?.id) {
+          // User is already cached (e.g., primed from post feeds).
+          // Fire profile refresh and appearance load in parallel.
+          await Promise.all([
+            ensureByUsername(username, (u) => oxyServices.getProfileByUsername(u)),
+            loadForUser(cachedUser.id, true),
+          ]);
+        } else {
+          // Cold cache — must fetch profile first to obtain the user ID.
+          const data = await ensureByUsername(
+            username,
+            (u) => oxyServices.getProfileByUsername(u)
+          );
+
+          if (!cancelled && data?.id) {
+            await loadForUser(data.id, true);
+          }
         }
       } catch (err) {
         logger.debug('Profile fetch error', { error: err });
@@ -241,18 +248,13 @@ function useLocalProfileData(username?: string): {
     return () => {
       cancelled = true;
     };
-  }, [username, ensureByUsername, loadForUser, oxyServices]);
+  }, [username, ensureByUsername, getCachedByUsername, loadForUser, oxyServices]);
 
   // Compute unified profile data
   const profileData = useMemo((): ProfileData | null => {
     if (!oxyProfile) return null;
 
     const design = computeDesign(oxyProfile, appearance);
-
-    // Use privacy from appearance data (from profileDesign endpoint) if available,
-    // otherwise fall back to privacySettings hook (requires auth)
-    // This ensures unauthenticated users can see privacy info
-    const privacy = appearance?.privacy || privacySettings || undefined;
 
     return {
       ...oxyProfile,
@@ -261,9 +263,9 @@ function useLocalProfileData(username?: string): {
       postsCount: appearance?.postsCount,
       followsYou: appearance?.followsYou,
       design,
-      privacy,
+      privacy: appearance?.privacy,
     };
-  }, [oxyProfile, appearance, privacySettings]);
+  }, [oxyProfile, appearance]);
 
   // Loading state: true if username provided but no profile data yet
   const loading = Boolean(username && !oxyProfile);
