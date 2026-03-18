@@ -23,6 +23,61 @@ interface TrendSection {
   data: TrendingTopic[];
 }
 
+function formatBatchDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return `Today at ${time}`;
+  if (isYesterday) return `Yesterday at ${time}`;
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  }) + ` at ${time}`;
+}
+
+function getBatchFingerprint(trends: TrendingTopic[]): string {
+  return trends.map(t => t.name).sort().join('|');
+}
+
+function deduplicateBatches(batches: TrendingBatch[]): TrendSection[] {
+  const sections: TrendSection[] = [];
+  let skipCount = 0;
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    const fingerprint = getBatchFingerprint(batch.trends);
+
+    // Check how many subsequent batches have the same content
+    let duplicateCount = 0;
+    for (let j = i + 1; j < batches.length; j++) {
+      if (getBatchFingerprint(batches[j].trends) === fingerprint) {
+        duplicateCount++;
+      } else {
+        break;
+      }
+    }
+
+    const trendCount = batch.trends.length;
+    let title = `${formatBatchDate(batch.calculatedAt)} · ${trendCount} trend${trendCount !== 1 ? 's' : ''}`;
+
+    if (duplicateCount > 0) {
+      title += ` (${duplicateCount + 1} identical batches)`;
+      i += duplicateCount; // skip the duplicates
+    }
+
+    sections.push({ title, data: batch.trends });
+  }
+
+  return sections;
+}
+
 export default function TrendingHistoryScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -32,32 +87,12 @@ export default function TrendingHistoryScreen() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const formatBatchDate = useCallback((dateStr: string): string => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-
-    if (diffHours < 1) return 'Just now';
-    if (diffHours < 24) return `${diffHours}h ago`;
-
-    return date.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }, []);
-
   const fetchHistory = useCallback(async (pageNum: number, append: boolean = false) => {
     try {
       const result = await trendingService.getTrendingHistory(pageNum, 5);
       setTotalPages(result.totalPages);
 
-      const newSections: TrendSection[] = result.batches.map((batch: TrendingBatch) => ({
-        title: formatBatchDate(batch.calculatedAt),
-        data: batch.trends,
-      }));
+      const newSections = deduplicateBatches(result.batches);
 
       if (append) {
         setSections(prev => [...prev, ...newSections]);
@@ -70,7 +105,7 @@ export default function TrendingHistoryScreen() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [formatBatchDate]);
+  }, []);
 
   useEffect(() => {
     fetchHistory(1);
