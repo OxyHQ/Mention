@@ -175,11 +175,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     // Scoped CSS variable override: apply visited user's color preset to entire profile subtree
     const profileColorVars = useMemo(() => {
-        if (isOwnProfile) return undefined;
-        const colorName = design?.colorName;
-        if (!colorName || !APP_COLOR_PRESETS[colorName]) return undefined;
-        return vars(getAppColorCSSVariables(APP_COLOR_PRESETS[colorName], theme.isDark ? 'dark' : 'light'));
-    }, [isOwnProfile, design?.colorName, theme.isDark]);
+        if (isOwnProfile || !design?.color) return undefined;
+        const preset = APP_COLOR_PRESETS[design.color as keyof typeof APP_COLOR_PRESETS];
+        if (!preset) return undefined;
+        return vars(getAppColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
+    }, [isOwnProfile, design?.color, theme.isDark]);
 
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),

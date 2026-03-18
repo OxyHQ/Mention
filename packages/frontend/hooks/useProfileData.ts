@@ -4,7 +4,7 @@ import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { usePrivacySettings } from './usePrivacySettings';
 import { federationService } from '@/services/federationService';
-import { APP_COLOR_PRESETS } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 
 export interface ProfileDesign {
   displayName: string;
@@ -12,8 +12,7 @@ export interface ProfileDesign {
   avatar?: string;
   coverPhotoEnabled: boolean;
   minimalistMode: boolean;
-  primaryColor?: string;
-  colorName?: string;
+  color?: string;
 }
 
 export interface ProfileData {
@@ -61,8 +60,8 @@ function computeDesign(
     avatar: oxyProfile?.avatar,
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
-    primaryColor: (oxyProfile?.color in APP_COLOR_PRESETS ? APP_COLOR_PRESETS[oxyProfile.color as keyof typeof APP_COLOR_PRESETS].hex : undefined) || appearance?.appearance?.primaryColor,
-    colorName: oxyProfile?.color in APP_COLOR_PRESETS ? (oxyProfile.color as string) : undefined,
+    color: (oxyProfile?.color in APP_COLOR_PRESETS ? oxyProfile.color : undefined)
+      || HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor],
   };
 }
 
