@@ -61,7 +61,8 @@ function computeDesign(
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
     color: (oxyProfile?.color in APP_COLOR_PRESETS ? oxyProfile.color : undefined)
-      || HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor],
+      || HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor]
+      || 'teal',
   };
 }
 
