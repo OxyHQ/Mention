@@ -103,7 +103,7 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
     }
 
     return (
-        <View className="flex-col gap-3">
+        <View className="flex-col gap-4">
             {allWidgets.map((widget, index) => (
                 <React.Fragment key={index}>{widget}</React.Fragment>
             ))}

@@ -95,7 +95,7 @@ export function WhoToFollowWidget() {
   if (loading) {
     return (
       <BaseWidget title={t("Who to follow")}>
-        <View className="gap-3">
+        <View className="gap-2.5 py-1">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 10 }}>
               <Skeleton.Circle size={36} />
@@ -142,7 +142,7 @@ export function WhoToFollowWidget() {
           <FollowRowComponent key={user.id} profileData={user} />
         ))}
         <TouchableOpacity
-          className="pt-2 pb-1"
+          className="py-2"
           style={styles.webCursor}
           onPress={handleShowMore}
           activeOpacity={0.7}

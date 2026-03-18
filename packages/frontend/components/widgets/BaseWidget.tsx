@@ -16,12 +16,12 @@ export function BaseWidget({ title, icon, children, noPadding = false }: BaseWid
             style={styles.hairlineBorder}
         >
             {title && (
-                <View className="flex-row justify-between items-center px-3 pt-3 pb-1">
+                <View className="flex-row justify-between items-center px-4 pt-3">
                     <ThemedText className="text-[15px] font-bold">{title}</ThemedText>
                     {icon && <View>{icon}</View>}
                 </View>
             )}
-            <View className={noPadding ? "pb-1" : "px-3 pb-1"}>{children}</View>
+            <View className={noPadding ? "pb-3" : "px-4 pb-3"}>{children}</View>
         </View>
     );
 }

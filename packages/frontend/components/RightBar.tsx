@@ -15,7 +15,7 @@ export function RightBar() {
     if (!isRightBarVisible) return null;
 
     return (
-        <View className="flex-col gap-3 ps-5" style={styles.container}>
+        <View className="flex-col gap-4 ps-5" style={styles.container}>
             <SearchBar />
             <WidgetManager screenId="home" />
             {Platform.OS === 'web' && <RightBarFooter />}

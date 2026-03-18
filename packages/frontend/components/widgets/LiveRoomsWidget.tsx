@@ -145,7 +145,7 @@ export function LiveRoomsWidget() {
       icon={<AgoraIcon size={16} className="text-foreground" />}
     >
       {isLoading ? (
-        <View className="gap-3">
+        <View className="gap-2.5 py-1">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 8 }}>
               <Skeleton.Circle size={6} />
@@ -169,7 +169,7 @@ export function LiveRoomsWidget() {
             />
           ))}
           <TouchableOpacity
-            className="pt-2 pb-1"
+            className="py-2"
             style={styles.webCursor}
             onPress={handleShowMore}
             activeOpacity={0.7}

@@ -76,7 +76,7 @@ export function TrendsWidget() {
   return (
     <BaseWidget title={t('Trending')}>
       {isLoading ? (
-        <View className="pt-1 gap-3">
+        <View className="gap-2.5 py-1">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton.Row key={i} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
               <Skeleton.Col>
@@ -90,7 +90,7 @@ export function TrendsWidget() {
       ) : error ? (
         <Text className="text-destructive">{t('error.fetch_trends')}</Text>
       ) : (
-        <View className="pt-1">
+        <View>
           {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
             const tag = trend.hashtag || trend.text;
             const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
@@ -134,7 +134,7 @@ export function TrendsWidget() {
           })}
 
           <TouchableOpacity
-            className="pt-2 pb-1"
+            className="py-2"
             style={styles.webCursor}
             onPress={handleMorePress}
             activeOpacity={0.7}
