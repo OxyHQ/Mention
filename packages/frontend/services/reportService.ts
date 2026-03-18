@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { authenticatedClient } from "@/utils/api";
 
 export const REPORT_CATEGORIES = [
@@ -22,7 +23,7 @@ class ReportService {
     } catch (error: any) {
       if (error?.response?.status === 409) {
         // Already reported
-        console.warn("Already reported this content");
+        logger.warn("Already reported this content");
       }
       return false;
     }
@@ -38,7 +39,7 @@ class ReportService {
       });
       return true;
     } catch (error) {
-      console.warn("Failed to report user", error);
+      logger.warn("Failed to report user", { error });
       return false;
     }
   }

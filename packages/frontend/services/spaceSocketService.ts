@@ -1,4 +1,5 @@
 import { API_URL_SOCKET } from '@/config';
+import { logger } from '@/lib/logger';
 import { io, Socket } from 'socket.io-client';
 
 // TypeScript interfaces
@@ -71,7 +72,7 @@ export class RoomSocketService {
     });
 
     this.socket.on('connect_error', (err) => {
-      console.warn('Room socket connect error:', err.message);
+      logger.warn('Room socket connect error', { message: err.message });
     });
   }
 

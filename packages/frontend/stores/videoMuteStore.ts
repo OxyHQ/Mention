@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
+import { logger } from '@/lib/logger';
 import { storeData, getData } from '../utils/storage';
 
 const VIDEO_MUTE_STORAGE_KEY = 'pref:global:videoMuted';
@@ -42,7 +43,7 @@ export const useVideoMuteStore = create<VideoMuteStore>((set, get) => ({
       const muted = savedMuted !== null ? savedMuted : getDefaultMutedState();
       set({ isMuted: muted, isLoading: false });
     } catch (error) {
-      console.error('Failed to load muted state:', error);
+      logger.error('Failed to load muted state', { error });
       set({ isMuted: getDefaultMutedState(), isLoading: false });
     }
   },

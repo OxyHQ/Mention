@@ -16,9 +16,12 @@ import {
   PostEngagementSummary,
   FeedPostSlice,
 } from '@mention/shared-types';
+import { createScopedLogger } from '@/lib/logger';
 import { feedService } from '../services/feedService';
 import { useUsersStore } from './usersStore';
 import { markLocalAction } from '../services/echoGuard';
+
+const logger = createScopedLogger('PostsStore');
 
 type FeedItem = HydratedPost & {
   date?: string;
@@ -226,10 +229,10 @@ const deduplicateItems = <T = any>(items: T[], source?: string): T[] => {
   // Log duplicates and invalid items in development
   if (process.env.NODE_ENV === 'development') {
     if (duplicatesRemoved > 0) {
-      console.warn(`[deduplicateItems${source ? `:${source}` : ''}] Removed ${duplicatesRemoved} duplicate(s):`, duplicateIds.slice(0, 5));
+      logger.warn(`[deduplicateItems${source ? `:${source}` : ''}] Removed ${duplicatesRemoved} duplicate(s)`, { duplicateIds: duplicateIds.slice(0, 5) });
     }
     if (invalidRemoved > 0) {
-      console.warn(`[deduplicateItems${source ? `:${source}` : ''}] Filtered ${invalidRemoved} items without valid IDs`);
+      logger.warn(`[deduplicateItems${source ? `:${source}` : ''}] Filtered ${invalidRemoved} items without valid IDs`);
     }
   }
   
@@ -503,9 +506,9 @@ export const usePostsStore = create<FeedState>()(
             const uniqueResponseIds = new Set(responseIds);
             if (responseIds.length !== uniqueResponseIds.size) {
               const duplicates = responseIds.filter((id, idx) => responseIds.indexOf(id) !== idx);
-              console.error(`[fetchFeed:${type}] Backend returned ${duplicates.length} duplicate IDs:`, [...new Set(duplicates)].slice(0, 10));
+              logger.error(`[fetchFeed:${type}] Backend returned ${duplicates.length} duplicate IDs`, { duplicateIds: [...new Set(duplicates)].slice(0, 10) });
             }
-            console.log(`[fetchFeed:${type}] Response: ${items.length} items → ${uniqueItems.length} unique`, {
+            logger.debug(`[fetchFeed:${type}] Response: ${items.length} items → ${uniqueItems.length} unique`, {
               backendSent: items.length,
               afterDedup: uniqueItems.length,
               removed: items.length - uniqueItems.length,
@@ -860,8 +863,7 @@ export const usePostsStore = create<FeedState>()(
         // No cursor but we have items - something is wrong, don't load more
         // Log only in development for debugging
         if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.warn(`[loadMoreFeed:${type}] Skipped - no cursor but has ${currentFeed.items.length} items`);
+          logger.warn(`[loadMoreFeed:${type}] Skipped - no cursor but has ${currentFeed.items.length} items`);
         }
         return;
       }
@@ -1008,8 +1010,7 @@ export const usePostsStore = create<FeedState>()(
             const threshold = isRankedFeed ? 80 : 30; // Higher threshold for ranked feeds
             
             if (duplicateRate > threshold) {
-              // eslint-disable-next-line no-console
-              console.warn(`[loadMoreFeed:${type}] High duplicate rate detected: ${duplicateRate.toFixed(1)}% (${duplicatesAgainstExisting}/${mapped.length})`, {
+              logger.warn(`[loadMoreFeed:${type}] High duplicate rate detected: ${duplicateRate.toFixed(1)}% (${duplicatesAgainstExisting}/${mapped.length})`, {
                 cursor: cursorAtRequestTime ? 'present' : 'none',
                 existingItems: cleanedExistingItems.length,
                 isRankedFeed,
@@ -1019,8 +1020,7 @@ export const usePostsStore = create<FeedState>()(
             
             // Log backend duplicates as error (these are actual bugs)
             if (duplicatesInResponse > 0) {
-              // eslint-disable-next-line no-console
-              console.error(`[loadMoreFeed:${type}] Backend returned ${duplicatesInResponse} duplicate IDs in response`);
+              logger.error(`[loadMoreFeed:${type}] Backend returned ${duplicatesInResponse} duplicate IDs in response`);
             }
           }
           
@@ -1125,7 +1125,7 @@ export const usePostsStore = create<FeedState>()(
               (state.feeds.following?.items || []).some(item => normalizeId(item) === postId);
 
             if (wasDuplicate) {
-              console.log(`[Store] createPost: Post ${postId} already exists in feeds, deduplicated`);
+              logger.debug(`[Store] createPost: Post ${postId} already exists in feeds, deduplicated`);
             }
 
             // Update user's own profile feed if it has been previously loaded
@@ -1220,7 +1220,7 @@ export const usePostsStore = create<FeedState>()(
             ) / 4;
 
             if (duplicateCount > 0) {
-              console.log(`[Store] createThread: ${duplicateCount} posts were duplicates, deduplicated`);
+              logger.debug(`[Store] createThread: ${duplicateCount} posts were duplicates, deduplicated`);
             }
 
             // Update user's own profile feed if it has been previously loaded

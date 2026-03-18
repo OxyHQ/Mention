@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { authenticatedClient } from "@/utils/api";
 
 export interface TrendingTopic {
@@ -18,7 +19,7 @@ class TrendingService {
       });
       return res.data.trending || [];
     } catch (error) {
-      console.warn("Failed fetching trending", error);
+      logger.warn("Failed fetching trending", { error });
       return [];
     }
   }

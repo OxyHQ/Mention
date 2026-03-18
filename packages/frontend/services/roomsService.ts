@@ -1,4 +1,7 @@
+import { createScopedLogger } from "@/lib/logger";
 import { authenticatedClient } from "@/utils/api";
+
+const logger = createScopedLogger('RoomsService');
 
 export interface Room {
   _id: string;
@@ -40,7 +43,7 @@ class RoomsService {
       const res = await authenticatedClient.get("/rooms", { params });
       return res.data.rooms || res.data.data || res.data || [];
     } catch (error) {
-      console.warn("Failed to fetch rooms", error);
+      logger.warn("Failed to fetch rooms", { error });
       return [];
     }
   }
@@ -51,7 +54,7 @@ class RoomsService {
       const res = await authenticatedClient.get(`/rooms/${id}`);
       return res.data.room || res.data.data || res.data || null;
     } catch (error) {
-      console.warn("Failed to fetch room", error);
+      logger.warn("Failed to fetch room", { error });
       return null;
     }
   }
@@ -61,7 +64,7 @@ class RoomsService {
       const res = await authenticatedClient.post("/rooms", data);
       return res.data.room || res.data.data || res.data || null;
     } catch (error) {
-      console.warn("Failed to create room", error);
+      logger.warn("Failed to create room", { error });
       return null;
     }
   }
@@ -72,7 +75,7 @@ class RoomsService {
       await authenticatedClient.post(`/rooms/${id}/start`);
       return true;
     } catch (error) {
-      console.warn("Failed to start room", error);
+      logger.warn("Failed to start room", { error });
       return false;
     }
   }
@@ -83,7 +86,7 @@ class RoomsService {
       await authenticatedClient.post(`/rooms/${id}/end`);
       return true;
     } catch (error) {
-      console.warn("Failed to end room", error);
+      logger.warn("Failed to end room", { error });
       return false;
     }
   }
@@ -94,7 +97,7 @@ class RoomsService {
       await authenticatedClient.post(`/rooms/${id}/join`);
       return true;
     } catch (error) {
-      console.warn("Failed to join room", error);
+      logger.warn("Failed to join room", { error });
       return false;
     }
   }
@@ -105,7 +108,7 @@ class RoomsService {
       await authenticatedClient.post(`/rooms/${id}/leave`);
       return true;
     } catch (error) {
-      console.warn("Failed to leave room", error);
+      logger.warn("Failed to leave room", { error });
       return false;
     }
   }
@@ -116,7 +119,7 @@ class RoomsService {
       const res = await authenticatedClient.post(`/rooms/${id}/stream`, data);
       return res.data;
     } catch (error) {
-      console.warn("Failed to start stream", error);
+      logger.warn("Failed to start stream", { error });
       return null;
     }
   }
@@ -133,7 +136,7 @@ class RoomsService {
       await authenticatedClient.patch(`/rooms/${id}/stream`, data);
       return true;
     } catch (error) {
-      console.warn("Failed to update stream metadata", error);
+      logger.warn("Failed to update stream metadata", { error });
       return false;
     }
   }
@@ -144,7 +147,7 @@ class RoomsService {
       await authenticatedClient.delete(`/rooms/${id}/stream`);
       return true;
     } catch (error) {
-      console.warn("Failed to stop stream", error);
+      logger.warn("Failed to stop stream", { error });
       return false;
     }
   }

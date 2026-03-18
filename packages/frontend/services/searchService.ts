@@ -1,7 +1,10 @@
+import { createScopedLogger } from "@/lib/logger";
 import { authenticatedClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
 import { Storage } from "@/utils/storage";
+
+const logger = createScopedLogger('SearchService');
 
 export interface SearchResults {
   posts?: any[];
@@ -50,7 +53,7 @@ class SearchService {
       });
       return res.data.posts || [];
     } catch (error) {
-      console.warn("Failed searching posts", error);
+      logger.warn("Failed searching posts", { error });
       return [];
     }
   }
@@ -65,7 +68,7 @@ class SearchService {
       }
       return [];
     } catch (error) {
-      console.warn("Failed searching users", error);
+      logger.warn("Failed searching users", { error });
 
       // Fallback: try to get exact username match
       try {
@@ -85,7 +88,7 @@ class SearchService {
       });
       return res.data.items || [];
     } catch (error) {
-      console.warn("Failed searching feeds", error);
+      logger.warn("Failed searching feeds", { error });
       return [];
     }
   }
@@ -98,7 +101,7 @@ class SearchService {
       });
       return res.data.items || [];
     } catch (error) {
-      console.warn("Failed searching lists", error);
+      logger.warn("Failed searching lists", { error });
       return [];
     }
   }
@@ -126,7 +129,7 @@ class SearchService {
       });
       return response.data.posts || [];
     } catch (error) {
-      console.warn("Failed searching saved posts", error);
+      logger.warn("Failed searching saved posts", { error });
       return [];
     }
   }
@@ -145,7 +148,7 @@ class SearchService {
 
       return { posts, users, feeds, lists, hashtags, saved };
     } catch (error) {
-      console.warn("Failed searching all", error);
+      logger.warn("Failed searching all", { error });
       return {};
     }
   }
@@ -164,7 +167,7 @@ class SearchService {
         nextCursor: res.data.nextCursor
       };
     } catch (error) {
-      console.warn("Failed advanced search", error);
+      logger.warn("Failed advanced search", { error });
       return { posts: [], hasMore: false };
     }
   }

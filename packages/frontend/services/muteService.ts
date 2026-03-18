@@ -1,4 +1,7 @@
+import { createScopedLogger } from "@/lib/logger";
 import { authenticatedClient } from "@/utils/api";
+
+const logger = createScopedLogger('MuteService');
 
 class MuteService {
   async muteUser(mutedId: string): Promise<boolean> {
@@ -6,7 +9,7 @@ class MuteService {
       await authenticatedClient.post("/mute", { mutedId });
       return true;
     } catch (error) {
-      console.warn("Failed to mute user", error);
+      logger.warn("Failed to mute user", { error });
       return false;
     }
   }
@@ -16,7 +19,7 @@ class MuteService {
       await authenticatedClient.delete(`/mute/${mutedId}`);
       return true;
     } catch (error) {
-      console.warn("Failed to unmute user", error);
+      logger.warn("Failed to unmute user", { error });
       return false;
     }
   }
@@ -26,7 +29,7 @@ class MuteService {
       const res = await authenticatedClient.get("/mute");
       return res.data.data || res.data.mutedUsers || [];
     } catch (error) {
-      console.warn("Failed to get muted users", error);
+      logger.warn("Failed to get muted users", { error });
       return [];
     }
   }

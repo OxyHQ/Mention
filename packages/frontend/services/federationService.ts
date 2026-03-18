@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { authenticatedClient } from '@/utils/api';
 import type { FederatedActorProfile, FederationFollowResponse, FederationUnfollowResponse } from '@mention/shared-types';
 
@@ -30,7 +31,7 @@ class FederationService {
       );
       return res.data?.actors || [];
     } catch (err) {
-      console.warn('Federation search failed:', err);
+      logger.warn('Federation search failed', { error: err });
       return [];
     }
   }
