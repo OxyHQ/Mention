@@ -1,15 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { ArrowUp } from '@/assets/icons/arrow-up-icon';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 
-export function ScrollToTopButton() {
+function WebScrollToTopButton() {
     const theme = useTheme();
     const { scrollY, scrollToTop } = useLayoutScroll();
     const [visible, setVisible] = useState(false);
-    const anchorRef = useRef<View>(null);
-    const [leftPos, setLeftPos] = useState<number | null>(null);
 
     useEffect(() => {
         const listenerId = scrollY.addListener(({ value }) => {
@@ -20,81 +18,43 @@ export function ScrollToTopButton() {
         };
     }, [scrollY]);
 
-    const measure = useCallback(() => {
-        if (Platform.OS !== 'web') return;
-        requestAnimationFrame(() => {
-            anchorRef.current?.measureInWindow((x) => {
-                if (typeof x === 'number' && x > 0) {
-                    setLeftPos(x - 52);
-                }
-            });
-        });
-    }, []);
+    if (!visible) return null;
 
-    useEffect(() => {
-        measure();
-        if (Platform.OS === 'web') {
-            window.addEventListener('resize', measure);
-            return () => window.removeEventListener('resize', measure);
-        }
-    }, [measure]);
-
-    // Always render the anchor so we can measure position
-    // Only render the button when visible and position is known
+    // Render as a raw DOM element to avoid RN Web transform stacking context issues
     return (
-        <>
-            <View
-                ref={anchorRef}
-                onLayout={measure}
-                style={styles.anchor}
-            />
-            {visible && leftPos !== null && (
-                <Pressable
-                    onPress={scrollToTop}
-                    accessibilityLabel="Scroll to top"
-                    className="active:opacity-80"
-                    style={[
-                        styles.button,
-                        {
-                            left: leftPos,
-                            backgroundColor: theme.colors.card,
-                            borderColor: theme.colors.border,
-                        },
-                        Platform.select({ web: { cursor: 'pointer' as any } }),
-                    ]}
-                >
-                    <ArrowUp size={18} color={theme.colors.textSecondary} />
-                </Pressable>
-            )}
-        </>
+        <View
+            style={[
+                styles.button,
+                {
+                    backgroundColor: theme.colors.card,
+                    borderColor: theme.colors.border,
+                },
+            ]}
+            // @ts-ignore web onClick
+            onClick={scrollToTop}
+        >
+            <ArrowUp size={18} color={theme.colors.textSecondary} />
+        </View>
     );
 }
 
+export function ScrollToTopButton() {
+    if (Platform.OS !== 'web') return null;
+    return <WebScrollToTopButton />;
+}
+
 const styles = StyleSheet.create({
-    anchor: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: 1,
-        height: 1,
-        opacity: 0,
-    },
     button: {
-        ...Platform.select({
-            web: {
-                position: 'fixed' as any,
-            },
-            default: {
-                position: 'absolute',
-            },
-        }),
+        position: 'fixed' as any,
         bottom: 30,
+        left: 18,
         width: 42,
         height: 42,
         borderRadius: 21,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 50,
+        zIndex: 9999,
+        cursor: 'pointer' as any,
     },
 });
