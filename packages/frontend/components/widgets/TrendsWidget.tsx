@@ -60,7 +60,11 @@ function getTrendDisplayName(trend: Trend): string {
   return trend.text;
 }
 
-export function TrendsWidget() {
+interface TrendsWidgetProps {
+  variant?: 'card' | 'inline';
+}
+
+export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
   const { t } = useTranslation();
   const { trends, summary, isLoading, error, fetchTrends } = useTrendsStore();
   const router = useRouter();
@@ -95,87 +99,98 @@ export function TrendsWidget() {
     return null;
   }
 
-  return (
-    <BaseWidget title={t('Trending')}>
-      {isLoading ? (
-        <View className="gap-2.5 py-1">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton.Row key={i} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-              <Skeleton.Col>
-                <Skeleton.Text style={{ fontSize: 12, lineHeight: 14, width: 120 }} />
-                <Skeleton.Text style={{ fontSize: 14, lineHeight: 16, width: 160 }} />
-              </Skeleton.Col>
-              <Skeleton.Pill size={14} />
-            </Skeleton.Row>
-          ))}
-        </View>
-      ) : error ? (
-        <Text className="text-destructive">{t('error.fetch_trends')}</Text>
-      ) : (
-        <View>
-          {summary ? (
-            <Text className="text-muted-foreground text-[13px] mb-2 leading-5" numberOfLines={2}>
-              {summary}
-            </Text>
-          ) : null}
-          {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
-            const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
+  const content = isLoading ? (
+    <View className="gap-2.5 py-1">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Skeleton.Row key={i} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Skeleton.Col>
+            <Skeleton.Text style={{ fontSize: 12, lineHeight: 14, width: 120 }} />
+            <Skeleton.Text style={{ fontSize: 14, lineHeight: 16, width: 160 }} />
+          </Skeleton.Col>
+          <Skeleton.Pill size={14} />
+        </Skeleton.Row>
+      ))}
+    </View>
+  ) : error ? (
+    <Text className="text-destructive">{t('error.fetch_trends')}</Text>
+  ) : (
+    <View>
+      {summary ? (
+        <Text className="text-muted-foreground text-[13px] mb-2 leading-5" numberOfLines={2}>
+          {summary}
+        </Text>
+      ) : null}
+      {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
+        const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
 
-            return (
-              <TouchableOpacity
-                key={trend.id}
-                className={`flex-row items-center justify-between py-2 ${!isLast ? "border-border" : ""}`}
-                style={[
-                  styles.webCursor,
-                  !isLast && styles.itemBorder,
-                ]}
-                onPress={() => handleTrendPress(trend)}
-                activeOpacity={0.7}
-              >
-                <View className="flex-1 flex-row items-center justify-between mr-2">
-                  <View className="flex-1 mr-3">
-                    <Text className="text-muted-foreground text-[12px] mb-0.5">
-                      {getTrendLabel(trend)}
-                    </Text>
-                    <Text className="text-foreground text-[14px] font-bold" numberOfLines={1}>
-                      {getTrendDisplayName(trend)}
-                    </Text>
-                    {trend.description ? (
-                      <Text className="text-muted-foreground text-[12px] mt-0.5" numberOfLines={1}>
-                        {trend.description}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View className="items-end">
-                    <Sparkline direction={trend.direction} color={theme.colors.primary} />
-                  </View>
-                </View>
-                <TouchableOpacity
-                  className="p-1"
-                  style={styles.webCursor}
-                  onPress={() => handleMenuPress(trend)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityLabel="More options"
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            );
-          })}
-
+        return (
           <TouchableOpacity
-            className="py-2"
-            style={styles.webCursor}
-            onPress={handleMorePress}
+            key={trend.id}
+            className={`flex-row items-center justify-between py-2 ${!isLast ? "border-border" : ""}`}
+            style={[
+              styles.webCursor,
+              !isLast && styles.itemBorder,
+            ]}
+            onPress={() => handleTrendPress(trend)}
             activeOpacity={0.7}
           >
-            <Text className="text-primary text-[14px] font-medium">
-              Show more
-            </Text>
+            <View className="flex-1 flex-row items-center justify-between mr-2">
+              <View className="flex-1 mr-3">
+                <Text className="text-muted-foreground text-[12px] mb-0.5">
+                  {getTrendLabel(trend)}
+                </Text>
+                <Text className="text-foreground text-[14px] font-bold" numberOfLines={1}>
+                  {getTrendDisplayName(trend)}
+                </Text>
+                {trend.description ? (
+                  <Text className="text-muted-foreground text-[12px] mt-0.5" numberOfLines={1}>
+                    {trend.description}
+                  </Text>
+                ) : null}
+              </View>
+              <View className="items-end">
+                <Sparkline direction={trend.direction} color={theme.colors.primary} />
+              </View>
+            </View>
+            <TouchableOpacity
+              className="p-1"
+              style={styles.webCursor}
+              onPress={() => handleMenuPress(trend)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="More options"
+              accessibilityRole="button"
+            >
+              <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </View>
-      )}
+        );
+      })}
+
+      <TouchableOpacity
+        className="py-2"
+        style={styles.webCursor}
+        onPress={handleMorePress}
+        activeOpacity={0.7}
+      >
+        <Text className="text-primary text-[14px] font-medium">
+          Show more
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (variant === 'inline') {
+    return (
+      <View className="px-4 pb-2">
+        <Text className="text-[15px] font-bold text-foreground mb-1">{t('Trending')}</Text>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <BaseWidget title={t('Trending')}>
+      {content}
     </BaseWidget>
   );
 }

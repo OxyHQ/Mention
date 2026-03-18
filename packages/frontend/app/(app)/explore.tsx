@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -18,8 +18,10 @@ import { StarterPacksTab } from '@/components/StarterPacksTab';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { TrendsWidget } from '@/components/widgets/TrendsWidget';
+import { TrendingList } from '@/components/trending/TrendingList';
+import { trendingService, TrendingTopic } from '@/services/trendingService';
 
-type ExploreTab = 'all' | 'media' | 'custom' | 'people' | 'starter-packs';
+type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people' | 'starter-packs';
 
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -33,11 +35,38 @@ const ExploreScreen: React.FC = () => {
   const fabOpacity = useSharedValue(1);
   const headerHeight = 48;
   const fabHeight = 80;
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
+  const [trendingRefreshing, setTrendingRefreshing] = useState(false);
+
+  const fetchTrending = useCallback(async () => {
+    const topics = await trendingService.getTrending(20);
+    setTrendingTopics(topics);
+  }, []);
+
+  const handleTrendingRefresh = useCallback(async () => {
+    setTrendingRefreshing(true);
+    await fetchTrending();
+    setTrendingRefreshing(false);
+  }, [fetchTrending]);
+
+  useEffect(() => {
+    if (activeTab === 'trending') {
+      fetchTrending();
+    }
+  }, [activeTab, fetchTrending]);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'media':
         return <Feed type="media" />;
+      case 'trending':
+        return (
+          <TrendingList
+            topics={trendingTopics}
+            onRefresh={handleTrendingRefresh}
+            refreshing={trendingRefreshing}
+          />
+        );
       case 'custom':
         return <Feed type="posts" />;
       case 'people':
@@ -134,8 +163,8 @@ const ExploreScreen: React.FC = () => {
           {/* Spacer for header */}
           <Animated.View style={tabBarSpacerStyle} />
 
-          {/* Trends at the top */}
-          <TrendsWidget />
+          {/* Trends at the top — inline, no card styling */}
+          <TrendsWidget variant="inline" />
 
           {/* Tab Navigation - sticky */}
           <View style={styles.stickyTabBar}>
@@ -143,6 +172,7 @@ const ExploreScreen: React.FC = () => {
               tabs={[
                 { id: 'all', label: t('All') },
                 { id: 'media', label: t('Media') },
+                { id: 'trending', label: t('Trending') },
                 { id: 'custom', label: t('Custom') },
                 { id: 'people', label: t('Who to follow') },
                 { id: 'starter-packs', label: t('Starter Packs') },
