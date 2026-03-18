@@ -512,11 +512,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 </>
                             ) : (
                                 <View
-                                    className="absolute left-0 right-0 overflow-hidden"
-                                    style={{
-                                        height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
-                                        backgroundColor: `${theme.colors.primary}20`,
-                                    }}
+                                    className="absolute left-0 right-0 overflow-hidden bg-primary/[0.125]"
+                                    style={{ height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }}
                                 >
                                     <Animated.View
                                         style={[

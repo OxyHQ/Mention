@@ -2,6 +2,7 @@ import React, { memo, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { cn } from '@/lib/utils';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
@@ -123,11 +124,10 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
         ) : isFederated && actorUri ? (
           <View className="flex-row items-center gap-3">
             <TouchableOpacity
-              className="border rounded-full px-6 py-2"
-              style={{
-                backgroundColor: fedFollowing || fedFollowPending ? theme.colors.background : theme.colors.primary,
-                borderColor: fedFollowing || fedFollowPending ? theme.colors.border : theme.colors.primary,
-              }}
+              className={cn(
+                'border rounded-full px-6 py-2',
+                fedFollowing || fedFollowPending ? 'bg-background border-border' : 'bg-primary border-primary',
+              )}
               onPress={handleFederatedFollow}
               disabled={fedFollowLoading}
               accessibilityRole="button"
@@ -145,14 +145,10 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
         ) : profileId ? (
           <View className="flex-row items-center gap-3">
             <TouchableOpacity
-              className="border items-center justify-center"
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: poked ? theme.colors.primary : theme.colors.background,
-                borderColor: poked ? theme.colors.primary : theme.colors.border,
-              }}
+              className={cn(
+                'w-10 h-10 rounded-full border items-center justify-center',
+                poked ? 'bg-primary border-primary' : 'bg-background border-border',
+              )}
               onPress={togglePoke}
               disabled={pokeLoading}
               accessibilityRole="button"
@@ -257,14 +253,10 @@ export const ProfileActions = memo(function ProfileActions({
     return (
       <View className="flex-row items-center gap-3">
         <TouchableOpacity
-          className="border items-center justify-center"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: poked ? theme.colors.primary : theme.colors.background,
-            borderColor: poked ? theme.colors.primary : theme.colors.border,
-          }}
+          className={cn(
+            'w-10 h-10 rounded-full border items-center justify-center',
+            poked ? 'bg-primary border-primary' : 'bg-background border-border',
+          )}
           onPress={togglePoke}
           disabled={pokeLoading}
           accessibilityRole="button"

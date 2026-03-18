@@ -4,11 +4,7 @@ import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { usePrivacySettings } from './usePrivacySettings';
 import { federationService } from '@/services/federationService';
-import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
-
-function isAppColorName(value: unknown): value is AppColorName {
-  return typeof value === 'string' && (APP_COLOR_NAMES as readonly string[]).includes(value);
-}
+import { APP_COLOR_PRESETS } from '@oxyhq/bloom/theme';
 
 export interface ProfileDesign {
   displayName: string;
@@ -65,8 +61,8 @@ function computeDesign(
     avatar: oxyProfile?.avatar,
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
-    primaryColor: (isAppColorName(oxyProfile?.color) ? APP_COLOR_PRESETS[oxyProfile.color].hex : undefined) || appearance?.appearance?.primaryColor,
-    colorName: isAppColorName(oxyProfile?.color) ? oxyProfile.color : undefined,
+    primaryColor: (oxyProfile?.color in APP_COLOR_PRESETS ? APP_COLOR_PRESETS[oxyProfile.color as keyof typeof APP_COLOR_PRESETS].hex : undefined) || appearance?.appearance?.primaryColor,
+    colorName: oxyProfile?.color in APP_COLOR_PRESETS ? (oxyProfile.color as string) : undefined,
   };
 }
 
