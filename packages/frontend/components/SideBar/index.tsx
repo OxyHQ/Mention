@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import {
     Dimensions,
     Platform,
@@ -8,7 +8,7 @@ import {
     StyleSheet,
 } from "react-native";
 import { usePathname, useRouter } from "expo-router";
-import { useMediaQuery } from "react-responsive";
+import { useIsScreenNotMobile, useIsSideBarExpanded } from "@/hooks/useOptimizedMediaQuery";
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
 import { Button } from "@/components/ui/Button";
@@ -43,11 +43,11 @@ interface SideBarProps {
 export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const { t } = useTranslation();
     const router = useRouter();
-    const { isAuthenticated: _isAuthenticated, user, signIn, logout, oxyServices } = useAuth();
+    const { user, signIn, logout } = useAuth();
     const theme = useTheme();
     const avatarUri = user?.avatar;
 
-    const handleSignOut = async () => {
+    const handleSignOut = useCallback(async () => {
         const confirmed = await confirmDialog({
             title: t('settings.signOut'),
             message: t('settings.signOutMessage'),
@@ -63,12 +63,12 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         } catch (error) {
             logger.error('Logout failed');
         }
-    };
+    }, [t, logout, onNavigate, router]);
 
-    const handleNavPress = (route: string) => {
+    const handleNavPress = useCallback((route: string) => {
         onNavigate?.();
         router.push(route);
-    };
+    }, [onNavigate, router]);
 
     const sideBarData: {
         title: string;
@@ -151,8 +151,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         ];
 
     const pathname = usePathname();
-    const isSideBarVisible = useMediaQuery({ minWidth: 500 });
-    const isExpanded = useMediaQuery({ minWidth: 1300 });
+    const isSideBarVisible = useIsScreenNotMobile();
+    const isExpanded = useIsSideBarExpanded();
     // In drawer mode, always render expanded regardless of media queries
     if (!asDrawer && !isSideBarVisible) return null;
 

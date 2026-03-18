@@ -1,7 +1,7 @@
-import React, { useCallback, useMemo, memo } from "react";
+import React, { useCallback, useEffect, useMemo, memo } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { Slot } from "expo-router";
-import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { useAuth } from '@oxyhq/services';
 
@@ -29,16 +29,19 @@ interface MainLayoutProps {
 
 const DrawerOverlay = memo(function DrawerOverlay() {
   const { isOpen, close } = useDrawer();
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withTiming(isOpen ? 1 : 0, { duration: 200 });
+  }, [isOpen, progress]);
 
   const backdropStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(isOpen ? 1 : 0, { duration: 200 }),
-    pointerEvents: isOpen ? 'auto' as const : 'none' as const,
+    opacity: progress.value,
+    pointerEvents: (progress.value > 0 ? 'auto' : 'none') as 'auto' | 'none',
   }));
 
   const drawerStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: withTiming(isOpen ? 0 : -300, { duration: 250 }) },
-    ],
+    transform: [{ translateX: interpolate(progress.value, [0, 1], [-300, 0]) }],
   }));
 
   return (

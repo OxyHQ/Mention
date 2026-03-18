@@ -13,5 +13,7 @@ export { ComposeIcon, ComposeIIconActive } from './compose-icon';
 // Types
 export type { IconProps } from './types';
 
+export { ArrowUp } from './arrow-up-icon';
 export { CalendarIcon } from './calendar-icon';
-export { FediverseIcon } from './fediverse-icon'; 
+export { FediverseIcon } from './fediverse-icon';
+export { MenuIcon } from './menu-icon';

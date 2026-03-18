@@ -43,3 +43,7 @@ export function useIsRightBarVisible() {
 export function useIsScreenNotMobile() {
   return useOptimizedMediaQuery({ minWidth: 500 });
 }
+
+export function useIsSideBarExpanded() {
+  return useOptimizedMediaQuery({ minWidth: 1300 });
+}

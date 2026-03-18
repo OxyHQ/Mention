@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -36,6 +36,7 @@ interface PinnedFeed {
 }
 
 const PINNED_KEY = 'mention.pinnedFeeds';
+const FAB_ICON_SIZE = 22;
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -47,7 +48,6 @@ const HomeScreen: React.FC = () => {
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const { scrollY, scrollToTop } = useLayoutScroll();
     const [isScrolledDown, setIsScrolledDown] = useState(false);
-    const wasScrolledDownRef = useRef(false);
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
@@ -156,11 +156,7 @@ const HomeScreen: React.FC = () => {
                 isScrollingDown = scrollDelta > 0;
             }
 
-            const scrolledDown = currentScrollY > 200;
-            if (scrolledDown !== wasScrolledDownRef.current) {
-                wasScrolledDownRef.current = scrolledDown;
-                setIsScrolledDown(scrolledDown);
-            }
+            setIsScrolledDown(currentScrollY > 200);
 
             if (currentScrollY > 50) {
                 if (isScrollingDown) {
@@ -314,12 +310,12 @@ const HomeScreen: React.FC = () => {
                         <FAB
                             onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
                             customIcon={
-                                <View style={{ width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}>
-                                    <Animated.View style={fabComposeStyle}>
-                                        <ComposeIcon size={22} className="text-primary-foreground" />
+                                <View style={{ width: FAB_ICON_SIZE, height: FAB_ICON_SIZE, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Animated.View style={fabComposeStyle} pointerEvents="none">
+                                        <ComposeIcon size={FAB_ICON_SIZE} className="text-primary-foreground" />
                                     </Animated.View>
-                                    <Animated.View style={fabArrowStyle}>
-                                        <ArrowUp size={22} className="text-primary-foreground" />
+                                    <Animated.View style={fabArrowStyle} pointerEvents="none">
+                                        <ArrowUp size={FAB_ICON_SIZE} className="text-primary-foreground" />
                                     </Animated.View>
                                 </View>
                             }

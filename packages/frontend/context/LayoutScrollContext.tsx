@@ -202,7 +202,7 @@ export function LayoutScrollProvider({
 
     const value = useMemo<LayoutScrollContextValue>(() => ({
         scrollY,
-        scrollEventThrottle: Platform.OS === 'web' ? Math.max(16, scrollEventThrottle) : Math.max(16, scrollEventThrottle),
+        scrollEventThrottle: Math.max(16, scrollEventThrottle),
         handleScroll,
         createAnimatedScrollHandler,
         setScrollY,
