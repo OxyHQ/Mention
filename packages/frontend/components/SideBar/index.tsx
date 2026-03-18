@@ -206,7 +206,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                             ]}
                         >
                             {showExpanded ? (
-                                <Text className="text-primary-foreground text-[17px] font-extrabold text-center">
+                                <Text style={{ color: theme.colors.card, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
                                     {t("New Post")}
                                 </Text>
                             ) : (
