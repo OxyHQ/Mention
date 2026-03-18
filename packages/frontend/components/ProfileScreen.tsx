@@ -175,12 +175,15 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     }, [currentUser?.id, profileData?.id, isFederated]);
 
     // Scoped CSS variable override: apply visited user's color preset to entire profile subtree
-    const profileColorVars = useMemo(() => {
+    const visitedColorPreset = useMemo(() => {
         if (isOwnProfile || !design?.color) return undefined;
-        const preset = APP_COLOR_PRESETS[design.color as keyof typeof APP_COLOR_PRESETS];
-        if (!preset) return undefined;
-        return vars(getAppColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
-    }, [isOwnProfile, design?.color, theme.isDark]);
+        return APP_COLOR_PRESETS[design.color as keyof typeof APP_COLOR_PRESETS];
+    }, [isOwnProfile, design?.color]);
+
+    const profileColorVars = useMemo(() => {
+        if (!visitedColorPreset) return undefined;
+        return vars(getAppColorCSSVariables(visitedColorPreset, theme.isDark ? 'dark' : 'light'));
+    }, [visitedColorPreset, theme.isDark]);
 
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),
@@ -593,6 +596,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         <FAB
                             onPress={() => router.push('/compose')}
                             customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
+                            style={visitedColorPreset ? { backgroundColor: visitedColorPreset.hex } : undefined}
                         />
                     </>
                 )}
