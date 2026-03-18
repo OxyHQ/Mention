@@ -1,5 +1,6 @@
 import { Post } from '../models/Post';
-import Trending, { TrendingType, ITrending, TrendBatch } from '../models/Trending';
+import Trending, { TrendingType, ITrending } from '../models/Trending';
+import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { aliaJSON } from '../utils/alia';

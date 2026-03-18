@@ -19,7 +19,7 @@ import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { TrendsWidget } from '@/components/widgets/TrendsWidget';
 import { TrendingList } from '@/components/trending/TrendingList';
-import { trendingService, TrendingTopic } from '@/services/trendingService';
+import { useTrendsStore } from '@/store/trendsStore';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people' | 'starter-packs';
 
@@ -35,26 +35,24 @@ const ExploreScreen: React.FC = () => {
   const fabOpacity = useSharedValue(1);
   const headerHeight = 48;
   const fabHeight = 80;
-  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
-  const [trendingRefreshing, setTrendingRefreshing] = useState(false);
 
-  const fetchTrending = useCallback(async () => {
-    const topics = await trendingService.getTrending(20);
-    setTrendingTopics(topics);
-  }, []);
+  // Trending tab reads from the same store as TrendsWidget — single data source
+  const trends = useTrendsStore(state => state.trends);
+  const fetchTrends = useTrendsStore(state => state.fetchTrends);
+  const [trendingRefreshing, setTrendingRefreshing] = useState(false);
 
   const handleTabPress = useCallback((id: string) => {
     setActiveTab(id as ExploreTab);
     if (id === 'trending') {
-      fetchTrending();
+      fetchTrends({ silent: true });
     }
-  }, [fetchTrending]);
+  }, [fetchTrends]);
 
   const handleTrendingRefresh = useCallback(async () => {
     setTrendingRefreshing(true);
-    await fetchTrending();
+    await fetchTrends();
     setTrendingRefreshing(false);
-  }, [fetchTrending]);
+  }, [fetchTrends]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -63,7 +61,7 @@ const ExploreScreen: React.FC = () => {
       case 'trending':
         return (
           <TrendingList
-            topics={trendingTopics}
+            topics={trends}
             onRefresh={handleTrendingRefresh}
             refreshing={trendingRefreshing}
           />

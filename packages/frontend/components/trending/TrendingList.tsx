@@ -9,14 +9,14 @@ import {
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from '@oxyhq/bloom/theme';
-import { TrendingTopic } from "@/services/trendingService";
+import type { Trend } from "@/interfaces/Trend";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
 import { Divider } from "@oxyhq/bloom/divider";
 import { formatCompactNumber } from "@/utils/formatNumber";
 
 interface TrendingListProps {
-  topics: TrendingTopic[];
+  topics: Trend[];
   onRefresh?: () => void;
   refreshing?: boolean;
 }
@@ -24,48 +24,44 @@ interface TrendingListProps {
 export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProps) {
   const theme = useTheme();
 
-  const handleTopicPress = useCallback((topic: TrendingTopic) => {
+  const handleTopicPress = useCallback((topic: Trend) => {
     if (topic.type === 'hashtag') {
-      const cleanedName = topic.name.replace(/^#/, '');
+      const cleanedName = topic.text.replace(/^#/, '');
       router.push(`/search/%23${encodeURIComponent(cleanedName)}`);
     } else {
-      router.push(`/search/${encodeURIComponent(topic.name)}`);
+      router.push(`/search/${encodeURIComponent(topic.text)}`);
     }
   }, []);
 
-  const formatVolume = useCallback((volume: number): string => {
-    return `${formatCompactNumber(volume)} posts`;
-  }, []);
-
-  const getMomentumIcon = useCallback((momentum: number): string => {
-    if (momentum > 0.1) return "trending-up";
-    if (momentum < -0.1) return "trending-down";
+  const getMomentumIcon = useCallback((direction: Trend['direction']): string => {
+    if (direction === 'up') return "trending-up";
+    if (direction === 'down') return "trending-down";
     return "remove";
   }, []);
 
-  const getMomentumColor = useCallback((momentum: number): string => {
-    if (momentum > 0.1) return "#10b981";
-    if (momentum < -0.1) return "#ef4444";
+  const getMomentumColor = useCallback((direction: Trend['direction']): string => {
+    if (direction === 'up') return "#10b981";
+    if (direction === 'down') return "#ef4444";
     return theme.colors.textSecondary;
   }, [theme.colors.textSecondary]);
 
-  const getTypeLabel = useCallback((topic: TrendingTopic): string => {
+  const getTypeLabel = useCallback((topic: Trend): string => {
     if (topic.type === 'entity') return 'Trending';
     if (topic.type === 'topic') return 'Trending topic';
     return 'Trending';
   }, []);
 
-  const getDisplayName = useCallback((topic: TrendingTopic): string => {
+  const getDisplayName = useCallback((topic: Trend): string => {
     if (topic.type === 'hashtag') {
-      return topic.name.startsWith('#') ? topic.name : `#${topic.name}`;
+      return topic.text.startsWith('#') ? topic.text : `#${topic.text}`;
     }
-    return topic.name;
+    return topic.text;
   }, []);
 
-  const renderTrendingItem: ListRenderItem<TrendingTopic> = useCallback(({ item }) => {
+  const renderTrendingItem: ListRenderItem<Trend> = useCallback(({ item }) => {
     const displayName = getDisplayName(item);
-    const momentumIcon = getMomentumIcon(item.momentum);
-    const momentumColor = getMomentumColor(item.momentum);
+    const momentumIcon = getMomentumIcon(item.direction);
+    const momentumColor = getMomentumColor(item.direction);
     const typeLabel = getTypeLabel(item);
 
     return (
@@ -110,7 +106,7 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
 
             <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.xs }}>
               {item.type === 'hashtag' && item.volume > 0
-                ? formatVolume(item.volume)
+                ? `${formatCompactNumber(item.volume)} posts`
                 : typeLabel}
             </Text>
           </View>
@@ -124,10 +120,10 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
         <Divider />
       </View>
     );
-  }, [theme, handleTopicPress, formatVolume, getMomentumIcon, getMomentumColor, getDisplayName, getTypeLabel]);
+  }, [theme, handleTopicPress, getMomentumIcon, getMomentumColor, getDisplayName, getTypeLabel]);
 
-  const keyExtractor = useCallback((item: TrendingTopic) => {
-    return `${item.rank}-${item.name}`;
+  const keyExtractor = useCallback((item: Trend) => {
+    return `${item.rank}-${item.text}`;
   }, []);
 
   if (topics.length === 0) {
