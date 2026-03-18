@@ -279,24 +279,16 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     let startXPos = 0;
     let startScrollLeft = 0;
 
-    const setCursor = (value: string) => {
-      element.style.cursor = value;
-    };
-
-    setCursor('grab');
-
     const handleMouseDown = (event: any) => {
       isDragging = true;
       startXPos = event.pageX;
       startScrollLeft = element.scrollLeft;
-      setCursor('grabbing');
       element.style.userSelect = 'none';
     };
 
     const stopDragging = () => {
       if (!isDragging) return;
       isDragging = false;
-      setCursor('grab');
       element.style.removeProperty('user-select');
     };
 
@@ -318,7 +310,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       element.removeEventListener('mouseleave', stopDragging);
       window.removeEventListener('mouseup', stopDragging);
       window.removeEventListener('mousemove', handleMouseMove);
-      element.style.cursor = '';
       element.style.removeProperty('user-select');
     };
   }, [items.length]);
