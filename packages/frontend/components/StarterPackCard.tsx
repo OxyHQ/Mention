@@ -7,7 +7,7 @@ import { useAuth } from '@oxyhq/services';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { ResponsiveAvatarStack } from './AvatarStack';
-import { SkeletonText, SkeletonRow, SkeletonCol } from './Skeleton';
+import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
 export interface StarterPackCardData {
@@ -178,13 +178,13 @@ export function StarterPackCardSkeleton() {
           />
         ))}
       </View>
-      <SkeletonRow style={{ gap: 12 }}>
-        <SkeletonCol style={{ gap: 6 }}>
-          <SkeletonText style={{ width: 160, fontSize: 16 }} />
-          <SkeletonText style={{ width: 120, fontSize: 14 }} />
-        </SkeletonCol>
-      </SkeletonRow>
-      <SkeletonText style={{ width: '70%' as unknown as number, fontSize: 14 }} />
+      <Skeleton.Row style={{ gap: 12 }}>
+        <Skeleton.Col style={{ gap: 6 }}>
+          <Skeleton.Text style={{ width: 160, fontSize: 16 }} />
+          <Skeleton.Text style={{ width: 120, fontSize: 14 }} />
+        </Skeleton.Col>
+      </Skeleton.Row>
+      <Skeleton.Text style={{ width: '70%' as unknown as number, fontSize: 14 }} />
     </View>
   );
 }

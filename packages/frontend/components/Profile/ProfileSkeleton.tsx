@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { SkeletonCircle, SkeletonText, SkeletonPill } from '@/components/Skeleton';
+import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { LAYOUT } from './types';
 
 /**
@@ -13,23 +13,23 @@ export const ProfileSkeleton = memo(function ProfileSkeleton() {
       <View className="bg-muted" style={styles.banner} />
       <View style={styles.content}>
         <View style={styles.avatarRow}>
-          <SkeletonCircle size={90} className="border-background" style={styles.avatarSkeleton} />
+          <Skeleton.Circle size={90} className="border-background" style={styles.avatarSkeleton} />
           <View style={styles.spacer} />
-          <SkeletonPill size={36} style={styles.buttonSkeleton} />
-          <SkeletonCircle size={36} />
+          <Skeleton.Pill size={36} style={styles.buttonSkeleton} />
+          <Skeleton.Circle size={36} />
         </View>
-        <SkeletonText style={styles.nameSkeleton} />
-        <SkeletonText style={styles.handleSkeleton} />
-        <SkeletonText style={styles.bioLine1} />
-        <SkeletonText style={styles.bioLine2} />
+        <Skeleton.Text style={styles.nameSkeleton} />
+        <Skeleton.Text style={styles.handleSkeleton} />
+        <Skeleton.Text style={styles.bioLine1} />
+        <Skeleton.Text style={styles.bioLine2} />
         <View style={styles.metaRow}>
-          <SkeletonPill size={24} style={styles.metaItem1} />
-          <SkeletonPill size={24} style={styles.metaItem2} />
-          <SkeletonPill size={24} style={styles.metaItem3} />
+          <Skeleton.Pill size={24} style={styles.metaItem1} />
+          <Skeleton.Pill size={24} style={styles.metaItem2} />
+          <Skeleton.Pill size={24} style={styles.metaItem3} />
         </View>
         <View className="border-border" style={styles.tabs}>
           {[0, 1, 2, 3, 4].map((i) => (
-            <SkeletonPill key={i} size={32} style={styles.tabItem} />
+            <Skeleton.Pill key={i} size={32} style={styles.tabItem} />
           ))}
         </View>
       </View>

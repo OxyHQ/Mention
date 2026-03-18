@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { AvatarStack, type AvatarStackProfile } from './AvatarStack';
-import { SkeletonText, SkeletonCircle, SkeletonRow, SkeletonCol } from './Skeleton';
+import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
 export interface FeedCardData {
@@ -173,14 +173,14 @@ export function FeedCard({
 export function FeedCardSkeleton() {
     return (
         <View style={styles.outer} className="bg-surface">
-            <SkeletonRow style={styles.row}>
-                <SkeletonCircle size={36} />
-                <SkeletonCol style={[styles.textContent, { gap: 6 }]}>
-                    <SkeletonText style={{ width: 140, fontSize: 14 }} />
-                    <SkeletonText style={{ width: 100, fontSize: 13 }} />
-                </SkeletonCol>
-            </SkeletonRow>
-            <SkeletonText style={{ width: '80%' as unknown as number, fontSize: 14 }} />
+            <Skeleton.Row style={styles.row}>
+                <Skeleton.Circle size={36} />
+                <Skeleton.Col style={[styles.textContent, { gap: 6 }]}>
+                    <Skeleton.Text style={{ width: 140, fontSize: 14 }} />
+                    <Skeleton.Text style={{ width: 100, fontSize: 13 }} />
+                </Skeleton.Col>
+            </Skeleton.Row>
+            <Skeleton.Text style={{ width: '80%' as unknown as number, fontSize: 14 }} />
         </View>
     );
 }

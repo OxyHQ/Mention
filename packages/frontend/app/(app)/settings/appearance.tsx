@@ -12,7 +12,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
-import { SegmentedControl } from '@/components/settings/SegmentedControl';
+import * as SegmentedControl from '@oxyhq/bloom/segmented-control';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { SettingsDivider } from '@/components/settings/SettingsItem';
 import { Icon } from '@/lib/icons';
@@ -126,15 +126,21 @@ export default function AppearanceSettingsScreen() {
               {t('settings.theme', 'Color mode')}
             </Text>
           </View>
-          <SegmentedControl<ThemeMode>
-            items={[
-              { label: t('settings.theme.system', 'System'), value: 'system' },
-              { label: t('settings.theme.light', 'Light'), value: 'light' },
-              { label: t('settings.theme.dark', 'Dark'), value: 'dark' },
-            ]}
+          <SegmentedControl.Root
+            label={t('settings.theme', 'Color mode')}
+            type="radio"
             value={themeMode}
-            onChange={onThemeModeChange}
-          />
+            onChange={onThemeModeChange}>
+            <SegmentedControl.Item value="system" label={t('settings.theme.system', 'System')}>
+              <SegmentedControl.ItemText>{t('settings.theme.system', 'System')}</SegmentedControl.ItemText>
+            </SegmentedControl.Item>
+            <SegmentedControl.Item value="light" label={t('settings.theme.light', 'Light')}>
+              <SegmentedControl.ItemText>{t('settings.theme.light', 'Light')}</SegmentedControl.ItemText>
+            </SegmentedControl.Item>
+            <SegmentedControl.Item value="dark" label={t('settings.theme.dark', 'Dark')}>
+              <SegmentedControl.ItemText>{t('settings.theme.dark', 'Dark')}</SegmentedControl.ItemText>
+            </SegmentedControl.Item>
+          </SegmentedControl.Root>
         </View>
 
         <SettingsDivider />
