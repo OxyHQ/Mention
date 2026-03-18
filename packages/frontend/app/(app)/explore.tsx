@@ -31,6 +31,8 @@ const ExploreScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
   const headerTranslateY = useSharedValue(0);
   const headerOpacity = useSharedValue(1);
+  const trendsHeight = useSharedValue(1);
+  const trendsOpacity = useSharedValue(1);
   const fabTranslateY = useSharedValue(0);
   const fabOpacity = useSharedValue(1);
   const headerHeight = 48;
@@ -94,17 +96,23 @@ const ExploreScreen: React.FC = () => {
         if (isScrollingDown) {
           headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
           headerOpacity.value = withTiming(0, { duration: 200 });
+          trendsHeight.value = withTiming(0, { duration: 200 });
+          trendsOpacity.value = withTiming(0, { duration: 200 });
           fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
           fabOpacity.value = withTiming(0, { duration: 200 });
         } else {
           headerTranslateY.value = withTiming(0, { duration: 200 });
           headerOpacity.value = withTiming(1, { duration: 200 });
+          trendsHeight.value = withTiming(1, { duration: 200 });
+          trendsOpacity.value = withTiming(1, { duration: 200 });
           fabTranslateY.value = withTiming(0, { duration: 200 });
           fabOpacity.value = withTiming(1, { duration: 200 });
         }
       } else {
         headerTranslateY.value = withTiming(0, { duration: 200 });
         headerOpacity.value = withTiming(1, { duration: 200 });
+        trendsHeight.value = withTiming(1, { duration: 200 });
+        trendsOpacity.value = withTiming(1, { duration: 200 });
         fabTranslateY.value = withTiming(0, { duration: 200 });
         fabOpacity.value = withTiming(1, { duration: 200 });
       }
@@ -115,7 +123,7 @@ const ExploreScreen: React.FC = () => {
     return () => {
       scrollY.removeListener(listenerId);
     };
-  }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, fabOpacity, headerHeight, fabHeight, insets.top]);
+  }, [scrollY, headerTranslateY, headerOpacity, trendsHeight, trendsOpacity, fabTranslateY, fabOpacity, headerHeight, fabHeight, insets.top]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -128,6 +136,14 @@ const ExploreScreen: React.FC = () => {
     const spacerHeight = Math.max(0, headerHeight + headerTranslateY.value);
     return {
       height: spacerHeight,
+    };
+  });
+
+  const trendsAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: trendsOpacity.value,
+      maxHeight: trendsHeight.value === 0 ? 0 : 500,
+      overflow: 'hidden' as const,
     };
   });
 
@@ -163,8 +179,10 @@ const ExploreScreen: React.FC = () => {
           {/* Spacer for header */}
           <Animated.View style={tabBarSpacerStyle} />
 
-          {/* Trends at the top — inline, no card styling */}
-          <TrendsWidget variant="inline" />
+          {/* Trends at the top — collapses with header on scroll */}
+          <Animated.View style={trendsAnimatedStyle}>
+            <TrendsWidget variant="inline" />
+          </Animated.View>
 
           {/* Tab Navigation - sticky */}
           <View style={styles.stickyTabBar}>
