@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useThemeStore } from '@/lib/theme-store';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SettingsDivider } from '@/components/settings/SettingsItem';
+import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { Icon } from '@/lib/icons';
-import { cn } from '@/lib/utils';
+import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { useTranslation } from 'react-i18next';
 
 type ProfileStyle = 'default' | 'minimalist';
@@ -32,14 +32,15 @@ export default function ProfileCustomizationScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const { oxyServices } = useAuth();
   const appColor = useThemeStore((s) => s.appColor);
-  const setAppColor = useThemeStore((s) => s.setAppColor);
   const { colors } = useTheme();
+  const { saveColor, saving: colorSaving } = useAppColorSave();
 
   const [coverPhotoEnabled, setCoverPhotoEnabled] = useState<boolean>(true);
   const [minimalistMode, setMinimalistMode] = useState<boolean>(false);
-  const [saving, setSaving] = useState(false);
+  const [styleSaving, setStyleSaving] = useState(false);
+
+  const saving = styleSaving || colorSaving;
 
   const styleOptions: StyleOption[] = useMemo(() => [
     {
@@ -79,47 +80,25 @@ export default function ProfileCustomizationScreen() {
   }, [mySettings]);
 
   const handleStyleSelect = useCallback(async (style: StyleOption) => {
-    setSaving(true);
+    setStyleSaving(true);
     try {
       setCoverPhotoEnabled(style.coverPhotoEnabled);
       setMinimalistMode(style.minimalistMode);
 
-      const result = await updateMySettings({
+      await updateMySettings({
         profileCustomization: {
           coverPhotoEnabled: style.coverPhotoEnabled,
           minimalistMode: style.minimalistMode,
         },
       } as Record<string, unknown>);
-
-      if (result) {
-        await loadMySettings();
-      }
     } catch (error) {
       console.error('Error updating profile customization:', error);
       setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
       setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
     } finally {
-      setSaving(false);
+      setStyleSaving(false);
     }
-  }, [updateMySettings, loadMySettings, mySettings]);
-
-  const handleColorSelect = useCallback(async (name: AppColorName) => {
-    setSaving(true);
-    setAppColor(name);
-    const hex = APP_COLOR_PRESETS[name].hex;
-    try {
-      await Promise.all([
-        oxyServices.updateProfile({ color: name }),
-        updateMySettings({
-          appearance: { primaryColor: hex },
-        } as Record<string, unknown>),
-      ]);
-    } catch (error) {
-      console.error('Error updating profile color:', error);
-    } finally {
-      setSaving(false);
-    }
-  }, [oxyServices, updateMySettings, setAppColor]);
+  }, [updateMySettings, mySettings]);
 
   return (
     <ThemedView className="flex-1">
@@ -257,36 +236,7 @@ export default function ProfileCustomizationScreen() {
             </Text>
           </View>
 
-          <View className="flex-row gap-3 flex-wrap">
-            {APP_COLOR_NAMES.map((name) => {
-              const preset = APP_COLOR_PRESETS[name];
-              const isSelected = appColor === name;
-              return (
-                <Pressable
-                  key={name}
-                  onPress={() => handleColorSelect(name)}
-                  className="items-center gap-1"
-                >
-                  <View
-                    className={cn(
-                      'w-9 h-9 rounded-full border-2 overflow-hidden',
-                      isSelected ? 'border-foreground scale-110' : 'border-transparent',
-                    )}
-                  >
-                    <View style={{ backgroundColor: preset.hex, flex: 1 }} />
-                  </View>
-                  <Text
-                    className={cn(
-                      'text-[10px] capitalize',
-                      isSelected ? 'text-foreground font-medium' : 'text-muted-foreground',
-                    )}
-                  >
-                    {name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ColorSwatchPicker value={appColor} onChange={saveColor} />
 
           <Text className="text-[13px] leading-[18px] text-muted-foreground">
             {t('settings.profileCustomization.profileColorHint', { defaultValue: 'This color is used across the app and on your profile. Visitors will see this color when viewing your profile.' })}

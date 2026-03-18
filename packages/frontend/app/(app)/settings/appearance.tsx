@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, Image } from 'react-native';
+import { View, Text, ScrollView, Image } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useThemeStore } from '@/lib/theme-store';
-import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -12,10 +12,11 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
-import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/settings/SegmentedControl';
+import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { SettingsDivider } from '@/components/settings/SettingsItem';
 import { Icon } from '@/lib/icons';
+import { useAppColorSave } from '@/hooks/useAppColorSave';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -24,16 +25,17 @@ export default function AppearanceSettingsScreen() {
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const appColor = useThemeStore((s) => s.appColor);
-  const setAppColor = useThemeStore((s) => s.setAppColor);
   const setMode = useThemeStore((s) => s.setMode);
   const { showBottomSheet, oxyServices } = useAuth();
+  const { saveColor, saving: colorSaving } = useAppColorSave();
   const safeBack = useSafeBack();
   const { colors } = useTheme();
   const { t } = useTranslation();
 
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
   const [headerImageId, setHeaderImageId] = useState<string>('');
-  const [saving, setSaving] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const saving = settingsSaving || colorSaving;
 
   useEffect(() => {
     loadMySettings();
@@ -50,7 +52,7 @@ export default function AppearanceSettingsScreen() {
   const preset = APP_COLOR_PRESETS[appColor];
 
   const saveSettings = useCallback(async (updates: { themeMode?: ThemeMode; primaryColor?: string; headerImageId?: string }) => {
-    setSaving(true);
+    setSettingsSaving(true);
     const mode = updates.themeMode ?? themeMode;
     const color = updates.primaryColor ?? preset.hex;
     const header = updates.headerImageId ?? headerImageId;
@@ -58,7 +60,7 @@ export default function AppearanceSettingsScreen() {
       appearance: { themeMode: mode, primaryColor: color || undefined },
       profileHeaderImage: header || undefined,
     } as Record<string, unknown>);
-    setSaving(false);
+    setSettingsSaving(false);
   }, [themeMode, preset.hex, headerImageId, updateMySettings]);
 
   const onThemeModeChange = useCallback(async (mode: ThemeMode) => {
@@ -67,14 +69,7 @@ export default function AppearanceSettingsScreen() {
     await saveSettings({ themeMode: mode });
   }, [saveSettings, setMode]);
 
-  const onColorChange = useCallback(async (name: AppColorName) => {
-    setAppColor(name);
-    const hex = APP_COLOR_PRESETS[name].hex;
-    await Promise.all([
-      oxyServices.updateProfile({ color: name }),
-      saveSettings({ primaryColor: hex }),
-    ]);
-  }, [oxyServices, saveSettings, setAppColor]);
+  const onColorChange = saveColor;
 
   const openHeaderPicker = () => {
     showBottomSheet?.({
@@ -153,36 +148,7 @@ export default function AppearanceSettingsScreen() {
             </Text>
           </View>
 
-          <View className="flex-row gap-3 flex-wrap">
-            {APP_COLOR_NAMES.map((name) => {
-              const p = APP_COLOR_PRESETS[name];
-              const isSelected = appColor === name;
-              return (
-                <Pressable
-                  key={name}
-                  onPress={() => onColorChange(name)}
-                  className="items-center gap-1"
-                >
-                  <View
-                    className={cn(
-                      'w-9 h-9 rounded-full border-2 overflow-hidden',
-                      isSelected ? 'border-foreground scale-110' : 'border-transparent',
-                    )}
-                  >
-                    <View style={{ backgroundColor: p.hex, flex: 1 }} />
-                  </View>
-                  <Text
-                    className={cn(
-                      'text-[10px] capitalize',
-                      isSelected ? 'text-foreground font-medium' : 'text-muted-foreground',
-                    )}
-                  >
-                    {name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ColorSwatchPicker value={appColor} onChange={onColorChange} />
         </View>
 
         <SettingsDivider />

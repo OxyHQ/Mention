@@ -60,7 +60,7 @@ export interface ProfileHeaderBaseProps {
   username?: string;
   avatarUri?: string;
   verified?: boolean;
-  accentColor?: string;
+  accentColor: string;
   theme: Theme;
   UserNameComponent: UserNameComponent;
 }
@@ -154,7 +154,7 @@ export interface ProfileContentProps {
   followingCount: number;
   followerCount: number;
   username: string;
-  accentColor?: string;
+  accentColor: string;
   FollowButtonComponent: FollowButtonComponent;
   showBottomSheet?: (sheet: string) => void;
   onPostsPress: () => void;

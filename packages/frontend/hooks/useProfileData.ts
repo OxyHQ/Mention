@@ -4,7 +4,11 @@ import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { usePrivacySettings } from './usePrivacySettings';
 import { federationService } from '@/services/federationService';
-import { APP_COLOR_PRESETS, type AppColorName } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
+
+function isAppColorName(value: unknown): value is AppColorName {
+  return typeof value === 'string' && (APP_COLOR_NAMES as readonly string[]).includes(value);
+}
 
 export interface ProfileDesign {
   displayName: string;
@@ -60,7 +64,7 @@ function computeDesign(
     avatar: oxyProfile?.avatar,
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
-    primaryColor: (oxyProfile?.color && APP_COLOR_PRESETS[oxyProfile.color as AppColorName]?.hex) || appearance?.appearance?.primaryColor,
+    primaryColor: (isAppColorName(oxyProfile?.color) ? APP_COLOR_PRESETS[oxyProfile.color].hex : undefined) || appearance?.appearance?.primaryColor,
   };
 }
 

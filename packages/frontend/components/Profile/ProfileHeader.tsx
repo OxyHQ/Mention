@@ -39,7 +39,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   accentColor,
 }: ProfileHeaderDefaultProps) {
   const { t } = useTranslation();
-  const accent = accentColor || theme.colors.primary;
+  const accent = accentColor;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
 
   // Federated follow state — initialized from profileData
@@ -185,8 +185,8 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   theme,
   UserNameComponent,
   accentColor,
-}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean; accentColor?: string }) {
-  const accent = accentColor || theme.colors.primary;
+}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean }) {
+  const accent = accentColor;
   return (
     <View className="flex-row justify-between items-start mb-4 relative w-full">
       <View className="flex-1 mr-4">
@@ -250,13 +250,13 @@ export const ProfileActions = memo(function ProfileActions({
   currentUsername?: string;
   profileUsername?: string;
   profileId?: string;
-  accentColor?: string;
+  accentColor: string;
   FollowButtonComponent: React.ComponentType<{ userId: string }>;
   showBottomSheet?: (sheet: string) => void;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const accent = accentColor || theme.colors.primary;
+  const accent = accentColor;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
