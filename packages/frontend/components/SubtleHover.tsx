@@ -1,32 +1,20 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
-
-interface SubtleHoverProps {
-  style?: ViewStyle;
-  hover: boolean;
-  web?: boolean;
-  native?: boolean;
-}
+import { View, StyleSheet, Platform } from 'react-native';
 
 /**
  * SubtleHover Component
- * 
- * A subtle hover overlay effect for interactive elements.
- * Only renders on web (unless native is true) and when hover is true.
- * Reused from social-app and adapted for Mention's theme system.
+ *
+ * A subtle hover overlay for interactive elements.
+ * Uses CSS group-hover via NativeWind — the parent must have className="group".
+ * Only renders on web (unless native prop is true). No React state needed.
  */
 export function SubtleHover({
-  style,
-  hover,
   web = true,
   native = false,
-}: SubtleHoverProps) {
-  const theme = useTheme();
-
-  // Determine opacity based on theme mode
-  const opacity = theme.isDark ? 0.4 : 0.5;
-
+}: {
+  web?: boolean;
+  native?: boolean;
+}) {
   const isWeb = Platform.OS === 'web';
   const isNative = Platform.OS !== 'web';
 
@@ -35,16 +23,8 @@ export function SubtleHover({
 
   return (
     <View
-      className="bg-input"
-      style={[
-        styles.overlay,
-        {
-          opacity: hover ? opacity : 0,
-          transitionProperty: 'opacity',
-          transitionDuration: '150ms',
-        } as ViewStyle,
-        style,
-      ]}
+      className="bg-input opacity-0 group-hover:opacity-40 dark:group-hover:opacity-30 transition-opacity duration-150"
+      style={styles.overlay}
     />
   );
 }
@@ -57,6 +37,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     pointerEvents: 'none',
+    zIndex: 0,
   },
 });
-

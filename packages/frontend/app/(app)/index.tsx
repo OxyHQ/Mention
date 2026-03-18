@@ -47,6 +47,7 @@ const HomeScreen: React.FC = () => {
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const { scrollY, scrollToTop } = useLayoutScroll();
     const [isScrolledDown, setIsScrolledDown] = useState(false);
+    const wasScrolledDownRef = useRef(false);
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
@@ -54,20 +55,21 @@ const HomeScreen: React.FC = () => {
     const headerTranslateY = useSharedValue(0);
     const headerOpacity = useSharedValue(1);
     const headerHeight = 48;
-    const fabIconRotation = useSharedValue(0);
+    const fabTransition = useSharedValue(0);
 
     useEffect(() => {
-        fabIconRotation.value = withSpring(isScrolledDown ? 1 : 0, {
-            damping: 15,
-            stiffness: 150,
-        });
-    }, [isScrolledDown, fabIconRotation]);
+        fabTransition.value = withTiming(isScrolledDown ? 1 : 0, { duration: 200 });
+    }, [isScrolledDown, fabTransition]);
 
-    const fabIconAnimatedStyle = useAnimatedStyle(() => ({
-        transform: [
-            { rotate: `${fabIconRotation.value * 180}deg` },
-            { scale: 1 - Math.abs(fabIconRotation.value - 0.5) * 0.4 },
-        ],
+    const fabComposeStyle = useAnimatedStyle(() => ({
+        opacity: 1 - fabTransition.value,
+        transform: [{ scale: 1 - fabTransition.value * 0.3 }],
+        position: 'absolute' as const,
+    }));
+
+    const fabArrowStyle = useAnimatedStyle(() => ({
+        opacity: fabTransition.value,
+        transform: [{ scale: 0.7 + fabTransition.value * 0.3 }],
     }));
 
     const loadFeeds = React.useCallback(async () => {
@@ -154,7 +156,11 @@ const HomeScreen: React.FC = () => {
                 isScrollingDown = scrollDelta > 0;
             }
 
-            setIsScrolledDown(currentScrollY > 200);
+            const scrolledDown = currentScrollY > 200;
+            if (scrolledDown !== wasScrolledDownRef.current) {
+                wasScrolledDownRef.current = scrolledDown;
+                setIsScrolledDown(scrolledDown);
+            }
 
             if (currentScrollY > 50) {
                 if (isScrollingDown) {

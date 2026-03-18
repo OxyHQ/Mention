@@ -75,7 +75,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
     const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
-    const [hover, setHover] = useState(false);
 
     const postId = (post as any)?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[postId] : null));
@@ -360,6 +359,7 @@ const PostItem: React.FC<PostItemProps> = ({
         <>
             <Container
                 className={cn(
+                    "group",
                     !isNested && "bg-background",
                     isNested && "border-border bg-background",
                 )}
@@ -377,13 +377,9 @@ const PostItem: React.FC<PostItemProps> = ({
                     style,
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
-                {...(isPostDetail ? {} : {
-                    onPress: goToPost,
-                    onPointerEnter: () => setHover(true),
-                    onPointerLeave: () => setHover(false),
-                })}
+                {...(isPostDetail ? {} : { onPress: goToPost })}
             >
-                <SubtleHover hover={hover} />
+                {!isPostDetail && <SubtleHover />}
                 {/* Thread line above avatar — connects from previous post's bottom */}
                 {isThreadChild && !isNested && (
                     <View
