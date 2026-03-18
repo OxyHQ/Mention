@@ -42,13 +42,13 @@ const WEB_CSS_COLORS: Record<LogLevel, string> = {
   [LogLevel.Error]: 'red',
 }
 
-export const consoleTransport: Transport = (
+export const consoleTransport: Transport = ({
   level,
   context,
   message,
   metadata,
   timestamp,
-) => {
+}) => {
   const hasMetadata = Object.keys(metadata).length > 0
 
   if (Platform.OS === 'web') {

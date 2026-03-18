@@ -10,13 +10,15 @@ export enum LogLevel {
   Error = 'error',
 }
 
-export type Transport = (
-  level: LogLevel,
-  context: string | undefined,
-  message: string | Error,
-  metadata: Metadata,
-  timestamp: number,
-) => void
+export type TransportEntry = {
+  level: LogLevel
+  context: string | undefined
+  message: string | Error
+  metadata: Metadata
+  timestamp: number
+}
+
+export type Transport = (entry: TransportEntry) => void
 
 export type Metadata = {
   __context__?: undefined

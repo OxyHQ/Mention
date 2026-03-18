@@ -33,21 +33,16 @@ export default function AboutScreen() {
             ? 'Android'
             : 'Web';
 
-    const constantsAny = Constants as any;
-    const manifestAny = Constants.manifest as any;
-
     const expoSdkVersion =
-        (Constants.expoConfig && (Constants.expoConfig.sdkVersion || Constants.expoConfig.runtimeVersion)) ||
-        (manifestAny && (manifestAny.sdkVersion || manifestAny.releaseChannel)) ||
-        constantsAny.expoRuntimeVersion || constantsAny.expoVersion ||
+        Constants.expoConfig?.sdkVersion ||
+        (typeof Constants.expoConfig?.runtimeVersion === 'string'
+            ? Constants.expoConfig.runtimeVersion
+            : undefined) ||
         'Unknown';
 
     const oxySdkVersion =
-        constantsAny.oxyVersion ||
-        (Constants.expoConfig &&
-            (Constants.expoConfig.extra?.oxyVersion || Constants.expoConfig.extra?.oxySDKVersion)) ||
-        (manifestAny &&
-            (manifestAny.extra?.oxyVersion || manifestAny.extra?.oxySDKVersion)) ||
+        Constants.expoConfig?.extra?.oxyVersion ||
+        Constants.expoConfig?.extra?.oxySDKVersion ||
         'Unknown';
 
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.API_URL || 'Not set';

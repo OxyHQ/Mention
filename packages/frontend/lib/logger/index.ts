@@ -122,8 +122,9 @@ export class Logger {
       metadata: meta,
     })
 
+    const entry = { level, context: this.context, message, metadata: meta, timestamp }
     for (const transport of this.transports) {
-      transport(level, this.context, message, meta, timestamp)
+      transport(entry)
     }
   }
 }
