@@ -17,6 +17,9 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
+import { createScopedLogger } from '@/lib/logger';
+
+const blockedLogger = createScopedLogger('BlockedUsers');
 
 const IconComponent = Ionicons as any;
 
@@ -44,7 +47,7 @@ export default function BlockedUsersScreen() {
 
     const loadBlockedUsers = useCallback(async () => {
         if (!oxyServices?.getBlockedUsers) {
-            console.warn('[BlockedUsers] oxyServices.getBlockedUsers not available');
+            blockedLogger.warn('oxyServices.getBlockedUsers not available');
             setBlockedUsers([]);
             setBlockedUserIds([]);
             setLoading(false);
@@ -53,10 +56,10 @@ export default function BlockedUsersScreen() {
 
         try {
             setLoading(true);
-            console.log('[BlockedUsers] Loading blocked users...');
+            blockedLogger.debug('Loading blocked users...');
             // Use Oxy services directly
             const blockedUsersList = await oxyServices.getBlockedUsers();
-            console.log('[BlockedUsers] Oxy response:', blockedUsersList);
+            blockedLogger.debug('Oxy response received', { count: blockedUsersList?.length });
             // Extract user IDs from BlockedUser objects (blockedId can be string or object)
             const userIds = blockedUsersList
                 .map((user: any) => {
@@ -66,7 +69,7 @@ export default function BlockedUsersScreen() {
                     return user.id || user._id || user.userId;
                 })
                 .filter(Boolean);
-            console.log('[BlockedUsers] Blocked user IDs:', userIds);
+            blockedLogger.debug('Blocked user IDs resolved', { count: userIds.length });
             setBlockedUserIds(userIds);
 
             if (userIds.length === 0) {
@@ -78,7 +81,7 @@ export default function BlockedUsersScreen() {
             // Fetch user details for each blocked user
             const userPromises = userIds.map(async (userId: string) => {
                 try {
-                    console.log(`[BlockedUsers] Fetching user details for: ${userId}`);
+                    blockedLogger.debug(`Fetching user details for: ${userId}`);
 
                     // Use usersStore's ensureById which tries multiple methods
                     const { useUsersStore } = await import('@/stores/usersStore');
@@ -91,39 +94,39 @@ export default function BlockedUsersScreen() {
                             try {
                                 return await svc.getProfileById(id);
                             } catch (e) {
-                                console.log(`[BlockedUsers] getProfileById failed for ${id}`);
+                                blockedLogger.debug(`getProfileById failed for ${id}`);
                             }
                         }
                         if (typeof svc.getProfile === 'function') {
                             try {
                                 return await svc.getProfile(id);
                             } catch (e) {
-                                console.log(`[BlockedUsers] getProfile failed for ${id}`);
+                                blockedLogger.debug(`getProfile failed for ${id}`);
                             }
                         }
                         if (typeof svc.getUserById === 'function') {
                             try {
                                 return await svc.getUserById(id);
                             } catch (e) {
-                                console.log(`[BlockedUsers] getUserById failed for ${id}`);
+                                blockedLogger.debug(`getUserById failed for ${id}`);
                             }
                         }
                         if (typeof svc.getUser === 'function') {
                             try {
                                 return await svc.getUser(id);
                             } catch (e) {
-                                console.log(`[BlockedUsers] getUser failed for ${id}`);
+                                blockedLogger.debug(`getUser failed for ${id}`);
                             }
                         }
                         return null;
                     };
 
                     const user = await usersState.ensureById(String(userId), loader);
-                    console.log(`[BlockedUsers] Found user for ${userId}:`, user ? 'yes' : 'no', user);
+                    blockedLogger.debug(`Found user for ${userId}: ${user ? 'yes' : 'no'}`);
 
                     // If we couldn't fetch user details, create a minimal user object
                     if (!user) {
-                        console.log(`[BlockedUsers] Creating fallback user object for ${userId}`);
+                        blockedLogger.debug(`Creating fallback user object for ${userId}`);
                         return {
                             id: userId,
                             username: userId.substring(0, 8) + '...',
@@ -133,7 +136,7 @@ export default function BlockedUsersScreen() {
 
                     return user;
                 } catch (error) {
-                    console.warn(`[BlockedUsers] Failed to fetch user ${userId}:`, error);
+                    blockedLogger.warn(`Failed to fetch user ${userId}`, { error });
                     // Return fallback user object instead of null
                     return {
                         id: userId,
@@ -144,11 +147,10 @@ export default function BlockedUsersScreen() {
             });
 
             const users = (await Promise.all(userPromises)).filter(Boolean) as BlockedUser[];
-            console.log('[BlockedUsers] Loaded users:', users.length);
+            blockedLogger.debug(`Loaded users: ${users.length}`);
             setBlockedUsers(users);
         } catch (error: any) {
-            console.error('[BlockedUsers] Error loading blocked users:', error);
-            console.error('[BlockedUsers] Error response:', error.response?.data);
+            blockedLogger.error('Error loading blocked users', { error, responseData: error.response?.data });
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -175,7 +177,7 @@ export default function BlockedUsersScreen() {
                 const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
                 return Array.isArray(data) ? data : [];
             } catch (error) {
-                console.warn('[BlockedUsers] oxyServices.searchProfiles failed, falling back:', error);
+                blockedLogger.warn('oxyServices.searchProfiles failed, falling back', { error });
             }
         }
         return searchService.searchUsers(query);
@@ -200,7 +202,7 @@ export default function BlockedUsersScreen() {
             });
             setSearchResults(filtered);
         } catch (error) {
-            console.error('Error searching users:', error);
+            blockedLogger.error('Error searching users', { error });
         } finally {
             setSearching(false);
         }
@@ -239,7 +241,7 @@ export default function BlockedUsersScreen() {
 
             // Use Oxy services directly
             await oxyServices.blockUser(userId);
-            console.log('[BlockedUsers] User blocked successfully');
+            blockedLogger.info('User blocked successfully');
 
             // Reload from server to ensure consistency
             await loadBlockedUsers();
@@ -255,7 +257,7 @@ export default function BlockedUsersScreen() {
             );
             bottomSheet.openBottomSheet(true);
         } catch (error: any) {
-            console.error('Error blocking user:', error);
+            blockedLogger.error('Error blocking user', { error });
             // Revert optimistic update on error
             setBlockedUserIds(prev => prev.filter(id => id !== userId));
             setBlockedUsers(prev => prev.filter(u => {
@@ -286,7 +288,7 @@ export default function BlockedUsersScreen() {
 
         const performUnblock = async () => {
             try {
-                console.log('[BlockedUsers] Unblocking user:', userId);
+                blockedLogger.debug(`Unblocking user: ${userId}`);
 
                 // Optimistically remove from list
                 setBlockedUserIds(prev => prev.filter(id => id !== userId));
@@ -297,7 +299,7 @@ export default function BlockedUsersScreen() {
 
                 // Use Oxy services directly
                 await oxyServices.unblockUser(userId);
-                console.log('[BlockedUsers] User unblocked successfully');
+                blockedLogger.info('User unblocked successfully');
 
                 // Reload from server to ensure consistency
                 await loadBlockedUsers();
@@ -312,8 +314,7 @@ export default function BlockedUsersScreen() {
                 );
                 bottomSheet.openBottomSheet(true);
             } catch (error: any) {
-                console.error('[BlockedUsers] Error unblocking user:', error);
-                console.error('[BlockedUsers] Error response:', error.response?.data);
+                blockedLogger.error('Error unblocking user', { error, responseData: error.response?.data });
                 // Revert optimistic update on error
                 if (userToRemove) {
                     setBlockedUserIds(prev => [...prev, userId]);
@@ -498,11 +499,11 @@ export default function BlockedUsersScreen() {
                                                 style={{ backgroundColor: colors.error + '20' }}
                                                 activeOpacity={0.7}
                                                 onPress={() => {
-                                                    console.log('[BlockedUsers] Unblock button pressed for userId:', userId, 'user:', user);
+                                                    blockedLogger.debug(`Unblock button pressed for userId: ${userId}`);
                                                     if (userId) {
                                                         handleUnblock(userId);
                                                     } else {
-                                                        console.error('[BlockedUsers] No userId found for user:', user);
+                                                        blockedLogger.error('No userId found for user');
                                                         bottomSheet.setBottomSheetContent(
                                                             <MessageBottomSheet
                                                                 title={t('common.error')}

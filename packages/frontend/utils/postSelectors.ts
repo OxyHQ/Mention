@@ -1,4 +1,5 @@
 import { usePostsStore } from '@/stores/postsStore';
+import { logger } from '@/lib/logger';
 
 /**
  * Get post from store by ID - checks entity cache first, then falls back to feeds
@@ -21,7 +22,7 @@ export function getPostFromStore(postId: string | undefined): any {
             if (match) return match;
         }
     } catch (error) {
-        console.error('Error getting post from store:', error);
+        logger.error('Error getting post from store', { error });
     }
     
     return null;

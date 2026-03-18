@@ -14,6 +14,7 @@ import { useFeedSettings, FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { logger } from '@/lib/logger';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
@@ -118,7 +119,7 @@ export default function FeedSettingsScreen() {
       }
     } catch (error) {
       if (!request.cancelled && request.id === requestIdRef.current) {
-        console.error('Error saving feed settings:', error);
+        logger.error('Error saving feed settings', { error });
         setSaving(false);
         setJustSaved(false);
       }

@@ -14,6 +14,7 @@ import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { useTranslation } from 'react-i18next';
+import { logger } from '@/lib/logger';
 
 type ProfileStyle = 'default' | 'minimalist';
 
@@ -92,7 +93,7 @@ export default function ProfileCustomizationScreen() {
         },
       } as Record<string, unknown>);
     } catch (error) {
-      console.error('Error updating profile customization:', error);
+      logger.error('Error updating profile customization', { error });
       setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
       setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
     } finally {

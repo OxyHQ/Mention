@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 interface Labeler {
   _id: string;
@@ -139,7 +140,7 @@ const LabelersScreen: React.FC = () => {
       const res = await labelerService.list(searchQuery ? { search: searchQuery } : undefined);
       setLabelers(res.items ?? []);
     } catch (e) {
-      console.warn('Failed to load labelers', e);
+      logger.warn('Failed to load labelers', { error: e });
       toast.error(t('labelers.loadError', { defaultValue: 'Failed to load labelers' }));
     }
   }, [t]);
@@ -201,7 +202,7 @@ const LabelersScreen: React.FC = () => {
           toast.success(t('labelers.subscribed', { defaultValue: 'Subscribed' }));
         }
       } catch (e) {
-        console.warn('Subscribe toggle failed', e);
+        logger.warn('Subscribe toggle failed', { error: e });
         // Revert optimistic update
         setLabelers((prev) =>
           prev.map((l) =>

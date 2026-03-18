@@ -30,6 +30,7 @@ import { APP_COLOR_PRESETS, getAppColorCSSVariables, applyAppColorToDocument } f
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
 import { AppInitializer } from '@/lib/appInitializer';
+import { logger } from '@/lib/logger';
 
 // CSS runtime
 import { vars } from 'react-native-css';
@@ -100,7 +101,7 @@ export default function RootLayout() {
     if (result.success) {
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
     } else {
-      console.error('App initialization failed:', result.error);
+      logger.error('App initialization failed', { error: result.error });
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
     }
   }, [fontsLoaded]);
@@ -108,7 +109,7 @@ export default function RootLayout() {
   // Initialize i18n once when the app mounts
   useEffect(() => {
     AppInitializer.initializeI18n().catch((error) => {
-      console.error('Failed to initialize i18n:', error);
+      logger.error('Failed to initialize i18n', { error });
     });
   }, []);
 

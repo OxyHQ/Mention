@@ -13,6 +13,7 @@ import { useAppearanceStore } from '@/store/appearanceStore';
 import { authenticatedClient } from '@/utils/api';
 import { interests as allInterests, useInterestsDisplayNames, type Interest } from '@/lib/interests';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 // Simple debounce function
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
@@ -75,9 +76,9 @@ export default function InterestsSettingsScreen() {
         await loadMySettings();
 
         // Show success message (you can add a toast here if available)
-        console.log('Interests saved successfully');
+        logger.info('Interests saved successfully');
       } catch (error) {
-        console.error('Failed to save interests:', error);
+        logger.error('Failed to save interests', { error });
         // Show error message (you can add a toast here if available)
       } finally {
         setIsSaving(false);

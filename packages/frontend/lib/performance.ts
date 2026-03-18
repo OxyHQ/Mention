@@ -3,6 +3,8 @@
  * Shared performance optimization utilities
  */
 
+import { logger } from '@/lib/logger';
+
 /**
  * Request Animation Frame wrapper for smooth animations
  */
@@ -46,7 +48,7 @@ export const perfLog = isProduction
       const start = performance.now();
       fn();
       const end = performance.now();
-      console.log(`[Perf] ${label}: ${(end - start).toFixed(2)}ms`);
+      logger.debug(`[Perf] ${label}: ${(end - start).toFixed(2)}ms`);
     };
 
 /**

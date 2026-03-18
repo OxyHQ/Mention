@@ -24,6 +24,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { logger } from '@/lib/logger';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string }; avatar?: any };
 
@@ -73,7 +74,7 @@ const CreateFeedScreen: React.FC = () => {
           const data = (res as any)?.data ?? res;
           setResults(Array.isArray(data) ? data : []);
         } catch (e) {
-          console.warn('searchProfiles failed', e);
+          logger.warn('searchProfiles failed', { error: e });
         }
       }, 300);
     },
@@ -111,7 +112,7 @@ const CreateFeedScreen: React.FC = () => {
       toast.success('Feed created');
       router.replace('/feeds');
     } catch (e) {
-      console.error('Create feed failed', e);
+      logger.error('Create feed failed', { error: e });
       toast.error('Create feed failed');
     } finally {
       setSaving(false);
@@ -139,7 +140,7 @@ const CreateFeedScreen: React.FC = () => {
       setMyLists(res.items || []);
       setListsLoaded(true);
     } catch (e) {
-      console.warn('load my lists failed', e);
+      logger.warn('load my lists failed', { error: e });
       toast.error('Failed to load lists');
     }
   }, [listsLoaded]);

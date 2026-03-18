@@ -14,6 +14,7 @@ import { feedService } from '@/services/feedService';
 import { authenticatedClient } from '@/utils/api';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
+import { logger } from '@/lib/logger';
 
 const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
@@ -38,7 +39,7 @@ const SavedPostsScreen: React.FC = () => {
             const response = await authenticatedClient.get('/posts/bookmarks/folders');
             setFolders(response.data?.folders || []);
         } catch (error) {
-            console.error('Error fetching bookmark folders:', error);
+            logger.error('Error fetching bookmark folders', { error });
         }
     }, []);
 
@@ -65,7 +66,7 @@ const SavedPostsScreen: React.FC = () => {
                 setPosts(response.data?.posts || []);
                 setPage(1);
             } catch (error) {
-                console.error('Error fetching saved posts:', error);
+                logger.error('Error fetching saved posts', { error });
             } finally {
                 setLoading(false);
             }
@@ -98,7 +99,7 @@ const SavedPostsScreen: React.FC = () => {
             // Refresh
             fetchFolders();
         } catch (error) {
-            console.error('Error moving bookmark:', error);
+            logger.error('Error moving bookmark', { error });
         }
         setShowMoveModal(false);
         setMovingPostId(null);

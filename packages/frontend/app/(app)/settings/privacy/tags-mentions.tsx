@@ -9,6 +9,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
+import { logger } from '@/lib/logger';
 
 export default function TagsMentionsScreen() {
     const { t } = useTranslation();
@@ -29,7 +30,7 @@ export default function TagsMentionsScreen() {
             setAllowMentions(settings.privacy?.allowMentions !== false);
             setLoading(false);
         } catch (error) {
-            console.error('Error loading settings:', error);
+            logger.error('Error loading settings', { error });
             setLoading(false);
         }
     };
@@ -42,7 +43,7 @@ export default function TagsMentionsScreen() {
                 }
             });
         } catch (error) {
-            console.error('Error updating setting:', error);
+            logger.error('Error updating setting', { error });
         }
     };
 

@@ -31,6 +31,7 @@ import { Divider } from "@oxyhq/bloom/divider";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
+import { logger } from '@/lib/logger';
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -210,7 +211,7 @@ export default function SearchIndex() {
 
                 setResults(newResults);
             } catch (error) {
-                console.warn("Search error:", error);
+                logger.warn("Search error", { error });
             } finally {
                 setLoading(false);
             }

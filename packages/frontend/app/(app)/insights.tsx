@@ -29,6 +29,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { StatusBar } from 'expo-status-bar';
 import SEO from '@/components/SEO';
+import { logger } from '@/lib/logger';
 
 const PERIOD_OPTIONS = [
     { labelKey: 'insights.period.7days', value: 7 },
@@ -130,7 +131,7 @@ const InsightsScreen: React.FC = () => {
                             return await getPostById(postInfo.postId);
                         } catch (error: any) {
                             if (error?.response?.status !== 404) {
-                                console.error(`Error loading post ${postInfo.postId}:`, error);
+                                logger.error(`Error loading post ${postInfo.postId}`, { error });
                             }
                             return null;
                         }
@@ -138,7 +139,7 @@ const InsightsScreen: React.FC = () => {
                     const posts = await Promise.all(postsPromises);
                     setTopPostsData(posts.filter((p): p is HydratedPost => p !== null));
                 } catch (error) {
-                    console.error('Error loading top posts:', error);
+                    logger.error('Error loading top posts', { error });
                 } finally {
                     setLoadingTopPosts(false);
                 }
@@ -146,7 +147,7 @@ const InsightsScreen: React.FC = () => {
                 setTopPostsData([]);
             }
         } catch (error) {
-            console.error('Error loading statistics:', error);
+            logger.error('Error loading statistics', { error });
         } finally {
             setLoading(false);
         }

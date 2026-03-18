@@ -11,6 +11,7 @@ import { confirmDialog, alertDialog } from "@/utils/alerts";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLinksStore } from "@/stores/linksStore";
 import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem";
+import { logger } from '@/lib/logger';
 
 export default function LinkSettingsScreen() {
     const { t } = useTranslation();
@@ -40,7 +41,7 @@ export default function LinkSettingsScreen() {
                 message: t('settings.links.clearAllCacheSuccess')
             });
         } catch (error: unknown) {
-            console.error('Error clearing cache:', error);
+            logger.error('Error clearing cache', { error });
             const axiosError = error as { response?: { status?: number } };
             const errorMessage = axiosError?.response?.status === 429
                 ? t('settings.links.rateLimitExceeded')
@@ -88,7 +89,7 @@ export default function LinkSettingsScreen() {
 
             setUrl('');
         } catch (error: unknown) {
-            console.error('Error refreshing link:', error);
+            logger.error('Error refreshing link', { error });
             const axiosError = error as { response?: { status?: number } };
             const errorMessage = axiosError?.response?.status === 429
                 ? t('settings.links.rateLimitExceeded')

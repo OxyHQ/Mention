@@ -10,6 +10,9 @@ import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
+import { createScopedLogger } from '@/lib/logger';
+
+const hideCountsLogger = createScopedLogger('HideCounts');
 
 export default function HideCountsScreen() {
     const { t } = useTranslation();
@@ -37,7 +40,7 @@ export default function HideCountsScreen() {
             setHideSaveCounts(settings.privacy?.hideSaveCounts || false);
             setLoading(false);
         } catch (error) {
-            console.error('Error loading settings:', error);
+            hideCountsLogger.error('Error loading settings', { error });
             setLoading(false);
         }
     };
@@ -51,7 +54,7 @@ export default function HideCountsScreen() {
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
                 // If we can't load current settings, start fresh
-                console.debug('Could not load current privacy settings:', e);
+                hideCountsLogger.debug('Could not load current privacy settings', { error: e });
             }
 
             // Update with merged settings
@@ -70,10 +73,10 @@ export default function HideCountsScreen() {
                     await updatePrivacySettingsCache(currentResponse.data.privacy);
                 }
             } catch (e) {
-                console.debug('Failed to update privacy settings cache:', e);
+                hideCountsLogger.debug('Failed to update privacy settings cache', { error: e });
             }
         } catch (error) {
-            console.error('Error updating setting:', error);
+            hideCountsLogger.error('Error updating setting', { error });
         }
     };
 
@@ -85,7 +88,7 @@ export default function HideCountsScreen() {
                 const currentResponse = await authenticatedClient.get('/profile/settings/me');
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
-                console.debug('Could not load current privacy settings:', e);
+                hideCountsLogger.debug('Could not load current privacy settings', { error: e });
             }
 
             // Update all count settings at once
@@ -113,10 +116,10 @@ export default function HideCountsScreen() {
                     await updatePrivacySettingsCache(currentResponse.data.privacy);
                 }
             } catch (e) {
-                console.debug('Failed to update privacy settings cache:', e);
+                hideCountsLogger.debug('Failed to update privacy settings cache', { error: e });
             }
         } catch (error) {
-            console.error('Error updating all settings:', error);
+            hideCountsLogger.error('Error updating all settings', { error });
         }
     };
 

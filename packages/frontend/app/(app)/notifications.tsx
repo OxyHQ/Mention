@@ -73,7 +73,7 @@ const NotificationsScreen: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
         },
         onError: (error: any) => {
-            console.error('Error marking notification as read:', error);
+            notificationLogger.error('Error marking notification as read', { error });
             toast.error(t('notification.mark_read_error') || 'Failed to mark notification as read');
         },
     });
@@ -90,13 +90,12 @@ const NotificationsScreen: React.FC = () => {
                 await refetch();
                 toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
             } catch (refetchError) {
-                console.error('Error refetching notifications:', refetchError);
+                notificationLogger.error('Error refetching notifications', { error: refetchError });
                 toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
             }
         },
         onError: (error: any) => {
-            console.error('Error marking all notifications as read:', error);
-            console.error('Full error object:', JSON.stringify(error, null, 2));
+            notificationLogger.error('Error marking all notifications as read', { error, statusCode: error?.response?.status });
             const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
             const statusCode = error?.response?.status;
             toast.error(

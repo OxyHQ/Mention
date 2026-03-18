@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '@/lib/logger';
 
 /**
  * Generic storage utility for caching data
@@ -12,7 +13,7 @@ export class Storage {
       const item = await AsyncStorage.getItem(key);
       return item ? JSON.parse(item) : null;
     } catch (error) {
-      console.warn(`[Storage] Failed to get item: ${key}`, error);
+      logger.warn(`[Storage] Failed to get item: ${key}`, { error });
       return null;
     }
   }
@@ -25,7 +26,7 @@ export class Storage {
       await AsyncStorage.setItem(key, JSON.stringify(value));
       return true;
     } catch (error) {
-      console.warn(`[Storage] Failed to set item: ${key}`, error);
+      logger.warn(`[Storage] Failed to set item: ${key}`, { error });
       return false;
     }
   }
@@ -38,7 +39,7 @@ export class Storage {
       await AsyncStorage.removeItem(key);
       return true;
     } catch (error) {
-      console.warn(`[Storage] Failed to remove item: ${key}`, error);
+      logger.warn(`[Storage] Failed to remove item: ${key}`, { error });
       return false;
     }
   }

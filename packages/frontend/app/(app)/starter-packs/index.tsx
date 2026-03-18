@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import SEO from '@/components/SEO';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
+import { logger } from '@/lib/logger';
 import { EmptyState } from '@/components/common/EmptyState';
 
 export default function StarterPacksScreen() {
@@ -22,7 +23,7 @@ export default function StarterPacksScreen() {
         const res = await starterPacksService.list({ mine: true });
         setMyPacks(res.items || []);
       } catch (e) {
-        console.warn('load starter packs failed', e);
+        logger.warn('load starter packs failed', { error: e });
       } finally {
         setLoading(false);
       }

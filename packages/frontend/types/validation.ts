@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logger } from '@/lib/logger';
 
 // Actor/profile coming from actorId_populated
 export const ZActor = z.object({
@@ -70,7 +71,7 @@ export const validateNotifications = (items: any[]): TRawNotification[] => {
     if (parsed.success) {
       valid.push(parsed.data);
     } else {
-      console.warn("Dropping invalid notification", parsed.error?.issues?.[0]);
+      logger.warn("Dropping invalid notification", { issue: parsed.error?.issues?.[0] });
     }
   }
   return valid;

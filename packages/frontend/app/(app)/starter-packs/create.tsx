@@ -9,6 +9,7 @@ import { starterPacksService } from '@/services/starterPacksService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string } };
 
@@ -29,7 +30,7 @@ export default function CreateStarterPackScreen() {
       const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
       setResults(res as any);
     } catch (e) {
-      console.warn('searchProfiles failed', e);
+      logger.warn('searchProfiles failed', { error: e });
     }
   }, [oxyServices]);
 
@@ -51,7 +52,7 @@ export default function CreateStarterPackScreen() {
       });
       router.replace('/starter-packs');
     } catch (e) {
-      console.error('Create starter pack failed', e);
+      logger.error('Create starter pack failed', { error: e });
     } finally {
       setSaving(false);
     }

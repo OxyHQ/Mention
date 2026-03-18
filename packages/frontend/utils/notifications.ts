@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { logger } from '@/lib/logger';
 
 // Do not statically import 'expo-notifications' to avoid bundling it on web.
 // Use a cached dynamic import so the package is only loaded on native platforms.
@@ -25,7 +26,7 @@ export async function hasNotificationPermission(): Promise<boolean> {
     const { status } = await Notifications.getPermissionsAsync();
     return status === 'granted';
   } catch (e) {
-    console.warn('Failed to get notification permissions status:', e);
+    logger.warn('Failed to get notification permissions status', { error: e });
     return false;
   }
 }
@@ -62,7 +63,7 @@ export async function setupNotifications() {
         showBadge: true,
       });
     } catch (e) {
-      console.warn('Failed to set Android notification channel:', e);
+      logger.warn('Failed to set Android notification channel', { error: e });
     }
   }
   Notifications.setNotificationHandler({
@@ -94,7 +95,7 @@ export async function getDevicePushToken(): Promise<DevicePushToken> {
       return { token: anyTok.token, type: (anyTok.type as any) || (Platform.OS === 'ios' ? 'apns' : 'fcm') };
     }
   } catch (e) {
-    console.warn('Failed to get device push token:', e);
+    logger.warn('Failed to get device push token', { error: e });
   }
   return null;
 }

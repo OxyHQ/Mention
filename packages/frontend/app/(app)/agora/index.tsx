@@ -23,6 +23,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';
+import { logger } from '@/lib/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 
 const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
@@ -48,7 +49,7 @@ const AgoraScreen = () => {
       setLiveRooms(live);
       setScheduledRooms(scheduled);
     } catch (error) {
-      console.warn('Failed to load rooms', error);
+      logger.warn('Failed to load rooms', { error });
     } finally {
       setLoading(false);
       setRefreshing(false);

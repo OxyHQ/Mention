@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, Severity, LabelActionType } from '@/components/LabelBadge';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 type LabelAction = LabelActionType;
 
@@ -149,7 +150,7 @@ const LabelerDetailScreen: React.FC = () => {
         setLabelActions(defaults);
       }
     } catch (e) {
-      console.warn('Failed to load labeler', e);
+      logger.warn('Failed to load labeler', { error: e });
       toast.error(t('labelers.loadError', { defaultValue: 'Failed to load labeler' }));
     }
   }, [id, t]);
@@ -194,7 +195,7 @@ const LabelerDetailScreen: React.FC = () => {
         toast.success(t('labelers.subscribed', { defaultValue: 'Subscribed' }));
       }
     } catch (e) {
-      console.warn('Subscribe toggle failed', e);
+      logger.warn('Subscribe toggle failed', { error: e });
       setLabeler((prev) =>
         prev
           ? {
@@ -230,7 +231,7 @@ const LabelerDetailScreen: React.FC = () => {
         try {
           await labelerService.updatePreferences(updates);
         } catch (e) {
-          console.warn('Failed to save label preferences', e);
+          logger.warn('Failed to save label preferences', { error: e });
           toast.error(t('labelers.prefSaveError', { defaultValue: 'Failed to save preferences' }));
         }
       }, 800);

@@ -13,6 +13,7 @@ import { authenticatedClient } from '@/utils/api';
 import { alertDialog } from '@/utils/alerts';
 import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 const IconComponent = Ionicons as any;
 
@@ -38,7 +39,7 @@ export default function ProfileVisibilityScreen() {
             setProfileVisibility(settings.privacy?.profileVisibility || 'public');
             setLoading(false);
         } catch (error) {
-            console.error('Error loading settings:', error);
+            logger.error('Error loading settings', { error });
             setLoading(false);
         }
     };
@@ -58,7 +59,7 @@ export default function ProfileVisibilityScreen() {
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
                 // If we can't load current settings, start fresh
-                console.debug('Could not load current privacy settings:', e);
+                logger.debug('Could not load current privacy settings', { error: e });
             }
 
             // Update with merged settings
@@ -77,7 +78,7 @@ export default function ProfileVisibilityScreen() {
                     await updatePrivacySettingsCache(currentResponse.data.privacy);
                 }
             } catch (e) {
-                console.debug('Failed to update privacy settings cache:', e);
+                logger.debug('Failed to update privacy settings cache', { error: e });
             }
 
             setProfileVisibility(newVisibility);
@@ -90,7 +91,7 @@ export default function ProfileVisibilityScreen() {
                 safeBack();
             }, 300);
         } catch (error: any) {
-            console.error('Error updating profile visibility:', error);
+            logger.error('Error updating profile visibility', { error });
             await alertDialog({
                 title: t('common.error'),
                 message: error?.response?.data?.error || t('settings.privacy.updateError')

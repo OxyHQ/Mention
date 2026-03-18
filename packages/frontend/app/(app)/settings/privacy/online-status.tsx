@@ -9,6 +9,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
+import { logger } from '@/lib/logger';
 
 export default function OnlineStatusScreen() {
     const { t } = useTranslation();
@@ -27,7 +28,7 @@ export default function OnlineStatusScreen() {
             setShowOnlineStatus(settings.privacy?.showOnlineStatus !== false);
             setLoading(false);
         } catch (error) {
-            console.error('Error loading settings:', error);
+            logger.error('Error loading settings', { error });
             setLoading(false);
         }
     };
@@ -40,7 +41,7 @@ export default function OnlineStatusScreen() {
                 }
             });
         } catch (error) {
-            console.error('Error updating setting:', error);
+            logger.error('Error updating setting', { error });
         }
     };
 

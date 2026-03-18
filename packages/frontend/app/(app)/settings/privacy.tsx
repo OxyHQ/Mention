@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { logger } from '@/lib/logger';
 
 interface PrivacySettings {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -41,7 +42,7 @@ export default function PrivacySettingsScreen() {
             setPrivacySettings(settings.privacy || { profileVisibility: 'public' });
             setLoading(false);
         } catch (error) {
-            console.error('Error loading privacy settings:', error);
+            logger.error('Error loading privacy settings', { error });
             setPrivacySettings({ profileVisibility: 'public' });
             setLoading(false);
         }

@@ -16,6 +16,7 @@ import {
 } from '@/utils/notifications';
 import { initializeI18n } from './i18n';
 import { INITIALIZATION_TIMEOUT } from './constants';
+import { logger } from '@/lib/logger';
 
 export interface InitializationResult {
   success: boolean;
@@ -41,7 +42,7 @@ async function waitForAuth(
   try {
     return await services.waitForAuth(timeoutMs);
   } catch (e) {
-    console.warn('waitForAuth failed:', e);
+    logger.warn('waitForAuth failed', { error: e });
     return false;
   }
 }
@@ -58,7 +59,7 @@ async function setupNotificationsIfNeeded(): Promise<void> {
     await setupNotifications();
     await hasNotificationPermission();
   } catch (error) {
-    console.warn('Failed to setup notifications:', error);
+    logger.warn('Failed to setup notifications', { error });
   }
 }
 
@@ -79,7 +80,7 @@ async function loadAppearanceSettings(services?: OxyServices, isAuthenticated?: 
     }
     await useAppearanceStore.getState().loadMySettings(authState);
   } catch (error) {
-    console.warn('Failed to load appearance settings:', error);
+    logger.warn('Failed to load appearance settings', { error });
   }
 }
 
@@ -90,7 +91,7 @@ async function loadVideoMuteState(): Promise<void> {
   try {
     await useVideoMuteStore.getState().loadMutedState();
   } catch (error) {
-    console.warn('Failed to load video mute state:', error);
+    logger.warn('Failed to load video mute state', { error });
   }
 }
 
@@ -105,7 +106,7 @@ async function fetchCurrentUser(services: OxyServices, authReady: boolean): Prom
   try {
     await services.getCurrentUser();
   } catch (error) {
-    console.warn('Failed to fetch current user during init:', error);
+    logger.warn('Failed to fetch current user during init', { error });
   }
 }
 
@@ -159,7 +160,7 @@ export class AppInitializer {
       try {
         await SplashScreen.hideAsync();
       } catch (error) {
-        console.warn('Failed to hide native splash screen:', error);
+        logger.warn('Failed to hide native splash screen', { error });
       }
 
       return { success: true };

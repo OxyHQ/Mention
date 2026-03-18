@@ -11,6 +11,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { toast } from 'sonner';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { logger } from '@/lib/logger';
 
 interface NotificationPreferences {
     pushEnabled: boolean;
@@ -54,7 +55,7 @@ export default function NotificationSettingsScreen() {
                 setPrefs({ ...DEFAULT_PREFS, ...settings.notificationPreferences });
             }
         } catch (error) {
-            console.error('Error loading notification preferences:', error);
+            logger.error('Error loading notification preferences', { error });
         } finally {
             setLoading(false);
         }
@@ -71,7 +72,7 @@ export default function NotificationSettingsScreen() {
                 notificationPreferences: { [key]: value },
             });
         } catch (error) {
-            console.error('Error updating notification preferences:', error);
+            logger.error('Error updating notification preferences', { error });
             setPrefs(previous);
             toast.error(
                 t('settings.notifications.saveError', {

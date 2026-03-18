@@ -12,6 +12,7 @@ import i18n from 'i18next';
 import { storeData, getData } from '@/utils/storage';
 import { SettingsGroup } from '@/components/settings/SettingsItem';
 import { Icon } from '@/lib/icons';
+import { logger } from '@/lib/logger';
 
 const LANGUAGE_OPTIONS = [
     { code: 'en-US', name: 'English', nativeName: 'English', flag: '\u{1F1FA}\u{1F1F8}' },
@@ -38,7 +39,7 @@ export default function LanguageSettingsScreen() {
             const language = savedLanguage || i18n.language || 'en-US';
             setCurrentLanguage(language);
         } catch (error) {
-            console.error('Error loading language:', error);
+            logger.error('Error loading language', { error });
             setCurrentLanguage(i18n.language || 'en-US');
         }
     }, []);
@@ -52,7 +53,7 @@ export default function LanguageSettingsScreen() {
             await storeData(LANGUAGE_STORAGE_KEY, languageCode);
             await i18n.changeLanguage(languageCode);
         } catch (error) {
-            console.error('Error changing language:', error);
+            logger.error('Error changing language', { error });
             setCurrentLanguage(i18n.language || 'en-US');
         } finally {
             setSaving(false);

@@ -21,6 +21,7 @@ import { useAuth } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { logger } from '@/lib/logger';
 
 const { width } = Dimensions.get('window');
 
@@ -201,7 +202,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 previousFollowers
             });
         } catch (error) {
-            console.error('Error loading weekly recap:', error);
+            logger.error('Error loading weekly recap', { error });
         } finally {
             setLoading(false);
         }

@@ -27,6 +27,7 @@ import { useUserById } from '@/stores/usersStore';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';
 import { useAuth } from '@oxyhq/services';
+import { logger } from '@/lib/logger';
 
 // Wrapper to use useUserById hook for each participant
 const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: any }) => {
@@ -78,7 +79,7 @@ const RoomDetailScreen = () => {
         setIsJoined(data.participants?.includes(user.id) ?? false);
       }
     } catch (error) {
-      console.warn('Failed to load room', error);
+      logger.warn('Failed to load room', { error });
     } finally {
       setLoading(false);
     }

@@ -12,6 +12,7 @@ import SEO from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { List } from '@/assets/icons/list-icon';
+import { logger } from '@/lib/logger';
 
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
@@ -24,7 +25,7 @@ export default function ListsScreen() {
         const mine = await listsService.list({ mine: true });
         setMyLists(mine.items || []);
       } catch (e) {
-        console.warn('load lists failed', e);
+        logger.warn('load lists failed', { error: e });
       }
     })();
   }, []);

@@ -26,6 +26,7 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { logger } from '@/lib/logger';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -158,7 +159,7 @@ const FeedsScreen: React.FC = () => {
         (pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id)))
       );
     } catch (e) {
-      console.warn('Failed loading feeds', e);
+      logger.warn('Failed loading feeds', { error: e });
     } finally {
       setLoading(false);
       setRefreshing(false);
