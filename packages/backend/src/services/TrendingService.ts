@@ -233,7 +233,7 @@ class TrendingService {
 
       if (corpus.length < 50) {
         logger.debug('[Trending] Post corpus too small for AI analysis');
-        return { trends: [], summary: '' };
+        return { trends: [], hashtagDescriptions: {}, summary: '' };
       }
 
       // Include hashtag names as context for better summary generation
