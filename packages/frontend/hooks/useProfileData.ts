@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@oxyhq/services';
+import { logger } from '@/lib/logger';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { usePrivacySettings } from './usePrivacySettings';
@@ -231,7 +232,7 @@ function useLocalProfileData(username?: string): {
           await loadForUser(data.id, true);
         }
       } catch (err) {
-        console.debug('Profile fetch error:', err);
+        logger.debug('Profile fetch error');
       }
     };
 

@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { MentionData } from '@/components/MentionTextInput';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('usePostSubmission');
 import { GeoJSONPoint } from '@mention/shared-types';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import {
@@ -118,9 +121,9 @@ export const usePostSubmission = ({
     } : undefined;
 
     if (__DEV__ && hasEventContent) {
-      console.log('[PostSubmission] Event data:', event);
-      console.log('[PostSubmission] Event payload:', eventPayload);
-      console.log('[PostSubmission] hasEventContent:', hasEventContent);
+      logger.debug('[PostSubmission] Event data', { event });
+      logger.debug('[PostSubmission] Event payload', { eventPayload });
+      logger.debug(`[PostSubmission] hasEventContent: ${hasEventContent}`);
     }
 
     const wasScheduled = Boolean(scheduledAtRef.current);
@@ -248,7 +251,7 @@ export const usePostSubmission = ({
 
     setIsPosting(true);
     try {
-      console.log('Attempting to create posts...');
+      logger.info('Attempting to create posts...');
 
       const allPosts = [];
       const mainPost = buildMainPost();
@@ -257,7 +260,7 @@ export const usePostSubmission = ({
       const threadPosts = buildThreadPosts();
       allPosts.push(...threadPosts);
 
-      console.log(`📝 Creating ${allPosts.length} posts in ${postingMode} mode`);
+      logger.info(`Creating ${allPosts.length} posts in ${postingMode} mode`);
 
       if (allPosts.length === 1) {
         await createPost(allPosts[0] as any);
@@ -283,7 +286,7 @@ export const usePostSubmission = ({
         scheduledAt: scheduledAtRef.current 
       };
     } catch (error) {
-      console.error('Error creating post:', error);
+      logger.error('Error creating post');
       return { success: false, error: 'submission.failed' };
     } finally {
       setIsPosting(false);

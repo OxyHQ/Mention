@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '@oxyhq/services';
+import { logger } from '@/lib/logger';
 import { useThemeStore } from '@/lib/theme-store';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { APP_COLOR_PRESETS, type AppColorName } from '@oxyhq/bloom/theme';
@@ -28,7 +29,7 @@ export function useAppColorSave() {
         } as Record<string, unknown>),
       ]);
     } catch (error) {
-      console.error('Error updating color:', error);
+      logger.error('Error updating color');
     } finally {
       setSaving(false);
     }

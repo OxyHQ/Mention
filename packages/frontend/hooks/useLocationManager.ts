@@ -2,6 +2,7 @@ import { useState } from "react";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { logger } from '@/lib/logger';
 
 export interface LocationData {
   latitude: number;
@@ -47,7 +48,7 @@ export const useLocationManager = () => {
       setLocation(locationData);
       toast.success(t("Location added"));
     } catch (error) {
-      console.error("Error getting location:", error);
+      logger.error("Error getting location");
       toast.error(t("Failed to get location"));
     } finally {
       setIsGettingLocation(false);

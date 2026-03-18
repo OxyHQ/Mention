@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
+import { logger } from '@/lib/logger';
 
 export function usePostSave(postId: string | undefined, isSaved: boolean) {
     const { savePost, unsavePost } = usePostsStore();
@@ -16,7 +17,7 @@ export function usePostSave(postId: string | undefined, isSaved: boolean) {
 
             await action;
         } catch (error) {
-            console.error('Error toggling save:', error);
+            logger.error('Error toggling save');
         } finally {
             pendingRef.current = false;
         }

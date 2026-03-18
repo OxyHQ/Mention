@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { storeData, getData, removeData } from '@/utils/storage';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('useDrafts');
 
 export interface Draft {
   id: string;
@@ -48,7 +51,7 @@ export const useDrafts = () => {
         setDrafts([]);
       }
     } catch (error) {
-      console.error('Error loading drafts:', error);
+      logger.error('Error loading drafts');
       setDrafts([]);
     } finally {
       setIsLoading(false);
@@ -61,7 +64,7 @@ export const useDrafts = () => {
       await storeData(DRAFTS_STORAGE_KEY, newDrafts);
       setDrafts(newDrafts);
     } catch (error) {
-      console.error('Error saving drafts:', error);
+      logger.error('Error saving drafts');
     }
   }, []);
 
@@ -96,7 +99,7 @@ export const useDrafts = () => {
       await saveDrafts(newDrafts);
       return draftId;
     } catch (error) {
-      console.error('Error saving draft:', error);
+      logger.error('Error saving draft');
       throw error;
     }
   }, [drafts, saveDrafts]);
@@ -104,25 +107,25 @@ export const useDrafts = () => {
   // Delete a draft
   const deleteDraft = useCallback(async (draftId: string) => {
     try {
-      console.log('deleteDraft called with draftId:', draftId);
+      logger.debug(`deleteDraft called with draftId: ${draftId}`);
       // Read latest drafts from storage to avoid stale state
       const storedDrafts = await getData<Draft[]>(DRAFTS_STORAGE_KEY);
-      console.log('Stored drafts:', storedDrafts?.length || 0);
+      logger.debug(`Stored drafts: ${storedDrafts?.length || 0}`);
       const currentDrafts = storedDrafts && Array.isArray(storedDrafts) ? storedDrafts : [];
-      
+
       // Filter out the draft to delete
       const newDrafts = currentDrafts.filter(d => d.id !== draftId);
-      console.log('Drafts after filtering:', newDrafts.length, 'removed:', currentDrafts.length - newDrafts.length);
-      
+      logger.debug(`Drafts after filtering: ${newDrafts.length}, removed: ${currentDrafts.length - newDrafts.length}`);
+
       // Save the updated drafts list
       await saveDrafts(newDrafts);
-      console.log('Drafts saved to storage');
-      
+      logger.debug('Drafts saved to storage');
+
       // Ensure state is updated
       setDrafts(newDrafts);
-      console.log('State updated');
+      logger.debug('State updated');
     } catch (error) {
-      console.error('Error deleting draft:', error);
+      logger.error('Error deleting draft');
       throw error;
     }
   }, [saveDrafts]);
@@ -138,7 +141,7 @@ export const useDrafts = () => {
       await removeData(DRAFTS_STORAGE_KEY);
       setDrafts([]);
     } catch (error) {
-      console.error('Error clearing drafts:', error);
+      logger.error('Error clearing drafts');
       throw error;
     }
   }, []);

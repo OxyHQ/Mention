@@ -1,5 +1,8 @@
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('useRealtimeNotifications');
 import { useAuth } from '@oxyhq/services';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
@@ -36,17 +39,17 @@ export const useRealtimeNotifications = () => {
       });
 
       socket.on('connect', () => {
-        console.log('Connected to notifications socket');
+        logger.info('Connected to notifications socket');
       });
 
       socket.on('notification', (notification: any) => {
         // Validate payload before acting
         const parsed = ZRawNotification.safeParse(notification);
         if (!parsed.success) {
-          console.warn('Dropped invalid socket notification', parsed.error?.issues?.[0]);
+          logger.warn('Dropped invalid socket notification');
           return;
         }
-        console.log('New notification received:', parsed.data);
+        logger.info('New notification received');
 
         // Invalidate notifications query to refetch
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
@@ -55,33 +58,33 @@ export const useRealtimeNotifications = () => {
       socket.on('notificationUpdated', (notification: any) => {
         const parsed = ZRawNotification.safeParse(notification);
         if (!parsed.success) {
-          console.warn('Dropped invalid socket notificationUpdated', parsed.error?.issues?.[0]);
+          logger.warn('Dropped invalid socket notificationUpdated');
           return;
         }
-        console.log('Notification updated:', parsed.data);
+        logger.info('Notification updated');
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
       });
 
       socket.on('notificationDeleted', (notificationId: string) => {
-        console.log('Notification deleted:', notificationId);
+        logger.info(`Notification deleted: ${notificationId}`);
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
       });
 
       socket.on('allNotificationsRead', () => {
-        console.log('All notifications marked as read');
+        logger.info('All notifications marked as read');
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
       });
 
       socket.on('disconnect', () => {
-        console.log('Disconnected from notifications socket');
+        logger.info('Disconnected from notifications socket');
       });
 
       socket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
+        logger.error('Socket connection error');
       });
 
     } catch (error) {
-      console.error('Failed to connect to notifications socket:', error);
+      logger.error('Failed to connect to notifications socket');
     }
   }, [isAuthenticated, isReady, user?.id, oxyServices, queryClient]);
 

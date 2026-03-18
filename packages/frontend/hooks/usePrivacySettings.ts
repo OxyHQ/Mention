@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('usePrivacySettings');
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@oxyhq/services';
 
@@ -53,7 +56,7 @@ export function usePrivacySettings(userId?: string | null): PrivacySettings | nu
                 if (isNotFoundError(error)) {
                     setSettings(DEFAULT_PRIVACY_SETTINGS);
                 } else {
-                    console.debug('Could not load privacy settings:', error);
+                    logger.debug('Could not load privacy settings');
                     setSettings(null);
                 }
             }
@@ -89,7 +92,7 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
                         cachedPrivacySettings = JSON.parse(cached);
                     }
                 } catch (cacheErr) {
-                    console.debug('Failed to load cached privacy settings:', cacheErr);
+                    logger.debug('Failed to load cached privacy settings');
                 }
             })();
         }
@@ -131,7 +134,7 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
                     try {
                         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(freshSettings));
                     } catch (cacheErr) {
-                        console.debug('Failed to cache privacy settings:', cacheErr);
+                        logger.debug('Failed to cache privacy settings');
                     }
                 } else {
                     cachedPrivacySettings = DEFAULT_PRIVACY_SETTINGS;
@@ -139,7 +142,7 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
                     try {
                         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(DEFAULT_PRIVACY_SETTINGS));
                     } catch (cacheErr) {
-                        console.debug('Failed to cache default privacy settings:', cacheErr);
+                        logger.debug('Failed to cache default privacy settings');
                     }
                 }
             } catch (error: any) {
@@ -153,10 +156,10 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
                     try {
                         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(DEFAULT_PRIVACY_SETTINGS));
                     } catch (cacheErr) {
-                        console.debug('Failed to cache default privacy settings:', cacheErr);
+                        logger.debug('Failed to cache default privacy settings');
                     }
                 } else {
-                    console.debug('Could not load current user privacy settings:', error);
+                    logger.debug('Could not load current user privacy settings');
                     if (!settings) {
                         setSettings(cachedPrivacySettings || DEFAULT_PRIVACY_SETTINGS);
                     }
@@ -177,7 +180,7 @@ export async function updatePrivacySettingsCache(privacySettings: PrivacySetting
         cachedPrivacySettings = privacySettings;
         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(privacySettings));
     } catch (error) {
-        console.debug('Failed to update privacy settings cache:', error);
+        logger.debug('Failed to update privacy settings cache');
     }
 }
 

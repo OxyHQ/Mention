@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { MentionData } from '@/components/MentionTextInput';
+import { logger } from '@/lib/logger';
 import {
   ComposerMediaItem,
   toComposerMediaType,
@@ -147,7 +148,7 @@ export const useDraftManager = ({
       const draftId = await saveDraft(draftData);
       setCurrentDraftId(draftId);
     } catch (error) {
-      console.error('Error auto-saving draft:', error);
+      logger.error('Error auto-saving draft');
     }
   }, [hasContent, buildDraftData, saveDraft, deleteDraft]);
 

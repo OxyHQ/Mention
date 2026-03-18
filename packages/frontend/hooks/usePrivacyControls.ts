@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@oxyhq/services';
 import { usePrivacyStore } from '@/stores/privacyStore';
+import { logger } from '@/lib/logger';
 
 interface UsePrivacyControlsOptions {
     autoRefresh?: boolean;
@@ -67,7 +68,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
             setError(undefined);
         } catch (error: any) {
             const message = error?.message || 'Failed to load privacy data';
-            console.error('[usePrivacyControls] Unable to load privacy lists:', error);
+            logger.error('[usePrivacyControls] Unable to load privacy lists');
             setError(message);
         } finally {
             setLoading(false);

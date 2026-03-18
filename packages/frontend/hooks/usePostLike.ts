@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
+import { logger } from '@/lib/logger';
 
 export function usePostLike(postId: string | undefined, isLiked: boolean) {
     const { likePost, unlikePost } = usePostsStore();
@@ -16,7 +17,7 @@ export function usePostLike(postId: string | undefined, isLiked: boolean) {
 
             await action;
         } catch (error) {
-            console.error('Error toggling like:', error);
+            logger.error('Error toggling like');
         } finally {
             pendingRef.current = false;
         }

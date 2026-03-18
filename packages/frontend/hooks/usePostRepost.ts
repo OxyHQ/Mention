@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
+import { logger } from '@/lib/logger';
 
 export function usePostRepost(postId: string | undefined, isReposted: boolean) {
     const { repostPost, unrepostPost } = usePostsStore();
@@ -16,7 +17,7 @@ export function usePostRepost(postId: string | undefined, isReposted: boolean) {
 
             await action;
         } catch (error) {
-            console.error('Error toggling repost:', error);
+            logger.error('Error toggling repost');
         } finally {
             pendingRef.current = false;
         }

@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
+import { logger } from '@/lib/logger';
 
 export function usePostVote(
     postId: string | undefined,
@@ -21,7 +22,7 @@ export function usePostVote(
                 await likePost({ postId, type: 'post' });
             }
         } catch (error) {
-            console.error('Error toggling upvote:', error);
+            logger.error('Error toggling upvote');
         } finally {
             upvotePendingRef.current = false;
         }
@@ -38,7 +39,7 @@ export function usePostVote(
                 await downvotePost({ postId, type: 'post' });
             }
         } catch (error) {
-            console.error('Error toggling downvote:', error);
+            logger.error('Error toggling downvote');
         } finally {
             downvotePendingRef.current = false;
         }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
+import { logger } from '@/lib/logger';
 import { getPostFromStore } from '@/utils/postSelectors';
 import { useUsersStore } from '@/stores/usersStore';
 
@@ -51,7 +52,7 @@ export function useOriginalPost({ post, isNested, nestingDepth }: UseOriginalPos
             } catch (error: any) {
                 // Silently handle 404s - post may have been deleted
                 if (error?.response?.status !== 404) {
-                    console.error('Error loading original/quoted post:', error);
+                    logger.error('Error loading original/quoted post');
                 }
             }
         };

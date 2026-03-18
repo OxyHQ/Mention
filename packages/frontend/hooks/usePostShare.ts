@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { Share, Platform } from 'react-native';
+import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import { useUsersStore } from '@/stores/usersStore';
 
@@ -52,7 +53,7 @@ export function usePostShare(post: any) {
                 });
             }
         } catch (error) {
-            console.error('Error sharing post:', error);
+            logger.error('Error sharing post');
             toast.error('Failed to share post');
         }
     }, [post]);
