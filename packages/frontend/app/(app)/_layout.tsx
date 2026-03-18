@@ -90,6 +90,7 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
           }}
         >
           <Slot />
+          {isScreenNotMobile && <ScrollToTopButton />}
         </ThemedView>
         <RightBar />
       </View>
@@ -112,7 +113,6 @@ export default function AppLayout() {
       <MainLayout isScreenNotMobile={isScreenNotMobile} />
       <RegisterPush />
       {isAuthenticated && !isScreenNotMobile && !keyboardVisible && <BottomBar />}
-      {isScreenNotMobile && <ScrollToTopButton />}
       {!isScreenNotMobile && <DrawerOverlay />}
       {!isAuthenticated && <SignInBanner />}
       <WelcomeModalGate appIsReady={true} />
