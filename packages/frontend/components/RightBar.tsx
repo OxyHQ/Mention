@@ -3,6 +3,7 @@ import { usePathname } from "expo-router";
 import React from 'react';
 import { View, Platform, Text, Linking, StyleSheet } from "react-native";
 import { useMediaQuery } from 'react-responsive';
+import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 
@@ -26,11 +27,12 @@ export function RightBar() {
 }
 
 function RightBarFooter() {
+    const { t } = useTranslation();
     const footerLinks = [
-        { label: 'About', url: 'https://oxy.so/mention' },
-        { label: 'Privacy', url: 'https://oxy.so/company/transparency/policies/privacy' },
-        { label: 'Terms', url: 'https://oxy.so/company/transparency/policies/terms-of-service' },
-        { label: 'Cookies', url: 'https://oxy.so/company/transparency/policies/cookies' },
+        { label: t('rightBar.about'), url: 'https://oxy.so/mention' },
+        { label: t('rightBar.privacy'), url: 'https://oxy.so/company/transparency/policies/privacy' },
+        { label: t('rightBar.terms'), url: 'https://oxy.so/company/transparency/policies/terms-of-service' },
+        { label: t('rightBar.cookies'), url: 'https://oxy.so/company/transparency/policies/cookies' },
         { label: 'Oxy', url: 'https://oxy.so/' },
     ];
 

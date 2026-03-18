@@ -20,6 +20,7 @@ import { useAuth } from "@oxyhq/services";
 import { usePostsStore } from "../stores/postsStore";
 import { CreateRepostRequest } from "@mention/shared-types";
 import { useTheme } from '@oxyhq/bloom/theme';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 
 const MAX_CHARACTERS = 280;
@@ -29,6 +30,7 @@ const RepostScreen: React.FC = () => {
     const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const theme = useTheme();
+    const { t } = useTranslation();
     const safeBack = useSafeBack();
 
     const [content, setContent] = useState('');
@@ -199,7 +201,7 @@ const RepostScreen: React.FC = () => {
                             textAlignVertical: 'top',
                             color: theme.colors.text,
                         }}
-                        placeholder="Add a comment..."
+                        placeholder={t('compose.commentPlaceholder')}
                         placeholderTextColor={theme.colors.textTertiary}
                         value={content}
                         onChangeText={setContent}

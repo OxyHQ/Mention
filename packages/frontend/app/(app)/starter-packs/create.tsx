@@ -9,12 +9,14 @@ import { starterPacksService } from '@/services/starterPacksService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string } };
 
 export default function CreateStarterPackScreen() {
   const { oxyServices } = useAuth();
+  const { t } = useTranslation();
   const safeBack = useSafeBack();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -62,7 +64,7 @@ export default function CreateStarterPackScreen() {
     <ThemedView className="flex-1">
       <Header
         options={{
-          title: 'Create Starter Pack',
+          title: t('starterPacks.create'),
           leftComponents: [
             <IconButton variant="icon"
               key="back"
@@ -89,7 +91,7 @@ export default function CreateStarterPackScreen() {
         <TextInput
           value={description}
           onChangeText={setDescription}
-          placeholder="What's this pack about?"
+          placeholder={t('starterPacks.descriptionPlaceholder')}
           className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary h-20"
           style={styles.input}
           multiline
@@ -99,7 +101,7 @@ export default function CreateStarterPackScreen() {
         <TextInput
           value={search}
           onChangeText={doSearch}
-          placeholder="Search for users..."
+          placeholder={t('starterPacks.searchUsersPlaceholder')}
           className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
           style={styles.input}
         />

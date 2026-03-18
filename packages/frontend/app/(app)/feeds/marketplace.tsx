@@ -31,10 +31,10 @@ const PAGE_LIMIT = 20;
 
 type SortBy = 'trending' | 'top_rated' | 'newest';
 
-const SORT_OPTIONS: { id: SortBy; label: string }[] = [
-  { id: 'trending', label: 'Trending' },
-  { id: 'top_rated', label: 'Top Rated' },
-  { id: 'newest', label: 'Newest' },
+const SORT_OPTIONS_CONFIG: { id: SortBy; labelKey: string }[] = [
+  { id: 'trending', labelKey: 'feeds.marketplace.trending' },
+  { id: 'top_rated', labelKey: 'feeds.marketplace.topRated' },
+  { id: 'newest', labelKey: 'feeds.marketplace.newest' },
 ];
 
 const ALL_CATEGORY = 'All';
@@ -385,7 +385,7 @@ export default function FeedMarketplaceScreen() {
         </ScrollView>
 
         <View style={[styles.sortRow, { borderBottomColor: theme.colors.border }]}>
-          {SORT_OPTIONS.map((opt) => {
+          {SORT_OPTIONS_CONFIG.map((opt) => {
             const active = opt.id === sortBy;
             return (
               <TouchableOpacity
@@ -398,7 +398,7 @@ export default function FeedMarketplaceScreen() {
                     'text-sm',
                     active ? 'font-bold text-primary' : 'font-medium text-muted-foreground',
                   )}>
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </Text>
                 {active && <View style={styles.sortIndicator} className="bg-primary" />}
               </TouchableOpacity>

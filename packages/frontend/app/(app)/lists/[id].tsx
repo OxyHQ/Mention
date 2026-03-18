@@ -47,9 +47,9 @@ interface ListData {
   memberOxyUserIds?: string[];
 }
 
-const TABS = [
-  { id: 'posts', label: 'Posts' },
-  { id: 'members', label: 'Members' },
+const TABS_CONFIG = [
+  { id: 'posts', labelKey: 'lists.tabs.posts' },
+  { id: 'members', labelKey: 'lists.tabs.members' },
 ];
 
 export default function ListDetailScreen() {
@@ -64,6 +64,8 @@ export default function ListDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('posts');
+
+  const TABS = TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) }));
 
   const loadList = useCallback(async () => {
     if (!id) return;
@@ -164,7 +166,7 @@ export default function ListDetailScreen() {
       <ThemedView className="flex-1">
         <Header
           options={{
-            title: 'List',
+            title: t('lists.detail.title'),
             leftComponents: [
               <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />
@@ -191,7 +193,7 @@ export default function ListDetailScreen() {
     <ThemedView className="flex-1">
       <Header
         options={{
-          title: list.title || 'List',
+          title: list.title || t('lists.detail.title'),
           leftComponents: [
             <IconButton variant="icon" key="back" onPress={() => safeBack()}>
               <BackArrowIcon size={20} className="text-foreground" />

@@ -22,12 +22,14 @@ import { HydratedPost, Reply, FeedRepost as Repost, FeedType } from '@mention/sh
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import UserName from './UserName';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 
 const MAX_CHARACTERS = 280;
 
 const ReplyScreen: React.FC = () => {
     const { user } = useAuth();
+    const { t } = useTranslation();
     const { createReply, feeds, getPostById } = usePostsStore();
     const insets = useSafeAreaInsets();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
@@ -182,7 +184,7 @@ const ReplyScreen: React.FC = () => {
                 <TextInput
                     ref={textInputRef}
                     style={styles.textInput}
-                    placeholder="Post your reply"
+                    placeholder={t('compose.replyPlaceholder')}
                     placeholderTextColor="#657786"
                     value={content}
                     onChangeText={setContent}

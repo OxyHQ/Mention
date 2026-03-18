@@ -8,6 +8,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { useTranslation } from 'react-i18next';
 // Dark-mode override palette for videos screen
 const VIDEOS_DARK_PALETTE = {
     card: '#003038',
@@ -34,6 +35,7 @@ export const BottomBar = () => {
     const theme = useTheme();
     const haptic = useHaptics();
     const { triggerHomeRefresh } = useHomeRefresh();
+    const { t } = useTranslation();
     const { scrollY } = useLayoutScroll();
     const bottomBarTranslateY = useSharedValue(0);
     const bottomBarOpacity = useSharedValue(1);
@@ -184,7 +186,7 @@ export const BottomBar = () => {
     const tabs = [
         {
             onPress: handleHomePress,
-            label: 'Home',
+            label: t('bottomBar.home'),
             isActive: pathname === '/',
             icon: pathname === '/'
                 ? <HomeActive size={ICON_SIZE} className="text-primary" />
@@ -192,7 +194,7 @@ export const BottomBar = () => {
         },
         {
             onPress: () => handlePress('/videos'),
-            label: 'Videos',
+            label: t('bottomBar.videos'),
             isActive: pathname === '/videos',
             icon: pathname === '/videos'
                 ? <VideoActive size={ICON_SIZE} className="text-primary" />
@@ -200,7 +202,7 @@ export const BottomBar = () => {
         },
         {
             onPress: () => handlePress('/compose'),
-            label: 'Compose',
+            label: t('bottomBar.compose'),
             isActive: pathname === '/compose',
             icon: pathname === '/compose'
                 ? <ComposeIIconActive size={ICON_SIZE} className="text-primary" />
@@ -208,7 +210,7 @@ export const BottomBar = () => {
         },
         {
             onPress: () => handlePress('/notifications'),
-            label: 'Notifications',
+            label: t('bottomBar.notifications'),
             isActive: pathname === '/notifications',
             icon: pathname === '/notifications'
                 ? <BellActive size={ICON_SIZE} className="text-primary" />
@@ -226,7 +228,7 @@ export const BottomBar = () => {
                 haptic('Heavy');
                 showBottomSheet?.('AccountCenter');
             },
-            label: 'Profile',
+            label: t('bottomBar.profile'),
             isActive: pathname.startsWith('/@'),
             icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} />,
         },

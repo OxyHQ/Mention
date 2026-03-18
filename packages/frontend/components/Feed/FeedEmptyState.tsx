@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FeedType } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Home } from '@/assets/icons/home-icon';
@@ -20,6 +21,7 @@ interface FeedEmptyStateProps {
  */
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
     ({ isLoading, error, hasItems, type, showOnlySaved, onRetry }) => {
+        const { t } = useTranslation();
         if (isLoading) return null;
 
         const hasError = !!error;
@@ -29,8 +31,8 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
             return (
                 <EmptyState
                     error={{
-                        title: "Couldn't load posts",
-                        message: "Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again.",
+                        title: t('feed.empty.title'),
+                        message: t('feed.empty.message'),
                         onRetry,
                     }}
                     icon={{

@@ -7,6 +7,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useTheme } from '@oxyhq/bloom/theme';
+import { useTranslation } from 'react-i18next';
 import { SearchFilters as SearchFiltersType } from "@/services/searchService";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
@@ -23,6 +24,7 @@ type MediaTypeOption = 'all' | 'image' | 'video' | 'gif';
 
 export function SearchFilters({ filters, onApply, onClear, visible }: SearchFiltersProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const [dateFrom, setDateFrom] = useState(filters.dateFrom || "");
   const [dateTo, setDateTo] = useState(filters.dateTo || "");
@@ -110,7 +112,7 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
               </Text>
               <TextInput
                 style={inputStyle}
-                placeholder="YYYY-MM-DD"
+                placeholder={t('search.filters.datePlaceholder')}
                 placeholderTextColor={theme.colors.textSecondary}
                 value={dateFrom}
                 onChangeText={setDateFrom}
@@ -125,7 +127,7 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
               </Text>
               <TextInput
                 style={inputStyle}
-                placeholder="YYYY-MM-DD"
+                placeholder={t('search.filters.datePlaceholder')}
                 placeholderTextColor={theme.colors.textSecondary}
                 value={dateTo}
                 onChangeText={setDateTo}
@@ -144,7 +146,7 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
           </Text>
           <TextInput
             style={inputStyle}
-            placeholder="Username (e.g., @johndoe)"
+            placeholder={t('search.filters.usernamePlaceholder')}
             placeholderTextColor={theme.colors.textSecondary}
             value={author}
             onChangeText={setAuthor}

@@ -164,7 +164,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
             <TextInput
               value={customDate}
               onChangeText={setCustomDate}
-              placeholder="YYYY-MM-DD"
+              placeholder={t('compose.schedule.datePlaceholder')}
               placeholderTextColor={theme.colors.textTertiary}
               className="rounded-xl text-base text-foreground bg-secondary px-3"
               style={{
@@ -183,7 +183,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
             <TextInput
               value={customTime}
               onChangeText={setCustomTime}
-              placeholder="HH:MM"
+              placeholder={t('compose.schedule.timePlaceholder')}
               placeholderTextColor={theme.colors.textTertiary}
               className="rounded-xl text-base text-foreground bg-secondary px-3"
               style={{

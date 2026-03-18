@@ -119,7 +119,7 @@ const SavedPostsScreen: React.FC = () => {
             <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
                 <Stack.Screen
                     options={{
-                        title: 'Saved Posts',
+                        title: t('screens.saved.title'),
                         headerShown: true,
                     }}
                 />

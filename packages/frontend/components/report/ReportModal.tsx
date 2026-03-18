@@ -146,7 +146,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                             maxHeight: 150,
                             color: theme.colors.text,
                         }}
-                        placeholder="Provide more context..."
+                        placeholder={t('report.contextPlaceholder')}
                         placeholderTextColor={theme.colors.textSecondary}
                         value={details}
                         onChangeText={setDetails}

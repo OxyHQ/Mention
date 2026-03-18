@@ -25,12 +25,14 @@ import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';
 import { logger } from '@/lib/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { useTranslation } from 'react-i18next';
 
 const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
 
 const AgoraScreen = () => {
   const { isAuthenticated } = useAuth();
   const theme = useTheme();
+  const { t } = useTranslation();
   const bottomSheet = useContext(BottomSheetContext);
   const { joinLiveRoom } = useLiveRoom();
   const [liveRooms, setLiveRooms] = useState<Room[]>([]);
@@ -95,7 +97,7 @@ const AgoraScreen = () => {
       <SafeAreaView className="flex-1 bg-background">
         <Header
           options={{
-            title: 'Agora',
+            title: t('agora.title'),
             rightComponents: [
               <TouchableOpacity
                 key="create"
@@ -128,7 +130,7 @@ const AgoraScreen = () => {
               subtitle="Create a room to start a live audio conversation or schedule one for later"
               customIcon={<AgoraIcon size={48} className="text-muted-foreground" />}
               action={{
-                label: 'Create Room',
+                label: t('agora.createRoom'),
                 onPress: openCreateSheet,
               }}
               containerStyle={{ paddingVertical: 48, paddingHorizontal: 20 }}
@@ -142,7 +144,7 @@ const AgoraScreen = () => {
                       <AgoraIcon size={18} color="#FFFFFF" />
                     </View>
                     <View className="flex-1">
-                      <ThemedText type="subtitle">Live Now</ThemedText>
+                      <ThemedText type="subtitle">{t('agora.liveNow')}</ThemedText>
                       <Text className="text-[13px] mt-0.5 text-muted-foreground">
                         Join the conversation
                       </Text>
@@ -165,7 +167,7 @@ const AgoraScreen = () => {
                       <Ionicons name="calendar" size={18} color={theme.colors.card} />
                     </View>
                     <View className="flex-1">
-                      <ThemedText type="subtitle">Upcoming</ThemedText>
+                      <ThemedText type="subtitle">{t('agora.upcoming')}</ThemedText>
                       <Text className="text-[13px] mt-0.5 text-muted-foreground">
                         Scheduled rooms
                       </Text>

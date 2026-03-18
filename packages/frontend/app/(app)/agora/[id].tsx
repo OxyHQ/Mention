@@ -27,6 +27,7 @@ import { useUserById } from '@/stores/usersStore';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';
 import { useAuth } from '@oxyhq/services';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 
 // Wrapper to use useUserById hook for each participant
@@ -60,6 +61,7 @@ const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices:
 
 const RoomDetailScreen = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, oxyServices } = useAuth();
   const safeBack = useSafeBack();
@@ -145,7 +147,7 @@ const RoomDetailScreen = () => {
       <SafeAreaView className="flex-1 bg-background">
         <Header
           options={{
-            title: 'Room',
+            title: t('agora.room'),
             leftComponents: [
               <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                 <BackArrowIcon size={20} className="text-foreground" />

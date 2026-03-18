@@ -9,10 +9,12 @@ import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import SEO from '@/components/SEO';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 import { EmptyState } from '@/components/common/EmptyState';
 
 export default function StarterPacksScreen() {
+  const { t } = useTranslation();
   const safeBack = useSafeBack();
   const [myPacks, setMyPacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,7 @@ export default function StarterPacksScreen() {
       />
       <ThemedView className="flex-1">
         <Header options={{
-          title: 'Starter Packs',
+          title: t('starterPacks.title'),
           leftComponents: [
             <IconButton variant="icon"
               key="back"
@@ -75,7 +77,7 @@ export default function StarterPacksScreen() {
                 size: 48,
               }}
               action={{
-                label: 'Create Starter Pack',
+                label: t('starterPacks.create'),
                 onPress: () => router.push('/starter-packs/create'),
               }}
               containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}

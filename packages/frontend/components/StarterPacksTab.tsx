@@ -5,10 +5,12 @@ import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } fr
 import { starterPacksService } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
 import LegendList from '@/components/LegendList';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 
 export function StarterPacksTab() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [packs, setPacks] = useState<any[]>([]);
 
@@ -47,7 +49,7 @@ export function StarterPacksTab() {
         subtitle="Be the first to create a starter pack and help others discover great accounts"
         icon={{ name: 'rocket-outline', size: 48 }}
         action={{
-          label: 'Create Starter Pack',
+          label: t('starterPacks.create'),
           onPress: () => router.push('/starter-packs/create'),
         }}
         containerStyle={styles.emptyState}
@@ -90,7 +92,7 @@ export function StarterPacksTab() {
           onPress={() => router.push('/starter-packs/create')}
         >
           <Text className="text-primary-foreground" style={styles.createButtonText}>
-            Create Starter Pack
+            {t('starterPacks.create')}
           </Text>
         </TouchableOpacity>
       }

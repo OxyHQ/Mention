@@ -16,6 +16,7 @@ import { trendingService, TrendingTopic, TrendingDay } from '@/services/trending
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES } from '@/styles/typography';
+import { useTranslation } from 'react-i18next';
 import type { Trend } from '@/interfaces/Trend';
 
 interface TrendSection {
@@ -63,6 +64,7 @@ function topicToTrend(topic: TrendingTopic): Trend {
 
 export default function TrendingHistoryScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const [sections, setSections] = useState<TrendSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -153,7 +155,7 @@ export default function TrendingHistoryScreen() {
       <ThemedView className="flex-1">
         <SafeAreaView className="flex-1" edges={['top']}>
           <Header
-            options={{ title: 'Trending', headerBackVisible: true }}
+            options={{ title: t('screens.trending.title'), headerBackVisible: true }}
           />
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -167,7 +169,7 @@ export default function TrendingHistoryScreen() {
     <ThemedView className="flex-1">
       <SafeAreaView className="flex-1" edges={['top']}>
         <Header
-          options={{ title: 'Trending', headerBackVisible: true }}
+          options={{ title: t('screens.trending.title'), headerBackVisible: true }}
         />
         <SectionList
           sections={sections}

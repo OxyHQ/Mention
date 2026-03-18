@@ -49,11 +49,11 @@ interface LabelerDetail {
   userPreferences?: Record<string, LabelAction>;
 }
 
-const ACTION_OPTIONS: { value: LabelAction; label: string }[] = [
-  { value: 'show', label: 'Show' },
-  { value: 'warn', label: 'Warn' },
-  { value: 'blur', label: 'Blur' },
-  { value: 'hide', label: 'Hide' },
+const ACTION_OPTIONS_CONFIG: { value: LabelAction; labelKey: string }[] = [
+  { value: 'show', labelKey: 'moderation.show' },
+  { value: 'warn', labelKey: 'moderation.warn' },
+  { value: 'blur', labelKey: 'moderation.blur' },
+  { value: 'hide', labelKey: 'moderation.hide' },
 ];
 
 interface SeverityBadgeProps {
@@ -84,12 +84,13 @@ interface ActionChipsProps {
 const ActionChips = React.memo(
   ({ labelSlug, currentAction, isSubscribed, onActionChange }: ActionChipsProps) => {
     const theme = useTheme();
+    const { t } = useTranslation();
 
     if (!isSubscribed) return null;
 
     return (
       <View className="flex-row gap-1.5 mt-1 flex-wrap">
-        {ACTION_OPTIONS.map(({ value, label }) => {
+        {ACTION_OPTIONS_CONFIG.map(({ value, labelKey }) => {
           const isActive = currentAction === value;
           return (
             <TouchableOpacity
@@ -110,7 +111,7 @@ const ActionChips = React.memo(
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                {label}
+                {t(labelKey)}
               </Text>
             </TouchableOpacity>
           );

@@ -32,6 +32,7 @@ import StarRating from '@/components/StarRating';
 import { toast } from '@/lib/sonner';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import { useTranslation } from 'react-i18next';
 import * as OxyServicesNS from '@oxyhq/services';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
@@ -47,11 +48,11 @@ interface MemberProfile {
 
 const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }> | undefined;
 
-const TABS = [
-  { id: 'recent', label: 'Recent' },
-  { id: 'profiles', label: 'Profiles' },
-  { id: 'topics', label: 'Topics' },
-  { id: 'reviews', label: 'Reviews' },
+const TABS_CONFIG = [
+  { id: 'recent', labelKey: 'feeds.detail.tabs.recent' },
+  { id: 'profiles', labelKey: 'feeds.detail.tabs.profiles' },
+  { id: 'topics', labelKey: 'feeds.detail.tabs.topics' },
+  { id: 'reviews', labelKey: 'feeds.detail.tabs.reviews' },
 ];
 
 // Compact header bar matching Bluesky's ProfileFeedHeader
@@ -337,6 +338,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
   submitting: boolean;
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
 
@@ -381,7 +383,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Share your thoughts about this feed... (optional)"
+            placeholder={t('feeds.detail.reviewPlaceholder')}
             placeholderTextColor={theme.colors.textSecondary}
             style={reviewStyles.modalTextInput}
             className="text-foreground border border-border bg-secondary"
@@ -578,6 +580,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 
 export default function CustomFeedTimelineScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [feed, setFeed] = useState<any | null>(null);
@@ -589,6 +592,8 @@ export default function CustomFeedTimelineScreen() {
   const [likeCount, setLikeCount] = useState(0);
   const [isTogglingLike, setIsTogglingLike] = useState(false);
   const [activeTab, setActiveTab] = useState<FeedTab>('recent');
+
+  const TABS = TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) }));
 
   const infoSheetRef = useRef<BottomSheet>(null);
   const infoSnapPoints = useMemo(() => ['50%', '75%'], []);

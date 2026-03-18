@@ -24,12 +24,12 @@ const debounce = (func: Function, wait: number) => {
 
 type FilterType = 'people' | 'hashtags' | 'latest' | 'photos' | 'videos';
 
-const FILTER_OPTIONS: { id: FilterType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { id: 'people', label: 'People', icon: 'people-outline' },
-    { id: 'hashtags', label: 'Hashtags', icon: 'pricetag-outline' },
-    { id: 'latest', label: 'Latest', icon: 'time-outline' },
-    { id: 'photos', label: 'Photos', icon: 'image-outline' },
-    { id: 'videos', label: 'Videos', icon: 'videocam-outline' },
+const FILTER_OPTION_KEYS: { id: FilterType; labelKey: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { id: 'people', labelKey: 'searchBar.people', icon: 'people-outline' },
+    { id: 'hashtags', labelKey: 'searchBar.hashtags', icon: 'pricetag-outline' },
+    { id: 'latest', labelKey: 'searchBar.latest', icon: 'time-outline' },
+    { id: 'photos', labelKey: 'searchBar.photos', icon: 'image-outline' },
+    { id: 'videos', labelKey: 'searchBar.videos', icon: 'videocam-outline' },
 ];
 
 export const SearchBar = () => {
@@ -124,7 +124,7 @@ export const SearchBar = () => {
                         {t("Filter by")}
                     </Text>
                     <View style={styles.filterPillsRow}>
-                        {FILTER_OPTIONS.map(option => {
+                        {FILTER_OPTION_KEYS.map(option => {
                             const isActive = activeFilters.has(option.id);
                             return (
                                 <TouchableOpacity
@@ -144,7 +144,7 @@ export const SearchBar = () => {
                                         className={cn(isActive ? "text-primary-foreground" : "text-foreground")}
                                         style={styles.filterPillText}
                                     >
-                                        {t(option.label)}
+                                        {t(option.labelKey)}
                                     </Text>
                                 </TouchableOpacity>
                             );

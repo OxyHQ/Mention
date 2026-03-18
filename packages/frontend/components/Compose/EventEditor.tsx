@@ -204,7 +204,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                                 </Text>
                                 <TextInput
                                     className="text-base p-3 rounded-lg border border-border bg-background text-foreground text-center"
-                                    placeholder="HH:MM (24h format)"
+                                    placeholder={t('compose.schedule.time24hPlaceholder')}
                                     placeholderTextColor={theme.colors.textSecondary}
                                     value={`${String(eventDate.getHours()).padStart(2, '0')}:${String(eventDate.getMinutes()).padStart(2, '0')}`}
                                     onChangeText={(text) => {

@@ -408,7 +408,7 @@ const PostDetailScreen: React.FC = () => {
                 <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
                     <Header
                         options={{
-                            title: 'Post',
+                            title: t('screens.post.title'),
                             leftComponents: [
                                 <IconButton variant="icon"
                                     key="back"
@@ -499,7 +499,7 @@ const PostDetailScreen: React.FC = () => {
                                         color: theme.colors.text,
                                         backgroundColor: theme.colors.background
                                     }]}
-                                    placeholder="Post your reply"
+                                    placeholder={t('compose.replyPlaceholder')}
                                     value={content}
                                     onChangeText={setContent}
                                     onMentionsChange={setMentions}

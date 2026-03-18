@@ -202,8 +202,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
     const handleLongPress = useCallback(async () => {
         const confirmed = await confirmDialog({
-            title: 'Notification Options',
-            message: 'What would you like to do?',
+            title: t('notification.options.title'),
+            message: t('notification.options.message'),
             okText: 'Mark as Read',
             cancelText: 'Cancel',
         });

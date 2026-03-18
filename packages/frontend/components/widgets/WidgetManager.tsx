@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, Text } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
 import { LiveRoomsWidget } from './LiveRoomsWidget';
@@ -27,6 +28,7 @@ interface WidgetManagerProps {
  * It provides a centralized way to manage widget visibility based on screen context.
  */
 export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerProps) {
+    const { t } = useTranslation();
     // Define which widgets should appear on which screens
     const getWidgetsForScreen = (screen: ScreenId): ReactNode[] => {
         switch (screen) {
@@ -45,41 +47,41 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
             case 'notifications':
                 return [
                     <View key="notifications">
-                        <Text>Notifications Widget</Text>
+                        <Text>{t('widgets.notifications')}</Text>
                     </View>
                 ];
 
             case 'messages':
                 return [
                     <View key="messages-preview">
-                        <Text>Messages Preview Widget</Text>
+                        <Text>{t('widgets.messagesPreview')}</Text>
                     </View>
                 ];
 
             case 'saved':
                 return [
                     <View key="saved">
-                        <Text>Saved Posts Widget</Text>
+                        <Text>{t('widgets.savedPosts')}</Text>
                     </View>
                 ];
 
             case 'profile':
                 return [
                     <View key="profile-stats">
-                        <Text>Profile Stats Widget</Text>
+                        <Text>{t('widgets.profileStats')}</Text>
                     </View>,
                     <View key="engagement-stats">
-                        <Text>Engagement Stats Widget</Text>
+                        <Text>{t('widgets.engagementStats')}</Text>
                     </View>
                 ];
 
             case 'post-detail':
                 return [
                     <View key="related-posts">
-                        <Text>Related Posts Widget</Text>
+                        <Text>{t('widgets.relatedPosts')}</Text>
                     </View>,
                     <View key="recently-viewed">
-                        <Text>Recently Viewed Widget</Text>
+                        <Text>{t('widgets.recentlyViewed')}</Text>
                     </View>
                 ];
 
