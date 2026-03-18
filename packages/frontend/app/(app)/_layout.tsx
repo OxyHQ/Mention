@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, memo } from "react";
+import React, { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { Slot } from "expo-router";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
@@ -30,10 +30,14 @@ interface MainLayoutProps {
 const DrawerOverlay = memo(function DrawerOverlay() {
   const { isOpen, close } = useDrawer();
   const progress = useSharedValue(0);
+  const [hasOpened, setHasOpened] = useState(false);
 
   useEffect(() => {
+    if (isOpen && !hasOpened) {
+      setHasOpened(true);
+    }
     progress.value = withTiming(isOpen ? 1 : 0, { duration: 200 });
-  }, [isOpen, progress]);
+  }, [isOpen, progress, hasOpened]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
@@ -43,6 +47,8 @@ const DrawerOverlay = memo(function DrawerOverlay() {
   const drawerStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: interpolate(progress.value, [0, 1], [-300, 0]) }],
   }));
+
+  if (!hasOpened) return null;
 
   return (
     <Animated.View style={[styles.backdrop, backdropStyle]}>

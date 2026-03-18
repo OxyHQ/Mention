@@ -65,7 +65,8 @@ const HomeScreen: React.FC = () => {
 
     useEffect(() => {
         fabTransition.value = withTiming(isScrolledDown ? 1 : 0, { duration: 200 });
-    }, [isScrolledDown, fabTransition]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- fabTransition is a stable shared value ref
+    }, [isScrolledDown]);
 
     const fabComposeStyle = useAnimatedStyle(() => ({
         opacity: 1 - fabTransition.value,
