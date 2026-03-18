@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -48,6 +48,8 @@ const HomeScreen: React.FC = () => {
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const { scrollY, scrollToTop } = useLayoutScroll();
     const [isScrolledDown, setIsScrolledDown] = useState(false);
+    const isScrolledDownRef = useRef(false);
+    const insetTopRef = useRef(insets.top);
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
@@ -58,13 +60,16 @@ const HomeScreen: React.FC = () => {
     const fabTransition = useSharedValue(0);
 
     useEffect(() => {
+        insetTopRef.current = insets.top;
+    }, [insets.top]);
+
+    useEffect(() => {
         fabTransition.value = withTiming(isScrolledDown ? 1 : 0, { duration: 200 });
     }, [isScrolledDown, fabTransition]);
 
     const fabComposeStyle = useAnimatedStyle(() => ({
         opacity: 1 - fabTransition.value,
         transform: [{ scale: 1 - fabTransition.value * 0.3 }],
-        position: 'absolute' as const,
     }));
 
     const fabArrowStyle = useAnimatedStyle(() => ({
@@ -156,11 +161,15 @@ const HomeScreen: React.FC = () => {
                 isScrollingDown = scrollDelta > 0;
             }
 
-            setIsScrolledDown(currentScrollY > 200);
+            const nowScrolledDown = currentScrollY > 200;
+            if (nowScrolledDown !== isScrolledDownRef.current) {
+                isScrolledDownRef.current = nowScrolledDown;
+                setIsScrolledDown(nowScrolledDown);
+            }
 
             if (currentScrollY > 50) {
                 if (isScrollingDown) {
-                    headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
+                    headerTranslateY.value = withTiming(-headerHeight - insetTopRef.current, { duration: 200 });
                     headerOpacity.value = withTiming(0, { duration: 200 });
                 } else {
                     headerTranslateY.value = withTiming(0, { duration: 200 });
@@ -177,7 +186,7 @@ const HomeScreen: React.FC = () => {
         return () => {
             scrollY.removeListener(listenerId);
         };
-    }, [scrollY, headerTranslateY, headerOpacity, headerHeight, insets.top]);
+    }, [scrollY, headerTranslateY, headerOpacity, headerHeight]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
@@ -310,11 +319,11 @@ const HomeScreen: React.FC = () => {
                         <FAB
                             onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
                             customIcon={
-                                <View style={{ width: FAB_ICON_SIZE, height: FAB_ICON_SIZE, alignItems: 'center', justifyContent: 'center' }}>
-                                    <Animated.View style={fabComposeStyle} pointerEvents="none">
+                                <View style={{ width: FAB_ICON_SIZE, height: FAB_ICON_SIZE }}>
+                                    <Animated.View style={[fabComposeStyle, StyleSheet.absoluteFill, styles.fabIconLayer]} pointerEvents="none">
                                         <ComposeIcon size={FAB_ICON_SIZE} className="text-primary-foreground" />
                                     </Animated.View>
-                                    <Animated.View style={fabArrowStyle} pointerEvents="none">
+                                    <Animated.View style={[fabArrowStyle, StyleSheet.absoluteFill, styles.fabIconLayer]} pointerEvents="none">
                                         <ArrowUp size={FAB_ICON_SIZE} className="text-primary-foreground" />
                                     </Animated.View>
                                 </View>
@@ -348,6 +357,10 @@ const styles = StyleSheet.create({
         top: 0,
         zIndex: 100,
         backgroundColor: 'transparent',
+    },
+    fabIconLayer: {
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });
 

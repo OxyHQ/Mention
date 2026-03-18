@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 interface DrawerContextValue {
   isOpen: boolean;
@@ -18,8 +18,13 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
 
+  const value = useMemo<DrawerContextValue>(
+    () => ({ isOpen, open, close }),
+    [isOpen, open, close]
+  );
+
   return (
-    <DrawerContext.Provider value={{ isOpen, open, close }}>
+    <DrawerContext.Provider value={value}>
       {children}
     </DrawerContext.Provider>
   );

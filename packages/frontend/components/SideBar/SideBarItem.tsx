@@ -4,7 +4,7 @@ import { Pressable } from 'react-native-web-hover';
 import { useRouter } from 'expo-router';
 import { cn } from '@/lib/utils';
 
-export function SideBarItem({
+export const SideBarItem = React.memo(function SideBarItem({
     isActive,
     icon,
     text,
@@ -83,4 +83,4 @@ export function SideBarItem({
             </View>
         </Pressable>
     );
-}
+});

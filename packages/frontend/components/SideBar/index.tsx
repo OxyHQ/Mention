@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
     Dimensions,
     Platform,
@@ -31,9 +31,9 @@ import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
 
-const IconComponent = Ionicons as any;
-
 const WindowHeight = Dimensions.get('window').height;
+
+const webCursorPointer = Platform.select({ web: { cursor: 'pointer' } }) as ViewStyle | undefined;
 
 interface SideBarProps {
     asDrawer?: boolean;
@@ -70,93 +70,104 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         router.push(route);
     }, [onNavigate, router]);
 
-    const sideBarData: {
-        title: string;
-        icon: React.ReactNode;
-        iconActive: React.ReactNode;
-        route: string;
-    }[] = [
-            {
-                title: t("Home"),
-                icon: <Home />,
-                iconActive: <HomeActive />,
-                route: '/',
-            },
-            ...(user ? [{
-                title: t("Profile"),
-                icon: <Avatar source={avatarUri} size={24} />,
-                iconActive: <Avatar source={avatarUri} size={24} />,
-                route: `/@${user.username}`,
-            }] : []),
-            {
-                title: t("Explore"),
-                icon: <Search />,
-                iconActive: <SearchActive />,
-                route: '/explore',
-            },
-            {
-                title: t("Notifications"),
-                icon: <Bell />,
-                iconActive: <BellActive />,
-                route: '/notifications',
-            },
-            {
-                title: t("Chat"),
-                icon: <Chat />,
-                iconActive: <ChatActive />,
-                route: '/chat',
-            },
-            {
-                title: t("Agora"),
-                icon: <Agora />,
-                iconActive: <AgoraActive />,
-                route: '/agora',
-            },
-            {
-                title: t("Insights"),
-                icon: <AnalyticsIcon />,
-                iconActive: <AnalyticsIconActive />,
-                route: '/insights',
-            },
-            {
-                title: t("Saved"),
-                icon: <Bookmark />,
-                iconActive: <BookmarkActive />,
-                route: '/saved',
-            },
-            {
-                title: t("Feeds"),
-                icon: <Hashtag />,
-                iconActive: <HashtagActive />,
-                route: '/feeds',
-            },
-            {
-                title: t("Lists"),
-                icon: <List />,
-                iconActive: <ListActive />,
-                route: '/lists',
-            },
-            {
-                title: t("Videos"),
-                icon: <Video />,
-                iconActive: <VideoActive />,
-                route: '/videos',
-            },
-            {
-                title: t("Settings"),
-                icon: <Gear />,
-                iconActive: <GearActive />,
-                route: '/settings',
-            },
-        ];
+    const handleComposePress = useCallback(() => {
+        if (asDrawer) {
+            handleNavPress('/compose');
+        } else {
+            router.push('/compose');
+        }
+    }, [asDrawer, handleNavPress, router]);
+
+    const handleSignIn = useCallback(() => {
+        onNavigate?.();
+        signIn().catch(() => {});
+    }, [onNavigate, signIn]);
+
+    const sideBarData = useMemo(() => [
+        {
+            title: t("Home"),
+            icon: <Home />,
+            iconActive: <HomeActive />,
+            route: '/',
+        },
+        ...(user ? [{
+            title: t("Profile"),
+            icon: <Avatar source={avatarUri} size={24} />,
+            iconActive: <Avatar source={avatarUri} size={24} />,
+            route: `/@${user.username}`,
+        }] : []),
+        {
+            title: t("Explore"),
+            icon: <Search />,
+            iconActive: <SearchActive />,
+            route: '/explore',
+        },
+        {
+            title: t("Notifications"),
+            icon: <Bell />,
+            iconActive: <BellActive />,
+            route: '/notifications',
+        },
+        {
+            title: t("Chat"),
+            icon: <Chat />,
+            iconActive: <ChatActive />,
+            route: '/chat',
+        },
+        {
+            title: t("Agora"),
+            icon: <Agora />,
+            iconActive: <AgoraActive />,
+            route: '/agora',
+        },
+        {
+            title: t("Insights"),
+            icon: <AnalyticsIcon />,
+            iconActive: <AnalyticsIconActive />,
+            route: '/insights',
+        },
+        {
+            title: t("Saved"),
+            icon: <Bookmark />,
+            iconActive: <BookmarkActive />,
+            route: '/saved',
+        },
+        {
+            title: t("Feeds"),
+            icon: <Hashtag />,
+            iconActive: <HashtagActive />,
+            route: '/feeds',
+        },
+        {
+            title: t("Lists"),
+            icon: <List />,
+            iconActive: <ListActive />,
+            route: '/lists',
+        },
+        {
+            title: t("Videos"),
+            icon: <Video />,
+            iconActive: <VideoActive />,
+            route: '/videos',
+        },
+        {
+            title: t("Settings"),
+            icon: <Gear />,
+            iconActive: <GearActive />,
+            route: '/settings',
+        },
+    ], [t, user, avatarUri]);
 
     const pathname = usePathname();
     const isSideBarVisible = useIsScreenNotMobile();
     const isExpanded = useIsSideBarExpanded();
-    // In drawer mode, always render expanded regardless of media queries
+
     if (!asDrawer && !isSideBarVisible) return null;
 
     const showExpanded = asDrawer || isExpanded;
+
+    const composeButtonBg = { backgroundColor: theme.colors.primary };
+    const composeTextColor = { color: theme.colors.card };
 
     return (
         <View
@@ -164,10 +175,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             style={[
                 asDrawer ? styles.drawerContainer : styles.container,
                 !asDrawer && { width: showExpanded ? 240 : 60 },
-                !asDrawer && pathname === '/search' ? {
-                    boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
-                    elevation: 5,
-                } : {},
+                !asDrawer && pathname === '/search' ? styles.searchShadow : undefined,
             ]}
         >
             <View style={styles.inner}>
@@ -189,18 +197,16 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
 
                     <View style={styles.composeButtonContainer}>
                         <Pressable
-                            onPress={() => asDrawer ? handleNavPress('/compose') : router.push('/compose')}
+                            onPress={handleComposePress}
                             style={[
                                 styles.composeButton,
-                                { backgroundColor: theme.colors.primary },
-                                showExpanded
-                                    ? { width: '100%', paddingVertical: 12, paddingHorizontal: 12 }
-                                    : { width: 50, height: 50 },
-                                Platform.select({ web: { cursor: 'pointer' as any } }),
+                                composeButtonBg,
+                                showExpanded ? styles.composeButtonExpanded : styles.composeButtonCollapsed,
+                                webCursorPointer,
                             ]}
                         >
                             {showExpanded ? (
-                                <Text style={{ color: theme.colors.card, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
+                                <Text className="text-primary-foreground text-[17px] font-extrabold text-center">
                                     {t("New Post")}
                                 </Text>
                             ) : (
@@ -217,7 +223,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     {user && user.id ? (
                         <SideBarItem
                             isActive={false}
-                            icon={<IconComponent name="log-out-outline" size={20} color={theme.colors.text} />}
+                            icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.text} />}
                             text={t('settings.signOut')}
                             isExpanded={showExpanded}
                             onPress={handleSignOut}
@@ -225,13 +231,10 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     ) : (
                         <SideBarItem
                             isActive={false}
-                            icon={<IconComponent name="log-in-outline" size={20} color={theme.colors.text} />}
+                            icon={<Ionicons name="log-in-outline" size={20} color={theme.colors.text} />}
                             text={t('Sign In')}
                             isExpanded={showExpanded}
-                            onPress={() => {
-                                onNavigate?.();
-                                signIn().catch(() => {});
-                            }}
+                            onPress={handleSignIn}
                         />
                     )}
                 </View>
@@ -248,7 +251,6 @@ const styles = StyleSheet.create({
                 position: 'sticky' as any,
                 overflow: 'hidden',
                 height: '100vh' as any,
-                cursor: 'initial',
             },
             default: {
                 height: WindowHeight,
@@ -279,12 +281,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    composeButtonExpanded: {
+        width: '100%',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+    },
+    composeButtonCollapsed: {
+        width: 50,
+        height: 50,
+    },
     composeButtonContainer: {
         minHeight: 60,
         width: '100%',
         justifyContent: 'center',
         alignItems: 'center',
     },
+    searchShadow: {
+        boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
+        elevation: 5,
+    } as ViewStyle,
     footer: {
         flexDirection: 'column',
         justifyContent: 'flex-end',
