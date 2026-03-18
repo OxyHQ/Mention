@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
     Dimensions,
     Platform,
-    Pressable,
     Text,
     View,
     ViewStyle,
@@ -19,7 +18,6 @@ import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { Gear, GearActive } from "@/assets/icons/gear-icon";
 import { Search, SearchActive } from "@/assets/icons/search-icon";
 import { ComposeIcon } from "@/assets/icons/compose-icon";
-import { ArrowUp } from "@/assets/icons/arrow-up-icon";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@oxyhq/services";
 import { confirmDialog } from "@/utils/alerts";
@@ -32,7 +30,6 @@ import { logger } from '@/lib/logger';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
 
 const IconComponent = Ionicons as any;
 
@@ -156,19 +153,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const pathname = usePathname();
     const isSideBarVisible = useMediaQuery({ minWidth: 500 });
     const isExpanded = useMediaQuery({ minWidth: 1300 });
-    const { scrollY, scrollToTop } = useLayoutScroll();
-    const [showScrollTop, setShowScrollTop] = useState(false);
-
-    useEffect(() => {
-        if (asDrawer) return;
-        const listenerId = scrollY.addListener(({ value }) => {
-            setShowScrollTop(value > 200);
-        });
-        return () => {
-            scrollY.removeListener(listenerId);
-        };
-    }, [scrollY, asDrawer]);
-
     // In drawer mode, always render expanded regardless of media queries
     if (!asDrawer && !isSideBarVisible) return null;
 
@@ -230,19 +214,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     styles.footer,
                     { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
-                    {!asDrawer && showScrollTop && (
-                        <Pressable
-                            onPress={scrollToTop}
-                            className="active:bg-primary/20"
-                            style={[
-                                styles.scrollToTopButton,
-                                { borderColor: theme.colors.border },
-                                Platform.select({ web: { cursor: 'pointer' as any } }),
-                            ]}
-                        >
-                            <ArrowUp size={18} color={theme.colors.textSecondary} />
-                        </Pressable>
-                    )}
                     {user && user.id ? (
                         <SideBarItem
                             isActive={false}
@@ -314,16 +285,6 @@ const styles = StyleSheet.create({
         width: '100%',
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    scrollToTopButton: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        alignSelf: 'center',
-        marginBottom: 8,
     },
     footer: {
         flexDirection: 'column',
