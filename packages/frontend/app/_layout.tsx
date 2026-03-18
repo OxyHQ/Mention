@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Platform, Text, TextInput, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -29,6 +30,7 @@ import { APP_COLOR_PRESETS, getAppColorCSSVariables, applyAppColorToDocument } f
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@/lib/logger';
 
@@ -37,6 +39,13 @@ import { vars } from 'react-native-css';
 
 // Styles
 import '../global.css';
+
+// Resolve file IDs to download URLs for Bloom's Avatar and other image components.
+// Configured once here; all Bloom components that use useImageResolver() pick it up.
+function resolveImageSource(fileId: string): string | undefined {
+  const url = getCachedFileDownloadUrlSync(oxyServices, fileId, 'thumb');
+  return url.startsWith('http') ? url : undefined;
+}
 
 // Types
 interface SplashState {
@@ -197,16 +206,18 @@ export default function RootLayout() {
   ]);
 
   return (
-    <BloomThemeProvider
-      mode={mode}
-      colorPreset={appColor}
-      onModeChange={setMode}
-      onColorPresetChange={setAppColor}
-    >
-      <ThemedView style={[{ flex: 1 }, colorVars]}>
-        {appContent}
-      </ThemedView>
-    </BloomThemeProvider>
+    <ImageResolverProvider value={resolveImageSource}>
+      <BloomThemeProvider
+        mode={mode}
+        colorPreset={appColor}
+        onModeChange={setMode}
+        onColorPresetChange={setAppColor}
+      >
+        <ThemedView style={[{ flex: 1 }, colorVars]}>
+          {appContent}
+        </ThemedView>
+      </BloomThemeProvider>
+    </ImageResolverProvider>
   );
 }
 
