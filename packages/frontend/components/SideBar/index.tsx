@@ -191,7 +191,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                             variant="primary"
                             href={asDrawer ? undefined : "/compose"}
                             onPress={asDrawer ? () => handleNavPress('/compose') : undefined}
-                            customIcon={!showExpanded ? <ComposeIcon size={36} color={theme.colors.card} /> : undefined}
+                            customIcon={!showExpanded ? <ComposeIcon size={26} color={theme.colors.card} /> : undefined}
                             style={{
                                 borderRadius: 100,
                                 height: showExpanded ? 48 : 56,
