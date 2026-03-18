@@ -19,6 +19,9 @@ export function useSubscription(
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(false);
+  const subscribedRef = useRef(subscribed);
+  subscribedRef.current = subscribed;
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Defer subscription status fetch — non-critical data
   useEffect(() => {
@@ -27,7 +30,8 @@ export function useSubscription(
     fetchedRef.current = false;
     let cancelled = false;
 
-    const timer = setTimeout(async () => {
+    timerRef.current = setTimeout(async () => {
+      timerRef.current = null;
       try {
         const { subscribed: isSubscribed } = await subscriptionService.getStatus(profileId);
         if (!cancelled) {
@@ -41,7 +45,10 @@ export function useSubscription(
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [profileId, isOwnProfile, currentUserId]);
 
@@ -49,10 +56,18 @@ export function useSubscription(
   const toggle = useCallback(async () => {
     if (!profileId || loading || isOwnProfile) return;
 
+    // Cancel the deferred timer to prevent concurrent fetches
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // If we haven't fetched yet, fetch now and use the result directly
     if (!fetchedRef.current) {
       try {
         const { subscribed: isSubscribed } = await subscriptionService.getStatus(profileId);
         setSubscribed(!!isSubscribed);
+        subscribedRef.current = !!isSubscribed;
         fetchedRef.current = true;
       } catch {
         // Continue with default state
@@ -60,7 +75,8 @@ export function useSubscription(
     }
 
     setLoading(true);
-    const previousState = subscribed;
+    // Read from ref to get the latest value (not stale closure)
+    const previousState = subscribedRef.current;
     setSubscribed(!previousState);
 
     try {
@@ -78,7 +94,7 @@ export function useSubscription(
     } finally {
       setLoading(false);
     }
-  }, [profileId, loading, subscribed, isOwnProfile, t]);
+  }, [profileId, loading, isOwnProfile, t]);
 
   return {
     subscribed,

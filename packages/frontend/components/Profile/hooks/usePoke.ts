@@ -23,6 +23,9 @@ export function usePoke(
   const [poked, setPoked] = useState(false);
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(false);
+  const pokedRef = useRef(poked);
+  pokedRef.current = poked;
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Defer poke status fetch — non-critical data that doesn't affect layout
   useEffect(() => {
@@ -31,7 +34,8 @@ export function usePoke(
     fetchedRef.current = false;
     let cancelled = false;
 
-    const timer = setTimeout(async () => {
+    timerRef.current = setTimeout(async () => {
+      timerRef.current = null;
       try {
         const { poked: isPoked } = await pokeService.getStatus(profileId);
         if (!cancelled) {
@@ -45,7 +49,10 @@ export function usePoke(
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [profileId, isOwnProfile]);
 
@@ -53,11 +60,18 @@ export function usePoke(
   const toggle = useCallback(async () => {
     if (!profileId || loading || isOwnProfile) return;
 
-    // If we haven't fetched yet, fetch now before toggling
+    // Cancel the deferred timer to prevent concurrent fetches
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // If we haven't fetched yet, fetch now and use the result directly
     if (!fetchedRef.current) {
       try {
         const { poked: isPoked } = await pokeService.getStatus(profileId);
         setPoked(!!isPoked);
+        pokedRef.current = !!isPoked;
         fetchedRef.current = true;
       } catch {
         // Continue with default state
@@ -65,7 +79,8 @@ export function usePoke(
     }
 
     setLoading(true);
-    const previousState = poked;
+    // Read from ref to get the latest value (not stale closure)
+    const previousState = pokedRef.current;
     setPoked(!previousState);
 
     try {
@@ -83,7 +98,7 @@ export function usePoke(
     } finally {
       setLoading(false);
     }
-  }, [profileId, loading, poked, isOwnProfile, t]);
+  }, [profileId, loading, isOwnProfile, t]);
 
   return {
     poked,
