@@ -341,7 +341,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
       onLayout={(e) => setScrollViewWidth(e.nativeEvent.layout.width)}
-      className="bg-background"
       style={style}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
