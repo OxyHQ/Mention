@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { useUsersStore } from '@/stores/usersStore';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
+import { logger } from '@/lib/logger';
 
 interface SuggestedUsersProps {
   visible?: boolean;
@@ -50,12 +51,12 @@ export const SuggestedUsers = memo(function SuggestedUsers({
           try {
             useUsersStore.getState().upsertMany(users);
           } catch (e) {
-            console.warn('SuggestedUsers: failed to cache users:', e);
+            logger.warn('SuggestedUsers: failed to cache users');
           }
         }
       } catch (err) {
         if (!mounted) return;
-        console.error('SuggestedUsers: error fetching recommendations:', err);
+        logger.error('SuggestedUsers: error fetching recommendations');
       } finally {
         if (mounted) {
           setLoading(false);

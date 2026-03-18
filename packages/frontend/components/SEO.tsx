@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { logger } from '@/lib/logger';
 
 // Only import Head on web to avoid native errors
 let Head: any = null;
@@ -12,7 +13,7 @@ if (Platform.OS === 'web') {
     Head = expoRouterHead.Head || expoRouterHead.default || expoRouterHead;
   } catch (e) {
     // Head not available - will return null component
-    console.warn('SEO: expo-router/head not available', e);
+    logger.warn('SEO: expo-router/head not available');
   }
 }
 

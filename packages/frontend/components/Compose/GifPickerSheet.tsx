@@ -19,6 +19,9 @@ import { useAuth } from '@oxyhq/services';
 import { toast } from 'sonner';
 import { Platform } from 'react-native';
 import { api } from '@/utils/api';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('GifPickerSheet');
 
 interface GifPickerSheetProps {
   onClose: () => void;
@@ -85,7 +88,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         setGifs([]);
       }
     } catch (error: any) {
-      console.error('Error fetching GIFs:', error);
+      logger.error('Error fetching GIFs');
       toast.error(error?.message || t('Failed to load GIFs'));
       setGifs([]);
     } finally {
@@ -126,13 +129,13 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         const file = new File([blob], filename, { type: 'image/gif' });
 
         // Upload via Oxy services
-        console.log('Uploading GIF file (web):', { filename, type: 'image/gif' });
+        logger.debug(`Uploading GIF file (web): ${filename}`);
         const uploadResponse = await oxyServices.uploadFile(file as any, {
           folder: 'user_content',
           isPublic: true,
         });
 
-        console.log('Upload response (web):', uploadResponse);
+        logger.debug('Upload response (web) received');
 
         // Extract file ID from Oxy response: file.key is the file identifier
         const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
@@ -142,8 +145,8 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           onClose();
           return;
         } else {
-          console.error('Upload response structure:', JSON.stringify(uploadResponse, null, 2));
-          throw new Error('Upload failed - no file ID returned. Response: ' + JSON.stringify(uploadResponse));
+          logger.error('Upload failed - no file ID returned');
+          throw new Error('Upload failed - no file ID returned');
         }
       } else {
         // For React Native, try to use expo-file-system if available, otherwise use direct URL
@@ -162,7 +165,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           }
         } catch (fsError) {
           // If expo-file-system is not available, use the remote URL directly
-          console.warn('expo-file-system not available, using remote URL:', fsError);
+          logger.warn('expo-file-system not available, using remote URL');
         }
 
         // Create file object for React Native upload
@@ -173,13 +176,13 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         } as any;
 
         // Upload via Oxy services
-        console.log('Uploading GIF file:', { uri: file.uri, type: file.type, name: file.name });
+        logger.debug(`Uploading GIF file: ${file.name}`);
         const uploadResponse = await oxyServices.uploadFile(file, {
           folder: 'user_content',
           isPublic: true,
         });
 
-        console.log('Upload response:', uploadResponse);
+        logger.debug('Upload response received');
 
         // Extract file ID from Oxy response: file.key is the file identifier
         const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
@@ -188,13 +191,12 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           await onSelectGif(gifUrl, fileId);
           onClose();
         } else {
-          console.error('Upload response structure:', JSON.stringify(uploadResponse, null, 2));
-          throw new Error('Upload failed - no file ID returned. Response: ' + JSON.stringify(uploadResponse));
+          logger.error('Upload failed - no file ID returned');
+          throw new Error('Upload failed - no file ID returned');
         }
       }
     } catch (error: any) {
-      console.error('Error selecting GIF:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      logger.error('Error selecting GIF');
       toast.error(error?.message || t('Failed to add GIF'));
     } finally {
       setUploading(false);

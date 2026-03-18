@@ -6,6 +6,7 @@ import { authenticatedClient } from '@/utils/api';
 import { getData } from '@/utils/storage';
 import { getDevicePushToken } from '@/utils/notifications';
 import i18next from 'i18next';
+import { logger } from '@/lib/logger';
 
 export const RegisterPushToken: React.FC = () => {
     const { isAuthenticated, user } = useAuth();
@@ -18,7 +19,7 @@ export const RegisterPushToken: React.FC = () => {
             if (Platform.OS === 'web') return;
             // Remote push notifications are not supported in Expo Go starting with SDK 53
             if (Constants.appOwnership === 'expo') {
-                console.warn('expo-notifications: Remote push is unavailable in Expo Go. Use a development build.');
+                logger.warn('expo-notifications: Remote push is unavailable in Expo Go. Use a development build.');
                 return;
             }
             // Honor persisted preference to avoid re-registering until re-enabled
@@ -39,7 +40,7 @@ export const RegisterPushToken: React.FC = () => {
                 });
                 lastTokenRef.current = token.token;
             } catch (e) {
-                console.warn('Failed to register push token:', e);
+                logger.warn('Failed to register push token');
             }
         };
         register();

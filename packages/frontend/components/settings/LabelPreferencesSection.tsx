@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
+import { logger } from '@/lib/logger';
 
 interface SubscribedLabeler {
   id: string;
@@ -42,7 +43,7 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
         }));
       setSubscribedLabelers(subscribed);
     } catch (e) {
-      console.warn('Failed to load subscribed labelers', e);
+      logger.warn('Failed to load subscribed labelers');
     } finally {
       setLoading(false);
     }

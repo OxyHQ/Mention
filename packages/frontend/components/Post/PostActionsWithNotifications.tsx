@@ -1,6 +1,7 @@
 import React from 'react';
 import PostActions from './PostActions';
 import { useNotificationActions } from '../../hooks/useNotificationActions';
+import { logger } from '@/lib/logger';
 
 interface Engagement {
     replies: number;
@@ -44,7 +45,7 @@ const PostActionsWithNotifications: React.FC<Props> = ({
                 await notifyLike(postId, postAuthorId);
             }
         } catch (error) {
-            console.error('Error handling like with notification:', error);
+            logger.error('Error handling like with notification');
             onLike();
         }
     };
@@ -56,7 +57,7 @@ const PostActionsWithNotifications: React.FC<Props> = ({
                 await notifyRepost(postId, postAuthorId);
             }
         } catch (error) {
-            console.error('Error handling repost with notification:', error);
+            logger.error('Error handling repost with notification');
             onRepost();
         }
     };

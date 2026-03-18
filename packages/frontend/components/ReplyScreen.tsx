@@ -22,6 +22,7 @@ import { HydratedPost, Reply, FeedRepost as Repost, FeedType } from '@mention/sh
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import UserName from './UserName';
+import { logger } from '@/lib/logger';
 
 const MAX_CHARACTERS = 280;
 
@@ -67,17 +68,17 @@ const ReplyScreen: React.FC = () => {
 
                 // If not found in feeds, try to fetch from API
                 if (!foundPost) {
-                    console.log('Post not found in feeds, fetching from API...');
+                    logger.debug('Post not found in feeds, fetching from API...');
                     foundPost = await getPostById(postId);
                 }
 
                 if (foundPost) {
                     setOriginalPost(foundPost);
                 } else {
-                    console.error('Post not found:', postId);
+                    logger.error(`Post not found: ${postId}`);
                 }
             } catch (error) {
-                console.error('Error finding original post:', error);
+                logger.error('Error finding original post');
             } finally {
                 setIsLoadingPost(false);
             }
@@ -111,7 +112,7 @@ const ReplyScreen: React.FC = () => {
             // Show success feedback
             toast.success('Your reply has been posted!');
         } catch (error) {
-            console.error('Error posting reply:', error);
+            logger.error('Error posting reply');
             toast.error('Failed to post reply. Please try again.');
         } finally {
             setIsSubmitting(false);

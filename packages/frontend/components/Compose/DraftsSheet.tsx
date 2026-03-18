@@ -11,6 +11,10 @@ import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
 import { toast } from 'sonner';
 import { confirmDialog } from '@/utils/alerts';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('DraftsSheet');
+
 interface DraftsSheetProps {
   onClose: () => void;
   onLoadDraft: (draft: Draft) => void;
@@ -28,7 +32,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
   }, [onLoadDraft]);
 
   const handleDeleteDraft = useCallback(async (draftId: string) => {
-    console.log('handleDeleteDraft called with draftId:', draftId);
+    logger.debug(`handleDeleteDraft called with draftId: ${draftId}`);
     const confirmed = await confirmDialog({
       title: t('compose.deleteDraft'),
       message: t('compose.deleteDraftConfirm'),
@@ -38,22 +42,22 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
     });
 
     if (!confirmed) {
-      console.log('Delete cancelled');
+      logger.debug('Delete cancelled');
       return;
     }
 
-    console.log('Delete confirmed, deleting draft:', draftId);
+    logger.debug(`Delete confirmed, deleting draft: ${draftId}`);
     try {
       setDeletingId(draftId);
-      console.log('Calling deleteDraft...');
+      logger.debug('Calling deleteDraft...');
       await deleteDraft(draftId);
-      console.log('deleteDraft completed, reloading drafts...');
+      logger.debug('deleteDraft completed, reloading drafts...');
       // Reload drafts to ensure UI is updated
       await loadDrafts();
-      console.log('Drafts reloaded');
+      logger.debug('Drafts reloaded');
       toast.success(t('compose.draftDeleted'));
     } catch (error) {
-      console.error('Error deleting draft:', error);
+      logger.error('Error deleting draft');
       toast.error(t('compose.deleteDraftError'));
     } finally {
       setDeletingId(null);
@@ -172,7 +176,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
         <TouchableOpacity
           className="p-1"
           onPress={() => {
-            console.log('Delete button pressed for draft:', item.id);
+            logger.debug(`Delete button pressed for draft: ${item.id}`);
             handleDeleteDraft(item.id);
           }}
           disabled={isDeleting}

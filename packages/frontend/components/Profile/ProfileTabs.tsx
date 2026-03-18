@@ -16,6 +16,7 @@ import { starterPacksService } from '@/services/starterPacksService';
 import { listsService } from '@/services/listsService';
 import type { FeedType } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
+import { logger } from '@/lib/logger';
 
 const PinnedPostItem = React.lazy(() => import('@/components/Feed/PostItem'));
 
@@ -181,7 +182,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
         const res = await customFeedsService.list(params);
         if (!cancelled) setFeeds(res.items || []);
       } catch (e) {
-        console.warn('Failed to load profile feeds', e);
+        logger.warn('Failed to load profile feeds');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -268,7 +269,7 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
           setPacks(items);
         }
       } catch (e) {
-        console.warn('Failed to load profile starter packs', e);
+        logger.warn('Failed to load profile starter packs');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -356,7 +357,7 @@ const ProfileLists = memo(function ProfileLists({
           setLists(items);
         }
       } catch (e) {
-        console.warn('Failed to load profile lists', e);
+        logger.warn('Failed to load profile lists');
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -12,6 +12,7 @@ import LegendList from '@/components/LegendList';
 import { ThemedText } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { Error } from '@/components/Error';
+import { logger } from '@/lib/logger';
 
 export function WhoToFollowTab() {
   const { oxyServices, user } = useAuth();
@@ -87,7 +88,7 @@ export function WhoToFollowTab() {
     } catch (error: unknown) {
       const err = error as { message?: string; code?: string };
       if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
-        console.error('Error inviting friends:', error);
+        logger.error('Error inviting friends');
       }
     }
   }, [getInviteMessage, t]);
@@ -111,7 +112,7 @@ export function WhoToFollowTab() {
           errorMessage = err.message;
         }
         setError(errorMessage);
-        console.error('Error fetching recommendations:', err);
+        logger.error('Error fetching recommendations');
       } finally {
         setLoading(false);
       }

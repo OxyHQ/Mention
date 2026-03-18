@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { PostSourceLink } from '@mention/shared-types';
+import { logger } from '@/lib/logger';
 
 interface Props {
   sources?: PostSourceLink[];
@@ -26,12 +27,12 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
     try {
       const supported = await Linking.canOpenURL(url);
       if (!supported) {
-        console.warn('[PostSources] Cannot open URL:', url);
+        logger.warn(`[PostSources] Cannot open URL: ${url}`);
         return;
       }
       await Linking.openURL(url);
     } catch (error) {
-      console.error('[PostSources] Failed to open URL:', url, error);
+      logger.error(`[PostSources] Failed to open URL: ${url}`);
     }
   };
 

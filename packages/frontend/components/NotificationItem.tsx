@@ -14,6 +14,7 @@ import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
 import { useUsersStore } from '@/stores/usersStore';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 
 interface NotificationItemProps {
     notification: RawNotification;
@@ -304,7 +305,7 @@ const PostNotificationItem: React.FC<{
                     setPost(postData);
                 }
             } catch (error) {
-                console.error('Error loading post for notification:', error);
+                logger.error('Error loading post for notification');
             } finally {
                 setLoading(false);
             }

@@ -5,6 +5,7 @@ import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } fr
 import { starterPacksService } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
 import LegendList from '@/components/LegendList';
+import { logger } from '@/lib/logger';
 
 export function StarterPacksTab() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export function StarterPacksTab() {
       const res = await starterPacksService.list();
       setPacks(res.items || []);
     } catch (e) {
-      console.warn('load starter packs failed', e);
+      logger.warn('load starter packs failed');
     } finally {
       setLoading(false);
     }

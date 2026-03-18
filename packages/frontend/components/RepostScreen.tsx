@@ -20,6 +20,7 @@ import { useAuth } from "@oxyhq/services";
 import { usePostsStore } from "../stores/postsStore";
 import { CreateRepostRequest } from "@mention/shared-types";
 import { useTheme } from '@oxyhq/bloom/theme';
+import { logger } from '@/lib/logger';
 
 const MAX_CHARACTERS = 280;
 
@@ -58,7 +59,7 @@ const RepostScreen: React.FC = () => {
                     setOriginalPost(fetched);
                 }
             } catch (e) {
-                console.error('Failed to load original post for repost:', e);
+                logger.error('Failed to load original post for repost');
             }
         };
         loadOriginal();
@@ -96,7 +97,7 @@ const RepostScreen: React.FC = () => {
             // Show success feedback
             toast.success('Post reposted successfully!');
         } catch (error) {
-            console.error('Error reposting:', error);
+            logger.error('Error reposting');
             toast.error('Failed to repost. Please try again.');
         } finally {
             setIsSubmitting(false);

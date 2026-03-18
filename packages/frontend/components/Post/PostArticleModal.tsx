@@ -27,6 +27,7 @@ import { articleService } from '@/services/articleService';
 import LinkifiedText from '@/components/common/LinkifiedText';
 import { Portal } from '@oxyhq/bloom/portal';
 import { Z_INDEX } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
@@ -108,7 +109,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
           setArticleBody(article.body || body);
         })
         .catch((error) => {
-          console.error('Failed to load article content:', error);
+          logger.error('Failed to load article content');
           if (isMounted) {
             setLoadError(t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }));
           }

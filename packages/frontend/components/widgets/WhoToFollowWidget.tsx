@@ -9,6 +9,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
 import { useUsersStore } from "@/stores/usersStore";
+import { logger } from '@/lib/logger';
 
 interface ProfileData {
   id: string;
@@ -57,14 +58,14 @@ export function WhoToFollowWidget() {
           try {
             useUsersStore.getState().upsertMany(users);
           } catch (e) {
-            console.warn("Failed to cache users:", e);
+            logger.warn("Failed to cache users");
           }
         }
       } catch (err) {
         if (!mounted) return;
         const errorMessage = err instanceof Error ? err.message : "Failed to fetch recommendations";
         setError(errorMessage);
-        console.error("Error fetching recommendations:", err);
+        logger.error("Error fetching recommendations");
       } finally {
         if (mounted) {
           setLoading(false);

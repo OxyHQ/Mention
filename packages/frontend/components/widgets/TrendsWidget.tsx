@@ -10,6 +10,7 @@ import { useTrendsStore } from '@/store/trendsStore';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
+import { logger } from '@/lib/logger';
 
 const MAX_TRENDS_DISPLAYED = 5;
 
@@ -67,7 +68,7 @@ export function TrendsWidget() {
 
   const handleMenuPress = useCallback((trend: Trend) => {
     // Menu actions placeholder
-    console.log('Menu pressed for trend:', trend.hashtag);
+    logger.debug(`Menu pressed for trend: ${trend.hashtag}`);
   }, []);
 
   // Don't render if there are no trends (and not loading, and no error)

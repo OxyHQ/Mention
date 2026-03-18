@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
 import { articleService } from '@/services/articleService';
+import { logger } from '@/lib/logger';
 
 interface PostArticleSheetProps {
   articleId?: string;
@@ -34,7 +35,7 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
           setArticleBody(article.body || body);
         })
         .catch((error) => {
-          console.error('Failed to load article content:', error);
+          logger.error('Failed to load article content');
           if (isMounted) {
             setLoadError(t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }));
           }

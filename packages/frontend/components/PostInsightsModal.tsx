@@ -14,6 +14,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { statisticsService, PostInsights } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { logger } from '@/lib/logger';
 
 interface PostInsightsModalProps {
     visible: boolean;
@@ -45,7 +46,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
             const data = await statisticsService.getPostInsights(postId);
             setInsights(data);
         } catch (error) {
-            console.error('Error loading post insights:', error);
+            logger.error('Error loading post insights');
         } finally {
             setLoading(false);
         }

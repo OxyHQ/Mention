@@ -10,6 +10,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
+import { logger } from '@/lib/logger';
 
 interface User {
   id: string;
@@ -53,7 +54,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
       setHasMore(result.hasMore);
       setNextCursor(result.nextCursor);
     } catch (error) {
-      console.error(`Error loading ${type}:`, error);
+      logger.error(`Error loading ${type}`);
     } finally {
       setLoading(false);
       setLoadingMore(false);

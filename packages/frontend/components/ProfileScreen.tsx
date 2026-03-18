@@ -28,6 +28,7 @@ import { reportService } from '@/services/reportService';
 import ReportModal from '@/components/report/ReportModal';
 import { confirmDialog } from '@/utils/alerts';
 import type { FeedType } from '@mention/shared-types';
+import { logger } from '@/lib/logger';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -258,7 +259,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 }),
             });
         } catch (error) {
-            console.error('Error sharing profile:', error);
+            logger.error('Error sharing profile');
         }
     }, [profileData, displayName, t]);
 

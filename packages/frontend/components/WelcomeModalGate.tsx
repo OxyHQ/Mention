@@ -2,6 +2,7 @@ import React, { useEffect, useState, memo, Suspense, lazy } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@oxyhq/services';
+import { logger } from '@/lib/logger';
 
 // Lazy load WelcomeModal - only loads when needed (web + unauthenticated + first time)
 const WelcomeModal = lazy(() => import('./WelcomeModal'));
@@ -38,7 +39,7 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
           }, 300);
         }
       } catch (error) {
-        console.warn('Failed to check welcome modal status:', error);
+        logger.warn('Failed to check welcome modal status');
       }
     }
 
@@ -54,7 +55,7 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
     try {
       await AsyncStorage.setItem(WELCOME_MODAL_SEEN_KEY, 'true');
     } catch (error) {
-      console.warn('Failed to save welcome modal status:', error);
+      logger.warn('Failed to save welcome modal status');
     }
   };
 
