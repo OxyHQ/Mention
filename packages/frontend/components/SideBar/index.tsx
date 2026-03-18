@@ -196,6 +196,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                                 borderRadius: 100,
                                 height: showExpanded ? 48 : 56,
                                 width: showExpanded ? undefined : 56,
+                                paddingHorizontal: showExpanded ? 16 : 0,
+                                paddingVertical: 0,
                                 justifyContent: 'center',
                                 alignItems: 'center',
                             }}
