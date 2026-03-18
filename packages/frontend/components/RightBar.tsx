@@ -15,9 +15,11 @@ export function RightBar() {
     if (!isRightBarVisible) return null;
 
     return (
-        <View className="flex-col gap-4 ps-5" style={styles.container}>
+        <View className="flex-col ps-5" style={styles.container}>
             <SearchBar />
-            <WidgetManager screenId="home" />
+            <View className="mt-2">
+                <WidgetManager screenId="home" />
+            </View>
             {Platform.OS === 'web' && <RightBarFooter />}
         </View>
     )
@@ -33,7 +35,7 @@ function RightBarFooter() {
     ];
 
     return (
-        <View className="py-3 px-1">
+        <View className="pt-2 pb-3 px-1">
             <View className="flex-row flex-wrap">
                 {footerLinks.map((link) => (
                     <Text
