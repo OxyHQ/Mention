@@ -4,6 +4,7 @@ import { Trend } from '@/interfaces/Trend';
 
 interface TrendsStore {
   trends: Trend[];
+  summary: string;
   isLoading: boolean;
   error: string | null;
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
@@ -17,6 +18,7 @@ function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
 
 export const useTrendsStore = create<TrendsStore>((set, get) => ({
   trends: [],
+  summary: '',
   isLoading: false,
   error: null,
   fetchTrends: async (opts?: { silent?: boolean }) => {
@@ -52,8 +54,10 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
         }
       }
 
-      if (changed) {
-        set({ trends: next, isLoading: false });
+      const nextSummary = response.data.summary || '';
+
+      if (changed || get().summary !== nextSummary) {
+        set({ trends: next, summary: nextSummary, isLoading: false });
       } else if (!silent) {
         set({ isLoading: false });
       }

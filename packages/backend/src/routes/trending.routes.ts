@@ -27,11 +27,12 @@ router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
       ? (type as TrendingType)
       : undefined;
 
-    const trending = await trendingService.getTrending(limitNum, typeFilter);
+    const result = await trendingService.getTrending(limitNum, typeFilter);
 
     res.json({
-      trending,
-      count: trending.length,
+      trending: result.trending,
+      summary: result.summary,
+      count: result.trending.length,
     });
   } catch (error) {
     logger.error('Error fetching trending topics:', { error, query: req.query });

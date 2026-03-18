@@ -62,7 +62,7 @@ function getTrendDisplayName(trend: Trend): string {
 
 export function TrendsWidget() {
   const { t } = useTranslation();
-  const { trends, isLoading, error, fetchTrends } = useTrendsStore();
+  const { trends, summary, isLoading, error, fetchTrends } = useTrendsStore();
   const router = useRouter();
   const theme = useTheme();
 
@@ -113,6 +113,11 @@ export function TrendsWidget() {
         <Text className="text-destructive">{t('error.fetch_trends')}</Text>
       ) : (
         <View>
+          {summary ? (
+            <Text className="text-muted-foreground text-[13px] mb-2 leading-5" numberOfLines={2}>
+              {summary}
+            </Text>
+          ) : null}
           {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
             const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
 

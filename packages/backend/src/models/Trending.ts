@@ -69,3 +69,25 @@ TrendingSchema.index({ calculatedAt: -1, score: -1 });
 TrendingSchema.index({ name: 1, calculatedAt: 1 }, { unique: true });
 
 export default mongoose.model<ITrending>("Trending", TrendingSchema);
+
+// ── Trend Batch (one doc per calculation cycle, stores the overall summary) ──
+
+export interface ITrendBatch extends Document {
+  calculatedAt: Date;
+  summary: string;
+}
+
+const TrendBatchSchema = new Schema({
+  calculatedAt: {
+    type: Date,
+    required: true,
+    unique: true,
+    index: true,
+  },
+  summary: {
+    type: String,
+    default: '',
+  },
+});
+
+export const TrendBatch = mongoose.model<ITrendBatch>("TrendBatch", TrendBatchSchema);

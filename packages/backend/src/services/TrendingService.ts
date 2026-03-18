@@ -1,8 +1,8 @@
 import { Post } from '../models/Post';
-import Trending, { TrendingType, ITrending } from '../models/Trending';
+import Trending, { TrendingType, ITrending, TrendBatch } from '../models/Trending';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
-import { aliaJSON } from '../utils/alia';
+import { aliaChat, aliaJSON } from '../utils/alia';
 
 interface AITrendItem {
   type: 'topic' | 'entity';
@@ -43,8 +43,11 @@ class TrendingService {
    * Initialize the service and start periodic calculations.
    */
   public initialize(): void {
-    this.calculateTrending().catch(error => {
-      logger.error('[Trending] Initial calculation failed:', error);
+    // Drop legacy indexes from the previous schema before first calculation
+    this.dropLegacyIndexes().then(() => {
+      this.calculateTrending().catch(error => {
+        logger.error('[Trending] Initial calculation failed:', error);
+      });
     });
 
     this.calculationInterval = setInterval(() => {
@@ -67,6 +70,29 @@ class TrendingService {
   }
 
   /**
+   * Drop legacy indexes from the previous schema (timeWindow-based).
+   */
+  private async dropLegacyIndexes(): Promise<void> {
+    try {
+      const collection = Trending.collection;
+      const indexes = await collection.indexes();
+      const legacyIndex = indexes.find(
+        (idx: any) => idx.key && 'timeWindow' in idx.key,
+      );
+      if (legacyIndex && legacyIndex.name) {
+        await collection.dropIndex(legacyIndex.name);
+        logger.info(`[Trending] Dropped legacy index: ${legacyIndex.name}`);
+        // Remove old documents that used the timeWindow schema
+        await Trending.deleteMany({ calculatedAt: { $exists: false } });
+        logger.info('[Trending] Cleaned up legacy documents without calculatedAt');
+      }
+    } catch (error) {
+      // Index may already be gone — safe to ignore
+      logger.debug('[Trending] Legacy index drop skipped:', error);
+    }
+  }
+
+  /**
    * Main calculation: aggregate hashtags + generate AI trends, then save as a batch.
    */
   public async calculateTrending(): Promise<void> {
@@ -81,6 +107,10 @@ class TrendingService {
       const allTrends: TrendItem[] = [...hashtagTrends, ...aiTrends];
 
       await this.saveTrendingBatch(allTrends, calculatedAt);
+
+      // Generate an overall summary of what's trending
+      const summary = await this.generateSummary(allTrends);
+      await TrendBatch.create({ calculatedAt, summary });
 
       logger.info(
         `[Trending] Saved batch: ${hashtagTrends.length} hashtags + ${aiTrends.length} AI trends`,
@@ -249,6 +279,44 @@ class TrendingService {
   }
 
   /**
+   * Generate a 1-2 sentence natural-language summary of what's trending.
+   */
+  private async generateSummary(trends: TrendItem[]): Promise<string> {
+    if (!process.env.ALIA_API_KEY || trends.length === 0) {
+      return '';
+    }
+
+    try {
+      const trendNames = trends
+        .slice(0, 15)
+        .map(t => {
+          const prefix = t.type === TrendingType.HASHTAG ? '#' : '';
+          return `${prefix}${t.name}${t.description ? ` (${t.description})` : ''}`;
+        })
+        .join(', ');
+
+      const summary = await aliaChat(
+        [
+          {
+            role: 'system',
+            content: 'You write concise social media trend summaries. Write 1-2 sentences summarizing what people are talking about right now. Be natural and engaging. Do not use bullet points or lists. Do not start with "People are talking about" every time — vary the phrasing.',
+          },
+          {
+            role: 'user',
+            content: `Current trends: ${trendNames}`,
+          },
+        ],
+        { temperature: 0.7, maxTokens: 150 },
+      );
+
+      return summary.trim();
+    } catch (error) {
+      logger.warn('[Trending] Summary generation failed:', error);
+      return '';
+    }
+  }
+
+  /**
    * Save a batch of trends (append-only — does not delete previous batches).
    */
   private async saveTrendingBatch(
@@ -277,12 +345,12 @@ class TrendingService {
   }
 
   /**
-   * Get the latest batch of trends.
+   * Get the latest batch of trends with its summary.
    */
   public async getTrending(
     limit: number = 20,
     type?: TrendingType,
-  ): Promise<ITrending[]> {
+  ): Promise<{ trending: ITrending[]; summary: string }> {
     const cacheKey = `trending:latest:${limit}:${type || 'all'}`;
     const redis = await getRedisClient();
 
@@ -304,7 +372,7 @@ class TrendingService {
       .select({ calculatedAt: 1 })
       .lean();
 
-    if (!latestDoc) return [];
+    if (!latestDoc) return { trending: [], summary: '' };
 
     const query: Record<string, unknown> = {
       calculatedAt: latestDoc.calculatedAt,
@@ -316,15 +384,23 @@ class TrendingService {
       .limit(limit)
       .lean() as unknown as ITrending[];
 
+    // Get the batch summary
+    const batch = await TrendBatch.findOne({ calculatedAt: latestDoc.calculatedAt })
+      .select({ summary: 1 })
+      .lean();
+    const summary = batch?.summary || '';
+
+    const result = { trending, summary };
+
     if (redis && trending.length > 0) {
       try {
-        await redis.setEx(cacheKey, this.REDIS_CACHE_TTL, JSON.stringify(trending));
+        await redis.setEx(cacheKey, this.REDIS_CACHE_TTL, JSON.stringify(result));
       } catch (cacheError) {
         logger.warn('[Trending] Redis cache write failed:', cacheError);
       }
     }
 
-    return trending;
+    return result;
   }
 
   /**
@@ -367,6 +443,7 @@ class TrendingService {
     try {
       const cutoff = new Date(Date.now() - this.CLEANUP_DAYS * 24 * 60 * 60 * 1000);
       const result = await Trending.deleteMany({ calculatedAt: { $lt: cutoff } });
+      await TrendBatch.deleteMany({ calculatedAt: { $lt: cutoff } });
 
       if (result.deletedCount > 0) {
         logger.info(`[Trending] Cleaned up ${result.deletedCount} trends older than ${this.CLEANUP_DAYS} days`);
