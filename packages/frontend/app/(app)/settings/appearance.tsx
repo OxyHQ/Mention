@@ -71,7 +71,7 @@ export default function AppearanceSettingsScreen() {
     setAppColor(name);
     const hex = APP_COLOR_PRESETS[name].hex;
     await Promise.all([
-      oxyServices.updateProfile({ color: hex }),
+      oxyServices.updateProfile({ color: name }),
       saveSettings({ primaryColor: hex }),
     ]);
   }, [oxyServices, saveSettings, setAppColor]);

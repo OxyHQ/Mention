@@ -109,7 +109,7 @@ export default function ProfileCustomizationScreen() {
     const hex = APP_COLOR_PRESETS[name].hex;
     try {
       await Promise.all([
-        oxyServices.updateProfile({ color: hex }),
+        oxyServices.updateProfile({ color: name }),
         updateMySettings({
           appearance: { primaryColor: hex },
         } as Record<string, unknown>),
