@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Fill } from './Fill';
+import { Fill } from '@oxyhq/bloom/fill';
 
 /**
  * MediaInsetBorder Component
