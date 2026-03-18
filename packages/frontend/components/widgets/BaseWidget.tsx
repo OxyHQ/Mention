@@ -16,10 +16,7 @@ export function BaseWidget({ title, icon, children, noPadding = false }: BaseWid
             style={styles.widgetContainer}
         >
             {title && (
-                <View
-                    className="border-border"
-                    style={styles.widgetHeader}
-                >
+                <View style={styles.widgetHeader}>
                     <ThemedText style={styles.widgetTitle}>{title}</ThemedText>
                     {icon && <View>{icon}</View>}
                 </View>
@@ -40,23 +37,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingBottom: 10,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        marginHorizontal: 12,
-        marginTop: 12,
-        marginBottom: 0,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 4,
     },
     widgetTitle: {
         fontSize: 17,
         fontWeight: 'bold',
     },
     widgetContent: {
-        paddingHorizontal: 12,
-        paddingTop: 0,
-        paddingBottom: 8,
+        paddingHorizontal: 16,
+        paddingBottom: 4,
     },
     noPadding: {
         paddingHorizontal: 0,
-        paddingBottom: 6,
+        paddingBottom: 4,
     },
 });

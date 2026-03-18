@@ -185,7 +185,8 @@ const styles = StyleSheet.create({
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
   showMore: {
-    paddingVertical: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
   showMoreText: {

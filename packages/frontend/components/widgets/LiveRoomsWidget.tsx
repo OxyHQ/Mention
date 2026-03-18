@@ -225,6 +225,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   showMore: {
+    paddingTop: 12,
+    paddingBottom: 8,
     ...Platform.select({ web: { cursor: 'pointer' as const } }),
   },
   showMoreText: {

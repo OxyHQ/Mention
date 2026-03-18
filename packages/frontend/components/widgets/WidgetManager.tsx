@@ -105,9 +105,7 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
     return (
         <View style={styles.container}>
             {allWidgets.map((widget, index) => (
-                <View key={index} style={styles.widgetWrapper}>
-                    {widget}
-                </View>
+                <React.Fragment key={index}>{widget}</React.Fragment>
             ))}
         </View>
     );
@@ -116,9 +114,6 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'column',
-        gap: 12,
-    },
-    widgetWrapper: {
-        marginBottom: 0,
+        gap: 16,
     },
 });

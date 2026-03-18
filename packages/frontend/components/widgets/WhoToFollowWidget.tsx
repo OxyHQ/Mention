@@ -241,7 +241,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   showMoreBtn: {
-    paddingTop: 10,
+    paddingTop: 12,
+    paddingBottom: 8,
+    ...Platform.select({ web: { cursor: "pointer" as const } }),
   },
   showMoreText: {
     fontSize: 15,

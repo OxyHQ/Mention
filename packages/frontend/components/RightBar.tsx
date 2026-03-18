@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
         width: 350,
         paddingStart: 20,
         flexDirection: 'column',
-        gap: 14,
+        gap: 16,
         ...Platform.select({
             web: {
                 position: 'sticky' as any,
