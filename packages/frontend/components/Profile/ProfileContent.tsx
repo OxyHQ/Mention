@@ -35,7 +35,6 @@ export const ProfileContent = memo(function ProfileContent({
   showBottomSheet,
   onPostsPress,
   onLayout,
-  accentColor,
 }: ProfileContentProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -69,7 +68,7 @@ export const ProfileContent = memo(function ProfileContent({
           verified={profileData.verified}
           isPrivate={isPrivate}
           privacySettings={profileData.privacy}
-          accentColor={accentColor}
+
           theme={theme}
           UserNameComponent={UserName}
         />
@@ -86,7 +85,7 @@ export const ProfileContent = memo(function ProfileContent({
           isFollowPending={profileData.isFollowPending}
           currentUsername={currentUsername}
           profileId={profileData.id}
-          accentColor={accentColor}
+
           theme={theme}
           UserNameComponent={UserName}
           FollowButtonComponent={FollowButtonComponent}
@@ -102,7 +101,7 @@ export const ProfileContent = memo(function ProfileContent({
             currentUsername={currentUsername}
             profileUsername={profileData.username}
             profileId={profileData.id}
-            accentColor={accentColor}
+  
             FollowButtonComponent={FollowButtonComponent}
             showBottomSheet={showBottomSheet}
           />

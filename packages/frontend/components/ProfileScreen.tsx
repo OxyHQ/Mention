@@ -14,7 +14,8 @@ import { toast } from 'sonner';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, APP_COLOR_PRESETS, getAppColorCSSVariables } from '@oxyhq/bloom/theme';
+import { vars } from 'react-native-css';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
@@ -172,8 +173,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
 
-    // Use the visited user's primary color for profile accent when viewing someone else's profile
-    const accentColor = (!isOwnProfile && design?.primaryColor) || theme.colors.primary;
+    // Scoped CSS variable override: apply visited user's color preset to entire profile subtree
+    const profileColorVars = useMemo(() => {
+        if (isOwnProfile) return undefined;
+        const colorName = design?.colorName;
+        if (!colorName || !APP_COLOR_PRESETS[colorName]) return undefined;
+        return vars(getAppColorCSSVariables(APP_COLOR_PRESETS[colorName], theme.isDark ? 'dark' : 'light'));
+    }, [isOwnProfile, design?.colorName, theme.isDark]);
 
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),
@@ -416,7 +422,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 image={profileImage}
                 type="profile"
             />
-            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container]}>
+            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileColorVars]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
                 {loading ? (
@@ -509,7 +515,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     className="absolute left-0 right-0 overflow-hidden"
                                     style={{
                                         height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
-                                        backgroundColor: `${accentColor}20`,
+                                        backgroundColor: `${theme.colors.primary}20`,
                                     }}
                                 >
                                     <Animated.View
@@ -551,7 +557,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         followingCount={followingCount}
                                         followerCount={followerCount}
                                         username={username}
-                                        accentColor={accentColor}
                                         FollowButtonComponent={FollowButtonComponent}
                                         showBottomSheet={showBottomSheet}
                                         onPostsPress={handlePostsPress}

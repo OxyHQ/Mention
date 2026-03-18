@@ -17,6 +17,7 @@ export interface ProfileDesign {
   coverPhotoEnabled: boolean;
   minimalistMode: boolean;
   primaryColor?: string;
+  colorName?: string;
 }
 
 export interface ProfileData {
@@ -65,6 +66,7 @@ function computeDesign(
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
     primaryColor: (isAppColorName(oxyProfile?.color) ? APP_COLOR_PRESETS[oxyProfile.color].hex : undefined) || appearance?.appearance?.primaryColor,
+    colorName: isAppColorName(oxyProfile?.color) ? oxyProfile.color : undefined,
   };
 }
 
