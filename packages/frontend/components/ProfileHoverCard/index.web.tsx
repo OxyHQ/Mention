@@ -7,7 +7,7 @@ import * as OxyServicesNS from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useProfileData } from '@/hooks/useProfileData';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { Portal } from '@/components/Portal';
+import { Portal } from '@oxyhq/bloom/portal';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from '@/components/UserName';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';

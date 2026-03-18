@@ -28,7 +28,7 @@ import {
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
-import { Portal } from '@/components/Portal';
+import { Portal } from '@oxyhq/bloom/portal';
 import { Z_INDEX } from '@/lib/constants';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);

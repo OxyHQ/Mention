@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { Portal } from '@/components/Portal';
+import { Portal } from '@oxyhq/bloom/portal';
 import { createContext } from 'react';
 
 /**

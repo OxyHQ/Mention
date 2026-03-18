@@ -23,7 +23,7 @@ import { useAuth } from '@oxyhq/services';
 import { useRouter } from 'expo-router';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
-import { Portal } from '@/components/Portal';
+import { Portal } from '@oxyhq/bloom/portal';
 import { Z_INDEX } from '@/lib/constants';
 import { FONT_FAMILIES } from '@/styles/typography';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
