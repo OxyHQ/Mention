@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { ArrowUp } from '@/assets/icons/arrow-up-icon';
@@ -8,7 +8,7 @@ export function ScrollToTopButton() {
     const theme = useTheme();
     const { scrollY, scrollToTop } = useLayoutScroll();
     const [visible, setVisible] = useState(false);
-    const containerRef = useRef<View>(null);
+    const anchorRef = useRef<View>(null);
     const [leftPos, setLeftPos] = useState<number | null>(null);
 
     useEffect(() => {
@@ -20,28 +20,35 @@ export function ScrollToTopButton() {
         };
     }, [scrollY]);
 
-    // Measure the content column's left edge to position the fixed button
-    useEffect(() => {
+    const measure = useCallback(() => {
         if (Platform.OS !== 'web') return;
-        const measure = () => {
-            containerRef.current?.measureInWindow((x) => {
-                if (typeof x === 'number') {
+        requestAnimationFrame(() => {
+            anchorRef.current?.measureInWindow((x) => {
+                if (typeof x === 'number' && x > 0) {
                     setLeftPos(x - 52);
                 }
             });
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        return () => window.removeEventListener('resize', measure);
+        });
     }, []);
 
-    if (!visible) return null;
+    useEffect(() => {
+        measure();
+        if (Platform.OS === 'web') {
+            window.addEventListener('resize', measure);
+            return () => window.removeEventListener('resize', measure);
+        }
+    }, [measure]);
 
+    // Always render the anchor so we can measure position
+    // Only render the button when visible and position is known
     return (
         <>
-            {/* Invisible anchor to measure content column position */}
-            <View ref={containerRef} style={styles.anchor} />
-            {leftPos !== null && (
+            <View
+                ref={anchorRef}
+                onLayout={measure}
+                style={styles.anchor}
+            />
+            {visible && leftPos !== null && (
                 <Pressable
                     onPress={scrollToTop}
                     accessibilityLabel="Scroll to top"
@@ -68,8 +75,9 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 0,
         left: 0,
-        width: 0,
-        height: 0,
+        width: 1,
+        height: 1,
+        opacity: 0,
     },
     button: {
         ...Platform.select({
