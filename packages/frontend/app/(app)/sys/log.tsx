@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
+  FlatList,
   LayoutAnimation,
   Pressable,
-  ScrollView,
   Text,
   View,
 } from 'react-native';
@@ -19,14 +19,14 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { getEntries, type LogEntry } from '@/lib/logger/logDump';
 import { timeAgo } from '@/lib/logger/util';
 
-function LogEntryRow({
+const LogEntryRow = memo(function LogEntryRow({
   entry,
   expanded,
   onToggle,
 }: {
   entry: LogEntry;
   expanded: boolean;
-  onToggle: () => void;
+  onToggle: (id: string) => void;
 }) {
   const { colors } = useTheme();
   const isWarningOrError =
@@ -38,7 +38,7 @@ function LogEntryRow({
     <View>
       <Pressable
         className="flex-row items-center py-3 px-3 gap-2 border-b border-border"
-        onPress={onToggle}
+        onPress={() => onToggle(entry.id)}
         accessibilityLabel="View log entry"
         accessibilityHint="Opens additional details for a log entry"
       >
@@ -104,12 +104,21 @@ function LogEntryRow({
       )}
     </View>
   );
+});
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <View className="items-center justify-center py-12">
+      <Ionicons name="document-text-outline" size={32} color="#999" />
+      <Text className="text-muted-foreground text-sm mt-2">{message}</Text>
+    </View>
+  );
 }
 
 export default function SystemLogScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const [expanded, setExpanded] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [entries, setEntries] = useState<LogEntry[]>([]);
 
   useFocusEffect(
@@ -118,12 +127,28 @@ export default function SystemLogScreen() {
     }, []),
   );
 
-  const toggleEntry = (id: string) => {
+  const toggleEntry = useCallback((id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(prev =>
-      prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id],
-    );
-  };
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const renderItem = useCallback(({ item }: { item: LogEntry }) => (
+    <LogEntryRow
+      entry={item}
+      expanded={expanded.has(item.id)}
+      onToggle={toggleEntry}
+    />
+  ), [expanded, toggleEntry]);
+
+  const keyExtractor = useCallback((item: LogEntry) => item.id, []);
 
   return (
     <ThemedView className="flex-1">
@@ -139,27 +164,18 @@ export default function SystemLogScreen() {
         hideBottomBorder
         disableSticky
       />
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {entries.length === 0 ? (
-          <View className="items-center justify-center py-12">
-            <Ionicons name="document-text-outline" size={32} color="#999" />
-            <Text className="text-muted-foreground text-sm mt-2">
-              {t('settings.noLogEntries', {
-                defaultValue: 'No log entries yet',
-              })}
-            </Text>
-          </View>
-        ) : (
-          entries.map(entry => (
-            <LogEntryRow
-              key={entry.id}
-              entry={entry}
-              expanded={expanded.includes(entry.id)}
-              onToggle={() => toggleEntry(entry.id)}
-            />
-          ))
-        )}
-      </ScrollView>
+      {entries.length === 0 ? (
+        <EmptyState
+          message={t('settings.noLogEntries', { defaultValue: 'No log entries yet' })}
+        />
+      ) : (
+        <FlatList
+          data={entries}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </ThemedView>
   );
 }

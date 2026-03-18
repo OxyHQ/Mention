@@ -1,42 +1,25 @@
-import { LogLevel, type Metadata, type Serializable } from './types'
-
-export const enabledLogLevels: {
-  [key in LogLevel]: LogLevel[]
-} = {
-  [LogLevel.Debug]: [
-    LogLevel.Debug,
-    LogLevel.Info,
-    LogLevel.Log,
-    LogLevel.Warn,
-    LogLevel.Error,
-  ],
-  [LogLevel.Info]: [LogLevel.Info, LogLevel.Log, LogLevel.Warn, LogLevel.Error],
-  [LogLevel.Log]: [LogLevel.Log, LogLevel.Warn, LogLevel.Error],
-  [LogLevel.Warn]: [LogLevel.Warn, LogLevel.Error],
-  [LogLevel.Error]: [LogLevel.Error],
-}
+import { type Metadata, type Serializable } from './types'
 
 export function prepareMetadata(
   metadata: Metadata,
 ): Record<string, Serializable> {
-  return Object.keys(metadata).reduce<Record<string, Serializable>>(
-    (acc, key) => {
-      let value = metadata[key]
-      if (value instanceof Error) {
-        value = value.toString()
-      }
-      if (
-        typeof value === 'object' &&
-        value !== null &&
-        Object.keys(value).length === 0 &&
-        value.constructor === Object
-      ) {
-        return acc
-      }
-      return { ...acc, [key]: value as Serializable }
-    },
-    {},
-  )
+  const result: Record<string, Serializable> = {}
+  for (const key of Object.keys(metadata)) {
+    let value = metadata[key]
+    if (value instanceof Error) {
+      value = value.toString()
+    }
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      Object.keys(value).length === 0 &&
+      value.constructor === Object
+    ) {
+      continue
+    }
+    result[key] = value as Serializable
+  }
+  return result
 }
 
 export function formatTime(timestamp: number): string {

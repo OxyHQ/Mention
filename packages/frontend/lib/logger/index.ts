@@ -1,5 +1,3 @@
-import { nanoid } from 'nanoid/non-secure'
-
 import { add } from './logDump'
 import { consoleTransport } from './transports/console'
 import {
@@ -8,9 +6,18 @@ import {
   type Metadata,
   type Transport,
 } from './types'
-import { enabledLogLevels } from './util'
 
 const TRANSPORTS: Transport[] = __DEV__ ? [consoleTransport] : []
+
+const LOG_LEVEL_RANK: Record<LogLevel, number> = {
+  [LogLevel.Debug]: 0,
+  [LogLevel.Info]: 1,
+  [LogLevel.Log]: 2,
+  [LogLevel.Warn]: 3,
+  [LogLevel.Error]: 4,
+}
+
+let nextEntryId = 0
 
 export class Logger {
   static Level = LogLevel
@@ -18,10 +25,9 @@ export class Logger {
 
   level: LogLevel
   context: string | undefined = undefined
-  contextFilter: string = ''
   ambientMetadata: Record<string, unknown> = {}
 
-  protected debugContextRegexes: RegExp[] = []
+  protected debugEnabled: boolean = true
   protected transports: Transport[] = []
 
   static create(context?: string, metadata: Record<string, unknown> = {}) {
@@ -50,16 +56,16 @@ export class Logger {
   } = {}) {
     this.context = context
     this.level = level || LogLevel.Info
-    this.contextFilter = contextFilter || ''
     this.ambientMetadata = ambientMetadata
-    if (this.contextFilter) {
+
+    const filter = contextFilter || ''
+    if (filter) {
       this.level = LogLevel.Debug
+      const regexes = filter
+        .split(',')
+        .map(f => new RegExp(f.replace(/[^\w:*-]/, '').replace(/\*/g, '.*')))
+      this.debugEnabled = !context || regexes.some(reg => reg.test(context))
     }
-    this.debugContextRegexes = (this.contextFilter || '')
-      .split(',')
-      .map(filter => {
-        return new RegExp(filter.replace(/[^\w:*-]/, '').replace(/\*/g, '.*'))
-      })
   }
 
   debug(message: string, metadata: Metadata = {}) {
@@ -98,13 +104,8 @@ export class Logger {
     message: string | Error
     metadata: Metadata
   }) {
-    if (
-      level === LogLevel.Debug &&
-      !!this.contextFilter &&
-      !!this.context &&
-      !this.debugContextRegexes.find(reg => reg.test(this.context!))
-    )
-      return
+    if (level === LogLevel.Debug && !this.debugEnabled) return
+    if (LOG_LEVEL_RANK[level] < LOG_LEVEL_RANK[this.level]) return
 
     const timestamp = Date.now()
     const meta: Metadata = {
@@ -113,15 +114,13 @@ export class Logger {
     }
 
     add({
-      id: nanoid(),
+      id: String(nextEntryId++),
       timestamp,
       level,
       context: this.context,
       message,
       metadata: meta,
     })
-
-    if (!enabledLogLevels[this.level].includes(level)) return
 
     for (const transport of this.transports) {
       transport(level, this.context, message, meta, timestamp)

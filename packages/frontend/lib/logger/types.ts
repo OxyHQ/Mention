@@ -1,19 +1,5 @@
 export enum LogContext {
   Default = 'logger',
-  Session = 'session',
-  Notifications = 'notifications',
-  Chat = 'chat',
-  Feed = 'feed',
-  Auth = 'auth',
-  Navigation = 'navigation',
-  Network = 'network',
-  Posts = 'posts',
-  Drafts = 'drafts',
-  Privacy = 'privacy',
-  Compose = 'compose',
-  Moderation = 'moderation',
-  Agora = 'agora',
-  Push = 'push',
 }
 
 export enum LogLevel {

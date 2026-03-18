@@ -9,13 +9,19 @@ export type LogEntry = {
   metadata: Metadata
 }
 
+const MAX_ENTRIES = 500
 let entries: LogEntry[] = []
 
 export function add(entry: LogEntry) {
-  entries.unshift(entry)
-  entries = entries.slice(0, 500)
+  entries.push(entry)
+  if (entries.length > MAX_ENTRIES) {
+    entries = entries.slice(entries.length - MAX_ENTRIES)
+  }
 }
 
 export function getEntries(): LogEntry[] {
-  return entries
+  // Return newest-first for display
+  const result = entries.slice()
+  result.reverse()
+  return result
 }
