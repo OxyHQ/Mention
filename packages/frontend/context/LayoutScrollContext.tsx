@@ -52,6 +52,10 @@ type LayoutScrollContextValue = {
      * Forward wheel events captured outside the main scroll view so the registered scrollable keeps control.
      */
     forwardWheelEvent: (event: WheelLikeEvent) => void;
+    /**
+     * Scroll the registered scrollable back to the top.
+     */
+    scrollToTop: () => void;
 };
 
 const LayoutScrollContext = createContext<LayoutScrollContextValue | null>(null);
@@ -186,6 +190,16 @@ export function LayoutScrollProvider({
         }
     }, []);
 
+    const scrollToTop = useCallback(() => {
+        const scroller = scrollableRef.current;
+        if (!scroller) return;
+        if (typeof scroller.scrollToOffset === 'function') {
+            scroller.scrollToOffset({ offset: 0, animated: true });
+        } else if (typeof scroller.scrollTo === 'function') {
+            scroller.scrollTo({ y: 0, animated: true });
+        }
+    }, []);
+
     const value = useMemo<LayoutScrollContextValue>(() => ({
         scrollY,
         scrollEventThrottle: Platform.OS === 'web' ? Math.max(16, scrollEventThrottle) : Math.max(16, scrollEventThrottle),
@@ -194,7 +208,8 @@ export function LayoutScrollProvider({
         setScrollY,
         registerScrollable,
         forwardWheelEvent,
-    }), [createAnimatedScrollHandler, forwardWheelEvent, handleScroll, registerScrollable, scrollEventThrottle, scrollY, setScrollY]);
+        scrollToTop,
+    }), [createAnimatedScrollHandler, forwardWheelEvent, handleScroll, registerScrollable, scrollEventThrottle, scrollToTop, scrollY, setScrollY]);
 
     return (
         <LayoutScrollContext.Provider value={value}>
