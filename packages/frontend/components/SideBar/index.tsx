@@ -195,13 +195,13 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                                 borderRadius: 100,
                                 height: showExpanded ? 46 : 50,
                                 width: showExpanded ? undefined : 50,
-                                paddingHorizontal: showExpanded ? 16 : 0,
+                                paddingHorizontal: showExpanded ? 12 : 0,
                                 paddingVertical: 0,
                                 minHeight: 0,
                                 justifyContent: 'center',
                                 alignItems: 'center',
                             }}
-                            textStyle={{ fontSize: 17, fontWeight: 'bold' }}
+                            textStyle={{ fontSize: 17, fontWeight: '800' }}
                         >
                             {showExpanded ? t("New Post") : undefined}
                         </Button>
