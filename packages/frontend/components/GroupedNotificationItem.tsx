@@ -7,6 +7,7 @@ import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { cn } from '@/lib/utils';
 import type { GroupedNotification } from '@/utils/groupNotifications';
+import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 
 interface GroupedNotificationItemProps {
   group: GroupedNotification;
@@ -56,18 +57,6 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
       case 'quote': return '#005c67';
       default: return '#005c67';
     }
-  };
-
-  const formatTimeAgo = (dateString: string): string => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 60) return t('notification.now');
-    if (diffInSeconds < 3600) return t('notification.minutes_ago', { count: Math.floor(diffInSeconds / 60) });
-    if (diffInSeconds < 86400) return t('notification.hours_ago', { count: Math.floor(diffInSeconds / 3600) });
-    if (diffInSeconds < 604800) return t('notification.days_ago', { count: Math.floor(diffInSeconds / 86400) });
-    return date.toLocaleDateString();
   };
 
   const buildGroupTitle = (): string => {
@@ -178,7 +167,7 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
         </ThemedText>
 
         <ThemedText className="text-muted-foreground" style={styles.timestamp}>
-          {formatTimeAgo(group.createdAt)}
+          {formatRelativeTimeLocalized(group.createdAt, t)}
         </ThemedText>
       </View>
 

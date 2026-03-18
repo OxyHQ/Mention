@@ -15,6 +15,7 @@ import { ZEmbeddedPost } from '../types/validation';
 import { useUsersStore } from '@/stores/usersStore';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 
 interface NotificationItemProps {
     notification: RawNotification;
@@ -211,18 +212,6 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         }
     }, [notification._id, onMarkAsRead]);
 
-    const formatTimeAgo = (dateString: string): string => {
-        const now = new Date();
-        const date = new Date(dateString);
-        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-        if (diffInSeconds < 60) return t('notification.now');
-        if (diffInSeconds < 3600) return t('notification.minutes_ago', { count: Math.floor(diffInSeconds / 60) });
-        if (diffInSeconds < 86400) return t('notification.hours_ago', { count: Math.floor(diffInSeconds / 3600) });
-        if (diffInSeconds < 604800) return t('notification.days_ago', { count: Math.floor(diffInSeconds / 86400) });
-        return date.toLocaleDateString();
-    };
-
     // For 'post' notifications, use PostItem component for rich UI
     if (notification.type === 'post') {
         return <PostNotificationItem
@@ -260,7 +249,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 </ThemedText>
 
                 <ThemedText className="text-muted-foreground" style={styles.timestamp}>
-                    {formatTimeAgo(notification.createdAt)}
+                    {formatRelativeTimeLocalized(notification.createdAt, t)}
                 </ThemedText>
             </View>
 
@@ -283,18 +272,6 @@ const PostNotificationItem: React.FC<{
     const embedded = (notification as any).post ? ZEmbeddedPost.safeParse((notification as any).post) : null;
     const [post, setPost] = useState<any>(embedded?.success ? embedded.data : null);
     const [loading, setLoading] = useState(!(notification as any).post);
-
-    const formatTimeAgo = (dateString: string): string => {
-        const now = new Date();
-        const date = new Date(dateString);
-        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-        if (diffInSeconds < 60) return t('notification.now');
-        if (diffInSeconds < 3600) return t('notification.minutes_ago', { count: Math.floor(diffInSeconds / 60) });
-        if (diffInSeconds < 86400) return t('notification.hours_ago', { count: Math.floor(diffInSeconds / 3600) });
-        if (diffInSeconds < 604800) return t('notification.days_ago', { count: Math.floor(diffInSeconds / 86400) });
-        return date.toLocaleDateString();
-    };
 
     useEffect(() => {
         if ((notification as any).post) return; // Backend provided embedded post
@@ -364,7 +341,7 @@ const PostNotificationItem: React.FC<{
                         {t('notification.post', { actorName, defaultValue: `${actorName} posted a new update` })}
                     </ThemedText>
                     <ThemedText className="text-muted-foreground" style={styles.timestamp}>
-                        {formatTimeAgo(notification.createdAt)}
+                        {formatRelativeTimeLocalized(notification.createdAt, t)}
                     </ThemedText>
                 </View>
                 {!notification.read && <View className="bg-primary" style={styles.unreadIndicator} />}

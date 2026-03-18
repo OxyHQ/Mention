@@ -6,6 +6,7 @@ import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { formatRelativeTimeCompact } from '@/utils/dateUtils';
 
 // Spacing tokens for consistent layout
 const HPAD = 8;
@@ -52,30 +53,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 }) => {
   const theme = useTheme();
 
-  const formatRelativeTime = React.useCallback((input?: string): string => {
-    if (!input) return 'now';
-    const ts = Date.parse(input);
-    if (Number.isNaN(ts)) return 'now';
-    const diff = Math.max(0, Date.now() - ts);
-    const sec = Math.floor(diff / 1000);
-    if (sec < 60) return 'now';
-    const min = Math.floor(sec / 60);
-    if (min < 60) return `${min}m`;
-    const hrs = Math.floor(min / 60);
-    if (hrs < 24) return `${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d`;
-    const weeks = Math.floor(days / 7);
-    if (weeks < 5) return `${weeks}w`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo`;
-    const years = Math.floor(days / 365);
-    return `${years}y`;
-  }, []);
-
-  const timeLabel = useMemo(() => formatRelativeTime(date), [date, formatRelativeTime]);
+  const timeLabel = useMemo(() => formatRelativeTimeCompact(date || ''), [date]);
   const repostLabel = useMemo(() => repostedBy ? `${repostedBy.name} reposted` : undefined, [repostedBy]);
-  const repostTime = useMemo(() => repostedBy?.date ? formatRelativeTime(repostedBy.date) : undefined, [repostedBy?.date, formatRelativeTime]);
+  const repostTime = useMemo(() => repostedBy?.date ? formatRelativeTimeCompact(repostedBy.date) : undefined, [repostedBy?.date]);
 
   return (
     <View style={{ paddingHorizontal }}>
