@@ -22,7 +22,7 @@ import { ComposeIcon } from '@/assets/icons/compose-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { LogoIcon } from '@/assets/logo';
-import { Ionicons } from '@expo/vector-icons';
+import { MenuIcon } from '@/assets/icons/menu-icon';
 import { useDrawer } from '@/context/DrawerContext';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
@@ -243,13 +243,13 @@ const HomeScreen: React.FC = () => {
                         <Header
                             options={{
                                 titlePosition: 'center',
-                                subtitle: <LogoIcon size={24} className="text-foreground" />,
+                                subtitle: <LogoIcon size={28} className="text-foreground" />,
                                 leftComponents: !isScreenNotMobile ? [
                                     <IconButton variant="icon"
                                         key="menu"
                                         onPress={openDrawer}
                                     >
-                                        <Ionicons name="menu" size={22} color={theme.colors.text} />
+                                        <MenuIcon size={22} className="text-foreground" />
                                     </IconButton>
                                 ] : [],
                                 rightComponents: [
