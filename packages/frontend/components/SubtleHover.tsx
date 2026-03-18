@@ -30,18 +30,8 @@ export function SubtleHover({
   const isWeb = Platform.OS === 'web';
   const isNative = Platform.OS !== 'web';
 
-  // Only render if conditions are met
-  if (isWeb && web && !hover) {
-    return null;
-  }
-
-  if (isNative && !native) {
-    return null;
-  }
-
-  if (!hover) {
-    return null;
-  }
+  if (isWeb && !web) return null;
+  if (isNative && !native) return null;
 
   return (
     <View
@@ -50,7 +40,9 @@ export function SubtleHover({
         styles.overlay,
         {
           opacity: hover ? opacity : 0,
-        },
+          transitionProperty: 'opacity',
+          transitionDuration: '150ms',
+        } as ViewStyle,
         style,
       ]}
     />

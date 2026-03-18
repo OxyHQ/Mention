@@ -36,6 +36,7 @@ import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
+import { SubtleHover } from '@/components/SubtleHover';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -74,6 +75,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
     const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
+    const [hover, setHover] = useState(false);
 
     const postId = (post as any)?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[postId] : null));
@@ -375,8 +377,13 @@ const PostItem: React.FC<PostItemProps> = ({
                     style,
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
-                {...(isPostDetail ? {} : { onPress: goToPost })}
+                {...(isPostDetail ? {} : {
+                    onPress: goToPost,
+                    onPointerEnter: () => setHover(true),
+                    onPointerLeave: () => setHover(false),
+                })}
             >
+                <SubtleHover hover={hover} />
                 {/* Thread line above avatar — connects from previous post's bottom */}
                 {isThreadChild && !isNested && (
                     <View
