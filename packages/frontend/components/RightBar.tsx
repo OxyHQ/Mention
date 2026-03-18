@@ -1,7 +1,7 @@
 import { useAuth } from '@oxyhq/services';
 import { usePathname } from "expo-router";
 import React from 'react';
-import { StyleSheet, View, Platform, Text, Linking } from "react-native";
+import { View, Platform, Text, Linking, StyleSheet } from "react-native";
 import { useMediaQuery } from 'react-responsive';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
@@ -15,9 +15,8 @@ export function RightBar() {
     if (!isRightBarVisible) return null;
 
     return (
-        <View style={styles.container}>
+        <View className="flex-col gap-3 ps-5" style={styles.container}>
             <SearchBar />
-            {/* Trends now handled via WidgetManager (TrendsWidget) */}
             <WidgetManager screenId="home" />
             {Platform.OS === 'web' && <RightBarFooter />}
         </View>
@@ -34,8 +33,8 @@ function RightBarFooter() {
     ];
 
     return (
-        <View style={styles.footer}>
-            <View style={styles.footerLinks}>
+        <View className="py-3 px-1">
+            <View className="flex-row flex-wrap">
                 {footerLinks.map((link) => (
                     <Text
                         key={link.label}
@@ -55,9 +54,6 @@ function RightBarFooter() {
 const styles = StyleSheet.create({
     container: {
         width: 350,
-        paddingStart: 20,
-        flexDirection: 'column',
-        gap: 16,
         ...Platform.select({
             web: {
                 position: 'sticky' as any,
@@ -65,13 +61,5 @@ const styles = StyleSheet.create({
                 bottom: 20,
             },
         }),
-    },
-    footer: {
-        paddingVertical: 12,
-        paddingHorizontal: 4,
-    },
-    footerLinks: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
     },
 });

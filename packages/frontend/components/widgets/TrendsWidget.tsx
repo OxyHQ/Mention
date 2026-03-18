@@ -58,7 +58,6 @@ export function TrendsWidget() {
   const handleTrendPress = useCallback((trend: Trend) => {
     const tag = trend.hashtag || trend.text;
     const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
-    // Type assertion needed for dynamic search URLs
     router.push(href as any);
   }, [router]);
 
@@ -67,11 +66,9 @@ export function TrendsWidget() {
   }, [router]);
 
   const handleMenuPress = useCallback((trend: Trend) => {
-    // Menu actions placeholder
     logger.debug(`Menu pressed for trend: ${trend.hashtag}`);
   }, []);
 
-  // Don't render if there are no trends (and not loading, and no error)
   if (!isLoading && !error && (!trends || trends.length === 0)) {
     return null;
   }
@@ -79,14 +76,14 @@ export function TrendsWidget() {
   return (
     <BaseWidget title={t('Trending')}>
       {isLoading ? (
-        <View style={styles.centerRow}>
+        <View className="flex-row items-center gap-2">
           <Loading size="small" style={{ flex: undefined }} />
-          <Text className="text-muted-foreground" style={styles.muted}>Loading trends…</Text>
+          <Text className="text-muted-foreground text-[13px]">Loading trends…</Text>
         </View>
       ) : error ? (
-        <Text className="text-destructive" style={styles.error}>{t('error.fetch_trends')}</Text>
+        <Text className="text-destructive">{t('error.fetch_trends')}</Text>
       ) : (
-        <View style={styles.listContainer}>
+        <View className="pt-1">
           {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
             const tag = trend.hashtag || trend.text;
             const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
@@ -94,46 +91,48 @@ export function TrendsWidget() {
             return (
               <TouchableOpacity
                 key={trend.id}
-                className={!isLast ? "border-border" : undefined}
+                className={`flex-row items-center justify-between py-2 ${!isLast ? "border-border" : ""}`}
                 style={[
-                  styles.trendItem,
-                  !isLast && { borderBottomWidth: 0.5 },
+                  styles.webCursor,
+                  !isLast && styles.itemBorder,
                 ]}
                 onPress={() => handleTrendPress(trend)}
                 activeOpacity={0.7}
               >
-                <View style={styles.trendContent}>
-                  <View style={styles.trendTextContainer}>
-                    <Text className="text-muted-foreground" style={styles.trendMeta}>
+                <View className="flex-1 flex-row items-center justify-between mr-2">
+                  <View className="flex-1 mr-3">
+                    <Text className="text-muted-foreground text-[12px] mb-0.5">
                       Trending · {formatCompactNumber(trend.score)} post{trend.score !== 1 ? 's' : ''}
                     </Text>
-                    <Text className="text-foreground" style={styles.trendHashtag} numberOfLines={1}>
+                    <Text className="text-foreground text-[14px] font-bold" numberOfLines={1}>
                       #{tag?.replace(/^#/, '')}
                     </Text>
                   </View>
-                  <View style={styles.trendRight}>
+                  <View className="items-end">
                     <Sparkline direction={trend.direction} color={theme.colors.primary} />
                   </View>
                 </View>
                 <TouchableOpacity
-                  style={styles.menuButton}
+                  className="p-1"
+                  style={styles.webCursor}
                   onPress={() => handleMenuPress(trend)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   accessibilityLabel="More options"
                   accessibilityRole="button"
                 >
-                  <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
+                  <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
               </TouchableOpacity>
             );
           })}
 
           <TouchableOpacity
-            style={styles.showMore}
+            className="pt-2 pb-1"
+            style={styles.webCursor}
             onPress={handleMorePress}
             activeOpacity={0.7}
           >
-            <Text className="text-primary" style={styles.showMoreText}>
+            <Text className="text-primary text-[14px] font-medium">
               Show more
             </Text>
           </TouchableOpacity>
@@ -144,53 +143,6 @@ export function TrendsWidget() {
 }
 
 const styles = StyleSheet.create({
-  centerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  muted: { fontSize: 13 },
-  error: {},
-  listContainer: {
-    paddingTop: 4,
-  },
-  trendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    position: 'relative',
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  trendContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginRight: 8,
-  },
-  trendTextContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  trendMeta: {
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  trendHashtag: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  trendRight: {
-    alignItems: 'flex-end',
-  },
-  menuButton: {
-    padding: 4,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  showMore: {
-    paddingTop: 12,
-    paddingBottom: 8,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  showMoreText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
+  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
+  itemBorder: { borderBottomWidth: 0.5 },
 });

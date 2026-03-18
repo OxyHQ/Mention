@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
 import { LiveRoomsWidget } from './LiveRoomsWidget';
@@ -103,17 +103,10 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
     }
 
     return (
-        <View style={styles.container}>
+        <View className="flex-col gap-3">
             {allWidgets.map((widget, index) => (
                 <React.Fragment key={index}>{widget}</React.Fragment>
             ))}
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flexDirection: 'column',
-        gap: 16,
-    },
-});

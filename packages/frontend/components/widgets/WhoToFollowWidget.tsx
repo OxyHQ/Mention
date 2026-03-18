@@ -35,7 +35,6 @@ export function WhoToFollowWidget() {
   const [recommendations, setRecommendations] = useState<ProfileData[]>([]);
 
   useEffect(() => {
-    // Don't fetch recommendations if user is not authenticated
     if (!isAuthenticated) {
       setLoading(false);
       return;
@@ -89,7 +88,6 @@ export function WhoToFollowWidget() {
     [recommendations]
   );
 
-  // Hide widget when user is not authenticated
   if (!isAuthenticated) {
     return null;
   }
@@ -97,9 +95,9 @@ export function WhoToFollowWidget() {
   if (loading) {
     return (
       <BaseWidget title={t("Who to follow")}>
-        <View style={styles.centerContainer}>
+        <View className="py-2 items-center gap-2">
           <Loading size="small" style={{ flex: undefined }} />
-          <ThemedText className="text-muted-foreground" style={styles.statusText}>
+          <ThemedText className="text-muted-foreground text-[13px]">
             {t("Loading...")}
           </ThemedText>
         </View>
@@ -110,8 +108,8 @@ export function WhoToFollowWidget() {
   if (error) {
     return (
       <BaseWidget title={t("Who to follow")}>
-        <View style={styles.centerContainer}>
-          <ThemedText className="text-destructive" style={styles.statusText}>
+        <View className="py-2 items-center gap-2">
+          <ThemedText className="text-destructive text-[13px]">
             {error}
           </ThemedText>
         </View>
@@ -122,7 +120,7 @@ export function WhoToFollowWidget() {
   if (displayedUsers.length === 0) {
     return (
       <BaseWidget title={t("Who to follow")}>
-        <View style={styles.centerContainer}>
+        <View className="py-2 items-center">
           <ThemedText className="text-muted-foreground">
             {t("No recommendations available")}
           </ThemedText>
@@ -137,8 +135,13 @@ export function WhoToFollowWidget() {
         {displayedUsers.map((user) => (
           <FollowRowComponent key={user.id} profileData={user} />
         ))}
-        <TouchableOpacity onPress={handleShowMore} style={styles.showMoreBtn} activeOpacity={0.7}>
-          <ThemedText className="text-primary" style={styles.showMoreText}>
+        <TouchableOpacity
+          className="pt-2 pb-1"
+          style={styles.webCursor}
+          onPress={handleShowMore}
+          activeOpacity={0.7}
+        >
+          <ThemedText className="text-primary text-[14px] font-medium">
             {t("Show more")}
           </ThemedText>
         </TouchableOpacity>
@@ -164,7 +167,6 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   }, [profileData.name, profileData.username]);
 
   const avatarUri = profileData.avatar;
-
   const username = profileData.username || profileData.id;
 
   const handlePress = useCallback(() => {
@@ -172,20 +174,22 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   }, [router, username]);
 
   return (
-    <View className="border-border" style={styles.row}>
-      <TouchableOpacity style={styles.rowLeft} onPress={handlePress} activeOpacity={0.7}>
-        <Avatar source={avatarUri} size={40} />
-        <View style={styles.rowTextWrap}>
-          <ThemedText className="text-foreground" style={styles.rowTitle}>
+    <View
+      className="flex-row justify-between items-center border-border py-2"
+      style={[styles.webCursor, styles.itemBorder]}
+    >
+      <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} activeOpacity={0.7}>
+        <Avatar source={avatarUri} size={36} />
+        <View className="ml-2.5 flex-1 mr-2">
+          <ThemedText className="text-foreground text-[14px] font-semibold">
             {displayName}
           </ThemedText>
-          <ThemedText className="text-muted-foreground" style={styles.rowSub}>
+          <ThemedText className="text-muted-foreground text-[13px] pt-px">
             @{username}
           </ThemedText>
           {profileData.bio && (
             <ThemedText
-              className="text-muted-foreground"
-              style={styles.rowBio}
+              className="text-muted-foreground text-[12px] pt-1 leading-4"
               numberOfLines={2}
             >
               {profileData.bio}
@@ -201,52 +205,6 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
 FollowRowComponent.displayName = 'FollowRowComponent';
 
 const styles = StyleSheet.create({
-  centerContainer: {
-    paddingVertical: 12,
-    alignItems: "center",
-    gap: 8,
-  },
-  statusText: {
-    fontSize: 14,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 0.5,
-    paddingVertical: 10,
-    ...Platform.select({ web: { cursor: "pointer" } }),
-  },
-  rowLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  rowTextWrap: {
-    marginLeft: 12,
-    flex: 1,
-    marginRight: 8,
-  },
-  rowTitle: {
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  rowSub: {
-    paddingTop: 2,
-    fontSize: 14,
-  },
-  rowBio: {
-    paddingTop: 4,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  showMoreBtn: {
-    paddingTop: 12,
-    paddingBottom: 8,
-    ...Platform.select({ web: { cursor: "pointer" as const } }),
-  },
-  showMoreText: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
+  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
+  itemBorder: { borderBottomWidth: 0.5 },
 });

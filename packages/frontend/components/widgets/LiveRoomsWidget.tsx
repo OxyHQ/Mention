@@ -34,27 +34,26 @@ const RoomRow = React.memo(function RoomRow({
 
   return (
     <TouchableOpacity
-      className={!isLast ? "border-border" : undefined}
+      className={`flex-row items-center py-2 ${!isLast ? "border-border" : ""}`}
       style={[
-        styles.roomItem,
-        !isLast && { borderBottomWidth: 0.5 },
+        styles.webCursor,
+        !isLast && styles.itemBorder,
       ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.roomContent}>
-        <View style={styles.liveDot} />
-        <View style={styles.roomTextContainer}>
+      <View className="flex-1 flex-row items-center gap-2">
+        <View className="w-1.5 h-1.5 rounded-full bg-[#FF4458]" />
+        <View className="flex-1">
           <Text
-            className="text-foreground"
-            style={styles.roomTitle}
+            className="text-foreground text-[13px] font-bold"
             numberOfLines={1}
           >
             {room.title}
           </Text>
-          <View style={styles.roomMeta}>
+          <View className="flex-row items-center gap-1 mt-px">
             <Ionicons name="headset-outline" size={11} color={theme.colors.textSecondary} />
-            <Text className="text-muted-foreground" style={styles.roomMetaText} numberOfLines={1}>
+            <Text className="text-muted-foreground text-[11px] flex-1" numberOfLines={1}>
               {listenerCount} listening  ·  {hostName}
             </Text>
           </View>
@@ -143,19 +142,19 @@ export function LiveRoomsWidget() {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<AgoraIcon size={18} className="text-foreground" />}
+      icon={<AgoraIcon size={16} className="text-foreground" />}
     >
       {isLoading ? (
-        <View style={styles.centerRow}>
+        <View className="flex-row items-center gap-2">
           <Loading size="small" style={{ flex: undefined }} />
-          <Text className="text-muted-foreground" style={styles.muted}>
+          <Text className="text-muted-foreground text-[13px]">
             Loading rooms…
           </Text>
         </View>
       ) : error ? (
         <Text className="text-destructive">{error}</Text>
       ) : (
-        <View style={styles.listContainer}>
+        <View>
           {displayedRooms.map((room, index) => (
             <RoomRow
               key={room._id}
@@ -165,11 +164,12 @@ export function LiveRoomsWidget() {
             />
           ))}
           <TouchableOpacity
-            style={styles.showMore}
+            className="pt-2 pb-1"
+            style={styles.webCursor}
             onPress={handleShowMore}
             activeOpacity={0.7}
           >
-            <Text className="text-primary" style={styles.showMoreText}>
+            <Text className="text-primary text-[14px] font-medium">
               Show more
             </Text>
           </TouchableOpacity>
@@ -180,57 +180,6 @@ export function LiveRoomsWidget() {
 }
 
 const styles = StyleSheet.create({
-  centerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  muted: {
-    fontSize: 13,
-  },
-  listContainer: {},
-  roomItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    ...Platform.select({ web: { cursor: 'pointer' as const } }),
-  },
-  roomContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FF4458',
-  },
-  roomTextContainer: {
-    flex: 1,
-  },
-  roomTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  roomMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 1,
-  },
-  roomMetaText: {
-    fontSize: 12,
-    flex: 1,
-  },
-  showMore: {
-    paddingTop: 12,
-    paddingBottom: 8,
-    ...Platform.select({ web: { cursor: 'pointer' as const } }),
-  },
-  showMoreText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
+  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
+  itemBorder: { borderBottomWidth: 0.5 },
 });
