@@ -85,73 +85,73 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
 
     const sideBarData = useMemo(() => [
         {
-            title: t("Home"),
+            title: t("sidebar.home"),
             icon: <Home />,
             iconActive: <HomeActive />,
             route: '/',
         },
         ...(user ? [{
-            title: t("Profile"),
+            title: t("sidebar.profile"),
             icon: <Avatar source={avatarUri} size={24} />,
             iconActive: <Avatar source={avatarUri} size={24} />,
             route: `/@${user.username}`,
         }] : []),
         {
-            title: t("Explore"),
+            title: t("sidebar.explore"),
             icon: <Search />,
             iconActive: <SearchActive />,
             route: '/explore',
         },
         {
-            title: t("Notifications"),
+            title: t("sidebar.notifications"),
             icon: <Bell />,
             iconActive: <BellActive />,
             route: '/notifications',
         },
         {
-            title: t("Chat"),
+            title: t("sidebar.chat"),
             icon: <Chat />,
             iconActive: <ChatActive />,
             route: '/chat',
         },
         {
-            title: t("Agora"),
+            title: t("sidebar.agora"),
             icon: <Agora />,
             iconActive: <AgoraActive />,
             route: '/agora',
         },
         {
-            title: t("Insights"),
+            title: t("sidebar.insights"),
             icon: <AnalyticsIcon />,
             iconActive: <AnalyticsIconActive />,
             route: '/insights',
         },
         {
-            title: t("Saved"),
+            title: t("sidebar.saved"),
             icon: <Bookmark />,
             iconActive: <BookmarkActive />,
             route: '/saved',
         },
         {
-            title: t("Feeds"),
+            title: t("sidebar.feeds"),
             icon: <Hashtag />,
             iconActive: <HashtagActive />,
             route: '/feeds',
         },
         {
-            title: t("Lists"),
+            title: t("sidebar.lists"),
             icon: <List />,
             iconActive: <ListActive />,
             route: '/lists',
         },
         {
-            title: t("Videos"),
+            title: t("sidebar.videos"),
             icon: <Video />,
             iconActive: <VideoActive />,
             route: '/videos',
         },
         {
-            title: t("Settings"),
+            title: t("sidebar.settings"),
             icon: <Gear />,
             iconActive: <GearActive />,
             route: '/settings',
@@ -207,7 +207,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                         >
                             {showExpanded ? (
                                 <Text style={{ color: theme.colors.card, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
-                                    {t("New Post")}
+                                    {t("sidebar.compose")}
                                 </Text>
                             ) : (
                                 <ComposeIcon size={26} color={theme.colors.card} />
@@ -224,7 +224,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                         <SideBarItem
                             isActive={false}
                             icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.text} />}
-                            text={t('settings.signOut')}
+                            text={t('sidebar.signOut')}
                             isExpanded={showExpanded}
                             onPress={handleSignOut}
                         />
@@ -232,7 +232,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                         <SideBarItem
                             isActive={false}
                             icon={<Ionicons name="log-in-outline" size={20} color={theme.colors.text} />}
-                            text={t('Sign In')}
+                            text={t('sidebar.signIn')}
                             isExpanded={showExpanded}
                             onPress={handleSignIn}
                         />

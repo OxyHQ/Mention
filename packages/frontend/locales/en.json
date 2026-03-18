@@ -767,5 +767,20 @@
         "emptyFollowingSubtitle": "When {{name}} follows people, they'll appear here.",
         "emptyRecommendationsSubtitle": "Check back later for suggestions."
     },
-    "Who May Know": "Who May Know"
+    "Who May Know": "Who May Know",
+    "sidebar.home": "Home",
+    "sidebar.profile": "Profile",
+    "sidebar.explore": "Explore",
+    "sidebar.notifications": "Notifications",
+    "sidebar.chat": "Chat",
+    "sidebar.agora": "Agora",
+    "sidebar.insights": "Insights",
+    "sidebar.saved": "Saved",
+    "sidebar.feeds": "Feeds",
+    "sidebar.lists": "Lists",
+    "sidebar.videos": "Videos",
+    "sidebar.settings": "Settings",
+    "sidebar.compose": "New Post",
+    "sidebar.signIn": "Sign In",
+    "sidebar.signOut": "Sign out"
 }

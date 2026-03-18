@@ -664,5 +664,20 @@
   },
   "Who May Know": "Quizás conozcas",
   "chat.comingSoon": "Próximamente",
-  "chat.comingSoonDescription": "Estamos creando una experiencia de mensajería en tiempo real para que puedas conectar directamente con tu comunidad. ¡Estate atento!"
+  "chat.comingSoonDescription": "Estamos creando una experiencia de mensajería en tiempo real para que puedas conectar directamente con tu comunidad. ¡Estate atento!",
+  "sidebar.home": "Inicio",
+  "sidebar.profile": "Perfil",
+  "sidebar.explore": "Explorar",
+  "sidebar.notifications": "Notificaciones",
+  "sidebar.chat": "Chat",
+  "sidebar.agora": "Agora",
+  "sidebar.insights": "Estadísticas",
+  "sidebar.saved": "Guardados",
+  "sidebar.feeds": "Feed",
+  "sidebar.lists": "Listas",
+  "sidebar.videos": "Vídeos",
+  "sidebar.settings": "Ajustes",
+  "sidebar.compose": "Nueva Publicación",
+  "sidebar.signIn": "Iniciar sesión",
+  "sidebar.signOut": "Cerrar sesión"
 }
