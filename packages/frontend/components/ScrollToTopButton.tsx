@@ -24,6 +24,7 @@ export function ScrollToTopButton() {
         <Pressable
             onPress={scrollToTop}
             accessibilityLabel="Scroll to top"
+            className="active:opacity-80"
             style={[
                 styles.button,
                 {
@@ -43,13 +44,17 @@ const styles = StyleSheet.create({
         ...Platform.select({
             web: {
                 position: 'fixed' as any,
+                // Position just left of the content column border
+                // Content is max 950px centered, so left edge is at 50vw - 475px
+                // Place button ~30px to the left of that
+                left: 'calc(50vw - 505px)' as any,
             },
             default: {
                 position: 'absolute',
+                left: 18,
             },
         }),
-        bottom: 24,
-        left: 18,
+        bottom: 30,
         width: 42,
         height: 42,
         borderRadius: 21,
