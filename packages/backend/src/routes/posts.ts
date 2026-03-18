@@ -24,7 +24,8 @@ import {
   getNearbyPostsBothLocations,
   getLocationStats,
   getPostLikes,
-  getPostReposts
+  getPostReposts,
+  translatePost
 } from '../controllers/posts.controller';
 
 const router = Router();
@@ -63,5 +64,6 @@ router.post('/:id/save', savePost);
 router.delete('/:id/save', unsavePost);
 router.post('/:id/repost', repostPost);
 router.post('/:id/quote', quotePost);
+router.post('/:id/translate', translatePost);
 
 export default router;

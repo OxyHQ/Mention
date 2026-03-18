@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
@@ -43,6 +44,9 @@ interface Props {
   onLikesPress?: () => void;
   onRepostsPress?: () => void;
   onInsightsPress?: () => void;
+  onTranslate?: () => void;
+  isTranslated?: boolean;
+  isTranslating?: boolean;
   postId?: string;
 }
 
@@ -59,6 +63,9 @@ const PostActions: React.FC<Props> = ({
   onLikesPress,
   onRepostsPress,
   onInsightsPress,
+  onTranslate,
+  isTranslated,
+  isTranslating,
 }) => {
   const theme = useTheme();
   const haptic = useHaptics();
@@ -154,6 +161,29 @@ const PostActions: React.FC<Props> = ({
         >
           <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
         </PressableScale>
+
+        {onTranslate && (
+          <PressableScale
+            style={styles.iconButton}
+            onPress={() => {
+              haptic('Light');
+              onTranslate();
+            }}
+            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel={isTranslated ? 'Show original' : 'Translate'}
+            disabled={isTranslating}
+          >
+            {isTranslating ? (
+              <ActivityIndicator size={ICON_SIZE - 4} color={theme.colors.textSecondary} />
+            ) : (
+              <Ionicons
+                name={isTranslated ? 'language' : 'language-outline'}
+                size={ICON_SIZE}
+                color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
+              />
+            )}
+          </PressableScale>
+        )}
 
         {onInsightsPress && (
           <PressableScale

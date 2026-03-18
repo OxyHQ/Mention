@@ -17,6 +17,7 @@ import { postHydrationService } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { aliaChat } from '../utils/alia';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -2399,5 +2400,70 @@ export const getLocationStats = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error('Error fetching location stats', error);
     res.status(500).json({ message: 'Error fetching location stats' });
+  }
+};
+
+// ── Translate post ──
+
+const SUPPORTED_LANGUAGES: Record<string, string> = {
+  'en': 'English',
+  'en-US': 'English',
+  'es': 'Spanish',
+  'es-ES': 'Spanish',
+  'it': 'Italian',
+  'it-IT': 'Italian',
+  'fr': 'French',
+  'fr-FR': 'French',
+  'pt': 'Portuguese',
+  'pt-BR': 'Portuguese',
+  'de': 'German',
+  'de-DE': 'German',
+  'ca': 'Catalan',
+  'ca-ES': 'Catalan',
+};
+
+export const translatePost = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { targetLanguage } = req.body;
+
+    if (!targetLanguage || typeof targetLanguage !== 'string') {
+      res.status(400).json({ message: 'targetLanguage is required' });
+      return;
+    }
+
+    const languageName = SUPPORTED_LANGUAGES[targetLanguage];
+    if (!languageName) {
+      res.status(400).json({ message: `Unsupported language: ${targetLanguage}` });
+      return;
+    }
+
+    const post = await Post.findById(id).select('content.text').lean();
+    if (!post) {
+      res.status(404).json({ message: 'Post not found' });
+      return;
+    }
+
+    const text = post.content?.text;
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      res.status(404).json({ message: 'Post has no text content to translate' });
+      return;
+    }
+
+    const translatedText = await aliaChat(
+      [
+        {
+          role: 'system',
+          content: `You are a translation engine. Translate the following text to ${languageName}. Return only the translated text, preserving the original formatting, mentions, hashtags, and line breaks. Do not add explanations or notes.`,
+        },
+        { role: 'user', content: text.slice(0, MAX_TEXT_LENGTH) },
+      ],
+      { temperature: 0.2 },
+    );
+
+    res.json({ translatedText });
+  } catch (error) {
+    logger.error('Error translating post', error);
+    res.status(500).json({ message: 'Translation failed' });
   }
 };

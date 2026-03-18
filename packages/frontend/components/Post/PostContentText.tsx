@@ -9,15 +9,17 @@ interface Props {
   content?: string | PostContent;
   postId?: string;
   previewChars?: number;
+  translatedText?: string | null;
 }
 
-const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280 }) => {
+const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280, translatedText }) => {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
 
   // Extract text from content (handle both string and PostContent object)
-  const textContent = typeof content === 'string' ? content : content?.text || '';
+  const originalText = typeof content === 'string' ? content : content?.text || '';
+  const textContent = translatedText || originalText;
 
   if (!textContent) return null;
 

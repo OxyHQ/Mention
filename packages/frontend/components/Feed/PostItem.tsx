@@ -35,6 +35,7 @@ import { usePostRepost } from '@/hooks/usePostRepost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
+import { api } from '@/utils/api';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { SubtleHover } from '@/components/SubtleHover';
 
@@ -68,13 +69,15 @@ const PostItem: React.FC<PostItemProps> = ({
 }) => {
     const { oxyServices } = useAuth();
     const theme = useTheme();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const router = useRouter();
     const pathname = usePathname();
     const bottomSheet = useContext(BottomSheetContext);
     const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
     const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
+    const [translatedText, setTranslatedText] = useState<string | null>(null);
+    const [isTranslating, setIsTranslating] = useState(false);
 
     const postId = (post as any)?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[postId] : null));
@@ -204,6 +207,26 @@ const PostItem: React.FC<PostItemProps> = ({
             router.push(`/p/${viewPostId}/reply`);
         }
     }, [onReply, router, viewPostId]);
+
+    const handleTranslate = useCallback(async () => {
+        if (translatedText) {
+            setTranslatedText(null);
+            return;
+        }
+        if (!viewPostId) return;
+        setIsTranslating(true);
+        try {
+            const { data } = await api.post<{ translatedText: string }>(
+                `/posts/${viewPostId}/translate`,
+                { targetLanguage: i18n.language },
+            );
+            setTranslatedText(data.translatedText);
+        } catch {
+            setTranslatedText(null);
+        } finally {
+            setIsTranslating(false);
+        }
+    }, [viewPostId, translatedText, i18n.language]);
 
     const closeSourcesSheet = useCallback(() => {
         bottomSheet.setBottomSheetContent(null);
@@ -438,7 +461,14 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressMenu={openMenu}
                     paddingHorizontal={HPAD}
                 >
-                    {content.text ? <PostContentText content={content} postId={viewPostId} /> : null}
+                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} /> : null}
+                    {translatedText && (
+                        <TouchableOpacity onPress={() => setTranslatedText(null)} activeOpacity={0.7}>
+                            <Text className="text-muted-foreground text-[12px] mt-1">
+                                {t('post.translate.showOriginal', { defaultValue: 'Translated · Show original' })}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </PostHeader>
 
                 {hasValidLocation && location && (
@@ -574,6 +604,9 @@ const PostItem: React.FC<PostItemProps> = ({
                             onSave={handleSave}
                             onShare={handleShare}
                             postId={viewPostId}
+                            onTranslate={content.text ? handleTranslate : undefined}
+                            isTranslated={Boolean(translatedText)}
+                            isTranslating={isTranslating}
                             onInsightsPress={isOwner ? () => {
                                 bottomSheet.setBottomSheetContent(
                                     <Suspense fallback={null}>
