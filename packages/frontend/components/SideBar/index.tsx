@@ -189,18 +189,19 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     <View style={[styles.composeButtonContainer, { alignItems: showExpanded ? 'stretch' : 'center' }]}>
                         <Button
                             variant="primary"
-                            size="large"
                             onPress={() => asDrawer ? handleNavPress('/compose') : router.push('/compose')}
                             customIcon={!showExpanded ? <ComposeIcon size={26} color={theme.colors.card} /> : undefined}
                             style={{
                                 borderRadius: 100,
-                                height: showExpanded ? 52 : 50,
+                                height: showExpanded ? 46 : 50,
                                 width: showExpanded ? undefined : 50,
                                 paddingHorizontal: showExpanded ? 16 : 0,
                                 paddingVertical: 0,
+                                minHeight: 0,
                                 justifyContent: 'center',
                                 alignItems: 'center',
                             }}
+                            textStyle={{ fontSize: 17, fontWeight: 'bold' }}
                         >
                             {showExpanded ? t("New Post") : undefined}
                         </Button>
