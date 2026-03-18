@@ -16,7 +16,7 @@ import { OxyServices } from '@oxyhq/core';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
-import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
@@ -68,10 +68,7 @@ export const AppProviders = memo(function AppProviders({
                   <BottomSheetModalProvider>
                     <BottomSheetProvider>
                       <MenuProvider>
-                        <ErrorBoundary
-                          title={i18n.t("error.boundary.title")}
-                          message={i18n.t("error.boundary.message")}
-                          retryLabel={i18n.t("error.boundary.retry")}
+                        <AppErrorBoundary
                           onError={handleBoundaryError}
                         >
                           <LayoutScrollProvider>
@@ -86,7 +83,7 @@ export const AppProviders = memo(function AppProviders({
                               <ConfirmPromptProvider />
                             </HomeRefreshProvider>
                           </LayoutScrollProvider>
-                        </ErrorBoundary>
+                        </AppErrorBoundary>
                       </MenuProvider>
                     </BottomSheetProvider>
                   </BottomSheetModalProvider>

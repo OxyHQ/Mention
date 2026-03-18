@@ -1,17 +1,11 @@
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { ThemedText } from './ThemedText';
-import { Button } from '@/components/ui/Button';
+import { Loading } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
-
-/**
- * Error Component
- * 
- * A full-screen error display component with optional retry and back buttons.
- * Reused from social-app and adapted for Mention's theme system.
- */
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { flattenStyleArray } from '@/utils/theme';
 
 interface ErrorProps {
   title?: string;
@@ -29,11 +23,12 @@ export function Error({
   onRetry,
   onGoBack,
   hideBackButton = false,
-  sideBorders = true,
   style,
 }: ErrorProps) {
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const handleGoBack = () => {
     if (onGoBack) {
@@ -45,94 +40,106 @@ export function Error({
     }
   };
 
+  const handleRetry = async () => {
+    if (!onRetry || isRetrying) return;
+    const result = onRetry();
+    if (result instanceof Promise) {
+      setIsRetrying(true);
+      try {
+        await result;
+      } finally {
+        setIsRetrying(false);
+      }
+    }
+  };
+
   return (
     <View
-      className="bg-background"
-      style={[
-        styles.container,
-        {
-          paddingTop: 175,
-          paddingBottom: 110,
-        },
+      className="flex-1 justify-center items-center py-8 px-6 bg-background"
+      style={flattenStyleArray([
+        { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
         style,
-      ]}>
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
+      ])}
+    >
+      <View className="items-center max-w-[320px] w-full">
+        <View
+          className="w-[72px] h-[72px] rounded-full justify-center items-center mb-3"
+          style={{ backgroundColor: theme.colors.error + '15' }}
+        >
           <Ionicons
             name="alert-circle-outline"
-            size={64}
+            size={36}
             color={theme.colors.error}
           />
         </View>
 
-        <ThemedText style={styles.title}>{title}</ThemedText>
+        <Text
+          className="text-lg font-bold text-center text-foreground mb-1.5"
+          style={{ letterSpacing: -0.3 }}
+        >
+          {title}
+        </Text>
 
-        <ThemedText
-          className="text-muted-foreground"
-          style={styles.message}>
+        <Text
+          className="text-sm text-center text-muted-foreground mb-4"
+          style={{ lineHeight: 20 }}
+        >
           {message}
-        </ThemedText>
-      </View>
+        </Text>
 
-      <View style={styles.actions}>
-        {onRetry && (
-          <Button
-            variant="primary"
-            onPress={onRetry}
-            style={styles.button}>
-            Retry
-          </Button>
-        )}
+        <View className="w-full items-center gap-3">
+          {onRetry && (
+            <TouchableOpacity
+              className="flex-row items-center justify-center py-2.5 px-5 rounded-[20px] min-w-[140px] gap-1.5 bg-primary"
+              style={{ opacity: isRetrying ? 0.6 : 1 }}
+              onPress={handleRetry}
+              disabled={isRetrying}
+              activeOpacity={0.8}
+            >
+              {isRetrying ? (
+                <Loading variant="inline" size="small" style={{ flex: undefined }} />
+              ) : (
+                <>
+                  <Ionicons
+                    name="refresh"
+                    size={18}
+                    color={theme.colors.card}
+                  />
+                  <Text
+                    className="text-[15px] font-semibold"
+                    style={{ color: theme.colors.card }}
+                  >
+                    Try again
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
 
-        {!hideBackButton && (
-          <Button
-            variant={onRetry ? 'secondary' : 'primary'}
-            onPress={handleGoBack}
-            style={styles.button}>
-            {router.canGoBack() ? 'Go Back' : 'Go Home'}
-          </Button>
-        )}
+          {!hideBackButton && (
+            <TouchableOpacity
+              className="flex-row items-center justify-center py-2.5 px-5 rounded-[20px] min-w-[140px] gap-1.5"
+              style={{
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              }}
+              onPress={handleGoBack}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={18}
+                color={theme.colors.text}
+              />
+              <Text
+                className="text-[15px] font-semibold text-foreground"
+              >
+                {router.canGoBack() ? 'Go back' : 'Go home'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-  },
-  content: {
-    width: '100%',
-    alignItems: 'center',
-    gap: 16,
-    maxWidth: 450,
-  },
-  iconContainer: {
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  message: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 24,
-    maxWidth: 450,
-  },
-  actions: {
-    width: '100%',
-    maxWidth: 350,
-    gap: 12,
-  },
-  button: {
-    width: '100%',
-    minHeight: 48,
-  },
-});
-
