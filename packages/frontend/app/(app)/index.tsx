@@ -14,7 +14,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
@@ -314,12 +314,14 @@ const HomeScreen: React.FC = () => {
                         <FAB
                             onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
                             customIcon={
-                                <Animated.View style={fabIconAnimatedStyle}>
-                                    {isScrolledDown
-                                        ? <ArrowUp size={22} className="text-primary-foreground" />
-                                        : <ComposeIcon size={22} className="text-primary-foreground" />
-                                    }
-                                </Animated.View>
+                                <View style={{ width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Animated.View style={fabComposeStyle}>
+                                        <ComposeIcon size={22} className="text-primary-foreground" />
+                                    </Animated.View>
+                                    <Animated.View style={fabArrowStyle}>
+                                        <ArrowUp size={22} className="text-primary-foreground" />
+                                    </Animated.View>
+                                </View>
                             }
                         />
                     )}
