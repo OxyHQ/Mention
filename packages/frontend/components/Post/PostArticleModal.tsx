@@ -64,10 +64,13 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
-  const [articleTitle, setArticleTitle] = useState<string | undefined>(title);
-  const [articleBody, setArticleBody] = useState<string | undefined>(body);
+  // Only use state for async-fetched article data; use props directly otherwise
+  const [fetchedTitle, setFetchedTitle] = useState<string | undefined>(undefined);
+  const [fetchedBody, setFetchedBody] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(articleId && !body));
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const needsFetch = Boolean(articleId && !body);
 
   // Animation values - initialized once
   const opacity = useSharedValue(0);
@@ -94,42 +97,37 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
 
   // Fetch article data when modal becomes visible and articleId is provided
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !needsFetch) return;
 
     let isMounted = true;
-    const needsFetch = articleId && !body;
-
-    if (needsFetch) {
-      setIsLoading(true);
-      setLoadError(null);
-      articleService.getArticle(articleId)
-        .then((article) => {
-          if (!isMounted) return;
-          setArticleTitle(article.title || title);
-          setArticleBody(article.body || body);
-        })
-        .catch((error) => {
-          logger.error('Failed to load article content');
-          if (isMounted) {
-            setLoadError(t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }));
-          }
-        })
-        .finally(() => {
-          if (isMounted) {
-            setIsLoading(false);
-          }
-        });
-    } else {
-      // Use provided data directly when no fetch is needed
-      setArticleTitle(title);
-      setArticleBody(body);
-      setIsLoading(false);
-    }
+    setIsLoading(true);
+    setLoadError(null);
+    articleService.getArticle(articleId!)
+      .then((article) => {
+        if (!isMounted) return;
+        setFetchedTitle(article.title || title);
+        setFetchedBody(article.body || body);
+      })
+      .catch(() => {
+        logger.error('Failed to load article content');
+        if (isMounted) {
+          setLoadError(t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }));
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [visible, articleId, body, title, t]);
+  }, [visible, articleId, needsFetch, body, title, t]);
+
+  // Prefer props directly; fall back to fetched data
+  const articleTitle = needsFetch ? fetchedTitle : title;
+  const articleBody = needsFetch ? fetchedBody : body;
 
   // Memoize trimmed values
   const trimmedTitle = useMemo(() => articleTitle?.trim(), [articleTitle]);

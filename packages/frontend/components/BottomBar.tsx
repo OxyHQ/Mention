@@ -1,7 +1,7 @@
 import { View, Pressable, Platform, LayoutChangeEvent } from 'react-native';
 import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -64,6 +64,8 @@ export const BottomBar = () => {
         : pathname.startsWith('/@') ? 4
         : -1;
 
+    const prevActiveIndexRef = useRef(activeIndex);
+
     const onBarLayout = useCallback((e: LayoutChangeEvent) => {
         const width = e.nativeEvent.layout.width;
         tabWidth.value = width / TAB_COUNT;
@@ -75,14 +77,16 @@ export const BottomBar = () => {
         }
     }, [activeIndex]);
 
-    useEffect(() => {
+    // Animate indicator when active tab changes (computed during render)
+    if (prevActiveIndexRef.current !== activeIndex) {
+        prevActiveIndexRef.current = activeIndex;
         if (tabWidth.value > 0 && activeIndex >= 0) {
             indicatorX.value = withSpring(
                 tabWidth.value * activeIndex,
                 SPRING_CONFIG,
             );
         }
-    }, [activeIndex]);
+    }
 
     // Track scroll direction and animate bottom bar
     useEffect(() => {

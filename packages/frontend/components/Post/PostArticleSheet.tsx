@@ -18,42 +18,46 @@ interface PostArticleSheetProps {
 const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, body, onClose }) => {
   const { t } = useTranslation();
 
-  const [articleTitle, setArticleTitle] = useState<string | undefined>(title);
-  const [articleBody, setArticleBody] = useState<string | undefined>(body);
+  // Only use state for async-fetched article data; use props directly otherwise
+  const [fetchedTitle, setFetchedTitle] = useState<string | undefined>(undefined);
+  const [fetchedBody, setFetchedBody] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(articleId && !body));
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const needsFetch = Boolean(articleId && !body);
+
   useEffect(() => {
+    if (!needsFetch) return;
+
     let isMounted = true;
-    if (articleId && !body) {
-      setIsLoading(true);
-      setLoadError(null);
-      articleService.getArticle(articleId)
-        .then((article) => {
-          if (!isMounted) return;
-          setArticleTitle(article.title || title);
-          setArticleBody(article.body || body);
-        })
-        .catch((error) => {
-          logger.error('Failed to load article content');
-          if (isMounted) {
-            setLoadError(t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }));
-          }
-        })
-        .finally(() => {
-          if (isMounted) {
-            setIsLoading(false);
-          }
-        });
-    } else {
-      setArticleTitle(title);
-      setArticleBody(body);
-    }
+    setIsLoading(true);
+    setLoadError(null);
+    articleService.getArticle(articleId!)
+      .then((article) => {
+        if (!isMounted) return;
+        setFetchedTitle(article.title || title);
+        setFetchedBody(article.body || body);
+      })
+      .catch(() => {
+        logger.error('Failed to load article content');
+        if (isMounted) {
+          setLoadError(t('post.articleSheet.loadError', { defaultValue: 'Failed to load article.' }));
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [articleId, body, title, t]);
+  }, [articleId, needsFetch, title, body, t]);
+
+  // Prefer props directly; fall back to fetched data
+  const articleTitle = needsFetch ? fetchedTitle : title;
+  const articleBody = needsFetch ? fetchedBody : body;
 
   const trimmedTitle = useMemo(() => articleTitle?.trim(), [articleTitle]);
   const trimmedBody = useMemo(() => articleBody?.trim(), [articleBody]);
