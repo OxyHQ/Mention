@@ -4,7 +4,7 @@ import { FeedType } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
-import { createScopedLogger } from '../utils/logger';
+import { createScopedLogger } from '@/lib/logger';
 import { wasRecent } from './echoGuard';
 
 const logger = createScopedLogger('SocketService');

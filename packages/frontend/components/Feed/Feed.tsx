@@ -37,7 +37,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { createScopedLogger } from '@/utils/logger';
+import { createScopedLogger } from '@/lib/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, deduplicateItems, deepEqual, buildReplyTree, ReplyNode } from '@/utils/feedUtils';

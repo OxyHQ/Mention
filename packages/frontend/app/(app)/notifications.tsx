@@ -14,7 +14,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Loading } from '@oxyhq/bloom/loading';
 import { NotificationItem } from '@/components/NotificationItem';
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
-import { createScopedLogger } from '@/utils/logger';
+import { createScopedLogger } from '@/lib/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';

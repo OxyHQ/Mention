@@ -1,5 +1,5 @@
 import { authenticatedClient } from '../utils/api';
-import { createScopedLogger } from '../utils/logger';
+import { createScopedLogger } from '@/lib/logger';
 import { Notification } from '@mention/shared-types';
 
 const logger = createScopedLogger('NotificationService');

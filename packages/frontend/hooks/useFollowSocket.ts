@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { api } from '@/utils/api';
-import { logger } from '@/utils/logger';
+import { logger } from '@/lib/logger';
 
 /**
  * Hook to emit follow/unfollow events to the backend for real-time updates

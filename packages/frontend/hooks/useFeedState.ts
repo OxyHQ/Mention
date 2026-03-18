@@ -3,7 +3,7 @@ import { FeedType, FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
-import { createScopedLogger } from '@/utils/logger';
+import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
 
 const logger = createScopedLogger('useFeedState');

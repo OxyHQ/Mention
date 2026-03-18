@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
-import { logger } from '@/utils/logger';
+import { logger } from '@/lib/logger';
 import { useAuth } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';

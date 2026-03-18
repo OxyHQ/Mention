@@ -24,7 +24,7 @@ import { Toaster } from '@/lib/sonner';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import i18n from '@/lib/i18n';
 import { agoraConfig } from '@/lib/agoraConfig';
-import { createScopedLogger } from '@/utils/logger';
+import { createScopedLogger } from '@/lib/logger';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 
 const logger = createScopedLogger('AppProviders');

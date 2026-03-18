@@ -15,7 +15,7 @@ import {
 type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices'>>;
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
-import { logger } from '../utils/logger';
+import { logger } from '@/lib/logger';
 
 // Extended FeedRequest with frontend-specific filter properties
 interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {

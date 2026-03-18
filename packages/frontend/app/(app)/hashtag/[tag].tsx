@@ -20,7 +20,7 @@ import { feedService } from '@/services/feedService';
 import PostItem from '@/components/Feed/PostItem';
 import { FeedResponse } from '@mention/shared-types';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { createScopedLogger } from '@/utils/logger';
+import { createScopedLogger } from '@/lib/logger';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Hashtag as HashtagIcon } from '@/assets/icons/hashtag-icon';
