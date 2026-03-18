@@ -194,8 +194,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                             customIcon={!showExpanded ? <ComposeIcon size={26} color={theme.colors.card} /> : undefined}
                             style={{
                                 borderRadius: 100,
-                                height: showExpanded ? 48 : 56,
-                                width: showExpanded ? undefined : 56,
+                                height: showExpanded ? 48 : 44,
+                                width: showExpanded ? undefined : 44,
                                 paddingHorizontal: showExpanded ? 16 : 0,
                                 paddingVertical: 0,
                                 justifyContent: 'center',
