@@ -11,7 +11,7 @@ import { roomsService, type Room } from '@/services/roomsService';
 import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/stores/usersStore';
 import { Agora as AgoraIcon } from '@mention/agora-shared';
-import { Loading } from '@oxyhq/bloom/loading';
+import * as Skeleton from '@oxyhq/bloom/skeleton';
 
 const MAX_ROOMS_DISPLAYED = 3;
 const REFRESH_INTERVAL_MS = 30_000;
@@ -145,11 +145,16 @@ export function LiveRoomsWidget() {
       icon={<AgoraIcon size={16} className="text-foreground" />}
     >
       {isLoading ? (
-        <View className="flex-row items-center gap-2">
-          <Loading size="small" style={{ flex: undefined }} />
-          <Text className="text-muted-foreground text-[13px]">
-            Loading rooms…
-          </Text>
+        <View className="gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 8 }}>
+              <Skeleton.Circle size={6} />
+              <Skeleton.Col>
+                <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 180 }} />
+                <Skeleton.Text style={{ fontSize: 11, lineHeight: 13, width: 140 }} />
+              </Skeleton.Col>
+            </Skeleton.Row>
+          ))}
         </View>
       ) : error ? (
         <Text className="text-destructive">{error}</Text>

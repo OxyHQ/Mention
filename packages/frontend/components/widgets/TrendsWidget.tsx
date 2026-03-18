@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, memo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -76,9 +76,16 @@ export function TrendsWidget() {
   return (
     <BaseWidget title={t('Trending')}>
       {isLoading ? (
-        <View className="flex-row items-center gap-2">
-          <Loading size="small" style={{ flex: undefined }} />
-          <Text className="text-muted-foreground text-[13px]">Loading trends…</Text>
+        <View className="pt-1 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton.Row key={i} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+              <Skeleton.Col>
+                <Skeleton.Text style={{ fontSize: 12, lineHeight: 14, width: 120 }} />
+                <Skeleton.Text style={{ fontSize: 14, lineHeight: 16, width: 160 }} />
+              </Skeleton.Col>
+              <Skeleton.Pill size={14} />
+            </Skeleton.Row>
+          ))}
         </View>
       ) : error ? (
         <Text className="text-destructive">{t('error.fetch_trends')}</Text>

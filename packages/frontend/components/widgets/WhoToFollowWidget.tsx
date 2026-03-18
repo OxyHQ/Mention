@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
-import { Loading } from '@oxyhq/bloom/loading';
+import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { useAuth } from "@oxyhq/services";
@@ -95,11 +95,17 @@ export function WhoToFollowWidget() {
   if (loading) {
     return (
       <BaseWidget title={t("Who to follow")}>
-        <View className="py-2 items-center gap-2">
-          <Loading size="small" style={{ flex: undefined }} />
-          <ThemedText className="text-muted-foreground text-[13px]">
-            {t("Loading...")}
-          </ThemedText>
+        <View className="gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 10 }}>
+              <Skeleton.Circle size={36} />
+              <Skeleton.Col>
+                <Skeleton.Text style={{ fontSize: 14, lineHeight: 16, width: 120 }} />
+                <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 90 }} />
+              </Skeleton.Col>
+              <Skeleton.Pill size={16} style={{ marginLeft: 'auto' }} />
+            </Skeleton.Row>
+          ))}
         </View>
       </BaseWidget>
     );
