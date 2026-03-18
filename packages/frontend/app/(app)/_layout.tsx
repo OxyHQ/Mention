@@ -43,15 +43,22 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
         "flex-1 w-full mx-auto bg-background",
         isScreenNotMobile ? "flex-row" : "flex-col"
       )}
+      style={isScreenNotMobile ? { maxWidth: 1300 } : undefined}
       {...containerProps}
     >
-      <SideBar />
+      {isScreenNotMobile ? (
+        <View className="flex-1 items-end">
+          <SideBar />
+        </View>
+      ) : (
+        <SideBar />
+      )}
       <View
         className={cn(
           "flex-1 justify-between bg-background",
-          isScreenNotMobile ? "flex-row mx-auto" : "flex-col"
+          isScreenNotMobile ? "flex-row" : "flex-col"
         )}
-        style={{ maxWidth: 950 }}
+        style={isScreenNotMobile ? { maxWidth: 950 } : undefined}
       >
         <ThemedView
           className={cn(

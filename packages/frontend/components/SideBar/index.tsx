@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
         flex: 1,
         width: '100%',
         justifyContent: 'flex-start',
-        alignItems: 'flex-start',
+        alignItems: 'flex-end',
     },
     headerSection: {
         marginBottom: 16,
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
     navigationSection: {
         flex: 1,
         justifyContent: 'center',
-        alignItems: 'flex-start',
+        alignItems: 'flex-end',
         width: '100%',
         gap: 2,
         paddingLeft: 0,
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: 100,
         display: 'flex',
-        alignSelf: 'flex-start',
+        alignSelf: 'flex-end',
         marginTop: 4,
     },
     addPropertyButtonContainer: {
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     footer: {
         flexDirection: 'column',
         justifyContent: 'flex-end',
-        alignItems: 'flex-start',
+        alignItems: 'flex-end',
         width: '100%',
         marginTop: 'auto',
     },

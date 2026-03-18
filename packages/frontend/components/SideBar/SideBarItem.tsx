@@ -38,7 +38,7 @@ export function SideBarItem({
             } as any)}
             className={cn(
                 "flex-row items-center rounded-[35px] py-2.5 mb-1.5",
-                isExpanded ? "w-full self-stretch px-4" : "self-start px-3",
+                isExpanded ? "w-full self-stretch px-4" : "self-end px-3",
                 isActive && "bg-primary/10",
                 isHovered && !isActive && "bg-primary/5",
             )}
