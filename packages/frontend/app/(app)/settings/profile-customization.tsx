@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -31,6 +32,7 @@ export default function ProfileCustomizationScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
+  const { oxyServices } = useAuth();
   const appColor = useThemeStore((s) => s.appColor);
   const setAppColor = useThemeStore((s) => s.setAppColor);
   const { colors } = useTheme();
@@ -106,15 +108,18 @@ export default function ProfileCustomizationScreen() {
     setAppColor(name);
     const hex = APP_COLOR_PRESETS[name].hex;
     try {
-      await updateMySettings({
-        appearance: { primaryColor: hex },
-      } as Record<string, unknown>);
+      await Promise.all([
+        oxyServices.updateProfile({ color: hex }),
+        updateMySettings({
+          appearance: { primaryColor: hex },
+        } as Record<string, unknown>),
+      ]);
     } catch (error) {
       console.error('Error updating profile color:', error);
     } finally {
       setSaving(false);
     }
-  }, [updateMySettings, setAppColor]);
+  }, [oxyServices, updateMySettings, setAppColor]);
 
   return (
     <ThemedView className="flex-1">

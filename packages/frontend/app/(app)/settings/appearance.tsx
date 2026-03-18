@@ -70,8 +70,11 @@ export default function AppearanceSettingsScreen() {
   const onColorChange = useCallback(async (name: AppColorName) => {
     setAppColor(name);
     const hex = APP_COLOR_PRESETS[name].hex;
-    await saveSettings({ primaryColor: hex });
-  }, [saveSettings, setAppColor]);
+    await Promise.all([
+      oxyServices.updateProfile({ color: hex }),
+      saveSettings({ primaryColor: hex }),
+    ]);
+  }, [oxyServices, saveSettings, setAppColor]);
 
   const openHeaderPicker = () => {
     showBottomSheet?.({

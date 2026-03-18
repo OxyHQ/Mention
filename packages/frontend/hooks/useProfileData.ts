@@ -59,7 +59,7 @@ function computeDesign(
     avatar: oxyProfile?.avatar,
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
-    primaryColor: appearance?.appearance?.primaryColor,
+    primaryColor: oxyProfile?.color || appearance?.appearance?.primaryColor,
   };
 }
 
