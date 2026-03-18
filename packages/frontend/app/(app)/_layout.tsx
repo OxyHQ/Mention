@@ -92,7 +92,6 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
         </ThemedView>
         <RightBar />
       </View>
-      {!isScreenNotMobile && <DrawerOverlay />}
     </View>
   );
 });
@@ -112,6 +111,7 @@ export default function AppLayout() {
       <MainLayout isScreenNotMobile={isScreenNotMobile} />
       <RegisterPush />
       {isAuthenticated && !isScreenNotMobile && !keyboardVisible && <BottomBar />}
+      {!isScreenNotMobile && <DrawerOverlay />}
       {!isAuthenticated && <SignInBanner />}
       <WelcomeModalGate appIsReady={true} />
       {Platform.OS === 'web' && (

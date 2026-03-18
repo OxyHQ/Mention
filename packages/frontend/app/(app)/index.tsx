@@ -242,18 +242,16 @@ const HomeScreen: React.FC = () => {
                     <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
                         <Header
                             options={{
-                                title: 'Mention',
-                                leftComponents: [
-                                    ...(!isScreenNotMobile ? [
-                                        <IconButton variant="icon"
-                                            key="menu"
-                                            onPress={openDrawer}
-                                        >
-                                            <Ionicons name="menu" size={22} color={theme.colors.text} />
-                                        </IconButton>
-                                    ] : []),
-                                    <LogoIcon key="logo" size={24} className="text-foreground" />,
-                                ],
+                                titlePosition: 'center',
+                                subtitle: <LogoIcon size={24} className="text-foreground" />,
+                                leftComponents: !isScreenNotMobile ? [
+                                    <IconButton variant="icon"
+                                        key="menu"
+                                        onPress={openDrawer}
+                                    >
+                                        <Ionicons name="menu" size={22} color={theme.colors.text} />
+                                    </IconButton>
+                                ] : [],
                                 rightComponents: [
                                     <IconButton variant="icon"
                                         key="search"
