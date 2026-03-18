@@ -3,7 +3,6 @@ import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { usePrivacySettings } from './usePrivacySettings';
 import { federationService } from '@/services/federationService';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 
@@ -167,11 +166,11 @@ function useFederatedProfileData(handle: string): {
 /**
  * Unified hook for profile data that combines:
  * - Oxy profile data (from usersStore)
- * - Appearance/customization settings (from appearanceStore)
- * - Privacy settings
+ * - Appearance/customization settings (from appearanceStore, which includes privacy)
  * - Federation data (for federated handles)
  *
- * Uses proper Zustand selectors to avoid unnecessary re-renders
+ * Parallelizes profile + appearance fetches when user is cached.
+ * Uses proper Zustand selectors to avoid unnecessary re-renders.
  */
 export function useProfileData(username?: string): {
   data: ProfileData | null;
@@ -210,10 +209,8 @@ function useLocalProfileData(username?: string): {
     return id ? state.byUserId[id] : undefined;
   });
 
-  // Load privacy settings
-  const privacySettings = usePrivacySettings(oxyProfile?.id);
-
-  // Fetch profile data when username changes
+  // Fetch profile and appearance data when username changes.
+  // Parallelizes requests when user is already cached (common — primed from post feeds).
   useEffect(() => {
     if (!username) return;
 
@@ -221,15 +218,24 @@ function useLocalProfileData(username?: string): {
 
     const fetchProfile = async () => {
       try {
-        // Fetch fresh data - this will update the store
-        const data = await ensureByUsername(
-          username,
-          (u) => oxyServices.getProfileByUsername(u)
-        );
+        const profileLoader = (u: string) => oxyServices.getProfileByUsername(u);
 
-        if (!cancelled && data?.id) {
-          // Load appearance settings for this user
-          await loadForUser(data.id, true);
+        // Check if user is already cached — if so, we know the ID and can
+        // fire profile refresh + appearance fetch in parallel.
+        const cachedId = useUsersStore.getState().idByUsername[username.toLowerCase()];
+
+        if (cachedId) {
+          await Promise.all([
+            ensureByUsername(username, profileLoader),
+            loadForUser(cachedId, true),
+          ]);
+        } else {
+          // Cold cache — must fetch profile first to get the ID,
+          // then fire appearance as fire-and-forget (zustand selector picks it up).
+          const data = await ensureByUsername(username, profileLoader);
+          if (!cancelled && data?.id) {
+            loadForUser(data.id, true);
+          }
         }
       } catch (err) {
         logger.debug('Profile fetch error', { error: err });
@@ -249,11 +255,6 @@ function useLocalProfileData(username?: string): {
 
     const design = computeDesign(oxyProfile, appearance);
 
-    // Use privacy from appearance data (from profileDesign endpoint) if available,
-    // otherwise fall back to privacySettings hook (requires auth)
-    // This ensures unauthenticated users can see privacy info
-    const privacy = appearance?.privacy || privacySettings || undefined;
-
     return {
       ...oxyProfile,
       id: oxyProfile.id || '',
@@ -261,9 +262,9 @@ function useLocalProfileData(username?: string): {
       postsCount: appearance?.postsCount,
       followsYou: appearance?.followsYou,
       design,
-      privacy,
+      privacy: appearance?.privacy,
     };
-  }, [oxyProfile, appearance, privacySettings]);
+  }, [oxyProfile, appearance]);
 
   // Loading state: true if username provided but no profile data yet
   const loading = Boolean(username && !oxyProfile);

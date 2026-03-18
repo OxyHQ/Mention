@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { subscriptionService } from '@/services/subscriptionService';
 import type { UseSubscriptionReturn } from '../types';
 
+const LAZY_FETCH_DELAY_MS = 500;
+
 /**
- * Hook for managing profile subscription state
- * Handles loading, toggling, and error states for subscriptions
+ * Hook for managing profile subscription state.
+ * Defers the initial status fetch to avoid blocking profile render.
  */
 export function useSubscription(
   profileId: string | undefined,
@@ -16,32 +18,46 @@ export function useSubscription(
   const { t } = useTranslation();
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const fetchedRef = useRef(false);
 
-  // Load subscription status
+  // Defer subscription status fetch — non-critical data
   useEffect(() => {
     if (isOwnProfile || !profileId || !currentUserId) return;
 
+    fetchedRef.current = false;
     let cancelled = false;
 
-    const loadStatus = async () => {
+    const timer = setTimeout(async () => {
       try {
         const { subscribed: isSubscribed } = await subscriptionService.getStatus(profileId);
-        if (!cancelled) setSubscribed(!!isSubscribed);
-      } catch (error: any) {
+        if (!cancelled) {
+          setSubscribed(!!isSubscribed);
+          fetchedRef.current = true;
+        }
+      } catch {
         // Silently ignore errors (including 401 for unauthenticated users)
       }
-    };
-
-    loadStatus();
+    }, LAZY_FETCH_DELAY_MS);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [profileId, isOwnProfile, currentUserId]);
 
-  // Toggle subscription
+  // Toggle subscription — fetches status first if not yet loaded
   const toggle = useCallback(async () => {
     if (!profileId || loading || isOwnProfile) return;
+
+    if (!fetchedRef.current) {
+      try {
+        const { subscribed: isSubscribed } = await subscriptionService.getStatus(profileId);
+        setSubscribed(!!isSubscribed);
+        fetchedRef.current = true;
+      } catch {
+        // Continue with default state
+      }
+    }
 
     setLoading(true);
     const previousState = subscribed;
@@ -56,7 +72,6 @@ export function useSubscription(
         toast.success(t('subscription.unsubscribed'));
       }
     } catch (error: any) {
-      // Revert on error
       setSubscribed(previousState);
       const errorMessage = error?.response?.data?.message || error?.message || t('subscription.error');
       toast.error(errorMessage);
@@ -71,19 +86,3 @@ export function useSubscription(
     toggle,
   };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
