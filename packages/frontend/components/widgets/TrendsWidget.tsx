@@ -43,6 +43,23 @@ const Sparkline = memo(function Sparkline({
   );
 });
 
+function getTrendLabel(trend: Trend): string {
+  if (trend.type === 'hashtag' && trend.volume > 0) {
+    return `Trending · ${formatCompactNumber(trend.volume)} posts`;
+  }
+  if (trend.type === 'entity') return 'Trending';
+  if (trend.type === 'topic') return 'Trending topic';
+  return 'Trending';
+}
+
+function getTrendDisplayName(trend: Trend): string {
+  if (trend.type === 'hashtag') {
+    const tag = trend.hashtag || trend.text;
+    return `#${tag?.replace(/^#/, '')}`;
+  }
+  return trend.text;
+}
+
 export function TrendsWidget() {
   const { t } = useTranslation();
   const { trends, isLoading, error, fetchTrends } = useTrendsStore();
@@ -56,17 +73,22 @@ export function TrendsWidget() {
   }, [fetchTrends]);
 
   const handleTrendPress = useCallback((trend: Trend) => {
-    const tag = trend.hashtag || trend.text;
-    const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
-    router.push(href as any);
+    if (trend.type === 'hashtag') {
+      const tag = trend.hashtag || trend.text;
+      const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
+      router.push(href as any);
+    } else {
+      const href = `/search/${encodeURIComponent(trend.text)}`;
+      router.push(href as any);
+    }
   }, [router]);
 
   const handleMorePress = useCallback(() => {
-    router.push('/explore');
+    router.push('/trending' as any);
   }, [router]);
 
   const handleMenuPress = useCallback((trend: Trend) => {
-    logger.debug(`Menu pressed for trend: ${trend.hashtag}`);
+    logger.debug(`Menu pressed for trend: ${trend.text}`);
   }, []);
 
   if (!isLoading && !error && (!trends || trends.length === 0)) {
@@ -92,7 +114,6 @@ export function TrendsWidget() {
       ) : (
         <View>
           {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
-            const tag = trend.hashtag || trend.text;
             const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
 
             return (
@@ -109,11 +130,16 @@ export function TrendsWidget() {
                 <View className="flex-1 flex-row items-center justify-between mr-2">
                   <View className="flex-1 mr-3">
                     <Text className="text-muted-foreground text-[12px] mb-0.5">
-                      Trending · {formatCompactNumber(trend.score)} post{trend.score !== 1 ? 's' : ''}
+                      {getTrendLabel(trend)}
                     </Text>
                     <Text className="text-foreground text-[14px] font-bold" numberOfLines={1}>
-                      #{tag?.replace(/^#/, '')}
+                      {getTrendDisplayName(trend)}
                     </Text>
+                    {trend.description ? (
+                      <Text className="text-muted-foreground text-[12px] mt-0.5" numberOfLines={1}>
+                        {trend.description}
+                      </Text>
+                    ) : null}
                   </View>
                   <View className="items-end">
                     <Sparkline direction={trend.direction} color={theme.colors.primary} />

@@ -23,9 +23,13 @@ interface TrendingListProps {
 export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProps) {
   const theme = useTheme();
 
-  const handleTopicPress = useCallback((topicName: string) => {
-    const cleanedName = topicName.replace(/^#/, '');
-    router.push(`/hashtag/${cleanedName}`);
+  const handleTopicPress = useCallback((topic: TrendingTopic) => {
+    if (topic.type === 'hashtag') {
+      const cleanedName = topic.name.replace(/^#/, '');
+      router.push(`/search/%23${encodeURIComponent(cleanedName)}`);
+    } else {
+      router.push(`/search/${encodeURIComponent(topic.name)}`);
+    }
   }, []);
 
   const formatVolume = useCallback((volume: number): string => {
@@ -50,17 +54,31 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
     return theme.colors.textSecondary;
   }, [theme.colors.textSecondary]);
 
+  const getTypeLabel = useCallback((topic: TrendingTopic): string => {
+    if (topic.type === 'entity') return 'Trending';
+    if (topic.type === 'topic') return 'Trending topic';
+    return 'Trending';
+  }, []);
+
+  const getDisplayName = useCallback((topic: TrendingTopic): string => {
+    if (topic.type === 'hashtag') {
+      return topic.name.startsWith('#') ? topic.name : `#${topic.name}`;
+    }
+    return topic.name;
+  }, []);
+
   const renderTrendingItem: ListRenderItem<TrendingTopic> = useCallback(({ item }) => {
-    const displayName = item.name.startsWith('#') ? item.name : `#${item.name}`;
+    const displayName = getDisplayName(item);
     const momentumIcon = getMomentumIcon(item.momentum);
     const momentumColor = getMomentumColor(item.momentum);
+    const typeLabel = getTypeLabel(item);
 
     return (
       <View>
         <TouchableOpacity
           className="flex-row items-center px-4 py-3"
           style={{ gap: SPACING.md }}
-          onPress={() => handleTopicPress(item.name)}
+          onPress={() => handleTopicPress(item)}
           activeOpacity={0.7}
         >
           <View className="items-center" style={{ width: 32 }}>
@@ -85,8 +103,20 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
               />
             </View>
 
-            <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.sm }}>
-              {formatVolume(item.volume)}
+            {item.description ? (
+              <Text
+                className="text-muted-foreground"
+                style={{ fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs }}
+                numberOfLines={2}
+              >
+                {item.description}
+              </Text>
+            ) : null}
+
+            <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.xs }}>
+              {item.type === 'hashtag' && item.volume > 0
+                ? formatVolume(item.volume)
+                : typeLabel}
             </Text>
           </View>
 
@@ -99,7 +129,7 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
         <Divider />
       </View>
     );
-  }, [theme, handleTopicPress, formatVolume, getMomentumIcon, getMomentumColor]);
+  }, [theme, handleTopicPress, formatVolume, getMomentumIcon, getMomentumColor, getDisplayName, getTypeLabel]);
 
   const keyExtractor = useCallback((item: TrendingTopic) => {
     return `${item.rank}-${item.name}`;

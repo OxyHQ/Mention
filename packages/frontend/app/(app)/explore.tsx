@@ -38,7 +38,7 @@ const ExploreScreen: React.FC = () => {
   const [trendingRefreshing, setTrendingRefreshing] = useState(false);
 
   const fetchTrending = useCallback(async () => {
-    const topics = await trendingService.getTrending('24h', 20);
+    const topics = await trendingService.getTrending(20);
     setTrendingTopics(topics);
   }, []);
 
