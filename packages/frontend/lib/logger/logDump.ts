@@ -1,10 +1,10 @@
-import { type LogContext, type LogLevel, type Metadata } from './types'
+import { type LogLevel, type Metadata } from './types'
 
 export type LogEntry = {
   id: string
   timestamp: number
   level: LogLevel
-  context: LogContext | undefined
+  context: string | undefined
   message: string | Error
   metadata: Metadata
 }

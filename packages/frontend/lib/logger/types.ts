@@ -7,6 +7,13 @@ export enum LogContext {
   Auth = 'auth',
   Navigation = 'navigation',
   Network = 'network',
+  Posts = 'posts',
+  Drafts = 'drafts',
+  Privacy = 'privacy',
+  Compose = 'compose',
+  Moderation = 'moderation',
+  Agora = 'agora',
+  Push = 'push',
 }
 
 export enum LogLevel {
@@ -19,7 +26,7 @@ export enum LogLevel {
 
 export type Transport = (
   level: LogLevel,
-  context: LogContext | undefined,
+  context: string | undefined,
   message: string | Error,
   metadata: Metadata,
   timestamp: number,

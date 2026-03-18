@@ -8,6 +8,7 @@ import { useAuth } from '@oxyhq/services';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { logger } from '@/lib/logger';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
@@ -32,7 +33,7 @@ export default function CreateListScreen() {
       const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
       setResults(res as any);
     } catch (e) {
-      console.warn('searchProfiles failed', e);
+      logger.warn('searchProfiles failed');
     }
   }, [oxyServices]);
 
@@ -54,7 +55,7 @@ export default function CreateListScreen() {
       });
       router.replace('/lists');
     } catch (e) {
-      console.error('Create list failed', e);
+      logger.error('Create list failed');
     } finally {
       setSaving(false);
     }

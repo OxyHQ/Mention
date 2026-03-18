@@ -17,14 +17,14 @@ export class Logger {
   static Context = LogContext
 
   level: LogLevel
-  context: LogContext | undefined = undefined
+  context: string | undefined = undefined
   contextFilter: string = ''
   ambientMetadata: Record<string, unknown> = {}
 
   protected debugContextRegexes: RegExp[] = []
   protected transports: Transport[] = []
 
-  static create(context?: LogContext, metadata: Record<string, unknown> = {}) {
+  static create(context?: string, metadata: Record<string, unknown> = {}) {
     const logger = new Logger({
       level: process.env.EXPO_PUBLIC_LOG_LEVEL as LogLevel,
       context,
@@ -44,7 +44,7 @@ export class Logger {
     metadata: ambientMetadata = {},
   }: {
     level?: LogLevel
-    context?: LogContext
+    context?: string
     contextFilter?: string
     metadata?: Record<string, unknown>
   } = {}) {
@@ -130,3 +130,7 @@ export class Logger {
 }
 
 export const logger = Logger.create(Logger.Context.Default)
+
+export function createScopedLogger(scope: string): Logger {
+  return Logger.create(scope)
+}
