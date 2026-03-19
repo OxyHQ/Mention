@@ -35,6 +35,7 @@ export interface IFederatedActor extends Document {
   followersCount: number;
   followingCount: number;
   postsCount: number;
+  oxyUserId?: string;
   lastFetchedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +74,7 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   followersCount: { type: Number, default: 0 },
   followingCount: { type: Number, default: 0 },
   postsCount: { type: Number, default: 0 },
+  oxyUserId: { type: String, index: { sparse: true } },
   lastFetchedAt: { type: Date },
 }, {
   timestamps: true,

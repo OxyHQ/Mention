@@ -11,6 +11,7 @@ import { BaseWidget } from "./BaseWidget";
 import { useUsersStore } from "@/stores/usersStore";
 import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
+import { getRecommendationFilters } from '@/app/(app)/settings/privacy';
 
 interface ProfileData {
   id: string;
@@ -51,7 +52,14 @@ export function WhoToFollowWidget() {
       try {
         setLoading(true);
         setError(null);
-        const response = await oxyServices.getProfileRecommendations();
+        const filters = await getRecommendationFilters();
+        const excludeTypes: Array<'federated' | 'agent' | 'automated'> = [];
+        if (!filters.showFederated) excludeTypes.push('federated');
+        if (!filters.showAgents) excludeTypes.push('agent');
+        if (!filters.showAutomated) excludeTypes.push('automated');
+        const response = await oxyServices.getProfileRecommendations(
+          excludeTypes.length > 0 ? { excludeTypes } : undefined
+        );
 
         if (!mounted) return;
 

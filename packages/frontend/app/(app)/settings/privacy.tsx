@@ -1,16 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Loading } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { Switch } from '@oxyhq/bloom/switch';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
 import { logger } from '@/lib/logger';
+
+const RECOMMENDATION_FILTERS_KEY = '@mention/recommendation_filters';
+
+export interface RecommendationFilters {
+    showFederated: boolean;
+    showAgents: boolean;
+    showAutomated: boolean;
+}
+
+const DEFAULT_FILTERS: RecommendationFilters = {
+    showFederated: true,
+    showAgents: true,
+    showAutomated: true,
+};
+
+export async function getRecommendationFilters(): Promise<RecommendationFilters> {
+    try {
+        const stored = await AsyncStorage.getItem(RECOMMENDATION_FILTERS_KEY);
+        return stored ? { ...DEFAULT_FILTERS, ...JSON.parse(stored) } : DEFAULT_FILTERS;
+    } catch {
+        return DEFAULT_FILTERS;
+    }
+}
 
 interface PrivacySettings {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -29,10 +54,12 @@ export default function PrivacySettingsScreen() {
     const safeBack = useSafeBack();
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
+    const [recFilters, setRecFilters] = useState<RecommendationFilters>(DEFAULT_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         loadPrivacySettings();
+        getRecommendationFilters().then(setRecFilters);
     }, []);
 
     const loadPrivacySettings = async () => {
@@ -46,6 +73,12 @@ export default function PrivacySettingsScreen() {
             setPrivacySettings({ profileVisibility: 'public' });
             setLoading(false);
         }
+    };
+
+    const updateRecFilter = (key: keyof RecommendationFilters, value: boolean) => {
+        const updated = { ...recFilters, [key]: value };
+        setRecFilters(updated);
+        AsyncStorage.setItem(RECOMMENDATION_FILTERS_KEY, JSON.stringify(updated)).catch(() => {});
     };
 
     const getProfileVisibilityText = () => {
@@ -146,6 +179,45 @@ export default function PrivacySettingsScreen() {
                         title={t('settings.privacy.hideLikeShareCounts')}
                         description={t('settings.privacy.hideLikeShareCountsDesc', { defaultValue: 'Hide engagement counts on posts' })}
                         onPress={() => router.push('/settings/privacy/hide-counts')}
+                    />
+                </SettingsGroup>
+
+                <SettingsGroup>
+                    <SettingsItem
+                        icon="globe-outline"
+                        title={t('settings.privacy.showFediverse', { defaultValue: 'Fediverse accounts in suggestions' })}
+                        description={t('settings.privacy.showFediverseDesc', { defaultValue: 'Show accounts from Mastodon and other fediverse instances' })}
+                        showChevron={false}
+                        rightElement={
+                            <Switch
+                                value={recFilters.showFederated}
+                                onValueChange={(v) => updateRecFilter('showFederated', v)}
+                            />
+                        }
+                    />
+                    <SettingsItem
+                        icon="sparkles-outline"
+                        title={t('settings.privacy.showAgents', { defaultValue: 'AI agents in suggestions' })}
+                        description={t('settings.privacy.showAgentsDesc', { defaultValue: 'Show AI-powered bot accounts' })}
+                        showChevron={false}
+                        rightElement={
+                            <Switch
+                                value={recFilters.showAgents}
+                                onValueChange={(v) => updateRecFilter('showAgents', v)}
+                            />
+                        }
+                    />
+                    <SettingsItem
+                        icon="sync-outline"
+                        title={t('settings.privacy.showAutomated', { defaultValue: 'Automated accounts in suggestions' })}
+                        description={t('settings.privacy.showAutomatedDesc', { defaultValue: 'Show scheduled and feed-based accounts' })}
+                        showChevron={false}
+                        rightElement={
+                            <Switch
+                                value={recFilters.showAutomated}
+                                onValueChange={(v) => updateRecFilter('showAutomated', v)}
+                            />
+                        }
                     />
                 </SettingsGroup>
             </ScrollView>
