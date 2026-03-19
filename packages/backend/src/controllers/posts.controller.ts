@@ -2511,15 +2511,19 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    const truncatedText = text.slice(0, MAX_TEXT_LENGTH);
     const translatedText = await aliaChat(
       [
         {
           role: 'system',
-          content: `You are a translation engine. Translate the following text to ${languageName}. Return only the translated text, preserving the original formatting, mentions, hashtags, and line breaks. Do not add explanations or notes.`,
+          content: 'You are a strict translation engine. You receive text wrapped in <text> tags. Output ONLY the translation — no explanations, no commentary, no extra text. Preserve all formatting, mentions, hashtags, and line breaks exactly.',
         },
-        { role: 'user', content: text.slice(0, MAX_TEXT_LENGTH) },
+        {
+          role: 'user',
+          content: `Translate the following to ${languageName}:\n<text>\n${truncatedText}\n</text>`,
+        },
       ],
-      { temperature: 0.2 },
+      { temperature: 0.1, maxTokens: Math.max(truncatedText.length * 3, 256) },
     );
 
     res.json({ translatedText });
