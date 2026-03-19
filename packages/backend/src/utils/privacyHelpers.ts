@@ -81,8 +81,8 @@ async function getUserIdsFromPrivacyList(
  * @param client - OxyServices instance (per-request, with auth token set)
  */
 export async function getBlockedUserIds(client?: OxyClient): Promise<string[]> {
-  const c = client || oxy;
-  return getUserIdsFromPrivacyList(() => c.getBlockedUsers(), 'blocked');
+  if (!client) return [];
+  return getUserIdsFromPrivacyList(() => client.getBlockedUsers(), 'blocked');
 }
 
 /**
@@ -90,8 +90,8 @@ export async function getBlockedUserIds(client?: OxyClient): Promise<string[]> {
  * @param client - OxyServices instance (per-request, with auth token set)
  */
 export async function getRestrictedUserIds(client?: OxyClient): Promise<string[]> {
-  const c = client || oxy;
-  return getUserIdsFromPrivacyList(() => c.getRestrictedUsers(), 'restricted');
+  if (!client) return [];
+  return getUserIdsFromPrivacyList(() => client.getRestrictedUsers(), 'restricted');
 }
 
 /**
