@@ -79,18 +79,19 @@ const PostAttachmentImage: React.FC<{
         styles.itemContainer,
         webGrabCursorStyle,
         { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
+        hasMultipleMedia && { height: CARD_HEIGHT, alignSelf: 'flex-start' as const },
         hasSingleMedia && { maxHeight: undefined, height: undefined },
       ]}
       style={[
-        hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia,
-        aspectRatio !== undefined ? { aspectRatio } : undefined,
+        hasSingleMedia
+          ? [styles.imagePreserveAspect, aspectRatio !== undefined ? { aspectRatio } : undefined]
+          : { width: '100%' as unknown as number, height: '100%' as unknown as number },
       ]}
-      resizeMode="contain"
+      resizeMode={hasSingleMedia ? "contain" : "cover"}
       placeholder={
         <View
           className="bg-secondary justify-center items-center"
-          style={hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia}
+          style={hasSingleMedia ? styles.imagePreserveAspect : { width: '100%' as unknown as number, height: '100%' as unknown as number }}
         />
       }
       threshold={300}
