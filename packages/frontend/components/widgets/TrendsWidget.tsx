@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { BaseWidget } from './BaseWidget';
 import { useTrendsStore } from '@/store/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
+import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { logger } from '@/lib/logger';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 
@@ -24,16 +25,11 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
     startPolling();
   }, [startPolling]);
 
+  const { navigateToTrend } = useTrendNavigation();
+
   const handleTrendPress = useCallback((trend: Trend) => {
-    if (trend.type === 'hashtag') {
-      const tag = trend.hashtag || trend.text;
-      const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
-      router.push(href as any);
-    } else {
-      const href = `/search/${encodeURIComponent(trend.text)}`;
-      router.push(href as any);
-    }
-  }, [router]);
+    navigateToTrend(trend);
+  }, [navigateToTrend]);
 
   const handleMorePress = useCallback(() => {
     router.push('/trending' as any);

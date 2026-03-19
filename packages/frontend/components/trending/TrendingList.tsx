@@ -4,7 +4,6 @@ import {
   Text,
   FlatList,
 } from "react-native";
-import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from '@oxyhq/bloom/theme';
 import type { Trend } from "@/interfaces/Trend";
@@ -12,6 +11,7 @@ import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
 import { Divider } from "@oxyhq/bloom/divider";
 import { TrendItemRow } from "./TrendItemRow";
+import { useTrendNavigation } from "@/hooks/useTrendNavigation";
 
 interface TrendingListProps {
   topics: Trend[];
@@ -22,14 +22,11 @@ interface TrendingListProps {
 export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProps) {
   const theme = useTheme();
 
+  const { navigateToTrend } = useTrendNavigation();
+
   const handleTopicPress = useCallback((trend: Trend) => {
-    if (trend.type === 'hashtag') {
-      const cleanedName = trend.text.replace(/^#/, '');
-      router.push(`/search/%23${encodeURIComponent(cleanedName)}`);
-    } else {
-      router.push(`/search/${encodeURIComponent(trend.text)}`);
-    }
-  }, []);
+    navigateToTrend(trend);
+  }, [navigateToTrend]);
 
   const renderItem = useCallback(({ item }: { item: Trend }) => (
     <View className="px-4">

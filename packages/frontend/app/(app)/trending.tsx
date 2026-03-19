@@ -7,7 +7,6 @@ import {
   SectionListData,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
@@ -18,6 +17,7 @@ import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES } from '@/styles/typography';
 import { useTranslation } from 'react-i18next';
 import type { Trend } from '@/interfaces/Trend';
+import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 
 interface TrendSection {
   title: string;
@@ -65,7 +65,7 @@ function topicToTrend(topic: TrendingTopic): Trend {
 export default function TrendingHistoryScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const router = useRouter();
+  const { navigateToTrend } = useTrendNavigation();
   const [sections, setSections] = useState<TrendSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -108,13 +108,8 @@ export default function TrendingHistoryScreen() {
   }, [isLoadingMore, page, totalPages, fetchHistory]);
 
   const handleTrendPress = useCallback((trend: Trend) => {
-    if (trend.type === 'hashtag') {
-      const tag = trend.text.replace(/^#/, '');
-      router.push(`/search/%23${encodeURIComponent(tag)}` as any);
-    } else {
-      router.push(`/search/${encodeURIComponent(trend.text)}` as any);
-    }
-  }, [router]);
+    navigateToTrend(trend);
+  }, [navigateToTrend]);
 
   const renderItem = useCallback(({ item, index }: { item: Trend; index: number }) => (
     <View className="px-4">
