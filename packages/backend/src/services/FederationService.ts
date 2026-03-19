@@ -760,8 +760,11 @@ class FederationService {
     const hashtags = this.extractApHashtags(object);
     const { media, attachments } = this.extractApMedia(object);
 
-    await Post.create({
-      federatedActorId: actor._id,
+    const { postCreationService } = require('./PostCreationService') as {
+      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
+    };
+    await postCreationService.create({
+      federatedActorId: String(actor._id),
       federation: {
         activityId: object.id,
         inReplyTo: object.inReplyTo || undefined,
@@ -769,7 +772,6 @@ class FederationService {
         sensitive: object.sensitive || false,
         spoilerText: object.summary || undefined,
       },
-      type: media.length > 0 ? (media.some((m: any) => m.type === 'video') ? 'video' : 'image') : 'text',
       content: {
         text,
         media: media.length > 0 ? media : undefined,
@@ -778,10 +780,10 @@ class FederationService {
       visibility: this.mapApVisibility(object.to, object.cc),
       hashtags,
       status: 'published',
-      stats: { likesCount: 0, repostsCount: 0, commentsCount: 0, viewsCount: 0, sharesCount: 0 },
-      metadata: {
-        isSensitive: object.sensitive === true,
-      },
+      metadata: { isSensitive: object.sensitive === true },
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
     });
 
     logger.debug(`Stored federated post from ${actorUri}: ${object.id}`);
@@ -856,12 +858,12 @@ class FederationService {
   private mapApVisibility(
     to?: string[],
     cc?: string[],
-  ): string {
+  ): PostVisibility {
     const allAddressees = [...(to || []), ...(cc || [])];
     if (allAddressees.includes('https://www.w3.org/ns/activitystreams#Public')) {
-      return 'public';
+      return PostVisibility.PUBLIC;
     }
-    return 'followers_only';
+    return PostVisibility.FOLLOWERS_ONLY;
   }
 
   // ============================================================

@@ -12,6 +12,7 @@ import PostSubscription from '../models/PostSubscription';
 import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent } from '@mention/shared-types';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
+import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
@@ -598,7 +599,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postMetadata.isSensitive = true;
     }
 
-    const post = new Post({
+    const post = await postCreationService.create({
       oxyUserId: userId,
       content: postContent,
       location: processedPostLocation,
@@ -608,138 +609,29 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       repostOf: repost_of || null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
-      visibility: PostVisibility.PUBLIC, // Explicitly set visibility
+      visibility: PostVisibility.PUBLIC,
       replyPermission: replyPermission || ['anyone'],
       reviewReplies: reviewReplies || false,
       quotesDisabled: quotesDisabled || false,
       status: postStatus,
       scheduledFor: scheduledForDate || undefined,
       metadata: postMetadata,
-      stats: {
-        likesCount: 0,
-        repostsCount: 0,
-        commentsCount: 0,
-        viewsCount: 0,
-        sharesCount: 0
-      }
     });
 
-    await post.save();
-
-      if (pendingArticleDoc) {
-        try {
-          pendingArticleDoc.postId = String(post._id);
-          await pendingArticleDoc.save();
+    if (pendingArticleDoc) {
+      try {
+        pendingArticleDoc.postId = String(post._id);
+        await pendingArticleDoc.save();
       } catch (articleError) {
         logger.error('Failed to save article content', articleError);
       }
     }
-    
+
     if (!isScheduled && pollId) {
       try {
         await Poll.findByIdAndUpdate(pollId, { postId: String(post._id) });
       } catch (pollUpdateError) {
         logger.error('Failed to update poll postId', pollUpdateError);
-        // Continue execution - post was created successfully
-      }
-    }
-    
-    if (!isScheduled) {
-      // Fire mention notifications if any
-      try {
-        if (mentions && mentions.length > 0) {
-          const isReply = Boolean(parentPostId || in_reply_to_status_id);
-          await createMentionNotifications(
-            mentions,
-            String(post._id),
-            userId,
-            isReply ? 'reply' : 'post'
-          );
-        }
-      } catch (e) {
-        logger.error('Failed to create mention notifications', e);
-      }
-
-      // Batch-fetch posts needed for reply, quote, and repost notifications
-      try {
-        const replyParentId = parentPostId || in_reply_to_status_id || null;
-        const idsToFetch = [replyParentId, quoted_post_id, repost_of].filter(Boolean) as string[];
-
-        if (idsToFetch.length > 0) {
-          const posts = await Post.find({ _id: { $in: idsToFetch } }).select('oxyUserId').lean();
-          const postsMap = new Map(posts.map(p => [String(p._id), p]));
-
-          // Reply notification
-          if (replyParentId) {
-            const parent = postsMap.get(String(replyParentId));
-            const recipientId = parent?.oxyUserId?.toString?.() || null;
-            if (recipientId && recipientId !== userId) {
-              await createNotification({
-                recipientId,
-                actorId: userId,
-                type: 'reply',
-                entityId: String(post._id),
-                entityType: 'reply'
-              });
-            }
-          }
-
-          // Quote notification
-          if (quoted_post_id) {
-            const original = postsMap.get(String(quoted_post_id));
-            const recipientId = original?.oxyUserId?.toString?.() || null;
-            if (recipientId && recipientId !== userId && original) {
-              await createNotification({
-                recipientId,
-                actorId: userId,
-                type: 'quote',
-                entityId: String(original._id),
-                entityType: 'post'
-              });
-            }
-          }
-
-          // Repost notification
-          if (repost_of) {
-            const original = postsMap.get(String(repost_of));
-            const recipientId = original?.oxyUserId?.toString?.() || null;
-            if (recipientId && recipientId !== userId && original) {
-              await createNotification({
-                recipientId,
-                actorId: userId,
-                type: 'repost',
-                entityId: String(original._id),
-                entityType: 'post'
-              });
-            }
-          }
-        }
-      } catch (e) {
-        logger.error('Failed to create reply/quote/repost notifications', e);
-      }
-
-      // Notify subscribers of a new post (only for top-level posts, not replies)
-      try {
-        const isTopLevelPost = !(parentPostId || in_reply_to_status_id);
-        if (isTopLevelPost) {
-          const subs = await PostSubscription.find({ authorId: userId }).lean();
-          if (subs && subs.length) {
-            const notifications = subs
-              .filter(s => s.subscriberId !== userId)
-              .map(s => ({
-                recipientId: s.subscriberId,
-                actorId: userId,
-                type: 'post' as const,
-                entityId: String(post._id),
-                entityType: 'post' as const,
-              }));
-            if (notifications.length) {
-              await createBatchNotifications(notifications, true);
-            }
-          }
-        }
-      } catch (e) {
-        logger.error('Failed to notify subscribers about new post', e);
       }
     }
 
@@ -750,7 +642,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     } catch (error) {
       logger.error('Failed to fetch user data from Oxy', error);
     }
-    
+
     const postObj = post.toObject();
     const transformedPost = {
       ...postObj,
@@ -766,43 +658,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       scheduledFor: post.scheduledFor ? post.scheduledFor.toISOString() : undefined,
       oxyUserId: undefined,
     };
-
-    try {
-      if (!isScheduled && mentions && mentions.length > 0) {
-        const isReply = Boolean(parentPostId || in_reply_to_status_id);
-        await createMentionNotifications(
-          mentions,
-          String(post._id),
-          userId,
-          isReply ? 'reply' : 'post'
-        );
-      }
-    } catch (e) {
-      logger.error('Failed to create mention notifications', e);
-    }
-    
-    // Emit real-time feed update for new post (only for published posts)
-    if (!isScheduled) {
-      try {
-        const io = (global as any).io;
-        if (io) {
-          io.emit('feed:updated', {
-            type: 'for_you',
-            post: transformedPost,
-            timestamp: new Date().toISOString()
-          });
-          // Also emit to following feed if user has followers
-          io.emit('feed:updated', {
-            type: 'following',
-            post: transformedPost,
-            authorId: userId,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } catch (socketError) {
-        logger.warn('Failed to emit socket event for new post', socketError);
-      }
-    }
 
     res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
