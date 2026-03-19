@@ -158,7 +158,7 @@ class TopicExtractionService {
           { role: 'system', content: EXTRACTION_PROMPT },
           { role: 'user', content: JSON.stringify(payload) },
         ],
-        { temperature: 0.2, maxTokens: 3000 },
+        { model: 'alia-lite', temperature: 0.2, maxTokens: 3000 },
       );
 
       const parseResult = ExtractionResponseSchema.safeParse(rawResult);
