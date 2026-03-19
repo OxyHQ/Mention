@@ -48,14 +48,13 @@ const PostAttachmentVideo: React.FC<{
   );
 };
 
-const MAX_SINGLE_HEIGHT = 400;
-const MIN_MULTI_WIDTH = 100;
+const MIN_WIDTH = 100;
 
 const PostAttachmentImage: React.FC<{
   src: string;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src }) => {
   const theme = useTheme();
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
 
@@ -73,8 +72,8 @@ const PostAttachmentImage: React.FC<{
     );
   }, [src]);
 
-  const multiWidth = aspectRatio !== undefined
-    ? Math.max(CARD_HEIGHT * aspectRatio, MIN_MULTI_WIDTH)
+  const computedWidth = aspectRatio !== undefined
+    ? Math.max(CARD_HEIGHT * aspectRatio, MIN_WIDTH)
     : CARD_WIDTH;
 
   return (
@@ -83,25 +82,15 @@ const PostAttachmentImage: React.FC<{
       containerStyle={[
         styles.itemContainer,
         webGrabCursorStyle,
-        { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-        hasMultipleMedia && { height: CARD_HEIGHT, width: multiWidth, alignSelf: 'flex-start' as const },
-        hasSingleMedia && { maxHeight: MAX_SINGLE_HEIGHT },
+        { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary,
+          height: CARD_HEIGHT, width: computedWidth },
       ]}
-      style={[
-        hasSingleMedia
-          ? [styles.imagePreserveAspect, aspectRatio !== undefined ? { aspectRatio } : undefined]
-          : { width: '100%' as unknown as number, height: '100%' as unknown as number },
-      ]}
+      style={{ width: '100%' as unknown as number, height: '100%' as unknown as number }}
       resizeMode="cover"
       placeholder={
         <View
           className="bg-secondary justify-center items-center"
-          style={hasSingleMedia
-            ? styles.imagePreserveAspect
-            : hasMultipleMedia
-              ? { width: multiWidth, height: CARD_HEIGHT }
-              : { width: '100%' as unknown as number, height: '100%' as unknown as number }
-          }
+          style={{ width: computedWidth, height: CARD_HEIGHT }}
         />
       }
       threshold={300}
@@ -149,13 +138,6 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
   },
   videoMultipleMedia: {
-    height: CARD_HEIGHT,
-    alignSelf: 'flex-start',
-  },
-  imagePreserveAspect: {
-    width: CARD_WIDTH,
-  },
-  imageMultipleMedia: {
     height: CARD_HEIGHT,
     alignSelf: 'flex-start',
   },
