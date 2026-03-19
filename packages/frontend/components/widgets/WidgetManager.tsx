@@ -1,9 +1,15 @@
-import React, { ReactNode } from 'react';
+import React, { Component, ReactNode } from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
 import { LiveRoomsWidget } from './LiveRoomsWidget';
+
+class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+    state = { hasError: false };
+    static getDerivedStateFromError() { return { hasError: true }; }
+    render() { return this.state.hasError ? null : this.props.children; }
+}
 
 // Define screen IDs for social network
 export type ScreenId =
@@ -107,7 +113,7 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
     return (
         <View className="flex-col gap-4">
             {allWidgets.map((widget, index) => (
-                <React.Fragment key={index}>{widget}</React.Fragment>
+                <WidgetErrorBoundary key={index}>{widget}</WidgetErrorBoundary>
             ))}
         </View>
     );
