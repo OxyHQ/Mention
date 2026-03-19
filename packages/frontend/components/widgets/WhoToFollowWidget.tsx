@@ -23,6 +23,8 @@ interface ProfileData {
   avatar?: string;
   bio?: string;
   isFederated?: boolean;
+  isAgent?: boolean;
+  isAutomated?: boolean;
   instance?: string;
 }
 
@@ -197,6 +199,8 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
           <UserName
             name={displayName}
             isFederated={profileData.isFederated}
+            isAgent={profileData.isAgent}
+            isAutomated={profileData.isAutomated}
             variant="small"
             style={{ name: { fontSize: 14 } }}
           />

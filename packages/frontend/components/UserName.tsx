@@ -2,11 +2,15 @@ import React from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-native';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { AgentIcon } from '@/assets/icons/agent-icon';
+import { AutomatedIcon } from '@/assets/icons/automated-icon';
 
 interface Props {
     name?: string | null;
     verified?: boolean;
     isFederated?: boolean;
+    isAgent?: boolean;
+    isAutomated?: boolean;
     unifiedColors?: boolean; // if true, use unified colors for name and icon (e.g., dark mode)
     onPress?: () => void;
     variant?: 'default' | 'small';
@@ -16,7 +20,7 @@ interface Props {
     };
 }
 
-const UserName: React.FC<Props> = ({ name, verified, isFederated, unifiedColors, onPress, variant = 'default', style }) => {
+const UserName: React.FC<Props> = ({ name, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style }) => {
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
     // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
@@ -40,6 +44,12 @@ const UserName: React.FC<Props> = ({ name, verified, isFederated, unifiedColors,
                 )}
                 {isFederated && (
                     <FediverseIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                )}
+                {isAgent && (
+                    <AgentIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                )}
+                {isAutomated && (
+                    <AutomatedIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
                 )}
             </View>
         </View>

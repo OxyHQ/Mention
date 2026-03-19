@@ -15,6 +15,8 @@ interface SuggestedUserData {
   avatar?: string;
   bio?: string;
   isFederated?: boolean;
+  isAgent?: boolean;
+  isAutomated?: boolean;
   instance?: string;
 }
 
@@ -69,6 +71,8 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
         <UserName
           name={displayName}
           isFederated={user.isFederated}
+          isAgent={user.isAgent}
+          isAutomated={user.isAutomated}
           variant="small"
           style={{ name: { fontSize: 15, lineHeight: 20 } }}
         />
