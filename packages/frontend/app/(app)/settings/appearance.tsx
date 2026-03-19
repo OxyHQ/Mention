@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
-import { PREMIUM_COLOR_NAMES } from '@oxyhq/bloom/theme';
+import { PREMIUM_COLOR_NAMES } from '@/lib/app-color-presets';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
