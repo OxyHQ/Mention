@@ -2523,7 +2523,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
           content: `Translate the following to ${languageName}:\n<text>\n${truncatedText}\n</text>`,
         },
       ],
-      { temperature: 0.1, maxTokens: Math.max(truncatedText.length * 3, 256) },
+      { model: 'alia-lite', temperature: 0.1, maxTokens: Math.max(truncatedText.length * 3, 256) },
     );
 
     res.json({ translatedText });
