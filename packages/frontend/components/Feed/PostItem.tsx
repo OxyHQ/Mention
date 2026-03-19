@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useContext, useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useCallback, useMemo, useContext, useState, useRef, lazy, Suspense } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import {
@@ -211,12 +211,8 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     }, [onReply, router, viewPostId]);
 
-    const handleTranslate = useCallback(async () => {
-        if (translatedText) {
-            setTranslatedText(null);
-            return;
-        }
-        if (!viewPostId) return;
+    const fetchTranslation = useCallback(async () => {
+        if (!viewPostId || isTranslating) return;
         setIsTranslating(true);
         try {
             const { data } = await api.post<{ translatedText: string }>(
@@ -231,31 +227,32 @@ const PostItem: React.FC<PostItemProps> = ({
         } finally {
             setIsTranslating(false);
         }
-    }, [viewPostId, translatedText, content.text, i18n.language]);
+    }, [viewPostId, isTranslating, content.text, i18n.language]);
 
-    // Auto-translate posts in a different language when the setting is enabled
-    useEffect(() => {
-        if (!autoTranslateEnabled || autoTranslateAttempted.current) return;
-        if (!content.text || !viewPostId || translatedText || isTranslating) return;
+    const handleTranslate = useCallback(() => {
+        if (translatedText) {
+            setTranslatedText(null);
+            return;
+        }
+        fetchTranslation();
+    }, [translatedText, fetchTranslation]);
 
+    // Auto-translate: compute during render, fire once via ref guard
+    if (
+        autoTranslateEnabled &&
+        content.text &&
+        viewPostId &&
+        !translatedText &&
+        !isTranslating &&
+        !autoTranslateAttempted.current
+    ) {
         const postLang = (metadata.language || 'en').split('-')[0].toLowerCase();
         const userLang = (i18n.language || 'en').split('-')[0].toLowerCase();
-        if (postLang === userLang) return;
-
-        autoTranslateAttempted.current = true;
-        setIsTranslating(true);
-        api.post<{ translatedText: string }>(
-            `/posts/${viewPostId}/translate`,
-            { targetLanguage: i18n.language },
-        )
-            .then(({ data }) => {
-                if (data.translatedText && data.translatedText !== content.text) {
-                    setTranslatedText(data.translatedText);
-                }
-            })
-            .catch(() => setTranslatedText(null))
-            .finally(() => setIsTranslating(false));
-    }, [autoTranslateEnabled, viewPostId, content.text, metadata.language, i18n.language, translatedText, isTranslating]);
+        if (postLang !== userLang) {
+            autoTranslateAttempted.current = true;
+            queueMicrotask(() => fetchTranslation());
+        }
+    }
 
     const closeSourcesSheet = useCallback(() => {
         bottomSheet.setBottomSheetContent(null);
