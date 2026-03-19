@@ -187,6 +187,7 @@ const PostDetailScreen: React.FC = () => {
                 <FeedHeader
                     showComposeButton={!!user}
                     onComposePress={handleOpenReply}
+                    promptText={t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })}
                 />
 
                 <View className="px-4 pt-4 pb-2">

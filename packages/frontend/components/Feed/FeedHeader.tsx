@@ -11,6 +11,7 @@ interface FeedHeaderProps {
     showComposeButton?: boolean;
     onComposePress?: () => void;
     hideHeader?: boolean;
+    promptText?: string;
 }
 
 /**
@@ -20,7 +21,7 @@ interface FeedHeaderProps {
  * Sits flush at the top of the feed list. Only renders for authenticated users.
  */
 export const FeedHeader = memo<FeedHeaderProps>(
-    ({ showComposeButton, onComposePress, hideHeader }) => {
+    ({ showComposeButton, onComposePress, hideHeader, promptText }) => {
         const { user } = useAuth();
         const theme = useTheme();
 
@@ -76,7 +77,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                     <ThemedText
                         className="text-muted-foreground"
                         style={styles.promptText}>
-                        What&apos;s up?
+                        {promptText || 'What\u0027s up?'}
                     </ThemedText>
                     <View style={styles.actions}>
                         {Platform.OS !== 'web' && (
