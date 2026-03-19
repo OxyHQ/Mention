@@ -18,17 +18,20 @@ import {
 } from '../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
-import { OxyServices } from '@oxyhq/core';
-
-/** Shared OxyServices instance for resolving external users via service token. */
-function getOxyServiceClient(): OxyServices {
-  const client = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  const token = process.env.OXY_SERVICE_TOKEN;
-  if (token) client.setTokens(token);
-  return client;
-}
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 class FederationService {
+  /**
+   * Extract the actor URI from an AP attributedTo value,
+   * which may be a plain URI string or an object with an id property.
+   */
+  private extractActorUri(attributedTo: unknown): string | undefined {
+    if (typeof attributedTo === 'string') return attributedTo;
+    if (attributedTo && typeof attributedTo === 'object' && 'id' in attributedTo) {
+      return (attributedTo as { id?: string }).id;
+    }
+    return undefined;
+  }
   // ============================================================
   // Actor Resolution
   // ============================================================
@@ -156,7 +159,7 @@ class FederationService {
       // Resolve to Oxy User if not already linked
       if (fedActor && !fedActor.oxyUserId) {
         try {
-          const oxyClient = getOxyServiceClient();
+          const oxyClient = getServiceOxyClient();
           const oxyUser = await oxyClient.resolveExternalUser({
             type: 'federated',
             username: acct,
@@ -268,10 +271,8 @@ class FederationService {
       // Resolve actor URIs → Oxy User IDs
       const actorUris = new Set<string>();
       for (const { note } of candidates) {
-        const attributed = typeof note.attributedTo === 'string'
-          ? note.attributedTo
-          : note.attributedTo?.id;
-        if (attributed) actorUris.add(attributed);
+        const uri = this.extractActorUri(note.attributedTo);
+        if (uri) actorUris.add(uri);
       }
 
       // Batch lookup: actor URI → oxyUserId from stored FederatedActors
@@ -285,12 +286,13 @@ class FederationService {
           if (a.oxyUserId) actorOxyMap.set(a.uri, a.oxyUserId);
         }
 
-        // For actors missing oxyUserId, trigger resolution
-        for (const uri of actorUris) {
-          if (!actorOxyMap.has(uri)) {
-            const resolved = await this.fetchRemoteActor(uri);
-            if (resolved?.oxyUserId) {
-              actorOxyMap.set(uri, resolved.oxyUserId);
+        // Resolve missing actors in parallel
+        const missingUris = [...actorUris].filter(uri => !actorOxyMap.has(uri));
+        if (missingUris.length > 0) {
+          const resolved = await Promise.all(missingUris.map(uri => this.fetchRemoteActor(uri)));
+          for (let i = 0; i < missingUris.length; i++) {
+            if (resolved[i]?.oxyUserId) {
+              actorOxyMap.set(missingUris[i], resolved[i]!.oxyUserId!);
             }
           }
         }
@@ -310,10 +312,8 @@ class FederationService {
         const published = note.published || activity.published;
 
         // Resolve author's Oxy User ID
-        const attributedTo = typeof note.attributedTo === 'string'
-          ? note.attributedTo
-          : note.attributedTo?.id;
-        const resolvedOxyUserId = attributedTo ? actorOxyMap.get(attributedTo) || null : null;
+        const actorUri = this.extractActorUri(note.attributedTo);
+        const resolvedOxyUserId = actorUri ? actorOxyMap.get(actorUri) || null : null;
 
         newDocs.push({
           oxyUserId: resolvedOxyUserId,

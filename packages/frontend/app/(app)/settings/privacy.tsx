@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Loading } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -13,29 +12,12 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
 import { logger } from '@/lib/logger';
-
-const RECOMMENDATION_FILTERS_KEY = '@mention/recommendation_filters';
-
-export interface RecommendationFilters {
-    showFederated: boolean;
-    showAgents: boolean;
-    showAutomated: boolean;
-}
-
-const DEFAULT_FILTERS: RecommendationFilters = {
-    showFederated: true,
-    showAgents: true,
-    showAutomated: true,
-};
-
-export async function getRecommendationFilters(): Promise<RecommendationFilters> {
-    try {
-        const stored = await AsyncStorage.getItem(RECOMMENDATION_FILTERS_KEY);
-        return stored ? { ...DEFAULT_FILTERS, ...JSON.parse(stored) } : DEFAULT_FILTERS;
-    } catch {
-        return DEFAULT_FILTERS;
-    }
-}
+import {
+    type RecommendationFilters,
+    DEFAULT_RECOMMENDATION_FILTERS,
+    getRecommendationFilters,
+    saveRecommendationFilters,
+} from '@/lib/recommendationFilters';
 
 interface PrivacySettings {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -49,12 +31,46 @@ interface PrivacySettings {
     restrictedUsers?: string[];
 }
 
+const FILTER_TOGGLES: Array<{
+    icon: string;
+    titleKey: string;
+    descKey: string;
+    titleDefault: string;
+    descDefault: string;
+    filterKey: keyof RecommendationFilters;
+}> = [
+    {
+        icon: 'globe-outline',
+        titleKey: 'settings.privacy.showFediverse',
+        descKey: 'settings.privacy.showFediverseDesc',
+        titleDefault: 'Fediverse accounts in suggestions',
+        descDefault: 'Show accounts from Mastodon and other fediverse instances',
+        filterKey: 'showFederated',
+    },
+    {
+        icon: 'sparkles-outline',
+        titleKey: 'settings.privacy.showAgents',
+        descKey: 'settings.privacy.showAgentsDesc',
+        titleDefault: 'AI agents in suggestions',
+        descDefault: 'Show AI-powered bot accounts',
+        filterKey: 'showAgents',
+    },
+    {
+        icon: 'sync-outline',
+        titleKey: 'settings.privacy.showAutomated',
+        descKey: 'settings.privacy.showAutomatedDesc',
+        titleDefault: 'Automated accounts in suggestions',
+        descDefault: 'Show scheduled and feed-based accounts',
+        filterKey: 'showAutomated',
+    },
+];
+
 export default function PrivacySettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
-    const [recFilters, setRecFilters] = useState<RecommendationFilters>(DEFAULT_FILTERS);
+    const [recFilters, setRecFilters] = useState<RecommendationFilters>(DEFAULT_RECOMMENDATION_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -78,7 +94,7 @@ export default function PrivacySettingsScreen() {
     const updateRecFilter = (key: keyof RecommendationFilters, value: boolean) => {
         const updated = { ...recFilters, [key]: value };
         setRecFilters(updated);
-        AsyncStorage.setItem(RECOMMENDATION_FILTERS_KEY, JSON.stringify(updated)).catch(() => {});
+        saveRecommendationFilters(updated);
     };
 
     const getProfileVisibilityText = () => {
@@ -183,42 +199,21 @@ export default function PrivacySettingsScreen() {
                 </SettingsGroup>
 
                 <SettingsGroup>
-                    <SettingsItem
-                        icon="globe-outline"
-                        title={t('settings.privacy.showFediverse', { defaultValue: 'Fediverse accounts in suggestions' })}
-                        description={t('settings.privacy.showFediverseDesc', { defaultValue: 'Show accounts from Mastodon and other fediverse instances' })}
-                        showChevron={false}
-                        rightElement={
-                            <Switch
-                                value={recFilters.showFederated}
-                                onValueChange={(v) => updateRecFilter('showFederated', v)}
-                            />
-                        }
-                    />
-                    <SettingsItem
-                        icon="sparkles-outline"
-                        title={t('settings.privacy.showAgents', { defaultValue: 'AI agents in suggestions' })}
-                        description={t('settings.privacy.showAgentsDesc', { defaultValue: 'Show AI-powered bot accounts' })}
-                        showChevron={false}
-                        rightElement={
-                            <Switch
-                                value={recFilters.showAgents}
-                                onValueChange={(v) => updateRecFilter('showAgents', v)}
-                            />
-                        }
-                    />
-                    <SettingsItem
-                        icon="sync-outline"
-                        title={t('settings.privacy.showAutomated', { defaultValue: 'Automated accounts in suggestions' })}
-                        description={t('settings.privacy.showAutomatedDesc', { defaultValue: 'Show scheduled and feed-based accounts' })}
-                        showChevron={false}
-                        rightElement={
-                            <Switch
-                                value={recFilters.showAutomated}
-                                onValueChange={(v) => updateRecFilter('showAutomated', v)}
-                            />
-                        }
-                    />
+                    {FILTER_TOGGLES.map(({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) => (
+                        <SettingsItem
+                            key={filterKey}
+                            icon={icon}
+                            title={t(titleKey, { defaultValue: titleDefault })}
+                            description={t(descKey, { defaultValue: descDefault })}
+                            showChevron={false}
+                            rightElement={
+                                <Switch
+                                    value={recFilters[filterKey]}
+                                    onValueChange={(v) => updateRecFilter(filterKey, v)}
+                                />
+                            }
+                        />
+                    ))}
                 </SettingsGroup>
             </ScrollView>
         </ThemedView>

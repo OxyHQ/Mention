@@ -11,7 +11,7 @@ import { BaseWidget } from "./BaseWidget";
 import { useUsersStore } from "@/stores/usersStore";
 import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
-import { getRecommendationFilters } from '@/app/(app)/settings/privacy';
+import { getRecommendationFilters } from '@/lib/recommendationFilters';
 
 interface ProfileData {
   id: string;
