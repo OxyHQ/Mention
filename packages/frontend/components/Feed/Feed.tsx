@@ -53,8 +53,6 @@ const logger = createScopedLogger('Feed');
 interface FeedProps {
     type: FeedType;
     userId?: string;
-    isFederated?: boolean;
-    actorUri?: string;
     showComposeButton?: boolean;
     onComposePress?: () => void;
     hideHeader?: boolean;
@@ -82,8 +80,6 @@ const Feed = memo((props: FeedProps) => {
     const {
         type,
         userId,
-        isFederated,
-        actorUri,
         showComposeButton,
         onComposePress,
         hideHeader,
@@ -117,8 +113,6 @@ const Feed = memo((props: FeedProps) => {
     const feedState = useFeedState({
         type,
         userId,
-        isFederated,
-        actorUri,
         showOnlySaved,
         filters,
         useScoped,
@@ -579,8 +573,6 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.reloadKey !== nextProps.reloadKey ||
         prevProps.type !== nextProps.type ||
         prevProps.userId !== nextProps.userId ||
-        prevProps.isFederated !== nextProps.isFederated ||
-        prevProps.actorUri !== nextProps.actorUri ||
         prevProps.showOnlySaved !== nextProps.showOnlySaved ||
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
         prevProps.threaded !== nextProps.threaded ||

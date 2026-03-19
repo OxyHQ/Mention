@@ -136,8 +136,6 @@ export const ProfileTabs = memo(function ProfileTabs({
       <Feed
         type={(isFederated ? 'posts' : tab) as FeedType}
         userId={profileId}
-        isFederated={isFederated}
-        actorUri={actorUri}
         hideHeader={true}
         scrollEnabled={false}
         contentContainerStyle={{ paddingBottom: 100 }}

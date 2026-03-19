@@ -69,7 +69,7 @@ class FeedController {
   // ============================================================================
   
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId federatedActorId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
 
   /** Slow query threshold in milliseconds (logs warnings for queries exceeding this) */
   private readonly SLOW_QUERY_THRESHOLD_MS = config.feed.slowQueryThresholdMs;

@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { FeedType, FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import { federationService } from '@/services/federationService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
 import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
@@ -64,8 +63,6 @@ async function withRetry<T>(
 export interface UseFeedStateOptions {
     type: FeedType;
     userId?: string;
-    isFederated?: boolean;
-    actorUri?: string;
     showOnlySaved?: boolean;
     filters?: FeedFilters;
     useScoped?: boolean;
@@ -97,8 +94,6 @@ export interface UseFeedStateReturn {
 export function useFeedState({
     type,
     userId,
-    isFederated,
-    actorUri,
     showOnlySaved,
     filters,
     useScoped,
@@ -143,16 +138,13 @@ export function useFeedState({
         };
     }, []);
 
-    // Federated feeds use local state (same as scoped feeds)
-    const isFederatedFeed = !!(isFederated && actorUri);
-
     const clearError = useCallback(() => {
-        if (useScoped || isFederatedFeed) {
+        if (useScoped) {
             setLocalError(null);
         } else {
             clearGlobalError();
         }
-    }, [useScoped, isFederatedFeed, clearGlobalError]);
+    }, [useScoped, clearGlobalError]);
 
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
@@ -179,14 +171,13 @@ export function useFeedState({
                 return;
             }
 
-            const usesLocalState = useScoped || isFederatedFeed;
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
-            const currentFeed = !usesLocalState ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
+            const currentFeed = !useScoped ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
             const hasItems = currentFeed?.items && currentFeed.items.length > 0;
             const wasFetched = currentFeed?.lastUpdated && currentFeed.lastUpdated > 0;
 
             // Skip if feed was properly fetched (lastUpdated > 0) and has items
-            if (!usesLocalState && hasItems && wasFetched && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
+            if (!useScoped && hasItems && wasFetched && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
                 logger.debug('Skipping - feed has items and not saved');
                 isFetchingRef.current = false;
                 return;
@@ -229,22 +220,6 @@ export function useFeedState({
                     setLocalSlices(resp.slices || undefined);
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
-                } else if (isFederatedFeed) {
-                    setLocalLoading(true);
-                    setLocalError(null);
-
-                    const resp = await withRetry(
-                        () => federationService.getActorPosts(actorUri!),
-                        { signal }
-                    );
-
-                    if (signal.aborted) return;
-
-                    const items = (resp.posts || []) as HydratedPost[];
-                    setLocalItems(deduplicateItems(items, getItemKey));
-                    setLocalSlices(undefined);
-                    setLocalHasMore(!!resp.hasMore);
-                    setLocalNextCursor(resp.nextCursor);
                 } else if (userId) {
                     await fetchUserFeed(userId, { type, limit: 20, filters });
                 } else {
@@ -261,19 +236,17 @@ export function useFeedState({
                 }
 
                 logger.error('Error fetching feed', err);
-                if (useScoped || isFederatedFeed) {
+                if (useScoped) {
                     setLocalError('Failed to load');
                 }
             } finally {
-                if (useScoped || isFederatedFeed) setLocalLoading(false);
+                if (useScoped) setLocalLoading(false);
                 isFetchingRef.current = false;
             }
         },
         [
             type,
             userId,
-            isFederated,
-            actorUri,
             showOnlySaved,
             useScoped,
             isAuthenticated,
@@ -302,23 +275,7 @@ export function useFeedState({
                 return;
             }
 
-            if (isFederatedFeed) {
-                setLocalLoading(true);
-                setLocalError(null);
-
-                const resp = await withRetry(
-                    () => federationService.getActorPosts(actorUri!),
-                    { signal }
-                );
-
-                if (signal.aborted) return;
-
-                const items = (resp.posts || []) as HydratedPost[];
-                setLocalItems(deduplicateItems(items, getItemKey));
-                setLocalSlices(undefined);
-                setLocalHasMore(!!resp.hasMore);
-                setLocalNextCursor(resp.nextCursor);
-            } else if (useScoped) {
+            if (useScoped) {
                 setLocalLoading(true);
                 setLocalError(null);
 
@@ -356,13 +313,13 @@ export function useFeedState({
             if (signal.aborted) return;
 
             logger.error('Error refreshing feed after retries', err);
-            if (useScoped || isFederatedFeed) {
+            if (useScoped) {
                 setLocalError('Failed to refresh');
             }
         } finally {
-            if (useScoped || isFederatedFeed) setLocalLoading(false);
+            if (useScoped) setLocalLoading(false);
         }
-    }, [type, userId, isFederated, actorUri, showOnlySaved, useScoped, filters, refreshFeed, fetchUserFeed, clearError]);
+    }, [type, userId, showOnlySaved, useScoped, filters, refreshFeed, fetchUserFeed, clearError]);
 
     const loadMore = useCallback(async () => {
         if (isLoadingMoreRef.current) {
@@ -385,38 +342,7 @@ export function useFeedState({
                 return;
             }
 
-            if (isFederatedFeed) {
-                if (!localHasMore || localLoading) {
-                    isLoadingMoreRef.current = false;
-                    return;
-                }
-
-                setLocalLoading(true);
-                setLocalError(null);
-
-                const resp = await withRetry(
-                    () => federationService.getActorPosts(actorUri!, localNextCursor),
-                    { signal, maxRetries: 2 }
-                );
-
-                if (signal.aborted) return;
-
-                const items = (resp.posts || []) as HydratedPost[];
-
-                setLocalItems((prev) => {
-                    const existingIds = new Set(prev.map(getItemKey));
-                    const uniqueNew = deduplicateItems(items, getItemKey).filter(
-                        (p) => !existingIds.has(getItemKey(p))
-                    );
-                    return prev.concat(uniqueNew);
-                });
-
-                const prevCursor = localNextCursor;
-                const nextCursor = resp.nextCursor;
-                const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
-                setLocalHasMore(!!resp.hasMore && cursorAdvanced);
-                setLocalNextCursor(nextCursor);
-            } else if (useScoped) {
+            if (useScoped) {
                 if (!localHasMore || localLoading) {
                     isLoadingMoreRef.current = false;
                     return;
@@ -486,7 +412,7 @@ export function useFeedState({
             }
 
             logger.error('Error loading more', err);
-            if (useScoped || isFederatedFeed) {
+            if (useScoped) {
                 let errorMessage = 'Failed to load more posts';
                 if (err instanceof Error) {
                     errorMessage = err.message;
@@ -494,14 +420,12 @@ export function useFeedState({
                 setLocalError(errorMessage);
             }
         } finally {
-            if (useScoped || isFederatedFeed) setLocalLoading(false);
+            if (useScoped) setLocalLoading(false);
             isLoadingMoreRef.current = false;
         }
     }, [
         showOnlySaved,
         useScoped,
-        isFederated,
-        actorUri,
         localHasMore,
         localLoading,
         localNextCursor,
@@ -532,7 +456,7 @@ export function useFeedState({
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) return; // Let reloadKey effect handle it
 
-        if (!useScoped && !showOnlySaved && !isFederatedFeed) {
+        if (!useScoped && !showOnlySaved) {
             const feedTypeToCheck = type;
             const currentFeed = usePostsStore.getState().feeds[feedTypeToCheck];
             const hasItems = currentFeed?.items && currentFeed.items.length > 0 && currentFeed.lastUpdated > 0;
@@ -547,14 +471,13 @@ export function useFeedState({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [type, filters, useScoped, showOnlySaved]); // Removed reloadKey and fetchInitial from deps to reduce re-runs
 
-    // Return appropriate state based on scoped/federated vs global
-    const usesLocalState = useScoped || isFederatedFeed;
-    const items = usesLocalState ? localItems : globalFeed?.items || [];
-    const slices = usesLocalState ? localSlices : globalFeed?.slices;
-    const hasMore = usesLocalState ? localHasMore : !!globalFeed?.hasMore;
-    const isLoading = usesLocalState ? localLoading : !!globalFeed?.isLoading;
-    const error = usesLocalState ? localError : globalFeed?.error || null;
-    const nextCursor = usesLocalState ? localNextCursor : globalFeed?.nextCursor;
+    // Return appropriate state based on scoped vs global
+    const items = useScoped ? localItems : globalFeed?.items || [];
+    const slices = useScoped ? localSlices : globalFeed?.slices;
+    const hasMore = useScoped ? localHasMore : !!globalFeed?.hasMore;
+    const isLoading = useScoped ? localLoading : !!globalFeed?.isLoading;
+    const error = useScoped ? localError : globalFeed?.error || null;
+    const nextCursor = useScoped ? localNextCursor : globalFeed?.nextCursor;
 
     return {
         items,
@@ -569,4 +492,3 @@ export function useFeedState({
         clearError,
     };
 }
-

@@ -14,7 +14,7 @@ import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
 export class CustomFeedStrategy implements IFeedStrategy {
-  private readonly FEED_FIELDS = '_id oxyUserId createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId federatedActorId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
 
   getName(): string {
     return 'custom';
