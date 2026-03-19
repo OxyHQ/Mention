@@ -14,6 +14,7 @@ import {
   repostPost,
   quotePost,
   getPostsByHashtag,
+  getPostsByTopic,
   getSavedPosts,
   getBookmarkFolders,
   moveBookmarkToFolder,
@@ -33,6 +34,7 @@ const router = Router();
 // Public routes
 router.get('/', getPosts);
 router.get('/hashtag/:hashtag', getPostsByHashtag);
+router.get('/topic/:topic', getPostsByTopic);
 router.get('/nearby', getNearbyPosts);
 router.get('/in-area', getPostsInArea);
 router.get('/nearby-all', getNearbyPostsBothLocations);

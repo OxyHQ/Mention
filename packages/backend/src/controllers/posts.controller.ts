@@ -1960,6 +1960,49 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Get posts by extracted topic or entity name
+export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
+  try {
+    const topicName = req.params.topic;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+
+    // Escape regex special characters to prevent injection
+    const escaped = topicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const posts = await Post.find({
+      'extracted.topics': {
+        $elemMatch: {
+          name: { $regex: new RegExp(`^${escaped}$`, 'i') },
+        },
+      },
+      status: 'published',
+    })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+      viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+
+    res.json({
+      posts: hydratedPosts,
+      topic: topicName,
+      hasMore: posts.length === limit,
+      page,
+      limit,
+    });
+  } catch (error) {
+    logger.error('Error fetching posts by topic', error);
+    res.status(500).json({ message: 'Error fetching posts by topic' });
+  }
+};
+
 // Get drafts
 export const getDrafts = async (req: AuthRequest, res: Response) => {
   try {

@@ -410,6 +410,7 @@ PostSchema.index({ quoteOf: 1, createdAt: -1 });
 PostSchema.index({ 'content.media': 1, createdAt: -1 });
 PostSchema.index({ createdAt: -1 }); // Default sort order
 PostSchema.index({ 'extracted.extractedAt': 1, createdAt: -1 }); // Topic extraction queue
+PostSchema.index({ 'extracted.topics.name': 1, createdAt: -1 }); // Topic name lookup
 
 // Geospatial indexes for both location fields
 PostSchema.index({ 'content.location': '2dsphere' }); // User's shared location

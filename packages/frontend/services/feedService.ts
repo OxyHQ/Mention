@@ -484,6 +484,19 @@ class FeedService {
   }
 
   /**
+   * Get posts by extracted topic or entity name
+   */
+  async getPostsByTopic(topic: string, request: FeedRequest): Promise<FeedResponse> {
+    const params: Record<string, unknown> = {};
+
+    if (request.cursor) params.cursor = request.cursor;
+    if (request.limit) params.limit = request.limit;
+
+    const response = await authenticatedClient.get(`/posts/topic/${encodeURIComponent(topic)}`, { params });
+    return response.data;
+  }
+
+  /**
    * Get posts by user mentions
    */
   async getPostsByMentions(userId: string, request: FeedRequest): Promise<FeedResponse> {
