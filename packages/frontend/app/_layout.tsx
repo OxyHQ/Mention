@@ -103,6 +103,7 @@ export default function RootLayout() {
   }, []);
 
   const initializeApp = useCallback(async () => {
+    console.log('[Layout] initializeApp called, fontsLoaded:', fontsLoaded);
     if (!fontsLoaded) return;
 
     const result = await AppInitializer.initializeApp(fontsLoaded, oxyServices);

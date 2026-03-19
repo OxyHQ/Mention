@@ -146,15 +146,21 @@ export class AppInitializer {
 
     try {
       // Run all init tasks in parallel to minimize startup time
+      console.log('[AppInit] Starting initialization...');
       const authPromise = waitForAuth(services, INITIALIZATION_TIMEOUT.AUTH);
 
-      await Promise.allSettled([
-        setupNotificationsIfNeeded(),
-        loadAppearanceSettings(services),
-        loadVideoMuteState(),
+      const results = await Promise.allSettled([
+        setupNotificationsIfNeeded().then(() => console.log('[AppInit] Notifications done')),
+        loadAppearanceSettings(services).then(() => console.log('[AppInit] Appearance done')),
+        loadVideoMuteState().then(() => console.log('[AppInit] VideoMute done')),
         // Fetch current user once auth resolves
-        authPromise.then((authReady) => fetchCurrentUser(services, authReady)),
+        authPromise.then((authReady) => {
+          console.log('[AppInit] Auth resolved:', authReady);
+          return fetchCurrentUser(services, authReady);
+        }).then(() => console.log('[AppInit] CurrentUser done')),
       ]);
+
+      console.log('[AppInit] All tasks settled:', results.map(r => r.status));
 
       // Hide splash screen
       try {
@@ -163,8 +169,10 @@ export class AppInitializer {
         logger.warn('Failed to hide native splash screen', { error });
       }
 
+      console.log('[AppInit] Complete');
       return { success: true };
     } catch (error) {
+      console.error('[AppInit] Error:', error);
       return {
         success: false,
         error: error instanceof Error ? error : new Error('Unknown initialization error'),
