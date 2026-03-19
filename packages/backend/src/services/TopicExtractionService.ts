@@ -23,10 +23,19 @@ const ExtractedTopicSchema = z.object({
 
 const PostExtractionResultSchema = z.object({
   postIndex: z.number().int().min(0),
-  topics: z.array(ExtractedTopicSchema).max(5),
+  topics: z.array(ExtractedTopicSchema).max(3),
 });
 
 const ExtractionResponseSchema = z.array(PostExtractionResultSchema);
+
+/** Filter for posts that have not yet been processed by the extraction service. */
+const UNPROCESSED_FILTER = {
+  'extracted.extractedAt': { $exists: false },
+} as const;
+
+const EMPTY_EXTRACTION = (now: Date) => ({
+  $set: { extracted: { topics: [], extractedAt: now } },
+});
 
 class TopicExtractionService {
   private extractionInterval: NodeJS.Timeout | null = null;
@@ -66,8 +75,8 @@ class TopicExtractionService {
     this.isExtracting = true;
 
     try {
-      await this.markStalePosts();
-      await this.markMediaOnlyPosts();
+      // Mark stale and media-only posts in parallel (disjoint sets, no conflict)
+      await Promise.all([this.markStalePosts(), this.markMediaOnlyPosts()]);
       await this.extractTopics();
     } finally {
       this.isExtracting = false;
@@ -80,40 +89,38 @@ class TopicExtractionService {
    */
   private async markStalePosts(): Promise<void> {
     const staleThreshold = new Date(Date.now() - this.STALE_THRESHOLD_MS);
+    const now = new Date();
 
     await Post.updateMany(
       {
-        'extracted.extractedAt': { $exists: false },
+        ...UNPROCESSED_FILTER,
         createdAt: { $lt: staleThreshold },
         'content.text': { $exists: true, $ne: '' },
         status: 'published',
         repostOf: { $exists: false },
       },
-      {
-        $set: {
-          extracted: { topics: [], extractedAt: new Date() },
-        },
-      },
+      EMPTY_EXTRACTION(now),
     );
   }
 
   /**
    * Mark media-only posts (no text) as extracted since there's nothing to analyze.
+   * Bounded to posts older than STALE_THRESHOLD to avoid unbounded writes on cold start.
    */
   private async markMediaOnlyPosts(): Promise<void> {
+    const staleThreshold = new Date(Date.now() - this.STALE_THRESHOLD_MS);
+    const now = new Date();
+
     await Post.updateMany(
       {
-        'extracted.extractedAt': { $exists: false },
+        ...UNPROCESSED_FILTER,
+        createdAt: { $lt: staleThreshold },
         $or: [
           { 'content.text': { $exists: false } },
           { 'content.text': '' },
         ],
       },
-      {
-        $set: {
-          extracted: { topics: [], extractedAt: new Date() },
-        },
-      },
+      EMPTY_EXTRACTION(now),
     );
   }
 
@@ -126,7 +133,7 @@ class TopicExtractionService {
     }
 
     const posts = await Post.find({
-      'extracted.extractedAt': { $exists: false },
+      ...UNPROCESSED_FILTER,
       'content.text': { $exists: true, $ne: '' },
       status: 'published',
       repostOf: { $exists: false },
@@ -142,7 +149,7 @@ class TopicExtractionService {
 
     const payload = posts.map((post, index) => ({
       postIndex: index,
-      text: ((post as any).content?.text || '').slice(0, this.MAX_TEXT_LENGTH),
+      text: (post.content?.text ?? '').slice(0, this.MAX_TEXT_LENGTH),
     }));
 
     try {
@@ -161,20 +168,23 @@ class TopicExtractionService {
       }
 
       const results = parseResult.data;
+      const resultByIndex = new Map(results.map(r => [r.postIndex, r]));
       const now = new Date();
 
-      // Update each post with its extracted topics
+      // Update each post with its extracted topics (names lowercased for index efficiency)
       const bulkOps = posts.map((post, index) => {
-        const result = results.find(r => r.postIndex === index);
+        const result = resultByIndex.get(index);
+        const topics = (result?.topics ?? []).map(t => ({
+          ...t,
+          name: t.name.toLowerCase(),
+        }));
+
         return {
           updateOne: {
             filter: { _id: post._id },
             update: {
               $set: {
-                extracted: {
-                  topics: result?.topics || [],
-                  extractedAt: now,
-                },
+                extracted: { topics, extractedAt: now },
               },
             },
           },

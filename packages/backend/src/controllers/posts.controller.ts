@@ -15,7 +15,7 @@ import ArticleModel from '../models/Article';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { config } from '../config';
-import { mergeHashtags } from '../utils/textProcessing';
+import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { aliaChat } from '../utils/alia';
 
@@ -1162,6 +1162,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       post.hashtags = mergeHashtags(text || '', hashtags || post.hashtags);
       // Reset topic extraction so the service re-processes this post
       post.extracted = undefined;
+      post.markModified('extracted');
     }
     if (media !== undefined) {
       const normalizedMedia = normalizeMediaItems(media);
@@ -1963,27 +1964,34 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
 // Get posts by extracted topic or entity name
 export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
   try {
-    const topicName = req.params.topic;
-    const page = parseInt(req.query.page as string) || 1;
+    const topicName = String(req.params.topic);
+    const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    // Escape regex special characters to prevent injection
-    const escaped = topicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Lowercase match for index efficiency (topics are stored lowercase)
+    const normalizedTopic = topicName.toLowerCase();
 
-    const posts = await Post.find({
-      'extracted.topics': {
-        $elemMatch: {
-          name: { $regex: new RegExp(`^${escaped}$`, 'i') },
-        },
-      },
+    const filter: Record<string, unknown> = {
+      'extracted.topics.name': normalizedTopic,
       status: 'published',
-    })
+    };
+
+    if (cursor) {
+      filter._id = { $lt: cursor };
+    }
+
+    const posts = await Post.find(filter)
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
+      .limit(limit + 1)
       .lean();
 
-    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+    const hasMore = posts.length > limit;
+    const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+    const nextCursor = hasMore && postsToReturn.length > 0
+      ? postsToReturn[postsToReturn.length - 1]._id.toString()
+      : undefined;
+
+    const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
@@ -1993,9 +2001,8 @@ export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
     res.json({
       posts: hydratedPosts,
       topic: topicName,
-      hasMore: posts.length === limit,
-      page,
-      limit,
+      hasMore,
+      nextCursor,
     });
   } catch (error) {
     logger.error('Error fetching posts by topic', error);
