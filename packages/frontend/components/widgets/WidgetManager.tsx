@@ -4,10 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
 import { LiveRoomsWidget } from './LiveRoomsWidget';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('WidgetManager');
 
 class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
     state = { hasError: false };
     static getDerivedStateFromError() { return { hasError: true }; }
+    componentDidCatch(error: Error) { logger.error('Widget crashed', { error }); }
     render() { return this.state.hasError ? null : this.props.children; }
 }
 
@@ -112,8 +116,10 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
 
     return (
         <View className="flex-col gap-4">
-            {allWidgets.map((widget, index) => (
-                <WidgetErrorBoundary key={index}>{widget}</WidgetErrorBoundary>
+            {allWidgets.map((widget) => (
+                <WidgetErrorBoundary key={(widget as React.ReactElement)?.key ?? undefined}>
+                    {widget}
+                </WidgetErrorBoundary>
             ))}
         </View>
     );
