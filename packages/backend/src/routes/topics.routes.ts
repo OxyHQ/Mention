@@ -1,18 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { topicService } from '../services/TopicService';
-import { TopicType } from '../models/Topic';
+import { TopicType } from '@mention/shared-types';
 
 const router = Router();
 
 /**
  * GET /api/topics
- * List topics with optional filters and pagination.
- * Query params: type, q, limit, offset
+ * Proxies to Oxy API for topic listing.
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const type = req.query.type as TopicType | undefined;
     const query = req.query.q as string | undefined;
+    const locale = req.query.locale as string | undefined;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
@@ -20,7 +20,7 @@ router.get('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Invalid type. Must be one of: ${Object.values(TopicType).join(', ')}` });
     }
 
-    const result = await topicService.list({ type, query, limit, offset });
+    const result = await topicService.list({ type, query, limit, offset, locale });
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch topics' });
@@ -29,12 +29,12 @@ router.get('/', async (req: Request, res: Response) => {
 
 /**
  * GET /api/topics/categories
- * Returns all category-type topics sorted by popularity.
- * Replaces the hardcoded interests list.
+ * Returns all category-type topics. Optional locale for translations.
  */
-router.get('/categories', async (_req: Request, res: Response) => {
+router.get('/categories', async (req: Request, res: Response) => {
   try {
-    const categories = await topicService.getCategories();
+    const locale = req.query.locale as string | undefined;
+    const categories = await topicService.getCategories(locale);
     res.json({ topics: categories });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch categories' });

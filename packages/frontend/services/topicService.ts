@@ -3,9 +3,11 @@ import { logger } from "@/lib/logger";
 import { TopicData, TopicType } from "@mention/shared-types";
 
 class TopicService {
-  async getCategories(): Promise<TopicData[]> {
+  async getCategories(locale?: string): Promise<TopicData[]> {
     try {
-      const res = await authenticatedClient.get("/topics/categories");
+      const res = await authenticatedClient.get("/topics/categories", {
+        params: locale ? { locale } : undefined,
+      });
       return res.data.topics || [];
     } catch (error) {
       logger.warn("Failed fetching topic categories", { error });
@@ -30,6 +32,7 @@ class TopicService {
     q?: string;
     limit?: number;
     offset?: number;
+    locale?: string;
   }): Promise<{ topics: TopicData[]; total: number }> {
     try {
       const res = await authenticatedClient.get("/topics", { params: options });

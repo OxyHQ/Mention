@@ -11,6 +11,11 @@ export enum TopicSource {
   SYSTEM = 'system',
 }
 
+export interface TopicTranslation {
+  displayName: string;
+  description?: string;
+}
+
 export interface TopicData {
   _id: string;
   name: string;
@@ -23,9 +28,8 @@ export interface TopicData {
   parentTopicId?: string;
   icon?: string;
   image?: string;
-  popularity: number;
-  postCount: number;
   isActive: boolean;
+  translations?: Record<string, TopicTranslation>;
   createdAt: string;
   updatedAt: string;
 }

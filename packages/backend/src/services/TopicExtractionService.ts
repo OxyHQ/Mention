@@ -1,26 +1,48 @@
 import { z } from 'zod';
 import { Post } from '../models/Post';
-import { TopicType } from '../models/Topic';
+import { TopicType } from '@mention/shared-types';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
 import { topicService } from './TopicService';
 
-const EXTRACTION_PROMPT = `You are a topic extractor. For each post in the array, identify up to 3 topics or named entities that the post is about.
+const EXTRACTION_PROMPT = `You are a topic extractor for a social media platform. For each post, identify up to 3 topics or named entities.
+
+Rules:
+- Extract topics regardless of the post's language
+- For topics/categories: normalize names to English (e.g., "deportes" → "sports", "tecnología" → "tech")
+- For entities (people, cities, organizations, events): keep the most common global name (e.g., "Elon Musk", "Barcelona", "NASA")
+- Prefer specific subtopics over broad categories when clear (e.g., "basketball" over "sports", "hip-hop" over "music")
+- Use lowercase canonical forms for topic names (e.g., "artificial intelligence" not "AI" or "A.I.")
+- If the topic has an obvious parent category, include it in parentTopic
+
+Types:
+- "topic": abstract themes (politics, sports, tech, health, music, basketball, hip-hop, machine learning)
+- "entity": specific people, places, organizations, events (e.g., "taylor swift", "barcelona", "olympics 2024")
+
+Relevance scale:
+- 10: the post is entirely about this topic
+- 7-9: a primary subject of the post
+- 4-6: mentioned significantly but not the main focus
+- 1-3: tangential mention
+
+Examples:
+Input: { "text": "Just watched the Lakers destroy the Celtics! LeBron with 40 points 🔥" }
+Output: [{ "name": "basketball", "type": "topic", "relevance": 9, "parentTopic": "sports" }, { "name": "lebron james", "type": "entity", "relevance": 8 }, { "name": "los angeles lakers", "type": "entity", "relevance": 7 }]
+
+Input: { "text": "La nueva actualización de iOS está genial, por fin arreglaron el bug de la cámara" }
+Output: [{ "name": "ios", "type": "topic", "relevance": 9, "parentTopic": "tech" }, { "name": "apple", "type": "entity", "relevance": 6 }]
 
 Return a JSON array where each element is:
-{ "postIndex": <number>, "topics": [{ "name": "...", "type": "topic"|"entity", "relevance": 1-10 }] }
+{ "postIndex": <number>, "topics": [{ "name": "...", "type": "topic"|"entity", "relevance": 1-10, "parentTopic": "..." }] }
 
-- "topic" = abstract themes (politics, sports, tech, health, music)
-- "entity" = specific people, places, organizations, events (e.g., "Barcelona", "Taylor Swift", "COP28")
-- "relevance" = how central the topic is to the post (1 = tangential, 10 = primary subject)
-
-Omit posts that have no meaningful topics (e.g., generic greetings, empty text).
+Omit posts with no meaningful topics (generic greetings, empty text).
 Return ONLY valid JSON.`;
 
 const ExtractedTopicSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).max(100).transform(s => s.toLowerCase().trim()),
   type: z.enum(['topic', 'entity']),
   relevance: z.number().int().min(1).max(10),
+  parentTopic: z.string().max(50).transform(s => s.toLowerCase().trim()).optional(),
 });
 
 const PostExtractionResultSchema = z.object({
@@ -173,14 +195,20 @@ class TopicExtractionService {
       const resultByIndex = new Map(results.map(r => [r.postIndex, r]));
       const now = new Date();
 
-      // Collect all unique topic names for batch resolution
+      // Collect all unique topic names for batch resolution (including parent topics)
       const allTopicEntries: Array<{ name: string; type: TopicType }> = [];
       for (const result of results) {
         for (const t of result.topics) {
           allTopicEntries.push({
-            name: t.name.toLowerCase(),
+            name: t.name,
             type: t.type === 'entity' ? TopicType.ENTITY : TopicType.TOPIC,
           });
+          if (t.parentTopic) {
+            allTopicEntries.push({
+              name: t.parentTopic,
+              type: TopicType.CATEGORY,
+            });
+          }
         }
       }
 
@@ -194,8 +222,7 @@ class TopicExtractionService {
       const bulkOps = posts.map((post, index) => {
         const result = resultByIndex.get(index);
         const topics = (result?.topics ?? []).map(t => {
-          const normalized = t.name.toLowerCase();
-          const topicDoc = topicMap.get(normalized);
+          const topicDoc = topicMap.get(t.name);
           const topicId = topicDoc?._id?.toString();
 
           if (topicId) {
@@ -205,7 +232,7 @@ class TopicExtractionService {
 
           return {
             ...t,
-            name: normalized,
+            name: t.name,
             ...(topicId ? { topicId } : {}),
           };
         });

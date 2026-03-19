@@ -1,6 +1,6 @@
 import { Post } from '../models/Post';
 import Trending, { TrendingType, ITrending } from '../models/Trending';
-import { TopicType } from '../models/Topic';
+import { TopicType } from '@mention/shared-types';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
