@@ -63,7 +63,7 @@
     "clsx": "^2.1.1",
     "expo": "~55",
     "expo-audio": "~55.0.8",
-    "expo-blob": "^0.1.6",
+    "expo-blob": "~55.0.9",
     "expo-blur": "~55.0.8",
     "expo-build-properties": "~55.0.9",
     "expo-camera": "~55.0.9",
