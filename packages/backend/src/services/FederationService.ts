@@ -20,6 +20,28 @@ import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
+// Instance actor ID & username used for signing fetch requests (authorized fetch).
+const INSTANCE_ACTOR_ID = '__instance__';
+const INSTANCE_ACTOR_USERNAME = 'instance';
+
+/**
+ * Sign a GET request using the instance actor key pair.
+ * Required by servers that enforce authorized fetch (e.g., Threads).
+ */
+async function signedFetch(url: string, accept: string): Promise<Response> {
+  const keyPair = await getOrCreateKeyPair(INSTANCE_ACTOR_ID, INSTANCE_ACTOR_USERNAME);
+  const sigHeaders = signRequest(keyPair.privateKeyPem, keyPair.keyId, 'GET', url);
+
+  return fetch(url, {
+    headers: {
+      Accept: accept,
+      'User-Agent': USER_AGENT,
+      ...sigHeaders,
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+}
+
 class FederationService {
   /**
    * Extract the actor URI from an AP attributedTo value,
@@ -76,13 +98,8 @@ class FederationService {
    */
   async fetchRemoteActor(actorUri: string): Promise<IFederatedActor | null> {
     try {
-      const res = await fetch(actorUri, {
-        headers: {
-          Accept: AP_CONTENT_TYPE,
-          'User-Agent': USER_AGENT,
-        },
-        signal: AbortSignal.timeout(10000),
-      });
+      // Use signed fetch for servers that enforce authorized fetch (e.g., Threads)
+      const res = await signedFetch(actorUri, AP_CONTENT_TYPE);
       if (!res.ok) return null;
 
       const actor = await res.json() as Record<string, any>;
@@ -191,10 +208,7 @@ class FederationService {
   private async fetchCollectionCount(url?: string): Promise<number> {
     if (!url) return 0;
     try {
-      const res = await fetch(url, {
-        headers: { Accept: AP_CONTENT_TYPE, 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(5000),
-      });
+      const res = await signedFetch(url, AP_CONTENT_TYPE);
       if (!res.ok) return 0;
       const col = await res.json() as Record<string, any>;
       return typeof col.totalItems === 'number' ? col.totalItems : 0;
@@ -211,11 +225,8 @@ class FederationService {
     if (!actor.outboxUrl) return 0;
 
     try {
-      // Fetch the outbox collection
-      const res = await fetch(actor.outboxUrl, {
-        headers: { Accept: AP_CONTENT_TYPE, 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(10000),
-      });
+      // Fetch the outbox collection (signed for authorized-fetch servers)
+      const res = await signedFetch(actor.outboxUrl, AP_CONTENT_TYPE);
       if (!res.ok) return 0;
 
       const collection = await res.json() as Record<string, any>;
@@ -227,10 +238,7 @@ class FederationService {
       } else if (collection.first) {
         const firstUrl = typeof collection.first === 'string' ? collection.first : collection.first.id;
         if (firstUrl) {
-          const pageRes = await fetch(firstUrl, {
-            headers: { Accept: AP_CONTENT_TYPE, 'User-Agent': USER_AGENT },
-            signal: AbortSignal.timeout(10000),
-          });
+          const pageRes = await signedFetch(firstUrl, AP_CONTENT_TYPE);
           if (pageRes.ok) {
             const page = await pageRes.json() as Record<string, any>;
             items = page.orderedItems || [];
