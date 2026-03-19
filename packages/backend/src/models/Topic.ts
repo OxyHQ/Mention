@@ -1,17 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { TopicType, TopicSource } from '@mention/shared-types';
 
-export enum TopicType {
-  CATEGORY = 'category',
-  TOPIC = 'topic',
-  ENTITY = 'entity',
-}
-
-export enum TopicSource {
-  SEED = 'seed',
-  AI = 'ai',
-  MANUAL = 'manual',
-  SYSTEM = 'system',
-}
+export { TopicType, TopicSource };
 
 export interface ITopic extends Document {
   name: string;

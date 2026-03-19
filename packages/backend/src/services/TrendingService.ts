@@ -107,16 +107,17 @@ class TrendingService {
       // Generate AI summary from top trend names
       const topTopicNames = topicTrends.slice(0, 10).map(t => t.name);
       const topHashtagNames = hashtagTrends.slice(0, 10).map(h => `#${h.name}`);
-      const summary = await this.generateSummary([...topTopicNames, ...topHashtagNames]);
-
-      await this.saveTrendingBatch(allTrends, calculatedAt);
-      await TrendBatch.create({ calculatedAt, summary });
-
-      // Update Topic popularity scores from trending data
       const popularityUpdates = topicTrends
         .filter(t => t.topicId)
         .map(t => ({ topicId: t.topicId!, trendingScore: t.score }));
-      await topicService.updatePopularityFromTrending(popularityUpdates);
+
+      // Run AI summary generation, trend persistence, and popularity updates in parallel
+      const [summary] = await Promise.all([
+        this.generateSummary([...topTopicNames, ...topHashtagNames]),
+        this.saveTrendingBatch(allTrends, calculatedAt),
+        topicService.updatePopularityFromTrending(popularityUpdates),
+      ]);
+      await TrendBatch.create({ calculatedAt, summary });
 
       logger.info(
         `[Trending] Saved batch: ${hashtagTrends.length} hashtags + ${topicTrends.length} topics (${popularityUpdates.length} topic popularities updated)`,

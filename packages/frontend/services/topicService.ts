@@ -1,6 +1,6 @@
 import { authenticatedClient } from "@/utils/api";
 import { logger } from "@/lib/logger";
-import { TopicData } from "@mention/shared-types";
+import { TopicData, TopicType } from "@mention/shared-types";
 
 class TopicService {
   async getCategories(): Promise<TopicData[]> {
@@ -26,7 +26,7 @@ class TopicService {
   }
 
   async list(options?: {
-    type?: string;
+    type?: TopicType;
     q?: string;
     limit?: number;
     offset?: number;

@@ -12,6 +12,7 @@
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import Topic, { TopicType, TopicSource } from '../models/Topic';
+import { slugify } from '../utils/textProcessing';
 
 const SEED_INTERESTS: Array<{ name: string; displayName: string }> = [
   { name: 'animals', displayName: 'Animals' },
@@ -39,16 +40,6 @@ const SEED_INTERESTS: Array<{ name: string; displayName: string }> = [
   { name: 'tv', displayName: 'TV' },
   { name: 'writers', displayName: 'Writers' },
 ];
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/[\s]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
 
 async function seedTopics() {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';

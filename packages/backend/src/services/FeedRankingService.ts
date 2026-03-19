@@ -12,6 +12,7 @@ interface BehaviorSets {
   mutedAuthors: Set<string>;
   blockedAuthors: Set<string>;
   hiddenTopics: Set<string>;
+  preferredTopicIds: Set<string>;
 }
 
 /**
@@ -80,6 +81,11 @@ export class FeedRankingService {
       mutedAuthors: new Set<string>(userBehavior.mutedAuthors || []),
       blockedAuthors: new Set<string>(userBehavior.blockedAuthors || []),
       hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t: string) => t.toLowerCase())),
+      preferredTopicIds: new Set<string>(
+        (userBehavior.preferredTopics || [])
+          .filter((t: any) => t.topicId && t.weight > 0.3)
+          .map((t: any) => t.topicId.toString()),
+      ),
     };
   }
 
@@ -178,7 +184,8 @@ export class FeedRankingService {
     // Personalization score
     const personalizationScore = safe(await this.calculatePersonalizationScore(
       post,
-      context.userBehavior
+      context.userBehavior,
+      context.behaviorSets,
     ));
 
     // Content quality score (with improved metrics)
@@ -345,7 +352,8 @@ export class FeedRankingService {
    */
   private async calculatePersonalizationScore(
     post: any,
-    userBehavior: any
+    userBehavior: any,
+    behaviorSets?: BehaviorSets,
   ): Promise<number> {
     if (!userBehavior) {
       return 1.0;
@@ -367,18 +375,11 @@ export class FeedRankingService {
       }
 
       // Match via AI-extracted topic IDs (richer signal)
-      if (post.extracted?.topics && post.extracted.topics.length > 0) {
-        const preferredTopicIds = new Set(
-          userBehavior.preferredTopics
-            .filter((t: any) => t.topicId && t.weight > 0.3)
-            .map((t: any) => t.topicId.toString()),
-        );
-
-        if (preferredTopicIds.size > 0) {
-          matchCount += post.extracted.topics.filter(
-            (et: any) => et.topicId && preferredTopicIds.has(et.topicId.toString()),
-          ).length;
-        }
+      const prefTopicIds = behaviorSets?.preferredTopicIds;
+      if (post.extracted?.topics && post.extracted.topics.length > 0 && prefTopicIds && prefTopicIds.size > 0) {
+        matchCount += post.extracted.topics.filter(
+          (et: any) => et.topicId && prefTopicIds.has(et.topicId.toString()),
+        ).length;
       }
 
       if (matchCount > 0) {

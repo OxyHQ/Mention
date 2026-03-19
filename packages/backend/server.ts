@@ -868,24 +868,13 @@ db.once("open", () => {
     logger.warn("Failed to start topic extraction service", error);
   }
 
-  // Initialize Topic Enrichment (daily AI enrichment of topic metadata)
+  // Initialize Topic Service (daily AI enrichment of topic metadata)
   try {
     const { topicService } = require("./src/services/TopicService");
-    const ENRICHMENT_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-    // Run once after a short delay, then daily
-    setTimeout(() => {
-      topicService.enrichTopics().catch((err: unknown) => {
-        logger.warn("Topic enrichment failed", err);
-      });
-    }, 60_000);
-    setInterval(() => {
-      topicService.enrichTopics().catch((err: unknown) => {
-        logger.warn("Topic enrichment failed", err);
-      });
-    }, ENRICHMENT_INTERVAL);
-    logger.info("Topic enrichment pipeline scheduled (daily)");
+    topicService.start();
+    logger.info("Topic service started");
   } catch (error) {
-    logger.warn("Failed to initialize topic enrichment", error);
+    logger.warn("Failed to initialize topic service", error);
   }
 
   // Initialize Recording Cleanup Service

@@ -1,19 +1,36 @@
 import Topic, { ITopic, TopicType, TopicSource } from '../models/Topic';
 import { logger } from '../utils/logger';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
+import { slugify } from '../utils/textProcessing';
 import { z } from 'zod';
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/[\s]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
 class TopicService {
+  private enrichmentInterval: NodeJS.Timeout | null = null;
+  private readonly ENRICHMENT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  start(): void {
+    setTimeout(() => {
+      this.enrichTopics().catch(err => {
+        logger.warn('[TopicService] Enrichment failed:', err);
+      });
+    }, 60_000);
+
+    this.enrichmentInterval = setInterval(() => {
+      this.enrichTopics().catch(err => {
+        logger.warn('[TopicService] Enrichment failed:', err);
+      });
+    }, this.ENRICHMENT_INTERVAL_MS);
+
+    logger.info('[TopicService] Enrichment pipeline scheduled (daily)');
+  }
+
+  stop(): void {
+    if (this.enrichmentInterval) {
+      clearInterval(this.enrichmentInterval);
+      this.enrichmentInterval = null;
+    }
+  }
+
   /**
    * Atomically find or create a topic by lowercase name.
    */
@@ -193,7 +210,13 @@ class TopicService {
   ): Promise<void> {
     if (updates.length === 0) return;
 
-    const ops = updates.map(({ topicId, delta }) => ({
+    // Aggregate deltas for the same topicId before writing
+    const aggregated = new Map<string, number>();
+    for (const { topicId, delta } of updates) {
+      aggregated.set(topicId, (aggregated.get(topicId) ?? 0) + delta);
+    }
+
+    const ops = Array.from(aggregated.entries()).map(([topicId, delta]) => ({
       updateOne: {
         filter: { _id: topicId },
         update: { $inc: { popularity: delta } },
@@ -218,10 +241,16 @@ class TopicService {
   ): Promise<void> {
     if (topicIds.length === 0) return;
 
-    const ops = topicIds.map(topicId => ({
+    // Aggregate counts for the same topicId before writing
+    const countMap = new Map<string, number>();
+    for (const id of topicIds) {
+      countMap.set(id, (countMap.get(id) ?? 0) + 1);
+    }
+
+    const ops = Array.from(countMap.entries()).map(([topicId, count]) => ({
       updateOne: {
         filter: { _id: topicId },
-        update: { $inc: { postCount: 1 } },
+        update: { $inc: { postCount: count } },
       },
     }));
 
