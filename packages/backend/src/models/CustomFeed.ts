@@ -11,6 +11,7 @@ export interface ICustomFeed extends Document {
   memberOxyUserIds: string[];
   sourceListIds?: string[]; // AccountList sources used by this feed
   keywords?: string[];
+  topicIds?: string[];
   includeReplies?: boolean;
   includeReposts?: boolean;
   includeMedia?: boolean;
@@ -33,6 +34,7 @@ const CustomFeedSchema = new Schema<ICustomFeed>({
   memberOxyUserIds: { type: [String], default: [], index: true },
   sourceListIds: { type: [String], default: [] },
   keywords: { type: [String], default: [] },
+  topicIds: { type: [{ type: Schema.Types.ObjectId, ref: 'Topic' }], default: [] },
   includeReplies: { type: Boolean, default: true },
   includeReposts: { type: Boolean, default: true },
   includeMedia: { type: Boolean, default: true },

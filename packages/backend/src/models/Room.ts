@@ -61,6 +61,7 @@ export interface IRoom extends Document {
 
   // Content
   topic?: string;
+  topicId?: string;
   tags: string[];
   archived: boolean;
   seriesId?: string;         // link to Series if this room was generated from one
@@ -183,6 +184,7 @@ const RoomSchema = new Schema({
     trim: true,
     maxlength: 100
   },
+  topicId: { type: Schema.Types.ObjectId, ref: 'Topic' },
   tags: {
     type: [String],
     default: []
