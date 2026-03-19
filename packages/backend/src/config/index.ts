@@ -61,6 +61,12 @@ export const config = {
   search: {
     maxDateRangeDays: 365,
   },
+  alia: {
+    apiUrl: process.env.ALIA_API_URL || 'https://api.alia.onl',
+    apiKey: process.env.ALIA_API_KEY || '',
+    model: 'alia-v1',
+    timeoutMs: 30_000,
+  },
 } as const;
 
 // Validate critical environment variables at startup
@@ -70,6 +76,10 @@ export function validateEnvironment(): void {
 
   if (missing.length > 0) {
     logger.warn(`Missing environment variables: ${missing.join(', ')}. Some features may not work.`);
+  }
+
+  if (!process.env.ALIA_API_KEY) {
+    logger.warn('ALIA_API_KEY not set — AI features (topic extraction, translation, summaries) will be disabled');
   }
 
   if (process.env.NODE_ENV === 'production') {

@@ -3,7 +3,7 @@ import Trending, { TrendingType, ITrending } from '../models/Trending';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
-import { aliaChat } from '../utils/alia';
+import { aliaChat, isAliaEnabled } from '../utils/alia';
 
 interface TrendItem {
   type: TrendingType;
@@ -216,7 +216,7 @@ class TrendingService {
    * Generate a lightweight AI summary from trend names.
    */
   private async generateSummary(trendNames: string[]): Promise<string> {
-    if (!process.env.ALIA_API_KEY || trendNames.length === 0) {
+    if (!isAliaEnabled() || trendNames.length === 0) {
       return '';
     }
 

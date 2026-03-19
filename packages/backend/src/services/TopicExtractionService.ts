@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Post } from '../models/Post';
-import { aliaJSON } from '../utils/alia';
+import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
 
 const EXTRACTION_PROMPT = `You are a topic extractor. For each post in the array, identify up to 3 topics or named entities that the post is about.
@@ -128,7 +128,7 @@ class TopicExtractionService {
    * Find unprocessed posts, batch them, call Alia AI, save results.
    */
   private async extractTopics(): Promise<void> {
-    if (!process.env.ALIA_API_KEY) {
+    if (!isAliaEnabled()) {
       return;
     }
 

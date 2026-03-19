@@ -1,9 +1,8 @@
+import { config } from '../config';
 import { logger } from './logger';
 
-const ALIA_API_URL = process.env.ALIA_API_URL || 'https://api.alia.onl';
-const ALIA_API_KEY = process.env.ALIA_API_KEY || '';
-const DEFAULT_MODEL = 'alia-v1';
-const REQUEST_TIMEOUT_MS = 30_000;
+/** Whether Alia AI features are available (API key is configured). */
+export const isAliaEnabled = (): boolean => Boolean(config.alia.apiKey);
 
 interface AliaChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -33,14 +32,14 @@ export async function aliaChat(
   messages: AliaChatMessage[],
   options: AliaChatOptions = {},
 ): Promise<string> {
-  const { model = DEFAULT_MODEL, temperature, maxTokens } = options;
+  const { model = config.alia.model, temperature, maxTokens } = options;
 
-  if (!ALIA_API_KEY) {
+  if (!config.alia.apiKey) {
     throw new Error('ALIA_API_KEY environment variable is not set');
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), config.alia.timeoutMs);
 
   try {
     const body: Record<string, unknown> = {
@@ -51,11 +50,11 @@ export async function aliaChat(
     if (temperature !== undefined) body.temperature = temperature;
     if (maxTokens !== undefined) body.max_tokens = maxTokens;
 
-    const response = await fetch(`${ALIA_API_URL}/v1/chat/completions`, {
+    const response = await fetch(`${config.alia.apiUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${ALIA_API_KEY}`,
+        Authorization: `Bearer ${config.alia.apiKey}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,

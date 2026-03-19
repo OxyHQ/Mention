@@ -4,7 +4,7 @@ import Post from "../models/Post";
 import Like from "../models/Like";
 import Bookmark from "../models/Bookmark";
 import { logger } from '../utils/logger';
-import { aliaChat } from '../utils/alia';
+import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { userPreferenceService } from '../services/UserPreferenceService';
 
 interface DateRange {
@@ -422,7 +422,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    if (!process.env.ALIA_API_KEY) {
+    if (!isAliaEnabled()) {
       return res.json({ summary: null });
     }
 
