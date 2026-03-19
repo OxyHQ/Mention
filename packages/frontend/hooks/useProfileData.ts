@@ -3,7 +3,6 @@ import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { federationService } from '@/services/federationService';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 
 export interface ProfileDesign {
@@ -76,10 +75,9 @@ function isFederatedUsername(username: string): boolean {
 
 /**
  * Hook for federated profile data.
- * Fetches from federation service and maps to ProfileData.
+ * Resolves fediverse handles via OxyHQServices (WebFinger → actor fetch → upsert).
  */
-// Simple in-memory cache for federated profiles (stale-while-revalidate)
-const federatedProfileCache = new Map<string, { actor: any; fetchedAt: number }>();
+const federatedProfileCache = new Map<string, { user: any; fetchedAt: number }>();
 const FEDERATED_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 function useFederatedProfileData(handle: string): {
@@ -87,9 +85,10 @@ function useFederatedProfileData(handle: string): {
   loading: boolean;
   error: boolean;
 } {
+  const { oxyServices } = useAuth();
   const cached = handle ? federatedProfileCache.get(handle) : undefined;
-  const [actor, setActor] = useState<any>(cached?.actor || null);
-  const [loading, setLoading] = useState(!cached?.actor);
+  const [user, setUser] = useState<any>(cached?.user || null);
+  const [loading, setLoading] = useState(!cached?.user);
   const [error, setError] = useState(false);
   const fetchedRef = useRef(false);
 
@@ -100,25 +99,23 @@ function useFederatedProfileData(handle: string): {
     const cachedEntry = federatedProfileCache.get(handle);
     const isStale = !cachedEntry || Date.now() - cachedEntry.fetchedAt > FEDERATED_CACHE_TTL;
 
-    // Show cached data immediately (stale-while-revalidate)
-    if (cachedEntry?.actor && !fetchedRef.current) {
-      setActor(cachedEntry.actor);
+    if (cachedEntry?.user && !fetchedRef.current) {
+      setUser(cachedEntry.user);
       setLoading(false);
       setError(false);
     }
 
     if (!isStale) return;
-
-    if (!cachedEntry?.actor) setLoading(true);
+    if (!cachedEntry?.user) setLoading(true);
 
     (async () => {
       try {
-        const result = await federationService.lookupActor(handle);
+        const result = await oxyServices.resolveProfile(handle);
         if (!cancelled) {
-          setActor(result);
+          setUser(result);
           setError(!result);
           if (result) {
-            federatedProfileCache.set(handle, { actor: result, fetchedAt: Date.now() });
+            federatedProfileCache.set(handle, { user: result, fetchedAt: Date.now() });
           }
           fetchedRef.current = true;
         }
@@ -128,41 +125,32 @@ function useFederatedProfileData(handle: string): {
     })();
 
     return () => { cancelled = true; };
-  }, [handle]);
+  }, [handle, oxyServices]);
 
   const profileData = useMemo((): ProfileData | null => {
-    if (!actor) return null;
+    if (!user) return null;
 
-    const username = handle.split('@')[0];
-    const instance = handle.split('@')[1];
+    const nameValue = typeof user.name === 'string' ? user.name : user.name?.full || user.name?.first;
 
     return {
-      id: actor.id || actor.actorUri || handle,
+      id: user.id || handle,
       username: handle,
-      bio: actor.bio?.replace(/<[^>]*>/g, '') || undefined,
+      bio: user.bio || user.description,
       verified: false,
-      postsCount: actor.postsCount ?? 0,
       isFederated: true,
-      actorUri: actor.actorUri,
-      instance,
-      isFollowing: actor.isFollowing,
-      isFollowPending: actor.isFollowPending,
-      followersCount: actor.followersCount ?? 0,
-      followingCount: actor.followingCount ?? 0,
-      fields: actor.fields,
-      createdAt: actor.createdAt,
-      memorial: actor.memorial,
-      suspended: actor.suspended,
-      actorType: actor.type,
+      actorUri: user.federation?.actorUri,
+      instance: user.federation?.domain,
+      followersCount: user._count?.followers ?? 0,
+      followingCount: user._count?.following ?? 0,
+      createdAt: user.createdAt,
       design: {
-        displayName: actor.displayName || username,
-        avatar: actor.avatarUrl || undefined,
-        coverImage: actor.bannerUrl || undefined,
-        coverPhotoEnabled: !!actor.bannerUrl,
+        displayName: nameValue || handle.split('@')[0],
+        avatar: user.avatar,
+        coverPhotoEnabled: false,
         minimalistMode: false,
       },
     };
-  }, [actor, handle]);
+  }, [user, handle]);
 
   return { data: profileData, loading, error };
 }
