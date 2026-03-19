@@ -9,6 +9,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
 import { useUsersStore } from "@/stores/usersStore";
+import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
 
 interface ProfileData {
@@ -21,6 +22,8 @@ interface ProfileData {
   };
   avatar?: string;
   bio?: string;
+  isFederated?: boolean;
+  instance?: string;
 }
 
 const MAX_DISPLAY_USERS = 5;
@@ -176,8 +179,12 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   const username = profileData.username || profileData.id;
 
   const handlePress = useCallback(() => {
-    router.push(`/@${username}`);
-  }, [router, username]);
+    if (profileData.isFederated && profileData.instance) {
+      router.push(`/@${profileData.username}@${profileData.instance}`);
+    } else {
+      router.push(`/@${username}`);
+    }
+  }, [router, username, profileData.isFederated, profileData.instance, profileData.username]);
 
   return (
     <View
@@ -187,9 +194,12 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
       <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} activeOpacity={0.7}>
         <Avatar source={avatarUri} size={36} />
         <View className="ml-2.5 flex-1 mr-2">
-          <ThemedText className="text-foreground text-[14px] font-semibold">
-            {displayName}
-          </ThemedText>
+          <UserName
+            name={displayName}
+            isFederated={profileData.isFederated}
+            variant="small"
+            style={{ name: { fontSize: 14 } }}
+          />
           <ThemedText className="text-muted-foreground text-[13px] pt-px">
             @{username}
           </ThemedText>

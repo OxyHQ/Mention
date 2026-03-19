@@ -1,11 +1,12 @@
 import React, { memo, useMemo, useCallback } from 'react';
-import { View, TouchableOpacity, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
+import UserName from '@/components/UserName';
 
 interface SuggestedUserData {
   id: string;
@@ -13,6 +14,8 @@ interface SuggestedUserData {
   name?: { first?: string; last?: string; full?: string };
   avatar?: string;
   bio?: string;
+  isFederated?: boolean;
+  instance?: string;
 }
 
 interface SuggestedUserCardProps {
@@ -43,8 +46,12 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   }, [user.name?.full, user.name?.first, user.name?.last, user.username]);
 
   const handlePress = useCallback(() => {
-    router.push(`/@${handle}`);
-  }, [router, handle]);
+    if (user.isFederated && user.instance) {
+      router.push(`/@${user.username}@${user.instance}`);
+    } else {
+      router.push(`/@${handle}`);
+    }
+  }, [router, handle, user.isFederated, user.instance, user.username]);
 
   const handleDismiss = useCallback(() => {
     onDismiss(user.id);
@@ -59,9 +66,12 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
     >
       <Avatar source={user.avatar} size={40} />
       <View className="flex-1 ml-3 mr-3">
-        <ThemedText className="text-foreground text-[15px] font-semibold" style={{ lineHeight: 20 }} numberOfLines={1}>
-          {displayName}
-        </ThemedText>
+        <UserName
+          name={displayName}
+          isFederated={user.isFederated}
+          variant="small"
+          style={{ name: { fontSize: 15, lineHeight: 20 } }}
+        />
         <ThemedText className="text-muted-foreground text-sm" style={{ lineHeight: 18, marginTop: 1 }} numberOfLines={1}>
           @{handle}
         </ThemedText>

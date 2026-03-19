@@ -1,10 +1,12 @@
 import React from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-native';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
+import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 interface Props {
     name?: string | null;
     verified?: boolean;
+    isFederated?: boolean;
     unifiedColors?: boolean; // if true, use unified colors for name and icon (e.g., dark mode)
     onPress?: () => void;
     variant?: 'default' | 'small';
@@ -14,7 +16,7 @@ interface Props {
     };
 }
 
-const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, variant = 'default', style }) => {
+const UserName: React.FC<Props> = ({ name, verified, isFederated, unifiedColors, onPress, variant = 'default', style }) => {
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
     // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
@@ -34,7 +36,10 @@ const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, var
                     {name}
                 </Text>
                 {verified && (
-                    <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={[styles.verifiedIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                )}
+                {isFederated && (
+                    <FediverseIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
                 )}
             </View>
         </View>
@@ -70,7 +75,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
     },
-    verifiedIcon: {
+    badgeIcon: {
         marginLeft: 4,
     },
 });

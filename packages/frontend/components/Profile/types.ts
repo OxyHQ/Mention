@@ -43,6 +43,7 @@ export interface UserNameProps {
   name?: string | null;
   handle?: string;
   verified?: boolean;
+  isFederated?: boolean;
   variant?: 'default' | 'small';
   style?: {
     name?: StyleProp<TextStyle>;
