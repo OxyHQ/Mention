@@ -91,12 +91,11 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
 
         if (entity.startsWith('#')) {
           const tag = entity.slice(1);
-          const q = encodeURIComponent(`#${tag}`);
           elements.push(
             <Text
               key={`h-${key++}`}
               style={[{ color: theme.colors.primary }, linkStyle]}
-              onPress={() => router.push(`/search/${q}`)}
+              onPress={() => router.push(`/hashtag/${encodeURIComponent(tag)}` as any)}
             >
               {entity}
             </Text>
