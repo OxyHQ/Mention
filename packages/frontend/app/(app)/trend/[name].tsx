@@ -39,7 +39,7 @@ const TrendScreen: React.FC = () => {
     const { t } = useTranslation();
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
 
-    const topicName = name ? decodeURIComponent(name) : '';
+    const topicName = name || '';
     const topicDescription = description || '';
     const topicType = type || 'topic';
 
@@ -87,11 +87,13 @@ const TrendScreen: React.FC = () => {
             if (isRefresh || !cursor) {
                 setPosts(response.items || []);
             } else {
-                const existingIds = new Set(posts.map(p => p.id || p._id));
-                const newPosts = (response.items || []).filter(
-                    p => !existingIds.has(p.id || p._id)
-                );
-                setPosts(prev => [...prev, ...newPosts]);
+                setPosts(prev => {
+                    const existingIds = new Set(prev.map(p => p.id || p._id));
+                    const newPosts = (response.items || []).filter(
+                        p => !existingIds.has(p.id || p._id)
+                    );
+                    return [...prev, ...newPosts];
+                });
             }
 
             setHasMore(response.hasMore || false);
@@ -105,7 +107,7 @@ const TrendScreen: React.FC = () => {
             setRefreshing(false);
             setLoadingMore(false);
         }
-    }, [topicName, posts]);
+    }, [topicName]);
 
     useEffect(() => {
         if (topicName) {

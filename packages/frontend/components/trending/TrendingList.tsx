@@ -9,7 +9,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import type { Trend } from "@/interfaces/Trend";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
-import { Divider } from "@oxyhq/bloom/divider";
+
 import { TrendItemRow } from "./TrendItemRow";
 import { useTrendNavigation } from "@/hooks/useTrendNavigation";
 

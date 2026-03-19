@@ -84,12 +84,13 @@ const HashtagScreen: React.FC = () => {
             if (isRefresh || !cursor) {
                 setPosts(response.items || []);
             } else {
-                // Deduplicate new posts against existing
-                const existingIds = new Set(posts.map(p => p.id || p._id));
-                const newPosts = (response.items || []).filter(
-                    p => !existingIds.has(p.id || p._id)
-                );
-                setPosts(prev => [...prev, ...newPosts]);
+                setPosts(prev => {
+                    const existingIds = new Set(prev.map(p => p.id || p._id));
+                    const newPosts = (response.items || []).filter(
+                        p => !existingIds.has(p.id || p._id)
+                    );
+                    return [...prev, ...newPosts];
+                });
             }
 
             setHasMore(response.hasMore || false);
@@ -103,7 +104,7 @@ const HashtagScreen: React.FC = () => {
             setRefreshing(false);
             setLoadingMore(false);
         }
-    }, [hashtag, posts]);
+    }, [hashtag]);
 
     useEffect(() => {
         if (hashtag) {
