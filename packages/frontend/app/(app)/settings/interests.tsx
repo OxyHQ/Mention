@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { authenticatedClient } from '@/utils/api';
 import { interests as allInterests, useInterestsDisplayNames, type Interest } from '@/lib/interests';
+import { topicService } from '@/services/topicService';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 
@@ -35,6 +36,7 @@ export default function InterestsSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [interests, setInterests] = useState<string[]>([]);
+  const [availableInterests, setAvailableInterests] = useState<Array<{ name: string; displayName: string }>>([]);
   const interestsDisplayNames = useInterestsDisplayNames();
 
   const preselectedInterests = useMemo(
@@ -44,7 +46,18 @@ export default function InterestsSettingsScreen() {
 
   useEffect(() => {
     loadMySettings();
-  }, [loadMySettings]);
+    topicService.getCategories().then(categories => {
+      if (categories.length > 0) {
+        setAvailableInterests(categories.map(c => ({ name: c.slug, displayName: c.displayName })));
+      } else {
+        // Fallback to hardcoded interests
+        setAvailableInterests(allInterests.map(i => ({ name: i, displayName: interestsDisplayNames[i] || i })));
+      }
+    }).catch(() => {
+      // Fallback to hardcoded interests
+      setAvailableInterests(allInterests.map(i => ({ name: i, displayName: interestsDisplayNames[i] || i })));
+    });
+  }, [loadMySettings, interestsDisplayNames]);
 
   useEffect(() => {
     if (mySettings) {
@@ -166,22 +179,15 @@ export default function InterestsSettingsScreen() {
           )}
 
           <View className="flex-row flex-wrap gap-2">
-            {allInterests.map(interest => {
-              const name = interestsDisplayNames[interest];
-              if (!name) return null;
-
-              const isSelected = interests.includes(interest);
-
-              return (
-                <InterestButton
-                  key={interest}
-                  interest={interest}
-                  label={name}
-                  isSelected={isSelected}
-                  onPress={() => toggleInterest(interest)}
-                />
-              );
-            })}
+            {availableInterests.map(({ name, displayName }) => (
+              <InterestButton
+                key={name}
+                interest={name as Interest}
+                label={displayName}
+                isSelected={interests.includes(name)}
+                onPress={() => toggleInterest(name as Interest)}
+              />
+            ))}
           </View>
         </View>
       </ScrollView>

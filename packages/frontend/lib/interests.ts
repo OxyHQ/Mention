@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+/** @deprecated Use GET /api/topics/categories instead. This list is kept as a fallback. */
 export const interests = [
   'animals',
   'art',
