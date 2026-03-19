@@ -36,6 +36,7 @@ import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
@@ -644,7 +645,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
                             accessibilityLabel="Insights"
                         >
-                            <Ionicons name="stats-chart-outline" size={ICON_SIZE - 2} color={theme.colors.textSecondary} />
+                            <AnalyticsIcon size={ICON_SIZE} className="text-muted-foreground" />
                         </PressableScale>
                     )}
                 </View>
