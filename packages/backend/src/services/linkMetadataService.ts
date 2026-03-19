@@ -1,7 +1,8 @@
 import { URL } from 'url';
 import urlMetadata from 'url-metadata';
 import { logger } from '../utils/logger';
-import { validateUrlSecurity, sanitizeText, validateUrlLength } from '../utils/urlSecurity';
+import { validateUrlSecurity, validateUrlLength } from '../utils/urlSecurity';
+import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
 import { imageCacheService } from './imageCacheService';
 
 export interface LinkMetadataResult {
@@ -68,10 +69,10 @@ class LinkMetadataService {
         favicon: metadata.favicon,
       };
 
-      // Sanitize text fields
-      if (result.title) result.title = sanitizeText(result.title);
-      if (result.description) result.description = sanitizeText(result.description);
-      if (result.siteName) result.siteName = sanitizeText(result.siteName);
+      // Decode HTML entities in text fields (these are rendered as text, not HTML)
+      if (result.title) result.title = htmlToPlainText(result.title);
+      if (result.description) result.description = htmlToPlainText(result.description);
+      if (result.siteName) result.siteName = htmlToPlainText(result.siteName);
 
       // Resolve and cache image if URL is valid
       if (result.image && result.image.trim().length > 0) {
