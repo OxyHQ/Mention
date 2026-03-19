@@ -720,6 +720,7 @@ publicApiRouter.use("/images", imagesRoutes); // Image optimization (public, rat
 publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (optional auth for tracking)
 publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth required)
 publicApiRouter.use("/topics", topicsRoutes); // Topic collection (no auth required)
+publicApiRouter.use("/federation", federationApiRoutes); // Write endpoints enforce auth internally
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
@@ -748,7 +749,6 @@ authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
 authenticatedApiRouter.use("/starter-packs", starterPacksRoutes);
 authenticatedApiRouter.use("/admin", adminRoutes);
-authenticatedApiRouter.use("/federation", federationApiRoutes);
 
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
