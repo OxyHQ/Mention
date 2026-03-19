@@ -3,7 +3,6 @@ import multer from 'multer';
 import Room, { IRoom, RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
 import House, { HouseMemberRole } from '../models/House';
 import { AuthRequest } from '../types/auth';
-import { getIO } from '../utils/socketRegistry';
 import { logger } from '../utils/logger';
 import {
   generateRoomToken,
@@ -58,7 +57,7 @@ function scheduleRecordingAutoStop(roomId: string, egressId: string, recordingId
 
       await Room.findByIdAndUpdate(roomId, { recordingEgressId: null });
 
-      const io = getIO();
+      const io = (global as any).io;
       if (io) {
         io.of('/rooms').to(`room:${roomId}`).emit('room:recording:stopped', {
           roomId,
@@ -145,7 +144,7 @@ async function stopRecordingForRoom(room: IRoom, reason: string = 'room_ended') 
   clearRecordingAutoStop(String(room._id));
   room.recordingEgressId = undefined;
 
-  const io = getIO();
+  const io = (global as any).io;
   if (io) {
     io.of('/rooms').to(`room:${room._id}`).emit('room:recording:stopped', {
       roomId: String(room._id),
@@ -499,7 +498,7 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
     }
 
     // Emit socket event on /spaces namespace (backward compat)
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:started', {
         spaceId: id,
@@ -596,7 +595,7 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
     logger.info(`Room ended: ${room._id}`);
 
     // Emit socket event on /spaces namespace (backward compat)
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:ended', {
         spaceId: id,
@@ -685,7 +684,7 @@ router.post('/:id/stop', async (req: AuthRequest, res: Response) => {
     logger.info(`Room stopped (back to scheduled): ${room._id}`);
 
     // Emit socket event so participants know the session ended
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:ended', {
         spaceId: id,
@@ -762,7 +761,7 @@ router.post('/:id/join', async (req: AuthRequest, res: Response) => {
     logger.debug(`User ${userId} joined room ${id}`);
 
     // Emit socket event on /spaces namespace
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:participant:joined', {
         spaceId: id,
@@ -818,7 +817,7 @@ router.post('/:id/leave', async (req: AuthRequest, res: Response) => {
     logger.debug(`User ${userId} left room ${id}`);
 
     // Emit socket event
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:participant:left', {
         spaceId: id,
@@ -890,7 +889,7 @@ router.post('/:id/speakers', async (req: AuthRequest, res: Response) => {
     logger.info(`User ${speakerId} added as speaker in room ${id} by ${userId}`);
 
     // Emit socket event
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:speaker:added', {
         spaceId: id,
@@ -955,7 +954,7 @@ router.delete('/:id/speakers/:userId', async (req: AuthRequest, res: Response) =
     logger.info(`User ${speakerId} removed as speaker from room ${id} by ${currentUserId}`);
 
     // Emit socket event
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:speaker:removed', {
         spaceId: id,
@@ -1096,7 +1095,7 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.info(`Live stream started in room ${id}: ${trimmedUrl}`);
 
     // Notify participants via socket (no URL -- only metadata)
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
         spaceId: id,
@@ -1164,7 +1163,7 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.info(`Live stream stopped in room ${id}`);
 
     // Notify participants via socket
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:stream:stopped', {
         spaceId: id,
@@ -1220,7 +1219,7 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.info(`Stream metadata updated for room ${id}`);
 
     // Notify participants via socket with updated metadata
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
         spaceId: id,
@@ -1301,7 +1300,7 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
     logger.info(`RTMP ingress created for room ${id}: ${ingress.ingressId}`);
 
     // Notify participants via socket (metadata only -- no credentials)
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
         spaceId: id,
@@ -1451,7 +1450,7 @@ router.post('/:id/recording/start', async (req: AuthRequest, res: Response) => {
 
     const recording = await startRecordingForRoom(room);
 
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       io.of('/rooms').to(`room:${id}`).emit('room:recording:started', {
         roomId: id,

@@ -2,7 +2,6 @@ import Notification from '../models/Notification';
 import { oxy } from '../../server';
 import { formatPushForNotification, sendPushToUser } from './push';
 import { logger } from './logger';
-import { getIO } from './socketRegistry';
 
 export interface CreateNotificationData {
   recipientId: string;
@@ -46,8 +45,7 @@ export const createNotification = async (
     await notification.save();
 
   // Emit real-time notification if requested with actor profile data
-    const io = getIO();
-    if (emitEvent && io) {
+    if (emitEvent && (global as any).io) {
       let actor: any = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
@@ -67,7 +65,7 @@ export const createNotification = async (
           avatar: actor.avatar
         } : undefined
       };
-      const notificationsNamespace = io.of('/notifications');
+      const notificationsNamespace = (global as any).io.of('/notifications');
       notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
     }
 

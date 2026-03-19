@@ -145,7 +145,7 @@ app.use(bruteForceProtection);
 // Middleware to parse nested query parameters (e.g., filters[authors]=user1,user2)
 app.use((req, res, next) => {
   if (req.query && typeof req.query === 'object') {
-    const filters: Record<string, unknown> = {};
+    const filters: any = {};
     Object.keys(req.query).forEach(key => {
       const match = key.match(/^filters\[(.+)\]$/);
       if (match) {
@@ -156,7 +156,7 @@ app.use((req, res, next) => {
       }
     });
     if (Object.keys(filters).length > 0) {
-      (req.query as Record<string, unknown>).filters = filters;
+      (req.query as any).filters = filters;
     }
   }
   next();
@@ -348,7 +348,7 @@ const roomsNamespace = initializeRoomSocket(io);
 // Use oxy.authSocket() which validates tokens via jwtDecode + Oxy API session validation.
 // This matches how oxy.auth() works for HTTP — no local JWT_SECRET needed.
 const oxySocketAuth = oxy.authSocket();
-[notificationsNamespace, postsNamespace, roomsNamespace, io].forEach((namespaceOrServer) => {
+[notificationsNamespace, postsNamespace, roomsNamespace, io].forEach((namespaceOrServer: any) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
     namespaceOrServer.use(oxySocketAuth);
   }
@@ -667,9 +667,9 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 
 // --- Expose namespaces for use in routes ---
 app.set("io", io);
-// Expose io via a shared module for utility modules that emit without direct access to req/app
-import { setIO } from './src/utils/socketRegistry';
-setIO(io);
+// Expose io globally for utility modules that emit without direct access to req/app
+// Using any-cast to avoid augmenting global types across the project
+(global as any).io = io;
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
 
@@ -692,7 +692,7 @@ const optionalAuth = (req: express.Request, res: express.Response, next: express
       // Auth failed (invalid token, expired, etc.), but continue anyway
       logger.debug(`Optional auth: Authentication failed, continuing as unauthenticated: ${err?.message || "Unknown error"}`);
       // Clear any partial user data that might have been set
-      delete (req as unknown as Record<string, unknown>).user;
+      (req as any).user = undefined;
     }
     // Always continue the request chain
     next();
@@ -788,18 +788,12 @@ app.get("/health", async (req, res) => {
 });
 
 // --- Metrics Endpoint ---
-// Exposes Prometheus-format metrics for monitoring systems.
-// Protected by admin auth to prevent information disclosure.
+// Exposes Prometheus-format metrics for monitoring systems
 import { metrics } from './src/utils/metrics';
-import { requireAdmin } from './src/middleware/admin';
-app.get('/metrics', oxy.auth(), requireAdmin, (req, res) => {
+app.get('/metrics', (req, res) => {
   res.set('Content-Type', 'text/plain');
   res.send(metrics.getPrometheusFormat());
 });
-
-// Performance monitoring middleware — must be before routes to measure handler timing
-import { performanceMiddleware } from "./src/middleware/performance";
-app.use(performanceMiddleware);
 
 // --- Federation routes (ActivityPub protocol — must be public, before auth) ---
 app.use('/.well-known', webfingerRoutes);
@@ -809,6 +803,10 @@ app.use('/media', mediaProxyRoutes);
 // Mount public and authenticated API routers
 app.use("/", publicApiRouter);
 app.use("/", oxy.auth(), authenticatedApiRouter);
+
+// Performance monitoring middleware
+import { performanceMiddleware } from "./src/middleware/performance";
+app.use(performanceMiddleware);
 
 // Global error handler — must be the LAST middleware registered.
 // Catches unhandled errors from route handlers and prevents raw error leakage.

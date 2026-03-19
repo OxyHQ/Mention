@@ -40,12 +40,6 @@ import SEO from '@/components/SEO';
 
 const MAX_CHARACTERS = 280;
 
-/** Minimal shape of a file returned by the FileManagement bottom sheet. */
-interface SelectedFile {
-    id: string;
-    contentType?: string;
-}
-
 const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
@@ -115,7 +109,7 @@ const PostDetailScreen: React.FC = () => {
                 multiSelect: true,
                 disabledMimeTypes: ['audio/', 'application/pdf'],
                 afterSelect: 'back',
-                onSelect: async (file: SelectedFile) => {
+                onSelect: async (file: any) => {
                     const isImage = file?.contentType?.startsWith?.('image/');
                     const isVideo = file?.contentType?.startsWith?.('video/');
                     if (!isImage && !isVideo) {
@@ -127,11 +121,11 @@ const PostDetailScreen: React.FC = () => {
                         const mediaItem = { id: file.id, type: mediaType as 'image' | 'video' };
                         setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
                         toast.success(t(isImage ? 'Image attached' : 'Video attached'));
-                    } catch (e: unknown) {
-                        toast.error((e as { message?: string })?.message || t('Failed to attach media'));
+                    } catch (e: any) {
+                        toast.error(e?.message || t('Failed to attach media'));
                     }
                 },
-                onConfirmSelection: async (files: SelectedFile[]) => {
+                onConfirmSelection: async (files: any[]) => {
                     const validFiles = (files || []).filter(f => {
                         const contentType = f?.contentType || '';
                         return contentType.startsWith('image/') || contentType.startsWith('video/');
@@ -242,17 +236,17 @@ const PostDetailScreen: React.FC = () => {
 
                 if (cachedPost) {
                     // Post is cached - load instantly
-                    setPost(cachedPost);
+                    setPost(cachedPost as any);
                     setLoading(false);
 
                     // Fetch parent post if this is a reply
-                    if (cachedPost.parentPostId) {
-                        const cachedParent = postsById[cachedPost.parentPostId];
+                    if ((cachedPost as any).parentPostId) {
+                        const cachedParent = postsById[(cachedPost as any).parentPostId];
                         if (cachedParent) {
-                            setParentPost(cachedParent);
+                            setParentPost(cachedParent as any);
                         } else {
                             try {
-                                const parentResponse = await getPostById(cachedPost.parentPostId);
+                                const parentResponse = await getPostById((cachedPost as any).parentPostId);
                                 setParentPost(parentResponse);
                             } catch (parentErr) {
                                 // Silently ignore parent fetch errors
@@ -271,9 +265,9 @@ const PostDetailScreen: React.FC = () => {
                     setPost(response);
 
                     // Fetch parent post if this is a reply
-                    if (response && response.parentPostId) {
+                    if (response && (response as any).parentPostId) {
                         try {
-                            const parentResponse = await getPostById(response.parentPostId);
+                            const parentResponse = await getPostById((response as any).parentPostId);
                             setParentPost(parentResponse);
                         } catch (parentErr) {
                             // Silently ignore parent fetch errors
@@ -302,8 +296,8 @@ const PostDetailScreen: React.FC = () => {
     // Generate SEO data for the post (must be before any early returns)
     const getPostImage = useCallback(() => {
         if (!post) return undefined;
-        const media = post.content?.media || [];
-        const firstImage = media.find((m) => m?.type === 'image');
+        const media = (post as any)?.content?.media || [];
+        const firstImage = media.find((m: any) => m?.type === 'image');
         if (firstImage?.id && oxyServices?.getFileDownloadUrl) {
             return oxyServices.getFileDownloadUrl(firstImage.id);
         }

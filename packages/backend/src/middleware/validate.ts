@@ -64,78 +64,28 @@ export function validateObjectId(paramName: string = 'id') {
   };
 }
 
-// --- Reusable sub-schemas ---
-
-/** Media item: an uploaded file reference with id and type */
-const mediaItemSchema = z.object({
-  id: z.string().min(1).max(500),
-  type: z.enum(['image', 'video', 'gif']),
-});
-
-/** GeoJSON Point location */
-const locationSchema = z.object({
-  type: z.literal('Point').optional(),
-  coordinates: z.tuple([
-    z.number().min(-180).max(180), // longitude
-    z.number().min(-90).max(90),   // latitude
-  ]).optional(),
-  address: z.string().max(500).optional(),
-}).optional();
-
-/** External source citation */
-const sourceSchema = z.object({
-  url: z.string().url().max(2048),
-  title: z.string().max(200).optional(),
-});
-
-/** Article attachment */
-const articleSchema = z.object({
-  articleId: z.string().optional(),
-  title: z.string().max(280).optional(),
-  excerpt: z.string().max(280).optional(),
-}).optional();
-
-/** Event attachment */
-const eventSchema = z.object({
-  name: z.string().max(200),
-  startDate: z.string(),
-  endDate: z.string().optional(),
-  location: z.string().max(200).optional(),
-  description: z.string().max(500).optional(),
-}).optional();
-
-/** Post attachment descriptor */
-const attachmentSchema = z.object({
-  type: z.enum(['media', 'poll', 'article', 'event', 'location', 'sources', 'space']),
-  id: z.string().optional(),
-  mediaType: z.enum(['image', 'video', 'gif']).optional(),
-});
-
-/** Post content schema shared between create and reply */
-const postContentSchema = z.object({
-  text: z.string().max(25000).default(''),
-  media: z.array(mediaItemSchema).max(10).optional(),
-  poll: z.object({
-    question: z.string().min(1).max(280),
-    options: z.array(z.string().min(1).max(100)).min(2).max(4),
-    endTime: z.string().optional(),
-    isMultipleChoice: z.boolean().optional(),
-    isAnonymous: z.boolean().optional(),
-  }).optional(),
-  location: locationSchema,
-  sources: z.array(sourceSchema).max(5).optional(),
-  article: articleSchema,
-  event: eventSchema,
-  attachments: z.array(attachmentSchema).max(20).optional(),
-});
-
 /**
  * Common validation schemas for reuse across routes.
  */
 export const schemas = {
   /** Post creation request body */
   createPost: z.object({
-    content: postContentSchema.optional().default({ text: '' }),
+    content: z.object({
+      text: z.string().max(5000).default(''),
+      media: z.array(z.any()).max(10).optional(),
+      poll: z.object({
+        question: z.string().min(1).max(280),
+        options: z.array(z.string().min(1).max(100)).min(2).max(4),
+        endTime: z.string().optional(),
+        isMultipleChoice: z.boolean().optional(),
+        isAnonymous: z.boolean().optional(),
+      }).optional(),
+      location: z.any().optional(),
+      sources: z.array(z.any()).max(5).optional(),
+      article: z.any().optional(),
+      event: z.any().optional(),
+      attachments: z.array(z.any()).optional(),
+    }).optional().default({ text: '' }),
     hashtags: z.array(z.string()).optional(),
     mentions: z.array(z.string()).optional(),
     visibility: z.enum(['public', 'private', 'followers_only']).optional().default('public'),
@@ -157,7 +107,7 @@ export const schemas = {
   /** Reply creation request body */
   createReply: z.object({
     postId: z.string().min(1),
-    content: postContentSchema.optional().default({ text: '' }),
+    content: z.any(),
     mentions: z.array(z.string()).optional(),
     hashtags: z.array(z.string()).optional(),
   }),

@@ -24,13 +24,12 @@ interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
 }
 
 // Helper function to make unauthenticated requests using publicClient
-const makePublicRequest = async (endpoint: string, params?: Record<string, unknown>): Promise<unknown> => {
+const makePublicRequest = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
   try {
     const response = await publicClient.get(endpoint, { params });
     return response.data;
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string }; status?: number }; message?: string };
-    const message = err?.response?.data?.message || err?.message || `HTTP error! status: ${err?.response?.status}`;
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || `HTTP error! status: ${error?.response?.status}`;
     throw new Error(message);
   }
 };
@@ -55,7 +54,7 @@ const CACHE_TTL_PAGINATION_MS = 30 * 1000; // 30 seconds for pagination requests
 function getCacheKey(request: ExtendedFeedRequest): string {
   const filters = request.filters;
   const filterKey = filters
-    ? Object.keys(filters).sort().map((k) => `${k}=${(filters as Record<string, unknown>)[k] ?? ''}`).join('&')
+    ? Object.keys(filters).sort().map((k) => `${k}=${(filters as any)[k] ?? ''}`).join('&')
     : '';
   return `${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
 }
@@ -99,7 +98,7 @@ class FeedService {
       }
 
       const fetchPromise = (async () => {
-        const params: Record<string, unknown> = {
+        const params: any = {
           type: request.type // Always include type in params
         };
 
@@ -117,9 +116,9 @@ class FeedService {
               }
               // Special handling for array-based filters
               if (key === 'authors' && Array.isArray(value)) {
-                params[`filters[${key}]`] = (value as string[]).join(',');
+                params[`filters[${key}]`] = (value as any[]).join(',');
               } else {
-                params[`filters[${key}]`] = value;
+                params[`filters[${key}]`] = value as any;
               }
             }
           });
@@ -133,7 +132,7 @@ class FeedService {
           // Handle hashtag feed — dedicated endpoint
           if (request.type === 'hashtag' && request.filters?.hashtag) {
             const tag = encodeURIComponent(request.filters.hashtag);
-            const tagParams: Record<string, unknown> = {};
+            const tagParams: any = {};
             if (request.cursor) tagParams.cursor = request.cursor;
             if (request.limit) tagParams.limit = request.limit;
 
@@ -147,7 +146,7 @@ class FeedService {
           // Handle topic feed — dedicated endpoint
           if (request.type === 'topic' && request.filters?.topic) {
             const topic = encodeURIComponent(request.filters.topic);
-            const topicParams: Record<string, unknown> = {};
+            const topicParams: any = {};
             if (request.cursor) topicParams.cursor = request.cursor;
             if (request.limit) topicParams.limit = request.limit;
 
@@ -161,7 +160,7 @@ class FeedService {
           // Handle custom feed type - use dedicated timeline endpoint (backend-driven)
           if (request.type === 'custom' && request.filters?.customFeedId) {
             const feedId = request.filters.customFeedId;
-            const timelineParams: Record<string, unknown> = {};
+            const timelineParams: any = {};
             if (request.cursor) timelineParams.cursor = request.cursor;
             if (request.limit) timelineParams.limit = request.limit;
 
@@ -172,7 +171,7 @@ class FeedService {
               });
               // Backend returns posts directly in FeedResponse format
               return response.data;
-            } catch (authError) {
+            } catch (authError: any) {
               // Custom feeds require authentication, so re-throw auth errors
               throw authError;
             }
@@ -230,38 +229,36 @@ class FeedService {
             }
 
             return feedResponse;
-          } catch (authError: unknown) {
-            const axiosErr = authError as { response?: { status?: number }; message?: string };
-            const status = axiosErr?.response?.status;
+          } catch (authError: any) {
+            const status = authError?.response?.status;
             const isAuthError = status === 401 || status === 403;
-            const isNetworkError = !axiosErr?.response && axiosErr?.message?.includes('Network');
+            const isNetworkError = !authError?.response && authError?.message?.includes('Network');
 
             if (isAuthError || isNetworkError) {
               try {
                 return await makePublicRequest(endpoint, params);
-              } catch (publicError: unknown) {
+              } catch (publicError: any) {
                 throw isAuthError ? authError : publicError;
               }
             }
             throw authError;
           }
-        } catch (error: unknown) {
-          const fetchErr = error as { response?: { data?: { message?: string; error?: string }; status?: number; statusText?: string }; message?: string; stack?: string };
+        } catch (error: any) {
           logger.error('Error fetching feed', {
-            message: fetchErr?.message,
-            status: fetchErr?.response?.status,
-            statusText: fetchErr?.response?.statusText,
-            data: fetchErr?.response?.data,
+            message: error?.message,
+            status: error?.response?.status,
+            statusText: error?.response?.statusText,
+            data: error?.response?.data,
             endpoint,
             params,
-            stack: fetchErr?.stack
+            stack: error?.stack
           });
 
           // Re-throw with more context
-          const errorMessage = fetchErr?.response?.data?.message || fetchErr?.response?.data?.error || fetchErr?.message || 'Failed to fetch feed';
-          const errorToThrow: Error & { status?: number; originalError?: unknown } = new Error(errorMessage);
-          errorToThrow.status = err?.response?.status;
-          errorToThrow.originalError = error;
+          const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to fetch feed';
+          const errorToThrow = new Error(errorMessage);
+          (errorToThrow as any).status = error?.response?.status;
+          (errorToThrow as any).originalError = error;
           throw errorToThrow;
         }
       })();
@@ -302,7 +299,7 @@ class FeedService {
   /**
    * Get pinned post for a user profile
    */
-  async getPinnedPost(userId: string): Promise<unknown> {
+  async getPinnedPost(userId: string): Promise<any | null> {
     try {
       const response = await publicClient.get(`/feed/user/${userId}/pinned`);
       return response.data?.item || null;
@@ -329,10 +326,10 @@ class FeedService {
       threadId: request.threadId,
       ...(request.status && { status: request.status }),
       ...(request.scheduledFor && { scheduledFor: request.scheduledFor }),
-      ...((request as CreatePostRequest & { metadata?: unknown }).metadata && { metadata: (request as CreatePostRequest & { metadata?: unknown }).metadata }),
-      ...(request.replyPermission && { replyPermission: request.replyPermission }),
-      ...(request.reviewReplies !== undefined && { reviewReplies: request.reviewReplies }),
-      ...(request.quotesDisabled !== undefined && { quotesDisabled: request.quotesDisabled }),
+      ...((request as any).metadata && { metadata: (request as any).metadata }),
+      ...((request as any).replyPermission && { replyPermission: (request as any).replyPermission }),
+      ...((request as any).reviewReplies !== undefined && { reviewReplies: (request as any).reviewReplies }),
+      ...((request as any).quotesDisabled !== undefined && { quotesDisabled: (request as any).quotesDisabled }),
     };
 
     const response = await authenticatedClient.post('/posts', backendRequest);
@@ -449,7 +446,7 @@ class FeedService {
   /**
    * Edit an existing post (within 30-minute edit window)
    */
-  async editPost(postId: string, data: { content: { text: string; media?: Array<{ id: string; type?: string }> }; hashtags?: string[]; mentions?: string[] }): Promise<unknown> {
+  async editPost(postId: string, data: { content: { text: string; media?: any[] }; hashtags?: string[]; mentions?: string[] }): Promise<any> {
     const response = await authenticatedClient.put(`/posts/${postId}`, data);
     return response.data;
   }
@@ -457,7 +454,7 @@ class FeedService {
   /**
    * Get post by ID
    */
-  async getPostById(postId: string): Promise<unknown> {
+  async getPostById(postId: string): Promise<any> {
     try {
       // Prefer transformed feed item for consistent user/enagement shape
       try {
@@ -468,10 +465,9 @@ class FeedService {
         const response = await authenticatedClient.get(`/posts/${postId}`);
         return response.data;
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       // Preserve original error (especially for 404 handling)
-      const axiosErr = error as { response?: { status?: number } };
-      if (axiosErr?.response?.status === 404) {
+      if (error?.response?.status === 404) {
         // Don't log 404s - post may have been deleted
         throw error; // Re-throw original Axios error to preserve status
       }

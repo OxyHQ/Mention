@@ -5,7 +5,6 @@ import { validateBody, validateObjectId } from '../middleware/validate';
 import { LabelService } from '../services/LabelService';
 import UserSettings from '../models/UserSettings';
 import { logger } from '../utils/logger';
-import { AuthRequest } from '../types/auth';
 
 const router = Router();
 
@@ -43,7 +42,7 @@ const updatePreferencesSchema = z.object({
 // ---------------------------------------------------------------------------
 // GET / — list labelers, with optional ?search= and isSubscribed flag
 // ---------------------------------------------------------------------------
-router.get('/', async (req: AuthRequest, res) => {
+router.get('/', async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -58,7 +57,7 @@ router.get('/', async (req: AuthRequest, res) => {
       settings?.privacy?.labelPreferences?.subscribedLabelers ?? []
     );
 
-    const items = labelers.map((l) => {
+    const items = labelers.map((l: any) => {
       const id = String(l._id);
       return { ...l, id, isSubscribed: subscribedSet.has(id) };
     });
@@ -73,7 +72,7 @@ router.get('/', async (req: AuthRequest, res) => {
 // ---------------------------------------------------------------------------
 // POST / — create a labeler
 // ---------------------------------------------------------------------------
-router.post('/', validateBody(createLabelerSchema), async (req: AuthRequest, res) => {
+router.post('/', validateBody(createLabelerSchema), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -87,7 +86,7 @@ router.post('/', validateBody(createLabelerSchema), async (req: AuthRequest, res
       labelDefinitions,
     });
 
-    const result = { ...labeler.toObject(), id: String(labeler._id) };
+    const result = { ...(labeler as any).toObject(), id: String(labeler._id) };
     res.status(201).json(result);
   } catch (error) {
     logger.error('[Labelers] Create labeler error:', { userId: req.user?.id, error, body: req.body });
@@ -99,18 +98,17 @@ router.post('/', validateBody(createLabelerSchema), async (req: AuthRequest, res
 // GET /content/:type/:id — get all labels for a content piece
 // (placed before /:id to avoid route shadowing)
 // ---------------------------------------------------------------------------
-router.get('/content/:type/:id', async (req: AuthRequest, res) => {
+router.get('/content/:type/:id', async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const type = String(req.params.type);
-    const id = String(req.params.id);
+    const { type, id } = req.params;
     if (type !== 'post' && type !== 'user') {
       return res.status(400).json({ error: "type must be 'post' or 'user'" });
     }
 
-    const labels = await LabelService.getLabelsForContent(type, id);
+    const labels = await LabelService.getLabelsForContent(type as 'post' | 'user', id);
     res.json({ items: labels, total: labels.length });
   } catch (error) {
     logger.error('[Labelers] Get content labels error:', { userId: req.user?.id, params: req.params, error });
@@ -122,23 +120,21 @@ router.get('/content/:type/:id', async (req: AuthRequest, res) => {
 // DELETE /labels/:id — remove a content label
 // (placed before /:id to avoid route shadowing)
 // ---------------------------------------------------------------------------
-router.delete('/labels/:id', async (req: AuthRequest, res) => {
+router.delete('/labels/:id', async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const labelId = String(req.params.id);
-    if (!mongoose.Types.ObjectId.isValid(labelId)) {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid label id' });
     }
 
-    await LabelService.removeLabel(labelId, userId);
+    await LabelService.removeLabel(req.params.id, userId);
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[Labelers] Remove label error:', { userId: req.user?.id, labelId: req.params.id, error });
-    const err = error instanceof Error ? error : null;
-    if (err?.message === 'Label not found') return res.status(404).json({ error: err.message });
-    if (err?.message === 'Not authorised to remove this label') return res.status(403).json({ error: err.message });
+    if (error?.message === 'Label not found') return res.status(404).json({ error: error.message });
+    if (error?.message === 'Not authorised to remove this label') return res.status(403).json({ error: error.message });
     res.status(500).json({ error: 'Failed to remove label' });
   }
 });
@@ -146,7 +142,7 @@ router.delete('/labels/:id', async (req: AuthRequest, res) => {
 // ---------------------------------------------------------------------------
 // PUT /preferences — update label action preferences in UserSettings
 // ---------------------------------------------------------------------------
-router.put('/preferences', validateBody(updatePreferencesSchema), async (req: AuthRequest, res) => {
+router.put('/preferences', validateBody(updatePreferencesSchema), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -158,11 +154,11 @@ router.put('/preferences', validateBody(updatePreferencesSchema), async (req: Au
     // while preserving actions for labelers not included in this request.
     const settings = await UserSettings.findOne({ oxyUserId: userId }).lean();
     const existing: Array<{ labelerId: string; labelSlug: string; action: string }> =
-      (settings?.privacy?.labelPreferences?.labelActions ?? []) as Array<{ labelerId: string; labelSlug: string; action: string }>;
+      (settings?.privacy?.labelPreferences?.labelActions as any[]) ?? [];
 
-    const incomingLabelerIds = new Set(labelActions.map((a: { labelerId: string }) => a.labelerId));
+    const incomingLabelerIds = new Set(labelActions.map((a: any) => a.labelerId));
     // Keep actions for labelers NOT in the incoming payload
-    const kept = existing.filter((a) => !incomingLabelerIds.has(a.labelerId));
+    const kept = existing.filter((a: any) => !incomingLabelerIds.has(a.labelerId));
     const merged = [...kept, ...labelActions];
 
     await UserSettings.findOneAndUpdate(
@@ -181,23 +177,22 @@ router.put('/preferences', validateBody(updatePreferencesSchema), async (req: Au
 // ---------------------------------------------------------------------------
 // GET /:id — get a labeler by id with isSubscribed flag
 // ---------------------------------------------------------------------------
-router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res) => {
+router.get('/:id', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const paramId = String(req.params.id);
     const [labeler, settingsDoc] = await Promise.all([
-      LabelService.getLabelerById(paramId),
+      LabelService.getLabelerById(req.params.id),
       UserSettings.findOne({ oxyUserId: userId }, { 'privacy.labelPreferences.subscribedLabelers': 1 }).lean(),
     ]);
     if (!labeler) return res.status(404).json({ error: 'Labeler not found' });
 
     const subscribedList: string[] = settingsDoc?.privacy?.labelPreferences?.subscribedLabelers ?? [];
-    const isSubscribed = subscribedList.includes(paramId);
+    const isSubscribed = subscribedList.includes(req.params.id);
 
-    const id = String(labeler._id);
-    res.json({ ...labeler, id, isSubscribed });
+    const id = String((labeler as any)._id);
+    res.json({ ...(labeler as any), id, isSubscribed });
   } catch (error) {
     logger.error('[Labelers] Get labeler error:', { userId: req.user?.id, labelerId: req.params.id, error });
     res.status(500).json({ error: 'Failed to get labeler' });
@@ -207,17 +202,16 @@ router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res) => {
 // ---------------------------------------------------------------------------
 // POST /:id/subscribe — subscribe current user to a labeler
 // ---------------------------------------------------------------------------
-router.post('/:id/subscribe', validateObjectId('id'), async (req: AuthRequest, res) => {
+router.post('/:id/subscribe', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    await LabelService.subscribeToLabeler(userId, String(req.params.id));
+    await LabelService.subscribeToLabeler(userId, req.params.id);
     res.json({ success: true, subscribed: true });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[Labelers] Subscribe error:', { userId: req.user?.id, labelerId: req.params.id, error });
-    const err = error instanceof Error ? error : null;
-    if (err?.message === 'Labeler not found') return res.status(404).json({ error: err.message });
+    if (error?.message === 'Labeler not found') return res.status(404).json({ error: error.message });
     res.status(500).json({ error: 'Failed to subscribe to labeler' });
   }
 });
@@ -225,17 +219,16 @@ router.post('/:id/subscribe', validateObjectId('id'), async (req: AuthRequest, r
 // ---------------------------------------------------------------------------
 // DELETE /:id/subscribe — unsubscribe current user from a labeler
 // ---------------------------------------------------------------------------
-router.delete('/:id/subscribe', validateObjectId('id'), async (req: AuthRequest, res) => {
+router.delete('/:id/subscribe', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    await LabelService.unsubscribeFromLabeler(userId, String(req.params.id));
+    await LabelService.unsubscribeFromLabeler(userId, req.params.id);
     res.json({ success: true, subscribed: false });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[Labelers] Unsubscribe error:', { userId: req.user?.id, labelerId: req.params.id, error });
-    const err = error instanceof Error ? error : null;
-    if (err?.message === 'Labeler not found') return res.status(404).json({ error: err.message });
+    if (error?.message === 'Labeler not found') return res.status(404).json({ error: error.message });
     res.status(500).json({ error: 'Failed to unsubscribe from labeler' });
   }
 });
@@ -243,17 +236,17 @@ router.delete('/:id/subscribe', validateObjectId('id'), async (req: AuthRequest,
 // ---------------------------------------------------------------------------
 // POST /:id/labels — apply a label (creator only)
 // ---------------------------------------------------------------------------
-router.post('/:id/labels', validateObjectId('id'), validateBody(applyLabelSchema), async (req: AuthRequest, res) => {
+router.post('/:id/labels', validateObjectId('id'), validateBody(applyLabelSchema), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const labelerId = String(req.params.id);
+    const labelerId = req.params.id;
 
     // Only the labeler's creator may apply labels through this endpoint
     const labeler = await LabelService.getLabelerById(labelerId);
     if (!labeler) return res.status(404).json({ error: 'Labeler not found' });
-    if (labeler.creatorId !== userId) {
+    if ((labeler as any).creatorId !== userId) {
       return res.status(403).json({ error: 'Only the labeler creator may apply labels' });
     }
 
@@ -268,14 +261,13 @@ router.post('/:id/labels', validateObjectId('id'), validateBody(applyLabelSchema
       reason,
     });
 
-    const result = { ...label.toObject(), id: String(label._id) };
+    const result = { ...(label as any).toObject(), id: String(label._id) };
     res.status(201).json(result);
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[Labelers] Apply label error:', { userId: req.user?.id, labelerId: req.params.id, error, body: req.body });
-    const err = error instanceof Error ? error : null;
-    if (err?.message?.includes('does not exist in this labeler')) return res.status(400).json({ error: err.message });
-    if (err?.message === 'Labeler not found') return res.status(404).json({ error: err.message });
-    if ((error as { code?: number })?.code === 11000) return res.status(409).json({ error: 'Label already applied' });
+    if (error?.message?.includes('does not exist in this labeler')) return res.status(400).json({ error: error.message });
+    if (error?.message === 'Labeler not found') return res.status(404).json({ error: error.message });
+    if ((error as any)?.code === 11000) return res.status(409).json({ error: 'Label already applied' });
     res.status(500).json({ error: 'Failed to apply label' });
   }
 });

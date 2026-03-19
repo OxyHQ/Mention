@@ -14,7 +14,6 @@ import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
-import { getIO } from '../utils/socketRegistry';
 import { postHydrationService } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
@@ -77,27 +76,25 @@ const sanitizeSources = (arr: unknown): { sources: Array<{ url: string; title?: 
   return { sources: normalized };
 };
 
-const sanitizeArticle = (input: unknown): { title?: string; body?: string } | undefined => {
+const sanitizeArticle = (input: any): { title?: string; body?: string } | undefined => {
   if (!input || typeof input !== 'object') return undefined;
-  const rec = input as Record<string, unknown>;
-  const title = typeof rec.title === 'string' ? rec.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH) : undefined;
-  const body = typeof rec.body === 'string' ? rec.body.trim() : undefined;
+  const title = typeof input.title === 'string' ? input.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH) : undefined;
+  const body = typeof input.body === 'string' ? input.body.trim() : undefined;
   if (!title && !body) return undefined;
   return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
 };
 
-const sanitizeEventData = (eventData: unknown): { eventId?: string; name?: string; date?: string; location?: string; description?: string } | null => {
+const sanitizeEventData = (eventData: any): { eventId?: string; name?: string; date?: string; location?: string; description?: string } | null => {
   if (!eventData || typeof eventData !== 'object') return null;
-  const d = eventData as Record<string, unknown>;
 
   const sanitized = {
-    eventId: typeof d.eventId === 'string' ? d.eventId.trim() : undefined,
-    name: typeof d.name === 'string' ? d.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
-    date: typeof d.date === 'string'
-      ? d.date.trim()
-      : (d.date instanceof Date ? d.date.toISOString() : undefined),
-    location: typeof d.location === 'string' ? d.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
-    description: typeof d.description === 'string' ? d.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
+    eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
+    name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
+    date: typeof eventData.date === 'string'
+      ? eventData.date.trim()
+      : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
+    location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
+    description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
   };
 
   if (!sanitized.name || !sanitized.date) return null;
@@ -112,18 +109,17 @@ const sanitizeEventData = (eventData: unknown): { eventId?: string; name?: strin
   return sanitized;
 };
 
-const sanitizeRoomData = (roomData: unknown): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
+const sanitizeRoomData = (roomData: any): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
   if (!roomData || typeof roomData !== 'object') return null;
-  const r = roomData as Record<string, unknown>;
-  const id = r.roomId ?? r.spaceId;
-  if (typeof id !== 'string' || typeof r.title !== 'string') return null;
+  const id = roomData.roomId ?? roomData.spaceId;
+  if (typeof id !== 'string' || typeof roomData.title !== 'string') return null;
 
   return {
     roomId: id.trim(),
-    title: r.title.trim().slice(0, 200),
-    ...(typeof r.status === 'string' && ['scheduled', 'live', 'ended'].includes(r.status) ? { status: r.status } : {}),
-    ...(typeof r.topic === 'string' ? { topic: r.topic.trim().slice(0, 100) } : {}),
-    ...(typeof r.host === 'string' ? { host: r.host.trim() } : {}),
+    title: roomData.title.trim().slice(0, 200),
+    ...(typeof roomData.status === 'string' && ['scheduled', 'live', 'ended'].includes(roomData.status) ? { status: roomData.status } : {}),
+    ...(typeof roomData.topic === 'string' ? { topic: roomData.topic.trim().slice(0, 100) } : {}),
+    ...(typeof roomData.host === 'string' ? { host: roomData.host.trim() } : {}),
   };
 };
 
@@ -144,13 +140,13 @@ interface NormalizedMediaItem {
   mime?: string;
 }
 
-const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
+const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
   if (!Array.isArray(arr)) return [];
 
   const seen = new Set<string>();
   const normalized: NormalizedMediaItem[] = [];
 
-  arr.forEach((item: unknown) => {
+  arr.forEach((item: any) => {
     if (!item) return;
 
     if (typeof item === 'string') {
@@ -162,15 +158,14 @@ const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
     }
 
     if (typeof item === 'object') {
-      const obj = item as Record<string, unknown>;
-      const rawId = obj.id || obj.fileId || obj._id || obj.mediaId;
+      const rawId = item.id || item.fileId || item._id || item.mediaId;
       if (!rawId) return;
       const id = String(rawId);
       if (!id || seen.has(id)) return;
 
-      const rawType = ((obj.type || obj.mediaType || '') as string).toString().toLowerCase();
-      const mimeValue = obj.mime || obj.contentType;
-      const rawMime = mimeValue ? String(mimeValue).toLowerCase() : '';
+      const rawType = (item.type || item.mediaType || '').toString().toLowerCase();
+      const mimeValue = item.mime || item.contentType;
+      const rawMime = mimeValue ? mimeValue.toString().toLowerCase() : '';
 
       let resolvedType: 'image' | 'video' | 'gif';
       if (rawType === 'video' || rawMime.startsWith('video/')) {
@@ -789,7 +784,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Emit real-time feed update for new post (only for published posts)
     if (!isScheduled) {
       try {
-        const io = getIO();
+        const io = (global as any).io;
         if (io) {
           io.emit('feed:updated', {
             type: 'for_you',
@@ -1041,7 +1036,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     // Emit real-time feed update for new thread posts
     try {
-      const io = getIO();
+      const io = (global as any).io;
       if (io && createdPosts.length > 0) {
         // Emit the first post (main post) to feeds
         const mainPost = createdPosts[0];

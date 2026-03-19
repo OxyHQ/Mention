@@ -2,7 +2,7 @@ import express, { Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import { linkMetadataService } from '../services/linkMetadataService';
 import { logger } from '../utils/logger';
-import { validateUrlSecurity, validateUrlSecurityWithDNS } from '../utils/urlSecurity';
+import { validateUrlSecurity } from '../utils/urlSecurity';
 import { imageCacheService } from '../services/imageCacheService';
 import { requireAuth } from '../middleware/auth';
 import { linkRefreshRateLimiter, linkCacheClearRateLimiter } from '../middleware/security';
@@ -44,8 +44,8 @@ router.get('/metadata', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Security validation (SSRF protection with DNS resolution)
-    const securityCheck = await validateUrlSecurityWithDNS(url);
+    // Security validation (SSRF protection)
+    const securityCheck = validateUrlSecurity(url);
     if (!securityCheck.valid) {
       logger.warn('[Links] Security check failed:', { url, error: securityCheck.error });
       return res.status(400).json({
@@ -98,23 +98,19 @@ router.options('/images/:cacheKey', (req: AuthRequest, res: Response) => {
   const origin = req.headers.origin;
   const ALLOWED_ORIGINS = [
     process.env.FRONTEND_URL || 'https://mention.earth',
-    'https://agora.mention.earth',
+    'http://localhost:8081',
+    'http://localhost:8082',
+    'http://192.168.86.44:8081',
   ];
-
-  // Allow localhost origins only in development
-  if (process.env.NODE_ENV !== 'production') {
-    if (origin && origin.startsWith('http://localhost:')) {
-      ALLOWED_ORIGINS.push(origin);
-    }
-  }
-
+  
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
   }
-  // No wildcard fallback — unknown origins get no CORS header
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   res.status(204).end();
 });
 

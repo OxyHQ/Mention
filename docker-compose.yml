@@ -10,26 +10,22 @@ services:
       - redis
     environment:
       - NODE_ENV=development
-      - MONGODB_URI=mongodb://mention:mention_dev@mongo:27017
-      - REDIS_URL=redis://:mention_dev@redis:6379
+      - MONGODB_URI=mongodb://mongo:27017
+      - REDIS_URL=redis://redis:6379
 
   mongo:
     image: mongo:7
     restart: unless-stopped
     ports:
-      - "127.0.0.1:27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: mention
-      MONGO_INITDB_ROOT_PASSWORD: mention_dev
+      - "27017:27017"
     volumes:
       - mongo_data:/data/db
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --requirepass mention_dev
     ports:
-      - "127.0.0.1:6379:6379"
+      - "6379:6379"
 
 volumes:
   mongo_data:

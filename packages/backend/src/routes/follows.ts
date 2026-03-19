@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
-import { getIO } from '../utils/socketRegistry';
 
 const router = Router();
 
@@ -24,7 +23,7 @@ router.post('/emit-follow', async (req: AuthRequest, res: Response) => {
     }
 
     // Emit socket event to specific user rooms only (no global broadcast)
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       const eventData = {
         followerId: userId,
@@ -66,7 +65,7 @@ router.post('/emit-unfollow', async (req: AuthRequest, res: Response) => {
     }
 
     // Emit socket event to specific user rooms only (no global broadcast)
-    const io = getIO();
+    const io = (global as any).io;
     if (io) {
       const eventData = {
         followerId: userId,

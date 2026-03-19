@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useReducer, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
 import * as OxyServicesNS from '@oxyhq/services';
 
@@ -13,9 +13,7 @@ import UserName from '@/components/UserName';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { type ProfileHoverCardProps } from './types';
 
-const FollowButton = (
-  OxyServicesNS as Record<string, unknown>
-).FollowButton as React.ComponentType<{
+const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
   userId: string;
   size?: 'small' | 'medium' | 'large';
 }> | undefined;
@@ -43,7 +41,7 @@ export function ProfileHoverCard(props: ProfileHoverCardProps) {
   }
 
   return (
-    <View style={[{ flexShrink: 1 }, props.inline && ({ display: 'inline-flex' } as Record<string, string>), props.style]}>
+    <View style={[{ flexShrink: 1 }, props.inline && { display: 'inline-flex' as any }, props.style]}>
       <ProfileHoverCardInner {...props} />
     </View>
   );
@@ -226,11 +224,13 @@ function ProfileHoverCardInner(props: ProfileHoverCardProps) {
 
   return (
     <View
-      ref={refs.setReference as React.Ref<View>}
+      // @ts-ignore View ref used as div ref for floating-ui
+      ref={refs.setReference}
       onPointerMove={onPointerMoveTarget}
       onPointerLeave={onPointerLeaveTarget}
-      {...({ onMouseUp: onPress } as Record<string, unknown>)}
-      style={[{ flexShrink: 1 }, props.inline && ({ display: 'inline-flex' } as Record<string, string>)]}>
+      // @ts-ignore web only prop
+      onMouseUp={onPress}
+      style={[{ flexShrink: 1 }, props.inline && { display: 'inline-flex' as any }]}>
       {props.children}
       {isVisible && (
         <Portal>
@@ -269,9 +269,9 @@ let Card = ({
   const handlePressProfile = useCallback(() => {
     hide();
     if (profileIsFederated && profileInstance) {
-      router.push(`/@${profileUsername}@${profileInstance}` as Href);
+      router.push(`/@${profileUsername}@${profileInstance}` as any);
     } else {
-      router.push(`/@${username}` as Href);
+      router.push(`/@${username}` as any);
     }
   }, [hide, router, username, profileIsFederated, profileInstance, profileUsername]);
 
