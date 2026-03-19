@@ -3,8 +3,6 @@ import {
     View,
     Text,
     ScrollView,
-    TouchableOpacity,
-    Dimensions,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,7 +21,6 @@ import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
 
-const { width } = Dimensions.get('window');
 
 interface WeeklyRecapData {
     currentWeek: UserStatistics;
@@ -41,6 +38,8 @@ const WeeklyRecapScreen: React.FC = () => {
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<WeeklyRecapData | null>(null);
+    const [summary, setSummary] = useState<string | null>(null);
+    const [summaryLoading, setSummaryLoading] = useState(true);
 
     const getWeekDates = (weekOffset: number = 0) => {
         const today = new Date();
@@ -212,6 +211,15 @@ const WeeklyRecapScreen: React.FC = () => {
         loadWeeklyRecap();
     }, [loadWeeklyRecap]);
 
+    useEffect(() => {
+        if (!user) return;
+        setSummaryLoading(true);
+        statisticsService.getWeeklySummary()
+            .then(result => setSummary(result.summary))
+            .catch(() => setSummary(null))
+            .finally(() => setSummaryLoading(false));
+    }, [user]);
+
 
     if (loading) {
         return (
@@ -357,26 +365,34 @@ const WeeklyRecapScreen: React.FC = () => {
                     />
                 ))}
 
-                {/* Weekly Tip Section */}
+                {/* AI Insights Section */}
                 <View className="rounded-[15px] p-4 mb-4 border overflow-hidden bg-card border-border">
                     <View className="flex-row items-center mb-3">
-                        <Ionicons name="bulb" size={18} color={theme.colors.primary} />
+                        <Ionicons name="sparkles" size={18} color={theme.colors.primary} />
                         <Text className="text-[15px] font-bold ml-2 text-foreground" style={{ letterSpacing: -0.2 }}>
-                            {t('insights.weeklyRecap.thisWeeksTip')}
+                            {t('insights.weeklyRecap.summary')}
                         </Text>
                     </View>
-                    <Text className="text-sm font-bold mb-2 leading-5 text-foreground" style={{ letterSpacing: -0.2 }}>
-                        {t('insights.weeklyRecap.tipMainText')}
-                    </Text>
-                    <Text className="text-xs leading-[18px] mb-3 text-muted-foreground">
-                        {t('insights.weeklyRecap.tipDescription')}
-                    </Text>
-                    <TouchableOpacity className="flex-row items-center">
-                        <Text className="text-xs font-semibold mr-1 text-primary">
-                            {t('insights.weeklyRecap.seeMoreTips')}
+                    {summaryLoading ? (
+                        <View className="gap-2">
+                            <View className="h-3 rounded bg-muted-foreground/20 w-full" />
+                            <View className="h-3 rounded bg-muted-foreground/20 w-4/5" />
+                            <View className="h-3 rounded bg-muted-foreground/20 w-3/5" />
+                        </View>
+                    ) : summary ? (
+                        <Text className="text-sm leading-5 text-muted-foreground">
+                            {summary}
                         </Text>
-                        <Ionicons name="chevron-forward" size={14} color={theme.colors.primary} />
-                    </TouchableOpacity>
+                    ) : (
+                        <>
+                            <Text className="text-sm font-bold mb-2 leading-5 text-foreground" style={{ letterSpacing: -0.2 }}>
+                                {t('insights.weeklyRecap.tipMainText')}
+                            </Text>
+                            <Text className="text-xs leading-[18px] text-muted-foreground">
+                                {t('insights.weeklyRecap.tipDescription')}
+                            </Text>
+                        </>
+                    )}
                 </View>
             </ScrollView>
         </ThemedView>

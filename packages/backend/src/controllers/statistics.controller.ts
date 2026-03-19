@@ -4,6 +4,7 @@ import Post from "../models/Post";
 import Like from "../models/Like";
 import Bookmark from "../models/Bookmark";
 import { logger } from '../utils/logger';
+import { aliaChat } from '../utils/alia';
 import { userPreferenceService } from '../services/UserPreferenceService';
 
 interface DateRange {
@@ -406,6 +407,88 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       message: 'Error fetching engagement ratios',
       error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Get AI-generated weekly summary
+ * Computes current vs previous week stats and generates a personalized insight via Alia
+ */
+export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    if (!process.env.ALIA_API_KEY) {
+      return res.json({ summary: null });
+    }
+
+    const { startDate } = getDateRange(14);
+    const now = new Date();
+
+    const posts = await Post.find({
+      oxyUserId: userId,
+      createdAt: { $gte: startDate, $lte: now },
+    }).lean();
+
+    // Split into current week (last 7 days) and previous week (days 8-14)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const currentWeekPosts = posts.filter(p => new Date(p.createdAt) >= sevenDaysAgo);
+    const previousWeekPosts = posts.filter(p => new Date(p.createdAt) < sevenDaysAgo);
+
+    const computeStats = (postList: typeof posts) => {
+      const totalPosts = postList.length;
+      const totalViews = postList.reduce((sum, p) => sum + (p.stats?.viewsCount || 0), 0);
+      const likes = postList.reduce((sum, p) => sum + (p.stats?.likesCount || 0), 0);
+      const replies = postList.reduce((sum, p) => sum + (p.stats?.commentsCount || 0), 0);
+      const reposts = postList.reduce((sum, p) => sum + (p.stats?.repostsCount || 0), 0);
+      const totalInteractions = likes + replies + reposts;
+      const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
+      return { totalPosts, totalViews, totalInteractions, engagementRate, likes, replies, reposts };
+    };
+
+    const current = computeStats(currentWeekPosts);
+    const previous = computeStats(previousWeekPosts);
+
+    const delta = (cur: number, prev: number): string => {
+      if (prev === 0) return cur > 0 ? '+100' : '0';
+      return ((cur - prev) / prev * 100).toFixed(0);
+    };
+
+    const userMessage = [
+      `This week: ${current.totalPosts} posts, ${current.totalViews} views, ${current.totalInteractions} interactions, ${current.engagementRate.toFixed(1)}% engagement rate, ${current.likes} likes, ${current.replies} replies, ${current.reposts} reposts.`,
+      `Previous week: ${previous.totalPosts} posts, ${previous.totalViews} views, ${previous.totalInteractions} interactions, ${previous.engagementRate.toFixed(1)}% engagement rate.`,
+      `Week-over-week changes: views ${delta(current.totalViews, previous.totalViews)}%, interactions ${delta(current.totalInteractions, previous.totalInteractions)}%, posts ${delta(current.totalPosts, previous.totalPosts)}%.`,
+    ].join('\n');
+
+    try {
+      const summary = await aliaChat(
+        [
+          {
+            role: 'system',
+            content:
+              'You are a social media coach for the app Mention. Given a user\'s weekly performance stats compared to the previous week, write a personalized 2-3 sentence summary. Include one specific observation about their performance and one actionable recommendation. Be encouraging but honest. Do not use bullet points or markdown. Return ONLY the summary text.',
+          },
+          { role: 'user', content: userMessage },
+        ],
+        { temperature: 0.7, maxTokens: 200 },
+      );
+
+      return res.json({ summary });
+    } catch (aiError) {
+      logger.warn('Alia AI summary generation failed:', aiError);
+      return res.json({ summary: null });
+    }
+  } catch (error) {
+    logger.error('Error generating weekly summary:', error);
+    res.status(500).json({
+      message: 'Error generating weekly summary',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };

@@ -110,6 +110,10 @@ export interface FollowerChanges {
   };
 }
 
+export interface WeeklySummary {
+  summary: string | null;
+}
+
 class StatisticsService {
   /**
    * Get user statistics (overall analytics)
@@ -154,6 +158,14 @@ class StatisticsService {
     const response = await authenticatedClient.get('/statistics/engagement', {
       params: { days }
     });
+    return response.data;
+  }
+
+  /**
+   * Get AI-generated weekly summary
+   */
+  async getWeeklySummary(): Promise<WeeklySummary> {
+    const response = await authenticatedClient.get('/statistics/weekly-summary');
     return response.data;
   }
 }

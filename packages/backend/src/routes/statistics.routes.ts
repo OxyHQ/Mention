@@ -4,7 +4,8 @@ import {
   getPostInsights,
   trackPostView,
   getFollowerChanges,
-  getEngagementRatios
+  getEngagementRatios,
+  getWeeklySummary
 } from "../controllers/statistics.controller";
 
 const router = express.Router();
@@ -15,6 +16,7 @@ router.get("/post/:postId", getPostInsights);
 router.post("/post/:postId/view", trackPostView);
 router.get("/followers", getFollowerChanges);
 router.get("/engagement", getEngagementRatios);
+router.get("/weekly-summary", getWeeklySummary);
 
 export default router;
 
