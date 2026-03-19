@@ -85,10 +85,12 @@ const FEDERATED_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 function useFederatedProfileData(handle: string): {
   data: ProfileData | null;
   loading: boolean;
+  error: boolean;
 } {
   const cached = handle ? federatedProfileCache.get(handle) : undefined;
   const [actor, setActor] = useState<any>(cached?.actor || null);
   const [loading, setLoading] = useState(!cached?.actor);
+  const [error, setError] = useState(false);
   const fetchedRef = useRef(false);
 
   useEffect(() => {
@@ -102,6 +104,7 @@ function useFederatedProfileData(handle: string): {
     if (cachedEntry?.actor && !fetchedRef.current) {
       setActor(cachedEntry.actor);
       setLoading(false);
+      setError(false);
     }
 
     if (!isStale) return;
@@ -113,6 +116,7 @@ function useFederatedProfileData(handle: string): {
         const result = await federationService.lookupActor(handle);
         if (!cancelled) {
           setActor(result);
+          setError(!result);
           if (result) {
             federatedProfileCache.set(handle, { actor: result, fetchedAt: Date.now() });
           }
@@ -160,7 +164,7 @@ function useFederatedProfileData(handle: string): {
     };
   }, [actor, handle]);
 
-  return { data: profileData, loading };
+  return { data: profileData, loading, error };
 }
 
 /**
@@ -175,6 +179,7 @@ function useFederatedProfileData(handle: string): {
 export function useProfileData(username?: string): {
   data: ProfileData | null;
   loading: boolean;
+  error: boolean;
 } {
   const isFederated = Boolean(username && isFederatedUsername(username));
 
@@ -193,6 +198,7 @@ export function useProfileData(username?: string): {
 function useLocalProfileData(username?: string): {
   data: ProfileData | null;
   loading: boolean;
+  error: boolean;
 } {
   const { oxyServices } = useAuth();
 
@@ -274,5 +280,5 @@ function useLocalProfileData(username?: string): {
   // Loading state: true if username provided but no profile data yet
   const loading = Boolean(username && !oxyProfile);
 
-  return { data: profileData, loading };
+  return { data: profileData, loading, error: false };
 }

@@ -52,6 +52,11 @@ export const ProfileTabs = memo(function ProfileTabs({
     return () => { cancelled = true; };
   }, [profileId, isPrivate, isOwnProfile, isFederated]);
 
+  // Don't render feed content without a valid profile identifier
+  if (!profileId && !actorUri) {
+    return null;
+  }
+
   // Show private message for restricted profiles
   if (isPrivate && !isOwnProfile) {
     return (

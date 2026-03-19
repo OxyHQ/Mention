@@ -29,6 +29,9 @@ import ReportModal from '@/components/report/ReportModal';
 import { confirmDialog } from '@/utils/alerts';
 import type { FeedType } from '@mention/shared-types';
 import { logger } from '@/lib/logger';
+import { useSafeBack } from '@/hooks/useSafeBack';
+import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
+import { Button } from '@/components/ui/Button';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -107,7 +110,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const activeTab = useMemo(() => tabToIndex(tab), [tab]);
 
     // Profile data
-    const { data: profileData, loading } = useProfileData(username);
+    const { data: profileData, loading, error: profileError } = useProfileData(username);
+    const safeBack = useSafeBack();
 
     // Profile content height for scroll-to functionality
     const [profileContentHeight, setProfileContentHeight] = useState(0);
@@ -432,6 +436,23 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
                 {loading ? (
                     <ProfileSkeleton />
+                ) : !profileData && profileError ? (
+                    <View className="flex-1 justify-center items-center px-6">
+                        <View style={{ width: 220, height: 220, alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+                            <NoUpdatesIllustration width={200} height={200} />
+                        </View>
+                        <Text className="text-foreground text-2xl font-bold text-center mb-3">
+                            {t('profile.notFound.title', { defaultValue: 'Profile not found' })}
+                        </Text>
+                        <Text className="text-muted-foreground text-base text-center mb-8" style={{ maxWidth: 320, lineHeight: 24 }}>
+                            {t('profile.notFound.message', { defaultValue: "This profile couldn't be loaded. The user may not exist or their server may be unavailable." })}
+                        </Text>
+                        <View style={{ width: '100%', maxWidth: 320 }}>
+                            <Button variant="primary" onPress={safeBack}>
+                                {t('common.goBack', { defaultValue: 'Go Back' })}
+                            </Button>
+                        </View>
+                    </View>
                 ) : (
                     <>
                         {/* Header actions */}
