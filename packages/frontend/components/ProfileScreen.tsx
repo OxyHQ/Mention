@@ -118,11 +118,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         currentTab: tab,
     });
 
-    // Follow data — skip useFollow for federated profiles (uses data from profileData)
-    const stableUserId = isFederated ? '' : (profileData?.id || '');
-    const { followerCount: localFollowerCount = 0, followingCount: localFollowingCount = 0, isFollowing: isFollowingProfileUser = false } = useFollow(stableUserId);
-    const followerCount = isFederated ? (profileData?.followersCount ?? 0) : localFollowerCount;
-    const followingCount = isFederated ? (profileData?.followingCount ?? 0) : localFollowingCount;
+    // Follow data — works for both local and federated users (federated users now have Oxy IDs)
+    const stableUserId = profileData?.id || '';
+    const { followerCount: rawFollowerCount, followingCount: rawFollowingCount, isFollowing: isFollowingProfileUser = false } = useFollow(stableUserId);
+    const followerCount = rawFollowerCount ?? 0;
+    const followingCount = rawFollowingCount ?? 0;
 
     // Track "just followed" — show suggestions only on the follow action, not on revisits
     const [justFollowed, setJustFollowed] = useState(false);
@@ -565,7 +565,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         onLayout={setProfileContentHeight}
                                     />
                                 )}
-                                {!isOwnProfile && !isFederated && profileData?.id && (
+                                {!isOwnProfile && profileData?.id && (
                                     <SuggestedUsers
                                         visible={justFollowed}
                                         sourceUserId={profileData.id}

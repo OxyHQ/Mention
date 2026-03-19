@@ -1,5 +1,5 @@
-import React, { memo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,6 @@ import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { usePoke } from './hooks/usePoke';
-import { federationService } from '@/services/federationService';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
@@ -40,31 +39,6 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
 }: ProfileHeaderDefaultProps) {
   const { t } = useTranslation();
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
-
-  // Federated follow state — initialized from profileData
-  const [fedFollowing, setFedFollowing] = useState(!!initialIsFollowing);
-  const [fedFollowPending, setFedFollowPending] = useState(!!initialIsFollowPending);
-  const [fedFollowLoading, setFedFollowLoading] = useState(false);
-
-  const handleFederatedFollow = useCallback(async () => {
-    if (!actorUri) return;
-    setFedFollowLoading(true);
-    try {
-      if (fedFollowing || fedFollowPending) {
-        await federationService.unfollow(actorUri);
-        setFedFollowing(false);
-        setFedFollowPending(false);
-      } else {
-        const result = await federationService.follow(actorUri);
-        setFedFollowing(!result.pending);
-        setFedFollowPending(!!result.pending);
-      }
-    } finally {
-      setFedFollowLoading(false);
-    }
-  }, [actorUri, fedFollowing, fedFollowPending]);
-
-  const fedFollowLabel = fedFollowPending ? 'Pending' : fedFollowing ? 'Following' : 'Follow';
 
   return (
     <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -45 }}>
@@ -119,27 +93,6 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               accessibilityLabel="Settings"
             >
               <Gear size={20} className="text-foreground" />
-            </TouchableOpacity>
-          </View>
-        ) : isFederated && actorUri ? (
-          <View className="flex-row items-center gap-3">
-            <TouchableOpacity
-              className={cn(
-                'border rounded-full px-6 py-2',
-                fedFollowing || fedFollowPending ? 'bg-background border-border' : 'bg-primary border-primary',
-              )}
-              onPress={handleFederatedFollow}
-              disabled={fedFollowLoading}
-              accessibilityRole="button"
-              accessibilityLabel={fedFollowLabel}
-            >
-              {fedFollowLoading ? (
-                <ActivityIndicator size="small" color={fedFollowing || fedFollowPending ? theme.colors.text : '#fff'} />
-              ) : (
-                <Text className="text-sm font-semibold" style={{ color: fedFollowing || fedFollowPending ? theme.colors.text : '#fff' }}>
-                  {fedFollowLabel}
-                </Text>
-              )}
             </TouchableOpacity>
           </View>
         ) : profileId ? (
