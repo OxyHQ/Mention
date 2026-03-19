@@ -37,10 +37,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     // Prime the users cache with any populated actor object present on the notification
     useEffect(() => {
         try {
-            const populated = (notification as any)?.actorId_populated;
-            const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
-            if (populated && (id || populated.id || populated._id)) {
-                const merged = { id: String(id || populated.id || populated._id), ...(populated as any) };
+            const populated = notification.actorId_populated;
+            const actorId: unknown = notification.actorId;
+            const id = typeof actorId === 'string' ? actorId : (actorId as { _id?: string })?._id;
+            if (populated && (id || populated._id)) {
+                const merged = { id: String(id || populated._id), ...populated };
                 useUsersStore.getState().upsertUser(merged);
             }
         } catch { }
@@ -59,23 +60,26 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
     const [actorName, setActorName] = useState<string>(initialName);
     const [actorAvatar, setActorAvatar] = useState<string | undefined>(() => {
-        const populated = (notification as any)?.actorId_populated;
-        return populated?.avatar;
+        return notification.actorId_populated?.avatar;
     });
 
     useEffect(() => {
         let cancelled = false;
-        const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
+        const actorId: unknown = notification.actorId;
+        const id = typeof actorId === 'string' ? actorId : (actorId as { _id?: string })?._id;
         if (!id || actorName) return; // nothing to resolve
 
         // Try the shared users cache first for immediate value
         try {
             const cachedUser = useUsersStore.getState().getCachedById(String(id));
             if (cachedUser?.name || cachedUser?.username) {
-                const displayName = (cachedUser as any)?.name?.full || (cachedUser as any)?.name || cachedUser.username || String(id);
+                const nameField = cachedUser.name;
+                const displayName = (typeof nameField === 'object' && nameField !== null ? (nameField as { full?: string }).full : nameField)
+                    || cachedUser.username
+                    || String(id);
                 setActorName(String(displayName));
-                setActorAvatar((cachedUser as any)?.avatar);
-                actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: (cachedUser as any)?.avatar });
+                setActorAvatar(cachedUser.avatar);
+                actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: cachedUser.avatar });
                 return;
             }
         } catch { }
@@ -84,17 +88,21 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         const resolve = async () => {
             try {
                 if (!oxyServices) return;
-                const svc: any = oxyServices as any;
-                const loader = (actorId: string) => {
-                    if (typeof svc.getProfileById === 'function') return svc.getProfileById(actorId);
-                    if (typeof svc.getProfile === 'function') return svc.getProfile(actorId);
-                    if (typeof svc.getUserById === 'function') return svc.getUserById(actorId);
-                    if (typeof svc.getUser === 'function') return svc.getUser(actorId);
+                // oxyServices has multiple possible method shapes depending on version
+                const svc = oxyServices as Record<string, unknown>;
+                const loader = (actorId: string): Promise<{ id?: string; name?: unknown; username?: string; avatar?: string } | null | undefined> => {
+                    if (typeof svc.getProfileById === 'function') return (svc.getProfileById as (id: string) => Promise<unknown>)(actorId) as Promise<{ id?: string; name?: unknown; username?: string; avatar?: string } | null>;
+                    if (typeof svc.getProfile === 'function') return (svc.getProfile as (id: string) => Promise<unknown>)(actorId) as Promise<{ id?: string; name?: unknown; username?: string; avatar?: string } | null>;
+                    if (typeof svc.getUserById === 'function') return (svc.getUserById as (id: string) => Promise<unknown>)(actorId) as Promise<{ id?: string; name?: unknown; username?: string; avatar?: string } | null>;
+                    if (typeof svc.getUser === 'function') return (svc.getUser as (id: string) => Promise<unknown>)(actorId) as Promise<{ id?: string; name?: unknown; username?: string; avatar?: string } | null>;
                     return Promise.resolve(null);
                 };
                 const ensured = await useUsersStore.getState().ensureById(String(id), loader);
-                const profile: any = ensured || null;
-                const displayName = profile?.name?.full || profile?.name || profile?.username || String(id);
+                const profile = ensured || null;
+                const nameField = profile?.name;
+                const displayName = (typeof nameField === 'object' && nameField !== null ? (nameField as { full?: string }).full : nameField)
+                    || profile?.username
+                    || String(id);
                 if (!cancelled && displayName) {
                     actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: profile?.avatar });
                     setActorName(String(displayName));
@@ -190,7 +198,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         if (notification.entityType === 'post' || notification.entityType === 'reply') {
             router.push(`/p/${notification.entityId}`);
         } else if (notification.entityType === 'profile') {
-            const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
+            const actorId: unknown = notification.actorId;
+            const id = typeof actorId === 'string' ? actorId : (actorId as { _id?: string })?._id;
             let uname = '';
             try {
                 if (id) uname = useUsersStore.getState().usersById[String(id)]?.data?.username || '';
@@ -232,7 +241,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             <View style={styles.avatarContainer}>
                 <Avatar source={actorAvatar} size={40} />
                 <View className="border-background" style={[styles.actionBadge, { backgroundColor: getNotificationColor(notification.type) }]}>
-                    <Ionicons name={getNotificationIcon(notification.type) as any} size={12} color="#fff" />
+                    <Ionicons name={getNotificationIcon(notification.type) as React.ComponentProps<typeof Ionicons>['name']} size={12} color="#fff" />
                 </View>
             </View>
 
@@ -269,12 +278,12 @@ const PostNotificationItem: React.FC<{
 }> = ({ notification, actorName, onMarkAsRead, handlePress }) => {
     const { t } = useTranslation();
     const { getPostById } = usePostsStore();
-    const embedded = (notification as any).post ? ZEmbeddedPost.safeParse((notification as any).post) : null;
-    const [post, setPost] = useState<any>(embedded?.success ? embedded.data : null);
-    const [loading, setLoading] = useState(!(notification as any).post);
+    const embedded = notification.post ? ZEmbeddedPost.safeParse(notification.post) : null;
+    const [post, setPost] = useState<unknown>(embedded?.success ? embedded.data : null);
+    const [loading, setLoading] = useState(!notification.post);
 
     useEffect(() => {
-        if ((notification as any).post) return; // Backend provided embedded post
+        if (notification.post) return; // Backend provided embedded post
         const loadPost = async () => {
             try {
                 if (notification.entityId && notification.entityType === 'post') {

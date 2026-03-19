@@ -310,11 +310,11 @@ const PostDetailScreen: React.FC = () => {
         return undefined;
     }, [post, oxyServices]);
 
-    const postText = (post as any)?.content?.text || '';
+    const postText = post?.content?.text || '';
     const postDescription = postText.length > 200
         ? `${postText.substring(0, 197)}...`
         : postText || t('seo.post.description', { defaultValue: 'View this post on Mention' });
-    const postAuthor = (post as any)?.user?.name || (post as any)?.user?.handle || t('common.someone');
+    const postAuthor = post?.user?.displayName || post?.user?.handle || t('common.someone');
     const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
     const postImage = getPostImage();
 
@@ -346,7 +346,7 @@ const PostDetailScreen: React.FC = () => {
                             address: location.address
                         }
                     })
-                } as any,
+                },
                 mentions: mentions.map(m => m.userId),
                 hashtags: [],
             });
@@ -381,7 +381,7 @@ const PostDetailScreen: React.FC = () => {
         }
         return (
             <View>
-                {parentPost && (post as any)?.parentPostId && (
+                {parentPost && post?.parentPostId && (
                     <View className="border-b pb-3 mb-2 border-border">
                         <Text className="text-sm px-4 py-2 font-medium text-muted-foreground">Replying to</Text>
                         <PostItem
@@ -450,8 +450,8 @@ const PostDetailScreen: React.FC = () => {
                 image={postImage}
                 type="article"
                 author={postAuthor}
-                publishedTime={(post as any)?.createdAt}
-                modifiedTime={(post as any)?.updatedAt}
+                publishedTime={post?.metadata?.createdAt}
+                modifiedTime={post?.metadata?.updatedAt}
             />
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -497,7 +497,7 @@ const PostDetailScreen: React.FC = () => {
                     <View>
                         <View className="flex-row items-start gap-2">
                             <View className="pt-2">
-                                <Avatar source={(user as any)?.avatar} size={36} />
+                                <Avatar source={user?.avatar} size={36} />
                             </View>
                             <View className="flex-1">
                                 <MentionTextInput
