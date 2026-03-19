@@ -61,6 +61,7 @@ const ConnectionStatus: React.FC = () => {
     <Animated.View
       style={[
         styles.container,
+        Platform.select({ web: { position: 'sticky' } }),
         {
           backgroundColor,
           paddingTop: insets.top > 0 ? insets.top : 4,
@@ -75,7 +76,7 @@ const ConnectionStatus: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    position: Platform.OS === 'web' ? ('sticky' as never) : 'absolute',
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
