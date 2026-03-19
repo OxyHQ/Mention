@@ -3,13 +3,15 @@ import { Image, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
+import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
   : null;
 
-const CARD_WIDTH = 280;
-const CARD_HEIGHT = 180;
+const MIN_WIDTH = 100;
+
+const aspectRatioCache = new Map<string, number>();
 
 interface PostAttachmentMediaProps {
   type: 'image' | 'video' | 'gif';
@@ -48,33 +50,43 @@ const PostAttachmentVideo: React.FC<{
   );
 };
 
-const MIN_WIDTH = 100;
-
 const PostAttachmentImage: React.FC<{
   src: string;
-  hasSingleMedia?: boolean;
-  hasMultipleMedia?: boolean;
 }> = ({ src }) => {
   const theme = useTheme();
-  const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(
+    () => aspectRatioCache.get(src)
+  );
 
   useEffect(() => {
+    if (aspectRatioCache.has(src)) {
+      setAspectRatio(aspectRatioCache.get(src));
+      return;
+    }
+    let cancelled = false;
     Image.getSize(
       src,
       (width, height) => {
+        if (cancelled) return;
         if (width > 0 && height > 0) {
-          setAspectRatio(width / height);
+          const ratio = width / height;
+          aspectRatioCache.set(src, ratio);
+          setAspectRatio(ratio);
         }
       },
       () => {
-        setAspectRatio(4 / 3);
+        if (cancelled) return;
+        const fallback = 4 / 3;
+        aspectRatioCache.set(src, fallback);
+        setAspectRatio(fallback);
       }
     );
+    return () => { cancelled = true; };
   }, [src]);
 
   const computedWidth = aspectRatio !== undefined
-    ? Math.max(CARD_HEIGHT * aspectRatio, MIN_WIDTH)
-    : CARD_WIDTH;
+    ? Math.max(MEDIA_CARD_HEIGHT * aspectRatio, MIN_WIDTH)
+    : MEDIA_CARD_WIDTH;
 
   return (
     <LazyImage
@@ -83,14 +95,14 @@ const PostAttachmentImage: React.FC<{
         styles.itemContainer,
         webGrabCursorStyle,
         { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary,
-          height: CARD_HEIGHT, width: computedWidth },
+          height: MEDIA_CARD_HEIGHT, width: computedWidth },
       ]}
       style={{ width: '100%' as unknown as number, height: '100%' as unknown as number }}
       resizeMode="cover"
       placeholder={
         <View
           className="bg-secondary justify-center items-center"
-          style={{ width: computedWidth, height: CARD_HEIGHT }}
+          style={{ width: computedWidth, height: MEDIA_CARD_HEIGHT }}
         />
       }
       threshold={300}
@@ -101,7 +113,6 @@ const PostAttachmentImage: React.FC<{
 const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   type,
   src,
-  mediaId,
   postId,
   onPress,
   hasSingleMedia,
@@ -119,13 +130,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     );
   }
 
-  return (
-    <PostAttachmentImage
-      src={src}
-      hasSingleMedia={hasSingleMedia}
-      hasMultipleMedia={hasMultipleMedia}
-    />
-  );
+  return <PostAttachmentImage src={src} />;
 };
 
 const styles = StyleSheet.create({
@@ -135,10 +140,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   videoPreserveAspect: {
-    width: CARD_WIDTH,
+    width: MEDIA_CARD_WIDTH,
   },
   videoMultipleMedia: {
-    height: CARD_HEIGHT,
+    height: MEDIA_CARD_HEIGHT,
     alignSelf: 'flex-start',
   },
 });

@@ -1,12 +1,11 @@
 import React from 'react';
 import { View, Text, ViewStyle, Platform } from 'react-native';
 import PollCard from '../PollCard';
+import { MEDIA_MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
   : null;
-
-const CARD_WIDTH = 280;
 
 interface PostAttachmentPollProps {
   pollId?: string;
@@ -25,7 +24,7 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollDat
     >
       {pollId ? (
         // Use interactive PollCard when we have a pollId
-        <PollCard pollId={pollId} width={CARD_WIDTH} />
+        <PollCard pollId={pollId} width={MEDIA_CARD_WIDTH} />
       ) : pollData ? (
         // Fallback to simple display if we only have poll data without ID
         <View className="bg-secondary p-4 rounded-[15px]">
