@@ -192,7 +192,26 @@ export default function SearchIndex() {
                 } else {
                     const fetchMap: Record<string, () => Promise<any>> = {
                         posts: () => searchService.searchPosts(searchQuery),
-                        users: () => searchService.searchUsers(searchQuery),
+                        users: async () => {
+                            const [localUsers, fedResults] = await Promise.all([
+                                searchService.searchUsers(searchQuery),
+                                federationService.isFediverseHandle(searchQuery)
+                                    ? federationService.searchActors(searchQuery)
+                                    : Promise.resolve([]),
+                            ]);
+                            const fedUsers = fedResults.map((actor: any) => ({
+                                id: actor.actorUri,
+                                username: actor.handle,
+                                name: actor.displayName,
+                                avatar: actor.avatarUrl,
+                                bio: actor.bio?.replace(/<[^>]*>/g, ''),
+                                verified: false,
+                                isFederated: true,
+                                instance: actor.instance,
+                                actorUri: actor.actorUri,
+                            }));
+                            return [...fedUsers, ...(localUsers || [])];
+                        },
                         feeds: () => searchService.searchFeeds(searchQuery),
                         hashtags: () => searchService.searchHashtags(searchQuery),
                         lists: () => searchService.searchLists(searchQuery),

@@ -12,6 +12,7 @@ import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTEXT,
   AP_CONTENT_TYPE,
+  AP_ACCEPT_TYPES,
   USER_AGENT,
   actorUrl,
   isBlockedDomain,
@@ -50,7 +51,7 @@ class FederationService {
         links?: Array<{ rel?: string; type?: string; href?: string }>;
       };
       const link = data.links?.find(
-        (l) => l.rel === 'self' && l.type === 'application/activity+json'
+        (l) => l.rel === 'self' && l.type && AP_ACCEPT_TYPES.includes(l.type)
       );
       return link?.href || null;
     } catch (err) {
