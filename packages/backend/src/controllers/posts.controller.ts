@@ -1160,6 +1160,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       post.content.text = text;
       // Re-extract hashtags when text changes
       post.hashtags = mergeHashtags(text || '', hashtags || post.hashtags);
+      // Reset topic extraction so the service re-processes this post
+      post.extracted = undefined;
     }
     if (media !== undefined) {
       const normalizedMedia = normalizeMediaItems(media);

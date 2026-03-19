@@ -3,20 +3,7 @@ import Trending, { TrendingType, ITrending } from '../models/Trending';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
-import { aliaJSON } from '../utils/alia';
-
-interface AITrendItem {
-  type: 'topic' | 'entity';
-  name: string;
-  description: string;
-  relevanceScore: number;
-}
-
-interface AITrendResponse {
-  trends: AITrendItem[];
-  trendDescriptions: Record<string, string>;
-  summary: string;
-}
+import { aliaChat } from '../utils/alia';
 
 interface TrendItem {
   type: TrendingType;
@@ -27,30 +14,11 @@ interface TrendItem {
   momentum: number;
 }
 
-const TREND_ANALYSIS_PROMPT = `You are a social media trend analyst. Analyze the following recent posts and identify what is currently trending.
-
-Return a JSON object with three keys:
-
-"trends": array of up to 10 objects, each with:
-- type: "topic" (abstract theme like politics, sports, tech) or "entity" (specific person, place, organization, or event)
-- name: A short, clear label (e.g., "Barcelona", "Donald Trump", "Justin Bieber Wedding", "Climate Summit")
-- description: 1-2 sentences explaining why this is trending based on the posts
-- relevanceScore: 1-10 how prominently this appears across posts
-
-"trendDescriptions": object mapping each trend name (from the "Current hashtags" list) to a 1-sentence description of why it is trending based on the posts. Use the trend name without the # as the key.
-
-"summary": 1-2 sentences summarizing what people are talking about right now. Be natural and engaging. Vary the phrasing.
-
-Do not include hashtags in the trends array (those are tracked separately). Return ONLY valid JSON.`;
-
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
   private readonly REDIS_CACHE_TTL = 1800; // 30 minutes in seconds
   private readonly CALCULATION_INTERVAL = 1800000; // 30 minutes in milliseconds
   private readonly CLEANUP_DAYS = 30; // Remove trends older than 30 days
-  private readonly MAX_POSTS_FOR_AI = 200;
-  private readonly MAX_POST_TEXT_LENGTH = 200;
-  private readonly MAX_CORPUS_LENGTH = 20000;
 
   /**
    * Initialize the service and start periodic calculations.
@@ -106,7 +74,7 @@ class TrendingService {
   }
 
   /**
-   * Main calculation: aggregate hashtags + generate AI trends, then save as a batch.
+   * Main calculation: aggregate hashtags + topics from extracted post data, then save as a batch.
    */
   public async calculateTrending(): Promise<void> {
     try {
@@ -114,25 +82,20 @@ class TrendingService {
 
       const calculatedAt = new Date();
       const hashtagTrends = await this.aggregateHashtags();
-      const { trends: aiTrends, trendDescriptions, summary } = await this.generateAITrends(hashtagTrends);
+      const topicTrends = await this.aggregateTopics();
 
-      // Merge AI-generated descriptions into hashtag trends
-      if (trendDescriptions) {
-        for (const trend of hashtagTrends) {
-          const desc = trendDescriptions[trend.name] || trendDescriptions[trend.name.toLowerCase()];
-          if (desc) {
-            trend.description = desc;
-          }
-        }
-      }
+      const allTrends: TrendItem[] = [...hashtagTrends, ...topicTrends];
 
-      const allTrends: TrendItem[] = [...hashtagTrends, ...aiTrends];
+      // Generate AI summary from top trend names
+      const topTopicNames = topicTrends.slice(0, 10).map(t => t.name);
+      const topHashtagNames = hashtagTrends.slice(0, 10).map(h => `#${h.name}`);
+      const summary = await this.generateSummary([...topTopicNames, ...topHashtagNames]);
 
       await this.saveTrendingBatch(allTrends, calculatedAt);
       await TrendBatch.create({ calculatedAt, summary });
 
       logger.info(
-        `[Trending] Saved batch: ${hashtagTrends.length} hashtags + ${aiTrends.length} AI trends`,
+        `[Trending] Saved batch: ${hashtagTrends.length} hashtags + ${topicTrends.length} topics`,
       );
 
       await this.invalidateCache();
@@ -193,95 +156,87 @@ class TrendingService {
   }
 
   /**
-   * Use Alia AI to identify trending topics/entities and generate a summary.
-   * Single API call returns both trends and summary. Falls back gracefully.
+   * Aggregate trending topics from pre-extracted post data.
+   * Uses the `extracted.topics` subdocument on each Post.
    */
-  private async generateAITrends(
-    hashtagTrends: TrendItem[],
-  ): Promise<{ trends: TrendItem[]; trendDescriptions: Record<string, string>; summary: string }> {
-    if (!process.env.ALIA_API_KEY) {
-      logger.debug('[Trending] ALIA_API_KEY not set, skipping AI trend generation');
-      return { trends: [], trendDescriptions: {}, summary: '' };
+  private async aggregateTopics(): Promise<TrendItem[]> {
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+
+    const topicCounts = await Post.aggregate([
+      {
+        $match: {
+          'extracted.extractedAt': { $gte: oneDayAgo },
+          'extracted.topics': { $exists: true, $ne: [] },
+        },
+      },
+      { $unwind: '$extracted.topics' },
+      {
+        $group: {
+          _id: {
+            name: '$extracted.topics.name',
+            type: '$extracted.topics.type',
+          },
+          totalRelevance: { $sum: '$extracted.topics.relevance' },
+          postCount: { $sum: 1 },
+          recentCount: {
+            $sum: { $cond: [{ $gte: ['$extracted.extractedAt', sixHoursAgo] }, 1, 0] },
+          },
+        },
+      },
+      {
+        $match: { postCount: { $gte: 2 } },
+      },
+    ]);
+
+    const trends: TrendItem[] = topicCounts.map(item => {
+      const momentum = item.postCount > 0
+        ? Math.min((item.recentCount * 4) / item.postCount, 1)
+        : 0;
+      const score = item.totalRelevance * (1 + momentum * 0.5);
+
+      return {
+        type: item._id.type === 'topic' ? TrendingType.TOPIC : TrendingType.ENTITY,
+        name: item._id.name,
+        description: '',
+        score,
+        volume: item.postCount,
+        momentum,
+      };
+    });
+
+    trends.sort((a, b) => b.score - a.score);
+    return trends.slice(0, 15);
+  }
+
+  /**
+   * Generate a lightweight AI summary from trend names.
+   */
+  private async generateSummary(trendNames: string[]): Promise<string> {
+    if (!process.env.ALIA_API_KEY || trendNames.length === 0) {
+      return '';
     }
 
     try {
-      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-
-      const posts = await Post.find({
-        createdAt: { $gte: sixHoursAgo },
-        visibility: 'public',
-        'content.text': { $exists: true, $ne: '' },
-      })
-        .select({ 'content.text': 1, createdAt: 1 })
-        .sort({ createdAt: -1 })
-        .limit(this.MAX_POSTS_FOR_AI)
-        .lean();
-
-      if (posts.length === 0) {
-        logger.debug('[Trending] No recent posts found for AI analysis');
-        return { trends: [], trendDescriptions: {}, summary: '' };
-      }
-
-      let corpus = '';
-      for (const post of posts) {
-        const text = (post as any)?.content?.text || '';
-        if (!text) continue;
-        const truncated = text.slice(0, this.MAX_POST_TEXT_LENGTH);
-        if (corpus.length + truncated.length + 1 > this.MAX_CORPUS_LENGTH) break;
-        corpus += truncated + '\n';
-      }
-
-      if (corpus.length < 50) {
-        logger.debug('[Trending] Post corpus too small for AI analysis');
-        return { trends: [], trendDescriptions: {}, summary: '' };
-      }
-
-      // Include hashtag names as context for better summary generation
-      const hashtagContext = hashtagTrends.slice(0, 10).map(h => `#${h.name}`).join(', ');
-      const userContent = hashtagContext
-        ? `Current hashtags: ${hashtagContext}\n\nPosts:\n${corpus}`
-        : `Posts:\n${corpus}`;
-
-      const aiResult = await aliaJSON<AITrendResponse>(
+      const summary = await aliaChat(
         [
-          { role: 'system', content: TREND_ANALYSIS_PROMPT },
-          { role: 'user', content: userContent },
+          {
+            role: 'system',
+            content: 'You are a social media trend analyst. Given a list of trending topics, write a 1-2 sentence summary of what people are talking about right now. Be natural and engaging. Vary the phrasing. Return ONLY the summary text.',
+          },
+          {
+            role: 'user',
+            content: `Trending: ${trendNames.join(', ')}`,
+          },
         ],
-        { temperature: 0.3, maxTokens: 2000 },
+        { temperature: 0.5 },
       );
 
-      const aiTrends = Array.isArray(aiResult?.trends) ? aiResult.trends : [];
-      const trendDescriptions = (aiResult?.trendDescriptions && typeof aiResult.trendDescriptions === 'object')
-        ? aiResult.trendDescriptions
-        : {};
-      const summary = typeof aiResult?.summary === 'string' ? aiResult.summary.trim() : '';
-
-      const maxHashtagScore = hashtagTrends.length > 0
-        ? hashtagTrends[0].score
-        : 10;
-
-      const trends: TrendItem[] = [];
-      for (const item of aiTrends) {
-        if (!item.name || !item.type || !item.description) continue;
-        if (item.type !== 'topic' && item.type !== 'entity') continue;
-
-        const normalizedScore = (item.relevanceScore / 10) * maxHashtagScore;
-
-        trends.push({
-          type: item.type === 'topic' ? TrendingType.TOPIC : TrendingType.ENTITY,
-          name: item.name,
-          description: item.description,
-          score: normalizedScore,
-          volume: 0,
-          momentum: 0,
-        });
-      }
-
-      logger.info(`[Trending] AI generated ${trends.length} topics/entities, ${Object.keys(trendDescriptions).length} trend descriptions`);
-      return { trends, trendDescriptions, summary };
+      return summary.trim();
     } catch (error) {
-      logger.warn('[Trending] AI trend generation failed, falling back to hashtags only:', error);
-      return { trends: [], trendDescriptions: {}, summary: '' };
+      logger.warn('[Trending] Summary generation failed:', error);
+      return '';
     }
   }
 

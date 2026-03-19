@@ -859,6 +859,15 @@ db.once("open", () => {
     logger.warn("Failed to initialize trending service", error);
   }
 
+  // Initialize Topic Extraction Service
+  try {
+    const { topicExtractionService } = require("./src/services/TopicExtractionService");
+    topicExtractionService.start();
+    logger.info("Topic extraction service started");
+  } catch (error) {
+    logger.warn("Failed to start topic extraction service", error);
+  }
+
   // Initialize Recording Cleanup Service
   try {
     const { recordingCleanupService } = require("./src/services/RecordingCleanupService");

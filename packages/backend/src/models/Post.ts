@@ -40,6 +40,10 @@ export interface IPost extends Document {
   };
   status?: 'draft' | 'published' | 'scheduled';
   scheduledFor?: Date;
+  extracted?: {
+    topics?: Array<{ name: string; type: 'topic' | 'entity'; relevance: number }>;
+    extractedAt?: Date;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -348,7 +352,16 @@ const PostSchema = new Schema<IPost>({
     },
     // Optional address string for display purposes
     address: { type: String, required: false }
-  }
+  },
+  extracted: {
+    topics: [{
+      name: { type: String, required: true },
+      type: { type: String, enum: ['topic', 'entity'], required: true },
+      relevance: { type: Number, required: true, min: 1, max: 10 },
+      _id: false,
+    }],
+    extractedAt: { type: Date },
+  },
 }, {
   timestamps: {
     createdAt: 'createdAt',
@@ -396,6 +409,7 @@ PostSchema.index({ repostOf: 1, createdAt: -1 });
 PostSchema.index({ quoteOf: 1, createdAt: -1 });
 PostSchema.index({ 'content.media': 1, createdAt: -1 });
 PostSchema.index({ createdAt: -1 }); // Default sort order
+PostSchema.index({ 'extracted.extractedAt': 1, createdAt: -1 }); // Topic extraction queue
 
 // Geospatial indexes for both location fields
 PostSchema.index({ 'content.location': '2dsphere' }); // User's shared location
