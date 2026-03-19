@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import type { User as OxyUser } from '@oxyhq/core';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -8,10 +9,10 @@ import mongoose from 'mongoose';
 import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
-import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType } from '@mention/shared-types';
+import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent } from '@mention/shared-types';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
-import ArticleModel from '../models/Article';
+import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
 import { getIO } from '../utils/socketRegistry';
 import { postHydrationService } from '../services/PostHydrationService';
@@ -241,7 +242,7 @@ const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDesc
 };
 
 interface AttachmentBuildOptions {
-  rawAttachments?: any;
+  rawAttachments?: unknown;
   media: NormalizedMediaItem[];
   includePoll?: boolean;
   includeArticle?: boolean;
@@ -290,8 +291,8 @@ const buildOrderedAttachments = ({
     });
   };
 
-  const processEntry = (entry: any) => {
-    const descriptor = normalizeAttachmentInput(entry);
+  const processEntry = (entry: unknown) => {
+    const descriptor = normalizeAttachmentInput(entry as RawAttachmentInput);
     if (!descriptor) return;
 
     switch (descriptor.type) {
@@ -329,7 +330,8 @@ const buildOrderedAttachments = ({
     rawAttachments.forEach(processEntry);
   } else if (rawAttachments) {
     // Support objects with { order: [...] }
-    const maybeOrder = (rawAttachments.order || rawAttachments.attachments || rawAttachments.attachmentOrder) as any;
+    const rawObj = rawAttachments as Record<string, unknown>;
+    const maybeOrder = rawObj.order || rawObj.attachments || rawObj.attachmentOrder;
     if (Array.isArray(maybeOrder)) {
       maybeOrder.forEach(processEntry);
     }
@@ -414,8 +416,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           latitude >= -90 && latitude <= 90 &&
           longitude >= -180 && longitude <= 180) {
         processedContentLocation = {
-          type: 'Point',
-          coordinates: [longitude, latitude], // GeoJSON format: [lng, lat]
+          type: 'Point' as const,
+          coordinates: [longitude, latitude] as [number, number],
           address: address || undefined
         };
       } else {
@@ -449,8 +451,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           latitude >= -90 && latitude <= 90 &&
           longitude >= -180 && longitude <= 180) {
         processedPostLocation = {
-          type: 'Point',
-          coordinates: [longitude, latitude], // GeoJSON format: [lng, lat]
+          type: 'Point' as const,
+          coordinates: [longitude, latitude] as [number, number],
           address: address || undefined
         };
       } else {
@@ -463,7 +465,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const normalizedMedia = normalizeMediaItems(media);
 
     // Build complete content object
-    const postContent: any = {
+    const postContent: PostContent = {
       text: text || '',
       media: normalizedMedia
     };
@@ -527,7 +529,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     }
 
     const sanitizedArticle = sanitizeArticle(content?.article || req.body.article);
-    let pendingArticleDoc: any = null;
+    let pendingArticleDoc: IArticle | null = null;
     if (sanitizedArticle) {
       pendingArticleDoc = new ArticleModel({
         createdBy: userId,
@@ -544,15 +546,15 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Handle event data
     const eventData = content?.event || req.body.event;
     const sanitizedEvent = sanitizeEventData(eventData);
-    if (sanitizedEvent) {
-      postContent.event = sanitizedEvent;
+    if (sanitizedEvent && sanitizedEvent.name && sanitizedEvent.date) {
+      postContent.event = sanitizedEvent as import('@mention/shared-types').PostEventContent;
     }
 
     // Handle room data (backward compat: also reads from space field)
     const roomData = content?.room || content?.space || req.body.room || req.body.space;
     const sanitizedRoom = sanitizeRoomData(roomData);
     if (sanitizedRoom) {
-      postContent.room = sanitizedRoom;
+      postContent.room = sanitizedRoom as import('@mention/shared-types').PostRoomContent;
     }
 
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
@@ -596,7 +598,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     // Build metadata from request
     const incomingMetadata = req.body.metadata || {};
-    const postMetadata: any = {};
+    const postMetadata: Record<string, unknown> = {};
     if (incomingMetadata.isSensitive === true) {
       postMetadata.isSensitive = true;
     }
@@ -675,7 +677,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           // Reply notification
           if (replyParentId) {
             const parent = postsMap.get(String(replyParentId));
-            const recipientId = parent?.oxyUserId?.toString?.() || (parent as any)?.oxyUserId || null;
+            const recipientId = parent?.oxyUserId?.toString?.() || null;
             if (recipientId && recipientId !== userId) {
               await createNotification({
                 recipientId,
@@ -690,7 +692,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           // Quote notification
           if (quoted_post_id) {
             const original = postsMap.get(String(quoted_post_id));
-            const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+            const recipientId = original?.oxyUserId?.toString?.() || null;
             if (recipientId && recipientId !== userId && original) {
               await createNotification({
                 recipientId,
@@ -705,7 +707,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           // Repost notification
           if (repost_of) {
             const original = postsMap.get(String(repost_of));
-            const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+            const recipientId = original?.oxyUserId?.toString?.() || null;
             if (recipientId && recipientId !== userId && original) {
               await createNotification({
                 recipientId,
@@ -747,26 +749,28 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     }
 
     // Fetch user data from Oxy
-    let userData: any = null;
+    let userData: OxyUser | null = null;
     try {
       userData = await oxyClient.getUserById(userId);
     } catch (error) {
       logger.error('Failed to fetch user data from Oxy', error);
     }
     
-    const transformedPost = post.toObject() as any;
-    transformedPost.id = String(post._id); // Add string ID for frontend
-    
-    transformedPost.user = {
+    const postObj = post.toObject();
+    const transformedPost = {
+      ...postObj,
+      id: String(post._id),
+      user: {
         id: userId,
         name: userData?.name?.full || 'Unknown User',
         handle: userData?.username || 'unknown',
-        avatar: userData?.avatar || '',
-        verified: userData?.verified || false
+        avatar: typeof userData?.avatar === 'string' ? userData.avatar : '',
+        verified: (userData as Record<string, unknown>)?.verified === true,
+      },
+      status: post.status,
+      scheduledFor: post.scheduledFor ? post.scheduledFor.toISOString() : undefined,
+      oxyUserId: undefined,
     };
-    transformedPost.status = post.status;
-    transformedPost.scheduledFor = post.scheduledFor ? post.scheduledFor.toISOString() : undefined;
-    delete transformedPost.oxyUserId;
 
     try {
       if (!isScheduled && mentions && mentions.length > 0) {
@@ -836,7 +840,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     let mainPostId: string | null = null;
 
     // Pre-fetch user data once (avoids N+1 in loop)
-    let threadUserData: any = null;
+    let threadUserData: OxyUser | null = null;
     try {
       threadUserData = await oxyClient.getUserById(userId);
     } catch (error) {
@@ -863,15 +867,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
             latitude >= -90 && latitude <= 90 &&
             longitude >= -180 && longitude <= 180) {
           processedContentLocation = {
-            type: 'Point',
-            coordinates: [longitude, latitude],
+            type: 'Point' as const,
+            coordinates: [longitude, latitude] as [number, number],
             address: address || undefined
           };
         }
       }
 
       // Build post content
-      const postContent: any = {
+      const postContent: PostContent = {
         text: content?.text || '',
         media: normalizeMediaItems(content?.media)
       };
@@ -885,7 +889,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.sources = sources;
       }
 
-      let pendingArticleDoc: any = null;
+      let pendingArticleDoc: IArticle | null = null;
       if (i === 0) {
         const sanitizedArticle = sanitizeArticle(content?.article);
         if (sanitizedArticle) {
@@ -904,14 +908,14 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Handle event data
       const threadSanitizedEvent = sanitizeEventData(content?.event);
-      if (threadSanitizedEvent) {
-        postContent.event = threadSanitizedEvent;
+      if (threadSanitizedEvent && threadSanitizedEvent.name && threadSanitizedEvent.date) {
+        postContent.event = threadSanitizedEvent as import('@mention/shared-types').PostEventContent;
       }
 
       // Handle room data (backward compat: also reads from space field)
       const threadSanitizedRoom = sanitizeRoomData(content?.room || content?.space);
       if (threadSanitizedRoom) {
-        postContent.room = threadSanitizedRoom;
+        postContent.room = threadSanitizedRoom as import('@mention/shared-types').PostRoomContent;
       }
 
       // Handle poll creation
@@ -954,7 +958,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         delete postContent.attachments;
       }
 
-      const post: any = new Post({
+      const post: InstanceType<typeof Post> = new Post({
         oxyUserId: userId,
         content: postContent,
         hashtags: uniqueTags,
@@ -1016,17 +1020,19 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       const userData = threadUserData;
 
       // Transform response
-      const transformedPost = post.toObject() as any;
-      transformedPost.id = String(post._id);
-      
-      transformedPost.user = {
-        id: userId,
-        name: userData?.name?.full || 'Unknown User',
-        handle: userData?.username || 'unknown',
-        avatar: userData?.avatar || '',
-        verified: userData?.verified || false
+      const postObj = post.toObject();
+      const transformedPost = {
+        ...postObj,
+        id: String(post._id),
+        user: {
+          id: userId,
+          name: userData?.name?.full || 'Unknown User',
+          handle: userData?.username || 'unknown',
+          avatar: typeof userData?.avatar === 'string' ? userData.avatar : '',
+          verified: (userData as Record<string, unknown>)?.verified === true,
+        },
+        oxyUserId: undefined,
       };
-      delete transformedPost.oxyUserId;
 
       createdPosts.push(transformedPost);
     }
@@ -1219,10 +1225,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     if (req.body.article !== undefined) {
       const sanitizedArticle = sanitizeArticle(req.body.article);
-      const existingArticleId = (post.content as any)?.article?.articleId;
+      const existingArticleId = post.content?.article?.articleId;
       if (sanitizedArticle) {
-        let articleDoc = existingArticleId ? await (ArticleModel as any).findOne({ _id: existingArticleId } as any).exec() : null;
-        const previousArticle = (post.content as any)?.article || {};
+        let articleDoc: IArticle | null = existingArticleId ? await ArticleModel.findOne({ _id: existingArticleId }).exec() : null;
+        const previousArticle = post.content?.article || {};
 
         if (articleDoc) {
           if (sanitizedArticle.title !== undefined) {
@@ -1250,7 +1256,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         };
       } else {
         if (existingArticleId) {
-          await (ArticleModel as any).deleteOne({ _id: existingArticleId } as any).exec();
+          await ArticleModel.deleteOne({ _id: existingArticleId }).exec();
         }
         post.content.article = undefined;
       }
@@ -1259,10 +1265,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     const updatedAttachments = buildOrderedAttachments({
       rawAttachments: attachmentUpdateInput ?? post.content.attachments,
       media: Array.isArray(post.content.media) ? post.content.media : [],
-      includePoll: Boolean((post.content as any)?.pollId),
+      includePoll: Boolean(post.content?.pollId),
       includeArticle: Boolean(post.content.article),
-      includeEvent: Boolean((post.content as any)?.event),
-      includeRoom: Boolean((post.content as any)?.room || (post.content as any)?.space),
+      includeEvent: Boolean(post.content?.event),
+      includeRoom: Boolean(post.content?.room || post.content?.space),
       includeLocation: Boolean(post.content.location),
       includeSources: Boolean(post.content.sources && post.content.sources.length)
     });
@@ -1290,17 +1296,18 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
 
     // Fallback: transform the response to match frontend expectations
-    const transformedPost = post.toObject() as any;
-
-    // For now, use placeholder user data since we don't have a User model
-    transformedPost.user = {
-        id: transformedPost.oxyUserId,
-        name: 'User', // This should come from Oxy service in the future
-        handle: transformedPost.oxyUserId, // Use oxyUserId as handle for now
-        avatar: '', // Default avatar
-        verified: false // Default to false
+    const postObj = post.toObject();
+    const transformedPost = {
+      ...postObj,
+      user: {
+        id: postObj.oxyUserId,
+        name: 'User',
+        handle: postObj.oxyUserId,
+        avatar: '',
+        verified: false,
+      },
+      oxyUserId: undefined,
     };
-    delete transformedPost.oxyUserId;
 
     res.json(transformedPost);
   } catch (error) {
@@ -1361,7 +1368,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       if (typeof quotesDisabled !== 'boolean') {
         return res.status(400).json({ message: 'quotesDisabled must be a boolean' });
       }
-      (post as any).quotesDisabled = quotesDisabled;
+      post.quotesDisabled = quotesDisabled;
     }
 
     post.markModified('metadata');
@@ -1373,7 +1380,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       hideEngagementCounts: post.metadata.hideEngagementCounts,
       replyPermission: post.replyPermission,
       reviewReplies: post.reviewReplies,
-      quotesDisabled: (post as any).quotesDisabled,
+      quotesDisabled: post.quotesDisabled,
     });
   } catch (error) {
     logger.error('Error updating post settings', error);
@@ -1400,12 +1407,12 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     try {
       await Promise.allSettled([
         // Delete associated article
-        (post as any)?.content?.article?.articleId
-          ? (ArticleModel as any).deleteOne({ _id: (post as any).content.article.articleId }).exec()
+        post.content?.article?.articleId
+          ? ArticleModel.deleteOne({ _id: post.content.article.articleId }).exec()
           : Promise.resolve(),
         // Delete associated poll
-        (post as any)?.metadata?.pollId
-          ? Poll.deleteOne({ _id: (post as any).metadata.pollId }).exec()
+        post.content?.pollId
+          ? Poll.deleteOne({ _id: post.content.pollId }).exec()
           : Promise.resolve(),
         // Delete likes for this post
         Like.deleteMany({ postId }).exec(),
@@ -1430,7 +1437,7 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
 };
 
 // Clamp vote counts to zero and persist corrections if needed
-const clampVoteCounts = async (postId: string, post: any): Promise<{ likesCount: number; downvotesCount: number }> => {
+const clampVoteCounts = async (postId: string, post: { stats?: { likesCount?: number; downvotesCount?: number } } | null): Promise<{ likesCount: number; downvotesCount: number }> => {
   const likesCount = Math.max(0, post?.stats?.likesCount ?? 0);
   const downvotesCount = Math.max(0, post?.stats?.downvotesCount ?? 0);
   const corrections: Record<string, number> = {};
@@ -1532,7 +1539,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     // Create notification for upvotes only (not downvotes)
     if (value === 1) {
       try {
-        const recipientId = likedPost?.oxyUserId?.toString?.() || (likedPost as any)?.oxyUserId || null;
+        const recipientId = likedPost?.oxyUserId?.toString?.() || null;
         if (recipientId && recipientId !== userId) {
           await createNotification({
             recipientId,
@@ -1748,7 +1755,7 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
 
     // Notify original author about repost
     try {
-      const recipientId = (originalPost as any)?.oxyUserId?.toString?.() || (originalPost as any)?.oxyUserId || null;
+      const recipientId = originalPost?.oxyUserId?.toString?.() || null;
       if (recipientId && recipientId !== userId) {
         await createNotification({
           recipientId,
@@ -1794,7 +1801,7 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
 
     // Notify original author about quote
     try {
-      const recipientId = (originalPost as any)?.oxyUserId?.toString?.() || (originalPost as any)?.oxyUserId || null;
+      const recipientId = originalPost?.oxyUserId?.toString?.() || null;
       if (recipientId && recipientId !== userId) {
         await createNotification({
           recipientId,
@@ -1830,7 +1837,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     const folderFilter = req.query.folder as string | undefined;
 
     // Get saved post IDs for the user, optionally filtered by folder
-    const bookmarkQuery: any = { userId };
+    const bookmarkQuery: Record<string, unknown> = { userId };
     if (folderFilter) {
       bookmarkQuery.folder = folderFilter;
     }
@@ -1842,7 +1849,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
 
     // Build query for posts
     // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
-    const postQuery: any = {
+    const postQuery: Record<string, unknown> = {
       _id: { $in: postIds }
     };
 
@@ -2196,13 +2203,13 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
 export const getPostLikes = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as any;
-    
+    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as Record<string, string | undefined>;
+
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    const query: any = { postId: id };
+    const query: Record<string, unknown> = { postId: id };
     if (cursor) {
       query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
@@ -2228,7 +2235,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
             id: userData.id,
             name: userData.name?.full || userData.username,
             handle: userData.username,
-            avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
+            avatar: typeof userData.avatar === 'string' ? userData.avatar : '',
             verified: userData.verified || false
           };
         } catch (error) {
@@ -2260,13 +2267,13 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
 export const getPostReposts = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as any;
-    
+    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as Record<string, string | undefined>;
+
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    const query: any = { repostOf: id, visibility: PostVisibility.PUBLIC };
+    const query: Record<string, unknown> = { repostOf: id, visibility: PostVisibility.PUBLIC };
     if (cursor) {
       query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
@@ -2293,7 +2300,7 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
             id: userData.id,
             name: userData.name?.full || userData.username,
             handle: userData.username,
-            avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
+            avatar: typeof userData.avatar === 'string' ? userData.avatar : '',
             verified: userData.verified || false
           };
         } catch (error) {
@@ -2384,16 +2391,16 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
     }
 
     // Transform posts to match frontend expectations
-    const transformedPosts = posts.map((post: any) => {
-      const userData = post.oxyUserId;
+    const transformedPosts = posts.map((post) => {
+      const userData = post.oxyUserId as unknown;
       return {
         ...post,
         user: {
-          id: typeof userData === 'object' ? userData._id : userData,
-          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
-          handle: typeof userData === 'object' ? userData.username : 'unknown',
-          avatar: typeof userData === 'object' ? userData.avatar : '',
-          verified: typeof userData === 'object' ? userData.verified : false
+          id: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)._id : userData,
+          name: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.name : 'Unknown User',
+          handle: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.username : 'unknown',
+          avatar: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.avatar : '',
+          verified: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.verified : false
         },
         isLiked: likedPostIds.includes(post._id.toString()),
         isSaved: savedPostIds.includes(post._id.toString())

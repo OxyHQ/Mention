@@ -131,7 +131,7 @@ class FeedController {
    * @param currentUserId - Current user ID for personalization
    * @returns Array of hydrated posts with user data and engagement stats
    */
-  private async transformPostsWithProfiles(posts: unknown[], currentUserId?: string, oxyClient?: OxyClient): Promise<HydratedPost[]> {
+  private async transformPostsWithProfiles(posts: object[], currentUserId?: string, oxyClient?: OxyClient): Promise<HydratedPost[]> {
     try {
       if (!posts || posts.length === 0) {
         return [];

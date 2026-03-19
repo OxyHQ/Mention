@@ -1,4 +1,4 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedRepostContext, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedRepostContext, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
@@ -9,7 +9,50 @@ import { oxy as defaultOxyClient } from '../../server';
 import { linkMetadataService } from './linkMetadataService';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
+import type { User as OxyUser } from '@oxyhq/core';
 import { assignThreadState } from './ThreadSlicingService';
+
+import { PostContent, PostMetadata } from '@mention/shared-types';
+
+/**
+ * A raw post plain-object as returned by `.lean()` or `.toObject()`.
+ * Covers all fields accessed during hydration, including federated-only fields.
+ */
+interface RawPost {
+  _id?: unknown;
+  id?: string;
+  oxyUserId?: string;
+  /** Federated posts only */
+  federatedActorId?: unknown;
+  content?: Partial<PostContent>;
+  metadata?: Partial<PostMetadata>;
+  stats?: {
+    likesCount?: number;
+    downvotesCount?: number;
+    repostsCount?: number;
+    commentsCount?: number;
+    viewsCount?: number;
+  };
+  repostOf?: unknown;
+  quoteOf?: unknown;
+  originalPostId?: unknown;
+  parentPostId?: unknown;
+  threadId?: unknown;
+  replyPermission?: string[];
+  reviewReplies?: boolean;
+  quotesDisabled?: boolean;
+  hashtags?: string[];
+  mentions?: unknown[];
+  tags?: string[];
+  visibility?: string;
+  status?: string;
+  language?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  date?: unknown;
+  /** Allow additional fields from lean/toObject results */
+  [key: string]: unknown;
+}
 
 interface HydrationOptions {
   viewerId?: string;
@@ -21,7 +64,7 @@ interface HydrationOptions {
 }
 
 interface HydratedGraphNode {
-  post: any;
+  post: RawPost;
   depth: number;
 }
 
@@ -45,6 +88,12 @@ interface ViewerContext {
   privateProfileIds: Set<string>;
 }
 
+interface ExtendedViewerContext extends ViewerContext {
+  includeFullArticleBody?: boolean;
+  includeFullMetadata?: boolean;
+  _authorPrivacyCache?: Map<string, typeof DEFAULT_PRIVACY>;
+}
+
 const DEFAULT_PRIVACY = {
   hideLikeCounts: false,
   hideShareCounts: false,
@@ -53,7 +102,8 @@ const DEFAULT_PRIVACY = {
 };
 
 export class PostHydrationService {
-  async hydratePosts(rawPosts: any[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async hydratePosts(rawPosts: object[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
     if (!Array.isArray(rawPosts) || rawPosts.length === 0) {
       return [];
     }
@@ -62,8 +112,8 @@ export class PostHydrationService {
     const viewerContext = await this.buildViewerContext(rawPosts, options.viewerId, options);
 
     const initialPosts = rawPosts
-      .map((post) => (typeof post?.toObject === 'function' ? post.toObject() : post))
-      .filter((post) => post && (post.oxyUserId || (post as any).federatedActorId)
+      .map((p): RawPost => (typeof (p as { toObject?: () => RawPost }).toObject === 'function' ? (p as { toObject: () => RawPost }).toObject() : p as RawPost))
+      .filter((post) => post && (post.oxyUserId || post.federatedActorId)
         && (!post.oxyUserId || !viewerContext.blockedIds.has(String(post.oxyUserId))));
 
     if (initialPosts.length === 0) {
@@ -151,13 +201,13 @@ export class PostHydrationService {
     if (slices.length === 0) return [];
 
     // Collect ALL posts from ALL slices into a flat array for batch hydration
-    const allRawPosts: any[] = [];
+    const allRawPosts: object[] = [];
     const postIdToSlicePositions = new Map<string, Array<{ sliceIdx: number; itemIdx: number }>>();
 
     for (let si = 0; si < slices.length; si++) {
       for (let ii = 0; ii < slices[si].items.length; ii++) {
-        const rawPost = slices[si].items[ii].post;
-        const postId = rawPost?.id || (rawPost as any)?._id?.toString() || '';
+        const rawPost = slices[si].items[ii].post as unknown as RawPost;
+        const postId = (rawPost?.id as string | undefined) || (rawPost?._id ? String(rawPost._id) : '') || '';
         if (!postId) continue;
 
         allRawPosts.push(rawPost);
@@ -182,7 +232,8 @@ export class PostHydrationService {
     for (const slice of slices) {
       const hydratedItems: FeedSliceItem[] = [];
       for (const item of slice.items) {
-        const postId = item.post?.id || (item.post as any)?._id?.toString() || '';
+        const itemPost = item.post as unknown as RawPost;
+        const postId = (itemPost?.id as string | undefined) || (itemPost?._id ? String(itemPost._id) : '') || '';
         const hydrated = hydratedMap.get(postId);
         if (hydrated) {
           hydratedItems.push({
@@ -213,8 +264,8 @@ export class PostHydrationService {
     return result;
   }
 
-  private async buildViewerContext(posts: any[], viewerId?: string, options?: HydrationOptions): Promise<ViewerContext & { includeFullArticleBody?: boolean; includeFullMetadata?: boolean }> {
-    const context: ViewerContext & { includeFullArticleBody?: boolean; includeFullMetadata?: boolean } = {
+  private async buildViewerContext(posts: object[], viewerId?: string, options?: HydrationOptions): Promise<ExtendedViewerContext> {
+    const context: ExtendedViewerContext = {
       viewerId,
       privacyPreferences: { ...DEFAULT_PRIVACY },
       blockedIds: new Set<string>(),
@@ -232,7 +283,7 @@ export class PostHydrationService {
 
     // Collect unique author IDs for profile visibility check
     const authorIds = Array.from(
-      new Set(posts.map((p) => p?.oxyUserId).filter(Boolean).map((id) => String(id))),
+      new Set(posts.map((p) => (p as RawPost)?.oxyUserId).filter(Boolean).map((id) => String(id))),
     );
 
     // Load ALL author settings in one query (profile visibility + engagement privacy)
@@ -249,17 +300,17 @@ export class PostHydrationService {
           const authorId = String(s.oxyUserId);
 
           // Track private profiles
-          const vis = (s as any).privacy?.profileVisibility;
+          const vis = s.privacy?.profileVisibility;
           if (vis === 'private' || vis === 'followers_only') {
             context.privateProfileIds.add(authorId);
           }
 
           // Cache engagement privacy for buildAuthorPrivacyMap
           authorPrivacyCache.set(authorId, {
-            hideLikeCounts: Boolean((s as any).privacy?.hideLikeCounts),
-            hideShareCounts: Boolean((s as any).privacy?.hideShareCounts),
-            hideReplyCounts: Boolean((s as any).privacy?.hideReplyCounts),
-            hideSaveCounts: Boolean((s as any).privacy?.hideSaveCounts),
+            hideLikeCounts: Boolean(s.privacy?.hideLikeCounts),
+            hideShareCounts: Boolean(s.privacy?.hideShareCounts),
+            hideReplyCounts: Boolean(s.privacy?.hideReplyCounts),
+            hideSaveCounts: Boolean(s.privacy?.hideSaveCounts),
           });
         }
 
@@ -270,7 +321,7 @@ export class PostHydrationService {
           }
         }
 
-        (context as any)._authorPrivacyCache = authorPrivacyCache;
+        context._authorPrivacyCache = authorPrivacyCache;
       } catch (error) {
         logger.warn('[PostHydration] Failed to load author settings:', error);
       }
@@ -317,11 +368,11 @@ export class PostHydrationService {
     try {
       const oxyForFollows = client || defaultOxyClient;
       const [followingResponse, followersResponse] = await Promise.all([
-        oxyForFollows.getUserFollowing(viewerId).catch((error: any) => {
+        oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
           logger.warn('[PostHydration] getUserFollowing failed:', error);
           return [];
         }),
-        oxyForFollows.getUserFollowers(viewerId).catch((error: any) => {
+        oxyForFollows.getUserFollowers(viewerId).catch((error: unknown) => {
           logger.warn('[PostHydration] getUserFollowers failed:', error);
           return [];
         }),
@@ -337,14 +388,14 @@ export class PostHydrationService {
   }
 
   private async collectPostsWithDepth(
-    initialPosts: any[],
+    initialPosts: RawPost[],
     maxDepth: number,
     blockedIds: Set<string>,
   ): Promise<Map<string, HydratedGraphNode>> {
     const result = new Map<string, HydratedGraphNode>();
     const visited = new Set<string>();
 
-    let currentLevel = initialPosts.map((post) => ({ post, depth: 0 }));
+    let currentLevel = initialPosts.map((post): HydratedGraphNode => ({ post, depth: 0 }));
 
     for (let depth = 0; depth <= maxDepth && currentLevel.length > 0; depth++) {
       const nextIdMap = new Map<string, number>();
@@ -399,16 +450,17 @@ export class PostHydrationService {
     return result;
   }
 
-  private extractReferenceIds(post: any): string[] {
+  private extractReferenceIds(post: RawPost): string[] {
     const ids: string[] = [];
-    const maybePush = (value: any) => {
+    const maybePush = (value: unknown) => {
       if (!value) return;
       if (typeof value === 'string') {
         ids.push(value);
         return;
       }
       if (typeof value === 'object') {
-        const refId = value._id ?? value.id ?? value.postId;
+        const obj = value as Record<string, unknown>;
+        const refId = obj._id ?? obj.id ?? obj.postId;
         if (refId) {
           ids.push(String(refId));
         }
@@ -423,7 +475,7 @@ export class PostHydrationService {
     return ids.filter(Boolean);
   }
 
-  private resolveId(post: any): string {
+  private resolveId(post: RawPost): string {
     if (!post) return '';
     if (typeof post.id === 'string') return post.id;
     if (post._id) return String(post._id);
@@ -443,7 +495,7 @@ export class PostHydrationService {
         Post.find({ oxyUserId: viewerId, repostOf: { $in: postIds } }).select('repostOf').lean(),
       ]);
 
-      likes.forEach((like: any) => {
+      likes.forEach((like) => {
         const id = like?.postId ? String(like.postId) : undefined;
         if (!id) return;
         const value = like.value ?? 1;
@@ -454,13 +506,13 @@ export class PostHydrationService {
         }
       });
 
-      bookmarks.forEach((bookmark: any) => {
+      bookmarks.forEach((bookmark) => {
         const id = bookmark?.postId ? String(bookmark.postId) : undefined;
         if (id) viewerContext.savedPosts.add(id);
       });
 
-      reposts.forEach((post: any) => {
-        const id = post?.repostOf ? String(post.repostOf) : undefined;
+      reposts.forEach((repost) => {
+        const id = repost?.repostOf ? String(repost.repostOf) : undefined;
         if (id) viewerContext.repostedPosts.add(id);
       });
     } catch (error) {
@@ -468,13 +520,13 @@ export class PostHydrationService {
     }
   }
 
-  private async buildPollMap(nodes: HydratedGraphNode[]): Promise<Map<string, any>> {
+  private async buildPollMap(nodes: HydratedGraphNode[]): Promise<Map<string, Record<string, unknown>>> {
     const pollIds = Array.from(
       new Set(
         nodes
-          .map(({ post }) => post?.content?.pollId || post?.metadata?.pollId)
+          .map(({ post }) => post?.content?.pollId)
           .filter(Boolean)
-          .map((id: any) => String(id)),
+          .map((id) => String(id)),
       ),
     );
 
@@ -484,7 +536,7 @@ export class PostHydrationService {
 
     try {
       const polls = await Poll.find({ _id: { $in: pollIds } }).lean();
-      const map = new Map<string, any>();
+      const map = new Map<string, Record<string, unknown>>();
 
       polls.forEach((poll) => {
         const id = poll?._id ? String(poll._id) : undefined;
@@ -492,15 +544,15 @@ export class PostHydrationService {
 
         map.set(id, {
           question: poll.question,
-          options: poll.options.map((opt: any) => opt.text),
+          options: poll.options.map((opt) => opt.text),
           endTime: poll.endsAt?.toISOString?.() ?? poll.endsAt ?? new Date().toISOString(),
-          votes: poll.options.reduce((acc: Record<string, number>, opt: any, index: number) => {
+          votes: poll.options.reduce((acc: Record<string, number>, opt, index) => {
             acc[String(index)] = Array.isArray(opt.votes) ? opt.votes.length : 0;
             return acc;
           }, {}),
-          userVotes: poll.options.reduce((acc: Record<string, string>, opt: any, index: number) => {
+          userVotes: poll.options.reduce((acc: Record<string, string>, opt, index) => {
             if (Array.isArray(opt.votes)) {
-              opt.votes.forEach((userId: any) => {
+              opt.votes.forEach((userId) => {
                 if (userId) {
                   acc[String(userId)] = String(index);
                 }
@@ -529,8 +581,8 @@ export class PostHydrationService {
     const federatedActorIds = new Set<string>();
 
     for (const { post } of nodes) {
-      if ((post as any)?.federatedActorId) {
-        federatedActorIds.add(String((post as any).federatedActorId));
+      if (post?.federatedActorId) {
+        federatedActorIds.add(String(post?.federatedActorId));
       } else if (post?.oxyUserId) {
         localUserIds.add(String(post.oxyUserId));
       }
@@ -578,12 +630,14 @@ export class PostHydrationService {
       await Promise.all(
         userIds.map(async (userId) => {
           try {
-            const userData: any = await defaultOxyClient.getUserById(userId);
+            const userData: OxyUser = await defaultOxyClient.getUserById(userId);
             const username: string = String(userData?.username || userData?.handle || userId);
             const displayName: string = String(userData?.name?.full || userData?.displayName || username || userId);
             const avatarValue: string | undefined = typeof userData?.avatar === 'string'
               ? userData.avatar
-              : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
+              : typeof (userData as Record<string, unknown>)?.profileImage === 'string'
+                ? (userData as Record<string, unknown>).profileImage as string
+                : undefined;
 
             userMap.set(userId, {
               id: String(userData?.id || userId),
@@ -593,7 +647,7 @@ export class PostHydrationService {
               avatarUrl: avatarValue,
               avatar: avatarValue,
               badges: Array.isArray(userData.badges)
-                ? userData.badges.map((badge: any) => (typeof badge === 'string' ? badge : badge?.name)).filter(Boolean)
+                ? userData.badges.map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined)).filter((b): b is string => typeof b === 'string')
                 : undefined,
               isVerified: Boolean(userData.verified || userData.isVerified),
             });
@@ -697,7 +751,7 @@ export class PostHydrationService {
     viewerContext?: ViewerContext,
   ): Promise<Map<string, typeof DEFAULT_PRIVACY>> {
     // Use pre-fetched cache from buildViewerContext if available
-    const cached = (viewerContext as any)?._authorPrivacyCache as Map<string, typeof DEFAULT_PRIVACY> | undefined;
+    const cached = (viewerContext as ExtendedViewerContext)?._authorPrivacyCache;
     if (cached && cached.size > 0) {
       // Ensure all authors in current nodes are covered (some may be from depth>0 fetches)
       const authorIds = Array.from(
@@ -815,7 +869,7 @@ export class PostHydrationService {
 
       for (const entry of recentReplies) {
         const parentId = String(entry._id);
-        const ids = (entry.replierIds || []).map((id: any) => String(id));
+        const ids = (entry.replierIds as unknown[] || []).map((id) => String(id));
         perPostRepliers.set(parentId, ids);
         for (const id of ids) {
           allReplierIds.add(id);
@@ -907,10 +961,12 @@ export class PostHydrationService {
         await Promise.all(
           Array.from(allReplierIds).map(async (userId) => {
             try {
-              const userData: any = await defaultOxyClient.getUserById(userId);
+              const userData: OxyUser = await defaultOxyClient.getUserById(userId);
               const avatarValue = typeof userData?.avatar === 'string'
                 ? userData.avatar
-                : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
+                : typeof (userData as Record<string, unknown>)?.profileImage === 'string'
+                  ? (userData as Record<string, unknown>).profileImage as string
+                  : undefined;
               userMap.set(userId, {
                 id: String(userData?.id || userId),
                 handle: String(userData?.username || userData?.handle || userId),
@@ -949,9 +1005,9 @@ export class PostHydrationService {
   }
 
   private async buildPostSummary(params: {
-    post: any;
+    post: RawPost;
     viewerContext: ViewerContext;
-    pollMap: Map<string, any>;
+    pollMap: Map<string, Record<string, unknown>>;
     userMap: Map<string, PostActorSummary>;
     mentionCache: Map<string, PostActorSummary>;
     linkPreviewMap: Map<string, PostLinkPreview>;
@@ -966,13 +1022,13 @@ export class PostHydrationService {
     // Resolve author ID: use oxyUserId for local posts, federatedActorId for federated posts
     const authorId = post?.oxyUserId
       ? String(post.oxyUserId)
-      : (post as any)?.federatedActorId
-        ? String((post as any).federatedActorId)
+      : post?.federatedActorId
+        ? String(post?.federatedActorId)
         : undefined;
     if (!authorId) return null;
 
     // Privacy checks only apply to local users (federated posts are public by definition)
-    const isFederatedPost = !!(post as any)?.federatedActorId;
+    const isFederatedPost = !!post?.federatedActorId;
     if (!isFederatedPost) {
       if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
         return null;
@@ -1009,29 +1065,29 @@ export class PostHydrationService {
     const engagement = this.buildEngagement(post, authorPrivacy, replierAvatars);
 
     // Only include essential metadata for feed performance
-    const includeFullMetadata = (params.viewerContext as any).includeFullMetadata !== false;
+    const includeFullMetadata = (params.viewerContext as ExtendedViewerContext).includeFullMetadata !== false;
     const metadata = {
-      visibility: post.visibility,
-      replyPermission: post.replyPermission,
+      visibility: (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility,
+      replyPermission: post.replyPermission as import('@mention/shared-types').ReplyPermission[] | undefined,
       reviewReplies: Boolean(post.reviewReplies),
-      quotesDisabled: Boolean((post as any).quotesDisabled),
+      quotesDisabled: Boolean(post.quotesDisabled),
       isPinned: Boolean(post.metadata?.isPinned),
       isSensitive: Boolean(post.metadata?.isSensitive),
       isThread: Boolean(post.threadId),
       language: post.language || undefined,
       // Only include tags/hashtags if needed (can be large arrays)
       tags: includeFullMetadata && Array.isArray(post.tags) && post.tags.length > 0 ? post.tags : undefined,
-      mentions: includeFullMetadata && Array.isArray(post.mentions) && post.mentions.length > 0 ? post.mentions : undefined,
+      mentions: includeFullMetadata && Array.isArray(post.mentions) && post.mentions.length > 0 ? post.mentions.filter((m): m is string => typeof m === 'string') : undefined,
       hashtags: includeFullMetadata && Array.isArray(post.hashtags) && post.hashtags.length > 0 ? post.hashtags : undefined,
-      createdAt: new Date(post.createdAt || post.date || Date.now()).toISOString(),
-      updatedAt: new Date(post.updatedAt || post.createdAt || Date.now()).toISOString(),
-      status: post.status,
+      createdAt: new Date((post.createdAt || post.date || Date.now()) as string | number | Date).toISOString(),
+      updatedAt: new Date((post.updatedAt || post.createdAt || Date.now()) as string | number | Date).toISOString(),
+      status: post.status as 'draft' | 'published' | 'scheduled' | undefined,
     };
 
     // Always replace mentions in text if they exist, regardless of includeFullMetadata
     // This ensures mentions are always displayed correctly
-    let finalText = content?.text ?? '';
-    const postMentions = Array.isArray(post.mentions) && post.mentions.length > 0 ? post.mentions : [];
+    let finalText = typeof content?.text === 'string' ? content.text : '';
+    const postMentions: string[] = Array.isArray(post.mentions) && post.mentions.length > 0 ? (post.mentions as string[]) : [];
     if (postMentions.length > 0 && finalText.includes('[mention:')) {
       finalText = await this.replaceMentionPlaceholders(
         finalText,
@@ -1059,28 +1115,31 @@ export class PostHydrationService {
     };
   }
 
-  private buildContent(post: any, pollMap: Map<string, any>, viewerContext?: ViewerContext): any {
+  private buildContent(post: RawPost, pollMap: Map<string, Record<string, unknown>>, viewerContext?: ViewerContext): Record<string, unknown> {
     const baseContent = post?.content ?? {};
 
     const media = Array.isArray(baseContent.media)
       ? baseContent.media
-          .map((item: any) => {
+          .map((item: unknown) => {
             if (!item) return undefined;
             if (typeof item === 'string') {
               return { id: item, type: 'image' };
             }
-            if (typeof item === 'object' && item.id) {
-              return {
-                id: String(item.id),
-                type: item.type === 'video' || item.type === 'gif' ? item.type : 'image',
-              };
+            if (typeof item === 'object') {
+              const obj = item as Record<string, unknown>;
+              if (obj.id) {
+                return {
+                  id: String(obj.id),
+                  type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image' as const,
+                };
+              }
             }
             return undefined;
           })
           .filter(Boolean)
       : undefined;
 
-    const pollId = baseContent.pollId || post?.metadata?.pollId;
+    const pollId = baseContent.pollId;
     const poll = pollId ? pollMap.get(String(pollId)) : undefined;
 
     return {
@@ -1091,11 +1150,11 @@ export class PostHydrationService {
       // For feed, only include article metadata, not full body (saves bandwidth)
       article: baseContent.article
         ? {
-            articleId: baseContent.article.articleId || baseContent.article.id,
+            articleId: baseContent.article.articleId,
             title: baseContent.article.title,
             excerpt: baseContent.article.excerpt,
             // Only include body if explicitly requested (e.g., for detail view)
-            ...((viewerContext as any)?.includeFullArticleBody && baseContent.article.body
+            ...((viewerContext as ExtendedViewerContext)?.includeFullArticleBody && baseContent.article.body
               ? { body: baseContent.article.body }
               : {}),
           }
@@ -1108,33 +1167,36 @@ export class PostHydrationService {
     };
   }
 
-  private buildAttachments(post: any, pollMap: Map<string, any>): PostAttachmentBundle {
+  private buildAttachments(post: RawPost, pollMap: Map<string, Record<string, unknown>>): PostAttachmentBundle {
     const content = post?.content ?? {};
     const attachments: PostAttachmentBundle = {};
 
     if (Array.isArray(content.media) && content.media.length > 0) {
       attachments.media = content.media
-        .map((item: any) => {
+        .map((item: unknown) => {
           if (!item) return undefined;
           if (typeof item === 'string') {
             return { id: String(item), type: 'image' as const };
           }
-          if (typeof item === 'object' && item.id) {
-            return {
-              id: String(item.id),
-              type: item.type === 'video' || item.type === 'gif' ? item.type : 'image',
-            };
+          if (typeof item === 'object') {
+            const obj = item as Record<string, unknown>;
+            if (obj.id) {
+              return {
+                id: String(obj.id),
+                type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image' as const,
+              };
+            }
           }
           return undefined;
         })
-        .filter(Boolean) as any;
+        .filter((x): x is import('@mention/shared-types').MediaItem => x !== undefined) as import('@mention/shared-types').MediaItem[];
     }
 
-    const pollId = content.pollId || post?.metadata?.pollId;
+    const pollId = content.pollId;
     if (pollId) {
       const poll = pollMap.get(String(pollId));
       if (poll) {
-        attachments.poll = poll;
+        attachments.poll = poll as unknown as import('@mention/shared-types').PollData;
       }
     } else if (content.poll) {
       attachments.poll = content.poll;
@@ -1142,7 +1204,7 @@ export class PostHydrationService {
 
     if (content.article) {
       attachments.article = {
-        articleId: content.article.articleId ?? content.article.id,
+        articleId: content.article.articleId,
         title: content.article.title,
         body: content.article.body,
         excerpt: content.article.excerpt,
@@ -1150,7 +1212,7 @@ export class PostHydrationService {
     }
 
     if (Array.isArray(content.sources) && content.sources.length > 0) {
-      attachments.sources = content.sources.map((source: any) => ({
+      attachments.sources = content.sources.map((source) => ({
         url: source.url,
         title: source.title,
       }));
@@ -1173,7 +1235,7 @@ export class PostHydrationService {
     const roomData = content.room ?? content.space;
     if (roomData) {
       attachments.room = {
-        roomId: roomData.roomId ?? roomData.spaceId,
+        roomId: roomData.roomId,
         title: roomData.title,
         status: roomData.status,
         topic: roomData.topic,
@@ -1196,7 +1258,7 @@ export class PostHydrationService {
     };
   }
 
-  private buildPermissions(post: any, authorId: string, viewerContext: ViewerContext): PostPermissions {
+  private buildPermissions(post: RawPost, authorId: string, viewerContext: ViewerContext): PostPermissions {
     const isOwner = viewerContext.viewerId === authorId;
     const canReply = this.computeReplyPermission(post, authorId, viewerContext);
 
@@ -1209,7 +1271,7 @@ export class PostHydrationService {
     };
   }
 
-  private computeReplyPermission(post: any, authorId: string, viewerContext: ViewerContext): boolean {
+  private computeReplyPermission(post: RawPost, authorId: string, viewerContext: ViewerContext): boolean {
     const viewerId = viewerContext.viewerId;
     if (!viewerId) return false;
     if (viewerId === authorId) return true;
@@ -1228,9 +1290,8 @@ export class PostHydrationService {
           if (viewerContext.followedBy.has(authorId)) return true;
           break;
         case 'mentioned':
-          if (Array.isArray(post?.mentions) && post.mentions.some((mention: any) => {
-            const mentionId =
-              typeof mention === 'string' ? mention : mention?.id || mention?._id || mention?.oxyUserId;
+          if (Array.isArray(post?.mentions) && post.mentions.some((mention: unknown) => {
+            const mentionId = typeof mention === 'string' ? mention : typeof mention === 'object' && mention ? String((mention as Record<string, unknown>).id || (mention as Record<string, unknown>)._id || (mention as Record<string, unknown>).oxyUserId || '') : '';
             return mentionId && String(mentionId) === viewerId;
           })) return true;
           break;
@@ -1241,7 +1302,7 @@ export class PostHydrationService {
   }
 
   private buildEngagement(
-    post: any,
+    post: RawPost,
     authorPrivacy: typeof DEFAULT_PRIVACY,
     recentReplierAvatars?: string[],
   ): PostEngagementSummary {
@@ -1269,7 +1330,7 @@ export class PostHydrationService {
   }
 
   private attachNestedContext(
-    post: any,
+    post: RawPost,
     summary: HydratedPostSummary,
     summaryMap: Map<string, HydratedPostSummary>,
     viewerContext: ViewerContext,
@@ -1305,7 +1366,7 @@ export class PostHydrationService {
     };
   }
 
-  private buildContext(post: any) {
+  private buildContext(post: RawPost) {
     if (!post?.threadId && !post?.parentPostId) {
       return undefined;
     }
@@ -1333,7 +1394,7 @@ export class PostHydrationService {
       if (typeof mentionIdRaw === 'string') {
         mentionId = mentionIdRaw;
       } else if (mentionIdRaw && typeof mentionIdRaw === 'object') {
-        const raw = mentionIdRaw as any;
+        const raw = mentionIdRaw as Record<string, unknown>;
         mentionId = String(raw?.id || raw?._id || raw || '');
       } else {
         mentionId = String(mentionIdRaw || '');
@@ -1365,7 +1426,7 @@ export class PostHydrationService {
 
           const avatarValue = typeof userData.avatar === 'string'
             ? userData.avatar
-            : (userData.avatar as any)?.url || userData.profileImage || undefined;
+            : (userData as Record<string, unknown>).profileImage as string | undefined ?? undefined;
 
           mentionCache.set(mentionId, {
             id: userData.id || mentionId,
@@ -1375,9 +1436,9 @@ export class PostHydrationService {
             avatarUrl: avatarValue,
             avatar: avatarValue,
             badges: Array.isArray(userData.badges)
-              ? userData.badges
-                  .map((badge: any) => (typeof badge === 'string' ? badge : badge?.name))
-                  .filter(Boolean)
+              ? (userData.badges as unknown[])
+                  .map((badge: unknown): string | undefined => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined))
+                  .filter((b: string | undefined): b is string => typeof b === 'string')
               : undefined,
             isVerified: Boolean(userData.verified || userData.isVerified),
           });

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
-import Room, { RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
+import Room, { IRoom, RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
 import House, { HouseMemberRole } from '../models/House';
 import { AuthRequest } from '../types/auth';
 import { getIO } from '../utils/socketRegistry';
@@ -16,7 +16,7 @@ import {
   startRoomRecording,
   stopRoomRecording,
 } from '../utils/livekit';
-import Recording, { RecordingStatus, RecordingAccess } from '../models/Recording';
+import Recording, { IRecording, RecordingStatus, RecordingAccess } from '../models/Recording';
 import { getRecordingObjectKey, uploadObject, deleteObject, getAgoraRoomImageKey } from '../utils/spaces';
 import { processImage } from '../utils/imageProcessor';
 
@@ -91,7 +91,7 @@ function clearRecordingAutoStop(roomId: string) {
  * Helper: start recording for a room and return the Recording doc.
  * Non-fatal: returns null on failure so room lifecycle can proceed.
  */
-async function startRecordingForRoom(room: any): Promise<any> {
+async function startRecordingForRoom(room: IRoom): Promise<IRecording> {
   const recording = new Recording({
     roomId: String(room._id),
     roomTitle: room.title,
@@ -123,7 +123,7 @@ async function startRecordingForRoom(room: any): Promise<any> {
 /**
  * Helper: stop recording for a room. Non-fatal.
  */
-async function stopRecordingForRoom(room: any, reason: string = 'room_ended') {
+async function stopRecordingForRoom(room: IRoom, reason: string = 'room_ended') {
   if (!room.recordingEgressId) return;
 
   const egressId = room.recordingEgressId;
