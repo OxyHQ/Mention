@@ -581,7 +581,7 @@ export default function VideosScreen() {
     }, [likePost, unlikePost, t]);
 
     const handleComment = useCallback((postId: string) => {
-        router.push(`/p/${postId}/reply`);
+        router.push(`/compose?replyToPostId=${postId}`);
     }, [router]);
 
     const handleRepost = useCallback(async (postId: string, isReposted: boolean) => {

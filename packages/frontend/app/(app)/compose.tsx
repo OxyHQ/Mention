@@ -32,7 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import { GeoJSONPoint } from '@mention/shared-types';
+import { GeoJSONPoint, HydratedPost } from '@mention/shared-types';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
@@ -97,6 +97,7 @@ import {
 } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
+import PostItem from '@/components/Feed/PostItem';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
 import { buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
@@ -136,11 +137,13 @@ const ComposeScreen = () => {
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
   const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
-  const { createPost, createThread } = usePostsStore();
+  const { createPost, createThread, createReply } = usePostsStore();
   const { t } = useTranslation();
-  const { editPostId } = useLocalSearchParams<{ editPostId?: string }>();
+  const { editPostId, replyToPostId } = useLocalSearchParams<{ editPostId?: string; replyToPostId?: string }>();
   const [isEditMode, setIsEditMode] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
+  const [replyLoading, setReplyLoading] = useState(false);
 
   // Use custom hooks for state management
   const mediaManager = useMediaManager();
@@ -457,6 +460,33 @@ const ComposeScreen = () => {
     return () => { cancelled = true; };
   }, [editPostId]);
 
+  // Load parent post when in reply mode
+  useEffect(() => {
+    if (!replyToPostId) return;
+    let cancelled = false;
+    setReplyLoading(true);
+    (async () => {
+      try {
+        const post = await usePostsStore.getState().getPostById(replyToPostId);
+        if (cancelled) return;
+        if (post) {
+          setReplyToPost(post);
+        } else {
+          logger.error(`Parent post not found: ${replyToPostId}`);
+          toast.error(t('Post not found'));
+        }
+      } catch (e) {
+        if (!cancelled) {
+          logger.error('Failed to load parent post', e);
+          toast.error(t('Failed to load post'));
+        }
+      } finally {
+        if (!cancelled) setReplyLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [replyToPostId]);
+
   const handlePost = async () => {
     if (isPosting || !user) return;
     if (scheduledAt && !scheduleEnabled) {
@@ -514,7 +544,18 @@ const ComposeScreen = () => {
       });
 
       // Send to backend
-      if (isEditMode && editPostId) {
+      if (replyToPostId) {
+        // Reply mode: submit via createReply
+        await createReply({
+          postId: replyToPostId,
+          content: {
+            text: postContent.trim(),
+            media: mediaIds.length > 0 ? mediaIds.map(m => ({ id: m.id, type: m.type })) : undefined,
+          } as any,
+          mentions: mainPost.mentions || [],
+          hashtags: mainPost.hashtags || [],
+        });
+      } else if (isEditMode && editPostId) {
         // Edit mode: update existing post
         const editData = {
           content: {
@@ -540,11 +581,13 @@ const ComposeScreen = () => {
         setCurrentDraftId(null);
       }
 
-      const successMessage = isEditMode
-        ? t('Post updated successfully')
-        : wasScheduled && scheduledAtValue
-          ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
-          : t('Post published successfully');
+      const successMessage = replyToPostId
+        ? t('Your reply has been posted!')
+        : isEditMode
+          ? t('Post updated successfully')
+          : wasScheduled && scheduledAtValue
+            ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
+            : t('Post published successfully');
       toast.success(successMessage);
 
       clearSchedule({ silent: true });
@@ -1082,7 +1125,7 @@ const ComposeScreen = () => {
               >
                 <BackArrowIcon size={20} className="text-foreground" />
               </IconButton>
-              <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : t('New post')}</Text>
+              <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
@@ -1163,6 +1206,19 @@ const ComposeScreen = () => {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+            {/* Parent post preview (reply mode) */}
+            {replyToPostId && (
+              replyLoading ? (
+                <View style={styles.replyPreviewLoading}>
+                  <Loading variant="inline" size="small" style={{ flex: undefined }} />
+                </View>
+              ) : replyToPost ? (
+                <View className="border-b border-border">
+                  <PostItem post={replyToPost} />
+                </View>
+              ) : null
+            )}
+
             <View style={styles.threadContainer}>
               {/* Main composer */}
               <View style={[styles.postContainer, focusedItemId !== 'main' && threadItems.length > 0 && styles.unfocusedItem]}>
@@ -1185,7 +1241,7 @@ const ComposeScreen = () => {
                       ref={mainTextInputRef}
                       className="text-foreground"
                       style={styles.mainTextInput}
-                      placeholder={t("What's new?")}
+                      placeholder={replyToPostId ? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' }) : t('compose.placeholder', { defaultValue: "What's new?" })}
                       value={postContent}
                       onChangeText={setPostContent}
                       onMentionsChange={setMentions}
@@ -1647,7 +1703,7 @@ const ComposeScreen = () => {
           {isPosting ? (
             <Loading variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
-            <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{isEditMode ? t('Save') : t('Post')}</Text>
+            <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{isEditMode ? t('Save') : replyToPostId ? t('Reply') : t('Post')}</Text>
           )}
         </TouchableOpacity>
 
@@ -2030,6 +2086,11 @@ const styles = StyleSheet.create({
   addToThreadText: {
     fontSize: 16,
     color: '#5e5e5e',
+  },
+  replyPreviewLoading: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Post component structure styles
   postContainer: {

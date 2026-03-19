@@ -210,7 +210,7 @@ const PostItem: React.FC<PostItemProps> = ({
             return;
         }
         if (viewPostId) {
-            router.push(`/p/${viewPostId}/reply`);
+            router.push(`/compose?replyToPostId=${viewPostId}`);
         }
     }, [onReply, router, viewPostId]);
 
