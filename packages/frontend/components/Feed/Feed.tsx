@@ -76,6 +76,12 @@ const DEFAULT_FEED_PROPS = {
     showOnlySaved: false,
 } as const;
 
+const WEB_DATA_SET = { layoutscroll: 'true' } as const;
+
+const overrideFeedItemLayout = (layout: { size?: number }) => {
+    layout.size = 250;
+};
+
 const Feed = ((props: FeedProps) => {
     const {
         type,
@@ -410,8 +416,8 @@ const Feed = ((props: FeedProps) => {
         }
     }, [forwardWheelEvent]);
 
-    // Web-specific dataSet for scroll detection - memoized once
-    const dataSetForWeb = Platform.OS === 'web' ? { layoutscroll: 'true' } : undefined;
+    // Web-specific dataSet for scroll detection
+    const dataSetForWeb = Platform.OS === 'web' ? WEB_DATA_SET : undefined;
 
     // Memoize RefreshControl to prevent recreation on every render
     const refreshControl = useMemo(() => {
@@ -426,11 +432,7 @@ const Feed = ((props: FeedProps) => {
         );
     }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary]);
 
-    // Memoize container style
-    const containerStyle = useMemo(
-        () => flattenStyleArray([styles.container]),
-        []
-    );
+    const containerStyle = styles.container;
 
     // Memoize list content style
     const listContentStyle = useMemo(
@@ -466,20 +468,20 @@ const Feed = ((props: FeedProps) => {
         } catch (retryError) {
             logger.error('Retry failed', retryError);
         }
-    }, [feedState]);
+    }, [feedState.clearError, feedState.fetchInitial]);
 
     const emptyStateComponent = useMemo(
         () => (
             <FeedEmptyState
                 isLoading={feedState.isLoading}
                 error={feedState.error}
-                hasItems={feedRows.length > 0}
+                hasItems={false}
                 type={type}
                 showOnlySaved={showOnlySaved}
                 onRetry={handleRetry}
             />
         ),
-        [feedState.isLoading, feedState.error, feedRows.length, type, showOnlySaved, handleRetry]
+        [feedState.isLoading, feedState.error, type, showOnlySaved, handleRetry]
     );
 
     // Track if we're loading more (loading while we already have items)
@@ -551,17 +553,13 @@ const Feed = ((props: FeedProps) => {
                         windowSize: 10,
                         initialNumToRender: 12,
                         updateCellsBatchingPeriod: 50,
-                        overrideItemLayout: (layout: any) => {
-                            layout.size = 250; // Estimated item size for better recycling
-                        },
+                        overrideItemLayout: overrideFeedItemLayout,
                     } as any)}
                 />
             </View>
         </ErrorBoundary>
     );
 });
-
-Feed.displayName = 'Feed';
 
 /**
  * Optimized props comparison to prevent unnecessary re-renders
@@ -597,7 +595,9 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
     return true;
 };
 
-export default memo(Feed, arePropsEqual);
+const MemoizedFeed = memo(Feed, arePropsEqual);
+MemoizedFeed.displayName = 'Feed';
+export default MemoizedFeed;
 
 const styles = StyleSheet.create({
     container: {
