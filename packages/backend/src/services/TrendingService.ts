@@ -14,7 +14,7 @@ interface AITrendItem {
 
 interface AITrendResponse {
   trends: AITrendItem[];
-  hashtagDescriptions: Record<string, string>;
+  trendDescriptions: Record<string, string>;
   summary: string;
 }
 
@@ -37,7 +37,7 @@ Return a JSON object with three keys:
 - description: 1-2 sentences explaining why this is trending based on the posts
 - relevanceScore: 1-10 how prominently this appears across posts
 
-"hashtagDescriptions": object mapping each hashtag name (from the "Current hashtags" list) to a 1-sentence description of why it is trending based on the posts. Use the hashtag name without the # as the key.
+"trendDescriptions": object mapping each trend name (from the "Current hashtags" list) to a 1-sentence description of why it is trending based on the posts. Use the trend name without the # as the key.
 
 "summary": 1-2 sentences summarizing what people are talking about right now. Be natural and engaging. Vary the phrasing.
 
@@ -114,12 +114,12 @@ class TrendingService {
 
       const calculatedAt = new Date();
       const hashtagTrends = await this.aggregateHashtags();
-      const { trends: aiTrends, hashtagDescriptions, summary } = await this.generateAITrends(hashtagTrends);
+      const { trends: aiTrends, trendDescriptions, summary } = await this.generateAITrends(hashtagTrends);
 
       // Merge AI-generated descriptions into hashtag trends
-      if (hashtagDescriptions) {
+      if (trendDescriptions) {
         for (const trend of hashtagTrends) {
-          const desc = hashtagDescriptions[trend.name] || hashtagDescriptions[trend.name.toLowerCase()];
+          const desc = trendDescriptions[trend.name] || trendDescriptions[trend.name.toLowerCase()];
           if (desc) {
             trend.description = desc;
           }
@@ -198,10 +198,10 @@ class TrendingService {
    */
   private async generateAITrends(
     hashtagTrends: TrendItem[],
-  ): Promise<{ trends: TrendItem[]; hashtagDescriptions: Record<string, string>; summary: string }> {
+  ): Promise<{ trends: TrendItem[]; trendDescriptions: Record<string, string>; summary: string }> {
     if (!process.env.ALIA_API_KEY) {
       logger.debug('[Trending] ALIA_API_KEY not set, skipping AI trend generation');
-      return { trends: [], hashtagDescriptions: {}, summary: '' };
+      return { trends: [], trendDescriptions: {}, summary: '' };
     }
 
     try {
@@ -219,7 +219,7 @@ class TrendingService {
 
       if (posts.length === 0) {
         logger.debug('[Trending] No recent posts found for AI analysis');
-        return { trends: [], hashtagDescriptions: {}, summary: '' };
+        return { trends: [], trendDescriptions: {}, summary: '' };
       }
 
       let corpus = '';
@@ -233,7 +233,7 @@ class TrendingService {
 
       if (corpus.length < 50) {
         logger.debug('[Trending] Post corpus too small for AI analysis');
-        return { trends: [], hashtagDescriptions: {}, summary: '' };
+        return { trends: [], trendDescriptions: {}, summary: '' };
       }
 
       // Include hashtag names as context for better summary generation
@@ -251,8 +251,8 @@ class TrendingService {
       );
 
       const aiTrends = Array.isArray(aiResult?.trends) ? aiResult.trends : [];
-      const hashtagDescriptions = (aiResult?.hashtagDescriptions && typeof aiResult.hashtagDescriptions === 'object')
-        ? aiResult.hashtagDescriptions
+      const trendDescriptions = (aiResult?.trendDescriptions && typeof aiResult.trendDescriptions === 'object')
+        ? aiResult.trendDescriptions
         : {};
       const summary = typeof aiResult?.summary === 'string' ? aiResult.summary.trim() : '';
 
@@ -277,11 +277,11 @@ class TrendingService {
         });
       }
 
-      logger.info(`[Trending] AI generated ${trends.length} topics/entities, ${Object.keys(hashtagDescriptions).length} hashtag descriptions`);
-      return { trends, hashtagDescriptions, summary };
+      logger.info(`[Trending] AI generated ${trends.length} topics/entities, ${Object.keys(trendDescriptions).length} trend descriptions`);
+      return { trends, trendDescriptions, summary };
     } catch (error) {
       logger.warn('[Trending] AI trend generation failed, falling back to hashtags only:', error);
-      return { trends: [], hashtagDescriptions: {}, summary: '' };
+      return { trends: [], trendDescriptions: {}, summary: '' };
     }
   }
 
