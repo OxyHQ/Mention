@@ -9,6 +9,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
 import { useUsersStore, useUserById } from "@/stores/usersStore";
+import { enrichMissingAvatars } from "@/utils/userEnrichment";
 import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
 import { getRecommendationFilters } from '@/lib/recommendationFilters';
@@ -73,16 +74,10 @@ export function WhoToFollowWidget() {
             logger.warn("Failed to cache users");
           }
 
-          // Enrich users missing avatars by fetching full profiles
-          const store = useUsersStore.getState();
-          await Promise.all(
-            users.slice(0, MAX_DISPLAY_USERS).map((user) => {
-              if (user.avatar) return;
-              return store.ensureById(
-                user.id,
-                (id) => oxyServices.getUserById(id)
-              ).catch(() => {});
-            })
+          // Fire-and-forget: avatars fill in reactively via useUserById
+          void enrichMissingAvatars(
+            users.slice(0, MAX_DISPLAY_USERS),
+            (id) => oxyServices.getUserById(id),
           );
         }
       } catch (err) {
@@ -181,13 +176,13 @@ export function WhoToFollowWidget() {
   );
 }
 
+const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
+  userId: string;
+  size?: "small" | "medium" | "large";
+}>;
+
 const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileData }) => {
   const router = useRouter();
-  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
-    userId: string;
-    size?: "small" | "medium" | "large"
-  }>;
-
   const cachedUser = useUserById(profileData.id);
 
   const displayName = useMemo(() => {

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import { useUsersStore } from '@/stores/usersStore';
+import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
 import { logger } from '@/lib/logger';
@@ -54,16 +55,10 @@ export const SuggestedUsers = memo(function SuggestedUsers({
             logger.warn('SuggestedUsers: failed to cache users');
           }
 
-          // Enrich users missing avatars by fetching full profiles
-          const store = useUsersStore.getState();
-          await Promise.all(
-            users.map((user) => {
-              if (user.avatar) return;
-              return store.ensureById(
-                user.id,
-                (id) => oxyServices.getUserById(id)
-              ).catch(() => {});
-            })
+          // Fire-and-forget: avatars fill in reactively via useUserById
+          void enrichMissingAvatars(
+            users.slice(0, maxCards),
+            (id) => oxyServices.getUserById(id),
           );
         }
       } catch (err) {

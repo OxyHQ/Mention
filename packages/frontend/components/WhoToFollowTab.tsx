@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View, Share, Linking } from 'react-native';
+import { Platform, StyleSheet, TouchableOpacity, View, Share } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -7,6 +7,7 @@ import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useUsersStore, useUserById } from '@/stores/usersStore';
+import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { useTheme } from '@oxyhq/bloom/theme';
 import LegendList from '@/components/LegendList';
 import { ThemedText } from '@/components/ThemedText';
@@ -104,17 +105,8 @@ export function WhoToFollowTab() {
         try {
           useUsersStore.getState().upsertMany(users as any);
         } catch { }
-        // Enrich users missing avatars by fetching full profiles
-        const store = useUsersStore.getState();
-        await Promise.all(
-          users.map((user: any) => {
-            if (user.avatar) return;
-            return store.ensureById(
-              user.id,
-              (id: string) => oxyServices.getUserById(id)
-            ).catch(() => {});
-          })
-        );
+        // Fire-and-forget: avatars fill in reactively via useUserById
+        void enrichMissingAvatars(users, (id) => oxyServices.getUserById(id));
       }
     } catch (err: unknown) {
       let errorMessage = 'Failed to fetch recommendations';
@@ -215,6 +207,7 @@ const FollowRow = React.memo(({ item }: { item: any }) => {
   const cachedUser = useUserById(item.id);
 
   const displayName = useMemo(() => {
+    if (item.name?.full) return item.name.full;
     if (item.name?.first) {
       return `${item.name.first} ${item.name.last || ''}`.trim();
     }
@@ -266,28 +259,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   emptyContainer: {
     padding: 40,
