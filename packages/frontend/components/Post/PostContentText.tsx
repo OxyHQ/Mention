@@ -10,16 +10,24 @@ interface Props {
   postId?: string;
   previewChars?: number;
   translatedText?: string | null;
+  linkPreviewUrl?: string | null;
 }
 
-const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280, translatedText }) => {
+const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
+
+const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280, translatedText, linkPreviewUrl }) => {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
 
   // Extract text from content (handle both string and PostContent object)
   const originalText = typeof content === 'string' ? content : content?.text || '';
-  const textContent = translatedText || originalText;
+  const rawText = translatedText || originalText;
+
+  // Strip trailing URL when a link attachment card already shows it
+  const textContent = linkPreviewUrl
+    ? rawText.replace(TRAILING_URL_RE, (match, url) => url === linkPreviewUrl ? '' : match)
+    : rawText;
 
   if (!textContent) return null;
 

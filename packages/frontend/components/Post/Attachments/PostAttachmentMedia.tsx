@@ -87,7 +87,7 @@ const PostAttachmentImage: React.FC<{
           ? [styles.imagePreserveAspect, aspectRatio !== undefined ? { aspectRatio } : undefined]
           : { width: '100%' as unknown as number, height: '100%' as unknown as number },
       ]}
-      resizeMode={hasSingleMedia ? "contain" : "cover"}
+      resizeMode="cover"
       placeholder={
         <View
           className="bg-secondary justify-center items-center"

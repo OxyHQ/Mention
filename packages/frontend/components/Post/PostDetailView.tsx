@@ -365,7 +365,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                 {/* Post content */}
                 {content.text ? (
                     <View className="mb-3">
-                        <PostContentText content={content} postId={viewPostId} />
+                        <PostContentText content={content} postId={viewPostId} linkPreviewUrl={linkPreview?.url} />
                     </View>
                 ) : null}
 

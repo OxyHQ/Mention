@@ -490,7 +490,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressMenu={openMenu}
                     paddingHorizontal={HPAD}
                 >
-                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} /> : null}
+                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
                 </PostHeader>
 
                 {hasValidLocation && location && (
