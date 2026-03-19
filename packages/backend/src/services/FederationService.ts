@@ -4,6 +4,7 @@ import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
+import { upsertFederatedOxyUser } from '../utils/oxyDb';
 import { signRequest, getOrCreateKeyPair } from '../utils/federation/crypto';
 import {
   FEDERATION_DOMAIN,
@@ -142,6 +143,23 @@ class FederationService {
         { $set: update },
         { upsert: true, new: true },
       ).lean();
+
+      // Sync to Oxy user system so federated actors appear in recommendations, search, etc.
+      if (fedActor) {
+        const proxyAvatar = update.avatarUrl
+          ? `https://api.${FEDERATION_DOMAIN}/media/proxy?url=${encodeURIComponent(update.avatarUrl)}`
+          : undefined;
+        upsertFederatedOxyUser({
+          actorUri: actor.id,
+          domain,
+          username: acct,
+          displayName: update.displayName,
+          avatar: proxyAvatar,
+          bio: update.summary?.replace(/<[^>]*>/g, ''),
+          actorId: String(fedActor._id),
+        }).catch((err) => logger.warn('Failed to sync federated actor to Oxy:', err));
+      }
+
       return fedActor as unknown as IFederatedActor | null;
     } catch (err) {
       logger.warn(`Failed to fetch remote actor ${actorUri}:`, err);
@@ -761,7 +779,6 @@ class FederationService {
     const { media, attachments } = this.extractApMedia(object);
 
     await Post.create({
-      oxyUserId: null,
       federatedActorId: actor._id,
       federation: {
         activityId: object.id,
