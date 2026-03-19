@@ -19,14 +19,9 @@ const rateLimiter = rateLimit({
   // This middleware runs before auth, so req.user is never set.
   // Use a flat limit here; per-endpoint rate limiters handle auth-aware limits.
   max: 1000,
+  // req.user is never set at this stage, so always key by IP
   keyGenerator: (req: Request) => {
-    const authReq = req as AuthRequest;
-    if (authReq.user?.id) {
-      return `user:${authReq.user.id}`;
-    }
-    // Extract IP and use ipKeyGenerator helper for proper IPv6 handling
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    // ipKeyGenerator takes the IP string and properly handles IPv6 subnets
     return ipKeyGenerator(ip);
   },
   message: "Too many requests, please try again later.",

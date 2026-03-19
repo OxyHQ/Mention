@@ -1,3 +1,4 @@
+import axios from "axios";
 import { createScopedLogger } from "@/lib/logger";
 import { authenticatedClient } from "@/utils/api";
 
@@ -44,12 +45,12 @@ class RoomsService {
       return [];
     }
     try {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (status) params.status = status;
       const res = await authenticatedClient.get("/rooms", { params });
       return res.data.rooms || res.data.data || res.data || [];
-    } catch (error: any) {
-      if (error?.response?.status === 429) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response?.status === 429) {
         const retryAfter = parseInt(error.response.headers?.['retry-after'], 10);
         this._backoffUntil = Date.now() + (retryAfter > 0 ? retryAfter * 1000 : 60_000);
         logger.warn("Rate limited on getRooms, backing off", { retryAfter });

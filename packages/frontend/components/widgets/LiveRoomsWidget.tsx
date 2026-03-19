@@ -72,24 +72,6 @@ export function LiveRoomsWidget() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLiveRooms = useCallback(async (silent = false) => {
-    if (!isAuthenticated) return;
-    if (!silent) {
-      setIsLoading(true);
-      setError(null);
-    }
-    try {
-      const liveRooms = await roomsService.getRooms('live');
-      setRooms(liveRooms);
-      if (!silent) setIsLoading(false);
-    } catch (err: any) {
-      if (!silent) {
-        setError(err?.message || 'Failed to load live rooms');
-        setIsLoading(false);
-      }
-    }
-  }, [isAuthenticated]);
-
   useEffect(() => {
     let mounted = true;
 
