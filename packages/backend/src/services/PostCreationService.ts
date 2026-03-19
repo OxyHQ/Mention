@@ -32,7 +32,6 @@ export interface CreatePostParams {
   metadata?: Record<string, unknown>;
   // Federation fields — only for incoming federated posts
   federation?: PostFederationData;
-  federatedActorId?: string;
   // Caller-supplied username enables outbound ActivityPub federation delivery.
   // When omitted, federation delivery is skipped.
   senderUsername?: string;
@@ -94,9 +93,6 @@ class PostCreationService {
 
     if (params.oxyUserId != null) {
       postData.oxyUserId = params.oxyUserId;
-    }
-    if (params.federatedActorId != null) {
-      postData.federatedActorId = params.federatedActorId;
     }
     if (params.federation != null) {
       postData.federation = params.federation;

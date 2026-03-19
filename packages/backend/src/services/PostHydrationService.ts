@@ -22,8 +22,6 @@ interface RawPost {
   _id?: unknown;
   id?: string;
   oxyUserId?: string;
-  /** Federated posts only */
-  federatedActorId?: unknown;
   content?: Partial<PostContent>;
   metadata?: Partial<PostMetadata>;
   stats?: {
@@ -113,8 +111,8 @@ export class PostHydrationService {
 
     const initialPosts = rawPosts
       .map((p): RawPost => (typeof (p as { toObject?: () => RawPost }).toObject === 'function' ? (p as { toObject: () => RawPost }).toObject() : p as RawPost))
-      .filter((post) => post && (post.oxyUserId || post.federatedActorId)
-        && (!post.oxyUserId || !viewerContext.blockedIds.has(String(post.oxyUserId))));
+      .filter((post) => post && post.oxyUserId
+        && !viewerContext.blockedIds.has(String(post.oxyUserId)));
 
     if (initialPosts.length === 0) {
       return [];
@@ -576,14 +574,10 @@ export class PostHydrationService {
   ): Promise<Map<string, PostActorSummary>> {
     const userMap = new Map<string, PostActorSummary>();
 
-    // Separate local users from federated actors
     const localUserIds = new Set<string>();
-    const federatedActorIds = new Set<string>();
 
     for (const { post } of nodes) {
-      if (post?.federatedActorId) {
-        federatedActorIds.add(String(post?.federatedActorId));
-      } else if (post?.oxyUserId) {
+      if (post?.oxyUserId) {
         localUserIds.add(String(post.oxyUserId));
       }
     }
@@ -595,36 +589,7 @@ export class PostHydrationService {
       }
     }
 
-    // Batch-fetch federated actors from local DB (not Oxy)
-    if (federatedActorIds.size > 0) {
-      try {
-        const FederatedActor = require('../models/FederatedActor.js').default;
-        const actors = await FederatedActor.find({
-          _id: { $in: [...federatedActorIds] },
-        }).lean();
-        for (const actor of actors) {
-          const actorIdStr = String(actor._id);
-          userMap.set(actorIdStr, {
-            id: actorIdStr,
-            handle: actor.username,
-            displayName: actor.displayName || actor.username,
-            name: actor.displayName || actor.username,
-            avatarUrl: actor.avatarUrl,
-            avatar: actor.avatarUrl,
-            badges: undefined,
-            isVerified: false,
-            isFederated: true,
-            instance: actor.domain,
-            actorUri: actor.uri,
-            profileUrl: actor.uri,
-          });
-        }
-      } catch {
-        // Federation models may not exist yet
-      }
-    }
-
-    // Fetch local Oxy users (existing logic)
+    // Fetch Oxy users
     const userIds = [...localUserIds];
     if (userIds.length > 0) {
       await Promise.all(
@@ -1019,16 +984,11 @@ export class PostHydrationService {
     const postId = this.resolveId(post);
     if (!postId) return null;
 
-    // Resolve author ID: use oxyUserId for local posts, federatedActorId for federated posts
-    const authorId = post?.oxyUserId
-      ? String(post.oxyUserId)
-      : post?.federatedActorId
-        ? String(post?.federatedActorId)
-        : undefined;
+    const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
     if (!authorId) return null;
 
     // Privacy checks only apply to local users (federated posts are public by definition)
-    const isFederatedPost = !!post?.federatedActorId;
+    const isFederatedPost = !!post?.federation;
     if (!isFederatedPost) {
       if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
         return null;

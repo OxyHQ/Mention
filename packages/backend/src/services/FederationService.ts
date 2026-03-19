@@ -249,7 +249,6 @@ class FederationService {
 
         newDocs.push({
           oxyUserId: null,
-          federatedActorId: actor._id,
           federation: {
             activityId,
             inReplyTo: note.inReplyTo || undefined,
@@ -764,7 +763,6 @@ class FederationService {
       postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
     };
     await postCreationService.create({
-      federatedActorId: String(actor._id),
       federation: {
         activityId: object.id,
         inReplyTo: object.inReplyTo || undefined,
@@ -795,7 +793,7 @@ class FederationService {
 
     const result = await Post.deleteOne({
       'federation.activityId': objectId,
-      federatedActorId: { $ne: null },
+      federation: { $ne: null },
     });
     if (result.deletedCount > 0) {
       logger.debug(`Deleted federated post: ${objectId}`);

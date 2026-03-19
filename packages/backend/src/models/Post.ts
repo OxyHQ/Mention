@@ -12,8 +12,7 @@ export interface PostFederationData {
 }
 
 export interface IPost extends Document {
-  oxyUserId?: string; // Links to Oxy user (null for federated posts)
-  federatedActorId?: mongoose.Types.ObjectId; // Ref to FederatedActor (null for local posts)
+  oxyUserId?: string; // Links to Oxy user (local or federated)
   federation?: PostFederationData; // AP metadata (only for federated posts)
   type: PostType;
   content: PostContent;
@@ -285,7 +284,6 @@ const FederationSchema = new Schema({
 
 const PostSchema = new Schema<IPost>({
   oxyUserId: { type: String, required: false, index: true },
-  federatedActorId: { type: Schema.Types.ObjectId, ref: 'FederatedActor', default: null, index: { sparse: true } },
   federation: { type: FederationSchema, default: undefined },
   type: { type: String, enum: Object.values(PostType), default: PostType.TEXT, index: true },
   content: { type: PostContentSchema, required: true },
@@ -478,10 +476,5 @@ PostSchema.index(
   { 'federation.activityId': 1 },
   { unique: true, sparse: true, name: 'federation_activity_id_idx' }
 );
-PostSchema.index(
-  { federatedActorId: 1, createdAt: -1 },
-  { sparse: true, name: 'federated_actor_feed_idx' }
-);
-
 export const Post = mongoose.model<IPost>('Post', PostSchema);
 export default Post;
