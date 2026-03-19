@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { FEDERATION_ENABLED, USER_AGENT } from '../utils/federation/constants';
+import { validateUrlSecurityWithDNS } from '../utils/urlSecurity';
 
 const router = Router();
 
@@ -19,7 +20,12 @@ router.get('/proxy', async (req: Request, res: Response) => {
   const url = req.query.url as string;
   if (!url) return res.status(400).json({ error: 'Missing url parameter' });
 
-  // Validate URL
+  // Validate URL length (DoS protection)
+  if (url.length > 2048) {
+    return res.status(400).json({ error: 'URL too long' });
+  }
+
+  // Validate URL format
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(url);
@@ -28,6 +34,13 @@ router.get('/proxy', async (req: Request, res: Response) => {
     }
   } catch {
     return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  // SSRF protection: validate hostname and resolved IPs
+  const securityCheck = await validateUrlSecurityWithDNS(url);
+  if (!securityCheck.valid) {
+    logger.warn('[MediaProxy] Security check failed:', { url, error: securityCheck.error });
+    return res.status(400).json({ error: securityCheck.error || 'URL security validation failed' });
   }
 
   try {

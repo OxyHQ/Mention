@@ -3,23 +3,32 @@ import CustomFeed from '../models/CustomFeed';
 import FeedReview from '../models/FeedReview';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
-import { feedController } from '../controllers/feed.controller';
+import { postHydrationService } from '../services/PostHydrationService';
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
 import FeedLike from '../models/FeedLike';
 import { oxy as oxyClient } from '../../server';
 import { escapeRegex } from '../utils/textProcessing';
 import { logger } from '../utils/logger';
-
-interface AuthRequest extends Request {
-  user?: { id: string };
-}
+import { AuthRequest } from '../types/auth';
 
 const router = Router();
 
-function resolveAvatar(userData: any): string | undefined {
+interface OxyUserData {
+  id?: string;
+  username?: string;
+  handle?: string;
+  displayName?: string;
+  avatar?: string | { url?: string };
+  profileImage?: string;
+  name?: { full?: string };
+  verified?: boolean;
+}
+
+function resolveAvatar(userData: OxyUserData | null): string | undefined {
   if (!userData) return undefined;
   if (typeof userData.avatar === 'string') return userData.avatar;
-  return (userData.avatar as any)?.url || userData.profileImage || undefined;
+  if (userData.avatar && typeof userData.avatar === 'object') return userData.avatar.url;
+  return userData.profileImage || undefined;
 }
 
 interface UserProfile {
@@ -30,7 +39,7 @@ interface UserProfile {
   avatar?: string;
 }
 
-function buildUserProfile(userData: any, fallbackId: string): UserProfile {
+function buildUserProfile(userData: OxyUserData | null, fallbackId: string): UserProfile {
   return {
     id: userData?.id || fallbackId,
     username: userData?.username || userData?.handle || fallbackId,
@@ -50,7 +59,7 @@ async function resolveUserProfile(oxyUserId: string): Promise<UserProfile> {
 }
 
 // Create a new custom feed
-router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) => {
+router.post('/', validateBody(schemas.createCustomFeed), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -79,7 +88,7 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
       ...feed.toObject(),
-      id: feed._id ? String(feed._id) : (feed as any).id,
+      id: String(feed._id),
     };
     res.status(201).json(normalizedFeed);
   } catch (error) {
@@ -89,13 +98,13 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
 });
 
 // List feeds accessible to current user
-router.get('/', async (req: any, res) => {
+router.get('/', async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { mine, publicOnly, search, userId: queryUserId } = req.query as any;
-    const q: any = {};
+    const { mine, publicOnly, search, userId: queryUserId } = req.query as Record<string, string | undefined>;
+    const q: Record<string, unknown> = {};
 
     if (queryUserId) {
       // Fetch feeds by a specific user — public only unless it's the current user
@@ -138,32 +147,32 @@ router.get('/', async (req: any, res) => {
     const items = await CustomFeed.find(q).sort({ updatedAt: -1 }).lean();
     
     // Get like counts and isLiked status for all feeds
-    const feedIds = items.map((item: any) => item._id || item.id);
+    const feedIds = items.map((item) => item._id);
     const likeCountsMap = new Map<string, number>();
     const likedFeedsSet = new Set<string>();
-    
+
     if (feedIds.length > 0) {
       // Get like counts for all feeds in one query (always fetch, even without userId)
       const likeCounts = await FeedLike.aggregate([
-        { $match: { feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } } },
+        { $match: { feedId: { $in: feedIds.map((id) => new mongoose.Types.ObjectId(String(id))) } } },
         { $group: { _id: '$feedId', count: { $sum: 1 } } },
       ]);
-      
-      likeCounts.forEach((item: any) => {
+
+      likeCounts.forEach((item: { _id: unknown; count: number }) => {
         likeCountsMap.set(String(item._id), item.count);
       });
-      
+
       // Get feeds liked by current user (only if userId exists)
       if (userId) {
-        const userLikes = await FeedLike.find({ userId, feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } }).lean();
-        userLikes.forEach((like: any) => {
+        const userLikes = await FeedLike.find({ userId, feedId: { $in: feedIds.map((id) => new mongoose.Types.ObjectId(String(id))) } }).lean();
+        userLikes.forEach((like) => {
           likedFeedsSet.add(String(like.feedId));
         });
       }
     }
-    
+
     // Get unique owner IDs and fetch owner information
-    const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
+    const ownerIds = [...new Set(items.map((item) => item.ownerOxyUserId).filter(Boolean))] as string[];
     const ownersMap = new Map<string, UserProfile>();
 
     if (ownerIds.length > 0) {
@@ -176,7 +185,7 @@ router.get('/', async (req: any, res) => {
     
     // Fetch member avatars (first 3 per feed) for card display
     const allMemberIds = new Set<string>();
-    items.forEach((item: any) => {
+    items.forEach((item) => {
       (item.memberOxyUserIds || []).slice(0, 3).forEach((id: string) => allMemberIds.add(id));
     });
     const memberAvatarsMap = new Map<string, string | undefined>();
@@ -200,8 +209,8 @@ router.get('/', async (req: any, res) => {
     }
 
     // Normalize _id to id for frontend consistency and add like data, owner info, and member avatars
-    const normalizedItems = items.map((item: any) => {
-      const feedId = item._id ? String(item._id) : item.id;
+    const normalizedItems = items.map((item) => {
+      const feedId = String(item._id);
       const memberAvatars = (item.memberOxyUserIds || [])
         .slice(0, 3)
         .map((id: string) => memberAvatarsMap.get(id))
@@ -225,14 +234,14 @@ router.get('/', async (req: any, res) => {
 });
 
 // Marketplace: get feeds by category counts
-router.get('/marketplace/categories', async (req: any, res) => {
+router.get('/marketplace/categories', async (req: AuthRequest, res) => {
   try {
     const results = await CustomFeed.aggregate([
       { $match: { isPublic: true, category: { $exists: true, $ne: null } } },
       { $group: { _id: '$category', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
-    const categories = results.map((r: any) => ({ category: r._id, count: r.count }));
+    const categories = results.map((r: { _id: string; count: number }) => ({ category: r._id, count: r.count }));
     res.json({ categories });
   } catch (error) {
     logger.error('[CustomFeeds] Marketplace categories error:', { error });
@@ -241,16 +250,16 @@ router.get('/marketplace/categories', async (req: any, res) => {
 });
 
 // Marketplace: browse public feeds with filtering, search, and sorting
-router.get('/marketplace', async (req: any, res) => {
+router.get('/marketplace', async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
-    const { category, search, sortBy = 'trending', page: pageParam = '1', limit: limitParam = '20' } = req.query as any;
+    const { category, search, sortBy = 'trending', page: pageParam = '1', limit: limitParam = '20' } = req.query as Record<string, string | undefined>;
 
     const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
     const limit = Math.min(Math.max(1, parseInt(String(limitParam), 10) || 20), 100);
     const skip = (page - 1) * limit;
 
-    const q: any = { isPublic: true };
+    const q: Record<string, unknown> = { isPublic: true };
 
     if (category && typeof category === 'string') {
       q.category = category;
@@ -267,7 +276,7 @@ router.get('/marketplace', async (req: any, res) => {
       ];
     }
 
-    let sortStage: any;
+    let sortStage: Record<string, 1 | -1>;
     if (sortBy === 'rating' || sortBy === 'top_rated') {
       sortStage = { averageRating: -1, ratingsCount: -1, createdAt: -1 };
     } else if (sortBy === 'newest') {
@@ -283,16 +292,16 @@ router.get('/marketplace', async (req: any, res) => {
     ]);
 
     // Resolve isLiked + owner profiles in parallel (subscriberCount already on feed docs)
-    const feedIds = items.map((item: any) => item._id);
+    const feedIds = items.map((item) => item._id);
     const likedFeedsSet = new Set<string>();
-    const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
+    const ownerIds = [...new Set(items.map((item) => item.ownerOxyUserId).filter(Boolean))] as string[];
     const ownersMap = new Map<string, UserProfile>();
 
     await Promise.all([
       // User's liked feeds
       userId && feedIds.length > 0
-        ? FeedLike.find({ userId, feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } }).lean()
-            .then((likes: any[]) => likes.forEach((like: any) => likedFeedsSet.add(String(like.feedId))))
+        ? FeedLike.find({ userId, feedId: { $in: feedIds.map((id) => new mongoose.Types.ObjectId(String(id))) } }).lean()
+            .then((likes) => likes.forEach((like) => likedFeedsSet.add(String(like.feedId))))
         : Promise.resolve(),
       // Owner profiles
       ...ownerIds.map(async (ownerId) => {
@@ -300,7 +309,7 @@ router.get('/marketplace', async (req: any, res) => {
       }),
     ]);
 
-    const normalizedItems = items.map((item: any) => {
+    const normalizedItems = items.map((item) => {
       const feedId = String(item._id);
       return {
         ...item,
@@ -326,7 +335,7 @@ router.get('/marketplace', async (req: any, res) => {
 });
 
 // Get a feed by id
-router.get('/:id', validateObjectId('id'), async (req: any, res) => {
+router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     const feed = await CustomFeed.findById(req.params.id).lean();
@@ -335,7 +344,7 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
       return res.status(403).json({ error: 'Not allowed' });
     }
     
-    const feedId = (feed as any)._id ? String((feed as any)._id) : (feed as any).id;
+    const feedId = String(feed._id);
     
     // Get like count
     const likeCount = await FeedLike.countDocuments({ feedId: new mongoose.Types.ObjectId(feedId) });
@@ -379,7 +388,7 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
 });
 
 // Update a feed (owner only)
-router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed), async (req: any, res) => {
+router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     const feed = await CustomFeed.findById(req.params.id);
@@ -403,7 +412,7 @@ router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
       ...feed.toObject(),
-      id: feed._id ? String(feed._id) : (feed as any).id,
+      id: String(feed._id),
     };
     res.json(normalizedFeed);
   } catch (error) {
@@ -413,7 +422,7 @@ router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed
 });
 
 // Delete a feed (owner only)
-router.delete('/:id', validateObjectId('id'), async (req: any, res) => {
+router.delete('/:id', validateObjectId('id'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     const feed = await CustomFeed.findById(req.params.id);
@@ -427,7 +436,7 @@ router.delete('/:id', validateObjectId('id'), async (req: any, res) => {
 });
 
 // Add members (owner only)
-router.post('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: any, res) => {
+router.post('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     const { userIds } = req.body || {};
@@ -441,7 +450,7 @@ router.post('/:id/members', validateObjectId('id'), validateBody(schemas.manageF
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
       ...feed.toObject(),
-      id: feed._id ? String(feed._id) : (feed as any).id,
+      id: String(feed._id),
     };
     res.json(normalizedFeed);
   } catch (error) {
@@ -450,7 +459,7 @@ router.post('/:id/members', validateObjectId('id'), validateBody(schemas.manageF
 });
 
 // Remove members (owner only)
-router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: any, res) => {
+router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     const { userIds } = req.body || {};
@@ -463,7 +472,7 @@ router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manag
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
       ...feed.toObject(),
-      id: feed._id ? String(feed._id) : (feed as any).id,
+      id: String(feed._id),
     };
     res.json(normalizedFeed);
   } catch (error) {
@@ -472,7 +481,7 @@ router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manag
 });
 
 // Timeline for a custom feed
-router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
+router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     // Validate and sanitize inputs
@@ -492,7 +501,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
       if (feed.sourceListIds && feed.sourceListIds.length) {
         const { AccountList } = require('../models/AccountList.js');
         const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
-        lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
+        lists.forEach((l: { memberOxyUserIds?: string[] }) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
         authors = Array.from(new Set(authors));
       }
     } catch (e) {
@@ -512,12 +521,12 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
 
 
     // Build query based on feed configuration
-    const q: any = {
+    const q: Record<string, unknown> = {
       visibility: 'public',
     };
 
     // Collect all conditions in $and array for proper MongoDB query structure
-    const conditions: any[] = [];
+    const conditions: Record<string, unknown>[] = [];
 
     // Author filter: if authors are specified, filter by them (owner excluded unless explicitly added)
     if (authors.length > 0) {
@@ -608,7 +617,13 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
       ? String(toReturn[toReturn.length - 1]._id) 
       : undefined;
 
-    const transformed = await (feedController as any).transformPostsWithProfiles(toReturn, userId);
+    const transformed = await postHydrationService.hydratePosts(toReturn, {
+      viewerId: userId,
+      maxDepth: 0,
+      includeLinkMetadata: true,
+      includeFullArticleBody: false,
+      includeFullMetadata: false,
+    });
 
     // Return in FeedResponse format - items as direct posts (not wrapped)
     // Frontend Feed component expects items to be posts directly
@@ -625,7 +640,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
 });
 
 // Like a feed
-router.post('/:id/like', validateObjectId('id'), async (req: any, res) => {
+router.post('/:id/like', validateObjectId('id'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -637,14 +652,14 @@ router.post('/:id/like', validateObjectId('id'), async (req: any, res) => {
     // Try to create like record — unique index prevents duplicates
     try {
       await FeedLike.create({ userId, feedId });
-    } catch (err: any) {
-      if (err.code === 11000) {
+    } catch (err: unknown) {
+      if ((err as { code?: number })?.code === 11000) {
         // Already liked — return current subscriberCount
         const f = await CustomFeed.findById(feedId, { subscriberCount: 1 }).lean();
         return res.json({
           success: true,
           liked: true,
-          likeCount: (f as any)?.subscriberCount ?? 0,
+          likeCount: f?.subscriberCount ?? 0,
           message: 'Feed already liked',
         });
       }
@@ -661,17 +676,17 @@ router.post('/:id/like', validateObjectId('id'), async (req: any, res) => {
     res.json({
       success: true,
       liked: true,
-      likeCount: (updated as any)?.subscriberCount ?? 0,
+      likeCount: updated?.subscriberCount ?? 0,
       message: 'Feed liked successfully',
     });
-  } catch (error: any) {
+  } catch (error) {
     logger.error('[CustomFeeds] Like feed error:', { userId: req.user?.id, feedId: req.params.id, error });
     res.status(500).json({ error: 'Failed to like feed' });
   }
 });
 
 // Unlike a feed
-router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
+router.delete('/:id/like', validateObjectId('id'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -688,7 +703,7 @@ router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
       return res.json({
         success: true,
         liked: false,
-        likeCount: (f as any)?.subscriberCount ?? 0,
+        likeCount: f?.subscriberCount ?? 0,
         message: 'Feed not liked',
       });
     }
@@ -703,7 +718,7 @@ router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
     res.json({
       success: true,
       liked: false,
-      likeCount: Math.max(0, (updated as any)?.subscriberCount ?? 0),
+      likeCount: Math.max(0, updated?.subscriberCount ?? 0),
       message: 'Feed unliked successfully',
     });
   } catch (error) {
@@ -713,14 +728,14 @@ router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
 });
 
 // Get reviews for a feed
-router.get('/:id/reviews', validateObjectId('id'), async (req: any, res) => {
+router.get('/:id/reviews', validateObjectId('id'), async (req: AuthRequest, res) => {
   try {
-    const { page: pageParam = '1', limit: limitParam = '20' } = req.query as any;
+    const { page: pageParam = '1', limit: limitParam = '20' } = req.query as Record<string, string>;
     const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
     const limit = Math.min(Math.max(1, parseInt(String(limitParam), 10) || 20), 100);
     const skip = (page - 1) * limit;
 
-    const feedId = new mongoose.Types.ObjectId(req.params.id);
+    const feedId = new mongoose.Types.ObjectId(String(req.params.id));
 
     const [reviews, total] = await Promise.all([
       FeedReview.find({ feedId }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
@@ -728,7 +743,7 @@ router.get('/:id/reviews', validateObjectId('id'), async (req: any, res) => {
     ]);
 
     // Resolve reviewer profiles
-    const reviewerIds = [...new Set(reviews.map((r: any) => r.reviewerId).filter(Boolean))];
+    const reviewerIds = [...new Set(reviews.map((r) => String(r.reviewerId)).filter(Boolean))];
     const reviewersMap = new Map<string, UserProfile>();
     if (reviewerIds.length > 0) {
       await Promise.all(
@@ -738,10 +753,10 @@ router.get('/:id/reviews', validateObjectId('id'), async (req: any, res) => {
       );
     }
 
-    const normalizedReviews = reviews.map((r: any) => ({
+    const normalizedReviews = reviews.map((r) => ({
       ...r,
       id: String(r._id),
-      reviewer: reviewersMap.get(r.reviewerId) || buildUserProfile(null, r.reviewerId),
+      reviewer: reviewersMap.get(String(r.reviewerId)) || buildUserProfile(null, String(r.reviewerId)),
     }));
 
     res.json({
@@ -757,12 +772,12 @@ router.get('/:id/reviews', validateObjectId('id'), async (req: any, res) => {
 });
 
 // Create or update a review for a feed
-router.post('/:id/reviews', validateObjectId('id'), validateBody(schemas.createFeedReview), async (req: any, res) => {
+router.post('/:id/reviews', validateObjectId('id'), validateBody(schemas.createFeedReview), async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const feedId = new mongoose.Types.ObjectId(req.params.id);
+    const feedId = new mongoose.Types.ObjectId(String(req.params.id));
     const feed = await CustomFeed.findById(feedId);
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
 

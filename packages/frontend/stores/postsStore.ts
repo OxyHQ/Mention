@@ -138,15 +138,15 @@ type TransformOptions = {
   skipRelated?: boolean;
 };
 
-const primeRelatedPosts = (cache: Record<string, FeedItem>, post: any) => {
+const primeRelatedPosts = (cache: Record<string, FeedItem>, post: FeedItem) => {
   if (!post) return;
-  const original = (post as any)?.original;
+  const original = post.original;
   if (original?.id) {
-    cache[original.id] = original as FeedItem;
+    cache[original.id] = original;
   }
-  const quoted = (post as any)?.quoted;
+  const quoted = post.quoted;
   if (quoted?.id) {
-    cache[quoted.id] = quoted as FeedItem;
+    cache[quoted.id] = quoted;
   }
 };
 
@@ -343,11 +343,11 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     isSaved: viewerState.isSaved,
     isReposted: viewerState.isReposted,
     mediaIds,
-    originalMediaIds: (raw as any)?.originalMediaIds ?? undefined,
+    originalMediaIds: (raw as Record<string, unknown>)?.originalMediaIds as string[] | undefined,
     allMediaIds:
-      (raw as any)?.allMediaIds ??
-      (raw as any)?.mediaIds ??
-      mediaIds,
+      ((raw as Record<string, unknown>)?.allMediaIds ??
+      (raw as Record<string, unknown>)?.mediaIds ??
+      mediaIds) as string[],
     original: null,
     quoted: null,
     repost: raw?.repost
@@ -361,12 +361,13 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   };
 
   if (!options.skipRelated) {
-    const originalSource = raw?.originalPost ?? (raw as any)?.original;
+    const rawRecord = raw as Record<string, unknown>;
+    const originalSource = raw?.originalPost ?? rawRecord?.original;
     if (originalSource) {
       base.original = transformToUIItem(originalSource, { skipRelated: true });
     }
 
-    const quotedSource = raw?.quotedPost ?? (raw as any)?.quoted;
+    const quotedSource = raw?.quotedPost ?? rawRecord?.quoted;
     if (quotedSource) {
       base.quoted = transformToUIItem(quotedSource, { skipRelated: true });
     }
@@ -518,7 +519,7 @@ export const usePostsStore = create<FeedState>()(
           }
           
           // Update cache
-          try { useUsersStore.getState().primeFromPosts(uniqueItems as any); } catch {}
+          try { useUsersStore.getState().primeFromPosts(uniqueItems); } catch {}
           const newCache = { ...state.postsById };
           uniqueItems.forEach((p: FeedItem) => {
             const id = normalizeId(p);
@@ -527,7 +528,7 @@ export const usePostsStore = create<FeedState>()(
               primeRelatedPosts(newCache, p);
             }
           });
-          
+
           // fetchFeed ALWAYS replaces items completely (never merges)
           // Merging is handled by loadMoreFeed for pagination
           const updatedFeed = {
@@ -602,15 +603,9 @@ export const usePostsStore = create<FeedState>()(
           const prev = state.userFeeds[userId]?.[type] || createDefaultFeedState();
           const mapped = response.items?.map(item => transformToUIItem(item)) || [];
           
-          // Helper function to normalize ID consistently
-          const normalizeId = (p: any): string => {
+          // Helper function to normalize ID consistently (shadows outer normalizeId for FeedItem type)
+          const normalizeId = (p: FeedItem): string => {
             if (p?.id) return String(p.id);
-            if ((p as any)?._id) {
-              const _id = (p as any)._id;
-              return typeof _id === 'object' && _id.toString 
-                ? _id.toString() 
-                : String(_id);
-            }
             return '';
           };
           
@@ -618,7 +613,7 @@ export const usePostsStore = create<FeedState>()(
           const uniqueMapped = deduplicateItems(mapped);
           
           // Prime users cache from items
-          try { useUsersStore.getState().primeFromPosts(uniqueMapped as any); } catch {}
+          try { useUsersStore.getState().primeFromPosts(uniqueMapped); } catch {}
 
           let mergedItems: FeedItem[] = uniqueMapped;
           let addedCount = uniqueMapped.length;
@@ -698,7 +693,7 @@ export const usePostsStore = create<FeedState>()(
         feeds: {
           ...state.feeds,
           ['saved']: {
-            ...(state.feeds as any)['saved'],
+            ...state.feeds['saved'],
             isLoading: true,
             error: null
           }
@@ -717,7 +712,7 @@ export const usePostsStore = create<FeedState>()(
           const seen = new Set<string>();
           const localSaved: FeedItem[] = [];
           types.forEach((t) => {
-            (state.feeds as any)[t]?.items?.forEach((p: any) => {
+            state.feeds[t]?.items?.forEach((p) => {
               if (p?.isSaved && !seen.has(p.id)) {
                 seen.add(p.id);
                 localSaved.push(p);
@@ -760,7 +755,7 @@ export const usePostsStore = create<FeedState>()(
           feeds: {
             ...state.feeds,
             ['saved']: {
-              ...(state.feeds as any)['saved'],
+              ...state.feeds['saved'],
               isLoading: false,
               error: errorMessage
             }
@@ -797,15 +792,15 @@ export const usePostsStore = create<FeedState>()(
           type,
           limit: 20,
           filters
-        } as any);
+        });
 
         set(state => {
           // Transform and deduplicate items
           const items = response.items?.map(item => transformToUIItem(item)) || [];
           const uniqueItems = deduplicateItems(items, `refreshFeed:${type}`);
-          
+
           // Update cache
-          try { useUsersStore.getState().primeFromPosts(uniqueItems as any); } catch {}
+          try { useUsersStore.getState().primeFromPosts(uniqueItems); } catch {}
           const newCache = { ...state.postsById };
           uniqueItems.forEach((p: FeedItem) => {
             const id = normalizeId(p);
@@ -909,7 +904,7 @@ export const usePostsStore = create<FeedState>()(
           cursor: cursorAtRequestTime,
           limit: 20,
           filters
-        } as any, { signal: abortController.signal });
+        }, { signal: abortController.signal });
         
         // Check if request was aborted
         if (abortController.signal.aborted) {
@@ -1025,7 +1020,7 @@ export const usePostsStore = create<FeedState>()(
           }
           
           // Update cache with new items only (use Map for efficiency)
-          try { useUsersStore.getState().primeFromPosts(trulyNewItems as any); } catch {}
+          try { useUsersStore.getState().primeFromPosts(trulyNewItems); } catch {}
           const newCache = { ...state.postsById };
           for (const p of trulyNewItems) {
             const id = normalizeId(p);
@@ -1090,7 +1085,7 @@ export const usePostsStore = create<FeedState>()(
         const response = await feedService.createPost(request);
         
         if (response.success) {
-          const rawPost = (response as any)?.post?.post ?? response.post;
+          const rawPost = (response.post as Record<string, unknown>)?.post ?? response.post;
           if (!rawPost) {
             set({ isLoading: false });
             return null;
@@ -1177,7 +1172,7 @@ export const usePostsStore = create<FeedState>()(
               lastRefresh: Date.now()
             };
           });
-          try { useUsersStore.getState().upsertUser(newPost.user as any); } catch {}
+          try { useUsersStore.getState().upsertUser(newPost.user); } catch {}
           
           return newPost;
         }
@@ -1272,7 +1267,7 @@ export const usePostsStore = create<FeedState>()(
               lastRefresh: Date.now()
             };
           });
-          try { useUsersStore.getState().primeFromPosts(newPosts as any); } catch {}
+          try { useUsersStore.getState().primeFromPosts(newPosts); } catch {}
           
           return newPosts;
         }
@@ -1783,13 +1778,15 @@ export const usePostsStore = create<FeedState>()(
           
           const newItems = slice.items.slice();
           newItems[idx] = updated;
-          nextFeeds[ft] = { ...slice, items: newItems } as any;
+          // TypeScript cannot narrow the value type through a mapped-key assignment;
+          // we spread with the correctly-typed items array so the cast is safe.
+          (nextFeeds as Record<string, typeof slice>)[ft] = { ...slice, items: newItems };
           feedsChanged = true;
         });
 
         // Update user feeds similarly
         let userFeedsChanged = false;
-        const nextUserFeeds: typeof state.userFeeds = {} as any;
+        const nextUserFeeds: typeof state.userFeeds = {};
         const userIds = Object.keys(state.userFeeds || {});
         for (const uid of userIds) {
           const userSlices = state.userFeeds[uid];
@@ -1927,7 +1924,7 @@ export const usePostsStore = create<FeedState>()(
           }
         });
         
-        try { useUsersStore.getState().primeFromPosts(transformedPosts as any); } catch {}
+        try { useUsersStore.getState().primeFromPosts(transformedPosts); } catch {}
         
         return {
           ...state,

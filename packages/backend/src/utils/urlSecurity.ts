@@ -1,4 +1,6 @@
 import { URL } from 'url';
+import dns from 'dns';
+import sanitizeHtmlLib from 'sanitize-html';
 
 /**
  * Security utilities for URL validation and sanitization
@@ -23,17 +25,18 @@ function isPrivateIP(ip: string): boolean {
     /^::1$/, // localhost
     /^fc00:/, // Unique local address
     /^fe80:/, // Link-local
-    /^::ffff:0:127\./, // IPv4-mapped localhost
+    /^::ffff:(0:)?127\./, // IPv4-mapped localhost
+    /^::ffff:(0:)?10\./, // IPv4-mapped private
+    /^::ffff:(0:)?192\.168\./, // IPv4-mapped private
+    /^::ffff:(0:)?172\.(1[6-9]|2[0-9]|3[0-1])\./, // IPv4-mapped private
   ];
 
-  // Check IPv4
   for (const range of privateIPv4Ranges) {
     if (range.test(ip)) {
       return true;
     }
   }
 
-  // Check IPv6
   for (const range of privateIPv6Ranges) {
     if (range.test(ip)) {
       return true;
@@ -44,7 +47,9 @@ function isPrivateIP(ip: string): boolean {
 }
 
 /**
- * Validate URL is safe to fetch (prevents SSRF attacks)
+ * Validate URL is safe to fetch (prevents SSRF attacks).
+ * Performs hostname checks synchronously. Use validateUrlSecurityWithDNS
+ * for full protection including DNS resolution.
  */
 export function validateUrlSecurity(url: string): { valid: boolean; error?: string } {
   try {
@@ -90,9 +95,6 @@ export function validateUrlSecurity(url: string): { valid: boolean; error?: stri
       }
     }
 
-    // Resolve hostname to IP to check for private IPs (async DNS lookup would be needed)
-    // For now, we rely on hostname checks above
-
     return { valid: true };
   } catch (error) {
     return { valid: false, error: 'Invalid URL format' };
@@ -100,55 +102,97 @@ export function validateUrlSecurity(url: string): { valid: boolean; error?: stri
 }
 
 /**
- * Sanitize HTML content to prevent XSS
- * Removes script tags and dangerous attributes
+ * Validate URL security with DNS resolution to prevent SSRF via DNS rebinding.
+ * Resolves the hostname to IP addresses and checks each one against private ranges.
+ * This catches domains like localtest.me that resolve to 127.0.0.1.
+ */
+export async function validateUrlSecurityWithDNS(url: string): Promise<{ valid: boolean; error?: string }> {
+  // First run synchronous checks
+  const syncResult = validateUrlSecurity(url);
+  if (!syncResult.valid) {
+    return syncResult;
+  }
+
+  // Then resolve DNS and check resolved IPs
+  const urlObj = new URL(url);
+  const hostname = urlObj.hostname.toLowerCase();
+
+  // Skip DNS check for raw IP addresses (already checked above)
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return { valid: true };
+  }
+
+  try {
+    // Resolve both IPv4 and IPv6 addresses
+    const [ipv4Addresses, ipv6Addresses] = await Promise.allSettled([
+      dns.promises.resolve4(hostname),
+      dns.promises.resolve6(hostname),
+    ]);
+
+    const allIPs: string[] = [];
+    if (ipv4Addresses.status === 'fulfilled') {
+      allIPs.push(...ipv4Addresses.value);
+    }
+    if (ipv6Addresses.status === 'fulfilled') {
+      allIPs.push(...ipv6Addresses.value);
+    }
+
+    // If we couldn't resolve any IPs, allow the request (DNS might be flaky)
+    // The actual fetch will fail if the host is truly unreachable
+    if (allIPs.length === 0) {
+      return { valid: true };
+    }
+
+    // Check each resolved IP against private ranges
+    for (const ip of allIPs) {
+      if (isPrivateIP(ip)) {
+        return { valid: false, error: 'URL resolves to a private IP address' };
+      }
+    }
+
+    return { valid: true };
+  } catch {
+    // DNS resolution failed — allow the request, the fetch will fail naturally
+    return { valid: true };
+  }
+}
+
+/**
+ * Sanitize HTML content to prevent XSS.
+ * Uses sanitize-html library for robust protection against bypass techniques.
  */
 export function sanitizeHtml(html: string): string {
   if (!html || typeof html !== 'string') {
     return '';
   }
 
-  // Remove script tags and their content
-  html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  
-  // Remove event handlers (onclick, onerror, etc.)
-  html = html.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
-  
-  // Remove javascript: protocol in links
-  html = html.replace(/javascript:/gi, '');
-  
-  // Remove data: URIs that could be dangerous
-  html = html.replace(/data:text\/html/gi, '');
-  
-  return html;
+  return sanitizeHtmlLib(html, {
+    allowedTags: sanitizeHtmlLib.defaults.allowedTags.concat(['img']),
+    allowedAttributes: {
+      ...sanitizeHtmlLib.defaults.allowedAttributes,
+      img: ['src', 'alt', 'width', 'height'],
+      a: ['href', 'title', 'rel', 'target'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    disallowedTagsMode: 'discard',
+  });
 }
 
 /**
- * Sanitize text content to prevent XSS
- * Escapes HTML entities
+ * Sanitize text content to prevent XSS.
+ * Escapes HTML entities.
  */
 export function sanitizeText(text: string | null | undefined): string {
   if (!text || typeof text !== 'string') {
     return '';
   }
 
-  // Decode HTML entities first
-  const decoded = text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/');
-
-  // Then escape dangerous characters
-  return decoded
+  return text
+    .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/\//g, '&#x2F;');
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -157,4 +201,3 @@ export function sanitizeText(text: string | null | undefined): string {
 export function validateUrlLength(url: string, maxLength: number = 2048): boolean {
   return url.length <= maxLength;
 }
-

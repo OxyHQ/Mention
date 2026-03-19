@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { getIO } from '../../utils/socketRegistry';
 import Room, {
   RoomStatus,
   RoomType,
@@ -371,7 +372,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     logger.info(`[ADMIN] Agora Broadcast deleted: ${id} by admin ${userId}`);
 
     // Emit socket event so clients know the broadcast is gone
-    const io = (global as any).io;
+    const io = getIO();
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('broadcast:deleted', {
         roomId: id,
@@ -440,7 +441,7 @@ router.post('/:id/go-live', async (req: AuthRequest, res: Response) => {
     logger.info(`[ADMIN] Agora Broadcast went live: ${id} by admin ${userId}`);
 
     // Emit socket event
-    const io = (global as any).io;
+    const io = getIO();
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('broadcast:live', {
         roomId: id,
@@ -512,7 +513,7 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
     logger.info(`[ADMIN] Agora Broadcast ended: ${id} by admin ${userId}`);
 
     // Emit socket event
-    const io = (global as any).io;
+    const io = getIO();
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('broadcast:ended', {
         roomId: id,
@@ -594,7 +595,7 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.info(`[ADMIN] Stream set on broadcast ${id}: ${trimmedUrl} by admin ${userId}`);
 
     // Notify listeners via socket
-    const io = (global as any).io;
+    const io = getIO();
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('broadcast:stream:started', {
         roomId: id,
@@ -660,7 +661,7 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.info(`[ADMIN] Stream stopped on broadcast ${id} by admin ${userId}`);
 
     // Notify listeners via socket
-    const io = (global as any).io;
+    const io = getIO();
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('broadcast:stream:stopped', {
         roomId: id,

@@ -25,3 +25,17 @@ jobs:
         run: npm run build --workspace=@mention/backend
       - name: Build frontend
         run: npm run build --workspace=@mention/frontend
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Audit dependencies for vulnerabilities
+        run: npm audit --audit-level=high
+      - name: Check for known vulnerable packages (backend)
+        run: npm audit --audit-level=high --workspace=@mention/backend

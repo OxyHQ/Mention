@@ -1,7 +1,7 @@
 import express, { Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
-import { validateUrlSecurity } from '../utils/urlSecurity';
+import { validateUrlSecurityWithDNS } from '../utils/urlSecurity';
 import { imageCacheService } from '../services/imageCacheService';
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../middleware/rateLimitStore';
@@ -68,8 +68,8 @@ router.get('/optimize', imageOptimizeRateLimiter, async (req: AuthRequest, res: 
       });
     }
 
-    // Security validation (SSRF protection)
-    const securityCheck = validateUrlSecurity(url);
+    // Security validation (SSRF protection with DNS resolution)
+    const securityCheck = await validateUrlSecurityWithDNS(url);
     if (!securityCheck.valid) {
       logger.warn('[Images] Security check failed:', { url, error: securityCheck.error });
       return res.status(400).json({
@@ -118,16 +118,20 @@ router.options('/optimize', (req: AuthRequest, res: Response) => {
   const origin = req.headers.origin;
   const ALLOWED_ORIGINS = [
     process.env.FRONTEND_URL || 'https://mention.earth',
-    'http://localhost:8081',
-    'http://localhost:8082',
-    'http://192.168.86.44:8081',
+    'https://agora.mention.earth',
   ];
+
+  // Allow localhost origins only in development
+  if (process.env.NODE_ENV !== 'production') {
+    if (origin && origin.startsWith('http://localhost:')) {
+      ALLOWED_ORIGINS.push(origin);
+    }
+  }
 
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
   }
+  // No wildcard fallback — unknown origins get no CORS header
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
