@@ -153,10 +153,11 @@ class FederationService {
       const fedActor = await FederatedActor.findOneAndUpdate(
         { uri: actor.id },
         { $set: update },
-        { upsert: true, new: true },
+        { upsert: true, new: true, lean: true },
       );
 
-      // Resolve to Oxy User if not already linked
+      // Resolve to Oxy User if not already linked.
+      // Also retries on stale refresh if a previous resolution failed.
       if (fedActor && !fedActor.oxyUserId) {
         try {
           const oxyClient = getServiceOxyClient();
@@ -265,7 +266,9 @@ class FederationService {
         { 'federation.activityId': { $in: allActivityIds } },
         { 'federation.activityId': 1 },
       ).lean();
-      const existingIds = new Set(existingPosts.map(p => (p as any).federation?.activityId));
+      const existingIds = new Set(
+        existingPosts.map(p => (p.federation as { activityId?: string } | undefined)?.activityId),
+      );
 
       // Resolve actor URIs → Oxy User IDs
       const actorUris = new Set<string>();
@@ -285,13 +288,16 @@ class FederationService {
           if (a.oxyUserId) actorOxyMap.set(a.uri, a.oxyUserId);
         }
 
-        // Resolve missing actors in parallel
+        // Resolve missing actors with bounded concurrency to avoid fan-out
         const missingUris = [...actorUris].filter(uri => !actorOxyMap.has(uri));
-        if (missingUris.length > 0) {
-          const resolved = await Promise.all(missingUris.map(uri => this.fetchRemoteActor(uri)));
-          for (let i = 0; i < missingUris.length; i++) {
-            if (resolved[i]?.oxyUserId) {
-              actorOxyMap.set(missingUris[i], resolved[i]!.oxyUserId!);
+        const CONCURRENCY = 3;
+        for (let i = 0; i < missingUris.length; i += CONCURRENCY) {
+          const batch = missingUris.slice(i, i + CONCURRENCY);
+          const resolved = await Promise.all(batch.map(uri => this.fetchRemoteActor(uri)));
+          for (let j = 0; j < batch.length; j++) {
+            const actor = resolved[j];
+            if (actor?.oxyUserId) {
+              actorOxyMap.set(batch[j], actor.oxyUserId);
             }
           }
         }

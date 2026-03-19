@@ -545,13 +545,9 @@ const ComposeScreen = () => {
 
       // Send to backend
       if (replyToPostId) {
-        // Reply mode: submit via createReply
         await createReply({
           postId: replyToPostId,
-          content: {
-            text: postContent.trim(),
-            media: mediaIds.length > 0 ? mediaIds.map(m => ({ id: m.id, type: m.type })) : undefined,
-          } as any,
+          content: mainPost.content,
           mentions: mainPost.mentions || [],
           hashtags: mainPost.hashtags || [],
         });

@@ -22,7 +22,11 @@ export function createScopedOxyClient(req: { accessToken?: string; headers: { au
 const serviceClient: OxyServices = (() => {
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
   const token = process.env.OXY_SERVICE_TOKEN;
-  if (token) client.setTokens(token);
+  if (token) {
+    client.setTokens(token);
+  } else {
+    console.warn('[oxyHelpers] OXY_SERVICE_TOKEN is not set; service client will be unauthenticated');
+  }
   return client;
 })();
 
