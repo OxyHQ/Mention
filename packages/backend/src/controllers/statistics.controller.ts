@@ -426,6 +426,8 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       return res.json({ summary: null });
     }
 
+    const language = typeof req.query.lang === 'string' && req.query.lang ? req.query.lang : 'en';
+
     const { startDate } = getDateRange(14);
     const now = new Date();
 
@@ -483,7 +485,14 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     const strongestInteraction = interactionRanking[0];
     const weakestInteraction = interactionRanking[interactionRanking.length - 1];
 
+    // Format the week's date range for context
+    const weekStart = new Date(sevenDaysAgo);
+    const weekEnd = new Date();
+    const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dateRange = `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
+
     const lines = [
+      `Period: ${dateRange}.`,
       `This week: ${current.totalPosts} posts, ${current.totalViews} views, ${current.totalInteractions} interactions (${current.likes} likes, ${current.replies} replies, ${current.reposts} reposts), ${current.engagementRate.toFixed(1)}% engagement.`,
       `Previous week: ${previous.totalPosts} posts, ${previous.totalViews} views, ${previous.totalInteractions} interactions (${previous.likes} likes, ${previous.replies} replies, ${previous.reposts} reposts), ${previous.engagementRate.toFixed(1)}% engagement.`,
       `Week-over-week: views ${delta(current.totalViews, previous.totalViews)}%, interactions ${delta(current.totalInteractions, previous.totalInteractions)}%, posts ${delta(current.totalPosts, previous.totalPosts)}%.`,
@@ -529,20 +538,30 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
             role: 'system',
             content: [
               'You write weekly performance summaries for Mention, a social media platform.',
-              'You are speaking directly to the user about their personal stats this week vs last week.',
+              'You are speaking directly to the user about their personal stats for the given date range vs the previous week.',
               'Write exactly 2-3 sentences.',
-              'First sentence: one concrete observation about their week — reference actual numbers and what changed.',
-              'Second sentence: one specific, actionable suggestion tied to what the data shows (e.g. if replies are their weakest interaction, suggest ending posts with a question; if a post type dominates, suggest trying variety).',
+              'First sentence: a concrete observation about their week — reference actual numbers and what changed.',
+              'Second sentence: one specific, actionable growth tip based on what the data shows.',
+              'Your growth tips should be based on how social media algorithms work:',
+              '- Posts that get early replies and reposts get boosted by the algorithm, so encourage conversation-starting content.',
+              '- Posting consistently (even 1 post/day) signals activity and improves reach over time.',
+              '- Engagement rate matters more than raw views — a smaller audience that interacts is better than passive viewers.',
+              '- If replies are low, suggest ending posts with questions or hot takes to spark discussion.',
+              '- If reposts are low, suggest sharing insights, tips, or relatable content that people want to share.',
+              '- If views are high but interactions are low, the content reaches people but does not resonate — suggest trying different formats or more personal/opinionated posts.',
+              '- Mixing post types (text, images, polls) keeps the audience engaged.',
+              'Pick the ONE most relevant tip for this user based on their specific data. Do not list multiple tips.',
               'Optional third sentence only for notable milestones or patterns.',
-              'Tone: conversational and direct — like a smart friend reviewing your stats over coffee. No corporate speak, no motivational quotes, no exclamation marks, no emojis, no bullet points, no markdown.',
+              'Tone: conversational and direct — like a smart friend reviewing your stats. No corporate speak, no motivational quotes, no exclamation marks, no emojis, no bullet points, no markdown.',
               'Address the user as "you" / "your". Never say "the user".',
               'If this week had zero posts, gently encourage posting again without guilt.',
+              `Write the entire summary in the language with code "${language}". If you don't recognize the code, use English.`,
               'Return ONLY the summary text.',
             ].join(' '),
           },
           { role: 'user', content: userMessage },
         ],
-        { temperature: 0.7, maxTokens: 200 },
+        { model: 'alia-lite', temperature: 0.7, maxTokens: 200 },
       );
 
       return res.json({ summary });

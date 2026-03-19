@@ -211,14 +211,16 @@ const WeeklyRecapScreen: React.FC = () => {
         loadWeeklyRecap();
     }, [loadWeeklyRecap]);
 
+    const { i18n } = useTranslation();
+
     useEffect(() => {
         if (!user) return;
         setSummaryLoading(true);
-        statisticsService.getWeeklySummary()
+        statisticsService.getWeeklySummary(i18n.language)
             .then(result => setSummary(result.summary))
             .catch(() => setSummary(null))
             .finally(() => setSummaryLoading(false));
-    }, [user]);
+    }, [user, i18n.language]);
 
 
     if (loading) {
@@ -343,9 +345,20 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Text className="text-2xl font-bold mt-4 mb-2 text-foreground" style={{ letterSpacing: -0.3 }}>
                         {t('insights.weeklyRecap.pageTitle')}
                     </Text>
-                    <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
-                        {t('insights.weeklyRecap.subtitleText', { dateRange })}
-                    </Text>
+                    {summaryLoading ? (
+                        <View className="gap-2 px-5 w-full items-center mt-1">
+                            <View className="h-3 rounded bg-muted-foreground/20 w-4/5" />
+                            <View className="h-3 rounded bg-muted-foreground/20 w-3/5" />
+                        </View>
+                    ) : summary ? (
+                        <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
+                            {summary}
+                        </Text>
+                    ) : (
+                        <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
+                            {t('insights.weeklyRecap.subtitleText', { dateRange })}
+                        </Text>
+                    )}
                 </View>
 
                 {/* Stats Cards - Full Width, Stacked */}
@@ -365,35 +378,6 @@ const WeeklyRecapScreen: React.FC = () => {
                     />
                 ))}
 
-                {/* AI Insights Section */}
-                <View className="rounded-[15px] p-4 mb-4 border overflow-hidden bg-card border-border">
-                    <View className="flex-row items-center mb-3">
-                        <Ionicons name="sparkles" size={18} color={theme.colors.primary} />
-                        <Text className="text-[15px] font-bold ml-2 text-foreground" style={{ letterSpacing: -0.2 }}>
-                            {t('insights.weeklyRecap.summary')}
-                        </Text>
-                    </View>
-                    {summaryLoading ? (
-                        <View className="gap-2">
-                            <View className="h-3 rounded bg-muted-foreground/20 w-full" />
-                            <View className="h-3 rounded bg-muted-foreground/20 w-4/5" />
-                            <View className="h-3 rounded bg-muted-foreground/20 w-3/5" />
-                        </View>
-                    ) : summary ? (
-                        <Text className="text-sm leading-5 text-muted-foreground">
-                            {summary}
-                        </Text>
-                    ) : (
-                        <>
-                            <Text className="text-sm font-bold mb-2 leading-5 text-foreground" style={{ letterSpacing: -0.2 }}>
-                                {t('insights.weeklyRecap.tipMainText')}
-                            </Text>
-                            <Text className="text-xs leading-[18px] text-muted-foreground">
-                                {t('insights.weeklyRecap.tipDescription')}
-                            </Text>
-                        </>
-                    )}
-                </View>
             </ScrollView>
         </ThemedView>
     );

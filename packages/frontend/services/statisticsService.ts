@@ -164,8 +164,10 @@ class StatisticsService {
   /**
    * Get AI-generated weekly summary
    */
-  async getWeeklySummary(): Promise<WeeklySummary> {
-    const response = await authenticatedClient.get('/statistics/weekly-summary');
+  async getWeeklySummary(lang: string = 'en'): Promise<WeeklySummary> {
+    const response = await authenticatedClient.get('/statistics/weekly-summary', {
+      params: { lang },
+    });
     return response.data;
   }
 }
