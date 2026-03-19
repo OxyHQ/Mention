@@ -171,9 +171,9 @@ return {
                         }
                       },
                       android: {
-                        compileSdkVersion: 35,
+                        compileSdkVersion: 36,
                         targetSdkVersion: 35,
-                        buildToolsVersion: '35.0.0',
+                        buildToolsVersion: '36.0.0',
                         enableProguardInReleaseBuilds: true,
                         enableShrinkResourcesInReleaseBuilds: true,
                         useLegacyPackaging: false
