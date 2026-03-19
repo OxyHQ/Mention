@@ -298,6 +298,8 @@
   "settings.sections.preferences": "Preferencias",
   "Select your preferred language": "Selecciona tu idioma preferido",
   "settings.language.selectLanguage": "Seleccionar idioma",
+  "settings.language.autoTranslate": "Traducir publicaciones automáticamente",
+  "settings.language.autoTranslateDesc": "Traducir automáticamente las publicaciones escritas en otro idioma",
   "settings.preferences.appearance": "Apariencia",
   "settings.preferences.appearanceDesc": "Personaliza el tema, colores y configuración de visualización",
   "settings.preferences.profileCustomization": "Personalización de Perfil",

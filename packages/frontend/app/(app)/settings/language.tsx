@@ -10,9 +10,11 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { storeData, getData } from '@/utils/storage';
-import { SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { Toggle } from '@/components/Toggle';
 import { Icon } from '@/lib/icons';
 import { logger } from '@/lib/logger';
+import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 
 const LANGUAGE_OPTIONS = [
     { code: 'en-US', name: 'English', nativeName: 'English', flag: '\u{1F1FA}\u{1F1F8}' },
@@ -28,6 +30,8 @@ export default function LanguageSettingsScreen() {
     const { colors } = useTheme();
     const [currentLanguage, setCurrentLanguage] = useState<string>('en-US');
     const [saving, setSaving] = useState(false);
+    const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
+    const setAutoTranslateEnabled = useAutoTranslateStore((s) => s.setEnabled);
 
     useEffect(() => {
         loadLanguage();
@@ -106,6 +110,21 @@ export default function LanguageSettingsScreen() {
                             </Pressable>
                         );
                     })}
+                </SettingsGroup>
+
+                <SettingsGroup title={t('settings.language.autoTranslate')}>
+                    <SettingsItem
+                        icon="language"
+                        title={t('settings.language.autoTranslate')}
+                        description={t('settings.language.autoTranslateDesc')}
+                        showChevron={false}
+                        rightElement={
+                            <Toggle
+                                value={autoTranslateEnabled}
+                                onValueChange={setAutoTranslateEnabled}
+                            />
+                        }
+                    />
                 </SettingsGroup>
             </ScrollView>
         </ThemedView>

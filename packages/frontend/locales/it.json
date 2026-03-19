@@ -291,6 +291,8 @@
   "settings.sections.preferences": "Preferenze",
   "Select your preferred language": "Seleziona la lingua preferita",
   "settings.language.selectLanguage": "Seleziona lingua",
+  "settings.language.autoTranslate": "Traduci automaticamente i post",
+  "settings.language.autoTranslateDesc": "Traduci automaticamente i post scritti in un'altra lingua",
   "settings.preferences.appearance": "Aspetto",
   "settings.preferences.appearanceDesc": "Personalizza tema, colori e impostazioni di visualizzazione",
   "settings.preferences.profileCustomization": "Personalizzazione Profilo",

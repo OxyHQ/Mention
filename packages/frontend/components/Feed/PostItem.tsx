@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useContext, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useMemo, useContext, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import {
@@ -38,6 +38,7 @@ import { PinIcon } from '@/assets/icons/pin-icon';
 import { api } from '@/utils/api';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { SubtleHover } from '@/components/SubtleHover';
+import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -78,6 +79,8 @@ const PostItem: React.FC<PostItemProps> = ({
     const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
     const [translatedText, setTranslatedText] = useState<string | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
+    const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
+    const autoTranslateAttempted = useRef(false);
 
     const postId = (post as any)?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[postId] : null));
@@ -227,6 +230,26 @@ const PostItem: React.FC<PostItemProps> = ({
             setIsTranslating(false);
         }
     }, [viewPostId, translatedText, i18n.language]);
+
+    // Auto-translate posts in a different language when the setting is enabled
+    useEffect(() => {
+        if (!autoTranslateEnabled || autoTranslateAttempted.current) return;
+        if (!content.text || !viewPostId || translatedText || isTranslating) return;
+
+        const postLang = (metadata.language || 'en').split('-')[0].toLowerCase();
+        const userLang = (i18n.language || 'en').split('-')[0].toLowerCase();
+        if (postLang === userLang) return;
+
+        autoTranslateAttempted.current = true;
+        setIsTranslating(true);
+        api.post<{ translatedText: string }>(
+            `/posts/${viewPostId}/translate`,
+            { targetLanguage: i18n.language },
+        )
+            .then(({ data }) => setTranslatedText(data.translatedText))
+            .catch(() => setTranslatedText(null))
+            .finally(() => setIsTranslating(false));
+    }, [autoTranslateEnabled, viewPostId, content.text, metadata.language, i18n.language, translatedText, isTranslating]);
 
     const closeSourcesSheet = useCallback(() => {
         bottomSheet.setBottomSheetContent(null);
