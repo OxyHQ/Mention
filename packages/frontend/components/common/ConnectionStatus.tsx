@@ -75,7 +75,7 @@ const ConnectionStatus: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
+    position: Platform.OS === 'web' ? ('fixed' as never) : 'absolute',
     top: 0,
     left: 0,
     right: 0,
