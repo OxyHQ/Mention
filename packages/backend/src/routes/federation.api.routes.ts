@@ -6,7 +6,7 @@ import { federationService } from '../services/FederationService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
-import { FEDERATION_ENABLED, FEDERATION_DOMAIN } from '../utils/federation/constants';
+import { FEDERATION_ENABLED } from '../utils/federation/constants';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -41,12 +41,6 @@ const actorPostsQuerySchema = z.object({
 
 // --- Helpers ---
 
-/** Proxy a remote media URL through our server to avoid direct client→remote requests. */
-function proxyMediaUrl(url: string | undefined): string | undefined {
-  if (!url) return undefined;
-  return `https://api.${FEDERATION_DOMAIN}/media/proxy?url=${encodeURIComponent(url)}`;
-}
-
 /** Map a FederatedActor document to the API response shape. */
 function toActorResponse(
   actor: IFederatedActor,
@@ -59,8 +53,8 @@ function toActorResponse(
     instance: actor.domain,
     fullHandle: `@${actor.acct}`,
     displayName: actor.displayName || actor.username,
-    avatarUrl: proxyMediaUrl(actor.avatarUrl),
-    bannerUrl: proxyMediaUrl(actor.headerUrl),
+    avatarUrl: actor.avatarUrl,
+    bannerUrl: actor.headerUrl,
     bio: actor.summary,
     fields: actor.fields?.map((f: any) => ({
       name: f.name,

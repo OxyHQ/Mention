@@ -18,7 +18,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { searchService, SEARCH_OPERATORS } from "@/services/searchService";
-import { federationService } from "@/services/federationService";
+
 import { Loading } from '@oxyhq/bloom/loading';
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
@@ -146,30 +146,12 @@ export default function SearchIndex() {
                 let newResults: LocalSearchResults;
 
                 if (activeTab === "all") {
-                    // Run regular search and fediverse lookup in parallel
-                    const [allResults, fedResults] = await Promise.all([
-                        searchService.searchAll(searchQuery),
-                        federationService.isFediverseHandle(searchQuery)
-                            ? federationService.searchActors(searchQuery)
-                            : Promise.resolve([]),
-                    ]);
-
-                    // Convert federated actors to user-like objects for display
-                    const fedUsers = fedResults.map((actor: any) => ({
-                        id: actor.actorUri,
-                        username: actor.handle,
-                        name: actor.displayName,
-                        avatar: actor.avatarUrl,
-                        bio: actor.bio?.replace(/<[^>]*>/g, ''),
-                        verified: false,
-                        isFederated: true,
-                        instance: actor.instance,
-                        actorUri: actor.actorUri,
-                    }));
+                    // Oxy search handles fediverse handles natively
+                    const allResults = await searchService.searchAll(searchQuery);
 
                     newResults = {
                         posts: allResults.posts || [],
-                        users: [...fedUsers, ...(allResults.users || [])],
+                        users: allResults.users || [],
                         feeds: allResults.feeds || [],
                         hashtags: allResults.hashtags || [],
                         lists: allResults.lists || [],
@@ -192,26 +174,7 @@ export default function SearchIndex() {
                 } else {
                     const fetchMap: Record<string, () => Promise<any>> = {
                         posts: () => searchService.searchPosts(searchQuery),
-                        users: async () => {
-                            const [localUsers, fedResults] = await Promise.all([
-                                searchService.searchUsers(searchQuery),
-                                federationService.isFediverseHandle(searchQuery)
-                                    ? federationService.searchActors(searchQuery)
-                                    : Promise.resolve([]),
-                            ]);
-                            const fedUsers = fedResults.map((actor: any) => ({
-                                id: actor.actorUri,
-                                username: actor.handle,
-                                name: actor.displayName,
-                                avatar: actor.avatarUrl,
-                                bio: actor.bio?.replace(/<[^>]*>/g, ''),
-                                verified: false,
-                                isFederated: true,
-                                instance: actor.instance,
-                                actorUri: actor.actorUri,
-                            }));
-                            return [...fedUsers, ...(localUsers || [])];
-                        },
+                        users: () => searchService.searchUsers(searchQuery),
                         feeds: () => searchService.searchFeeds(searchQuery),
                         hashtags: () => searchService.searchHashtags(searchQuery),
                         lists: () => searchService.searchLists(searchQuery),
@@ -284,9 +247,12 @@ export default function SearchIndex() {
             description: user.bio,
         };
 
+        const isFederated = user.isFederated || user.type === 'federated';
+        const instance = user.instance || user.federation?.domain;
+
         const handlePress = () => {
-            if (user.isFederated && user.instance) {
-                router.push(`/@${username}@${user.instance}`);
+            if (isFederated && instance) {
+                router.push(`/@${username}@${instance}`);
             } else {
                 router.push(`/@${username}`);
             }
@@ -299,11 +265,11 @@ export default function SearchIndex() {
                     onPress={handlePress}
                     style={styles.profileCardStyle}
                 />
-                {user.isFederated && user.instance ? (
+                {isFederated && instance ? (
                     <View className="flex-row items-center gap-1 px-4 -mt-2 mb-2">
                         <Ionicons name="globe-outline" size={12} color={theme.colors.textSecondary} />
                         <Text className="text-xs text-muted-foreground">
-                            {user.instance}
+                            {instance}
                         </Text>
                     </View>
                 ) : null}

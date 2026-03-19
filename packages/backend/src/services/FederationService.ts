@@ -4,7 +4,7 @@ import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
-import { upsertFederatedOxyUser } from '../utils/oxyDb';
+import { syncFederatedUserToOxy } from '../utils/oxySync';
 import { signRequest, getOrCreateKeyPair } from '../utils/federation/crypto';
 import {
   FEDERATION_DOMAIN,
@@ -145,17 +145,14 @@ class FederationService {
         { upsert: true, new: true },
       ).lean();
 
-      // Sync to Oxy user system so federated actors appear in recommendations, search, etc.
+      // Sync to Oxy user system via API so federated actors appear in search, recommendations, etc.
+      // Avatar download is handled by Oxy's federation service — no proxy URLs needed.
       if (fedActor) {
-        const proxyAvatar = update.avatarUrl
-          ? `https://api.${FEDERATION_DOMAIN}/media/proxy?url=${encodeURIComponent(update.avatarUrl)}`
-          : undefined;
-        upsertFederatedOxyUser({
+        syncFederatedUserToOxy({
           actorUri: actor.id,
           domain,
           username: acct,
           displayName: update.displayName,
-          avatar: proxyAvatar,
           bio: update.summary?.replace(/<[^>]*>/g, ''),
           actorId: String(fedActor._id),
         }).catch((err) => logger.warn('Failed to sync federated actor to Oxy:', err));
@@ -329,14 +326,12 @@ class FederationService {
     for (const att of note.attachment) {
       if (!att?.url) continue;
       const mimeType = att.mediaType || '';
-      const proxyUrl = `https://api.${FEDERATION_DOMAIN}/media/proxy?url=${encodeURIComponent(att.url)}`;
-
       if (mimeType.startsWith('image/')) {
-        media.push({ id: proxyUrl, type: 'image' });
-        attachments.push({ type: 'media', id: proxyUrl, mediaType: 'image' });
+        media.push({ id: att.url, type: 'image' });
+        attachments.push({ type: 'media', id: att.url, mediaType: 'image' });
       } else if (mimeType.startsWith('video/')) {
-        media.push({ id: proxyUrl, type: 'video' });
-        attachments.push({ type: 'media', id: proxyUrl, mediaType: 'video' });
+        media.push({ id: att.url, type: 'video' });
+        attachments.push({ type: 'media', id: att.url, mediaType: 'video' });
       }
     }
 
