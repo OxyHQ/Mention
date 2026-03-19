@@ -129,10 +129,14 @@ const WeeklyRecapScreen: React.FC = () => {
 
             // Fetch statistics for both weeks
             // Fetch 14 days total, then split into current week (last 7) and previous week (first 7)
-            const [combinedStats, followerChanges] = await Promise.all([
-                statisticsService.getUserStatistics(14), // Get last 14 days
-                statisticsService.getFollowerChanges(14).catch(() => null), // Get last 14 days for follower changes
+            const [combinedStats, followerChanges, summaryResult] = await Promise.all([
+                statisticsService.getUserStatistics(14),
+                statisticsService.getFollowerChanges(14).catch(() => null),
+                statisticsService.getWeeklySummary().catch(() => ({ summary: null })),
             ]);
+
+            setSummary(summaryResult.summary);
+            setSummaryLoading(false);
 
             // Split daily breakdown into current and previous weeks
             const dailyBreakdown = combinedStats.dailyBreakdown || [];
@@ -211,14 +215,6 @@ const WeeklyRecapScreen: React.FC = () => {
         loadWeeklyRecap();
     }, [loadWeeklyRecap]);
 
-    useEffect(() => {
-        if (!user) return;
-        setSummaryLoading(true);
-        statisticsService.getWeeklySummary()
-            .then(result => setSummary(result.summary))
-            .catch(() => setSummary(null))
-            .finally(() => setSummaryLoading(false));
-    }, [user]);
 
 
     if (loading) {
