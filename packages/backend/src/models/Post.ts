@@ -40,7 +40,7 @@ export interface IPost extends Document {
   status?: 'draft' | 'published' | 'scheduled';
   scheduledFor?: Date;
   extracted?: {
-    topics?: Array<{ name: string; type: 'topic' | 'entity'; relevance: number }>;
+    topics?: Array<{ name: string; type: 'topic' | 'entity'; relevance: number; topicId?: string }>;
     extractedAt?: Date;
   };
   translations?: Array<{ language: string; text: string; translatedAt: Date }>;
@@ -357,6 +357,7 @@ const PostSchema = new Schema<IPost>({
       name: { type: String, required: true },
       type: { type: String, enum: ['topic', 'entity'], required: true },
       relevance: { type: Number, required: true, min: 1, max: 10 },
+      topicId: { type: Schema.Types.ObjectId, ref: 'Topic', required: false },
       _id: false,
     }],
     extractedAt: { type: Date },

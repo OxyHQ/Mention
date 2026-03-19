@@ -56,6 +56,7 @@ import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
+import topicsRoutes from './src/routes/topics.routes';
 import roomsRoutes from './src/routes/rooms.routes';
 import recordingsRoutes from './src/routes/recordings.routes';
 import housesRoutes from './src/routes/houses.routes';
@@ -718,6 +719,7 @@ publicApiRouter.use("/articles", articlesRoutes);
 publicApiRouter.use("/images", imagesRoutes); // Image optimization (public, rate-limited)
 publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (optional auth for tracking)
 publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth required)
+publicApiRouter.use("/topics", topicsRoutes); // Topic collection (no auth required)
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
@@ -864,6 +866,26 @@ db.once("open", () => {
     logger.info("Topic extraction service started");
   } catch (error) {
     logger.warn("Failed to start topic extraction service", error);
+  }
+
+  // Initialize Topic Enrichment (daily AI enrichment of topic metadata)
+  try {
+    const { topicService } = require("./src/services/TopicService");
+    const ENRICHMENT_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+    // Run once after a short delay, then daily
+    setTimeout(() => {
+      topicService.enrichTopics().catch((err: unknown) => {
+        logger.warn("Topic enrichment failed", err);
+      });
+    }, 60_000);
+    setInterval(() => {
+      topicService.enrichTopics().catch((err: unknown) => {
+        logger.warn("Topic enrichment failed", err);
+      });
+    }, ENRICHMENT_INTERVAL);
+    logger.info("Topic enrichment pipeline scheduled (daily)");
+  } catch (error) {
+    logger.warn("Failed to initialize topic enrichment", error);
   }
 
   // Initialize Recording Cleanup Service

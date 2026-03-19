@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { Post } from '../models/Post';
+import { TopicType } from '../models/Topic';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
+import { topicService } from './TopicService';
 
 const EXTRACTION_PROMPT = `You are a topic extractor. For each post in the array, identify up to 3 topics or named entities that the post is about.
 
@@ -171,13 +173,42 @@ class TopicExtractionService {
       const resultByIndex = new Map(results.map(r => [r.postIndex, r]));
       const now = new Date();
 
-      // Update each post with its extracted topics (names lowercased for index efficiency)
+      // Collect all unique topic names for batch resolution
+      const allTopicEntries: Array<{ name: string; type: TopicType }> = [];
+      for (const result of results) {
+        for (const t of result.topics) {
+          allTopicEntries.push({
+            name: t.name.toLowerCase(),
+            type: t.type === 'entity' ? TopicType.ENTITY : TopicType.TOPIC,
+          });
+        }
+      }
+
+      // Batch resolve/create Topic documents
+      const topicMap = await topicService.resolveNames(allTopicEntries);
+
+      // Update each post with extracted topics linked to Topic documents
+      const popularityUpdates: Array<{ topicId: string; delta: number }> = [];
+      const postCountTopicIds: string[] = [];
+
       const bulkOps = posts.map((post, index) => {
         const result = resultByIndex.get(index);
-        const topics = (result?.topics ?? []).map(t => ({
-          ...t,
-          name: t.name.toLowerCase(),
-        }));
+        const topics = (result?.topics ?? []).map(t => {
+          const normalized = t.name.toLowerCase();
+          const topicDoc = topicMap.get(normalized);
+          const topicId = topicDoc?._id?.toString();
+
+          if (topicId) {
+            popularityUpdates.push({ topicId, delta: t.relevance });
+            postCountTopicIds.push(topicId);
+          }
+
+          return {
+            ...t,
+            name: normalized,
+            ...(topicId ? { topicId } : {}),
+          };
+        });
 
         return {
           updateOne: {
@@ -193,8 +224,14 @@ class TopicExtractionService {
 
       await Post.bulkWrite(bulkOps, { ordered: false });
 
+      // Update Topic popularity and post counts in the background
+      await Promise.all([
+        topicService.batchIncrementPopularity(popularityUpdates),
+        topicService.batchIncrementPostCount(postCountTopicIds),
+      ]);
+
       const totalTopics = results.reduce((sum, r) => sum + r.topics.length, 0);
-      logger.info(`[TopicExtraction] Extracted ${totalTopics} topics from ${posts.length} posts`);
+      logger.info(`[TopicExtraction] Extracted ${totalTopics} topics from ${posts.length} posts (${topicMap.size} unique topics linked)`);
     } catch (error) {
       logger.warn('[TopicExtraction] AI extraction failed, will retry next cycle:', error);
     }

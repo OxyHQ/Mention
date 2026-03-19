@@ -14,6 +14,7 @@ export interface ITrending extends Document {
   volume: number;
   momentum: number;
   rank: number;
+  topicId?: mongoose.Types.ObjectId;
   calculatedAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +51,11 @@ const TrendingSchema = new Schema({
   rank: {
     type: Number,
     required: true,
+  },
+  topicId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Topic',
+    index: true,
   },
   calculatedAt: {
     type: Date,

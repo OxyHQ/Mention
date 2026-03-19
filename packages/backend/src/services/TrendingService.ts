@@ -1,9 +1,11 @@
 import { Post } from '../models/Post';
 import Trending, { TrendingType, ITrending } from '../models/Trending';
+import { TopicType } from '../models/Topic';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
+import { topicService } from './TopicService';
 
 interface TrendItem {
   type: TrendingType;
@@ -12,6 +14,7 @@ interface TrendItem {
   score: number;
   volume: number;
   momentum: number;
+  topicId?: string;
 }
 
 class TrendingService {
@@ -84,6 +87,21 @@ class TrendingService {
       const hashtagTrends = await this.aggregateHashtags();
       const topicTrends = await this.aggregateTopics();
 
+      // Resolve topic names to Topic documents (topics + entities only, not hashtags)
+      const topicEntries = topicTrends.map(t => ({
+        name: t.name,
+        type: t.type === TrendingType.ENTITY ? TopicType.ENTITY : TopicType.TOPIC,
+      }));
+      const topicMap = await topicService.resolveNames(topicEntries);
+
+      // Attach topicIds to trend items
+      for (const trend of topicTrends) {
+        const topicDoc = topicMap.get(trend.name.toLowerCase());
+        if (topicDoc) {
+          trend.topicId = topicDoc._id.toString();
+        }
+      }
+
       const allTrends: TrendItem[] = [...hashtagTrends, ...topicTrends];
 
       // Generate AI summary from top trend names
@@ -94,8 +112,14 @@ class TrendingService {
       await this.saveTrendingBatch(allTrends, calculatedAt);
       await TrendBatch.create({ calculatedAt, summary });
 
+      // Update Topic popularity scores from trending data
+      const popularityUpdates = topicTrends
+        .filter(t => t.topicId)
+        .map(t => ({ topicId: t.topicId!, trendingScore: t.score }));
+      await topicService.updatePopularityFromTrending(popularityUpdates);
+
       logger.info(
-        `[Trending] Saved batch: ${hashtagTrends.length} hashtags + ${topicTrends.length} topics`,
+        `[Trending] Saved batch: ${hashtagTrends.length} hashtags + ${topicTrends.length} topics (${popularityUpdates.length} topic popularities updated)`,
       );
 
       await this.invalidateCache();
@@ -262,6 +286,7 @@ class TrendingService {
       volume: item.volume,
       momentum: item.momentum,
       rank: index + 1,
+      ...(item.topicId ? { topicId: item.topicId } : {}),
       calculatedAt,
       updatedAt: new Date(),
     }));

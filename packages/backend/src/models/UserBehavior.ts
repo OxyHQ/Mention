@@ -23,6 +23,7 @@ export interface IUserBehavior extends Document {
   // Content preferences
   preferredTopics: Array<{
     topic: string; // Hashtag or keyword
+    topicId?: string; // Reference to Topic collection
     interactionCount: number;
     lastInteractionAt: Date;
     weight: number;
@@ -67,6 +68,7 @@ const AuthorPreferenceSchema = new Schema({
 
 const TopicPreferenceSchema = new Schema({
   topic: { type: String, required: true },
+  topicId: { type: Schema.Types.ObjectId, ref: 'Topic', required: false },
   interactionCount: { type: Number, default: 0 },
   lastInteractionAt: { type: Date, default: Date.now },
   weight: { type: Number, default: 0, min: 0, max: 1 }

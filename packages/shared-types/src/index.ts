@@ -37,3 +37,6 @@ export * from './customFeed';
 
 // Federation types (ActivityPub/Mastodon)
 export * from './federation';
+
+// Topic types
+export * from './topic';

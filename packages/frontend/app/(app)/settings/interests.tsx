@@ -11,7 +11,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { authenticatedClient } from '@/utils/api';
-import { interests as allInterests, useInterestsDisplayNames, type Interest } from '@/lib/interests';
+import { interests as allInterests } from '@/lib/interests';
 import { topicService } from '@/services/topicService';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
@@ -37,7 +37,6 @@ export default function InterestsSettingsScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [interests, setInterests] = useState<string[]>([]);
   const [availableInterests, setAvailableInterests] = useState<Array<{ name: string; displayName: string }>>([]);
-  const interestsDisplayNames = useInterestsDisplayNames();
 
   const preselectedInterests = useMemo(
     () => mySettings?.interests?.tags || [],
@@ -46,18 +45,23 @@ export default function InterestsSettingsScreen() {
 
   useEffect(() => {
     loadMySettings();
+
+    let cancelled = false;
     topicService.getCategories().then(categories => {
+      if (cancelled) return;
       if (categories.length > 0) {
         setAvailableInterests(categories.map(c => ({ name: c.slug, displayName: c.displayName })));
       } else {
-        // Fallback to hardcoded interests
-        setAvailableInterests(allInterests.map(i => ({ name: i, displayName: interestsDisplayNames[i] || i })));
+        setAvailableInterests(allInterests.map(i => ({ name: i, displayName: i })));
       }
     }).catch(() => {
-      // Fallback to hardcoded interests
-      setAvailableInterests(allInterests.map(i => ({ name: i, displayName: interestsDisplayNames[i] || i })));
+      if (!cancelled) {
+        setAvailableInterests(allInterests.map(i => ({ name: i, displayName: i })));
+      }
     });
-  }, [loadMySettings, interestsDisplayNames]);
+
+    return () => { cancelled = true; };
+  }, [loadMySettings]);
 
   useEffect(() => {
     if (mySettings) {
@@ -104,7 +108,7 @@ export default function InterestsSettingsScreen() {
     saveInterests(newInterests);
   }, [saveInterests]);
 
-  const toggleInterest = useCallback((interest: Interest) => {
+  const toggleInterest = useCallback((interest: string) => {
     const newInterests = interests.includes(interest)
       ? interests.filter(i => i !== interest)
       : [...interests, interest];
@@ -182,10 +186,10 @@ export default function InterestsSettingsScreen() {
             {availableInterests.map(({ name, displayName }) => (
               <InterestButton
                 key={name}
-                interest={name as Interest}
+                interest={name}
                 label={displayName}
                 isSelected={interests.includes(name)}
-                onPress={() => toggleInterest(name as Interest)}
+                onPress={() => toggleInterest(name)}
               />
             ))}
           </View>
@@ -196,7 +200,7 @@ export default function InterestsSettingsScreen() {
 }
 
 interface InterestButtonProps {
-  interest: Interest;
+  interest: string;
   label: string;
   isSelected: boolean;
   onPress: () => void;

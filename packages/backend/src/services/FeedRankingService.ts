@@ -353,17 +353,36 @@ export class FeedRankingService {
     
     let score = 1.0;
     
-    // Topic matching
-    if (post.hashtags && post.hashtags.length > 0 && userBehavior.preferredTopics) {
-      const matchingTopics = post.hashtags.filter((tag: string) =>
-        userBehavior.preferredTopics.some((t: any) => 
-          t.topic.toLowerCase() === tag.toLowerCase() && t.weight > 0.3
-        )
-      );
-      
-      if (matchingTopics.length > 0) {
-        // Multiple matching topics = higher boost
-        score *= 1 + (matchingTopics.length * 0.1) * this.WEIGHTS.personalization.topicMatchBoost;
+    // Topic matching (hashtags + AI-extracted topics)
+    if (userBehavior.preferredTopics) {
+      let matchCount = 0;
+
+      // Match via hashtags (existing behavior)
+      if (post.hashtags && post.hashtags.length > 0) {
+        matchCount += post.hashtags.filter((tag: string) =>
+          userBehavior.preferredTopics.some((t: any) =>
+            t.topic.toLowerCase() === tag.toLowerCase() && t.weight > 0.3
+          )
+        ).length;
+      }
+
+      // Match via AI-extracted topic IDs (richer signal)
+      if (post.extracted?.topics && post.extracted.topics.length > 0) {
+        const preferredTopicIds = new Set(
+          userBehavior.preferredTopics
+            .filter((t: any) => t.topicId && t.weight > 0.3)
+            .map((t: any) => t.topicId.toString()),
+        );
+
+        if (preferredTopicIds.size > 0) {
+          matchCount += post.extracted.topics.filter(
+            (et: any) => et.topicId && preferredTopicIds.has(et.topicId.toString()),
+          ).length;
+        }
+      }
+
+      if (matchCount > 0) {
+        score *= 1 + (matchCount * 0.1) * this.WEIGHTS.personalization.topicMatchBoost;
       }
     }
     
@@ -589,13 +608,17 @@ export class FeedRankingService {
       return 0; // Completely hide
     }
 
-    // Check if topic is hidden
-    if (post.hashtags && sets.hiddenTopics.size > 0) {
-      const hasHiddenTopic = post.hashtags.some((tag: string) =>
+    // Check if topic is hidden (via hashtags or extracted topic names)
+    if (sets.hiddenTopics.size > 0) {
+      const hasHiddenHashtag = post.hashtags?.some((tag: string) =>
         sets.hiddenTopics.has(tag.toLowerCase())
       );
 
-      if (hasHiddenTopic) {
+      const hasHiddenExtractedTopic = post.extracted?.topics?.some(
+        (et: any) => sets.hiddenTopics.has(et.name?.toLowerCase()),
+      );
+
+      if (hasHiddenHashtag || hasHiddenExtractedTopic) {
         return 0.5; // Reduce visibility
       }
     }

@@ -84,13 +84,25 @@ export class UserPreferenceService {
         );
       }
 
-      // Update topic preferences
+      // Update topic preferences from hashtags
       if (post.hashtags && post.hashtags.length > 0) {
         for (const hashtag of post.hashtags) {
           this.updateTopicPreference(
             userBehavior,
             hashtag.toLowerCase(),
             weight
+          );
+        }
+      }
+
+      // Update topic preferences from AI-extracted topics (richer signal)
+      if (post.extracted?.topics && post.extracted.topics.length > 0) {
+        for (const extractedTopic of post.extracted.topics) {
+          this.updateTopicPreference(
+            userBehavior,
+            extractedTopic.name.toLowerCase(),
+            weight * (extractedTopic.relevance / 10), // Scale weight by relevance
+            extractedTopic.topicId,
           );
         }
       }
@@ -222,7 +234,8 @@ export class UserPreferenceService {
   private updateTopicPreference(
     userBehavior: any,
     topic: string,
-    weight: number
+    weight: number,
+    topicId?: string,
   ): void {
     let topicPref = userBehavior.preferredTopics.find(
       (t: any) => t.topic === topic
@@ -233,9 +246,13 @@ export class UserPreferenceService {
         topic,
         interactionCount: 0,
         lastInteractionAt: new Date(),
-        weight: 0
+        weight: 0,
+        ...(topicId ? { topicId } : {}),
       };
       userBehavior.preferredTopics.push(topicPref);
+    } else if (topicId && !topicPref.topicId) {
+      // Backfill topicId on existing preference entries
+      topicPref.topicId = topicId;
     }
 
     topicPref.interactionCount += Math.abs(weight);
