@@ -6,6 +6,8 @@ export function useTrendNavigation() {
   const router = useRouter();
 
   const navigateToTrend = useCallback((trend: Trend) => {
+    if (!trend.text?.trim()) return;
+
     if (trend.type === 'hashtag') {
       const tag = (trend.hashtag || trend.text).replace(/^#/, '');
       router.push(`/hashtag/${encodeURIComponent(tag)}` as any);

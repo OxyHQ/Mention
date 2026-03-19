@@ -24,20 +24,16 @@ export function TrendingList({ topics, onRefresh, refreshing }: TrendingListProp
 
   const { navigateToTrend } = useTrendNavigation();
 
-  const handleTopicPress = useCallback((trend: Trend) => {
-    navigateToTrend(trend);
-  }, [navigateToTrend]);
-
   const renderItem = useCallback(({ item }: { item: Trend }) => (
     <View className="px-4">
       <TrendItemRow
         trend={item}
-        onPress={handleTopicPress}
+        onPress={navigateToTrend}
         showBorder
         size="large"
       />
     </View>
-  ), [handleTopicPress]);
+  ), [navigateToTrend]);
 
   const keyExtractor = useCallback((item: Trend) => {
     return `${item.rank}-${item.text}`;

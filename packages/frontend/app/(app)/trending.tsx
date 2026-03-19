@@ -107,20 +107,16 @@ export default function TrendingHistoryScreen() {
     fetchHistory(nextPage, true);
   }, [isLoadingMore, page, totalPages, fetchHistory]);
 
-  const handleTrendPress = useCallback((trend: Trend) => {
-    navigateToTrend(trend);
-  }, [navigateToTrend]);
-
-  const renderItem = useCallback(({ item, index }: { item: Trend; index: number }) => (
+  const renderItem = useCallback(({ item }: { item: Trend }) => (
     <View className="px-4">
       <TrendItemRow
         trend={item}
-        onPress={handleTrendPress}
+        onPress={navigateToTrend}
         showBorder
         size="large"
       />
     </View>
-  ), [handleTrendPress]);
+  ), [navigateToTrend]);
 
   const renderSectionHeader = useCallback(({ section }: { section: SectionListData<Trend, TrendSection> }) => (
     <View

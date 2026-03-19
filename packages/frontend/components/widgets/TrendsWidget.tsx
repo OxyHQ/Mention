@@ -27,10 +27,6 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
 
   const { navigateToTrend } = useTrendNavigation();
 
-  const handleTrendPress = useCallback((trend: Trend) => {
-    navigateToTrend(trend);
-  }, [navigateToTrend]);
-
   const handleMorePress = useCallback(() => {
     router.push('/trending' as any);
   }, [router]);
@@ -70,7 +66,7 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
           <TrendItemRow
             key={trend.id}
             trend={trend}
-            onPress={handleTrendPress}
+            onPress={navigateToTrend}
             onMenuPress={handleMenuPress}
             showBorder={!isLast}
           />
