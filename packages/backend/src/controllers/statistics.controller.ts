@@ -465,11 +465,62 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       return res.json({ summary: null });
     }
 
-    const userMessage = [
+    // Determine which post type performed best this week
+    const postTypeMap: Record<string, number> = {};
+    for (const p of currentWeekPosts) {
+      const type = p.type || 'text';
+      postTypeMap[type] = (postTypeMap[type] || 0) + 1;
+    }
+    const topPostType = Object.entries(postTypeMap)
+      .sort((a, b) => b[1] - a[1])[0];
+
+    // Find the user's strongest interaction type this week
+    const interactionRanking = [
+      { type: 'likes', count: current.likes },
+      { type: 'replies', count: current.replies },
+      { type: 'reposts', count: current.reposts },
+    ].sort((a, b) => b.count - a.count);
+    const strongestInteraction = interactionRanking[0];
+    const weakestInteraction = interactionRanking[interactionRanking.length - 1];
+
+    const lines = [
       `This week: ${current.totalPosts} posts, ${current.totalViews} views, ${current.totalInteractions} interactions (${current.likes} likes, ${current.replies} replies, ${current.reposts} reposts), ${current.engagementRate.toFixed(1)}% engagement.`,
       `Previous week: ${previous.totalPosts} posts, ${previous.totalViews} views, ${previous.totalInteractions} interactions (${previous.likes} likes, ${previous.replies} replies, ${previous.reposts} reposts), ${previous.engagementRate.toFixed(1)}% engagement.`,
       `Week-over-week: views ${delta(current.totalViews, previous.totalViews)}%, interactions ${delta(current.totalInteractions, previous.totalInteractions)}%, posts ${delta(current.totalPosts, previous.totalPosts)}%.`,
-    ].join('\n');
+    ];
+    if (topPostType) {
+      lines.push(`Most used post type this week: ${topPostType[0]} (${topPostType[1]} posts).`);
+    }
+    if (strongestInteraction.count > 0) {
+      lines.push(`Strongest interaction: ${strongestInteraction.type} (${strongestInteraction.count}). Weakest: ${weakestInteraction.type} (${weakestInteraction.count}).`);
+    }
+
+    // Find the best-performing post this week by total engagement
+    const bestPost = currentWeekPosts
+      .map(p => ({
+        engagement: (p.stats?.likesCount || 0) + (p.stats?.commentsCount || 0) + (p.stats?.repostsCount || 0),
+        views: p.stats?.viewsCount || 0,
+        type: p.type || 'text',
+        contentSnippet: (p.content?.text || '').slice(0, 80),
+      }))
+      .sort((a, b) => b.engagement - a.engagement)[0];
+
+    if (bestPost && bestPost.engagement > 0) {
+      lines.push(`Best post this week: ${bestPost.type} post with ${bestPost.views} views and ${bestPost.engagement} interactions${bestPost.contentSnippet ? ` — "${bestPost.contentSnippet}${bestPost.contentSnippet.length >= 80 ? '...' : ''}"` : ''}.`);
+    }
+
+    // Find the most active day this week
+    const dayActivity = new Map<string, number>();
+    for (const p of currentWeekPosts) {
+      const day = new Date(p.createdAt).toLocaleDateString('en-US', { weekday: 'long' });
+      dayActivity.set(day, (dayActivity.get(day) || 0) + 1);
+    }
+    const mostActiveDay = [...dayActivity.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (mostActiveDay) {
+      lines.push(`Most active day: ${mostActiveDay[0]} (${mostActiveDay[1]} posts).`);
+    }
+
+    const userMessage = lines.join('\n');
 
     try {
       const summary = await aliaChat(
@@ -477,14 +528,16 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
           {
             role: 'system',
             content: [
-              'You write weekly performance summaries for Mention, a social platform similar to Twitter/X.',
-              'Given a user\'s stats for this week vs last week, write exactly 2-3 sentences.',
-              'First sentence: one concrete observation (highlight what improved, declined, or stayed flat — reference the actual numbers).',
-              'Second sentence: one specific, actionable suggestion tied to the data (e.g. if replies are low but views are high, suggest asking questions in posts).',
-              'Optional third sentence only if the data warrants it (e.g. a notable milestone or streak).',
-              'Tone: friendly and direct, like a smart friend — not a motivational speaker. No fluff, no exclamation marks, no emojis, no bullet points, no markdown.',
-              'If this week had zero posts, focus on re-engagement without being guilt-trippy.',
-              'Return ONLY the summary text, nothing else.',
+              'You write weekly performance summaries for Mention, a social media platform.',
+              'You are speaking directly to the user about their personal stats this week vs last week.',
+              'Write exactly 2-3 sentences.',
+              'First sentence: one concrete observation about their week — reference actual numbers and what changed.',
+              'Second sentence: one specific, actionable suggestion tied to what the data shows (e.g. if replies are their weakest interaction, suggest ending posts with a question; if a post type dominates, suggest trying variety).',
+              'Optional third sentence only for notable milestones or patterns.',
+              'Tone: conversational and direct — like a smart friend reviewing your stats over coffee. No corporate speak, no motivational quotes, no exclamation marks, no emojis, no bullet points, no markdown.',
+              'Address the user as "you" / "your". Never say "the user".',
+              'If this week had zero posts, gently encourage posting again without guilt.',
+              'Return ONLY the summary text.',
             ].join(' '),
           },
           { role: 'user', content: userMessage },
