@@ -2499,7 +2499,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const post = await Post.findById(id).select('content.text').lean();
+    const post = await Post.findById(id).select('content.text translations').lean();
     if (!post) {
       res.status(404).json({ message: 'Post not found' });
       return;
@@ -2508,6 +2508,13 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
     const text = post.content?.text;
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       res.status(404).json({ message: 'Post has no text content to translate' });
+      return;
+    }
+
+    // Check cache first
+    const cached = post.translations?.find((t) => t.language === targetLanguage);
+    if (cached) {
+      res.json({ translatedText: cached.text, cached: true });
       return;
     }
 
@@ -2526,7 +2533,20 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       { model: 'alia-lite', temperature: 0.1, maxTokens: Math.max(truncatedText.length * 3, 256) },
     );
 
-    res.json({ translatedText });
+    // Validate the AI response — reject empty, identical, or obviously wrong output
+    const trimmed = translatedText.trim();
+    if (!trimmed || trimmed === truncatedText) {
+      res.status(500).json({ message: 'Translation failed' });
+      return;
+    }
+
+    // Save translation to cache (fire-and-forget)
+    Post.updateOne(
+      { _id: id },
+      { $push: { translations: { language: targetLanguage, text: trimmed, translatedAt: new Date() } } },
+    ).catch((err) => logger.error('Error caching translation', err));
+
+    res.json({ translatedText: trimmed, cached: false });
   } catch (error) {
     logger.error('Error translating post', error);
     res.status(500).json({ message: 'Translation failed' });

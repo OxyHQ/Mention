@@ -44,6 +44,7 @@ export interface IPost extends Document {
     topics?: Array<{ name: string; type: 'topic' | 'entity'; relevance: number }>;
     extractedAt?: Date;
   };
+  translations?: Array<{ language: string; text: string; translatedAt: Date }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -362,6 +363,12 @@ const PostSchema = new Schema<IPost>({
     }],
     extractedAt: { type: Date },
   },
+  translations: [{
+    language: { type: String, required: true },
+    text: { type: String, required: true },
+    translatedAt: { type: Date, default: Date.now },
+    _id: false,
+  }],
 }, {
   timestamps: {
     createdAt: 'createdAt',

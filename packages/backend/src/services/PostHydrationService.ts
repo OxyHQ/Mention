@@ -383,7 +383,7 @@ export class PostHydrationService {
       const nextIds = Array.from(nextIdMap.keys());
       try {
         const fetched = await Post.find({ _id: { $in: nextIds } })
-          .select('-metadata.likedBy -metadata.savedBy')
+          .select('-metadata.likedBy -metadata.savedBy -translations')
           .lean();
 
         currentLevel = fetched.map((post) => ({

@@ -223,13 +223,15 @@ const PostItem: React.FC<PostItemProps> = ({
                 `/posts/${viewPostId}/translate`,
                 { targetLanguage: i18n.language },
             );
-            setTranslatedText(data.translatedText);
+            if (data.translatedText && data.translatedText !== content.text) {
+                setTranslatedText(data.translatedText);
+            }
         } catch {
             setTranslatedText(null);
         } finally {
             setIsTranslating(false);
         }
-    }, [viewPostId, translatedText, i18n.language]);
+    }, [viewPostId, translatedText, content.text, i18n.language]);
 
     // Auto-translate posts in a different language when the setting is enabled
     useEffect(() => {
@@ -246,7 +248,11 @@ const PostItem: React.FC<PostItemProps> = ({
             `/posts/${viewPostId}/translate`,
             { targetLanguage: i18n.language },
         )
-            .then(({ data }) => setTranslatedText(data.translatedText))
+            .then(({ data }) => {
+                if (data.translatedText && data.translatedText !== content.text) {
+                    setTranslatedText(data.translatedText);
+                }
+            })
             .catch(() => setTranslatedText(null))
             .finally(() => setIsTranslating(false));
     }, [autoTranslateEnabled, viewPostId, content.text, metadata.language, i18n.language, translatedText, isTranslating]);
