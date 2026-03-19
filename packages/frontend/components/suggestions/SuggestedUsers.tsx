@@ -53,6 +53,18 @@ export const SuggestedUsers = memo(function SuggestedUsers({
           } catch (e) {
             logger.warn('SuggestedUsers: failed to cache users');
           }
+
+          // Enrich users missing avatars by fetching full profiles
+          const store = useUsersStore.getState();
+          await Promise.all(
+            users.map((user) => {
+              if (user.avatar) return;
+              return store.ensureById(
+                user.id,
+                (id) => oxyServices.getUserById(id)
+              ).catch(() => {});
+            })
+          );
         }
       } catch (err) {
         if (!mounted) return;

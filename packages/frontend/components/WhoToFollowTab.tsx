@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View, Share, Linking } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
@@ -6,12 +6,12 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { useUsersStore } from '@/stores/usersStore';
+import { useUsersStore, useUserById } from '@/stores/usersStore';
 import { useTheme } from '@oxyhq/bloom/theme';
 import LegendList from '@/components/LegendList';
 import { ThemedText } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
-import { Error } from '@/components/Error';
+import { Error as ErrorDisplay } from '@/components/Error';
 import { logger } from '@/lib/logger';
 
 export function WhoToFollowTab() {
@@ -93,72 +93,49 @@ export function WhoToFollowTab() {
     }
   }, [getInviteMessage, t]);
 
-  useEffect(() => {
-    const fetchRecommendations = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await oxyServices.getProfileRecommendations();
-        const recommendationsList = Array.isArray(response) ? response : [];
-        setRecommendations(recommendationsList);
+  const fetchAndEnrich = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await oxyServices.getProfileRecommendations();
+      const users = Array.isArray(response) ? response : [];
+      setRecommendations(users);
+      if (users.length > 0) {
         try {
-          if (recommendationsList.length) {
-            useUsersStore.getState().upsertMany(recommendationsList as any);
-          }
+          useUsersStore.getState().upsertMany(users as any);
         } catch { }
-      } catch (err: unknown) {
-        let errorMessage = 'Failed to fetch recommendations';
-        if (err instanceof Error) {
-          errorMessage = err.message;
-        }
-        setError(errorMessage);
-        logger.error('Error fetching recommendations');
-      } finally {
-        setLoading(false);
+        // Enrich users missing avatars by fetching full profiles
+        const store = useUsersStore.getState();
+        await Promise.all(
+          users.map((user: any) => {
+            if (user.avatar) return;
+            return store.ensureById(
+              user.id,
+              (id: string) => oxyServices.getUserById(id)
+            ).catch(() => {});
+          })
+        );
       }
-    };
-
-    fetchRecommendations();
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to fetch recommendations';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
+      logger.error('Error fetching recommendations');
+    } finally {
+      setLoading(false);
+    }
   }, [oxyServices]);
 
-  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
+  useEffect(() => {
+    fetchAndEnrich();
+  }, [fetchAndEnrich]);
 
-  const renderUser = ({ item }: { item: any }) => {
+  const renderUser = useCallback(({ item }: { item: any }) => {
     if (!item?.id) return null;
-
-    const displayName = item.name?.first
-      ? `${item.name.first} ${item.name.last || ''}`.trim()
-      : item.username || 'Unknown User';
-
-    const avatarUri = item?.avatar;
-    const username = item.username || item.id;
-
-    return (
-      <View className="border-border" style={styles.row}>
-        <TouchableOpacity
-          style={styles.rowLeft}
-          onPress={() => router.push(`/@${username}`)}
-          activeOpacity={0.7}
-        >
-          <Avatar source={avatarUri} size={48} />
-          <View style={styles.rowTextWrap}>
-            <ThemedText className="text-foreground" style={styles.rowTitle}>
-              {displayName}
-            </ThemedText>
-            <ThemedText className="text-muted-foreground" style={styles.rowSub}>
-              @{username}
-            </ThemedText>
-            {item.bio && (
-              <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={2}>
-                {item.bio}
-              </ThemedText>
-            )}
-          </View>
-        </TouchableOpacity>
-        <FollowButton userId={item.id} size="small" />
-      </View>
-    );
-  };
+    return <FollowRow item={item} />;
+  }, []);
 
   if (loading && recommendations.length === 0) {
     return (
@@ -172,34 +149,11 @@ export function WhoToFollowTab() {
   }
 
   if (error && recommendations.length === 0) {
-    const handleRetry = async () => {
-            setError(null);
-              try {
-                setLoading(true);
-                const response = await oxyServices.getProfileRecommendations();
-                const recommendationsList = Array.isArray(response) ? response : [];
-                setRecommendations(recommendationsList);
-                try {
-                  if (recommendationsList.length) {
-                    useUsersStore.getState().upsertMany(recommendationsList as any);
-                  }
-                } catch { }
-      } catch (err: unknown) {
-        let errorMessage = 'Failed to fetch recommendations';
-        if (err instanceof Error) {
-          errorMessage = err.message;
-        }
-        setError(errorMessage);
-              } finally {
-                setLoading(false);
-              }
-            };
-
     return (
-      <Error
+      <ErrorDisplay
         title={t('Error', { defaultValue: 'Error' })}
         message={error}
-        onRetry={handleRetry}
+        onRetry={fetchAndEnrich}
         hideBackButton={true}
         style={{ flex: 1, paddingVertical: 40 }}
       />
@@ -249,34 +203,58 @@ export function WhoToFollowTab() {
       maintainVisibleContentPosition={true}
       contentContainerStyle={styles.listContent}
       refreshing={loading}
-      onRefresh={() => {
-        const fetchRecommendations = async () => {
-          try {
-            setLoading(true);
-            setError(null);
-            const response = await oxyServices.getProfileRecommendations();
-            const recommendationsList = Array.isArray(response) ? response : [];
-            setRecommendations(recommendationsList);
-            try {
-              if (recommendationsList.length) {
-                useUsersStore.getState().upsertMany(recommendationsList as any);
-              }
-            } catch { }
-          } catch (err: unknown) {
-            let errorMessage = 'Failed to fetch recommendations';
-            if (err instanceof Error) {
-              errorMessage = err.message;
-            }
-            setError(errorMessage);
-          } finally {
-            setLoading(false);
-          }
-        };
-        fetchRecommendations();
-      }}
+      onRefresh={fetchAndEnrich}
     />
   );
 }
+
+const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
+
+const FollowRow = React.memo(({ item }: { item: any }) => {
+  const router = useRouter();
+  const cachedUser = useUserById(item.id);
+
+  const displayName = useMemo(() => {
+    if (item.name?.first) {
+      return `${item.name.first} ${item.name.last || ''}`.trim();
+    }
+    return item.username || 'Unknown User';
+  }, [item.name, item.username]);
+
+  const avatarUri = item.avatar || cachedUser?.avatar;
+  const username = item.username || item.id;
+
+  const handlePress = useCallback(() => {
+    router.push(`/@${username}`);
+  }, [router, username]);
+
+  return (
+    <View className="border-border" style={styles.row}>
+      <TouchableOpacity
+        style={styles.rowLeft}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <Avatar source={avatarUri} size={48} />
+        <View style={styles.rowTextWrap}>
+          <ThemedText className="text-foreground" style={styles.rowTitle}>
+            {displayName}
+          </ThemedText>
+          <ThemedText className="text-muted-foreground" style={styles.rowSub}>
+            @{username}
+          </ThemedText>
+          {item.bio && (
+            <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={2}>
+              {item.bio}
+            </ThemedText>
+          )}
+        </View>
+      </TouchableOpacity>
+      <FollowButton userId={item.id} size="small" />
+    </View>
+  );
+});
+FollowRow.displayName = 'FollowRow';
 
 const styles = StyleSheet.create({
   loadingContainer: {

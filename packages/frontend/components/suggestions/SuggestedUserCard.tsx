@@ -6,6 +6,7 @@ import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { useUserById } from '@/stores/usersStore';
 import UserName from '@/components/UserName';
 
 interface SuggestedUserData {
@@ -36,6 +37,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
 }: SuggestedUserCardProps) {
   const theme = useTheme();
   const router = useRouter();
+  const cachedUser = useUserById(user.id);
 
   const handle = user.username || user.id;
 
@@ -66,7 +68,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       onPress={handlePress}
       activeOpacity={0.7}
     >
-      <Avatar source={user.avatar} size={40} />
+      <Avatar source={user.avatar || cachedUser?.avatar} size={40} />
       <View className="flex-1 ml-3 mr-3">
         <UserName
           name={displayName}

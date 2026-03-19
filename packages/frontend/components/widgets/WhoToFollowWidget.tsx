@@ -8,7 +8,7 @@ import * as OxyServicesNS from "@oxyhq/services";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
-import { useUsersStore } from "@/stores/usersStore";
+import { useUsersStore, useUserById } from "@/stores/usersStore";
 import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
 import { getRecommendationFilters } from '@/lib/recommendationFilters';
@@ -72,6 +72,18 @@ export function WhoToFollowWidget() {
           } catch (e) {
             logger.warn("Failed to cache users");
           }
+
+          // Enrich users missing avatars by fetching full profiles
+          const store = useUsersStore.getState();
+          await Promise.all(
+            users.slice(0, MAX_DISPLAY_USERS).map((user) => {
+              if (user.avatar) return;
+              return store.ensureById(
+                user.id,
+                (id) => oxyServices.getUserById(id)
+              ).catch(() => {});
+            })
+          );
         }
       } catch (err) {
         if (!mounted) return;
@@ -171,11 +183,12 @@ export function WhoToFollowWidget() {
 
 const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileData }) => {
   const router = useRouter();
-  const { oxyServices } = useAuth();
   const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
     userId: string;
     size?: "small" | "medium" | "large"
   }>;
+
+  const cachedUser = useUserById(profileData.id);
 
   const displayName = useMemo(() => {
     if (profileData.name?.full) return profileData.name.full;
@@ -185,7 +198,7 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
     return profileData.username || "Unknown User";
   }, [profileData.name, profileData.username]);
 
-  const avatarUri = profileData.avatar;
+  const avatarUri = profileData.avatar || cachedUser?.avatar;
   const username = profileData.username || profileData.id;
 
   const handlePress = useCallback(() => {
