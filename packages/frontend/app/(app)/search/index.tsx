@@ -18,7 +18,6 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { searchService, SEARCH_OPERATORS } from "@/services/searchService";
-
 import { Loading } from '@oxyhq/bloom/loading';
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";

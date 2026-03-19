@@ -4,7 +4,6 @@ import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
-
 import { signRequest, getOrCreateKeyPair } from '../utils/federation/crypto';
 import {
   FEDERATION_DOMAIN,

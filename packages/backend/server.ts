@@ -67,7 +67,6 @@ import webfingerRoutes from './src/routes/webfinger.routes';
 import federationRoutes from './src/routes/federation.routes';
 import federationApiRoutes from './src/routes/federation.api.routes';
 
-
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
@@ -798,7 +797,6 @@ app.get('/metrics', (req, res) => {
 // --- Federation routes (ActivityPub protocol — must be public, before auth) ---
 app.use('/.well-known', webfingerRoutes);
 app.use('/ap', federationRoutes);
-
 
 // Mount public and authenticated API routers
 app.use("/", publicApiRouter);
