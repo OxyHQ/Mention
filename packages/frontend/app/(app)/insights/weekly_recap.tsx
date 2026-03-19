@@ -211,16 +211,14 @@ const WeeklyRecapScreen: React.FC = () => {
         loadWeeklyRecap();
     }, [loadWeeklyRecap]);
 
-    const { i18n } = useTranslation();
-
     useEffect(() => {
         if (!user) return;
         setSummaryLoading(true);
-        statisticsService.getWeeklySummary(i18n.language)
+        statisticsService.getWeeklySummary()
             .then(result => setSummary(result.summary))
             .catch(() => setSummary(null))
             .finally(() => setSummaryLoading(false));
-    }, [user, i18n.language]);
+    }, [user]);
 
 
     if (loading) {
@@ -350,13 +348,9 @@ const WeeklyRecapScreen: React.FC = () => {
                             <View className="h-3 rounded bg-muted-foreground/20 w-4/5" />
                             <View className="h-3 rounded bg-muted-foreground/20 w-3/5" />
                         </View>
-                    ) : summary ? (
-                        <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
-                            {summary}
-                        </Text>
                     ) : (
                         <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
-                            {t('insights.weeklyRecap.subtitleText', { dateRange })}
+                            {summary || dateRange}
                         </Text>
                     )}
                 </View>

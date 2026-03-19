@@ -5,6 +5,7 @@ import Like from "../models/Like";
 import Bookmark from "../models/Bookmark";
 import { logger } from '../utils/logger';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
+import { oxy as oxyClient } from '../../server';
 import { userPreferenceService } from '../services/UserPreferenceService';
 
 interface DateRange {
@@ -426,7 +427,17 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       return res.json({ summary: null });
     }
 
-    const language = typeof req.query.lang === 'string' && req.query.lang ? req.query.lang : 'en';
+    // Get language from Oxy user profile
+    let language = 'en';
+    try {
+      const oxyUser = await oxyClient.getUserById(userId);
+      const userLang = (oxyUser as Record<string, unknown>)?.language;
+      if (typeof userLang === 'string' && userLang) {
+        language = userLang.split('-')[0]; // e.g. 'en-US' → 'en'
+      }
+    } catch {
+      // Fall back to English if profile fetch fails
+    }
 
     const { startDate } = getDateRange(14);
     const now = new Date();
