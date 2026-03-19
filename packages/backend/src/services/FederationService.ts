@@ -4,7 +4,7 @@ import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
-import { syncFederatedUserToOxy } from '../utils/oxySync';
+
 import { signRequest, getOrCreateKeyPair } from '../utils/federation/crypto';
 import {
   FEDERATION_DOMAIN,
@@ -144,19 +144,6 @@ class FederationService {
         { $set: update },
         { upsert: true, new: true },
       ).lean();
-
-      // Sync to Oxy user system via API so federated actors appear in search, recommendations, etc.
-      // Avatar download is handled by Oxy's federation service — no proxy URLs needed.
-      if (fedActor) {
-        syncFederatedUserToOxy({
-          actorUri: actor.id,
-          domain,
-          username: acct,
-          displayName: update.displayName,
-          bio: update.summary?.replace(/<[^>]*>/g, ''),
-          actorId: String(fedActor._id),
-        }).catch((err) => logger.warn('Failed to sync federated actor to Oxy:', err));
-      }
 
       return fedActor as unknown as IFederatedActor | null;
     } catch (err) {
