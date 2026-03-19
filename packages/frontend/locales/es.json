@@ -874,5 +874,16 @@
   "widgets.relatedPosts": "Widget de publicaciones relacionadas",
   "widgets.recentlyViewed": "Widget de vistos recientemente",
   "post.translate.showOriginal": "Traducido · Ver original",
-  "post.translate.error": "Error al traducir. Inténtalo de nuevo."
+  "post.translate.error": "Error al traducir. Inténtalo de nuevo.",
+  "translation.failed": "Error al traducir. Inténtalo más tarde.",
+  "translation.rateLimited": "Demasiadas solicitudes de traducción. Espera un momento.",
+  "subscribe.title": "Hazte Premium",
+  "subscribe.headline": "Desbloquea funciones Premium",
+  "subscribe.subtitle": "Aprovecha al máximo Mention con herramientas premium",
+  "subscribe.translateFeature": "Traduce publicaciones a cualquier idioma",
+  "subscribe.autoTranslateFeature": "Traducción automática de publicaciones en otros idiomas",
+  "subscribe.aiFeatures": "Funciones avanzadas con inteligencia artificial",
+  "subscribe.verifiedBadge": "Insignia de verificación en tu perfil",
+  "subscribe.cta": "Suscríbete ahora",
+  "subscribe.premiumFeature": "Función premium — toca para mejorar"
 }

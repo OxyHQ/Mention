@@ -47,6 +47,7 @@ interface Props {
   onTranslate?: () => void;
   isTranslated?: boolean;
   isTranslating?: boolean;
+  isPremium?: boolean;
   postId?: string;
 }
 
@@ -66,6 +67,7 @@ const PostActions: React.FC<Props> = ({
   onTranslate,
   isTranslated,
   isTranslating,
+  isPremium,
 }) => {
   const theme = useTheme();
   const haptic = useHaptics();
@@ -176,11 +178,21 @@ const PostActions: React.FC<Props> = ({
             {isTranslating ? (
               <ActivityIndicator size={ICON_SIZE - 4} color={theme.colors.textSecondary} />
             ) : (
-              <Ionicons
-                name={isTranslated ? 'language' : 'language-outline'}
-                size={ICON_SIZE}
-                color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons
+                  name={isTranslated ? 'language' : 'language-outline'}
+                  size={ICON_SIZE}
+                  color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
+                />
+                {!isPremium && (
+                  <Ionicons
+                    name="lock-closed"
+                    size={ICON_SIZE * 0.5}
+                    color={theme.colors.textSecondary}
+                    style={{ marginLeft: -4, marginTop: -6 }}
+                  />
+                )}
+              </View>
             )}
           </PressableScale>
         )}

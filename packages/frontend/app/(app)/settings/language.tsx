@@ -15,6 +15,8 @@ import { Toggle } from '@/components/Toggle';
 import { Icon } from '@/lib/icons';
 import { logger } from '@/lib/logger';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
+import { useAuth } from '@oxyhq/services';
+import { useRouter } from 'expo-router';
 
 const LANGUAGE_OPTIONS = [
     { code: 'en-US', name: 'English', nativeName: 'English', flag: '\u{1F1FA}\u{1F1F8}' },
@@ -32,6 +34,9 @@ export default function LanguageSettingsScreen() {
     const [saving, setSaving] = useState(false);
     const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
     const setAutoTranslateEnabled = useAutoTranslateStore((s) => s.setEnabled);
+    const { user: authUser } = useAuth();
+    const isPremium = (authUser as any)?.premium?.isPremium ?? false;
+    const router = useRouter();
 
     useEffect(() => {
         loadLanguage();
@@ -116,13 +121,18 @@ export default function LanguageSettingsScreen() {
                     <SettingsItem
                         icon="language"
                         title={t('settings.language.autoTranslate')}
-                        description={t('settings.language.autoTranslateDesc')}
-                        showChevron={false}
+                        description={isPremium ? t('settings.language.autoTranslateDesc') : t('subscribe.premiumFeature')}
+                        showChevron={!isPremium}
+                        onPress={!isPremium ? () => router.push('/subscribe') : undefined}
                         rightElement={
-                            <Toggle
-                                value={autoTranslateEnabled}
-                                onValueChange={setAutoTranslateEnabled}
-                            />
+                            isPremium ? (
+                                <Toggle
+                                    value={autoTranslateEnabled}
+                                    onValueChange={setAutoTranslateEnabled}
+                                />
+                            ) : (
+                                <Icon name="lock-closed" size={18} color={colors.textSecondary} />
+                            )
                         }
                     />
                 </SettingsGroup>

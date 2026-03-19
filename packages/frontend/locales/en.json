@@ -850,5 +850,16 @@
     "widgets.relatedPosts": "Related Posts Widget",
     "widgets.recentlyViewed": "Recently Viewed Widget",
     "post.translate.showOriginal": "Translated · Show original",
-    "post.translate.error": "Translation failed. Please try again."
+    "post.translate.error": "Translation failed. Please try again.",
+    "translation.failed": "Translation failed. Try again later.",
+    "translation.rateLimited": "Too many translation requests. Please wait.",
+    "subscribe.title": "Upgrade to Premium",
+    "subscribe.headline": "Unlock Premium Features",
+    "subscribe.subtitle": "Get the most out of Mention with premium tools",
+    "subscribe.translateFeature": "Translate posts to any language",
+    "subscribe.autoTranslateFeature": "Auto-translate foreign language posts",
+    "subscribe.aiFeatures": "Advanced AI-powered features",
+    "subscribe.verifiedBadge": "Verified badge on your profile",
+    "subscribe.cta": "Subscribe Now",
+    "subscribe.premiumFeature": "Premium feature — tap to upgrade"
 }

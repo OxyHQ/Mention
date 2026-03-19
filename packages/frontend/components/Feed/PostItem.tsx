@@ -39,6 +39,7 @@ import { api } from '@/utils/api';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { SubtleHover } from '@/components/SubtleHover';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
+import { toast } from 'sonner';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -68,7 +69,8 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadChild = false,
     isThreadLastChild = false,
 }) => {
-    const { oxyServices } = useAuth();
+    const { oxyServices, user: authUser } = useAuth();
+    const isPremium = (authUser as any)?.premium?.isPremium ?? false;
     const theme = useTheme();
     const { t, i18n } = useTranslation();
     const router = useRouter();
@@ -222,15 +224,26 @@ const PostItem: React.FC<PostItemProps> = ({
             );
             if (data.translatedText) {
                 setTranslatedText(data.translatedText);
+            } else {
+                toast.error(t('translation.failed'));
             }
-        } catch {
-            setTranslatedText(null);
+        } catch (err: unknown) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            if (status === 429) {
+                toast.error(t('translation.rateLimited'));
+            } else {
+                toast.error(t('translation.failed'));
+            }
         } finally {
             setIsTranslating(false);
         }
-    }, [viewPostId, isTranslating, i18n.language]);
+    }, [viewPostId, isTranslating, i18n.language, t]);
 
     const handleTranslate = useCallback(() => {
+        if (!isPremium) {
+            router.push('/subscribe');
+            return;
+        }
         if (translatedText) {
             hasManuallyDismissed.current = true;
             setTranslatedText(null);
@@ -238,10 +251,11 @@ const PostItem: React.FC<PostItemProps> = ({
         }
         // If user previously dismissed, force a fresh translation (bypass cache)
         fetchTranslation(hasManuallyDismissed.current);
-    }, [translatedText, fetchTranslation]);
+    }, [isPremium, translatedText, fetchTranslation, router]);
 
     // Auto-translate: compute during render, fire once via ref guard
     if (
+        isPremium &&
         autoTranslateEnabled &&
         content.text &&
         viewPostId &&
@@ -629,6 +643,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             onTranslate={content.text ? handleTranslate : undefined}
                             isTranslated={Boolean(translatedText)}
                             isTranslating={isTranslating}
+                            isPremium={isPremium}
                             onInsightsPress={isOwner ? () => {
                                 bottomSheet.setBottomSheetContent(
                                     <Suspense fallback={null}>
