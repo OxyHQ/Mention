@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { show as toast } from '@oxyhq/bloom/toast';
 import { ComposerMediaItem, toComposerMediaType } from "@/utils/composeUtils";
 
 export const useMediaManager = () => {
@@ -13,7 +13,7 @@ export const useMediaManager = () => {
       const isVideo = file?.contentType?.startsWith?.("video/");
 
       if (!isImage && !isVideo) {
-        toast.error(t("Please select an image or video file"));
+        toast(t("Please select an image or video file"), { type: 'error' });
         return false;
       }
 
@@ -24,10 +24,10 @@ export const useMediaManager = () => {
         );
         const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
         setMediaIds((prev) => (prev.some((m) => m.id === file.id) ? prev : [...prev, mediaItem]));
-        toast.success(t(isImage ? "Image attached" : "Video attached"));
+        toast(t(isImage ? "Image attached" : "Video attached"), { type: 'success' });
         return true;
       } catch (e: any) {
-        toast.error(e?.message || t("Failed to attach media"));
+        toast(e?.message || t("Failed to attach media"), { type: 'error' });
         return false;
       }
     },
@@ -42,7 +42,7 @@ export const useMediaManager = () => {
       });
 
       if (validFiles.length !== (files || []).length) {
-        toast.error(t("Please select only image or video files"));
+        toast(t("Please select only image or video files"), { type: 'error' });
       }
 
       const mediaItems = validFiles.map((f) => ({
@@ -67,7 +67,7 @@ export const useMediaManager = () => {
   const removeMedia = useCallback(
     (mediaId: string) => {
       setMediaIds((prev) => prev.filter((m) => m.id !== mediaId));
-      toast.success(t("Media removed"));
+      toast(t("Media removed"), { type: 'success' });
     },
     [t]
   );

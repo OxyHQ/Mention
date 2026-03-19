@@ -33,14 +33,14 @@ export const useScheduleManager = ({
     setScheduledAt(null);
     scheduledAtRef.current = null;
     if (!options?.silent) {
-      toast.success(t('compose.schedule.cleared', { defaultValue: 'Scheduling removed' }));
+      toast(t('compose.schedule.cleared', { defaultValue: 'Scheduling removed' }), { type: 'success' });
     }
   }, [t, toast]);
 
   const handleScheduleSelect = useCallback((date: Date) => {
     setScheduledAt(date);
     scheduledAtRef.current = date;
-    toast.success(t('compose.schedule.set', { defaultValue: 'Scheduled for {{time}}', time: formatScheduledLabel(date) }));
+    toast(t('compose.schedule.set', { defaultValue: 'Scheduled for {{time}}', time: formatScheduledLabel(date) }), { type: 'success' });
     bottomSheet.openBottomSheet(false);
   }, [bottomSheet, formatScheduledLabel, t, toast]);
 
@@ -76,7 +76,7 @@ export const useScheduleManager = ({
 
   const openScheduleSheet = useCallback((ScheduleSheetComponent: React.ComponentType<any>) => {
     if (!scheduleEnabled) {
-      toast.info(t('compose.schedule.singlePostOnly', { defaultValue: 'Scheduling is only available for single posts' }));
+      toast(t('compose.schedule.singlePostOnly', { defaultValue: 'Scheduling is only available for single posts' }), { type: 'info' });
       return;
     }
 

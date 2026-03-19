@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
 
 interface UseMediaPickerProps {
@@ -25,16 +25,16 @@ export const useMediaPicker = ({
           const isImage = file?.contentType?.startsWith?.('image/');
           const isVideo = file?.contentType?.startsWith?.('video/');
           if (!isImage && !isVideo) {
-            toast.error(t('Please select an image or video file'));
+            toast(t('Please select an image or video file'), { type: 'error' });
             return;
           }
           try {
             const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
             const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
             setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
-            toast.success(t(isImage ? 'Image attached' : 'Video attached'));
+            toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
           } catch (e: any) {
-            toast.error(e?.message || t('Failed to attach media'));
+            toast(e?.message || t('Failed to attach media'), { type: 'error' });
           }
         },
         onConfirmSelection: async (files: any[]) => {
@@ -43,7 +43,7 @@ export const useMediaPicker = ({
             return contentType.startsWith('image/') || contentType.startsWith('video/');
           });
           if (validFiles.length !== (files || []).length) {
-            toast.error(t('Please select only image or video files'));
+            toast(t('Please select only image or video files'), { type: 'error' });
           }
           const mediaItems = validFiles.map(f => ({
             id: f.id,

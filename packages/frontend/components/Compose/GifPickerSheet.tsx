@@ -16,7 +16,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { Platform } from 'react-native';
 import { api } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';
@@ -89,7 +89,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       }
     } catch (error: any) {
       logger.error('Error fetching GIFs', { error });
-      toast.error(error?.message || t('Failed to load GIFs'));
+      toast(error?.message || t('Failed to load GIFs'), { type: 'error' });
       setGifs([]);
     } finally {
       setLoading(false);
@@ -197,7 +197,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       }
     } catch (error: any) {
       logger.error('Error selecting GIF', { error });
-      toast.error(error?.message || t('Failed to add GIF'));
+      toast(error?.message || t('Failed to add GIF'), { type: 'error' });
     } finally {
       setUploading(false);
       setSelectedGif(null);
