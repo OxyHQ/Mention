@@ -14,7 +14,7 @@ import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
 export class ExploreFeedStrategy implements IFeedStrategy {
-  private readonly FEED_FIELDS = '_id oxyUserId federatedActorId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
   // Time window for trending (24 hours)
   private readonly TRENDING_WINDOW_MS = 24 * 60 * 60 * 1000;
 

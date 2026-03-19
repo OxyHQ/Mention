@@ -17,7 +17,7 @@ import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
 export class ForYouFeedStrategy implements IFeedStrategy {
-  private readonly FEED_FIELDS = '_id oxyUserId federatedActorId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
   private readonly RANKED_FEED_CANDIDATE_MULTIPLIER = 3;
   private readonly SCORE_EPSILON = 0.001;
 

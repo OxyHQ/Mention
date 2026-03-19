@@ -15,7 +15,7 @@ import { logger } from '../../utils/logger';
 import mongoose from 'mongoose';
 
 export class FollowingFeedStrategy implements IFeedStrategy {
-  private readonly FEED_FIELDS = '_id oxyUserId federatedActorId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
   // Overfetch multiplier to compensate for multi-post slices consuming extra posts
   private readonly SLICE_OVERFETCH_MULTIPLIER = 1.5;
 

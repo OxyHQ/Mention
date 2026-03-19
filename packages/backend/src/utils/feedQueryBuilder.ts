@@ -326,20 +326,9 @@ export class FeedQueryBuilder {
   static buildFollowingQuery(
     followingIds: string[],
     cursor?: string,
-    federatedActorIds?: any[],
   ): Record<string, unknown> {
-    const orConditions: Record<string, unknown>[] = [];
-    if (followingIds.length > 0) {
-      orConditions.push({ oxyUserId: { $in: followingIds } });
-    }
-    if (federatedActorIds && federatedActorIds.length > 0) {
-      orConditions.push({ federatedActorId: { $in: federatedActorIds } });
-    }
-
     const query: Record<string, unknown> = {
-      ...(orConditions.length === 1
-        ? orConditions[0]
-        : { $or: orConditions }),
+      oxyUserId: { $in: followingIds },
       visibility: PostVisibility.PUBLIC,
       // No parentPostId filter — replies flow through for thread slicing
       // Exclude reposts (they are shown differently)
@@ -411,12 +400,9 @@ export class FeedQueryBuilder {
     userId: string,
     type: FeedType = 'posts',
     cursor?: string,
-    federatedActorId?: string
   ): Record<string, unknown> {
     const query: Record<string, unknown> = {
-      ...(federatedActorId
-        ? { federatedActorId }
-        : { oxyUserId: userId }),
+      oxyUserId: userId,
       visibility: PostVisibility.PUBLIC
     };
 

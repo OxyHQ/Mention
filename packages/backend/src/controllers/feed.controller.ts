@@ -69,7 +69,7 @@ class FeedController {
   // ============================================================================
   
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId federatedActorId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
 
   /** Slow query threshold in milliseconds (logs warnings for queries exceeding this) */
   private readonly SLOW_QUERY_THRESHOLD_MS = config.feed.slowQueryThresholdMs;
@@ -975,32 +975,13 @@ class FeedController {
       // Include the user's own posts alongside posts from people they follow
       const followingIds = [...new Set([currentUserId, ...extractFollowingIds(followingRes)])];
 
-      // Get federated following (remote actors the user follows)
-      let federatedActorIds: any[] = [];
-      try {
-        const FederatedFollow = require('../models/FederatedFollow.js').default;
-        const FederatedActor = require('../models/FederatedActor.js').default;
-        const fedFollows = await FederatedFollow.find({
-          localUserId: currentUserId,
-          direction: 'outbound',
-          status: 'accepted',
-        }).select('remoteActorUri').lean();
-        if (fedFollows.length > 0) {
-          const actorUris = fedFollows.map((f: any) => f.remoteActorUri);
-          const actors = await FederatedActor.find({ uri: { $in: actorUris } }).select('_id').lean();
-          federatedActorIds = actors.map((a: any) => a._id);
-        }
-      } catch {
-        // Federation models may not exist yet — continue without federated follows
-      }
-
-      if (followingIds.length === 0 && federatedActorIds.length === 0) {
+      if (followingIds.length === 0) {
         return res.json(FeedResponseBuilder.buildEmptyResponse());
       }
 
       // Use FeedQueryBuilder for consistent query building
       // Replies now flow through (no parentPostId filter) for thread slicing
-      const query = FeedQueryBuilder.buildFollowingQuery(followingIds, cursor, federatedActorIds);
+      const query = FeedQueryBuilder.buildFollowingQuery(followingIds, cursor);
 
       // Overfetch to compensate for multi-post slices consuming extra positions
       const overfetchLimit = Math.ceil(limit * 1.5) + 1;
@@ -1285,34 +1266,11 @@ class FeedController {
         return res.status(400).json({ error: 'User ID is required' });
       }
 
-      // Check if this is a federated actor (MongoDB ObjectId format)
-      let federatedActorId: string | undefined;
-      if (mongoose.Types.ObjectId.isValid(userId)) {
-        const FederatedActor = require('../models/FederatedActor.js').default;
-        const actor = await FederatedActor.findById(userId).select('_id outboxUrl acct').lean();
-        if (actor) {
-          federatedActorId = String(actor._id);
-
-          // Trigger outbox sync if no posts exist yet (fire-and-forget)
-          if (!cursor) {
-            const postCount = await Post.countDocuments({ federatedActorId: actor._id });
-            if (postCount === 0 && actor.outboxUrl) {
-              const { federationService } = require('../services/FederationService.js');
-              federationService.syncOutboxPosts(actor, limit).catch((err: any) => {
-                logger.warn(`Background outbox sync failed for ${actor.acct}:`, err);
-              });
-              return res.json(FeedResponseBuilder.buildEmptyResponse());
-            }
-          }
-        }
-      }
-
       // CRITICAL: Check profile privacy settings FIRST, before any database queries
       // This prevents fetching posts that will be filtered out
-      // (federated profiles are always public — skip privacy check)
-      const userSettings = federatedActorId ? null : await UserSettings.findOne({ oxyUserId: userId }).lean();
+      const userSettings = await UserSettings.findOne({ oxyUserId: userId }).lean();
       const profileVisibility = userSettings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
-      const isOwnProfile = !federatedActorId && currentUserId === userId;
+      const isOwnProfile = currentUserId === userId;
       
       // If profile is private or followers_only, check access BEFORE fetching posts
       if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {
@@ -1383,7 +1341,7 @@ class FeedController {
       }
 
       // Use FeedQueryBuilder for consistent query building
-      const query = FeedQueryBuilder.buildUserProfileQuery(userId, type, cursor, federatedActorId);
+      const query = FeedQueryBuilder.buildUserProfileQuery(userId, type, cursor);
 
       const posts = await Post.find(query)
         .select(this.FEED_FIELDS)
