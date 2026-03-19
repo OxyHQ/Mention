@@ -10,7 +10,7 @@ import {
     Share,
     Platform,
 } from 'react-native';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -277,9 +277,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             bottomSheet.openBottomSheet(false);
             const success = await muteService.muteUser(profileData.id);
             if (success) {
-                toast.success(t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }));
+                toast(t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }), { type: 'success' });
             } else {
-                toast.error(t('profile.muteFailed', { defaultValue: 'Failed to mute user' }));
+                toast(t('profile.muteFailed', { defaultValue: 'Failed to mute user' }), { type: 'error' });
             }
         };
 
@@ -295,9 +295,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             if (!confirmed) return;
             try {
                 await oxyServices.blockUser(profileData.id);
-                toast.success(t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }));
+                toast(t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }), { type: 'success' });
             } catch {
-                toast.error(t('profile.blockFailed', { defaultValue: 'Failed to block user' }));
+                toast(t('profile.blockFailed', { defaultValue: 'Failed to block user' }), { type: 'error' });
             }
         };
 
@@ -309,9 +309,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     onSubmit={async (categories, details) => {
                         const success = await reportService.reportUser(profileData.id, categories, details);
                         if (success) {
-                            toast.success(t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }));
+                            toast(t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }), { type: 'success' });
                         } else {
-                            toast.error(t('report.failed', { defaultValue: 'Failed to submit report.' }));
+                            toast(t('report.failed', { defaultValue: 'Failed to submit report.' }), { type: 'error' });
                         }
                     }}
                 />

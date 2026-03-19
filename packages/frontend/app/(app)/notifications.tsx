@@ -26,7 +26,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Header } from '@/components/Header';
 import { StatusBar } from 'expo-status-bar';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
@@ -74,7 +74,7 @@ const NotificationsScreen: React.FC = () => {
         },
         onError: (error: any) => {
             notificationLogger.error('Error marking notification as read', { error });
-            toast.error(t('notification.mark_read_error') || 'Failed to mark notification as read');
+            toast(t('notification.mark_read_error') || 'Failed to mark notification as read', { type: 'error' });
         },
     });
 
@@ -88,19 +88,20 @@ const NotificationsScreen: React.FC = () => {
             try {
                 queryClient.invalidateQueries({ queryKey: ['notifications'] });
                 await refetch();
-                toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
+                toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
             } catch (refetchError) {
                 notificationLogger.error('Error refetching notifications', { error: refetchError });
-                toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
+                toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
             }
         },
         onError: (error: any) => {
             notificationLogger.error('Error marking all notifications as read', { error, statusCode: error?.response?.status });
             const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
             const statusCode = error?.response?.status;
-            toast.error(
+            toast(
                 t('notification.mark_all_read_error') ||
-                `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`
+                `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`,
+                { type: 'error' }
             );
         },
     });
@@ -119,7 +120,7 @@ const NotificationsScreen: React.FC = () => {
 
     const handleMarkAllAsRead = useCallback(async () => {
         if (unreadCount === 0) {
-            toast.info(t('notification.all_already_read') || 'All notifications are already read');
+            toast(t('notification.all_already_read') || 'All notifications are already read', { type: 'info' });
             return;
         }
 

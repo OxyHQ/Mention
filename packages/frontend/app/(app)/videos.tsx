@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
 import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions } from 'react-native';
-import { toast } from '@/lib/sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -574,9 +574,7 @@ export default function VideosScreen() {
                     : p
             ));
         } catch (error) {
-            toast.error(t('common.error'), {
-                description: t('videos.action_failed') || 'Action failed. Please try again.',
-            });
+            toast(t('common.error'), { type: 'error' });
         }
     }, [likePost, unlikePost, t]);
 
@@ -597,9 +595,7 @@ export default function VideosScreen() {
                     : p
             ));
         } catch (error) {
-            toast.error(t('common.error'), {
-                description: t('videos.action_failed') || 'Action failed. Please try again.',
-            });
+            toast(t('common.error'), { type: 'error' });
         }
     }, [repostPost, unrepostPost, t]);
 
@@ -625,13 +621,9 @@ export default function VideosScreen() {
                     });
                 } else if (navigator.clipboard) {
                     await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-                    toast.success(t('videos.link_copied'), {
-                        description: t('videos.link_copied_to_clipboard'),
-                    });
+                    toast(t('videos.link_copied'), { type: 'success' });
                 } else {
-                    toast.error(t('videos.sharing_not_available'), {
-                        description: t('videos.copy_link_manually'),
-                    });
+                    toast(t('videos.sharing_not_available'), { type: 'error' });
                 }
             } else {
                 await Share.share({
@@ -642,9 +634,7 @@ export default function VideosScreen() {
             }
         } catch (error: any) {
             if (error?.message !== 'User did not share' && error?.code !== 'ERR_SHARE_CANCELLED') {
-                toast.error(t('videos.share_failed'), {
-                    description: t('common.error'),
-                });
+                toast(t('videos.share_failed'), { type: 'error' });
             }
         }
     }, [t]);

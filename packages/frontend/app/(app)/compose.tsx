@@ -29,7 +29,7 @@ import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEve
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { GeoJSONPoint, HydratedPost } from '@mention/shared-types';
@@ -452,7 +452,7 @@ const ComposeScreen = () => {
         }
       } catch (e) {
         logger.error('Failed to load post for editing', e);
-        toast.error(t('Failed to load post for editing'));
+        toast(t('Failed to load post for editing'), { type: 'error' });
       } finally {
         if (!cancelled) setEditLoading(false);
       }
@@ -473,12 +473,12 @@ const ComposeScreen = () => {
           setReplyToPost(post);
         } else {
           logger.error(`Parent post not found: ${replyToPostId}`);
-          toast.error(t('Post not found'));
+          toast(t('Post not found'), { type: 'error' });
         }
       } catch (e) {
         if (!cancelled) {
           logger.error('Failed to load parent post', e);
-          toast.error(t('Failed to load post'));
+          toast(t('Failed to load post'), { type: 'error' });
         }
       } finally {
         if (!cancelled) setReplyLoading(false);
@@ -490,7 +490,7 @@ const ComposeScreen = () => {
   const handlePost = async () => {
     if (isPosting || !user) return;
     if (scheduledAt && !scheduleEnabled) {
-      toast.error(t('compose.schedule.threadsUnsupported', { defaultValue: 'Scheduling threads is not supported yet' }));
+      toast(t('compose.schedule.threadsUnsupported', { defaultValue: 'Scheduling threads is not supported yet' }), { type: 'error' });
       return;
     }
 
@@ -501,7 +501,7 @@ const ComposeScreen = () => {
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
 
     if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasRoomContent)) {
-      toast.error(t('Add text, an image, a poll, or an article'));
+      toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
       return;
     }
 
@@ -584,7 +584,7 @@ const ComposeScreen = () => {
           : wasScheduled && scheduledAtValue
             ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
             : t('Post published successfully');
-      toast.success(successMessage);
+      toast(successMessage, { type: 'success' });
 
       clearSchedule({ silent: true });
       clearArticle();
@@ -596,7 +596,7 @@ const ComposeScreen = () => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to publish post', message);
-      toast.error(t('Failed to publish post'));
+      toast(t('Failed to publish post'), { type: 'error' });
     } finally {
       setIsPosting(false);
     }
@@ -657,16 +657,16 @@ const ComposeScreen = () => {
           const isImage = file?.contentType?.startsWith?.('image/');
           const isVideo = file?.contentType?.startsWith?.('video/');
           if (!isImage && !isVideo) {
-            toast.error(t('Please select an image or video file'));
+            toast(t('Please select an image or video file'), { type: 'error' });
             return;
           }
           try {
             const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
             const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
             addThreadMedia(threadId, mediaItem);
-            toast.success(t(isImage ? 'Image attached' : 'Video attached'));
+            toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
           } catch (e: any) {
-            toast.error(e?.message || t('Failed to attach media'));
+            toast(e?.message || t('Failed to attach media'), { type: 'error' });
           }
         },
         onConfirmSelection: async (files: any[]) => {
@@ -675,7 +675,7 @@ const ComposeScreen = () => {
             return contentType.startsWith('image/') || contentType.startsWith('video/');
           });
           if (validFiles.length !== (files || []).length) {
-            toast.error(t('Please select only image or video files'));
+            toast(t('Please select only image or video files'), { type: 'error' });
           }
           const mediaItems = validFiles.map(f => ({
             id: f.id,
@@ -693,7 +693,7 @@ const ComposeScreen = () => {
       // Request permissions
       const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        toast.error(t('Location permission denied'));
+        toast(t('Location permission denied'), { type: 'error' });
         return;
       }
 
@@ -718,9 +718,9 @@ const ComposeScreen = () => {
       };
 
       setThreadLocation(threadId, locationData);
-      toast.success(t('Location added'));
+      toast(t('Location added'), { type: 'success' });
     } catch (error) {
-      toast.error(t('Failed to get location'));
+      toast(t('Failed to get location'), { type: 'error' });
     }
   }, [setThreadLocation, t]);
 
@@ -750,9 +750,9 @@ const ComposeScreen = () => {
             try {
               const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
               addThreadMedia(threadId, mediaItem);
-              toast.success(t('GIF attached'));
+              toast(t('GIF attached'), { type: 'success' });
             } catch (error: any) {
-              toast.error(error?.message || t('Failed to attach GIF'));
+              toast(error?.message || t('Failed to attach GIF'), { type: 'error' });
             }
           }}
         />
@@ -945,10 +945,10 @@ const ComposeScreen = () => {
             try {
               const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
               setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
-              toast.success(t('GIF attached'));
+              toast(t('GIF attached'), { type: 'success' });
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : t('Failed to attach GIF');
-              toast.error(message);
+              toast(message, { type: 'error' });
             }
           }}
         />
@@ -1813,7 +1813,7 @@ const ComposeScreen = () => {
             clearAttachmentOrder();
             setMentions([]);
             clearSchedule({ silent: true });
-            toast.success(t('common.cleared'));
+            toast(t('common.cleared'), { type: 'success' });
           }}
         />
       </SafeAreaView>
