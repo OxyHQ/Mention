@@ -460,10 +460,15 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       return ((cur - prev) / prev * 100).toFixed(0);
     };
 
+    // Skip AI call if the user had no activity in either week — nothing meaningful to summarize
+    if (current.totalPosts === 0 && previous.totalPosts === 0) {
+      return res.json({ summary: null });
+    }
+
     const userMessage = [
-      `This week: ${current.totalPosts} posts, ${current.totalViews} views, ${current.totalInteractions} interactions, ${current.engagementRate.toFixed(1)}% engagement rate, ${current.likes} likes, ${current.replies} replies, ${current.reposts} reposts.`,
-      `Previous week: ${previous.totalPosts} posts, ${previous.totalViews} views, ${previous.totalInteractions} interactions, ${previous.engagementRate.toFixed(1)}% engagement rate.`,
-      `Week-over-week changes: views ${delta(current.totalViews, previous.totalViews)}%, interactions ${delta(current.totalInteractions, previous.totalInteractions)}%, posts ${delta(current.totalPosts, previous.totalPosts)}%.`,
+      `This week: ${current.totalPosts} posts, ${current.totalViews} views, ${current.totalInteractions} interactions (${current.likes} likes, ${current.replies} replies, ${current.reposts} reposts), ${current.engagementRate.toFixed(1)}% engagement.`,
+      `Previous week: ${previous.totalPosts} posts, ${previous.totalViews} views, ${previous.totalInteractions} interactions (${previous.likes} likes, ${previous.replies} replies, ${previous.reposts} reposts), ${previous.engagementRate.toFixed(1)}% engagement.`,
+      `Week-over-week: views ${delta(current.totalViews, previous.totalViews)}%, interactions ${delta(current.totalInteractions, previous.totalInteractions)}%, posts ${delta(current.totalPosts, previous.totalPosts)}%.`,
     ].join('\n');
 
     try {
@@ -471,8 +476,16 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
         [
           {
             role: 'system',
-            content:
-              'You are a social media coach for the app Mention. Given a user\'s weekly performance stats compared to the previous week, write a personalized 2-3 sentence summary. Include one specific observation about their performance and one actionable recommendation. Be encouraging but honest. Do not use bullet points or markdown. Return ONLY the summary text.',
+            content: [
+              'You write weekly performance summaries for Mention, a social platform similar to Twitter/X.',
+              'Given a user\'s stats for this week vs last week, write exactly 2-3 sentences.',
+              'First sentence: one concrete observation (highlight what improved, declined, or stayed flat — reference the actual numbers).',
+              'Second sentence: one specific, actionable suggestion tied to the data (e.g. if replies are low but views are high, suggest asking questions in posts).',
+              'Optional third sentence only if the data warrants it (e.g. a notable milestone or streak).',
+              'Tone: friendly and direct, like a smart friend — not a motivational speaker. No fluff, no exclamation marks, no emojis, no bullet points, no markdown.',
+              'If this week had zero posts, focus on re-engagement without being guilt-trippy.',
+              'Return ONLY the summary text, nothing else.',
+            ].join(' '),
           },
           { role: 'user', content: userMessage },
         ],
