@@ -76,7 +76,7 @@ const DEFAULT_FEED_PROPS = {
     showOnlySaved: false,
 } as const;
 
-const Feed = memo((props: FeedProps) => {
+const Feed = ((props: FeedProps) => {
     const {
         type,
         userId,
@@ -576,7 +576,8 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.showOnlySaved !== nextProps.showOnlySaved ||
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
         prevProps.threaded !== nextProps.threaded ||
-        prevProps.threadPostId !== nextProps.threadPostId
+        prevProps.threadPostId !== nextProps.threadPostId ||
+        prevProps.listHeaderComponent !== nextProps.listHeaderComponent
     ) {
         return false;
     }
