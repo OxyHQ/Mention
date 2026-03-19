@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { cn } from '@/lib/utils';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
 
@@ -49,6 +48,9 @@ const PostAttachmentVideo: React.FC<{
   );
 };
 
+const MAX_SINGLE_HEIGHT = 400;
+const MIN_MULTI_WIDTH = 100;
+
 const PostAttachmentImage: React.FC<{
   src: string;
   hasSingleMedia?: boolean;
@@ -66,11 +68,14 @@ const PostAttachmentImage: React.FC<{
         }
       },
       () => {
-        // On error, use default aspect ratio
-        setAspectRatio(hasMultipleMedia ? 4 / 3 : 4 / 3);
+        setAspectRatio(4 / 3);
       }
     );
-  }, [src, hasMultipleMedia]);
+  }, [src]);
+
+  const multiWidth = aspectRatio !== undefined
+    ? Math.max(CARD_HEIGHT * aspectRatio, MIN_MULTI_WIDTH)
+    : CARD_WIDTH;
 
   return (
     <LazyImage
@@ -79,8 +84,8 @@ const PostAttachmentImage: React.FC<{
         styles.itemContainer,
         webGrabCursorStyle,
         { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-        hasMultipleMedia && { height: CARD_HEIGHT, alignSelf: 'flex-start' as const },
-        hasSingleMedia && { maxHeight: undefined, height: undefined },
+        hasMultipleMedia && { height: CARD_HEIGHT, width: multiWidth, alignSelf: 'flex-start' as const },
+        hasSingleMedia && { maxHeight: MAX_SINGLE_HEIGHT },
       ]}
       style={[
         hasSingleMedia
@@ -91,7 +96,12 @@ const PostAttachmentImage: React.FC<{
       placeholder={
         <View
           className="bg-secondary justify-center items-center"
-          style={hasSingleMedia ? styles.imagePreserveAspect : { width: '100%' as unknown as number, height: '100%' as unknown as number }}
+          style={hasSingleMedia
+            ? styles.imagePreserveAspect
+            : hasMultipleMedia
+              ? { width: multiWidth, height: CARD_HEIGHT }
+              : { width: '100%' as unknown as number, height: '100%' as unknown as number }
+          }
         />
       }
       threshold={300}
