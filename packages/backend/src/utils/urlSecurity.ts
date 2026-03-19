@@ -152,6 +152,30 @@ export function sanitizeText(text: string | null | undefined): string {
 }
 
 /**
+ * Decode HTML entities and strip tags from text.
+ * Use for metadata fields (titles, descriptions) that are plain text with possible entities.
+ * Unlike htmlToPlainText, this does not transform link structure or collapse whitespace.
+ */
+export function decodeHtmlEntities(text: string | null | undefined): string {
+  if (!text || typeof text !== 'string') return '';
+
+  const stripped = text.replace(/<[^>]*>/g, '');
+
+  return stripped
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
  * Validate URL length (prevent DoS)
  */
 export function validateUrlLength(url: string, maxLength: number = 2048): boolean {

@@ -9,7 +9,7 @@ import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
 
 export interface CreatePostParams {
-  oxyUserId?: string | null;
+  oxyUserId: string | null;
   content: PostContent;
   visibility?: PostVisibility;
   parentPostId?: string | null;
