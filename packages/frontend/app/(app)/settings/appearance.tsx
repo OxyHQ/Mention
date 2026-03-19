@@ -7,6 +7,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
+import { PREMIUM_COLOR_NAMES } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -26,7 +27,7 @@ export default function AppearanceSettingsScreen() {
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const appColor = useThemeStore((s) => s.appColor);
   const setMode = useThemeStore((s) => s.setMode);
-  const { showBottomSheet, oxyServices } = useAuth();
+  const { showBottomSheet, oxyServices, user: authUser } = useAuth();
   const { saveColor, saving: colorSaving } = useAppColorSave();
   const safeBack = useSafeBack();
   const { colors } = useTheme();
@@ -48,6 +49,11 @@ export default function AppearanceSettingsScreen() {
       setHeaderImageId(mySettings.profileHeaderImage || '');
     }
   }, [mySettings]);
+
+  const isOxyUser = authUser?.username?.toLowerCase() === 'oxy';
+  const authUserRecord = authUser as { premium?: { isPremium?: boolean } } | null;
+  const isPremium = authUserRecord?.premium?.isPremium ?? false;
+  const extraColors = isOxyUser || isPremium ? PREMIUM_COLOR_NAMES : undefined;
 
   const preset = APP_COLOR_PRESETS[appColor];
 
@@ -154,7 +160,7 @@ export default function AppearanceSettingsScreen() {
             </Text>
           </View>
 
-          <ColorSwatchPicker value={appColor} onChange={onColorChange} />
+          <ColorSwatchPicker value={appColor} onChange={onColorChange} extraColors={extraColors} />
         </View>
 
         <SettingsDivider />

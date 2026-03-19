@@ -6,12 +6,17 @@ import { cn } from '@/lib/utils';
 interface ColorSwatchPickerProps {
   value: AppColorName;
   onChange: (name: AppColorName) => void;
+  extraColors?: AppColorName[];
 }
 
-export function ColorSwatchPicker({ value, onChange }: ColorSwatchPickerProps) {
+export function ColorSwatchPicker({ value, onChange, extraColors }: ColorSwatchPickerProps) {
+  const allColors = extraColors?.length
+    ? [...APP_COLOR_NAMES, ...extraColors]
+    : APP_COLOR_NAMES;
+
   return (
     <View className="flex-row gap-3 flex-wrap">
-      {APP_COLOR_NAMES.map((name) => {
+      {allColors.map((name) => {
         const preset = APP_COLOR_PRESETS[name];
         const isSelected = value === name;
         return (
