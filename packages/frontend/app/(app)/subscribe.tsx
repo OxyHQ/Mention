@@ -2,25 +2,17 @@ import React from 'react';
 import { View, Text, ScrollView, Linking } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
-import { IconButton, Button } from '@/components/ui/Button';
+import { IconButton, PrimaryButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/lib/icons';
+import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
 import { STRIPE_LINK_PLUS } from '@/config';
-
-const FEATURES = [
-    { icon: 'language-outline' as const, key: 'subscribe.translateFeature' },
-    { icon: 'globe-outline' as const, key: 'subscribe.autoTranslateFeature' },
-    { icon: 'sparkles-outline' as const, key: 'subscribe.aiFeatures' },
-    { icon: 'shield-checkmark-outline' as const, key: 'subscribe.verifiedBadge' },
-];
 
 export default function SubscribeScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { colors } = useTheme();
 
     const handleSubscribe = () => {
         if (STRIPE_LINK_PLUS) {
@@ -45,40 +37,36 @@ export default function SubscribeScreen() {
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-6 px-5"
+                contentContainerClassName="px-4 pt-4 pb-8"
                 showsVerticalScrollIndicator={false}
             >
-                <View className="items-center mb-8">
-                    <Icon name="diamond-outline" size={48} color={colors.primary} />
-                    <Text className="text-foreground text-2xl font-bold mt-4 text-center">
+                {/* Hero */}
+                <View className="items-center py-6 mb-4">
+                    <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/10 mb-3">
+                        <Icon name="diamond-outline" size={32} className="text-primary" />
+                    </View>
+                    <Text className="text-xl font-bold text-foreground">
                         {t('subscribe.headline')}
                     </Text>
-                    <Text className="text-muted-foreground text-base mt-2 text-center">
+                    <Text className="text-sm text-muted-foreground mt-1 text-center">
                         {t('subscribe.subtitle')}
                     </Text>
                 </View>
 
-                <View className="gap-4 mb-8">
-                    {FEATURES.map((feature) => (
-                        <View key={feature.key} className="flex-row items-center gap-3">
-                            <View
-                                className="w-10 h-10 rounded-full items-center justify-center"
-                                style={{ backgroundColor: colors.primary + '15' }}
-                            >
-                                <Icon name={feature.icon} size={22} color={colors.primary} />
-                            </View>
-                            <Text className="text-foreground text-base flex-1">
-                                {t(feature.key)}
-                            </Text>
-                        </View>
-                    ))}
-                </View>
+                {/* Features */}
+                <SettingsGroup title={t('subscribe.featuresTitle')}>
+                    <SettingsItem icon="language" title={t('subscribe.translateFeature')} showChevron={false} />
+                    <SettingsItem icon="globe" title={t('subscribe.autoTranslateFeature')} showChevron={false} />
+                    <SettingsItem icon="sparkles" title={t('subscribe.aiFeatures')} showChevron={false} />
+                    <SettingsItem icon="shield-checkmark" title={t('subscribe.verifiedBadge')} showChevron={false} />
+                </SettingsGroup>
 
-                <Button onPress={handleSubscribe}>
-                    <Text className="text-primary-foreground text-base font-semibold text-center">
+                {/* CTA */}
+                <View className="px-4 mt-2">
+                    <PrimaryButton size="large" onPress={handleSubscribe}>
                         {t('subscribe.cta')}
-                    </Text>
-                </Button>
+                    </PrimaryButton>
+                </View>
             </ScrollView>
         </ThemedView>
     );
