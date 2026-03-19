@@ -1928,20 +1928,31 @@ export const moveBookmarkToFolder = async (req: AuthRequest, res: Response) => {
 // Get posts by hashtag
 export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   try {
-    const hashtag = req.params.hashtag;
-    const page = parseInt(req.query.page as string) || 1;
+    const hashtag = String(req.params.hashtag);
+    const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    const posts = await Post.find({
-      hashtags: { $in: [hashtag] },
-      status: 'published'
-    })
-      .sort({ created_at: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
+    const filter: Record<string, unknown> = {
+      hashtags: { $in: [hashtag.toLowerCase()] },
+      status: 'published',
+    };
+
+    if (cursor) {
+      filter._id = { $lt: cursor };
+    }
+
+    const posts = await Post.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
       .lean();
 
-    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+    const hasMore = posts.length > limit;
+    const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+    const nextCursor = hasMore && postsToReturn.length > 0
+      ? postsToReturn[postsToReturn.length - 1]._id.toString()
+      : undefined;
+
+    const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
@@ -1949,11 +1960,9 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({
-      posts: hydratedPosts,
-      hashtag,
-      hasMore: posts.length === limit,
-      page,
-      limit
+      items: hydratedPosts,
+      hasMore,
+      nextCursor,
     });
   } catch (error) {
     logger.error('Error fetching posts by hashtag', error);
