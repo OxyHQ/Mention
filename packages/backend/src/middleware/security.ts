@@ -16,12 +16,9 @@ const redisStore = new RedisStore({
 const rateLimiter = rateLimit({
   store: redisStore,
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: (req: Request) => {
-    const authReq = req as AuthRequest;
-    // Authenticated users: 1000 requests per 15 minutes
-    // Unauthenticated users: 100 requests per 15 minutes
-    return authReq.user?.id ? 1000 : 100;
-  },
+  // This middleware runs before auth, so req.user is never set.
+  // Use a flat limit here; per-endpoint rate limiters handle auth-aware limits.
+  max: 1000,
   keyGenerator: (req: Request) => {
     const authReq = req as AuthRequest;
     if (authReq.user?.id) {
@@ -41,10 +38,9 @@ const rateLimiter = rateLimit({
 // Brute force protection middleware (exclude file uploads and preflight)
 const bruteForceProtection: any = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  delayAfter: (req: Request) => {
-    const authReq = req as AuthRequest;
-    return authReq.user?.id ? 1000 : 100;
-  },
+  // This middleware runs before auth, so req.user is never set.
+  // Use a flat limit matching the rate limiter above.
+  delayAfter: 1000,
   delayMs: () => 500, // add 500ms delay per request above limit
   skip: (req: Request) => req.path.startsWith('/files/upload') || req.method === 'OPTIONS'
 });

@@ -14,7 +14,7 @@ import { Agora as AgoraIcon } from '@mention/agora-shared';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 
 const MAX_ROOMS_DISPLAYED = 3;
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 120_000;
 
 const RoomRow = React.memo(function RoomRow({
   room,
