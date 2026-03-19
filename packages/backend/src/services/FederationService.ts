@@ -170,8 +170,7 @@ class FederationService {
             bio: actor.summary || undefined,
           });
           if (oxyUser?.id) {
-            fedActor.oxyUserId = String(oxyUser.id);
-            await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyUser.id } });
+            await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: String(oxyUser.id) } });
           }
         } catch (resolveErr) {
           logger.warn(`Failed to resolve Oxy user for ${actorUri}:`, resolveErr);
@@ -368,7 +367,7 @@ class FederationService {
 
   /**
    * Extract media attachments from an AP Note object.
-   * Returns proxied media items and attachment descriptors for the Post model.
+   * Returns media items and attachment descriptors for the Post model.
    */
   private extractApMedia(note: Record<string, any>): { media: any[]; attachments: any[] } {
     const media: any[] = [];
