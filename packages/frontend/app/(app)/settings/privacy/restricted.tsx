@@ -24,7 +24,7 @@ const log = IS_DEV ? console.log : () => {};
 const logError = IS_DEV ? console.error : () => {};
 const logWarn = IS_DEV ? console.warn : () => {};
 
-const IconComponent = Ionicons as React.ComponentType<{ name: string; size?: number; color?: string; style?: object }>;
+const IconComponent = Ionicons as any;
 
 interface RestrictedUser {
     id: string;
@@ -67,15 +67,20 @@ export default function RestrictedUsersScreen() {
             const restrictedUsersList = await oxyServices.getRestrictedUsers();
             log('[RestrictedUsers] Oxy response:', restrictedUsersList);
             // Extract user IDs from RestrictedUser objects (restrictedId can be string or object)
-            const userIds = (restrictedUsersList as Array<{ restrictedId?: string | { _id: string }; id?: string; _id?: string; userId?: string }>)
-                .map((user) => {
+            let userIds = restrictedUsersList
+                .map((user: any) => {
                     if (user.restrictedId) {
                         return typeof user.restrictedId === 'string' ? user.restrictedId : user.restrictedId._id;
                     }
                     return user.id || user._id || user.userId;
                 })
-                .filter(Boolean)
-                .filter((id): id is string => id !== currentUser?.id) as string[];
+                .filter(Boolean);
+
+            // Filter out the current user's ID (can't restrict yourself)
+            const currentUserId = currentUser?.id;
+            if (currentUserId) {
+                userIds = userIds.filter((id: string) => id !== currentUserId);
+            }
 
             log('[RestrictedUsers] Restricted user IDs (filtered):', userIds);
             setRestrictedUserIds(userIds);
@@ -100,33 +105,33 @@ export default function RestrictedUsersScreen() {
                         const { useUsersStore } = await import('@/stores/usersStore');
                         const usersState = useUsersStore.getState();
 
-                        const svc = oxyServices as Record<string, unknown>;
-                        const loader = async (id: string): Promise<RestrictedUser | null | undefined> => {
+                        const svc: any = oxyServices as any;
+                        const loader = async (id: string) => {
                             // Try multiple methods like NotificationItem does
                             if (typeof svc.getProfileById === 'function') {
                                 try {
-                                    return await (svc.getProfileById as (id: string) => Promise<RestrictedUser>)(id);
+                                    return await svc.getProfileById(id);
                                 } catch (e) {
                                     log(`[RestrictedUsers] getProfileById failed for ${id}`);
                                 }
                             }
                             if (typeof svc.getProfile === 'function') {
                                 try {
-                                    return await (svc.getProfile as (id: string) => Promise<RestrictedUser>)(id);
+                                    return await svc.getProfile(id);
                                 } catch (e) {
                                     log(`[RestrictedUsers] getProfile failed for ${id}`);
                                 }
                             }
                             if (typeof svc.getUserById === 'function') {
                                 try {
-                                    return await (svc.getUserById as (id: string) => Promise<RestrictedUser>)(id);
+                                    return await svc.getUserById(id);
                                 } catch (e) {
                                     log(`[RestrictedUsers] getUserById failed for ${id}`);
                                 }
                             }
                             if (typeof svc.getUser === 'function') {
                                 try {
-                                    return await (svc.getUser as (id: string) => Promise<RestrictedUser>)(id);
+                                    return await svc.getUser(id);
                                 } catch (e) {
                                     log(`[RestrictedUsers] getUser failed for ${id}`);
                                 }
@@ -164,10 +169,9 @@ export default function RestrictedUsersScreen() {
             const users = (await Promise.all(userPromises)).filter(Boolean) as RestrictedUser[];
             log('[RestrictedUsers] Loaded users:', users.length);
             setRestrictedUsers(users);
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: unknown } };
+        } catch (error: any) {
             logError('[RestrictedUsers] Error loading restricted users:', error);
-            logError('[RestrictedUsers] Error response:', err.response?.data);
+            logError('[RestrictedUsers] Error response:', error.response?.data);
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -215,7 +219,7 @@ export default function RestrictedUsersScreen() {
 
         try {
             setSearching(true);
-            let results: RestrictedUser[] = [];
+            let results: any[] = [];
             if (oxyServices?.searchProfiles) {
                 try {
                     const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
@@ -234,17 +238,16 @@ export default function RestrictedUsersScreen() {
             }
 
             // Filter out already restricted users and current user using Set for O(1) lookup
-            const filtered = results.filter((user) => {
-                const userId = user.id;
+            const filtered = results.filter((user: any) => {
+                const userId = user.id || user._id;
                 return userId &&
                        !restrictedUserIdsSet.has(userId) &&
                        userId !== currentUser?.id;
             });
             setSearchResults(filtered);
-        } catch (error: unknown) {
-            const err = error as { name?: string };
+        } catch (error: any) {
             // Ignore abort errors
-            if (err.name !== 'AbortError') {
+            if (error.name !== 'AbortError') {
                 logError('Error searching users:', error);
             }
         } finally {
@@ -287,7 +290,7 @@ export default function RestrictedUsersScreen() {
     }, []);
 
     const handleRestrict = async (user: RestrictedUser) => {
-        const userId = user.id;
+        const userId = user.id || (user as any)._id;
         if (!userId) return;
 
         // Prevent restricting yourself
@@ -312,7 +315,10 @@ export default function RestrictedUsersScreen() {
             setRestrictedUsers(prev => [...prev, user]);
 
             // Remove from search results immediately
-            setSearchResults(prev => prev.filter(u => u.id !== userId));
+            setSearchResults(prev => prev.filter(u => {
+                const id = u.id || (u as any)._id;
+                return id !== userId;
+            }));
             // Use Oxy services directly
             await oxyServices.restrictUser(userId);
             log('[RestrictedUsers] User restricted successfully');
@@ -330,13 +336,15 @@ export default function RestrictedUsersScreen() {
                 />
             );
             bottomSheet.openBottomSheet(true);
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: { error?: string } } };
+        } catch (error: any) {
             logError('Error restricting user:', error);
             // Revert optimistic update on error
             setRestrictedUserIds(prev => prev.filter(id => id !== userId));
-            setRestrictedUsers(prev => prev.filter(u => u.id !== userId));
-            const errorMessage = err.response?.data?.error || t('settings.privacy.failedToRestrictUser');
+            setRestrictedUsers(prev => prev.filter(u => {
+                const id = u.id || (u as any)._id;
+                return id !== userId;
+            }));
+            const errorMessage = error.response?.data?.error || t('settings.privacy.failedToRestrictUser');
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -353,7 +361,10 @@ export default function RestrictedUsersScreen() {
 
     const handleUnrestrict = async (userId: string) => {
         // Store user to remove for potential revert
-        const userToRemove = restrictedUsers.find(u => u.id === userId);
+        const userToRemove = restrictedUsers.find(u => {
+            const id = u.id || (u as any)._id;
+            return id === userId;
+        });
 
         const performUnrestrict = async () => {
             try {
@@ -361,7 +372,10 @@ export default function RestrictedUsersScreen() {
 
                 // Optimistically remove from list
                 setRestrictedUserIds(prev => prev.filter(id => id !== userId));
-                setRestrictedUsers(prev => prev.filter(u => u.id !== userId));
+                setRestrictedUsers(prev => prev.filter(u => {
+                    const id = u.id || (u as any)._id;
+                    return id !== userId;
+                }));
 
                 // Use Oxy services directly
                 await oxyServices.unrestrictUser(userId);
@@ -379,16 +393,15 @@ export default function RestrictedUsersScreen() {
                     />
                 );
                 bottomSheet.openBottomSheet(true);
-            } catch (error: unknown) {
-                const err = error as { response?: { data?: { error?: string } } };
+            } catch (error: any) {
                 logError('[RestrictedUsers] Error unrestricting user:', error);
-                logError('[RestrictedUsers] Error response:', err.response?.data);
+                logError('[RestrictedUsers] Error response:', error.response?.data);
                 // Revert optimistic update on error
                 if (userToRemove) {
                     setRestrictedUserIds(prev => [...prev, userId]);
                     setRestrictedUsers(prev => [...prev, userToRemove]);
                 }
-                const errorMessage = err.response?.data?.error || t('settings.privacy.failedToUnrestrictUser');
+                const errorMessage = error.response?.data?.error || t('settings.privacy.failedToUnrestrictUser');
                 bottomSheet.setBottomSheetContent(
                     <MessageBottomSheet
                         title={t('common.error')}
@@ -485,7 +498,7 @@ export default function RestrictedUsersScreen() {
                     {searchQuery && searchResults.length > 0 && (
                         <View className="rounded-2xl border border-border bg-card overflow-hidden" style={{ maxHeight: 300 }}>
                             {searchResults.map((user) => {
-                                const userId = user.id;
+                                const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
                                 const handle = getUserHandle(user);
                                 const avatarUri = getAvatarUri(user);
@@ -551,7 +564,7 @@ export default function RestrictedUsersScreen() {
                     ) : (
                         <View className="rounded-2xl border border-border bg-card overflow-hidden">
                             {restrictedUsers.map((user, index) => {
-                                const userId = user.id;
+                                const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
                                 const handle = getUserHandle(user);
                                 const avatarUri = getAvatarUri(user);

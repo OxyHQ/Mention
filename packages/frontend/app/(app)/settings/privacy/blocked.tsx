@@ -21,7 +21,7 @@ import { createScopedLogger } from '@/lib/logger';
 
 const blockedLogger = createScopedLogger('BlockedUsers');
 
-const IconComponent = Ionicons as React.ComponentType<{ name: string; size?: number; color?: string; style?: object }>;
+const IconComponent = Ionicons as any;
 
 interface BlockedUser {
     id: string;
@@ -61,14 +61,14 @@ export default function BlockedUsersScreen() {
             const blockedUsersList = await oxyServices.getBlockedUsers();
             blockedLogger.debug('Oxy response received', { count: blockedUsersList?.length });
             // Extract user IDs from BlockedUser objects (blockedId can be string or object)
-            const userIds = (blockedUsersList as Array<{ blockedId?: string | { _id: string }; id?: string; _id?: string; userId?: string }>)
-                .map((user) => {
+            const userIds = blockedUsersList
+                .map((user: any) => {
                     if (user.blockedId) {
                         return typeof user.blockedId === 'string' ? user.blockedId : user.blockedId._id;
                     }
                     return user.id || user._id || user.userId;
                 })
-                .filter(Boolean) as string[];
+                .filter(Boolean);
             blockedLogger.debug('Blocked user IDs resolved', { count: userIds.length });
             setBlockedUserIds(userIds);
 
@@ -87,33 +87,33 @@ export default function BlockedUsersScreen() {
                     const { useUsersStore } = await import('@/stores/usersStore');
                     const usersState = useUsersStore.getState();
 
-                    const svc = oxyServices as Record<string, unknown>;
-                    const loader = async (id: string): Promise<BlockedUser | null | undefined> => {
+                    const svc: any = oxyServices as any;
+                    const loader = async (id: string) => {
                         // Try multiple methods like NotificationItem does
                         if (typeof svc.getProfileById === 'function') {
                             try {
-                                return await (svc.getProfileById as (id: string) => Promise<BlockedUser>)(id);
+                                return await svc.getProfileById(id);
                             } catch (e) {
                                 blockedLogger.debug(`getProfileById failed for ${id}`);
                             }
                         }
                         if (typeof svc.getProfile === 'function') {
                             try {
-                                return await (svc.getProfile as (id: string) => Promise<BlockedUser>)(id);
+                                return await svc.getProfile(id);
                             } catch (e) {
                                 blockedLogger.debug(`getProfile failed for ${id}`);
                             }
                         }
                         if (typeof svc.getUserById === 'function') {
                             try {
-                                return await (svc.getUserById as (id: string) => Promise<BlockedUser>)(id);
+                                return await svc.getUserById(id);
                             } catch (e) {
                                 blockedLogger.debug(`getUserById failed for ${id}`);
                             }
                         }
                         if (typeof svc.getUser === 'function') {
                             try {
-                                return await (svc.getUser as (id: string) => Promise<BlockedUser>)(id);
+                                return await svc.getUser(id);
                             } catch (e) {
                                 blockedLogger.debug(`getUser failed for ${id}`);
                             }
@@ -149,9 +149,8 @@ export default function BlockedUsersScreen() {
             const users = (await Promise.all(userPromises)).filter(Boolean) as BlockedUser[];
             blockedLogger.debug(`Loaded users: ${users.length}`);
             setBlockedUsers(users);
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: unknown } };
-            blockedLogger.error('Error loading blocked users', { error, responseData: err.response?.data });
+        } catch (error: any) {
+            blockedLogger.error('Error loading blocked users', { error, responseData: error.response?.data });
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -195,8 +194,8 @@ export default function BlockedUsersScreen() {
             setSearching(true);
             const results = await searchUsersViaOxy(query);
             // Filter out already blocked users and current user
-            const filtered = (results as BlockedUser[]).filter((user) => {
-                const userId = user.id;
+            const filtered = results.filter((user: any) => {
+                const userId = user.id || user._id;
                 return userId &&
                        !blockedUserIds.includes(userId) &&
                        userId !== currentUser?.id;
@@ -210,7 +209,7 @@ export default function BlockedUsersScreen() {
     }, [blockedUserIds, currentUser?.id, searchUsersViaOxy]);
 
     const handleBlock = async (user: BlockedUser) => {
-        const userId = user.id;
+        const userId = user.id || (user as any)._id;
         if (!userId) return;
 
         // Prevent blocking yourself
@@ -235,7 +234,10 @@ export default function BlockedUsersScreen() {
             setBlockedUsers(prev => [...prev, user]);
 
             // Remove from search results immediately
-            setSearchResults(prev => prev.filter(u => u.id !== userId));
+            setSearchResults(prev => prev.filter(u => {
+                const id = u.id || (u as any)._id;
+                return id !== userId;
+            }));
 
             // Use Oxy services directly
             await oxyServices.blockUser(userId);
@@ -254,13 +256,15 @@ export default function BlockedUsersScreen() {
                 />
             );
             bottomSheet.openBottomSheet(true);
-        } catch (error: unknown) {
+        } catch (error: any) {
             blockedLogger.error('Error blocking user', { error });
             // Revert optimistic update on error
             setBlockedUserIds(prev => prev.filter(id => id !== userId));
-            setBlockedUsers(prev => prev.filter(u => u.id !== userId));
-            const err = error as { response?: { data?: { error?: string } } };
-            const errorMessage = err.response?.data?.error || t('settings.privacy.failedToBlockUser');
+            setBlockedUsers(prev => prev.filter(u => {
+                const id = u.id || (u as any)._id;
+                return id !== userId;
+            }));
+            const errorMessage = error.response?.data?.error || t('settings.privacy.failedToBlockUser');
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -277,7 +281,10 @@ export default function BlockedUsersScreen() {
 
     const handleUnblock = async (userId: string) => {
         // Store user to remove for potential revert
-        const userToRemove = blockedUsers.find(u => u.id === userId);
+        const userToRemove = blockedUsers.find(u => {
+            const id = u.id || (u as any)._id;
+            return id === userId;
+        });
 
         const performUnblock = async () => {
             try {
@@ -285,7 +292,10 @@ export default function BlockedUsersScreen() {
 
                 // Optimistically remove from list
                 setBlockedUserIds(prev => prev.filter(id => id !== userId));
-                setBlockedUsers(prev => prev.filter(u => u.id !== userId));
+                setBlockedUsers(prev => prev.filter(u => {
+                    const id = u.id || (u as any)._id;
+                    return id !== userId;
+                }));
 
                 // Use Oxy services directly
                 await oxyServices.unblockUser(userId);
@@ -303,15 +313,14 @@ export default function BlockedUsersScreen() {
                     />
                 );
                 bottomSheet.openBottomSheet(true);
-            } catch (error: unknown) {
-                const err = error as { response?: { data?: { error?: string } } };
-                blockedLogger.error('Error unblocking user', { error, responseData: err.response?.data });
+            } catch (error: any) {
+                blockedLogger.error('Error unblocking user', { error, responseData: error.response?.data });
                 // Revert optimistic update on error
                 if (userToRemove) {
                     setBlockedUserIds(prev => [...prev, userId]);
                     setBlockedUsers(prev => [...prev, userToRemove]);
                 }
-                const errorMessage = err.response?.data?.error || t('settings.privacy.failedToUnblockUser');
+                const errorMessage = error.response?.data?.error || t('settings.privacy.failedToUnblockUser');
                 bottomSheet.setBottomSheetContent(
                     <MessageBottomSheet
                         title={t('common.error')}
@@ -399,7 +408,7 @@ export default function BlockedUsersScreen() {
                     {searchQuery && searchResults.length > 0 && (
                         <View className="rounded-2xl border border-border bg-card overflow-hidden" style={{ maxHeight: 300 }}>
                             {searchResults.map((user) => {
-                                const userId = user.id;
+                                const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
                                 const handle = getUserHandle(user);
                                 const avatarUri = getAvatarUri(user);
@@ -465,7 +474,7 @@ export default function BlockedUsersScreen() {
                     ) : (
                         <View className="rounded-2xl border border-border bg-card overflow-hidden">
                             {blockedUsers.map((user, index) => {
-                                const userId = user.id;
+                                const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
                                 const handle = getUserHandle(user);
                                 const avatarUri = getAvatarUri(user);

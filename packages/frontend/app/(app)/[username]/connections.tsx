@@ -3,8 +3,8 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { FollowButton } from '@oxyhq/services';
-import { useLocalSearchParams, router, usePathname, type Href } from 'expo-router';
+import * as OxyServicesNS from '@oxyhq/services';
+import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,20 +24,6 @@ import { logger } from '@/lib/logger';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
 
-interface ConnectionUser {
-  id?: string;
-  _id?: string;
-  userID?: string;
-  username?: string;
-  handle?: string;
-  displayName?: string;
-  avatar?: string;
-  profilePicture?: string;
-  bio?: string;
-  name?: { full?: string; first?: string; last?: string } | string;
-  profile?: { name?: { full?: string; first?: string }; bio?: string };
-}
-
 export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
   const safeBack = useSafeBack();
@@ -47,11 +33,15 @@ export default function ConnectionsScreen() {
   const { oxyServices, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [followers, setFollowers] = useState<ConnectionUser[]>([]);
-  const [following, setFollowing] = useState<ConnectionUser[]>([]);
-  const [recommendations, setRecommendations] = useState<ConnectionUser[]>([]);
+  const [followers, setFollowers] = useState<any[]>([]);
+  const [following, setFollowing] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
+  const FollowButton = useMemo(
+    () => (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>,
+    []
+  );
 
   const { data: profileData } = useProfileData(cleanUsername);
 
@@ -81,14 +71,14 @@ export default function ConnectionsScreen() {
 
     try {
       setError(null);
-      const followersList = await oxyServices.getUserFollowers(profileData.id) as { followers?: ConnectionUser[] } | ConnectionUser[];
-      const list: ConnectionUser[] = Array.isArray((followersList as { followers?: ConnectionUser[] })?.followers)
-        ? (followersList as { followers: ConnectionUser[] }).followers
+      const followersList: any = await oxyServices.getUserFollowers(profileData.id);
+      const list = Array.isArray(followersList?.followers)
+        ? followersList.followers
         : Array.isArray(followersList)
-          ? followersList as ConnectionUser[]
+          ? followersList
           : [];
       setFollowers(list);
-      try { useUsersStore.getState().upsertMany(list); } catch {}
+      try { useUsersStore.getState().upsertMany(list as any); } catch {}
     } catch (err) {
       const message = err instanceof globalThis.Error ? err.message : 'Failed to load followers';
       setError(message);
@@ -102,14 +92,14 @@ export default function ConnectionsScreen() {
 
     try {
       setError(null);
-      const followingList = await oxyServices.getUserFollowing(profileData.id) as { following?: ConnectionUser[] } | ConnectionUser[];
-      const list: ConnectionUser[] = Array.isArray((followingList as { following?: ConnectionUser[] })?.following)
-        ? (followingList as { following: ConnectionUser[] }).following
+      const followingList: any = await oxyServices.getUserFollowing(profileData.id);
+      const list = Array.isArray(followingList?.following)
+        ? followingList.following
         : Array.isArray(followingList)
-          ? followingList as ConnectionUser[]
+          ? followingList
           : [];
       setFollowing(list);
-      try { useUsersStore.getState().upsertMany(list); } catch {}
+      try { useUsersStore.getState().upsertMany(list as any); } catch {}
     } catch (err) {
       const message = err instanceof globalThis.Error ? err.message : 'Failed to load following';
       setError(message);
@@ -122,11 +112,11 @@ export default function ConnectionsScreen() {
     try {
       setError(null);
       const response = await oxyServices.getProfileRecommendations();
-      const recommendationsList: ConnectionUser[] = Array.isArray(response) ? response as ConnectionUser[] : [];
+      const recommendationsList = Array.isArray(response) ? response : [];
       setRecommendations(recommendationsList);
       try {
         if (recommendationsList.length) {
-          useUsersStore.getState().upsertMany(recommendationsList);
+          useUsersStore.getState().upsertMany(recommendationsList as any);
         }
       } catch {}
     } catch (err) {
@@ -171,7 +161,7 @@ export default function ConnectionsScreen() {
       path = `/@${cleanUsername}/followers`;
     }
 
-    router.push(path as Href);
+    router.push(path as any);
   }, [cleanUsername, username]);
 
   const getInviteMessage = useCallback(() => {
@@ -231,27 +221,25 @@ export default function ConnectionsScreen() {
     }
   }, [getInviteMessage, t]);
 
-  const renderUser = useCallback(({ item }: { item: ConnectionUser }) => {
+  const renderUser = useCallback(({ item }: { item: any }) => {
     const usernameValue = item?.username || item?.handle || item?.userID || item?.id;
     if (!usernameValue) return null;
 
-    const nameObj = item?.name;
     const displayName =
       item?.profile?.name?.full ||
-      (typeof nameObj === 'object' && nameObj !== null && nameObj.first ? `${nameObj.first} ${nameObj.last || ''}`.trim() : '') ||
-      (typeof nameObj === 'string' ? nameObj : '') ||
+      (item?.name?.first ? `${item.name.first} ${item.name.last || ''}`.trim() : '') ||
       item?.displayName ||
       usernameValue;
 
-    const avatarSource = item?.avatar ?? item?.profilePicture;
+    const avatarSource = item?.avatar ?? (item as any)?.profilePicture;
     const bio = item?.profile?.bio || item?.bio;
-    const userId = String(item.id || item._id || item.userID);
+    const userId = String((item as any).id || (item as any)._id || (item as any).userID);
 
     return (
       <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity
           className="flex-row items-center flex-1"
-          onPress={() => router.push(`/@${usernameValue}` as Href)}
+          onPress={() => router.push(`/@${usernameValue}` as any)}
           activeOpacity={0.7}
         >
           <Avatar source={avatarSource || undefined} size={48} />
@@ -396,7 +384,7 @@ export default function ConnectionsScreen() {
       <LegendList
         data={currentData}
         renderItem={renderUser}
-        keyExtractor={(item: ConnectionUser) => String(item.id || item._id || item.userID || item.username)}
+        keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
         ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
         ListEmptyComponent={
           <View className="items-center py-[60px] px-8 gap-2">
