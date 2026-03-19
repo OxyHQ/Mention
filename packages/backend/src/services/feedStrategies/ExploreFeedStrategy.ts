@@ -80,7 +80,6 @@ export class ExploreFeedStrategy implements IFeedStrategy {
         $project: {
           _id: 1,
           oxyUserId: 1,
-          federatedActorId: 1,
           federation: 1,
           createdAt: 1,
           visibility: 1,

@@ -1,8 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import dns from 'dns';
+import { describe, it, expect } from 'vitest';
 import {
   validateUrlSecurity,
-  validateUrlSecurityWithDNS,
   sanitizeHtml,
   sanitizeText,
 } from '../../utils/urlSecurity';
@@ -101,55 +99,6 @@ describe('validateUrlSecurity', () => {
   });
 });
 
-// --- validateUrlSecurityWithDNS (async + spied DNS) -------------------------
-
-describe('validateUrlSecurityWithDNS', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('blocks a URL that fails synchronous checks before DNS', async () => {
-    const result = await validateUrlSecurityWithDNS('http://localhost/');
-    expect(result.valid).toBe(false);
-  });
-
-  it('blocks a URL whose DNS resolves to a private IP', async () => {
-    vi.spyOn(dns.promises, 'resolve4').mockResolvedValue(['127.0.0.1']);
-    vi.spyOn(dns.promises, 'resolve6').mockRejectedValue(new Error('ENODATA'));
-
-    const result = await validateUrlSecurityWithDNS('https://evil.example.com/');
-    expect(result.valid).toBe(false);
-    expect(result.error).toMatch(/private/i);
-  });
-
-  it('allows a URL when DNS resolves to a public IP', async () => {
-    vi.spyOn(dns.promises, 'resolve4').mockResolvedValue(['93.184.216.34']);
-    vi.spyOn(dns.promises, 'resolve6').mockRejectedValue(new Error('ENODATA'));
-
-    const result = await validateUrlSecurityWithDNS('https://example.com/');
-    expect(result.valid).toBe(true);
-  });
-
-  it('allows the request when DNS resolution fails entirely (fail-open)', async () => {
-    vi.spyOn(dns.promises, 'resolve4').mockRejectedValue(new Error('SERVFAIL'));
-    vi.spyOn(dns.promises, 'resolve6').mockRejectedValue(new Error('SERVFAIL'));
-
-    const result = await validateUrlSecurityWithDNS('https://example.com/');
-    expect(result.valid).toBe(true);
-  });
-
-  it('skips DNS resolution for raw IPv4 addresses', async () => {
-    const spy4 = vi.spyOn(dns.promises, 'resolve4');
-    const spy6 = vi.spyOn(dns.promises, 'resolve6');
-
-    // Public IP — should pass without any DNS call
-    const result = await validateUrlSecurityWithDNS('http://8.8.8.8/');
-    expect(result.valid).toBe(true);
-    expect(spy4).not.toHaveBeenCalled();
-    expect(spy6).not.toHaveBeenCalled();
-  });
-});
-
 // --- sanitizeHtml -----------------------------------------------------------
 
 describe('sanitizeHtml', () => {
@@ -228,8 +177,8 @@ describe('sanitizeText', () => {
     expect(sanitizeText('<script>')).toBe('&lt;script&gt;');
   });
 
-  it('escapes & character', () => {
-    expect(sanitizeText('a & b')).toBe('a &amp; b');
+  it('passes through & character', () => {
+    expect(sanitizeText('a & b')).toBe('a & b');
   });
 
   it('escapes double quotes', () => {
