@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as ImagePicker from 'expo-image-picker';
-import { toast } from 'sonner-native';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useAgoraConfig } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -77,7 +77,7 @@ export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetPr
       setImageAsset(asset);
     } catch (err) {
       console.error('Image picker error:', err);
-      toast.error('Could not open image picker');
+      toast('Could not open image picker', { type: 'error' });
     }
   };
 
@@ -93,7 +93,7 @@ export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetPr
       });
 
       if (!house) {
-        toast.error('Failed to create house');
+        toast('Failed to create house', { type: 'error' });
         return;
       }
 
@@ -114,12 +114,12 @@ export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetPr
         await agoraService.uploadHouseAvatar(house._id, formData);
       }
 
-      toast.success('House created!');
+      toast('House created!', { type: 'success' });
       onClose();
       onHouseCreated?.();
     } catch (error) {
       console.error('Error creating house:', error);
-      toast.error('Failed to create house');
+      toast('Failed to create house', { type: 'error' });
     }
   };
 

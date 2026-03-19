@@ -39,7 +39,7 @@ import { api } from '@/utils/api';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { SubtleHover } from '@/components/SubtleHover';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -225,14 +225,14 @@ const PostItem: React.FC<PostItemProps> = ({
             if (data.translatedText) {
                 setTranslatedText(data.translatedText);
             } else {
-                toast.error(t('translation.failed'));
+                toast(t('translation.failed'), { type: 'error' });
             }
         } catch (err: unknown) {
             const status = (err as { response?: { status?: number } })?.response?.status;
             if (status === 429) {
-                toast.error(t('translation.rateLimited'));
+                toast(t('translation.rateLimited'), { type: 'error' });
             } else {
-                toast.error(t('translation.failed'));
+                toast(t('translation.failed'), { type: 'error' });
             }
         } finally {
             setIsTranslating(false);

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { subscriptionService } from '@/services/subscriptionService';
 import { useDeferredToggle } from './useDeferredToggle';
 import type { UseSubscriptionReturn } from '../types';
@@ -25,13 +25,13 @@ export function useSubscription(
   const onEnable = useCallback(async () => {
     if (!profileId) return;
     await subscriptionService.subscribe(profileId);
-    toast.success(t('subscription.subscribed'));
+    toast(t('subscription.subscribed'), { type: 'success' });
   }, [profileId, t]);
 
   const onDisable = useCallback(async () => {
     if (!profileId) return;
     await subscriptionService.unsubscribe(profileId);
-    toast.success(t('subscription.unsubscribed'));
+    toast(t('subscription.unsubscribed'), { type: 'success' });
   }, [profileId, t]);
 
   const { active, loading, toggle } = useDeferredToggle({
@@ -47,7 +47,7 @@ export function useSubscription(
       await toggle();
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || t('subscription.error');
-      toast.error(errorMessage);
+      toast(errorMessage, { type: 'error' });
     }
   }, [toggle, t]);
 

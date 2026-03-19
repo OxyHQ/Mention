@@ -7,7 +7,7 @@ import { useAuth, useFollowerCounts } from '@oxyhq/services';
 import { useLiveRoom, RoomCard } from '@mention/agora-shared';
 import type { Room, House } from '@mention/agora-shared';
 
-import { toast } from 'sonner-native';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useUserRooms, useUserHouses, useRoomsQueryInvalidation, useDeleteRoom, useArchiveRoom } from '@/hooks/useRoomsQuery';
 import Avatar from '@/components/Avatar';

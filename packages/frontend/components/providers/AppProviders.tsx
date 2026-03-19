@@ -20,7 +20,7 @@ import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
-import { Toaster } from '@/lib/sonner';
+import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import i18n from '@/lib/i18n';
 import { agoraConfig } from '@/lib/agoraConfig';
@@ -75,11 +75,7 @@ export const AppProviders = memo(function AppProviders({
                             <HomeRefreshProvider>
                               {children}
                               <StatusBar style="auto" />
-                              <Toaster
-                                position="bottom-center"
-                                swipeToDismissDirection="left"
-                                offset={15}
-                              />
+                              <ToastOutlet />
                               <ConfirmPromptProvider />
                             </HomeRefreshProvider>
                           </LayoutScrollProvider>

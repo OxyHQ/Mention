@@ -5,7 +5,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById, useUsersStore } from '@/stores/usersStore';
 import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { toast } from 'sonner';
+import { show } from '@oxyhq/bloom/toast';
 
 export const agoraConfig: AgoraConfig = {
   httpClient: authenticatedClient,
@@ -17,10 +17,10 @@ export const agoraConfig: AgoraConfig = {
   getCachedFileDownloadUrlSync,
   AvatarComponent: Avatar,
   toast: Object.assign(
-    (message: string, options?: any) => toast(message, options),
+    (message: string) => show(message),
     {
-      success: (message: string) => toast.success(message),
-      error: (message: string) => toast.error(message),
+      success: (message: string) => show(message, { type: 'success' }),
+      error: (message: string) => show(message, { type: 'error' }),
     }
   ),
   isDesktop: false, // Will be overridden at runtime if needed

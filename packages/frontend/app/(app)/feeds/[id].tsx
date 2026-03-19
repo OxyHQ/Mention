@@ -29,7 +29,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
-import { toast } from '@/lib/sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
@@ -249,7 +249,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
           style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
           activeOpacity={0.7}
           onPress={() => {
-            toast.info('Report submitted');
+            toast('Report submitted', { type: 'info' });
             onClose();
           }}
         >
@@ -468,10 +468,10 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
       try {
         await customFeedsService.submitReview(feedId, { rating, reviewText: reviewText.trim() || undefined });
         setModalVisible(false);
-        toast.success('Review submitted');
+        toast('Review submitted', { type: 'success' });
         loadReviews(1, true);
       } catch {
-        toast.error('Failed to submit review');
+        toast('Failed to submit review', { type: 'error' });
       } finally {
         setSubmitting(false);
       }

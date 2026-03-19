@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { show as toast } from '@oxyhq/bloom/toast';
 import {
   generateSourceId,
   isValidSourceUrl,
@@ -20,8 +20,9 @@ export const useSourcesManager = () => {
   const addSource = useCallback(() => {
     setSources((prev) => {
       if (prev.length >= 5) {
-        toast.error(
-          t("compose.sources.limit", { defaultValue: "You can add up to 5 sources" })
+        toast(
+          t("compose.sources.limit", { defaultValue: "You can add up to 5 sources" }),
+          { type: 'error' },
         );
         return prev;
       }

@@ -17,7 +17,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { toast } from '@/lib/sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
@@ -141,7 +141,7 @@ const LabelersScreen: React.FC = () => {
       setLabelers(res.items ?? []);
     } catch (e) {
       logger.warn('Failed to load labelers', { error: e });
-      toast.error(t('labelers.loadError', { defaultValue: 'Failed to load labelers' }));
+      toast(t('labelers.loadError', { defaultValue: 'Failed to load labelers' }), { type: 'error' });
     }
   }, [t]);
 
@@ -196,10 +196,10 @@ const LabelersScreen: React.FC = () => {
       try {
         if (currentlySubscribed) {
           await labelerService.unsubscribe(id);
-          toast.success(t('labelers.unsubscribed', { defaultValue: 'Unsubscribed' }));
+          toast(t('labelers.unsubscribed', { defaultValue: 'Unsubscribed' }), { type: 'success' });
         } else {
           await labelerService.subscribe(id);
-          toast.success(t('labelers.subscribed', { defaultValue: 'Subscribed' }));
+          toast(t('labelers.subscribed', { defaultValue: 'Subscribed' }), { type: 'success' });
         }
       } catch (e) {
         logger.warn('Subscribe toggle failed', { error: e });
@@ -217,7 +217,7 @@ const LabelersScreen: React.FC = () => {
               : l,
           ),
         );
-        toast.error(t('labelers.subscribeError', { defaultValue: 'Action failed' }));
+        toast(t('labelers.subscribeError', { defaultValue: 'Action failed' }), { type: 'error' });
       } finally {
         setSubscribingIds((prev) => {
           const next = new Set(prev);

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { show as toast } from '@oxyhq/bloom/toast';
 import { logger } from '@/lib/logger';
 
 export interface LocationData {
@@ -21,7 +21,7 @@ export const useLocationManager = () => {
       // Request permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        toast.error(t("Location permission denied"));
+        toast(t("Location permission denied"), { type: 'error' });
         return;
       }
 
@@ -46,10 +46,10 @@ export const useLocationManager = () => {
       };
 
       setLocation(locationData);
-      toast.success(t("Location added"));
+      toast(t("Location added"), { type: 'success' });
     } catch (error) {
       logger.error("Error getting location", { error });
-      toast.error(t("Failed to get location"));
+      toast(t("Failed to get location"), { type: 'error' });
     } finally {
       setIsGettingLocation(false);
     }
@@ -57,7 +57,7 @@ export const useLocationManager = () => {
 
   const removeLocation = () => {
     setLocation(null);
-    toast.success(t("Location removed"));
+    toast(t("Location removed"), { type: 'success' });
   };
 
   return {

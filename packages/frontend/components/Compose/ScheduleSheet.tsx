@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform, ScrollView } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 
 export type ScheduleOption = {
   key: string;
@@ -68,12 +68,12 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   const handleCustomApply = useCallback(() => {
     const parsed = parseDateTime(customDate, customTime);
     if (!parsed) {
-      toast.error(t('compose.schedule.invalidDate', { defaultValue: 'Enter a valid date and time' }));
+      toast(t('compose.schedule.invalidDate', { defaultValue: 'Enter a valid date and time' }), { type: 'error' });
       return;
     }
 
     if (!ensureFutureDate(parsed)) {
-      toast.error(t('compose.schedule.futureRequired', { defaultValue: 'Pick a future time' }));
+      toast(t('compose.schedule.futureRequired', { defaultValue: 'Pick a future time' }), { type: 'error' });
       return;
     }
 

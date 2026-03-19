@@ -19,7 +19,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { toast } from '@/lib/sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -229,7 +229,7 @@ export default function FeedMarketplaceScreen() {
         setFeeds((prev) => (replace ? items : [...prev, ...items]));
         setPage(pageNum);
       } catch {
-        toast.error(t('marketplace.loadError', { defaultValue: 'Failed to load feeds' }));
+        toast(t('marketplace.loadError', { defaultValue: 'Failed to load feeds' }), { type: 'error' });
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -301,7 +301,7 @@ export default function FeedMarketplaceScreen() {
             };
           }),
         );
-        toast.error(t('marketplace.subscribeError', { defaultValue: 'Action failed' }));
+        toast(t('marketplace.subscribeError', { defaultValue: 'Action failed' }), { type: 'error' });
       } finally {
         setSubscribingId(null);
       }

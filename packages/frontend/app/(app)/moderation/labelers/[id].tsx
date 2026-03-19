@@ -15,7 +15,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { toast } from '@/lib/sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
@@ -152,7 +152,7 @@ const LabelerDetailScreen: React.FC = () => {
       }
     } catch (e) {
       logger.warn('Failed to load labeler', { error: e });
-      toast.error(t('labelers.loadError', { defaultValue: 'Failed to load labeler' }));
+      toast(t('labelers.loadError', { defaultValue: 'Failed to load labeler' }), { type: 'error' });
     }
   }, [id, t]);
 
@@ -190,10 +190,10 @@ const LabelerDetailScreen: React.FC = () => {
       const labelerId = String(labeler._id || labeler.id);
       if (currentlySubscribed) {
         await labelerService.unsubscribe(labelerId);
-        toast.success(t('labelers.unsubscribed', { defaultValue: 'Unsubscribed' }));
+        toast(t('labelers.unsubscribed', { defaultValue: 'Unsubscribed' }), { type: 'success' });
       } else {
         await labelerService.subscribe(labelerId);
-        toast.success(t('labelers.subscribed', { defaultValue: 'Subscribed' }));
+        toast(t('labelers.subscribed', { defaultValue: 'Subscribed' }), { type: 'success' });
       }
     } catch (e) {
       logger.warn('Subscribe toggle failed', { error: e });
@@ -208,7 +208,7 @@ const LabelerDetailScreen: React.FC = () => {
             }
           : prev,
       );
-      toast.error(t('labelers.subscribeError', { defaultValue: 'Action failed' }));
+      toast(t('labelers.subscribeError', { defaultValue: 'Action failed' }), { type: 'error' });
     } finally {
       setSubscribing(false);
     }
@@ -233,7 +233,7 @@ const LabelerDetailScreen: React.FC = () => {
           await labelerService.updatePreferences(updates);
         } catch (e) {
           logger.warn('Failed to save label preferences', { error: e });
-          toast.error(t('labelers.prefSaveError', { defaultValue: 'Failed to save preferences' }));
+          toast(t('labelers.prefSaveError', { defaultValue: 'Failed to save preferences' }), { type: 'error' });
         }
       }, 800);
     },

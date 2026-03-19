@@ -9,7 +9,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { Platform } from 'react-native';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import type { HydratedPost, FeedType } from '@mention/shared-types';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
@@ -99,7 +99,7 @@ export function usePostActions({
                 await feedService.deletePost(postId);
             } catch (e) {
                 logger.error('Delete API failed', { error: e });
-                toast.error('Failed to delete post');
+                toast('Failed to delete post', { type: 'error' });
                 return;
             }
             try {
@@ -175,7 +175,7 @@ export function usePostActions({
                     try {
                         await feedService.updatePostSettings(postId, { isPinned: !isPinned });
                     } catch (e) {
-                        toast.error(isPinned ? 'Failed to unpin post' : 'Failed to pin post');
+                        toast(isPinned ? 'Failed to unpin post' : 'Failed to pin post', { type: 'error' });
                     }
                     bottomSheet.openBottomSheet(false);
                 }
@@ -191,7 +191,7 @@ export function usePostActions({
                     try {
                         await feedService.updatePostSettings(postId, { hideEngagementCounts: !isHidden });
                     } catch (e) {
-                        toast.error('Failed to update engagement count visibility');
+                        toast('Failed to update engagement count visibility', { type: 'error' });
                     }
                     bottomSheet.openBottomSheet(false);
                 }
@@ -210,7 +210,7 @@ export function usePostActions({
                                 try {
                                     await feedService.updatePostSettings(postId, { replyPermission: permission });
                                 } catch (e) {
-                                    toast.error('Failed to update reply permissions');
+                                    toast('Failed to update reply permissions', { type: 'error' });
                                 }
                             }}
                             quotesDisabled={viewPost?.metadata?.quotesDisabled || false}
@@ -218,7 +218,7 @@ export function usePostActions({
                                 try {
                                     await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
                                 } catch (e) {
-                                    toast.error('Failed to update quote settings');
+                                    toast('Failed to update quote settings', { type: 'error' });
                                 }
                             }}
                             onClose={() => bottomSheet.openBottomSheet(false)}
@@ -255,7 +255,7 @@ export function usePostActions({
             const username = viewPost?.user?.handle || viewPost?.user?.name || 'this user';
 
             if (!userId) {
-                toast.error('Unable to mute user');
+                toast('Unable to mute user', { type: 'error' });
                 return;
             }
 
@@ -271,9 +271,9 @@ export function usePostActions({
 
             const success = await muteService.muteUser(userId);
             if (success) {
-                toast.success(`@${username} has been muted`);
+                toast(`@${username} has been muted`, { type: 'success' });
             } else {
-                toast.error('Failed to mute user');
+                toast('Failed to mute user', { type: 'error' });
             }
         };
 
@@ -285,9 +285,9 @@ export function usePostActions({
                     onSubmit={async (categories, details) => {
                         const success = await reportService.reportPost(postId, categories, details);
                         if (success) {
-                            toast.success('Thank you for helping keep our community safe.');
+                            toast('Thank you for helping keep our community safe.', { type: 'success' });
                         } else {
-                            toast.error('Failed to submit report. Please try again.');
+                            toast('Failed to submit report. Please try again.', { type: 'error' });
                         }
                     }}
                 />

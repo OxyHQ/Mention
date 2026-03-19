@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { pokeService } from '@/services/pokeService';
 import { useDeferredToggle } from './useDeferredToggle';
 
@@ -29,13 +29,13 @@ export function usePoke(
   const onEnable = useCallback(async () => {
     if (!profileId) return;
     await pokeService.poke(profileId);
-    toast.success(t('poke.sent', { defaultValue: 'Poked!' }));
+    toast(t('poke.sent', { defaultValue: 'Poked!' }), { type: 'success' });
   }, [profileId, t]);
 
   const onDisable = useCallback(async () => {
     if (!profileId) return;
     await pokeService.unpoke(profileId);
-    toast.success(t('poke.undone', { defaultValue: 'Poke undone' }));
+    toast(t('poke.undone', { defaultValue: 'Poke undone' }), { type: 'success' });
   }, [profileId, t]);
 
   const { active, loading, toggle } = useDeferredToggle({
@@ -51,7 +51,7 @@ export function usePoke(
       await toggle();
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || t('poke.error', { defaultValue: 'Failed to poke' });
-      toast.error(errorMessage);
+      toast(errorMessage, { type: 'error' });
     }
   }, [toggle, t]);
 

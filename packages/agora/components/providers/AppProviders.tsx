@@ -8,7 +8,7 @@ import { OxyProvider, useOxy } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { Toaster } from 'sonner-native';
+import { ToastOutlet } from '@oxyhq/bloom/toast';
 
 import { agoraConfig } from '@/lib/agoraConfig';
 import { roomQueryKeys } from '@/hooks/useRoomsQuery';
@@ -69,11 +69,7 @@ export const AppProviders = memo(function AppProviders({
                     <BottomSheetModalProvider>
                       {children}
                       <StatusBar style="auto" />
-                      <Toaster
-                        position="bottom-center"
-                        swipeToDismissDirection="left"
-                        offset={15}
-                      />
+                      <ToastOutlet />
                     </BottomSheetModalProvider>
                   </LiveRoomProvider>
                 </AgoraProviderWithInvalidation>

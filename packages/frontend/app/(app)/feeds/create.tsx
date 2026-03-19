@@ -21,7 +21,7 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { toast } from '@/lib/sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/lib/logger';
@@ -109,11 +109,11 @@ const CreateFeedScreen: React.FC = () => {
         includeMedia,
         sourceListIds: selectedListIds,
       });
-      toast.success('Feed created');
+      toast('Feed created', { type: 'success' });
       router.replace('/feeds');
     } catch (e) {
       logger.error('Create feed failed', { error: e });
-      toast.error('Create feed failed');
+      toast('Create feed failed', { type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -141,7 +141,7 @@ const CreateFeedScreen: React.FC = () => {
       setListsLoaded(true);
     } catch (e) {
       logger.warn('load my lists failed', { error: e });
-      toast.error('Failed to load lists');
+      toast('Failed to load lists', { type: 'error' });
     }
   }, [listsLoaded]);
 

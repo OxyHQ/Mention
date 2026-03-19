@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, Platform } from 'react-native';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { ThemedView } from '@/components/ThemedView';
@@ -136,7 +136,7 @@ export default function AboutScreen() {
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => {
-                            toast.info(t('settings.supportFeedback.helpSupportMessage'));
+                            toast(t('settings.supportFeedback.helpSupportMessage'), { type: 'info' });
                         }}
                     />
                     <SettingsItem
@@ -151,7 +151,7 @@ export default function AboutScreen() {
                                 cancelText: t('common.cancel'),
                             });
                             if (confirmed) {
-                                toast.success(t('settings.supportFeedback.sendFeedbackThankYou'));
+                                toast(t('settings.supportFeedback.sendFeedbackThankYou'), { type: 'success' });
                             }
                         }}
                     />

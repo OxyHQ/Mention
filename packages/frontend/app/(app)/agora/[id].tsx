@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -98,7 +98,7 @@ const RoomDetailScreen = () => {
     if (success) {
       joinLiveRoom(id);
     } else {
-      toast.error('Failed to start room');
+      toast('Failed to start room', { type: 'error' });
     }
     setActionLoading(false);
   };
@@ -110,7 +110,7 @@ const RoomDetailScreen = () => {
     if (success) {
       safeBack();
     } else {
-      toast.error('Failed to end room');
+      toast('Failed to end room', { type: 'error' });
     }
     setActionLoading(false);
   };
@@ -128,7 +128,7 @@ const RoomDetailScreen = () => {
       setIsJoined(false);
       loadRoom();
     } else {
-      toast.error('Failed to leave room');
+      toast('Failed to leave room', { type: 'error' });
     }
     setActionLoading(false);
   };

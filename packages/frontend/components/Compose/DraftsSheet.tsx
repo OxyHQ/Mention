@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { createScopedLogger } from '@/lib/logger';
 
@@ -55,10 +55,10 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
       // Reload drafts to ensure UI is updated
       await loadDrafts();
       logger.debug('Drafts reloaded');
-      toast.success(t('compose.draftDeleted'));
+      toast(t('compose.draftDeleted'), { type: 'success' });
     } catch (error) {
       logger.error('Error deleting draft', { error });
-      toast.error(t('compose.deleteDraftError'));
+      toast(t('compose.deleteDraftError'), { type: 'error' });
     } finally {
       setDeletingId(null);
     }

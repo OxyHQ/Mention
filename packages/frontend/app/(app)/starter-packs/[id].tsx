@@ -17,7 +17,7 @@ import { ResponsiveAvatarStack } from '@/components/AvatarStack';
 import SEO from '@/components/SEO';
 import { cn } from '@/lib/utils';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { toast } from '@/lib/sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 
 interface MemberProfile {
   id: string;
@@ -94,10 +94,10 @@ export default function StarterPackDetailScreen() {
       );
       setFollowState('complete');
       haptics('Medium');
-      toast.success('All accounts have been followed!');
+      toast('All accounts have been followed!', { type: 'success' });
     } catch {
       setFollowState('idle');
-      toast.error('Failed to follow accounts');
+      toast('Failed to follow accounts', { type: 'error' });
     }
   }, [pack, id, followState, oxyServices, haptics]);
 
@@ -106,7 +106,7 @@ export default function StarterPackDetailScreen() {
       await starterPacksService.remove(String(id));
       router.replace('/starter-packs');
     } catch {
-      toast.error('Failed to delete starter pack');
+      toast('Failed to delete starter pack', { type: 'error' });
     }
   }, [id]);
 

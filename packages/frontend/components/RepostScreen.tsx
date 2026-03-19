@@ -11,7 +11,7 @@ import {
     Platform,
     ScrollView,
 } from "react-native";
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import * as Prompt from '@oxyhq/bloom/prompt';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from "./UserName";
@@ -97,10 +97,10 @@ const RepostScreen: React.FC = () => {
             safeBack();
 
             // Show success feedback
-            toast.success('Post reposted successfully!');
+            toast('Post reposted successfully!', { type: 'success' });
         } catch (error) {
             logger.error('Error reposting');
-            toast.error('Failed to repost. Please try again.');
+            toast('Failed to repost. Please try again.', { type: 'error' });
         } finally {
             setIsSubmitting(false);
         }

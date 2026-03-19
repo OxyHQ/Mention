@@ -6,7 +6,7 @@ import { useIsScreenNotMobile } from '@/hooks/useMediaQuery';
 import { useUserById, useUsersStore } from '@/stores/usersStore';
 import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import Avatar from '@/components/Avatar';
-import { toast } from 'sonner-native';
+import { show } from '@oxyhq/bloom/toast';
 
 export const agoraConfig: AgoraConfig = {
   httpClient: authenticatedClient,
@@ -19,10 +19,10 @@ export const agoraConfig: AgoraConfig = {
   getCachedFileDownloadUrlSync,
   AvatarComponent: Avatar as AgoraConfig['AvatarComponent'],
   toast: Object.assign(
-    (message: string) => toast(message),
+    (message: string) => show(message),
     {
-      success: (message: string) => toast.success(message),
-      error: (message: string) => toast.error(message),
+      success: (message: string) => show(message, { type: 'success' }),
+      error: (message: string) => show(message, { type: 'error' }),
     }
   ),
   introSound: require('@/assets/sounds/intro.mp3'),

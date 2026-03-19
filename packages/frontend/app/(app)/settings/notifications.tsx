@@ -9,7 +9,7 @@ import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
-import { toast } from 'sonner';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
 import { logger } from '@/lib/logger';
 
@@ -74,10 +74,11 @@ export default function NotificationSettingsScreen() {
         } catch (error) {
             logger.error('Error updating notification preferences', { error });
             setPrefs(previous);
-            toast.error(
+            toast(
                 t('settings.notifications.saveError', {
                     defaultValue: 'Failed to save notification preference',
                 }),
+                { type: 'error' },
             );
         } finally {
             setSaving(false);
