@@ -122,105 +122,102 @@ class PostCreationService {
 
     const oxyUserId = params.oxyUserId ?? null;
 
-    // Mention notifications
-    try {
-      const mentions = params.mentions ?? [];
-      if (oxyUserId && mentions.length > 0) {
-        const isReply = Boolean(params.parentPostId);
-        await createMentionNotifications(
-          mentions,
-          String(post._id),
-          oxyUserId,
-          isReply ? 'reply' : 'post',
-        );
-      }
-    } catch (e) {
-      logger.error('PostCreationService: failed to create mention notifications', e);
-    }
-
-    // Reply / quote / repost notifications
-    try {
-      if (oxyUserId) {
+    // Run all notification stages in parallel — they are independent
+    const results = await Promise.allSettled([
+      // Mention notifications
+      (async () => {
+        const mentions = params.mentions ?? [];
+        if (oxyUserId && mentions.length > 0) {
+          const isReply = Boolean(params.parentPostId);
+          await createMentionNotifications(
+            mentions,
+            String(post._id),
+            oxyUserId,
+            isReply ? 'reply' : 'post',
+          );
+        }
+      })(),
+      // Reply / quote / repost notifications
+      (async () => {
+        if (!oxyUserId) return;
         const replyParentId = params.parentPostId ?? null;
         const idsToFetch = [replyParentId, params.quoteOf, params.repostOf].filter(
           (id): id is string => Boolean(id),
         );
+        if (idsToFetch.length === 0) return;
 
-        if (idsToFetch.length > 0) {
-          const relatedPosts = await Post.find({ _id: { $in: idsToFetch } })
-            .select('oxyUserId')
-            .lean();
-          const postsMap = new Map(relatedPosts.map((p) => [String(p._id), p]));
+        const relatedPosts = await Post.find({ _id: { $in: idsToFetch } })
+          .select('oxyUserId')
+          .lean();
+        const postsMap = new Map(relatedPosts.map((p) => [String(p._id), p]));
 
-          if (replyParentId) {
-            const parent = postsMap.get(replyParentId);
-            const recipientId = parent?.oxyUserId?.toString() ?? null;
-            if (recipientId && recipientId !== oxyUserId) {
-              await createNotification({
-                recipientId,
-                actorId: oxyUserId,
-                type: 'reply',
-                entityId: String(post._id),
-                entityType: 'reply',
-              });
-            }
-          }
-
-          if (params.quoteOf) {
-            const original = postsMap.get(params.quoteOf);
-            const recipientId = original?.oxyUserId?.toString() ?? null;
-            if (recipientId && recipientId !== oxyUserId) {
-              await createNotification({
-                recipientId,
-                actorId: oxyUserId,
-                type: 'quote',
-                entityId: String(original!._id),
-                entityType: 'post',
-              });
-            }
-          }
-
-          if (params.repostOf) {
-            const original = postsMap.get(params.repostOf);
-            const recipientId = original?.oxyUserId?.toString() ?? null;
-            if (recipientId && recipientId !== oxyUserId) {
-              await createNotification({
-                recipientId,
-                actorId: oxyUserId,
-                type: 'repost',
-                entityId: String(original!._id),
-                entityType: 'post',
-              });
-            }
-          }
-        }
-      }
-    } catch (e) {
-      logger.error('PostCreationService: failed to create reply/quote/repost notifications', e);
-    }
-
-    // Subscriber notifications (top-level posts only)
-    try {
-      const isTopLevelPost = !params.parentPostId;
-      if (oxyUserId && isTopLevelPost) {
-        const subs = await PostSubscription.find({ authorId: oxyUserId }).lean();
-        if (subs.length > 0) {
-          const notifications = subs
-            .filter((s) => s.subscriberId !== oxyUserId)
-            .map((s) => ({
-              recipientId: s.subscriberId,
+        if (replyParentId) {
+          const parent = postsMap.get(replyParentId);
+          const recipientId = parent?.oxyUserId?.toString() ?? null;
+          if (recipientId && recipientId !== oxyUserId) {
+            await createNotification({
+              recipientId,
               actorId: oxyUserId,
-              type: 'post' as const,
+              type: 'reply',
               entityId: String(post._id),
-              entityType: 'post' as const,
-            }));
-          if (notifications.length > 0) {
-            await createBatchNotifications(notifications, true);
+              entityType: 'reply',
+            });
           }
         }
+
+        if (params.quoteOf) {
+          const original = postsMap.get(params.quoteOf);
+          const recipientId = original?.oxyUserId?.toString() ?? null;
+          if (recipientId && recipientId !== oxyUserId) {
+            await createNotification({
+              recipientId,
+              actorId: oxyUserId,
+              type: 'quote',
+              entityId: String(original!._id),
+              entityType: 'post',
+            });
+          }
+        }
+
+        if (params.repostOf) {
+          const original = postsMap.get(params.repostOf);
+          const recipientId = original?.oxyUserId?.toString() ?? null;
+          if (recipientId && recipientId !== oxyUserId) {
+            await createNotification({
+              recipientId,
+              actorId: oxyUserId,
+              type: 'repost',
+              entityId: String(original!._id),
+              entityType: 'post',
+            });
+          }
+        }
+      })(),
+      // Subscriber notifications (top-level posts only)
+      (async () => {
+        const isTopLevelPost = !params.parentPostId;
+        if (!oxyUserId || !isTopLevelPost) return;
+        const subs = await PostSubscription.find({ authorId: oxyUserId }).lean();
+        if (subs.length === 0) return;
+        const notifications = subs
+          .filter((s) => s.subscriberId !== oxyUserId)
+          .map((s) => ({
+            recipientId: s.subscriberId,
+            actorId: oxyUserId,
+            type: 'post' as const,
+            entityId: String(post._id),
+            entityType: 'post' as const,
+          }));
+        if (notifications.length > 0) {
+          await createBatchNotifications(notifications, true);
+        }
+      })(),
+    ]);
+
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        logger.error('PostCreationService: notification stage failed', r.reason);
       }
-    } catch (e) {
-      logger.error('PostCreationService: failed to notify subscribers', e);
     }
 
     if (!params.skipSocketEmit) {

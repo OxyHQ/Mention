@@ -329,11 +329,10 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     if (!actor) return res.json({ posts: [], hasMore: false });
 
     const limit = 20;
-    // Match federated posts whose activityId starts with the actor's URI
-    // (AP activity IDs are namespaced under the actor, e.g. https://instance/users/alice/statuses/123)
-    const escapedUri = actor.uri.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // AP activity IDs are namespaced under the actor URI (e.g. https://instance/users/alice/statuses/123)
+    // Use a range query so the B-tree index on federation.activityId is used (regex can't use it)
     const query: Record<string, unknown> = {
-      'federation.activityId': { $regex: new RegExp(`^${escapedUri}`) },
+      'federation.activityId': { $gte: actor.uri + '/', $lt: actor.uri + '/\uffff' },
     };
     if (parsed.data.cursor) {
       query.createdAt = { $lt: new Date(parsed.data.cursor) };

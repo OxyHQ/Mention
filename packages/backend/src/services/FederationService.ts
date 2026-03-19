@@ -445,15 +445,19 @@ class FederationService {
     const actorUris = follows.map((f) => f.remoteActorUri);
     const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean();
 
-    // Group by shared inbox to avoid duplicate deliveries
-    const inboxes = new Map<string, boolean>();
+    // Group by shared inbox to avoid duplicate deliveries, then batch-insert
+    const seen = new Set<string>();
+    const deliveries: Array<{ activityJson: Record<string, unknown>; targetInbox: string; senderOxyUserId: string; nextAttemptAt: Date }> = [];
+    const now = new Date();
     for (const actor of actors) {
       const inbox = actor.sharedInboxUrl || actor.inboxUrl;
-      if (!inboxes.has(inbox)) {
-        inboxes.set(inbox, true);
-        // Queue for reliable delivery
-        await this.queueDelivery(activity, inbox, senderOxyUserId);
+      if (!seen.has(inbox)) {
+        seen.add(inbox);
+        deliveries.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
       }
+    }
+    if (deliveries.length > 0) {
+      await FederationDeliveryQueue.insertMany(deliveries, { ordered: false });
     }
   }
 
