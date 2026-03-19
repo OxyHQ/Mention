@@ -50,7 +50,7 @@ return {
             // Must match google-services.json package_name
             package: "com.mention.earth",
             // Point to your google-services.json for FCM
-            googleServicesFile: "../../google-services.json",
+            googleServicesFile: process.env.GOOGLE_SERVICES_JSON || "../../google-services.json",
             intentFilters: [
                     {
                         action: 'VIEW',
@@ -208,7 +208,7 @@ return {
         })(),
         extra: {
             eas: {
-                projectId: "47bac898-ae20-479b-ab0f-2d8ab2770c83"
+                projectId: "e1fb5397-4bda-4523-a23e-55bc6da8b244"
             },
             router: {
                 origin: false
