@@ -137,7 +137,7 @@ const Feed = ((props: FeedProps) => {
         } finally {
             setRefreshing(false);
         }
-    }, [feedState.refresh]);
+    }, [feedState]);
 
     // Handle load more - debounced in hook
     // For unauthenticated users, show sign-in prompt instead of loading more
@@ -575,13 +575,7 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
         prevProps.threaded !== nextProps.threaded ||
         prevProps.threadPostId !== nextProps.threadPostId ||
-        prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
-        prevProps.showComposeButton !== nextProps.showComposeButton ||
-        prevProps.onComposePress !== nextProps.onComposePress ||
-        prevProps.hideHeader !== nextProps.hideHeader ||
-        prevProps.hideRefreshControl !== nextProps.hideRefreshControl ||
-        prevProps.style !== nextProps.style ||
-        prevProps.contentContainerStyle !== nextProps.contentContainerStyle
+        prevProps.listHeaderComponent !== nextProps.listHeaderComponent
     ) {
         return false;
     }
