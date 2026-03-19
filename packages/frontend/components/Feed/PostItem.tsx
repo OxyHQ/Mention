@@ -81,6 +81,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const [isTranslating, setIsTranslating] = useState(false);
     const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
     const autoTranslateAttempted = useRef(false);
+    const hasManuallyDismissed = useRef(false);
 
     const postId = (post as any)?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[postId] : null));
@@ -211,15 +212,15 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     }, [onReply, router, viewPostId]);
 
-    const fetchTranslation = useCallback(async () => {
+    const fetchTranslation = useCallback(async (force = false) => {
         if (!viewPostId || isTranslating) return;
         setIsTranslating(true);
         try {
             const { data } = await api.post<{ translatedText: string }>(
                 `/posts/${viewPostId}/translate`,
-                { targetLanguage: i18n.language },
+                { targetLanguage: i18n.language, force },
             );
-            if (data.translatedText && data.translatedText !== content.text) {
+            if (data.translatedText) {
                 setTranslatedText(data.translatedText);
             }
         } catch {
@@ -227,14 +228,16 @@ const PostItem: React.FC<PostItemProps> = ({
         } finally {
             setIsTranslating(false);
         }
-    }, [viewPostId, isTranslating, content.text, i18n.language]);
+    }, [viewPostId, isTranslating, i18n.language]);
 
     const handleTranslate = useCallback(() => {
         if (translatedText) {
+            hasManuallyDismissed.current = true;
             setTranslatedText(null);
             return;
         }
-        fetchTranslation();
+        // If user previously dismissed, force a fresh translation (bypass cache)
+        fetchTranslation(hasManuallyDismissed.current);
     }, [translatedText, fetchTranslation]);
 
     // Auto-translate: compute during render, fire once via ref guard

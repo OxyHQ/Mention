@@ -2486,7 +2486,7 @@ const SUPPORTED_LANGUAGES: Record<string, string> = {
 export const translatePost = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { targetLanguage } = req.body;
+    const { targetLanguage, force } = req.body;
 
     if (!targetLanguage || typeof targetLanguage !== 'string') {
       res.status(400).json({ message: 'targetLanguage is required' });
@@ -2511,11 +2511,13 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // Check cache first
-    const cached = post.translations?.find((t) => t.language === targetLanguage);
-    if (cached) {
-      res.json({ translatedText: cached.text, cached: true });
-      return;
+    // Check cache (skip when force retranslating)
+    if (!force) {
+      const cached = post.translations?.find((t) => t.language === targetLanguage);
+      if (cached) {
+        res.json({ translatedText: cached.text, cached: true });
+        return;
+      }
     }
 
     const truncatedText = text.slice(0, MAX_TEXT_LENGTH);
@@ -2533,22 +2535,51 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       { model: 'alia-lite', temperature: 0.1, maxTokens: Math.max(truncatedText.length * 3, 256) },
     );
 
-    // Validate the AI response — reject empty, identical, or obviously wrong output
     const trimmed = translatedText.trim();
-    if (!trimmed || trimmed === truncatedText) {
-      res.status(500).json({ message: 'Translation failed' });
+    if (!trimmed) {
+      res.status(500).json({ message: 'Translation returned empty result' });
       return;
     }
 
-    // Save translation to cache (fire-and-forget)
-    Post.updateOne(
-      { _id: id },
-      { $push: { translations: { language: targetLanguage, text: trimmed, translatedAt: new Date() } } },
-    ).catch((err) => logger.error('Error caching translation', err));
+    // Save translation to cache — replace existing entry for this language if force retranslating
+    if (force) {
+      Post.updateOne(
+        { _id: id },
+        {
+          $pull: { translations: { language: targetLanguage } },
+        },
+      ).then(() =>
+        Post.updateOne(
+          { _id: id },
+          { $push: { translations: { language: targetLanguage, text: trimmed, translatedAt: new Date() } } },
+        ),
+      ).catch((err) => logger.error('Error caching translation', err));
+    } else {
+      Post.updateOne(
+        { _id: id },
+        { $push: { translations: { language: targetLanguage, text: trimmed, translatedAt: new Date() } } },
+      ).catch((err) => logger.error('Error caching translation', err));
+    }
 
     res.json({ translatedText: trimmed, cached: false });
   } catch (error) {
-    logger.error('Error translating post', error);
-    res.status(500).json({ message: 'Translation failed' });
+    // Parse Alia API error status from the thrown error message
+    const errorMessage = error instanceof Error ? error.message : '';
+    const statusMatch = errorMessage.match(/Alia API error (\d+)/);
+    const aliaStatus = statusMatch ? parseInt(statusMatch[1], 10) : 0;
+
+    if (aliaStatus === 429) {
+      logger.warn('Translation rate limited', error);
+      res.status(429).json({ message: 'Too many requests. Please try again later.' });
+    } else if (aliaStatus === 503 || aliaStatus === 502) {
+      logger.warn('Translation service unavailable', error);
+      res.status(503).json({ message: 'Translation service temporarily unavailable.' });
+    } else if (aliaStatus === 402) {
+      logger.warn('Translation credits issue', error);
+      res.status(502).json({ message: 'Translation service unavailable.' });
+    } else {
+      logger.error('Error translating post', error);
+      res.status(500).json({ message: 'Translation failed' });
+    }
   }
 };
