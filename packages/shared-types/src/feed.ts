@@ -19,7 +19,7 @@ export interface FeedRepost extends HydratedPost {
 }
 
 // Feed types and actions
-export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'custom';
+export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'custom' | 'hashtag' | 'topic';
 
 export type PostAction = 'reply' | 'repost' | 'like' | 'share';
 

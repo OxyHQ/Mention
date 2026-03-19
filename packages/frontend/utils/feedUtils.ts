@@ -11,6 +11,8 @@ export interface FeedFilters extends SharedFeedFilters {
     postId?: string;
     parentPostId?: string;
     customFeedId?: string;
+    hashtag?: string;
+    topic?: string;
     [key: string]: any;
 }
 

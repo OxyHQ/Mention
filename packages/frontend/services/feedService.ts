@@ -129,6 +129,34 @@ class FeedService {
 
         try {
 
+          // Handle hashtag feed — dedicated endpoint
+          if (request.type === 'hashtag' && request.filters?.hashtag) {
+            const tag = encodeURIComponent(request.filters.hashtag);
+            const tagParams: any = {};
+            if (request.cursor) tagParams.cursor = request.cursor;
+            if (request.limit) tagParams.limit = request.limit;
+
+            const response = await authenticatedClient.get(`/posts/hashtag/${tag}`, {
+              params: tagParams,
+              signal: options?.signal,
+            });
+            return response.data;
+          }
+
+          // Handle topic feed — dedicated endpoint
+          if (request.type === 'topic' && request.filters?.topic) {
+            const topic = encodeURIComponent(request.filters.topic);
+            const topicParams: any = {};
+            if (request.cursor) topicParams.cursor = request.cursor;
+            if (request.limit) topicParams.limit = request.limit;
+
+            const response = await authenticatedClient.get(`/posts/topic/${topic}`, {
+              params: topicParams,
+              signal: options?.signal,
+            });
+            return response.data;
+          }
+
           // Handle custom feed type - use dedicated timeline endpoint (backend-driven)
           if (request.type === 'custom' && request.filters?.customFeedId) {
             const feedId = request.filters.customFeedId;
