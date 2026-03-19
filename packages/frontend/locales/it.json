@@ -187,6 +187,8 @@
   "profile.view": "Visualizza",
   "profile.share.message": "Dai un'occhiata al profilo di {{name}} su Mention!",
   "profile.share.title": "{{name}} su Mention",
+  "profile.notFound.title": "Profilo non trovato",
+  "profile.notFound.message": "Impossibile caricare questo profilo. L'utente potrebbe non esistere o il suo server potrebbe non essere disponibile.",
   "error.validation.token_expired": "Il token è scaduto",
   "error.validation.token_invalid": "Il formato del token non è valido",
   "error.validation.token_signature": "La firma del token non è valida",
@@ -370,6 +372,7 @@
   "common.sendFeedback": "Invia",
   "common.maybeLater": "Forse più tardi",
   "common.rateNow": "Valuta ora",
+  "common.goBack": "Torna indietro",
   "notification.post": "{{actorName}} ha pubblicato un nuovo aggiornamento",
   "notifications": {
     "tabs": {

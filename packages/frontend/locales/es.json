@@ -194,6 +194,8 @@
   "profile.view": "Ver",
   "profile.share.message": "¡Echa un vistazo al perfil de {{name}} en Mention!",
   "profile.share.title": "{{name}} en Mention",
+  "profile.notFound.title": "Perfil no encontrado",
+  "profile.notFound.message": "No se pudo cargar este perfil. El usuario puede no existir o su servidor puede no estar disponible.",
   "error.validation.token_expired": "El token ha expirado",
   "error.validation.token_invalid": "El formato del token no es válido",
   "error.validation.token_signature": "La firma del token no es válida",
@@ -377,6 +379,7 @@
   "common.sendFeedback": "Enviar",
   "common.maybeLater": "Quizás más tarde",
   "common.rateNow": "Valorar ahora",
+  "common.goBack": "Volver",
   "notifications": {
     "tabs": {
       "all": "Todo",
