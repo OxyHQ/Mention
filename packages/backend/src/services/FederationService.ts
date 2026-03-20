@@ -432,25 +432,6 @@ class FederationService {
     return this.fetchRemoteActor(actorUri);
   }
 
-  /**
-   * Look up an actor by acct handle (e.g. @alice@mastodon.social).
-   * Checks local cache first, then resolves via WebFinger.
-   */
-  async lookupActor(acct: string): Promise<IFederatedActor | null> {
-    const cleaned = acct.replace(/^@/, '');
-    const existing = await FederatedActor.findOne({ acct: cleaned }).lean<IFederatedActor>();
-    if (existing) {
-      const staleMs = 24 * 60 * 60 * 1000;
-      if (existing.lastFetchedAt && Date.now() - existing.lastFetchedAt.getTime() < staleMs) {
-        return existing;
-      }
-    }
-
-    const actorUri = await this.resolveWebFinger(cleaned);
-    if (!actorUri) return null;
-    return this.fetchRemoteActor(actorUri);
-  }
-
   // ============================================================
   // Activity Delivery
   // ============================================================

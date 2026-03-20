@@ -18,20 +18,8 @@ router.use(apiRateLimiter);
 
 // --- Zod schemas ---
 
-const searchSchema = z.object({
-  q: z.string().min(1, 'Missing query parameter q').trim(),
-});
-
-const lookupSchema = z.object({
-  handle: z.string().min(1, 'Missing handle parameter').trim(),
-});
-
 const actorUriSchema = z.object({
   actorUri: z.string().url('Invalid actorUri'),
-});
-
-const actorQuerySchema = z.object({
-  uri: z.string().url('Invalid uri parameter'),
 });
 
 const actorPostsQuerySchema = z.object({
@@ -40,55 +28,6 @@ const actorPostsQuerySchema = z.object({
 });
 
 // --- Helpers ---
-
-/** Map a FederatedActor document to the API response shape. */
-function toActorResponse(
-  actor: IFederatedActor,
-  followState?: { isFollowing: boolean; isFollowPending: boolean },
-) {
-  return {
-    id: String(actor._id),
-    actorUri: actor.uri,
-    handle: actor.username,
-    instance: actor.domain,
-    fullHandle: `@${actor.acct}`,
-    displayName: actor.displayName || actor.username,
-    avatarUrl: actor.avatarUrl,
-    bannerUrl: actor.headerUrl,
-    bio: actor.summary,
-    fields: actor.fields?.map((f: any) => ({
-      name: f.name,
-      value: f.value,
-      verifiedAt: f.verifiedAt?.toISOString?.() || f.verifiedAt,
-    })),
-    followersCount: actor.followersCount,
-    followingCount: actor.followingCount,
-    postsCount: actor.postsCount,
-    isFollowing: followState?.isFollowing ?? false,
-    isFollowPending: followState?.isFollowPending ?? false,
-    discoverable: actor.discoverable,
-    memorial: actor.memorial,
-    suspended: actor.suspended,
-    createdAt: actor.remoteCreatedAt?.toISOString?.() || actor.remoteCreatedAt,
-    type: actor.type,
-  };
-}
-
-/** Check the current user's follow status for a remote actor. */
-async function getFollowState(userId: string | undefined, actorUri: string) {
-  if (!userId) return { isFollowing: false, isFollowPending: false };
-
-  const follow = await FederatedFollow.findOne({
-    localUserId: userId,
-    remoteActorUri: actorUri,
-    direction: 'outbound',
-  }).lean();
-
-  return {
-    isFollowing: follow?.status === 'accepted',
-    isFollowPending: follow?.status === 'pending',
-  };
-}
 
 /** Guard: return 404 if federation is disabled. */
 function requireFederation(res: Response): boolean {
@@ -110,53 +49,8 @@ function requireAuth(req: AuthRequest, res: Response): string | null {
 }
 
 // --- Routes ---
-
-/**
- * GET /federation/search?q=user@domain
- * Search/resolve a fediverse user by WebFinger handle.
- */
-router.get('/search', async (req: AuthRequest, res: Response) => {
-  if (!requireFederation(res)) return;
-
-  const parsed = searchSchema.safeParse(req.query);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
-
-  try {
-    const actor = await federationService.lookupActor(parsed.data.q);
-    if (!actor) return res.json({ actors: [], query: parsed.data.q });
-
-    const followState = await getFollowState(req.user?.id, actor.uri);
-    return res.json({
-      actors: [toActorResponse(actor, followState)],
-      query: parsed.data.q,
-    });
-  } catch (err) {
-    logger.error('Federation search error:', err);
-    return res.status(500).json({ error: 'Search failed' });
-  }
-});
-
-/**
- * GET /federation/lookup?handle=@user@instance
- * Resolve a single fediverse handle.
- */
-router.get('/lookup', async (req: AuthRequest, res: Response) => {
-  if (!requireFederation(res)) return;
-
-  const parsed = lookupSchema.safeParse(req.query);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
-
-  try {
-    const actor = await federationService.lookupActor(parsed.data.handle);
-    if (!actor) return res.json({ actor: null });
-
-    const followState = await getFollowState(req.user?.id, actor.uri);
-    return res.json({ actor: toActorResponse(actor, followState) });
-  } catch (err) {
-    logger.error('Federation lookup error:', err);
-    return res.status(500).json({ error: 'Lookup failed' });
-  }
-});
+// Note: Profile search/lookup is handled by OxyHQServices (/profiles/search, /profiles/resolve).
+// These routes handle Mention-specific federation operations (follows, posts).
 
 /**
  * POST /federation/follow
@@ -289,28 +183,6 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
   } catch (err) {
     logger.error('Federation followers list error:', err);
     return res.status(500).json({ error: 'Failed to fetch followers' });
-  }
-});
-
-/**
- * GET /federation/actor?uri=...
- * Get a stored remote actor's profile.
- */
-router.get('/actor', async (req: AuthRequest, res: Response) => {
-  if (!requireFederation(res)) return;
-
-  const parsed = actorQuerySchema.safeParse(req.query);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
-
-  try {
-    const actor = await federationService.getOrFetchActor(parsed.data.uri);
-    if (!actor) return res.json({ actor: null });
-
-    const followState = await getFollowState(req.user?.id, actor.uri);
-    return res.json({ actor: toActorResponse(actor, followState) });
-  } catch (err) {
-    logger.error('Federation actor error:', err);
-    return res.status(500).json({ error: 'Failed to fetch actor' });
   }
 });
 

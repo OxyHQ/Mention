@@ -30,11 +30,6 @@ export interface FederatedActorProfile {
   type?: string;
 }
 
-export interface FederationSearchResult {
-  actors: FederatedActorProfile[];
-  query: string;
-}
-
 export interface FederationFollowResponse {
   success: boolean;
   pending: boolean;
