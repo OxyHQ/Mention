@@ -65,7 +65,7 @@ export default function RootLayout() {
   const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
 
   // Font Loading
-  const [fontsLoaded] = useFonts(
+  const [fontsLoaded, fontError] = useFonts(
     useMemo(() => {
       const fontMap: Record<string, any> = {};
       const InterVariable = require('@/assets/fonts/inter/InterVariable.ttf');
@@ -80,6 +80,27 @@ export default function RootLayout() {
       return fontMap;
     }, [])
   );
+
+  // If font loading fails (e.g. corrupt file, 404, wrong format), log the error
+  // and treat fonts as "ready" so the app doesn't stay stuck on splash.
+  const [fontTimedOut, setFontTimedOut] = useState(false);
+  const fontsReady = fontsLoaded || !!fontError || fontTimedOut;
+
+  useEffect(() => {
+    if (fontError) {
+      logger.error('Font loading failed, proceeding without custom fonts', { error: fontError });
+    }
+  }, [fontError]);
+
+  // Safety timeout: if fonts haven't loaded after 5 seconds, proceed anyway
+  useEffect(() => {
+    if (fontsReady) return;
+    const timer = setTimeout(() => {
+      logger.warn('Font loading timed out after 5s, proceeding without custom fonts');
+      setFontTimedOut(true);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [fontsReady]);
 
   // Set Inter as the default font for all Text and TextInput components
   useEffect(() => {
@@ -103,10 +124,10 @@ export default function RootLayout() {
   }, []);
 
   const initializeApp = useCallback(async () => {
-    console.log('[Layout] initializeApp called, fontsLoaded:', fontsLoaded);
-    if (!fontsLoaded) return;
+    console.log('[Layout] initializeApp called, fontsReady:', fontsReady);
+    if (!fontsReady) return;
 
-    const result = await AppInitializer.initializeApp(fontsLoaded, oxyServices);
+    const result = await AppInitializer.initializeApp(fontsReady, oxyServices);
 
     if (result.success) {
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
@@ -114,7 +135,7 @@ export default function RootLayout() {
       logger.error('App initialization failed', { error: result.error });
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
     }
-  }, [fontsLoaded]);
+  }, [fontsReady]);
 
   // Initialize i18n once when the app mounts
   useEffect(() => {
@@ -173,7 +194,7 @@ export default function RootLayout() {
     if (!appIsReady) {
       return (
         <AppSplashScreen
-          startFade={fontsLoaded && splashState.initializationComplete}
+          startFade={fontsReady && splashState.initializationComplete}
           onFadeComplete={handleSplashFadeComplete}
         />
       );
@@ -199,7 +220,7 @@ export default function RootLayout() {
     );
   }, [
     appIsReady,
-    fontsLoaded,
+    fontsReady,
     splashState.initializationComplete,
     colorScheme,
     handleSplashFadeComplete,
