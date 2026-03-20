@@ -47,7 +47,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci
+      - run: npm install
       - name: Build shared types
         run: npm run build --workspace=@mention/shared-types
       - name: Build frontend
@@ -75,7 +75,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci
+      - run: npm install
       - name: Build shared types
         run: npm run build --workspace=@mention/shared-types
       - name: Build agora

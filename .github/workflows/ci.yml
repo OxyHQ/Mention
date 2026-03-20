@@ -16,7 +16,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - uses: oven-sh/setup-bun@v2
-      - run: npm ci
+      - run: npm install
       - name: Build shared types
         run: npm run build --workspace=@mention/shared-types
       - name: Lint frontend
