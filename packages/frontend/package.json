@@ -107,7 +107,6 @@
     "react-native-svg": "15.15.3",
     "react-native-ui-datepicker": "^3.1.2",
     "react-native-web": "~0.21.0",
-    "react-native-web-hover": "^0.2.9",
     "react-native-worklets": "^0.7.4",
     "react-responsive": "^10.0.1",
     "socket.io-client": "^4.8.1",
