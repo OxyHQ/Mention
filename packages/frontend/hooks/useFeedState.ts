@@ -172,7 +172,13 @@ export function useFeedState({
             }
 
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
-            const currentFeed = !useScoped ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
+            // For user profile feeds, check userFeeds state; for global feeds, check feeds state
+            const storeState = usePostsStore.getState();
+            const currentFeed = !useScoped
+                ? (userId
+                    ? storeState.userFeeds[userId]?.[feedTypeToCheck]
+                    : storeState.feeds[feedTypeToCheck])
+                : null;
             const hasItems = currentFeed?.items && currentFeed.items.length > 0;
             const wasFetched = currentFeed?.lastUpdated && currentFeed.lastUpdated > 0;
 
@@ -458,7 +464,11 @@ export function useFeedState({
 
         if (!useScoped && !showOnlySaved) {
             const feedTypeToCheck = type;
-            const currentFeed = usePostsStore.getState().feeds[feedTypeToCheck];
+            // For user profile feeds, check userFeeds state; for global feeds, check feeds state
+            const storeState = usePostsStore.getState();
+            const currentFeed = userId
+                ? storeState.userFeeds[userId]?.[feedTypeToCheck]
+                : storeState.feeds[feedTypeToCheck];
             const hasItems = currentFeed?.items && currentFeed.items.length > 0 && currentFeed.lastUpdated > 0;
 
             if (hasItems && !filters?.searchQuery) {
@@ -469,7 +479,7 @@ export function useFeedState({
 
         fetchInitial(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [type, filters, useScoped, showOnlySaved]); // Removed reloadKey and fetchInitial from deps to reduce re-runs
+    }, [type, userId, filters, useScoped, showOnlySaved]); // userId needed to re-fetch when navigating between profiles
 
     // Return appropriate state based on scoped vs global
     const items = useScoped ? localItems : globalFeed?.items || [];
