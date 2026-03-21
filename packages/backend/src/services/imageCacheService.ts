@@ -4,7 +4,7 @@ import { URL } from 'url';
 import { logger } from '../utils/logger';
 import { validateUrlSecurity } from '../utils/urlSecurity';
 import crypto from 'crypto';
-import sharp from 'sharp';
+import { Transformer, ResizeFit } from '@napi-rs/image';
 import { getS3Client, getBucket, getCdnUrl } from '../utils/spaces';
 import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
@@ -180,7 +180,7 @@ class ImageCacheService {
   }
 
   /**
-   * Process and optimize image using sharp
+   * Process and optimize image using @napi-rs/image
    */
   private async processImage(imageBuffer: Buffer, options?: ImageProcessingOptions): Promise<{ buffer: Buffer; contentType: string }> {
     const maxWidth = options?.maxWidth ?? MAX_IMAGE_WIDTH;
@@ -200,54 +200,38 @@ class ImageCacheService {
       return { buffer: imageBuffer, contentType: 'image/svg+xml' };
     }
 
-    const base = sharp(imageBuffer, { failOnError: false });
-    const metadata = await base.metadata();
-    const isAnimated = (metadata.pages ?? 1) > 1;
+    const transformer = new Transformer(imageBuffer);
+    const metadata = await transformer.metadata();
 
-    const resizeOptions = {
-      width: metadata.width && metadata.width > maxWidth ? maxWidth : undefined,
-      height: metadata.height && metadata.height > maxHeight ? maxHeight : undefined,
-      fit: 'inside' as const,
-      withoutEnlargement: true,
-      fastShrinkOnLoad: true,
-    };
+    // GIF images: return as-is to preserve animation
+    if (metadata.format === 'gif') {
+      return { buffer: imageBuffer, contentType: 'image/gif' };
+    }
 
-    let pipeline = sharp(imageBuffer, { failOnError: false })
-      .resize(resizeOptions)
-      .withMetadata({ orientation: metadata.orientation });
+    // Determine resize dimensions (only downscale, never enlarge)
+    const resizeWidth = metadata.width > maxWidth ? maxWidth : undefined;
+    const resizeHeight = metadata.height > maxHeight ? maxHeight : undefined;
 
-    if (!isAnimated) {
-      pipeline = pipeline.webp({
-        quality,
-        effort: 4,
-        smartSubsample: true,
+    // Build a fresh transformer for the processing pipeline
+    const pipeline = new Transformer(imageBuffer);
+
+    // Apply orientation correction
+    if (metadata.orientation) {
+      pipeline.rotate(metadata.orientation);
+    }
+
+    // Apply resize if needed (Contain = fit inside bounds without cropping)
+    if (resizeWidth || resizeHeight) {
+      pipeline.resize({
+        width: resizeWidth ?? maxWidth,
+        height: resizeHeight ?? maxHeight,
+        fit: ResizeFit.Inside,
       });
-      const buffer = await pipeline.toBuffer();
-      return { buffer, contentType: 'image/webp' };
     }
 
-    const format = metadata.format ?? 'jpeg';
-    switch (format) {
-      case 'png':
-        pipeline = pipeline.png({ compressionLevel: 9, quality });
-        break;
-      case 'gif':
-        return { buffer: imageBuffer, contentType: 'image/gif' };
-      case 'webp':
-        pipeline = pipeline.webp({
-          quality,
-          effort: 4,
-        });
-        break;
-      default:
-        pipeline = pipeline.jpeg({
-          quality,
-          mozjpeg: true,
-        });
-    }
-
-    const processedBuffer = await pipeline.toBuffer();
-    return { buffer: processedBuffer, contentType: this.mapFormatToContentType(format) };
+    // Convert to webp for best compression
+    const buffer = await pipeline.webp(quality);
+    return { buffer, contentType: 'image/webp' };
   }
 
   private mapFormatToContentType(format?: string): string {

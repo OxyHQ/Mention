@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import { Transformer, ResizeFit } from '@napi-rs/image';
 
 type ImagePreset = 'avatar' | 'cover' | 'roomImage';
 
@@ -13,9 +13,8 @@ export async function processImage(
   preset: ImagePreset,
 ): Promise<{ buffer: Buffer; contentType: string }> {
   const { width, height, quality } = PRESETS[preset];
-  const buffer = await sharp(input)
-    .resize(width, height, { fit: 'cover' })
-    .webp({ quality })
-    .toBuffer();
+  const buffer = await new Transformer(input)
+    .resize(width, height, undefined, ResizeFit.Cover)
+    .webp(quality);
   return { buffer, contentType: 'image/webp' };
 }
