@@ -1058,7 +1058,7 @@ export class PostHydrationService {
           }
           return undefined;
         })
-        .filter((x): x is import('@mention/shared-types').MediaItem => x !== undefined) as import('@mention/shared-types').MediaItem[];
+        .filter((x: { id: string; type: string } | undefined): x is import('@mention/shared-types').MediaItem => x !== undefined) as import('@mention/shared-types').MediaItem[];
     }
 
     const pollId = content.pollId;
@@ -1081,7 +1081,7 @@ export class PostHydrationService {
     }
 
     if (Array.isArray(content.sources) && content.sources.length > 0) {
-      attachments.sources = content.sources.map((source) => ({
+      attachments.sources = (content.sources as Array<{ url: string; title?: string }>).map((source: { url: string; title?: string }) => ({
         url: source.url,
         title: source.title,
       }));
