@@ -2,12 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSharedValue } from 'react-native-reanimated';
-import BottomSheet, {
-  BottomSheetView,
-  BottomSheetBackdrop,
-  BottomSheetFooter,
-} from '@gorhom/bottom-sheet';
-import type { BottomSheetBackdropProps, BottomSheetFooterProps } from '@gorhom/bottom-sheet';
+import BloomBottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -21,12 +16,12 @@ const MAX_CONTENT_HEIGHT = Dimensions.get('window').height * 0.92;
 
 /**
  * Presents the onboarding flow as a bottom sheet whose height adapts
- * per step via enableDynamicSizing — content drives the sheet height.
+ * per step — content drives the sheet height.
  */
 const OnboardingGate: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const sheetRef = useRef<BottomSheet>(null);
+  const sheetRef = useRef<BottomSheetRef>(null);
   const screenRef = useRef<OnboardingScreenHandle>(null);
   const scrollProgress = useSharedValue(0);
   const [ready, setReady] = useState(false);
@@ -48,42 +43,46 @@ const OnboardingGate: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const handleComplete = useCallback(() => {
-    sheetRef.current?.close();
-  }, []);
-
-  const handleSheetChange = useCallback(async (index: number) => {
-    if (index === -1) {
-      setDismissed(true);
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY_ONBOARDING);
-        const progress: OnboardingProgress | null = raw ? JSON.parse(raw) : null;
-        if (!progress?.completed) {
-          await AsyncStorage.setItem(
-            STORAGE_KEY_ONBOARDING,
-            JSON.stringify({ currentStep: 0, completed: true, skipped: true }),
-          );
-        }
-      } catch {}
+  // Present sheet when ready
+  useEffect(() => {
+    if (ready && !dismissed) {
+      sheetRef.current?.present();
     }
+  }, [ready, dismissed]);
+
+  const handleComplete = useCallback(() => {
+    sheetRef.current?.dismiss();
   }, []);
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.6}
-        pressBehavior="none"
-      />
-    ),
-    [],
-  );
+  const handleDismiss = useCallback(async () => {
+    setDismissed(true);
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_ONBOARDING);
+      const progress: OnboardingProgress | null = raw ? JSON.parse(raw) : null;
+      if (!progress?.completed) {
+        await AsyncStorage.setItem(
+          STORAGE_KEY_ONBOARDING,
+          JSON.stringify({ currentStep: 0, completed: true, skipped: true }),
+        );
+      }
+    } catch {}
+  }, []);
 
-  const renderFooter = useCallback(
-    (props: BottomSheetFooterProps) => (
-      <BottomSheetFooter {...props} bottomInset={0}>
+  if (!ready || dismissed) return null;
+
+  return (
+    <BloomBottomSheet
+      ref={sheetRef}
+      enablePanDownToClose
+      onDismiss={handleDismiss}
+      style={styles.sheet}
+    >
+      <View style={{ maxHeight: MAX_CONTENT_HEIGHT }}>
+        <OnboardingScreen
+          ref={screenRef}
+          scrollProgress={scrollProgress}
+          onComplete={handleComplete}
+        />
         <View
           style={[
             styles.footer,
@@ -102,42 +101,12 @@ const OnboardingGate: React.FC = () => {
             onDone={() => screenRef.current?.done()}
           />
         </View>
-      </BottomSheetFooter>
-    ),
-    [scrollProgress, theme, insets.bottom],
-  );
-
-  if (!ready || dismissed) return null;
-
-  return (
-    <BottomSheet
-      ref={sheetRef}
-      enableDynamicSizing
-      maxDynamicContentSize={MAX_CONTENT_HEIGHT}
-      enablePanDownToClose
-      enableContentPanningGesture={false}
-      onChange={handleSheetChange}
-      backdropComponent={renderBackdrop}
-      footerComponent={renderFooter}
-      backgroundStyle={[styles.background, { backgroundColor: theme.colors.background }]}
-      handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
-      style={styles.sheet}
-    >
-      <BottomSheetView>
-        <OnboardingScreen
-          ref={screenRef}
-          scrollProgress={scrollProgress}
-          onComplete={handleComplete}
-        />
-      </BottomSheetView>
-    </BottomSheet>
+      </View>
+    </BloomBottomSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  background: {
-    borderRadius: 24,
-  },
   sheet: {
     maxWidth: 600,
     marginHorizontal: 'auto',

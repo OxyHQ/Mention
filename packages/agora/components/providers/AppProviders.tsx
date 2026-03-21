@@ -7,7 +7,6 @@ import { StatusBar } from 'expo-status-bar';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 
 import { agoraConfig } from '@/lib/agoraConfig';
@@ -66,11 +65,9 @@ export const AppProviders = memo(function AppProviders({
               <OxyServicesSync>
                 <AgoraProviderWithInvalidation>
                   <LiveRoomProvider>
-                    <BottomSheetModalProvider>
-                      {children}
-                      <StatusBar style="auto" />
-                      <ToastOutlet />
-                    </BottomSheetModalProvider>
+                    {children}
+                    <StatusBar style="auto" />
+                    <ToastOutlet />
                   </LiveRoomProvider>
                 </AgoraProviderWithInvalidation>
               </OxyServicesSync>

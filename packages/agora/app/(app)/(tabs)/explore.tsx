@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,7 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
-import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import BloomBottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { RoomCard, useLiveRoom, type Room, type House } from '@mention/agora-shared';
 import { useAuth } from '@oxyhq/services';
 
@@ -94,19 +93,7 @@ export default function ExploreScreen() {
   const refreshing = liveRefetching || scheduledRefetching;
   const onRefresh = () => { invalidateRoomLists(); };
 
-  const modalRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['85%'], []);
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-      />
-    ),
-    [],
-  );
+  const modalRef = useRef<BottomSheetRef>(null);
 
   const openCreateHouse = () => {
     modalRef.current?.present();
@@ -297,23 +284,16 @@ export default function ExploreScreen() {
         )}
       </ScrollView>
 
-      <BottomSheetModal
+      <BloomBottomSheet
         ref={modalRef}
-        snapPoints={snapPoints}
         enablePanDownToClose
-        onDismiss={() => {}}
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: theme.colors.background, borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
         style={{ maxWidth: 500, margin: 'auto' }}
       >
-        <BottomSheetScrollView>
-          <CreateHouseSheet
-            onClose={closeCreateHouse}
-            onHouseCreated={closeCreateHouse}
-          />
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+        <CreateHouseSheet
+          onClose={closeCreateHouse}
+          onHouseCreated={closeCreateHouse}
+        />
+      </BloomBottomSheet>
     </View>
   );
 }

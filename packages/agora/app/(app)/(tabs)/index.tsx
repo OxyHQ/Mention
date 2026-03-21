@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomSheetFooter } from '@gorhom/bottom-sheet';
-import type { BottomSheetFooterProps, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import BottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import {
   RoomCard,
   RecordingCard,
@@ -74,9 +73,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: myHouses = [] } = useMyHouses(user?.id);
-  const modalRef = useRef<BottomSheetModal>(null);
+  const modalRef = useRef<BottomSheetRef>(null);
   const createSheetRef = useRef<CreateRoomSheetRef>(null);
-  const snapPoints = useMemo(() => ['85%'], []);
+  // snapPoints not needed for Bloom BottomSheet (auto-sizes)
 
   const housesById = useMemo(() => {
     const map: Record<string, House> = {};
@@ -134,64 +133,47 @@ export default function HomeScreen() {
     setSheetOpen(false);
   }, []);
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
-    ),
-    [],
-  );
+  const sheetFooter = (
+    <View style={[sheetStyles.footer, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+      <TouchableOpacity
+        style={[
+          sheetStyles.primaryButton,
+          {
+            backgroundColor: formState.isValid ? theme.colors.primary : theme.colors.backgroundSecondary,
+            opacity: formState.loading ? 0.6 : 1,
+          },
+        ]}
+        onPress={() => createSheetRef.current?.handleCreateAndStart()}
+        disabled={!formState.isValid || formState.loading}
+      >
+        <MaterialCommunityIcons
+          name="play"
+          size={20}
+          color={formState.isValid ? theme.colors.onPrimary : theme.colors.textSecondary}
+        />
+        <Text
+          style={[sheetStyles.primaryButtonText, { color: formState.isValid ? theme.colors.onPrimary : theme.colors.textSecondary }]}
+        >
+          {formState.loading ? 'Creating...' : 'Start Now'}
+        </Text>
+      </TouchableOpacity>
 
-  const renderFooter = useCallback(
-    (props: BottomSheetFooterProps) => (
-      <BottomSheetFooter {...props} bottomInset={0}>
-        <View style={[sheetStyles.footer, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
-          <TouchableOpacity
-            style={[
-              sheetStyles.primaryButton,
-              {
-                backgroundColor: formState.isValid ? theme.colors.primary : theme.colors.backgroundSecondary,
-                opacity: formState.loading ? 0.6 : 1,
-              },
-            ]}
-            onPress={() => createSheetRef.current?.handleCreateAndStart()}
-            disabled={!formState.isValid || formState.loading}
-          >
-            <MaterialCommunityIcons
-              name="play"
-              size={20}
-              color={formState.isValid ? theme.colors.onPrimary : theme.colors.textSecondary}
-            />
-            <Text
-              style={[sheetStyles.primaryButtonText, { color: formState.isValid ? theme.colors.onPrimary : theme.colors.textSecondary }]}
-            >
-              {formState.loading ? 'Creating...' : 'Start Now'}
-            </Text>
-          </TouchableOpacity>
-
-          {formState.hasScheduledStart && (
-            <TouchableOpacity
-              style={[
-                sheetStyles.secondaryButton,
-                { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, opacity: formState.loading ? 0.6 : 1 },
-              ]}
-              onPress={() => createSheetRef.current?.handleSchedule()}
-              disabled={!formState.isValid || formState.loading}
-            >
-              <MaterialCommunityIcons name="calendar" size={20} color={theme.colors.text} />
-              <Text style={[sheetStyles.secondaryButtonText, { color: theme.colors.text }]}>
-                Schedule Room
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </BottomSheetFooter>
-    ),
-    [formState, theme],
+      {formState.hasScheduledStart && (
+        <TouchableOpacity
+          style={[
+            sheetStyles.secondaryButton,
+            { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, opacity: formState.loading ? 0.6 : 1 },
+          ]}
+          onPress={() => createSheetRef.current?.handleSchedule()}
+          disabled={!formState.isValid || formState.loading}
+        >
+          <MaterialCommunityIcons name="calendar" size={20} color={theme.colors.text} />
+          <Text style={[sheetStyles.secondaryButtonText, { color: theme.colors.text }]}>
+            Schedule Room
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   return (
@@ -371,27 +353,22 @@ export default function HomeScreen() {
         <MaterialCommunityIcons name="plus" size={28} color={theme.colors.onPrimary} />
       </TouchableOpacity>
 
-      <BottomSheetModal
+      <BottomSheet
         ref={modalRef}
-        snapPoints={snapPoints}
         enablePanDownToClose
         onDismiss={() => setSheetOpen(false)}
-        backdropComponent={renderBackdrop}
-        footerComponent={renderFooter}
-        backgroundStyle={{ backgroundColor: theme.colors.background, borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
         style={{ maxWidth: 500, margin: 'auto' }}
       >
         <CreateRoomSheet
           ref={createSheetRef}
           onClose={closeCreateSheet}
           onRoomCreated={() => { closeCreateSheet(); invalidateRoomLists(); }}
-          ScrollViewComponent={BottomSheetScrollView}
           hideFooter
           onFormStateChange={setFormState}
           houses={myHouses}
         />
-      </BottomSheetModal>
+        {sheetFooter}
+      </BottomSheet>
     </View>
   );
 }
