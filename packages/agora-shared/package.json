@@ -10,7 +10,7 @@
     "react-native-reanimated": ">=4",
     "react-native-safe-area-context": ">=5",
     "@oxyhq/services": ">=6",
-    "@oxyhq/core": ">=1",
+    "@oxyhq/core": "1.11.3",
     "livekit-client": ">=2",
     "@livekit/react-native": ">=2",
     "expo-audio": ">=1",

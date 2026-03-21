@@ -7,7 +7,9 @@
 import React, { memo, useCallback } from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MenuProvider } from 'react-native-popup-menu';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
@@ -50,35 +52,40 @@ export const AppProviders = memo(function AppProviders({
   }, []);
 
   return (
-    <OxyProvider
-      oxyServices={oxyServices}
-      storageKeyPrefix="mention"
-      queryClient={queryClient}
-    >
-      <I18nextProvider i18n={i18n}>
-        <AgoraProvider config={agoraConfig}>
-          <LiveRoomProvider>
-            <BottomSheetModalProvider>
-              <BottomSheetProvider>
-                <MenuProvider>
-                  <AppErrorBoundary
-                    onError={handleBoundaryError}
-                  >
-                    <LayoutScrollProvider>
-                      <HomeRefreshProvider>
-                        {children}
-                        <StatusBar style="auto" />
-                        <ToastOutlet />
-                        <ConfirmPromptProvider />
-                      </HomeRefreshProvider>
-                    </LayoutScrollProvider>
-                  </AppErrorBoundary>
-                </MenuProvider>
-              </BottomSheetProvider>
-            </BottomSheetModalProvider>
-          </LiveRoomProvider>
-        </AgoraProvider>
-      </I18nextProvider>
-    </OxyProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <OxyProvider
+          oxyServices={oxyServices}
+          storageKeyPrefix="mention"
+          queryClient={queryClient}
+          skipProviderWrappers
+        >
+          <I18nextProvider i18n={i18n}>
+            <AgoraProvider config={agoraConfig}>
+              <LiveRoomProvider>
+                <BottomSheetModalProvider>
+                  <BottomSheetProvider>
+                    <MenuProvider>
+                      <AppErrorBoundary
+                        onError={handleBoundaryError}
+                      >
+                        <LayoutScrollProvider>
+                          <HomeRefreshProvider>
+                            {children}
+                            <StatusBar style="auto" />
+                            <ToastOutlet />
+                            <ConfirmPromptProvider />
+                          </HomeRefreshProvider>
+                        </LayoutScrollProvider>
+                      </AppErrorBoundary>
+                    </MenuProvider>
+                  </BottomSheetProvider>
+                </BottomSheetModalProvider>
+              </LiveRoomProvider>
+            </AgoraProvider>
+          </I18nextProvider>
+        </OxyProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 });
