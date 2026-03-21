@@ -2,16 +2,11 @@
  * StableFollowButton — A follow button designed for list contexts (e.g. followers/following pages)
  * where many instances are rendered simultaneously.
  *
- * The FollowButton from @oxyhq/services subscribes to the entire follow store via
- * `useFollowStore()` (no selector). In a list of N users, every store update causes
- * all N buttons to re-render, and each re-render creates a new `fetchStatus` callback
- * reference (because it depends on the full store), which triggers the mount useEffect
- * again, creating an infinite fetch→update→re-render loop that freezes the app.
- *
- * This component avoids the problem by:
- * 1. Managing follow state locally per-instance (no shared store subscription)
- * 2. Not auto-fetching follow status on mount (fetches once, then uses local state)
- * 3. Using `React.memo` so parent re-renders don't cascade
+ * Key design decisions to prevent freezes:
+ * 1. Uses the singleton oxyServices import instead of useAuth() context — context changes
+ *    (session socket, token refresh) would bypass React.memo and re-render ALL N buttons.
+ * 2. Manages follow state locally per-instance (no shared store subscription).
+ * 3. Fetches follow status once on mount with cleanup to prevent stale updates.
  */
 import React, { useCallback, useState, useEffect, useRef, memo } from 'react';
 import {
@@ -23,6 +18,7 @@ import {
 } from 'react-native';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { oxyServices } from '@/lib/oxyServices';
 
 interface StableFollowButtonProps {
   userId: string;
@@ -33,12 +29,16 @@ interface StableFollowButtonProps {
  * Inner component that renders only when we know we should show the button.
  * Separating this avoids a Rules of Hooks violation (the library FollowButton
  * has an early return before hooks, which can crash).
+ *
+ * Uses the module-level oxyServices singleton to avoid subscribing to OxyContext.
+ * This is critical: useAuth() subscribes to context, and context changes (e.g. session
+ * socket events, token refreshes) bypass React.memo, causing all N buttons to re-render
+ * simultaneously and freezing the UI.
  */
 const StableFollowButtonInner = memo(function StableFollowButtonInner({
   userId,
   size = 'small',
 }: StableFollowButtonProps) {
-  const { oxyServices } = useAuth();
   const theme = useTheme();
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,7 +63,7 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [userId, oxyServices]);
+  }, [userId]);
 
   const handlePress = useCallback(async () => {
     if (loading) return;
@@ -89,7 +89,7 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
         setLoading(false);
       }
     }
-  }, [userId, oxyServices, loading, isFollowing]);
+  }, [userId, loading, isFollowing]);
 
   const buttonStyle = [
     styles.button,
@@ -132,6 +132,10 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
 /**
  * Outer wrapper that handles the "should we render?" check before any hooks
  * in the inner component are called, avoiding Rules of Hooks violations.
+ *
+ * This is the only place we use useAuth() — to check if the user is authenticated
+ * and to get their ID for the self-follow guard. The inner component avoids context
+ * subscriptions entirely.
  */
 const StableFollowButton = memo(function StableFollowButton({
   userId,

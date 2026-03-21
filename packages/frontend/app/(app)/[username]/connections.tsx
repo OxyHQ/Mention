@@ -349,11 +349,11 @@ export default function ConnectionsScreen() {
     }
   };
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'followers', label: t('Followers', { defaultValue: 'Followers' }) },
     { id: 'following', label: t('Following', { defaultValue: 'Following' }) },
     { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
-  ];
+  ], [t]);
 
   const renderContent = () => {
     if (error && currentData.length === 0 && !loading) {
