@@ -1,0 +1,84 @@
+##
+## Deploy Mention backend to DigitalOcean App Platform
+##
+## Triggers on push to main when backend files change.
+## Uses the DO API to force a new deployment.
+##
+## Required GitHub Secrets:
+##   DIGITALOCEAN_TOKEN  - DigitalOcean API token with read/write access
+##   DO_APP_ID           - App Platform app ID (e.g., from `doctl apps list`)
+##
+
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/backend/**'
+      - 'packages/shared-types/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to App Platform
+    runs-on: ubuntu-latest
+    # Only run if DO secrets are configured
+    if: ${{ vars.DO_APP_ID != '' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Trigger App Platform deployment
+        run: |
+          echo "=== Triggering DigitalOcean App Platform deployment ==="
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://api.digitalocean.com/v2/apps/${{ vars.DO_APP_ID }}/deployments" \
+            -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"force_build": true}')
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            DEPLOY_ID=$(echo "$BODY" | jq -r '.deployment.id // empty')
+            echo "Deployment triggered: $DEPLOY_ID"
+          else
+            echo "::error::Failed to trigger deployment (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+
+      - name: Wait for deployment
+        run: |
+          echo "=== Waiting for deployment to complete ==="
+          APP_ID="${{ vars.DO_APP_ID }}"
+          TOKEN="${{ secrets.DIGITALOCEAN_TOKEN }}"
+
+          for i in $(seq 1 30); do
+            sleep 20
+
+            STATUS=$(curl -s \
+              "https://api.digitalocean.com/v2/apps/$APP_ID" \
+              -H "Authorization: Bearer $TOKEN" \
+              | jq -r '.app.active_deployment.phase // "UNKNOWN"')
+
+            echo "Attempt $i/30: Deployment phase = $STATUS"
+
+            if [ "$STATUS" = "ACTIVE" ]; then
+              echo "Deployment successful!"
+              exit 0
+            elif [ "$STATUS" = "ERROR" ] || [ "$STATUS" = "CANCELED" ]; then
+              echo "::error::Deployment failed with phase: $STATUS"
+              exit 1
+            fi
+          done
+
+          echo "::warning::Deployment did not complete within 10 minutes"
+          exit 1

@@ -81,7 +81,17 @@ Backend-specific variables are configured on the `mention` service component. Se
 
 ### Deployment Trigger
 
-Deployments trigger automatically on push to `main` (deploy-on-push enabled).
+Deployments trigger via two mechanisms:
+
+1. **DO App Platform deploy-on-push** — automatically builds on push to `main` (configured on the DO side).
+2. **GitHub Actions workflow** (`.github/workflows/deploy-backend.yml`) — triggers on push to `main` when backend files change, and can be triggered manually via `workflow_dispatch`. Requires `DIGITALOCEAN_TOKEN` secret and `DO_APP_ID` variable.
+
+### Required GitHub Secrets/Variables
+
+| Name | Type | Description |
+|---|---|---|
+| `DIGITALOCEAN_TOKEN` | Secret | DigitalOcean API token with read/write access |
+| `DO_APP_ID` | Variable | App Platform app ID (from `doctl apps list`) |
 
 ### Manual Deployment
 
