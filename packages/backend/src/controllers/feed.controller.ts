@@ -47,7 +47,7 @@ import {
 import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import { federationService } from '../services/FederationService';
@@ -1356,7 +1356,32 @@ class FeedController {
       // If no posts found on the first page, check if this is a federated user
       // and trigger outbox sync to pull their posts from the remote instance.
       if (posts.length === 0 && !cursor && FEDERATION_ENABLED) {
-        const actor = await FederatedActor.findOne({ oxyUserId: userId }).lean() as IFederatedActor | null;
+        let actor = await FederatedActor.findOne({ oxyUserId: userId }).lean() as IFederatedActor | null;
+
+        // No FederatedActor yet — look up the Oxy User to get the AP actor URI,
+        // then fetch the remote actor (creates the FederatedActor document).
+        if (!actor) {
+          try {
+            const oxyClient = getServiceOxyClient();
+            const oxyUser = await oxyClient.getUserById(userId) as Record<string, unknown>;
+            const federation = oxyUser?.federation as Record<string, unknown> | undefined;
+            const actorUri = typeof federation?.actorUri === 'string' ? federation.actorUri : undefined;
+            if (actorUri) {
+              const fetched = await federationService.fetchRemoteActor(actorUri);
+              if (fetched && !fetched.oxyUserId) {
+                // Link the FederatedActor to the Oxy User
+                await FederatedActor.updateOne(
+                  { _id: fetched._id },
+                  { $set: { oxyUserId: userId } },
+                );
+              }
+              actor = fetched ? await FederatedActor.findById(fetched._id).lean() as IFederatedActor | null : null;
+            }
+          } catch (resolveErr) {
+            logger.warn('Failed to resolve FederatedActor for user profile feed:', resolveErr);
+          }
+        }
+
         if (actor?.outboxUrl) {
           try {
             await federationService.syncOutboxPosts(actor, limit);
