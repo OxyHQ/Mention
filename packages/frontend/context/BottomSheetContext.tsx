@@ -1,11 +1,13 @@
 import React, { createContext, useState, ReactNode, useRef, useCallback, useMemo } from "react";
-import { StyleSheet, View } from "react-native";
-import { BottomSheet, type BottomSheetRef } from "@oxyhq/bloom/bottom-sheet";
+import { StyleSheet, ScrollView, View } from "react-native";
+import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import { useTheme } from '@oxyhq/bloom/theme';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
     setBottomSheetContent: (content: ReactNode) => void;
-    bottomSheetRef: React.RefObject<BottomSheetRef | null>;
+    bottomSheetRef: React.RefObject<BottomSheetModal | null>;
 }
 
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
@@ -16,35 +18,68 @@ export const BottomSheetContext = createContext<BottomSheetContextProps>({
 
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [bottomSheetContent, setBottomSheetContent] = useState<ReactNode>(null);
-    const bottomSheetRef = useRef<BottomSheetRef | null>(null);
+    const bottomSheetModalRef = useRef<BottomSheetModal | null>(null);
+    const theme = useTheme();
+    const insets = useSafeAreaInsets();
+
+    // Calculate snap points that allow the sheet to reach the top but respect safe area
+    // The sheet can be dragged to 50% or 100% of screen height, but will stop at safe area top
+    // The topInset prop ensures the sheet respects the safe area (camera notch/status bar)
+    const snapPoints = useMemo(() => {
+        // Return snap points as percentages - 100% will be limited by topInset to respect safe area
+        return ['50%', '100%'];
+    }, []);
+
+    const renderBackdrop = useCallback(
+        (props: BottomSheetBackdropProps) => (
+            <BottomSheetBackdrop
+                {...props}
+                appearsOnIndex={0}
+                disappearsOnIndex={-1}
+                pressBehavior="close"
+                opacity={0.5}
+            />
+        ),
+        []
+    );
 
     const openBottomSheet = useCallback((isOpen: boolean) => {
         if (isOpen) {
-            bottomSheetRef.current?.present();
+            bottomSheetModalRef.current?.present();
         } else {
-            bottomSheetRef.current?.dismiss();
+            bottomSheetModalRef.current?.dismiss();
         }
     }, []);
 
     const contextValue = useMemo(() => ({
         openBottomSheet,
         setBottomSheetContent,
-        bottomSheetRef,
+        bottomSheetRef: bottomSheetModalRef,
     }), [openBottomSheet]);
 
     return (
         <BottomSheetContext.Provider value={contextValue}>
             {children}
-            <BottomSheet
-                ref={bottomSheetRef}
+            <BottomSheetModal
+                ref={bottomSheetModalRef}
+                snapPoints={snapPoints}
+                topInset={insets.top}
                 enablePanDownToClose={true}
-                enableHandlePanningGesture={true}
+                enableDismissOnClose={true}
+                android_keyboardInputMode="adjustResize"
+                keyboardBehavior="extend"
                 style={styles.contentContainer}
+                backgroundStyle={{ backgroundColor: theme.colors.background }}
+                handleIndicatorStyle={{ backgroundColor: theme.colors.text, width: 40 }}
+                backdropComponent={renderBackdrop}
+                enableContentPanningGesture={true}
+                enableHandlePanningGesture={true}
+                index={0}
             >
-                <View style={styles.contentView}>
+                <BottomSheetView style={[styles.contentView, { backgroundColor: theme.colors.background }]}>
                     {bottomSheetContent}
-                </View>
-            </BottomSheet>
+                </BottomSheetView>
+            </BottomSheetModal>
         </BottomSheetContext.Provider>
     );
 };

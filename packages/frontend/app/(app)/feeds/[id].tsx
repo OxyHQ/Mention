@@ -31,7 +31,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { show as toast } from '@oxyhq/bloom/toast';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { BottomSheet, type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
 import * as OxyServicesNS from '@oxyhq/services';
 
@@ -595,15 +595,23 @@ export default function CustomFeedTimelineScreen() {
 
   const TABS = TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) }));
 
-  const infoSheetRef = useRef<BottomSheetRef>(null);
+  const infoSheetRef = useRef<BottomSheet>(null);
+  const infoSnapPoints = useMemo(() => ['50%', '75%'], []);
 
   const openInfoSheet = useCallback(() => {
-    infoSheetRef.current?.present();
+    infoSheetRef.current?.expand();
   }, []);
 
   const closeInfoSheet = useCallback(() => {
-    infoSheetRef.current?.dismiss();
+    infoSheetRef.current?.close();
   }, []);
+
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+    ),
+    [],
+  );
 
   useEffect(() => {
     (async () => {
@@ -791,20 +799,26 @@ export default function CustomFeedTimelineScreen() {
       {feed && (
         <BottomSheet
           ref={infoSheetRef}
+          index={-1}
+          snapPoints={infoSnapPoints}
           enablePanDownToClose
-          enableHandlePanningGesture
+          backdropComponent={renderBackdrop}
+          backgroundStyle={{ backgroundColor: theme.colors.background }}
+          handleIndicatorStyle={{ backgroundColor: theme.colors.border }}
         >
-          <FeedInfoContent
-            feed={feed}
-            likeCount={likeCount}
-            isLiked={isLiked}
-            isTogglingLike={isTogglingLike}
-            isPinned={isPinned}
-            onToggleLike={onToggleLike}
-            onTogglePin={onTogglePin}
-            onShare={onShare}
-            onClose={closeInfoSheet}
-          />
+          <BottomSheetScrollView>
+            <FeedInfoContent
+              feed={feed}
+              likeCount={likeCount}
+              isLiked={isLiked}
+              isTogglingLike={isTogglingLike}
+              isPinned={isPinned}
+              onToggleLike={onToggleLike}
+              onTogglePin={onTogglePin}
+              onShare={onShare}
+              onClose={closeInfoSheet}
+            />
+          </BottomSheetScrollView>
         </BottomSheet>
       )}
     </ThemedView>
