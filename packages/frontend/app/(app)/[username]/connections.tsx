@@ -3,7 +3,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import * as OxyServicesNS from '@oxyhq/services';
+import { StableFollowButton } from '@/components/StableFollowButton';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -38,11 +38,6 @@ export default function ConnectionsScreen() {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
-  const FollowButton = useMemo(
-    () => (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>,
-    []
-  );
-
   const { data: profileData } = useProfileData(cleanUsername);
 
   // Determine active tab from pathname
@@ -261,10 +256,10 @@ export default function ConnectionsScreen() {
             ) : null}
           </View>
         </TouchableOpacity>
-        <FollowButton userId={userId} size="small" />
+        <StableFollowButton userId={userId} size="small" />
       </View>
     );
-  }, [theme.colors.border, FollowButton]);
+  }, [theme.colors.border]);
 
   const renderInviteBanner = useCallback(() => (
     <TouchableOpacity
