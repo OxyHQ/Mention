@@ -267,59 +267,64 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         }
     }, [profileData, displayName, t]);
 
-    // More options menu (block, mute, report)
-    const handleMoreOptions = useCallback(() => {
-        if (!profileData || isOwnProfile) return;
-
+    // More options menu handlers — defined outside the callback so they are stable references
+    const handleMute = useCallback(async () => {
+        if (!profileData) return;
         const displayUsername = profileData.username;
+        bottomSheet.openBottomSheet(false);
+        const success = await muteService.muteUser(profileData.id);
+        if (success) {
+            toast(t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }), { type: 'success' });
+        } else {
+            toast(t('profile.muteFailed', { defaultValue: 'Failed to mute user' }), { type: 'error' });
+        }
+    }, [profileData, bottomSheet, t]);
 
-        const handleMute = async () => {
-            bottomSheet.openBottomSheet(false);
-            const success = await muteService.muteUser(profileData.id);
-            if (success) {
-                toast(t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }), { type: 'success' });
-            } else {
-                toast(t('profile.muteFailed', { defaultValue: 'Failed to mute user' }), { type: 'error' });
-            }
-        };
+    const handleBlock = useCallback(async () => {
+        if (!profileData) return;
+        const displayUsername = profileData.username;
+        bottomSheet.openBottomSheet(false);
+        const confirmed = await confirmDialog({
+            title: t('profile.blockUser', { defaultValue: `Block @${displayUsername}` }),
+            message: t('profile.blockConfirm', { username: displayUsername, defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.` }),
+            okText: t('profile.block', { defaultValue: 'Block' }),
+            cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+            destructive: true,
+        });
+        if (!confirmed) return;
+        try {
+            await oxyServices.blockUser(profileData.id);
+            toast(t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }), { type: 'success' });
+        } catch {
+            toast(t('profile.blockFailed', { defaultValue: 'Failed to block user' }), { type: 'error' });
+        }
+    }, [profileData, bottomSheet, t, oxyServices]);
 
-        const handleBlock = async () => {
-            bottomSheet.openBottomSheet(false);
-            const confirmed = await confirmDialog({
-                title: t('profile.blockUser', { defaultValue: `Block @${displayUsername}` }),
-                message: t('profile.blockConfirm', { username: displayUsername, defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.` }),
-                okText: t('profile.block', { defaultValue: 'Block' }),
-                cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
-                destructive: true,
-            });
-            if (!confirmed) return;
-            try {
-                await oxyServices.blockUser(profileData.id);
-                toast(t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }), { type: 'success' });
-            } catch {
-                toast(t('profile.blockFailed', { defaultValue: 'Failed to block user' }), { type: 'error' });
-            }
-        };
+    const handleReport = useCallback(() => {
+        if (!profileData) return;
+        bottomSheet.setBottomSheetContent(
+            <ReportModal
+                visible={true}
+                onClose={() => bottomSheet.openBottomSheet(false)}
+                onSubmit={async (categories, details) => {
+                    const success = await reportService.reportUser(profileData.id, categories, details);
+                    if (success) {
+                        toast(t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }), { type: 'success' });
+                    } else {
+                        toast(t('report.failed', { defaultValue: 'Failed to submit report.' }), { type: 'error' });
+                    }
+                }}
+            />
+        );
+        bottomSheet.openBottomSheet(true);
+    }, [profileData, bottomSheet, t]);
 
-        const handleReport = () => {
-            bottomSheet.setBottomSheetContent(
-                <ReportModal
-                    visible={true}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                    onSubmit={async (categories, details) => {
-                        const success = await reportService.reportUser(profileData.id, categories, details);
-                        if (success) {
-                            toast(t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }), { type: 'success' });
-                        } else {
-                            toast(t('report.failed', { defaultValue: 'Failed to submit report.' }), { type: 'error' });
-                        }
-                    }}
-                />
-            );
-            bottomSheet.openBottomSheet(true);
-        };
-
-        const MenuContent = () => (
+    // Build the menu content as a plain element (not a component definition) to avoid
+    // React treating it as a new component type on each call, which would unmount/remount.
+    const moreOptionsMenuContent = useMemo(() => {
+        if (!profileData) return null;
+        const displayUsername = profileData.username;
+        return (
             <View className="py-2 px-4">
                 <IconButton variant="icon" onPress={handleMute} style={{ width: '100%', paddingVertical: 14 }}>
                     <View className="flex-row items-center w-full" style={{ gap: 14 }}>
@@ -347,10 +352,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 </IconButton>
             </View>
         );
+    }, [profileData, theme.colors.text, theme.colors.error, t, handleMute, handleBlock, handleReport]);
 
-        bottomSheet.setBottomSheetContent(<MenuContent />);
+    // More options menu (block, mute, report)
+    const handleMoreOptions = useCallback(() => {
+        if (!profileData || isOwnProfile || !moreOptionsMenuContent) return;
+        bottomSheet.setBottomSheetContent(moreOptionsMenuContent);
         bottomSheet.openBottomSheet(true);
-    }, [profileData, isOwnProfile, theme, t, bottomSheet, oxyServices]);
+    }, [profileData, isOwnProfile, bottomSheet, moreOptionsMenuContent]);
 
     // DM button handler
     const handleDM = useCallback(() => {
@@ -358,6 +367,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         // Navigate to DM conversation with this user
         router.push(`/ai?userId=${profileData.id}&username=${profileData.username}` as any);
     }, [profileData?.id, profileData?.username]);
+
+    const handleCompose = useCallback(() => router.push('/compose'), [router]);
+
+    const fabStyle = useMemo(
+        () => visitedColorPreset ? { backgroundColor: visitedColorPreset.hex } : undefined,
+        [visitedColorPreset]
+    );
 
     // Open on remote instance (federated only)
     const handleOpenOnInstance = useCallback(() => {
@@ -606,9 +622,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
                         {/* FAB */}
                         <FAB
-                            onPress={() => router.push('/compose')}
+                            onPress={handleCompose}
                             customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
-                            style={visitedColorPreset ? { backgroundColor: visitedColorPreset.hex } : undefined}
+                            style={fabStyle}
                         />
                     </>
                 )}

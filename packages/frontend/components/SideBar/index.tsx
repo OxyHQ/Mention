@@ -166,8 +166,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
 
     const showExpanded = asDrawer || isExpanded;
 
-    const composeButtonBg = { backgroundColor: theme.colors.primary };
-    const composeTextColor = { color: theme.colors.card };
+    const composeButtonBg = useMemo(() => ({ backgroundColor: theme.colors.primary }), [theme.colors.primary]);
+    const composeTextColor = useMemo(() => ({ color: theme.colors.card }), [theme.colors.card]);
 
     return (
         <View

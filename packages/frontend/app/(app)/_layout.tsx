@@ -112,6 +112,7 @@ export default function AppLayout() {
   const keyboardVisible = useKeyboardVisibility();
   const { isAuthenticated } = useAuth();
   const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
+  const handleCloseHelpModal = useCallback(() => setShowHelpModal(false), [setShowHelpModal]);
 
   return (
     <DrawerProvider>
@@ -126,7 +127,7 @@ export default function AppLayout() {
       {Platform.OS === 'web' && (
         <KeyboardShortcutsModal
           visible={showHelpModal}
-          onClose={() => setShowHelpModal(false)}
+          onClose={handleCloseHelpModal}
         />
       )}
     </DrawerProvider>

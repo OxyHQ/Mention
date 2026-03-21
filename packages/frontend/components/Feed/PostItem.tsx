@@ -301,6 +301,23 @@ const PostItem: React.FC<PostItemProps> = ({
         setIsArticleModalVisible(false);
     }, []);
 
+    const handleInsightsPress = useCallback(() => {
+        bottomSheet.setBottomSheetContent(
+            <Suspense fallback={null}>
+                <PostInsightsSheet
+                    postId={viewPostId || null}
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                />
+            </Suspense>
+        );
+        bottomSheet.openBottomSheet(true);
+    }, [bottomSheet, viewPostId]);
+
+    const roomId = roomContent?.roomId || roomContent?.spaceId;
+    const handleRoomPress = useCallback(() => {
+        if (roomId) joinLiveRoom(roomId);
+    }, [joinLiveRoom, roomId]);
+
     const postActions = usePostActions({
         viewPost,
         isOwner,
@@ -591,11 +608,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                         }
                                         : null
                                 }
-                                onRoomPress={
-                                    (roomContent?.roomId || roomContent?.spaceId)
-                                        ? () => joinLiveRoom(roomContent.roomId || roomContent.spaceId)
-                                        : undefined
-                                }
+                                onRoomPress={roomId ? handleRoomPress : undefined}
                                 location={location}
                                 sources={sourcesList}
                                 onSourcesPress={hasSources ? openSourcesSheet : undefined}
@@ -644,17 +657,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             isTranslated={Boolean(translatedText)}
                             isTranslating={isTranslating}
                             isPremium={isPremium}
-                            onInsightsPress={isOwner ? () => {
-                                bottomSheet.setBottomSheetContent(
-                                    <Suspense fallback={null}>
-                                        <PostInsightsSheet
-                                            postId={viewPostId || null}
-                                            onClose={() => bottomSheet.openBottomSheet(false)}
-                                        />
-                                    </Suspense>
-                                );
-                                bottomSheet.openBottomSheet(true);
-                            } : undefined}
+                            onInsightsPress={isOwner ? handleInsightsPress : undefined}
                         />
                     </View>
                 )}

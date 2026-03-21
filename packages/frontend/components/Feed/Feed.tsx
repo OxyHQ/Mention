@@ -152,17 +152,21 @@ const Feed = ((props: FeedProps) => {
         currentUserId: currentUser?.id,
     });
 
+    // Destructure stable function references from feedState to avoid re-creating
+    // callbacks whenever the feedState object identity changes.
+    const { refresh: feedRefresh, loadMore: feedLoadMore, clearError: feedClearError, fetchInitial: feedFetchInitial } = feedState;
+
     // Handle refresh with loading state
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            await feedState.refresh();
+            await feedRefresh();
         } catch (err) {
             logger.error('Error refreshing feed', err);
         } finally {
             setRefreshing(false);
         }
-    }, [feedState]);
+    }, [feedRefresh]);
 
     // Handle load more - debounced in hook
     // For unauthenticated users, show sign-in prompt instead of loading more
@@ -175,8 +179,8 @@ const Feed = ((props: FeedProps) => {
             return;
         }
 
-        feedState.loadMore();
-    }, [feedState.hasMore, feedState.isLoading, feedState.loadMore, isAuthenticated, signIn]);
+        feedLoadMore();
+    }, [feedState.hasMore, feedState.isLoading, feedLoadMore, isAuthenticated, signIn]);
 
     // Transform slices (or items) into FeedRows with thread state
     const feedRows = useDeepCompareMemo((): FeedRow[] => {
@@ -487,13 +491,13 @@ const Feed = ((props: FeedProps) => {
 
     // Memoize empty state retry handler
     const handleRetry = useCallback(async () => {
-        feedState.clearError();
+        feedClearError();
         try {
-            await feedState.fetchInitial(true);
+            await feedFetchInitial(true);
         } catch (retryError) {
             logger.error('Retry failed', retryError);
         }
-    }, [feedState.clearError, feedState.fetchInitial]);
+    }, [feedClearError, feedFetchInitial]);
 
     const emptyStateComponent = useMemo(
         () => (

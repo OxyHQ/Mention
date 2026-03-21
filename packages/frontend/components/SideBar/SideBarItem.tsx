@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, Platform, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { cn } from '@/lib/utils';
@@ -20,14 +20,20 @@ export const SideBarItem = React.memo(function SideBarItem({
 }) {
     const router = useRouter();
     const [isHovered, setIsHovered] = React.useState(false);
+
+    const handlePress = useCallback(() => {
+        if (onPress) return onPress();
+        if (href) router.push(href);
+    }, [onPress, href, router]);
+
+    const handleHoverIn = useCallback(() => setIsHovered(true), []);
+    const handleHoverOut = useCallback(() => setIsHovered(false), []);
+
     return (
         <Pressable
-            onPress={() => {
-                if (onPress) return onPress();
-                if (href) router.push(href);
-            }}
-            onHoverIn={() => setIsHovered(true)}
-            onHoverOut={() => setIsHovered(false)}
+            onPress={handlePress}
+            onHoverIn={handleHoverIn}
+            onHoverOut={handleHoverOut}
             className={cn(
                 "flex-row items-center rounded-[35px] py-2.5 mb-1.5",
                 isExpanded ? "w-full self-stretch px-4" : "self-center px-3",

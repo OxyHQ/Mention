@@ -1,7 +1,7 @@
-import { View, Pressable, Platform, LayoutChangeEvent } from 'react-native';
+import { View, Pressable, Platform, LayoutChangeEvent, StyleSheet } from 'react-native';
 import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -42,7 +42,7 @@ export const BottomBar = () => {
 
     // Force dark theme on videos screen
     const isVideosScreen = pathname === '/videos';
-    const effectiveTheme = isVideosScreen ? {
+    const effectiveTheme = useMemo(() => isVideosScreen ? {
         ...theme,
         isDark: true,
         colors: {
@@ -53,7 +53,7 @@ export const BottomBar = () => {
             textSecondary: VIDEOS_DARK_PALETTE.textSecondary,
             primary: theme.colors.primary,
         }
-    } : theme;
+    } : theme, [isVideosScreen, theme]);
 
     // Animated indicator
     const tabWidth = useSharedValue(0);
@@ -139,21 +139,21 @@ export const BottomBar = () => {
         backgroundColor: `${effectiveTheme.colors.primary}1A`,
     }));
 
-    const handlePress = (route: string) => {
+    const handlePress = useCallback((route: string) => {
         haptic('Light');
         router.push(route);
-    };
+    }, [haptic, router]);
 
-    const handleHomePress = () => {
+    const handleHomePress = useCallback(() => {
         haptic('Light');
         if (pathname === '/') {
             triggerHomeRefresh();
         } else {
             router.push('/');
         }
-    };
+    }, [haptic, pathname, triggerHomeRefresh, router]);
 
-    const containerStyle = {
+    const containerStyle = useMemo(() => ({
         position: 'absolute' as const,
         bottom: 12,
         left: 16,
@@ -173,17 +173,24 @@ export const BottomBar = () => {
             shadowRadius: 12,
             elevation: 8,
         }),
-    };
+    }), [effectiveTheme.colors.border, effectiveTheme.colors.shadow]);
 
-    const tabStyle = {
-        flex: 1,
-        alignItems: 'center' as const,
-        justifyContent: 'center' as const,
-        height: '100%' as const,
-        ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
-    };
+    const handlePressVideos = useCallback(() => handlePress('/videos'), [handlePress]);
+    const handlePressCompose = useCallback(() => handlePress('/compose'), [handlePress]);
+    const handlePressNotifications = useCallback(() => handlePress('/notifications'), [handlePress]);
+    const handlePressProfile = useCallback(() => {
+        if (isAuthenticated && user?.username) {
+            handlePress(`/@${user.username}`);
+        } else {
+            signIn().catch(() => {});
+        }
+    }, [isAuthenticated, user?.username, handlePress, signIn]);
+    const handleLongPressProfile = useCallback(() => {
+        haptic('Heavy');
+        showBottomSheet?.('AccountCenter');
+    }, [haptic, showBottomSheet]);
 
-    const tabs = [
+    const tabs = useMemo(() => [
         {
             onPress: handleHomePress,
             label: t('bottomBar.home'),
@@ -193,7 +200,7 @@ export const BottomBar = () => {
                 : <Home size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
-            onPress: () => handlePress('/videos'),
+            onPress: handlePressVideos,
             label: t('bottomBar.videos'),
             isActive: pathname === '/videos',
             icon: pathname === '/videos'
@@ -201,7 +208,7 @@ export const BottomBar = () => {
                 : <Video size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
-            onPress: () => handlePress('/compose'),
+            onPress: handlePressCompose,
             label: t('bottomBar.compose'),
             isActive: pathname === '/compose',
             icon: pathname === '/compose'
@@ -209,7 +216,7 @@ export const BottomBar = () => {
                 : <ComposeIcon size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
-            onPress: () => handlePress('/notifications'),
+            onPress: handlePressNotifications,
             label: t('bottomBar.notifications'),
             isActive: pathname === '/notifications',
             icon: pathname === '/notifications'
@@ -217,22 +224,16 @@ export const BottomBar = () => {
                 : <Bell size={ICON_SIZE} className="text-muted-foreground" />,
         },
         {
-            onPress: () => {
-                if (isAuthenticated && user?.username) {
-                    handlePress(`/@${user.username}`);
-                } else {
-                    signIn().catch(() => {});
-                }
-            },
-            onLongPress: () => {
-                haptic('Heavy');
-                showBottomSheet?.('AccountCenter');
-            },
+            onPress: handlePressProfile,
+            onLongPress: handleLongPressProfile,
             label: t('bottomBar.profile'),
             isActive: pathname.startsWith('/@'),
             icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} />,
         },
-    ];
+    ], [
+        handleHomePress, handlePressVideos, handlePressCompose, handlePressNotifications,
+        handlePressProfile, handleLongPressProfile, t, pathname, user?.avatar,
+    ]);
 
     const innerContent = (
         <>
@@ -253,18 +254,20 @@ export const BottomBar = () => {
         </>
     );
 
+    const webContainerStyle = useMemo(() => ({
+        ...containerStyle,
+        backgroundColor: `${effectiveTheme.colors.card}CC`,
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+    }), [containerStyle, effectiveTheme.colors.card]);
+
     if (Platform.OS === 'web') {
         return (
             <Animated.View style={bottomBarAnimatedStyle}>
                 <View
-                    style={{
-                        ...containerStyle,
-                        backgroundColor: `${effectiveTheme.colors.card}CC`,
-                        backdropFilter: 'blur(20px)',
-                        WebkitBackdropFilter: 'blur(20px)',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                    } as any}
+                    style={webContainerStyle as any}
                     onLayout={onBarLayout}
                 >
                     {innerContent}
@@ -280,11 +283,7 @@ export const BottomBar = () => {
                     intensity={80}
                     tint={effectiveTheme.isDark ? 'dark' : 'light'}
                     experimentalBlurMethod="dimezisBlurView"
-                    style={{
-                        flex: 1,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                    }}
+                    style={styles.blurContent}
                 >
                     {innerContent}
                 </BlurView>
@@ -292,3 +291,11 @@ export const BottomBar = () => {
         </Animated.View>
     );
 };
+
+const styles = StyleSheet.create({
+    blurContent: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+});
