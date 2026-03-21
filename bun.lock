@@ -123,6 +123,7 @@
         "express-slow-down": "^2.1.0",
         "express-validator": "^7.0.1",
         "firebase-admin": "^12.6.0",
+        "he": "^1.2.0",
         "helmet": "^8.1.0",
         "i18n": "^0.15.1",
         "jsonwebtoken": "^9.0.2",
@@ -143,6 +144,7 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
+        "@types/he": "^1.2.3",
         "@types/sanitize-html": "^2.16.1",
         "@vitest/coverage-v8": "^4.1.0",
         "typescript": "^5.8.3",
@@ -251,6 +253,7 @@
         "typescript": "~5.9.2",
       },
       "optionalDependencies": {
+        "@tailwindcss/oxide-linux-x64-gnu": "4.1.14",
         "lightningcss-linux-x64-gnu": "^1.30.1",
       },
     },
@@ -1108,6 +1111,8 @@
 
     "@tailwindcss/oxide-linux-arm64-gnu": ["@tailwindcss/oxide-linux-arm64-gnu@4.1.14", "", { "os": "linux", "cpu": "arm64" }, ""],
 
+    "@tailwindcss/oxide-linux-x64-gnu": ["@tailwindcss/oxide-linux-x64-gnu@4.1.14", "", { "os": "linux", "cpu": "x64" }, "sha512-02c6JhLPJj10L2caH4U0zF8Hji4dOeahmuMl23stk0MU1wfd1OraE7rOloidSF8W5JTHkFdVo/O7uRUJJnUAJg=="],
+
     "@tailwindcss/postcss": ["@tailwindcss/postcss@4.1.14", "", { "dependencies": { "@alloc/quick-lru": "^5.2.0", "@tailwindcss/node": "4.1.14", "@tailwindcss/oxide": "4.1.14", "postcss": "^8.4.41", "tailwindcss": "4.1.14" } }, ""],
 
     "@tanstack/query-core": ["@tanstack/query-core@5.91.2", "", {}, ""],
@@ -1155,6 +1160,8 @@
     "@types/graceful-fs": ["@types/graceful-fs@4.1.9", "", { "dependencies": { "@types/node": "*" } }, ""],
 
     "@types/hammerjs": ["@types/hammerjs@2.0.46", "", {}, ""],
+
+    "@types/he": ["@types/he@1.2.3", "", {}, "sha512-q67/qwlxblDzEDvzHhVkwc1gzVWxaNxeyHUBF4xElrvjL11O+Ytze+1fGpBHlr/H9myiBUaUXNnNPmBHxxfAcA=="],
 
     "@types/http-errors": ["@types/http-errors@2.0.5", "", {}, ""],
 
@@ -1959,6 +1966,8 @@
     "hash.js": ["hash.js@1.1.7", "", { "dependencies": { "inherits": "^2.0.3", "minimalistic-assert": "^1.0.1" } }, ""],
 
     "hasown": ["hasown@2.0.2", "", { "dependencies": { "function-bind": "^1.1.2" } }, ""],
+
+    "he": ["he@1.2.0", "", { "bin": { "he": "bin/he" } }, "sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw=="],
 
     "helmet": ["helmet@8.1.0", "", {}, ""],
 
