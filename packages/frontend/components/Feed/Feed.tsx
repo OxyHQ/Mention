@@ -89,21 +89,49 @@ const overrideFeedItemLayout = (layout: { size?: number }) => {
  * When the Feed is embedded inside a parent ScrollView (e.g. profile screen),
  * the FlashList's internal ScrollView must not intercept touch/pan gestures,
  * otherwise the parent cannot scroll when the user drags from within the feed area.
+ *
+ * On web we render a plain View instead of a ScrollView so the browser never
+ * treats the inner container as a scrollable region. A ScrollView (even with
+ * scrollEnabled={false}) renders as an overflow-auto div on web, which can
+ * intercept wheel events and prevent the parent Animated.ScrollView from
+ * receiving them.
  */
 const NonScrollingScrollComponent = forwardRef<ScrollView, ScrollViewProps>(
     (props, ref) => {
-        // Merge styles: keep FlashList's layout styles but force overflow hidden on web
-        // so the browser doesn't treat this container as a scrollable area that
-        // intercepts wheel events before they reach the parent ScrollView.
-        const mergedStyle = Platform.OS === 'web'
-            ? [props.style, { overflow: 'hidden' as const }]
-            : props.style;
+        if (Platform.OS === 'web') {
+            // On web, strip ScrollView-only props and render a plain View so
+            // wheel events propagate naturally to the parent scroll container.
+            const {
+                scrollEnabled: _se,
+                nestedScrollEnabled: _ne,
+                showsVerticalScrollIndicator: _sv,
+                showsHorizontalScrollIndicator: _sh,
+                overScrollMode: _os,
+                onScroll: _onScroll,
+                scrollEventThrottle: _set,
+                contentContainerStyle,
+                refreshControl: _rc,
+                stickyHeaderIndices: _shi,
+                ...viewProps
+            } = props;
+
+            return (
+                <View
+                    {...viewProps}
+                    ref={ref as any}
+                    style={[props.style, { overflow: 'visible' as const }]}
+                >
+                    <View style={contentContainerStyle}>
+                        {props.children}
+                    </View>
+                </View>
+            );
+        }
 
         return (
             <ScrollView
                 {...props}
                 ref={ref}
-                style={mergedStyle}
                 scrollEnabled={false}
                 nestedScrollEnabled={false}
                 showsVerticalScrollIndicator={false}
@@ -483,14 +511,15 @@ const Feed = ((props: FeedProps) => {
         [contentContainerStyle]
     );
 
-    // Memoize list style
+    // Memoize list style - when scroll is disabled (embedded in a parent ScrollView),
+    // avoid flex: 1 which collapses to zero height in a non-flex scroll content container.
     const listStyle = useMemo(
         () =>
             flattenStyleArray([
-                styles.list,
+                scrollEnabled === false ? styles.listEmbedded : styles.list,
                 style,
             ]),
-        [style]
+        [style, scrollEnabled]
     );
 
     // Memoize header component
@@ -553,8 +582,8 @@ const Feed = ((props: FeedProps) => {
             onError={handleBoundaryError}
         >
             <View
-                className="flex-1 bg-background"
-                style={[{ minHeight: 0 }, containerStyle]}
+                className={scrollEnabled === false ? "bg-background" : "flex-1 bg-background"}
+                style={[{ minHeight: 0 }, scrollEnabled !== false && containerStyle]}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
                 {feedState.isLoading && !refreshing && !isLoadingMore && feedRows.length === 0 ? (
@@ -646,6 +675,11 @@ const styles = StyleSheet.create({
     },
     list: {
         flex: 1,
+        minHeight: 0,
+    },
+    listEmbedded: {
+        // When embedded inside a parent ScrollView (scrollEnabled=false),
+        // avoid flex: 1 so the list sizes to its content instead of collapsing.
         minHeight: 0,
     },
     listContent: {
