@@ -58,7 +58,6 @@ export const AppProviders = memo(function AppProviders({
           oxyServices={oxyServices}
           storageKeyPrefix="mention"
           queryClient={queryClient}
-          skipProviderWrappers
         >
           <I18nextProvider i18n={i18n}>
             <AgoraProvider config={agoraConfig}>
