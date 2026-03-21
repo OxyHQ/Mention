@@ -196,13 +196,19 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   const avatarUri = profileData.avatar || cachedUser?.avatar;
   const username = profileData.username || profileData.id;
 
+  // For federated users, the username may already contain the domain (e.g. "user@mastodon.social").
+  // Extract the local part for display and build the full handle without duplication.
+  const hasDomainInUsername = username.includes('@');
+  const displayHandle = hasDomainInUsername ? username : (profileData.instance ? `${username}@${profileData.instance}` : username);
+
   const handlePress = useCallback(() => {
-    if (profileData.isFederated && profileData.instance) {
-      router.push(`/@${profileData.username}@${profileData.instance}`);
+    if (profileData.isFederated) {
+      // Navigate using the full handle (user@domain), avoiding double-appending the domain
+      router.push(`/@${displayHandle}`);
     } else {
       router.push(`/@${username}`);
     }
-  }, [router, username, profileData.isFederated, profileData.instance, profileData.username]);
+  }, [router, username, displayHandle, profileData.isFederated]);
 
   return (
     <View
@@ -221,7 +227,7 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
             style={{ name: { fontSize: 14 } }}
           />
           <ThemedText className="text-muted-foreground text-[13px] pt-px">
-            @{username}
+            @{displayHandle}
           </ThemedText>
           {profileData.bio && (
             <ThemedText

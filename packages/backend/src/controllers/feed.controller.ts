@@ -1363,8 +1363,12 @@ class FeedController {
         // then fetch the remote actor (creates the FederatedActor document).
         if (!actor) {
           try {
-            const oxyClient = getServiceOxyClient();
-            const oxyUser = await oxyClient.getUserById(userId) as Record<string, unknown>;
+            // Use the request-scoped client (user's auth token) to look up the Oxy User.
+            // The service client (OXY_SERVICE_TOKEN) may not be configured in all envs,
+            // so we prefer the authenticated user's own token when available.
+            const scopedClient = createScopedOxyClient(req);
+            const oxyLookupClient = scopedClient || getServiceOxyClient();
+            const oxyUser = await (oxyLookupClient as any).getUserById(userId) as Record<string, unknown>;
             const federation = oxyUser?.federation as Record<string, unknown> | undefined;
             const actorUri = typeof federation?.actorUri === 'string' ? federation.actorUri : undefined;
             logger.debug(`[FedSync] oxyUser.type=${oxyUser?.type} federation.actorUri=${actorUri ?? 'missing'}`);

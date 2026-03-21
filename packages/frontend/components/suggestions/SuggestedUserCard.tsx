@@ -39,7 +39,12 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   const router = useRouter();
   const cachedUser = useUserById(user.id);
 
-  const handle = user.username || user.id;
+  const rawHandle = user.username || user.id;
+
+  // For federated users, the username may already contain the domain (e.g. "user@mastodon.social").
+  // Build the full handle without duplicating the domain.
+  const hasDomainInHandle = rawHandle.includes('@');
+  const handle = hasDomainInHandle ? rawHandle : (user.instance ? `${rawHandle}@${user.instance}` : rawHandle);
 
   const displayName = useMemo(() => {
     if (user.name?.full) return user.name.full;
@@ -50,12 +55,12 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   }, [user.name?.full, user.name?.first, user.name?.last, user.username]);
 
   const handlePress = useCallback(() => {
-    if (user.isFederated && user.instance) {
-      router.push(`/@${user.username}@${user.instance}`);
-    } else {
+    if (user.isFederated) {
       router.push(`/@${handle}`);
+    } else {
+      router.push(`/@${rawHandle}`);
     }
-  }, [router, handle, user.isFederated, user.instance, user.username]);
+  }, [router, rawHandle, handle, user.isFederated]);
 
   const handleDismiss = useCallback(() => {
     onDismiss(user.id);
