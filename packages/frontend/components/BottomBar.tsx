@@ -27,6 +27,13 @@ const SPRING_CONFIG = {
 
 const TAB_COUNT = 5;
 const ICON_SIZE = 22;
+const tabStyle = {
+    flex: 1,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    height: '100%' as const,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+};
 
 export const BottomBar = () => {
     const router = useRouter();
