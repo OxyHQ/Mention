@@ -1,6 +1,9 @@
+import { decode as decodeEntities } from 'he';
+
 /**
  * Convert ActivityPub HTML content to plain text for storage.
  * Preserves paragraph breaks, line breaks, and extracts URLs from links.
+ * Uses the `he` library for robust HTML entity decoding.
  */
 export function htmlToPlainText(html: string): string {
   if (!html) return '';
@@ -20,17 +23,8 @@ export function htmlToPlainText(html: string): string {
   // Strip all remaining HTML tags
   text = text.replace(/<[^>]+>/g, '');
 
-  // Decode common HTML entities
-  text = text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
+  // Decode all HTML entities (named, numeric decimal, numeric hex)
+  text = decodeEntities(text);
 
   // Collapse excessive whitespace/newlines
   text = text.replace(/\n{3,}/g, '\n\n').trim();

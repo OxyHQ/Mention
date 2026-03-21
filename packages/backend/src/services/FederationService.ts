@@ -18,6 +18,7 @@ import {
 } from '../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
+import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 // Instance actor ID & username used for signing fetch requests (authorized fetch).
@@ -140,8 +141,8 @@ class FederationService {
         username,
         domain,
         acct,
-        displayName: actor.name || username,
-        summary: actor.summary || '',
+        displayName: decodeEntities(actor.name || username),
+        summary: actor.summary ? htmlToPlainText(actor.summary) : '',
         avatarUrl: actor.icon?.url || actor.icon?.href || undefined,
         headerUrl: actor.image?.url || actor.image?.href || undefined,
         inboxUrl: actor.inbox,
@@ -183,9 +184,9 @@ class FederationService {
             username: acct,
             actorUri: actor.id,
             domain,
-            displayName: actor.name || username,
+            displayName: decodeEntities(actor.name || username),
             avatar: actor.icon?.url || actor.icon?.href,
-            bio: actor.summary || undefined,
+            bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
           });
           if (oxyUser?.id) {
             await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: String(oxyUser.id) } });
