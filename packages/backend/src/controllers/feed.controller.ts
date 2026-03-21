@@ -49,6 +49,9 @@ import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { threadSlicingService } from '../services/ThreadSlicingService';
+import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
+import { federationService } from '../services/FederationService';
+import { FEDERATION_ENABLED } from '../utils/federation/constants';
 
 /**
  * Feed Controller
@@ -1343,13 +1346,33 @@ class FeedController {
       // Use FeedQueryBuilder for consistent query building
       const query = FeedQueryBuilder.buildUserProfileQuery(userId, type, cursor);
 
-      const posts = await Post.find(query)
+      let posts = await Post.find(query)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
         .limit(limit + 1)
         .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
-      
+
+      // If no posts found on the first page, check if this is a federated user
+      // and trigger outbox sync to pull their posts from the remote instance.
+      if (posts.length === 0 && !cursor && FEDERATION_ENABLED) {
+        const actor = await FederatedActor.findOne({ oxyUserId: userId }).lean() as IFederatedActor | null;
+        if (actor?.outboxUrl) {
+          try {
+            await federationService.syncOutboxPosts(actor, limit);
+            // Re-query after sync
+            posts = await Post.find(query)
+              .select(this.FEED_FIELDS)
+              .sort({ createdAt: -1 })
+              .limit(limit + 1)
+              .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+              .lean();
+          } catch (syncErr) {
+            logger.warn('Federation outbox sync failed for user profile feed:', syncErr);
+          }
+        }
+      }
+
       // Validate result size
       validateResultSize(posts, limit + 1);
 

@@ -604,6 +604,9 @@ export class PostHydrationService {
                 ? (userData as Record<string, unknown>).profileImage as string
                 : undefined;
 
+            const isFederated = Boolean((userData as Record<string, unknown>)?.isFederated);
+            const federation = (userData as Record<string, unknown>)?.federation as { domain?: string } | undefined;
+
             userMap.set(userId, {
               id: String(userData?.id || userId),
               handle: username,
@@ -615,6 +618,8 @@ export class PostHydrationService {
                 ? userData.badges.map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined)).filter((b): b is string => typeof b === 'string')
                 : undefined,
               isVerified: Boolean(userData.verified || userData.isVerified),
+              isFederated: isFederated || undefined,
+              instance: isFederated ? federation?.domain : undefined,
             });
           } catch (error) {
             logger.warn(`[PostHydration] Failed to load user ${userId}:`, error);

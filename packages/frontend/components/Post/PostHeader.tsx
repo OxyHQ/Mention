@@ -72,7 +72,11 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               verified={user.verified}
               onPress={onPressUser}
             />
-            {user.handle ? <Text className="text-muted-foreground text-[15px]">@{user.handle}</Text> : null}
+            {user.handle ? (
+              <Text className="text-muted-foreground text-[15px]">
+                @{user.isFederated && user.handle.includes('@') ? user.handle.split('@')[0] : user.handle}
+              </Text>
+            ) : null}
             {user.isFederated ? (
               <FediverseIcon size={13} className="text-muted-foreground" />
             ) : null}

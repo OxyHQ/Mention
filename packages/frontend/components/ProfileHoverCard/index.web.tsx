@@ -350,8 +350,13 @@ function CardContent({
 
         <View className="flex-row items-center gap-1 mt-0.5">
           <Text className="text-muted-foreground text-sm" style={{ lineHeight: 18 }} numberOfLines={1}>
-            @{profile.username}
+            @{profile.isFederated && profile.username?.includes('@')
+              ? profile.username.split('@')[0]
+              : profile.username}
           </Text>
+          {profile.isFederated && profile.instance && (
+            <Text className="text-muted-foreground text-xs">@{profile.instance}</Text>
+          )}
           {profile.isFederated && (
             <FediverseIcon size={13} className="text-muted-foreground" />
           )}

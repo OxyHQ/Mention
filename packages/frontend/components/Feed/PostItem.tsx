@@ -183,12 +183,10 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [router, viewPostId, isPostDetail]);
 
     const goToUser = useCallback(() => {
-        if (viewPost.user?.isFederated && viewPost.user?.handle && viewPost.user?.instance) {
-            router.push(`/@${viewPost.user.handle}@${viewPost.user.instance}`);
-            return;
-        }
         const handle = viewPost.user?.handle;
         if (handle) {
+            // Federated handles already contain the domain (e.g. alice@mastodon.social)
+            // so we only need to prepend @. Do NOT append @instance again.
             router.push(`/@${handle}`);
             return;
         }
@@ -196,7 +194,7 @@ const PostItem: React.FC<PostItemProps> = ({
         if (id) {
             router.push(`/${id}`);
         }
-    }, [router, viewPost.user?.handle, viewPost.user?.id, viewPost.user?.isFederated, viewPost.user?.instance]);
+    }, [router, viewPost.user?.handle, viewPost.user?.id]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);

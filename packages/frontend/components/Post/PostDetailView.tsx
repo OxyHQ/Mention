@@ -164,12 +164,10 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
 
     const goToUser = useCallback(() => {
         if (!viewPost?.user) return;
-        if (viewPost.user.isFederated && viewPost.user.handle && viewPost.user.instance) {
-            router.push(`/@${viewPost.user.handle}@${viewPost.user.instance}`);
-            return;
-        }
         const handle = viewPost.user.handle;
         if (handle) {
+            // Federated handles already contain the domain (e.g. alice@mastodon.social)
+            // so we only need to prepend @. Do NOT append @instance again.
             router.push(`/@${handle}`);
             return;
         }
@@ -177,7 +175,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
         if (id) {
             router.push(`/${id}`);
         }
-    }, [router, viewPost?.user?.handle, viewPost?.user?.id, viewPost?.user?.isFederated, viewPost?.user?.instance]);
+    }, [router, viewPost?.user?.handle, viewPost?.user?.id]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
@@ -345,7 +343,9 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                         </View>
                         <View className="flex-row items-center mt-0.5">
                             <Text className="text-muted-foreground text-[15px]">
-                                @{viewPost.user.handle}
+                                @{viewPost.user.isFederated && viewPost.user.handle?.includes('@')
+                                    ? viewPost.user.handle.split('@')[0]
+                                    : viewPost.user.handle}
                             </Text>
                             {viewPost.user.isFederated && (
                                 <FediverseIcon size={13} className="text-muted-foreground ml-1" />
