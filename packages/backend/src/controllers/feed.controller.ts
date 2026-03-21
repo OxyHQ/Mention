@@ -1357,6 +1357,7 @@ class FeedController {
       // and trigger outbox sync to pull their posts from the remote instance.
       if (posts.length === 0 && !cursor && FEDERATION_ENABLED) {
         let actor = await FederatedActor.findOne({ oxyUserId: userId }).lean() as IFederatedActor | null;
+        logger.debug(`[FedSync] userId=${userId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
 
         // No FederatedActor yet — look up the Oxy User to get the AP actor URI,
         // then fetch the remote actor (creates the FederatedActor document).
@@ -1366,8 +1367,10 @@ class FeedController {
             const oxyUser = await oxyClient.getUserById(userId) as Record<string, unknown>;
             const federation = oxyUser?.federation as Record<string, unknown> | undefined;
             const actorUri = typeof federation?.actorUri === 'string' ? federation.actorUri : undefined;
+            logger.debug(`[FedSync] oxyUser.type=${oxyUser?.type} federation.actorUri=${actorUri ?? 'missing'}`);
             if (actorUri) {
               const fetched = await federationService.fetchRemoteActor(actorUri);
+              logger.debug(`[FedSync] fetchRemoteActor returned: id=${fetched?._id} oxyUserId=${fetched?.oxyUserId ?? 'null'} outboxUrl=${fetched?.outboxUrl ?? 'none'}`);
               if (fetched && !fetched.oxyUserId) {
                 // Link the FederatedActor to the Oxy User
                 await FederatedActor.updateOne(
@@ -1384,7 +1387,8 @@ class FeedController {
 
         if (actor?.outboxUrl) {
           try {
-            await federationService.syncOutboxPosts(actor, limit);
+            const syncedCount = await federationService.syncOutboxPosts(actor, limit);
+            logger.debug(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
             // Re-query after sync
             posts = await Post.find(query)
               .select(this.FEED_FIELDS)
@@ -1392,9 +1396,12 @@ class FeedController {
               .limit(limit + 1)
               .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
               .lean();
+            logger.debug(`[FedSync] re-query found ${posts.length} posts for userId=${userId}`);
           } catch (syncErr) {
             logger.warn('Federation outbox sync failed for user profile feed:', syncErr);
           }
+        } else if (actor) {
+          logger.debug(`[FedSync] actor found but no outboxUrl for ${actor.acct}`);
         }
       }
 

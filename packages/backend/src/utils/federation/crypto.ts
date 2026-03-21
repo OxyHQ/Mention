@@ -55,7 +55,7 @@ export function signRequest(
 
   const signedHeaderNames = ['(request-target)', 'host', 'date'];
   const signingParts = [
-    `(request-target): ${method.toLowerCase()} ${parsedUrl.pathname}`,
+    `(request-target): ${method.toLowerCase()} ${parsedUrl.pathname}${parsedUrl.search}`,
     `host: ${parsedUrl.host}`,
     `date: ${date}`,
   ];

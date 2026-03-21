@@ -227,9 +227,13 @@ class FederationService {
     try {
       // Fetch the outbox collection (signed for authorized-fetch servers)
       const res = await signedFetch(actor.outboxUrl, AP_CONTENT_TYPE);
-      if (!res.ok) return 0;
+      if (!res.ok) {
+        logger.debug(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${actor.outboxUrl}`);
+        return 0;
+      }
 
       const collection = await res.json() as Record<string, any>;
+      logger.debug(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
 
       // Get the first page of items
       let items: any[] = [];
@@ -242,9 +246,13 @@ class FederationService {
           if (pageRes.ok) {
             const page = await pageRes.json() as Record<string, any>;
             items = page.orderedItems || [];
+          } else {
+            logger.debug(`[FedSync] outbox first page fetch failed: ${pageRes.status} for ${firstUrl}`);
           }
         }
       }
+
+      logger.debug(`[FedSync] outbox items count: ${items.length} for ${actor.acct}`);
 
       // Parse all candidate notes and collect activity IDs for bulk dedup
       const candidates: { note: any; activity: any; activityId: string }[] = [];
@@ -266,7 +274,10 @@ class FederationService {
         candidates.push({ note, activity, activityId });
       }
 
-      if (candidates.length === 0) return 0;
+      if (candidates.length === 0) {
+        logger.debug(`[FedSync] no candidate notes found from ${items.length} items for ${actor.acct}`);
+        return 0;
+      }
 
       // Bulk dedup: single query instead of N queries
       const allActivityIds = candidates.map(c => c.activityId);
@@ -311,6 +322,8 @@ class FederationService {
         }
       }
 
+      logger.debug(`[FedSync] ${candidates.length} candidates, ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
+
       // Build documents for batch insert
       const newDocs: any[] = [];
       for (const { note, activity, activityId } of candidates) {
@@ -327,6 +340,9 @@ class FederationService {
         // Resolve author's Oxy User ID
         const actorUri = this.extractActorUri(note.attributedTo);
         const resolvedOxyUserId = actorUri ? actorOxyMap.get(actorUri) || null : null;
+        if (!resolvedOxyUserId) {
+          logger.debug(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
+        }
 
         newDocs.push({
           oxyUserId: resolvedOxyUserId,
