@@ -91,19 +91,29 @@ const overrideFeedItemLayout = (layout: { size?: number }) => {
  * otherwise the parent cannot scroll when the user drags from within the feed area.
  */
 const NonScrollingScrollComponent = forwardRef<ScrollView, ScrollViewProps>(
-    (props, ref) => (
-        <ScrollView
-            {...props}
-            ref={ref}
-            scrollEnabled={false}
-            nestedScrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-            showsHorizontalScrollIndicator={false}
-            // On Android, disabling overScroll prevents the inner container from
-            // consuming fling gestures that should propagate to the parent.
-            overScrollMode="never"
-        />
-    )
+    (props, ref) => {
+        // Merge styles: keep FlashList's layout styles but force overflow hidden on web
+        // so the browser doesn't treat this container as a scrollable area that
+        // intercepts wheel events before they reach the parent ScrollView.
+        const mergedStyle = Platform.OS === 'web'
+            ? [props.style, { overflow: 'hidden' as const }]
+            : props.style;
+
+        return (
+            <ScrollView
+                {...props}
+                ref={ref}
+                style={mergedStyle}
+                scrollEnabled={false}
+                nestedScrollEnabled={false}
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+                // On Android, disabling overScroll prevents the inner container from
+                // consuming fling gestures that should propagate to the parent.
+                overScrollMode="never"
+            />
+        );
+    }
 );
 NonScrollingScrollComponent.displayName = 'NonScrollingScrollComponent';
 
