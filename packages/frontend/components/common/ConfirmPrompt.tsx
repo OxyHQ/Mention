@@ -27,7 +27,7 @@ export function showConfirmPrompt(options: ConfirmOptions): Promise<boolean> {
 }
 
 /**
- * Mount this provider once near the root of the app (inside BottomSheetModalProvider).
+ * Mount this provider once near the root of the app (inside BottomSheetProvider).
  * It renders a Prompt dialog when confirmDialog is called.
  */
 export function ConfirmPromptProvider() {

@@ -13,7 +13,6 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
@@ -62,9 +61,8 @@ export const AppProviders = memo(function AppProviders({
           <I18nextProvider i18n={i18n}>
             <AgoraProvider config={agoraConfig}>
               <LiveRoomProvider>
-                <BottomSheetModalProvider>
-                  <BottomSheetProvider>
-                    <MenuProvider>
+                <BottomSheetProvider>
+                  <MenuProvider>
                       <AppErrorBoundary
                         onError={handleBoundaryError}
                       >
@@ -78,8 +76,7 @@ export const AppProviders = memo(function AppProviders({
                         </LayoutScrollProvider>
                       </AppErrorBoundary>
                     </MenuProvider>
-                  </BottomSheetProvider>
-                </BottomSheetModalProvider>
+                </BottomSheetProvider>
               </LiveRoomProvider>
             </AgoraProvider>
           </I18nextProvider>

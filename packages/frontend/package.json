@@ -39,7 +39,6 @@
     "@expo/config-plugins": "~55.0.5",
     "@expo/vector-icons": "^15.0.3",
     "@floating-ui/react-dom": "^2.1.8",
-    "@gorhom/bottom-sheet": "^5.2.6",
     "@legendapp/list": "^2.0.14",
     "@livekit/react-native": "^2.9.6",
     "@livekit/react-native-expo-plugin": "^1.0.1",
