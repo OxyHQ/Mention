@@ -142,11 +142,15 @@ export default function ConnectionsScreen() {
     }
   }, [activeTab, loadFollowers, loadFollowing, loadRecommendations]);
 
+  // Depend on profileData?.id (primitive) instead of profileData (object reference)
+  // to avoid re-fetching when the profile object is re-created with identical content
+  // (e.g. after upsertMany updates the users store with the same data).
+  const profileId = profileData?.id;
   useEffect(() => {
-    if (profileData || activeTab === 'who-may-know') {
+    if (profileId || activeTab === 'who-may-know') {
       loadCurrentTab();
     }
-  }, [activeTab, profileData, loadCurrentTab]);
+  }, [activeTab, profileId, loadCurrentTab]);
 
   const handleTabPress = useCallback((tabId: string) => {
     if (!username) return;
