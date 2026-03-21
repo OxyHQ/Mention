@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, Platform } from 'react-native';
-import { Pressable } from 'react-native-web-hover';
+import { View, Text, Platform, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { cn } from '@/lib/utils';
 
@@ -23,14 +22,12 @@ export const SideBarItem = React.memo(function SideBarItem({
     const [isHovered, setIsHovered] = React.useState(false);
     return (
         <Pressable
-            {...({
-                onPress: () => {
-                    if (onPress) return onPress();
-                    if (href) router.push(href);
-                },
-                onHoverIn: () => setIsHovered(true),
-                onHoverOut: () => setIsHovered(false),
-            } as any)}
+            onPress={() => {
+                if (onPress) return onPress();
+                if (href) router.push(href);
+            }}
+            onHoverIn={() => setIsHovered(true)}
+            onHoverOut={() => setIsHovered(false)}
             className={cn(
                 "flex-row items-center rounded-[35px] py-2.5 mb-1.5",
                 isExpanded ? "w-full self-stretch px-4" : "self-center px-3",

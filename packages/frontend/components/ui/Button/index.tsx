@@ -27,7 +27,6 @@ import { Link, useRouter } from 'expo-router';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Pressable as WebPressable } from 'react-native-web-hover';
 import { useMediaQuery } from 'react-responsive';
 
 import { useTheme } from '@oxyhq/bloom/theme';
