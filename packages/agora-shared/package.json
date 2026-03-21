@@ -9,7 +9,7 @@
     "react-native": ">=0.74",
     "react-native-reanimated": ">=4",
     "react-native-safe-area-context": ">=5",
-    "@oxyhq/services": ">=6",
+    "@oxyhq/services": "6.9.10",
     "@oxyhq/core": "1.11.3",
     "livekit-client": ">=2",
     "@livekit/react-native": ">=2",
