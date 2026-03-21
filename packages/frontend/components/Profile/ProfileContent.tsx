@@ -98,10 +98,11 @@ export const ProfileContent = memo(function ProfileContent({
         <View className="mt-3 mb-2">
           <ProfileActions
             isOwnProfile={isOwnProfile}
+            isFederated={profileData.isFederated}
             currentUsername={currentUsername}
             profileUsername={profileData.username}
             profileId={profileData.id}
-  
+
             FollowButtonComponent={FollowButtonComponent}
             showBottomSheet={showBottomSheet}
           />
