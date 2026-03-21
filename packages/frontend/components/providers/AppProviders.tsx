@@ -13,8 +13,6 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
@@ -62,24 +60,22 @@ export const AppProviders = memo(function AppProviders({
           <I18nextProvider i18n={i18n}>
             <AgoraProvider config={agoraConfig}>
               <LiveRoomProvider>
-                <BottomSheetModalProvider>
-                  <BottomSheetProvider>
-                    <MenuProvider>
-                      <AppErrorBoundary
-                        onError={handleBoundaryError}
-                      >
-                        <LayoutScrollProvider>
-                          <HomeRefreshProvider>
-                            {children}
-                            <StatusBar style="auto" />
-                            <ToastOutlet />
-                            <ConfirmPromptProvider />
-                          </HomeRefreshProvider>
-                        </LayoutScrollProvider>
-                      </AppErrorBoundary>
-                    </MenuProvider>
-                  </BottomSheetProvider>
-                </BottomSheetModalProvider>
+                <BottomSheetProvider>
+                  <MenuProvider>
+                    <AppErrorBoundary
+                      onError={handleBoundaryError}
+                    >
+                      <LayoutScrollProvider>
+                        <HomeRefreshProvider>
+                          {children}
+                          <StatusBar style="auto" />
+                          <ToastOutlet />
+                          <ConfirmPromptProvider />
+                        </HomeRefreshProvider>
+                      </LayoutScrollProvider>
+                    </AppErrorBoundary>
+                  </MenuProvider>
+                </BottomSheetProvider>
               </LiveRoomProvider>
             </AgoraProvider>
           </I18nextProvider>
