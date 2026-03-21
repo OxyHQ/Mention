@@ -14,14 +14,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
       - uses: oven-sh/setup-bun@v2
-      - run: npm install
+      - run: bun install --frozen-lockfile
       - name: Build shared types
-        run: npm run build --workspace=@mention/shared-types
+        run: bun run --cwd packages/shared-types build
       - name: Lint frontend
-        run: npm run lint --workspace=@mention/frontend
+        run: bun run --cwd packages/frontend lint
       - name: Build backend
-        run: npm run build --workspace=@mention/backend
+        run: bun run --cwd packages/backend build
       - name: Build frontend
-        run: npm run build --workspace=@mention/frontend
+        run: bun run --cwd packages/frontend build

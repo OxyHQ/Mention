@@ -11,7 +11,7 @@ on:
       - 'packages/agora-shared/**'
       - 'packages/shared-types/**'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
 
 jobs:
   detect-changes:
@@ -29,13 +29,13 @@ jobs:
               - 'packages/frontend/**'
               - 'packages/shared-types/**'
               - 'package.json'
-              - 'package-lock.json'
+              - 'bun.lock'
             agora:
               - 'packages/agora/**'
               - 'packages/agora-shared/**'
               - 'packages/shared-types/**'
               - 'package.json'
-              - 'package-lock.json'
+              - 'bun.lock'
 
   deploy-frontend:
     needs: detect-changes
@@ -46,12 +46,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-      - run: npm install
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - name: Build shared types
-        run: npm run build --workspace=@mention/shared-types
+        run: bun run --cwd packages/shared-types build
       - name: Build frontend
-        run: npm run build --workspace=@mention/frontend
+        run: bun run --cwd packages/frontend build
         timeout-minutes: 60
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
@@ -74,12 +74,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-      - run: npm install
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - name: Build shared types
-        run: npm run build --workspace=@mention/shared-types
+        run: bun run --cwd packages/shared-types build
       - name: Build agora
-        run: npm run build --workspace=@mention/agora
+        run: bun run --cwd packages/agora build
         timeout-minutes: 60
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
