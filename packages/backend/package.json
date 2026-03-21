@@ -50,6 +50,7 @@
     "rate-limit-redis": "^4.0.0",
     "redis": "^5.9.0",
     "sanitize-html": "^2.17.1",
+    "@img/sharp-linux-x64": "^0.34.5",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "url-metadata": "^5.2.3",
