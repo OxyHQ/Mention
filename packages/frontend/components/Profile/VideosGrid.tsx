@@ -241,6 +241,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                 keyExtractor={keyExtractor}
                 numColumns={NUM_COLUMNS}
                 scrollEnabled={false}
+                nestedScrollEnabled={false}
                 getItemLayout={getItemLayout}
                 removeClippedSubviews
                 contentContainerStyle={{ paddingHorizontal: H_PADDING }}

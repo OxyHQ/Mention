@@ -552,7 +552,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             style={[{ zIndex: 3 }, themedStyles.scrollView]}
                             contentContainerStyle={themedStyles.contentContainer}
                             stickyHeaderIndices={[1]}
-                            nestedScrollEnabled={false}
+                            nestedScrollEnabled={true}
                             removeClippedSubviews={Platform.OS !== 'web'}
                             disableIntervalMomentum={true}
                             decelerationRate="normal"

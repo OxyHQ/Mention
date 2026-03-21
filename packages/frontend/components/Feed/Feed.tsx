@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, memo, forwardRef } from 'react';
 import {
     StyleSheet,
     View,
@@ -6,6 +6,8 @@ import {
     Platform,
     Pressable,
     Text,
+    ScrollView,
+    type ScrollViewProps,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { FeedType, HydratedPost, Reply, FeedRepost as Repost, FeedPostSlice, FeedSliceReason } from '@mention/shared-types';
@@ -81,6 +83,29 @@ const WEB_DATA_SET = { layoutscroll: 'true' } as const;
 const overrideFeedItemLayout = (layout: { size?: number }) => {
     layout.size = 250;
 };
+
+/**
+ * A non-scrolling ScrollView replacement for FlashList.
+ * When the Feed is embedded inside a parent ScrollView (e.g. profile screen),
+ * the FlashList's internal ScrollView must not intercept touch/pan gestures,
+ * otherwise the parent cannot scroll when the user drags from within the feed area.
+ */
+const NonScrollingScrollComponent = forwardRef<ScrollView, ScrollViewProps>(
+    (props, ref) => (
+        <ScrollView
+            {...props}
+            ref={ref}
+            scrollEnabled={false}
+            nestedScrollEnabled={false}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+            // On Android, disabling overScroll prevents the inner container from
+            // consuming fling gestures that should propagate to the parent.
+            overScrollMode="never"
+        />
+    )
+);
+NonScrollingScrollComponent.displayName = 'NonScrollingScrollComponent';
 
 const Feed = ((props: FeedProps) => {
     const {
@@ -536,6 +561,7 @@ const Feed = ((props: FeedProps) => {
                         ListEmptyComponent: emptyStateComponent,
                         ListFooterComponent: showFooter ? footerComponent : null,
                         scrollEnabled: scrollEnabled,
+                        ...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {}),
                         refreshControl: refreshControl,
                         onEndReached: handleLoadMore,
                         onEndReachedThreshold: 0.7,

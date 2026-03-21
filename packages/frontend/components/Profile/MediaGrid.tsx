@@ -351,6 +351,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 contentContainerStyle={{ gap: GAP, paddingHorizontal: H_PADDING }}
                 showsVerticalScrollIndicator={false}
                 scrollEnabled={false}
+                nestedScrollEnabled={false}
                 removeClippedSubviews
                 initialNumToRender={18}
                 windowSize={7}
