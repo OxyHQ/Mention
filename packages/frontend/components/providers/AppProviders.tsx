@@ -5,7 +5,7 @@
  */
 
 import React, { memo, useCallback } from 'react';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MenuProvider } from 'react-native-popup-menu';
@@ -52,10 +52,10 @@ export const AppProviders = memo(function AppProviders({
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient}>
         <OxyProvider
           oxyServices={oxyServices}
           storageKeyPrefix="mention"
-          queryClient={queryClient}
         >
           <I18nextProvider i18n={i18n}>
             <AgoraProvider config={agoraConfig}>
@@ -80,6 +80,7 @@ export const AppProviders = memo(function AppProviders({
             </AgoraProvider>
           </I18nextProvider>
         </OxyProvider>
+        </QueryClientProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
