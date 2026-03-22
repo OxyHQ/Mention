@@ -1,4 +1,6 @@
 export const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
+export const ACTOR_DOMAIN = process.env.ACTOR_DOMAIN || 'oxy.so';
+export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 export const FEDERATION_ENABLED = process.env.FEDERATION_ENABLED !== 'false';
 export const FEDERATION_MAX_CONTENT_LENGTH = parseInt(process.env.FEDERATION_MAX_CONTENT_LENGTH || '50000', 10);
 export const FEDERATION_DELIVERY_RETRIES = parseInt(process.env.FEDERATION_DELIVERY_RETRIES || '5', 10);
@@ -19,7 +21,7 @@ export const AP_ACCEPT_TYPES = [
 ];
 
 export function actorUrl(username: string): string {
-  return `https://${FEDERATION_DOMAIN}/ap/users/${username}`;
+  return `https://${ACTOR_DOMAIN}/ap/users/${username}`;
 }
 
 export function inboxUrl(username: string): string {

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { federationService } from '../services/FederationService';
-import { verifyHttpSignature, getOrCreateKeyPair } from '../utils/federation/crypto';
+import { verifyHttpSignature, getKeyPair } from '../utils/federation/crypto';
 import { Post } from '../models/Post';
 import FederatedFollow from '../models/FederatedFollow';
 import {
@@ -66,7 +66,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     // Instance actor: a special server-level actor used for signed fetches.
     // It has no Oxy user — serve it directly from the key pair collection.
     if (username === 'instance') {
-      const keyPair = await getOrCreateKeyPair('__instance__', 'instance');
+      const keyPair = await getKeyPair('instance');
       const actorObject = {
         '@context': AP_CONTEXT,
         id: actorUrl('instance'),
@@ -93,7 +93,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const userId = user._id || user.id;
-    const keyPair = await getOrCreateKeyPair(userId, username);
+    const keyPair = await getKeyPair(username);
 
     const actorObject = {
       '@context': AP_CONTEXT,

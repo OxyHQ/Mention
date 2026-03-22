@@ -4,7 +4,7 @@ import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
-import { signRequest, getOrCreateKeyPair } from '../utils/federation/crypto';
+import { signRequest, getKeyPair } from '../utils/federation/crypto';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -21,17 +21,13 @@ import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
 import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
-// Instance actor ID & username used for signing fetch requests (authorized fetch).
-const INSTANCE_ACTOR_ID = '__instance__';
-const INSTANCE_ACTOR_USERNAME = 'instance';
-
 /**
- * Sign a GET request using the instance actor key pair.
+ * Sign a GET request using the instance actor key pair (managed by Oxy).
  * Required by servers that enforce authorized fetch (e.g., Threads).
  */
 async function signedFetch(url: string, accept: string): Promise<Response> {
   const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
-  const keyPair = await getOrCreateKeyPair(INSTANCE_ACTOR_ID, INSTANCE_ACTOR_USERNAME);
+  const keyPair = await getKeyPair('instance');
   const sigHeaders = signRequest(keyPair.privateKeyPem, keyPair.keyId, 'GET', url);
 
   const res = await fetch(url, {
@@ -518,7 +514,7 @@ class FederationService {
     senderUsername: string,
   ): Promise<boolean> {
     try {
-      const keyPair = await getOrCreateKeyPair(senderOxyUserId, senderUsername);
+      const keyPair = await getKeyPair(senderUsername);
       const body = JSON.stringify(activity);
       const sigHeaders = signRequest(keyPair.privateKeyPem, keyPair.keyId, 'POST', targetInbox, body);
 

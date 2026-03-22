@@ -1,38 +1,36 @@
 import crypto from 'crypto';
-import ActorKeyPair, { IActorKeyPair } from '../../models/ActorKeyPair';
 import { logger } from '../logger';
+import { OXY_API_URL } from './constants';
 
-const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
-
-/**
- * Generate an RSA-2048 key pair for a local user and store it in the database.
- */
-export async function generateKeyPair(oxyUserId: string, username: string): Promise<IActorKeyPair> {
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-  });
-
-  const keyId = `https://${FEDERATION_DOMAIN}/ap/users/${username}#main-key`;
-
-  const keyPair = await ActorKeyPair.create({
-    oxyUserId,
-    publicKeyPem: publicKey,
-    privateKeyPem: privateKey,
-    keyId,
-  });
-
-  return keyPair;
+interface KeyPairData {
+  keyId: string;
+  publicKeyPem: string;
+  privateKeyPem: string;
 }
 
+// In-memory cache for key pairs fetched from Oxy
+const keyPairCache = new Map<string, { data: KeyPairData; fetchedAt: number }>();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 /**
- * Get an existing key pair or generate a new one for a local user.
+ * Fetch a key pair from Oxy's federation API.
+ * Oxy manages all key pairs; Mention uses them for signing.
  */
-export async function getOrCreateKeyPair(oxyUserId: string, username: string): Promise<IActorKeyPair> {
-  const existing = await ActorKeyPair.findOne({ oxyUserId }).lean<IActorKeyPair>();
-  if (existing) return existing;
-  return generateKeyPair(oxyUserId, username);
+export async function getKeyPair(username: string): Promise<KeyPairData> {
+  const cached = keyPairCache.get(username);
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const url = `${OXY_API_URL}/api/federation/keypair/${encodeURIComponent(username)}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch key pair for ${username}: ${res.status}`);
+  }
+
+  const data = await res.json() as KeyPairData;
+  keyPairCache.set(username, { data, fetchedAt: Date.now() });
+  return data;
 }
 
 /**
