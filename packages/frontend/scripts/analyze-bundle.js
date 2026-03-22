@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 /**
  * Bundle Analysis Script
@@ -23,7 +23,7 @@ function analyzeBundle() {
   if (!fs.existsSync(DIST_DIR)) {
     console.log('❌ Dist directory not found. Building bundle first...\n');
     try {
-      execSync('npm run build-web', { cwd: PROJECT_ROOT, stdio: 'inherit' });
+      execSync('bun run build-web', { cwd: PROJECT_ROOT, stdio: 'inherit' });
     } catch (error) {
       console.error('❌ Build failed:', error.message);
       process.exit(1);

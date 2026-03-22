@@ -10,7 +10,7 @@
         "clean": "rm -rf dist",
         "lint": "eslint src --ext .ts",
         "test": "echo \"No tests specified\" && exit 0",
-        "prepublishOnly": "npm run build"
+        "prepublishOnly": "bun run build"
     },
     "keywords": [
         "typescript",
@@ -21,8 +21,8 @@
     "author": "Mention Team",
     "license": "UNLICENSED",
     "devDependencies": {
-        "typescript": "^5.0.0",
-        "@types/node": "^20.0.0"
+        "typescript": "^5.9.3",
+        "@types/node": "^25.5.0"
     },
     "files": [
         "dist/**/*"

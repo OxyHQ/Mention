@@ -7,7 +7,7 @@
   "scripts": {
     "start": "bun server.ts",
     "start:http": "bun server-http.ts",
-    "start:node": "node dist/server-http.js",
+    "start:compiled": "bun dist/server-http.js",
     "dev": "bun --watch server.ts",
     "dev:http": "bun --watch server-http.ts",
     "build": "tsc",
@@ -18,7 +18,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.8.3"
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
   }
 }

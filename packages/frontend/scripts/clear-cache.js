@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -33,13 +33,13 @@ try {
   console.log('  Watchman not available or already cleared');
 }
 
-// Clear npm cache for this project
+// Clear bun cache for this project
 try {
-  console.log('  Clearing npm cache...');
-  execSync('npm cache clean --force', { stdio: 'ignore', cwd: projectRoot });
+  console.log('  Clearing bun cache...');
+  execSync('bun pm cache rm', { stdio: 'ignore', cwd: projectRoot });
 } catch (e) {
-  console.log('  npm cache clear failed (non-critical)');
+  console.log('  bun cache clear failed (non-critical)');
 }
 
 console.log('✅ Cache cleared!');
-console.log('💡 Now run: npm run start');
+console.log('💡 Now run: bun run start');

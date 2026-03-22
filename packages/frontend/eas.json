@@ -18,7 +18,7 @@
       }
     },
     "production": {
-      "node": "22.14.0",
+      "bun": "latest",
       "env": {
         "API_URL": "https://api.mention.earth",
         "EXPO_PUBLIC_ENV": "production",

@@ -5,25 +5,25 @@
   "types": "src/index.ts",
   "private": true,
   "peerDependencies": {
-    "react": ">=18",
-    "react-native": ">=0.74",
-    "react-native-reanimated": ">=4",
-    "react-native-safe-area-context": ">=5",
+    "react": "^19.2.4",
+    "react-native": "^0.84.1",
+    "react-native-reanimated": "^4.2.3",
+    "react-native-safe-area-context": "^5.7.0",
     "@oxyhq/services": "6.9.14",
     "@oxyhq/core": "1.11.6",
-    "livekit-client": ">=2",
-    "@livekit/react-native": ">=2",
-    "expo-audio": ">=1",
-    "expo-image-picker": ">=17",
-    "socket.io-client": ">=4",
-    "@expo/vector-icons": ">=15",
-    "react-native-svg": ">=15",
-    "sonner-native": ">=0.14",
-    "expo-blur": ">=14",
-    "zod": ">=3.22"
+    "livekit-client": "^2.17.3",
+    "@livekit/react-native": "^2.9.6",
+    "expo-audio": "^55.0.9",
+    "expo-image-picker": "^55.0.13",
+    "socket.io-client": "^4.8.3",
+    "@expo/vector-icons": "^15.1.1",
+    "react-native-svg": "^15.12.1",
+    "sonner-native": "^0.23.1",
+    "expo-blur": "^55.0.10",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "typescript": "~5.9.2",
-    "@types/react": "~19.1.0"
+    "typescript": "~5.9.3",
+    "@types/react": "~19.2.14"
   }
 }

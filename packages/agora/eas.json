@@ -7,7 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "node": "22.12.0"
+      "bun": "latest"
     },
     "preview": {
       "distribution": "internal",
@@ -16,7 +16,7 @@
       }
     },
     "production": {
-      "node": "22.12.0"
+      "bun": "latest"
     },
     "production-apk": {
       "extends": "production",
