@@ -7,7 +7,7 @@
  *   2. Reply context injection: posts with parentPostId → prepend parent as context
  */
 
-import { FeedPostSlice, FeedSliceItem, FeedSliceReason } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, FeedSliceReason, MtnConfig } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
 
@@ -32,7 +32,7 @@ interface RawPost {
 const DEFAULT_OPTIONS: ThreadSlicingOptions = {
   enableThreadGrouping: true,
   enableReplyContext: true,
-  maxSliceSize: 3,
+  maxSliceSize: MtnConfig.feed.maxSliceSize,
 };
 
 class ThreadSlicingService {

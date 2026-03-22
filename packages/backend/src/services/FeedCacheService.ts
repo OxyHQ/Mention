@@ -7,6 +7,7 @@ import { getRedisClient, createRedisPubSub } from '../utils/redis';
 import { logger } from '../utils/logger';
 import { isRedisConnectionError, ensureRedisConnected, withRedisFallback } from '../utils/redisHelpers';
 import { metrics } from '../utils/metrics';
+import { MtnConfig } from '@mention/shared-types';
 
 /**
  * FeedCacheService - Caches precomputed feeds for performance using Redis
@@ -29,8 +30,8 @@ interface CachedFeed {
 }
 
 export class FeedCacheService {
-  private readonly CACHE_TTL_SECONDS = 15 * 60; // 15 minutes in seconds (L2 Redis cache)
-  private readonly L1_CACHE_TTL_SECONDS = 60; // 1 minute for L1 in-memory cache
+  private readonly CACHE_TTL_SECONDS = MtnConfig.cache.l2.ttlMs / 1000; // L2 Redis cache TTL in seconds
+  private readonly L1_CACHE_TTL_SECONDS = MtnConfig.cache.l1.ttlMs / 1000; // L1 in-memory cache TTL in seconds
   private readonly CACHE_KEY_PREFIX = 'feed:cache:';
   private readonly INVALIDATION_CHANNEL = 'feed:invalidate';
   private redis: ReturnType<typeof getRedisClient>;
@@ -39,7 +40,7 @@ export class FeedCacheService {
   // L1 Cache: In-memory cache for ultra-fast access (per-process)
   // Structure: Map<userId:feedType, { data: CachedFeed, expiresAt: number }>
   private l1Cache: Map<string, { data: CachedFeed; expiresAt: number }> = new Map();
-  private readonly L1_MAX_SIZE = 1000; // Maximum entries in L1 cache
+  private readonly L1_MAX_SIZE = MtnConfig.cache.l1.maxEntries; // Maximum entries in L1 cache
   private lastInvalidationTime: string = new Date(0).toISOString(); // Track last invalidation timestamp
 
   constructor() {
@@ -276,8 +277,8 @@ export class FeedCacheService {
   private setL1Cache(key: string, cached: CachedFeed): void {
     // Evict oldest entries if cache is full (LRU-like behavior)
     if (this.l1Cache.size >= this.L1_MAX_SIZE) {
-      // Remove 10% of oldest entries
-      const entriesToRemove = Math.floor(this.L1_MAX_SIZE * 0.1);
+      // Remove configured percentage of oldest entries
+      const entriesToRemove = Math.floor(this.L1_MAX_SIZE * MtnConfig.cache.l1.evictionPercent);
       const sortedEntries = Array.from(this.l1Cache.entries())
         .sort((a, b) => a[1].expiresAt - b[1].expiresAt);
       

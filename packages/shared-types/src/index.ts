@@ -40,3 +40,6 @@ export * from './federation';
 
 // Topic types
 export * from './topic';
+
+// MTN Protocol types
+export * from './mtn';

@@ -68,6 +68,9 @@ import webfingerRoutes from './src/routes/webfinger.routes';
 import federationRoutes from './src/routes/federation.routes';
 import federationApiRoutes from './src/routes/federation.api.routes';
 
+// MTN Protocol
+import { registerAllFeeds } from './src/mtn/feed/registerFeeds';
+
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
@@ -911,6 +914,9 @@ const bootServer = async () => {
   // Setup Redis adapter before accepting connections to ensure
   // cross-instance broadcasts work from the first connection
   await setupRedisAdapter();
+
+  // Register MTN Protocol feed implementations
+  registerAllFeeds();
 
   // Start server after all async setup is complete
   server.listen(PORT, '0.0.0.0', () => {

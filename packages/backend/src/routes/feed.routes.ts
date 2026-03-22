@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { feedController } from '../controllers/feed.controller';
+import { mtnFeedController } from '../mtn/controllers/feed.controller';
 import { feedRateLimiter, feedIPRateLimiter, feedThrottle } from '../middleware/security';
 import { cachePublicShort, cachePublicProfile, cachePrivateNoStore } from '../middleware/cacheControl';
 
@@ -13,7 +14,16 @@ router.use(feedRateLimiter);
 // Layer 3: Throttling for expensive operations (For You, Explore feeds)
 router.use(feedThrottle);
 
-// Public routes (accessible without authentication)
+// ────────────────────────────────────────────────────────────
+// MTN Protocol routes — unified descriptor-based feed API
+// ────────────────────────────────────────────────────────────
+router.get('/mtn', mtnFeedController.getFeed.bind(mtnFeedController));
+router.get('/mtn/peek', mtnFeedController.peekLatest.bind(mtnFeedController));
+router.post('/mtn/interactions', mtnFeedController.recordInteraction.bind(mtnFeedController));
+
+// ────────────────────────────────────────────────────────────
+// Legacy routes (kept during migration, will be removed)
+// ────────────────────────────────────────────────────────────
 router.get('/feed', feedController.getFeed.bind(feedController));
 router.get('/for-you', cachePrivateNoStore, feedController.getForYouFeed.bind(feedController));
 router.get('/explore', cachePublicShort, feedController.getExploreFeed.bind(feedController));
@@ -22,20 +32,15 @@ router.get('/quotes', feedController.getQuotesFeed.bind(feedController));
 router.get('/reposts', feedController.getRepostsFeed.bind(feedController));
 router.get('/posts', feedController.getPostsFeed.bind(feedController));
 router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedController));
-// Add generic replies route for feeds that don't target a single parent
 router.get('/replies', feedController.getRepliesFeed.bind(feedController));
 
 // User profile feed routes
 router.get('/user/:userId', cachePublicProfile, feedController.getUserProfileFeed.bind(feedController));
-// Pinned post for a user profile
 router.get('/user/:userId/pinned', feedController.getPinnedPost.bind(feedController));
-// Single feed item with full transformation
 router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 
-// Protected routes (require authentication)
-// Note: These routes should be on the authenticated router in server.ts
-// Keeping them here for organization, but they'll be protected by oxy.auth() middleware
-router.get('/following', cachePrivateNoStore, feedController.getFollowingFeed.bind(feedController)); // Requires auth
+// Protected routes
+router.get('/following', cachePrivateNoStore, feedController.getFollowingFeed.bind(feedController));
 router.post('/reply', feedController.createReply.bind(feedController));
 router.post('/repost', feedController.createRepost.bind(feedController));
 router.delete('/:postId/repost', feedController.unrepostItem.bind(feedController));

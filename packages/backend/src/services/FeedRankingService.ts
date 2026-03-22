@@ -1,11 +1,13 @@
 import { Post } from '../models/Post';
 import UserBehavior from '../models/UserBehavior';
 import mongoose from 'mongoose';
+import { MtnConfig } from '@mention/shared-types';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback } from '../utils/redisHelpers';
 import { metrics } from '../utils/metrics';
+import { explainRanking } from '../mtn/feed/RankingExplainer';
 
 interface BehaviorSets {
   hiddenAuthors: Set<string>;
@@ -35,40 +37,11 @@ export class FeedRankingService {
   private readonly LARGE_CANDIDATE_SET_THRESHOLD = 1000; // Use approximate ranking for sets larger than this
   private readonly TOP_K_FOR_APPROXIMATE = 500; // Top K posts to fully rank when using approximate method
   
-  // Weight configuration (can be tuned based on A/B testing)
-  private readonly WEIGHTS = {
-    engagement: {
-      likes: 1.0,
-      reposts: 2.5,
-      comments: 2.0,
-      saves: 1.5,
-      views: 0.1,
-      shares: 2.0
-    },
-    recency: {
-      halfLifeHours: 24, // Posts lose 50% value after 24 hours
-      maxAgeHours: 168 // 7 days max age
-    },
-    author: {
-      followBoost: 1.8,
-      strongRelationBoost: 1.5,
-      weakRelationBoost: 1.2,
-      noRelationPenalty: 0.9
-    },
-    personalization: {
-      topicMatchBoost: 1.4,
-      postTypeMatchBoost: 1.3,
-      languageMatchBoost: 1.2
-    },
-    quality: {
-      highEngagementRateBoost: 1.3,
-      lowEngagementRatePenalty: 0.8
-    },
-    diversity: {
-      sameAuthorPenalty: 0.95,
-      sameTopicPenalty: 0.92
-    }
-  };
+  // Weight configuration sourced from MtnConfig (single source of truth)
+  private readonly R = MtnConfig.ranking;
+
+  // Shares weight is not in MtnConfig yet; keep a local constant until added
+  private readonly SHARE_WEIGHT = 2.0;
 
   constructor() {
     this.redis = getRedisClient();
@@ -228,7 +201,17 @@ export class FeedRankingService {
       * diversityPenalty
       * negativePenalty;
 
-    return Math.max(0, finalScore); // Ensure non-negative
+    const safeScore = Math.max(0, finalScore); // Ensure non-negative
+
+    // Attach ranking factor breakdowns for RankingExplainer
+    post._rankEngagement = engagementScore;
+    post._rankRecency = recencyScore;
+    post._rankRelationship = authorScore;
+    post._rankPersonalization = personalizationScore;
+    post._rankQuality = qualityScore * trendingBoost * timeOfDayScore * threadBoost;
+    post._rankDiversity = diversityPenalty * negativePenalty;
+
+    return safeScore;
   }
 
   /**
@@ -246,12 +229,12 @@ export class FeedRankingService {
     
     // Calculate raw engagement score
     const rawScore = (
-      (stats.likesCount || 0) * this.WEIGHTS.engagement.likes +
-      (stats.repostsCount || 0) * this.WEIGHTS.engagement.reposts +
-      (stats.commentsCount || 0) * this.WEIGHTS.engagement.comments +
-      savesCount * this.WEIGHTS.engagement.saves +
-      (stats.viewsCount || 0) * this.WEIGHTS.engagement.views +
-      (stats.sharesCount || 0) * this.WEIGHTS.engagement.shares
+      (stats.likesCount || 0) * this.R.engagement.likeWeight +
+      (stats.repostsCount || 0) * this.R.engagement.repostWeight +
+      (stats.commentsCount || 0) * this.R.engagement.commentWeight +
+      savesCount * this.R.engagement.saveWeight +
+      (stats.viewsCount || 0) * this.R.engagement.viewWeight +
+      (stats.sharesCount || 0) * this.SHARE_WEIGHT
     );
     
     // Apply logarithmic scaling to prevent extremely popular posts from dominating
@@ -280,13 +263,13 @@ export class FeedRankingService {
     const now = new Date();
     const ageHours = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60);
 
-    const maxAge = maxAgeHours || this.WEIGHTS.recency.maxAgeHours;
+    const maxAge = maxAgeHours || this.R.recency.maxAgeMs / (1000 * 60 * 60);
     // If post is older than max age, return 0
     if (ageHours > maxAge) {
       return 0;
     }
     
-    const halfLife = halfLifeHours || this.WEIGHTS.recency.halfLifeHours;
+    const halfLife = halfLifeHours || this.R.recency.halfLifeMs / (1000 * 60 * 60);
     
     // Very recent posts (within 1 hour) get full score
     if (ageHours < 1) {
@@ -322,7 +305,7 @@ export class FeedRankingService {
     // Check if following
     const isFollowing = followingIdsSet.has(authorId);
     if (isFollowing) {
-      return this.WEIGHTS.author.followBoost;
+      return this.R.relationship.followBoost;
     }
     
     // Check relationship strength from behavior data
@@ -334,17 +317,17 @@ export class FeedRankingService {
       if (authorPreference) {
         // Strong relationship (weight > 0.7)
         if (authorPreference.weight > 0.7) {
-          return this.WEIGHTS.author.strongRelationBoost;
+          return this.R.relationship.strongRelation;
         }
         // Weak relationship (weight > 0.3)
         if (authorPreference.weight > 0.3) {
-          return this.WEIGHTS.author.weakRelationBoost;
+          return this.R.relationship.weakRelation;
         }
       }
     }
     
     // No relationship - slight penalty
-    return this.WEIGHTS.author.noRelationPenalty;
+    return this.R.relationship.noRelation;
   }
 
   /**
@@ -383,7 +366,7 @@ export class FeedRankingService {
       }
 
       if (matchCount > 0) {
-        score *= 1 + (matchCount * 0.1) * this.WEIGHTS.personalization.topicMatchBoost;
+        score *= 1 + (matchCount * 0.1) * this.R.personalization.topicMatch;
       }
     }
     
@@ -398,7 +381,7 @@ export class FeedRankingService {
       if (totalTypes > 0 && typeCount > 0) {
         const typePreference = typeCount / totalTypes;
         if (typePreference > 0.3) { // User prefers this type
-          score *= this.WEIGHTS.personalization.postTypeMatchBoost;
+          score *= this.R.personalization.postTypeMatch;
         }
       }
     }
@@ -406,7 +389,7 @@ export class FeedRankingService {
     // Language preference
     if (post.language && userBehavior.preferredLanguages?.length > 0) {
       if (userBehavior.preferredLanguages.includes(post.language)) {
-        score *= this.WEIGHTS.personalization.languageMatchBoost;
+        score *= this.R.personalization.languageMatch;
       }
     }
     
@@ -423,11 +406,11 @@ export class FeedRankingService {
     
     // Calculate raw engagement (before log scaling for rate calculation)
     const rawEngagement = (
-      (stats.likesCount || 0) * this.WEIGHTS.engagement.likes +
-      (stats.repostsCount || 0) * this.WEIGHTS.engagement.reposts +
-      (stats.commentsCount || 0) * this.WEIGHTS.engagement.comments +
-      (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.WEIGHTS.engagement.saves +
-      (stats.sharesCount || 0) * this.WEIGHTS.engagement.shares
+      (stats.likesCount || 0) * this.R.engagement.likeWeight +
+      (stats.repostsCount || 0) * this.R.engagement.repostWeight +
+      (stats.commentsCount || 0) * this.R.engagement.commentWeight +
+      (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.R.engagement.saveWeight +
+      (stats.sharesCount || 0) * this.SHARE_WEIGHT
     );
     
     // Calculate engagement rate (engagement per view)
@@ -441,7 +424,7 @@ export class FeedRankingService {
     
     // High engagement rate = quality content
     if (engagementRate > 0.5) {
-      return this.WEIGHTS.quality.highEngagementRateBoost * velocityBoost;
+      return this.R.quality.highEngagement * velocityBoost;
     }
     
     // Medium engagement rate = decent quality
@@ -451,7 +434,7 @@ export class FeedRankingService {
     
     // Low engagement rate = lower quality (only penalize if post has significant views)
     if (engagementRate < 0.1 && viewsCount > 100) {
-      return this.WEIGHTS.quality.lowEngagementRatePenalty;
+      return this.R.quality.lowEngagement;
     }
     
     return 1.0; // Neutral for posts with few views
@@ -473,11 +456,11 @@ export class FeedRankingService {
     
     // Calculate engagement density (engagement per hour)
     const rawEngagement = (
-      (stats.likesCount || 0) * this.WEIGHTS.engagement.likes +
-      (stats.repostsCount || 0) * this.WEIGHTS.engagement.reposts +
-      (stats.commentsCount || 0) * this.WEIGHTS.engagement.comments +
-      (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.WEIGHTS.engagement.saves +
-      (stats.sharesCount || 0) * this.WEIGHTS.engagement.shares
+      (stats.likesCount || 0) * this.R.engagement.likeWeight +
+      (stats.repostsCount || 0) * this.R.engagement.repostWeight +
+      (stats.commentsCount || 0) * this.R.engagement.commentWeight +
+      (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.R.engagement.saveWeight +
+      (stats.sharesCount || 0) * this.SHARE_WEIGHT
     );
     
     const engagementPerHour = rawEngagement / Math.max(postAge, 0.1);
@@ -558,8 +541,8 @@ export class FeedRankingService {
     }
     
     // Use user settings or defaults
-    const sameAuthorPenalty = diversitySettings?.sameAuthorPenalty ?? this.WEIGHTS.diversity.sameAuthorPenalty;
-    const sameTopicPenalty = diversitySettings?.sameTopicPenalty ?? this.WEIGHTS.diversity.sameTopicPenalty;
+    const sameAuthorPenalty = diversitySettings?.sameAuthorPenalty ?? this.R.diversity.sameAuthorPenalty;
+    const sameTopicPenalty = diversitySettings?.sameTopicPenalty ?? this.R.diversity.sameTopicPenalty;
     
     let penalty = 1.0;
     
@@ -783,11 +766,12 @@ export class FeedRankingService {
       return a.originalIndex - b.originalIndex;
     });
     
-    // CRITICAL: Attach finalScore to each post for later reuse
+    // CRITICAL: Attach finalScore and ranking explanation to each post for later reuse
     // This avoids expensive recalculation during cursor filtering
     // Performance optimization: saves ~60-100ms per request for large feeds
     postsWithScores.forEach(({ post, score }) => {
       (post as any).finalScore = score;
+      (post as any).rankingExplanation = explainRanking(post);
     });
     
     // Record ranking metrics

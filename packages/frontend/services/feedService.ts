@@ -8,7 +8,9 @@ import {
   CreateThreadRequest,
   LikeRequest,
   UnlikeRequest,
-  FeedType
+  FeedType,
+  FeedDescriptor,
+  isValidFeedDescriptor,
 } from '@mention/shared-types';
 
 // Feed responses may include slices for thread grouping
@@ -579,6 +581,97 @@ class FeedService {
 
     const response = await authenticatedClient.get(`/posts/${postId}/reposts`, { params });
     return response.data;
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // MTN Protocol — descriptor-based feed API
+  // ────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch feed using MTN descriptor-based API.
+   * Single endpoint replaces all per-type endpoint routing.
+   */
+  async getMtnFeed(
+    descriptor: FeedDescriptor,
+    options?: { cursor?: string; limit?: number; signal?: AbortSignal }
+  ): Promise<FeedServiceResponse> {
+    const params: Record<string, unknown> = { descriptor };
+    if (options?.cursor) params.cursor = options.cursor;
+    if (options?.limit) params.limit = options.limit;
+
+    // Cache check
+    const cacheKey = `mtn|${descriptor}|${options?.cursor || 'initial'}`;
+    const cached = feedCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.data;
+    }
+
+    // Dedup in-flight
+    const existing = inFlightRequests.get(cacheKey);
+    if (existing) return existing;
+
+    const fetchPromise = (async () => {
+      try {
+        const response = await authenticatedClient.get('/feed/mtn', {
+          params,
+          signal: options?.signal,
+        });
+        const data = response.data?.data || response.data;
+
+        // Cache
+        const ttl = options?.cursor ? CACHE_TTL_PAGINATION_MS : CACHE_TTL_MS;
+        feedCache.set(cacheKey, { data, timestamp: Date.now(), expiresAt: Date.now() + ttl });
+
+        return data;
+      } catch (authError: any) {
+        const status = authError?.response?.status;
+        if (status === 401 || status === 403) {
+          try {
+            return await makePublicRequest('/feed/mtn', params);
+          } catch {
+            throw authError;
+          }
+        }
+        throw authError;
+      }
+    })();
+
+    inFlightRequests.set(cacheKey, fetchPromise);
+    try {
+      return await fetchPromise;
+    } finally {
+      inFlightRequests.delete(cacheKey);
+    }
+  }
+
+  /**
+   * Peek at the latest item in a feed (for "new posts" indicators).
+   */
+  async peekMtnFeed(descriptor: FeedDescriptor): Promise<any | null> {
+    try {
+      const response = await authenticatedClient.get('/feed/mtn/peek', {
+        params: { descriptor },
+      });
+      return response.data?.data || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Send feed interaction data (impressions, clicks, engagement).
+   */
+  async sendFeedInteraction(data: {
+    feedDescriptor: string;
+    postUri: string;
+    event: 'impression' | 'click' | 'like' | 'reply' | 'repost' | 'save';
+    durationMs?: number;
+  }): Promise<void> {
+    try {
+      await authenticatedClient.post('/feed/mtn/interactions', data);
+    } catch {
+      // Non-critical — swallow errors
+    }
   }
 }
 
