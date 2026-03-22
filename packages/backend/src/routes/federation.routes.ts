@@ -63,6 +63,32 @@ router.get('/users/:username', async (req: Request, res: Response) => {
   const username = getUsername(req);
 
   try {
+    // Instance actor: a special server-level actor used for signed fetches.
+    // It has no Oxy user — serve it directly from the key pair collection.
+    if (username === 'instance') {
+      const keyPair = await getOrCreateKeyPair('__instance__', 'instance');
+      const actorObject = {
+        '@context': AP_CONTEXT,
+        id: actorUrl('instance'),
+        type: 'Application',
+        preferredUsername: 'instance',
+        name: FEDERATION_DOMAIN,
+        summary: '',
+        url: `https://${FEDERATION_DOMAIN}`,
+        inbox: inboxUrl('instance'),
+        outbox: outboxUrl('instance'),
+        endpoints: { sharedInbox: sharedInboxUrl() },
+        publicKey: {
+          id: keyPair.keyId,
+          owner: actorUrl('instance'),
+          publicKeyPem: keyPair.publicKeyPem,
+        },
+      };
+      res.set('Content-Type', AP_CONTENT_TYPE);
+      res.set('Cache-Control', 'max-age=1800');
+      return res.json(actorObject);
+    }
+
     const user = await resolveOxyUser(username);
     if (!user) return res.status(404).json({ error: 'User not found' });
 

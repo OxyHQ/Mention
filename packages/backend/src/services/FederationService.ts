@@ -30,17 +30,33 @@ const INSTANCE_ACTOR_USERNAME = 'instance';
  * Required by servers that enforce authorized fetch (e.g., Threads).
  */
 async function signedFetch(url: string, accept: string): Promise<Response> {
+  const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
   const keyPair = await getOrCreateKeyPair(INSTANCE_ACTOR_ID, INSTANCE_ACTOR_USERNAME);
   const sigHeaders = signRequest(keyPair.privateKeyPem, keyPair.keyId, 'GET', url);
 
-  return fetch(url, {
+  const res = await fetch(url, {
     headers: {
-      Accept: accept,
+      Accept: acceptHeader,
       'User-Agent': USER_AGENT,
       ...sigHeaders,
     },
     signal: AbortSignal.timeout(10000),
   });
+
+  // If the remote server returns a 5xx (e.g. it can't resolve our keyId to verify
+  // the signature), retry without the signature as a fallback for public resources.
+  if (res.status >= 500) {
+    logger.debug(`[FedSync] signedFetch got ${res.status} for ${url}, retrying unsigned`);
+    return fetch(url, {
+      headers: {
+        Accept: acceptHeader,
+        'User-Agent': USER_AGENT,
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+  }
+
+  return res;
 }
 
 class FederationService {
@@ -99,15 +115,54 @@ class FederationService {
    */
   async fetchRemoteActor(actorUri: string): Promise<IFederatedActor | null> {
     try {
+      // Normalize: strip www. prefix for known AP domains (e.g., www.threads.net → threads.net)
+      actorUri = actorUri.replace(/^(https?:\/\/)www\./i, '$1');
+
       // Use signed fetch for servers that enforce authorized fetch (e.g., Threads)
-      const res = await signedFetch(actorUri, AP_CONTENT_TYPE);
-      if (!res.ok) return null;
+      let res = await signedFetch(actorUri, AP_CONTENT_TYPE);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        logger.debug(`[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${actorUri} body=${body.slice(0, 500)}`);
+
+        // If direct fetch failed, try WebFinger to resolve the canonical actor URI.
+        // Some servers (e.g., Threads) use numeric IDs in AP URIs that differ from
+        // the username-based URI we may have stored.
+        const parsed = new URL(actorUri);
+        const pathUsername = parsed.pathname.split('/').filter(Boolean).pop();
+        if (pathUsername) {
+          const acct = `${pathUsername}@${parsed.hostname}`;
+          logger.debug(`[FedSync] attempting WebFinger fallback for ${acct}`);
+          const resolved = await this.resolveWebFinger(acct);
+          if (resolved && resolved !== actorUri) {
+            logger.debug(`[FedSync] WebFinger resolved ${acct} → ${resolved}`);
+            res = await signedFetch(resolved, AP_CONTENT_TYPE);
+            if (res.ok) {
+              actorUri = resolved;
+            } else {
+              const body2 = await res.text().catch(() => '');
+              logger.debug(`[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`);
+              return null;
+            }
+          } else {
+            logger.debug(`[FedSync] WebFinger returned ${resolved ?? 'null'} for ${acct}`);
+            return null;
+          }
+        } else {
+          return null;
+        }
+      }
 
       const actor = await res.json() as Record<string, any>;
-      if (!actor.id || !actor.inbox) return null;
+      if (!actor.id || !actor.inbox) {
+        logger.debug(`[FedSync] fetchRemoteActor missing fields for ${actorUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${actor.type} keys=${Object.keys(actor).join(',')}`);
+        return null;
+      }
 
       const domain = new URL(actor.id).hostname;
-      if (isBlockedDomain(domain)) return null;
+      if (isBlockedDomain(domain)) {
+        logger.debug(`[FedSync] fetchRemoteActor blocked domain ${domain} for ${actorUri}`);
+        return null;
+      }
 
       const username = actor.preferredUsername || actor.name || 'unknown';
       const acct = `${username}@${domain}`;
