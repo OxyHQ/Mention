@@ -87,10 +87,10 @@ export function usePostActions({
         const handleDelete = async () => {
             try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
             const confirmed = await confirmDialog({
-                title: 'Delete post',
-                message: 'Are you sure you want to delete this post? This action cannot be undone.',
-                okText: 'Delete',
-                cancelText: 'Cancel',
+                title: t('postActions.deletePost'),
+                message: t('postActions.deleteConfirmMessage'),
+                okText: t('postActions.delete'),
+                cancelText: t('postActions.cancel'),
                 destructive: true,
             });
             if (!confirmed) return;
@@ -99,7 +99,7 @@ export function usePostActions({
                 await feedService.deletePost(postId);
             } catch (e) {
                 logger.error('Delete API failed', { error: e });
-                toast('Failed to delete post', { type: 'error' });
+                toast(t('postActions.failedToDeletePost'), { type: 'error' });
                 return;
             }
             try {
@@ -120,7 +120,7 @@ export function usePostActions({
 
         const insightsAction = isOwner ? [{
             icon: <AnalyticsIcon size={20} className="text-muted-foreground" />,
-            text: "Insights",
+            text: t('postActions.insights'),
             onPress: () => {
                 bottomSheet.setBottomSheetContent(
                     <PostInsightsSheet
@@ -137,13 +137,13 @@ export function usePostActions({
         if (!isSaved) {
             saveActionGroup.push({
                 icon: <Bookmark size={20} className="text-muted-foreground" />,
-                text: "Save",
+                text: t('postActions.save'),
                 onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
             });
         } else {
             saveActionGroup.push({
                 icon: <BookmarkActive size={20} className="text-muted-foreground" />,
-                text: "Unsave",
+                text: t('postActions.unsave'),
                 onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
             });
         }
@@ -156,7 +156,7 @@ export function usePostActions({
             if (withinEditWindow) {
                 saveActionGroup.push({
                     icon: <Ionicons name="create-outline" size={20} color={theme.colors.textSecondary} />,
-                    text: "Edit",
+                    text: t('postActions.edit'),
                     onPress: () => {
                         bottomSheet.openBottomSheet(false);
                         router.push(`/compose?editPostId=${postId}`);
@@ -170,12 +170,12 @@ export function usePostActions({
                 icon: isPinned
                     ? <UnpinIcon size={20} className="text-muted-foreground" />
                     : <PinIcon size={20} className="text-muted-foreground" />,
-                text: isPinned ? "Unpin from profile" : "Pin to your profile",
+                text: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
                 onPress: async () => {
                     try {
                         await feedService.updatePostSettings(postId, { isPinned: !isPinned });
                     } catch (e) {
-                        toast(isPinned ? 'Failed to unpin post' : 'Failed to pin post', { type: 'error' });
+                        toast(isPinned ? t('postActions.failedToUnpinPost') : t('postActions.failedToPinPost'), { type: 'error' });
                     }
                     bottomSheet.openBottomSheet(false);
                 }
@@ -186,12 +186,12 @@ export function usePostActions({
             const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
             saveActionGroup.push({
                 icon: <HideIcon size={20} className="text-muted-foreground" />,
-                text: isHidden ? "Show like and share counts" : "Hide like and share counts",
+                text: isHidden ? t('postActions.showEngagementCounts') : t('postActions.hideEngagementCounts'),
                 onPress: async () => {
                     try {
                         await feedService.updatePostSettings(postId, { hideEngagementCounts: !isHidden });
                     } catch (e) {
-                        toast('Failed to update engagement count visibility', { type: 'error' });
+                        toast(t('postActions.failedToUpdateEngagement'), { type: 'error' });
                     }
                     bottomSheet.openBottomSheet(false);
                 }
@@ -201,7 +201,7 @@ export function usePostActions({
         if (isOwner) {
             saveActionGroup.push({
                 icon: <ChevronRightIcon size={20} className="text-muted-foreground" />,
-                text: "Reply options",
+                text: t('postActions.replyOptions'),
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
                         <ReplySettingsSheet
@@ -210,7 +210,7 @@ export function usePostActions({
                                 try {
                                     await feedService.updatePostSettings(postId, { replyPermission: permission });
                                 } catch (e) {
-                                    toast('Failed to update reply permissions', { type: 'error' });
+                                    toast(t('postActions.failedToUpdateReplyPermissions'), { type: 'error' });
                                 }
                             }}
                             quotesDisabled={viewPost?.metadata?.quotesDisabled || false}
@@ -218,7 +218,7 @@ export function usePostActions({
                                 try {
                                     await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
                                 } catch (e) {
-                                    toast('Failed to update quote settings', { type: 'error' });
+                                    toast(t('postActions.failedToUpdateQuoteSettings'), { type: 'error' });
                                 }
                             }}
                             onClose={() => bottomSheet.openBottomSheet(false)}
@@ -230,7 +230,7 @@ export function usePostActions({
         }
 
         const deleteAction = isOwner ? [
-            { icon: <TrashIcon size={20} className="text-destructive" />, text: "Delete", onPress: handleDelete, color: theme.colors.error }
+            { icon: <TrashIcon size={20} className="text-destructive" />, text: t('postActions.delete'), onPress: handleDelete, color: theme.colors.error }
         ] : [];
 
         const articleAction = hasArticle ? [{
@@ -255,15 +255,15 @@ export function usePostActions({
             const username = viewPost?.user?.handle || viewPost?.user?.name || 'this user';
 
             if (!userId) {
-                toast('Unable to mute user', { type: 'error' });
+                toast(t('postActions.unableToMuteUser'), { type: 'error' });
                 return;
             }
 
             const confirmed = await confirmDialog({
-                title: `Mute @${username}`,
-                message: `You won't see posts from @${username} in your timeline. You can unmute them later from settings.`,
-                okText: 'Mute',
-                cancelText: 'Cancel',
+                title: t('postActions.muteUser', { username }),
+                message: t('postActions.muteConfirmMessage', { username }),
+                okText: t('postActions.mute'),
+                cancelText: t('postActions.cancel'),
                 destructive: false,
             });
 
@@ -271,9 +271,9 @@ export function usePostActions({
 
             const success = await muteService.muteUser(userId);
             if (success) {
-                toast(`@${username} has been muted`, { type: 'success' });
+                toast(t('postActions.userMuted', { username }), { type: 'success' });
             } else {
-                toast('Failed to mute user', { type: 'error' });
+                toast(t('postActions.failedToMuteUser'), { type: 'error' });
             }
         };
 
@@ -285,9 +285,9 @@ export function usePostActions({
                     onSubmit={async (categories, details) => {
                         const success = await reportService.reportPost(postId, categories, details);
                         if (success) {
-                            toast('Thank you for helping keep our community safe.', { type: 'success' });
+                            toast(t('postActions.thankYouReport'), { type: 'success' });
                         } else {
-                            toast('Failed to submit report. Please try again.', { type: 'error' });
+                            toast(t('postActions.failedToSubmitReport'), { type: 'error' });
                         }
                     }}
                 />
@@ -301,13 +301,13 @@ export function usePostActions({
             const username = viewPost?.user?.handle || viewPost?.user?.name || 'user';
             muteReportAction.push({
                 icon: <MuteIcon size={20} className="text-muted-foreground" />,
-                text: `Mute @${username}`,
+                text: t('postActions.muteUser', { username }),
                 onPress: handleMuteUser,
             });
 
             muteReportAction.push({
                 icon: <ReportIcon size={20} className="text-destructive" />,
-                text: "Report post",
+                text: t('postActions.reportPost'),
                 onPress: handleReportPost,
                 color: theme.colors.error,
             });
@@ -315,7 +315,7 @@ export function usePostActions({
 
         const copyLinkAction = [{
             icon: <LinkIcon size={20} className="text-muted-foreground" />,
-            text: "Copy link",
+            text: t('postActions.copyLink'),
             onPress: async () => {
                 try {
                     if (Platform.OS === 'web') {

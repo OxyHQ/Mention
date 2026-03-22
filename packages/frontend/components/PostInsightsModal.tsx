@@ -68,7 +68,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                     <TouchableOpacity onPress={onClose} className="p-2">
                         <Ionicons name="close" size={24} color={theme.colors.text} />
                     </TouchableOpacity>
-                    <Text className="text-foreground text-lg font-semibold">Post Insights</Text>
+                    <Text className="text-foreground text-lg font-semibold">{t('insights.post.title')}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
@@ -86,7 +86,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                                 <Text className="text-foreground text-2xl font-bold mt-2">
                                     {formatCompactNumber(insights.stats.views)}
                                 </Text>
-                                <Text className="text-muted-foreground text-xs font-medium mt-2">Views</Text>
+                                <Text className="text-muted-foreground text-xs font-medium mt-2">{t('insights.post.views')}</Text>
                             </View>
 
                             <View className="bg-surface items-center p-4 rounded-xl mb-3" style={styles.statCardLast}>
@@ -94,7 +94,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                                 <Text className="text-foreground text-2xl font-bold mt-2">
                                     {formatCompactNumber(insights.stats.likes)}
                                 </Text>
-                                <Text className="text-muted-foreground text-xs font-medium mt-2">Likes</Text>
+                                <Text className="text-muted-foreground text-xs font-medium mt-2">{t('insights.post.likes')}</Text>
                             </View>
 
                             <View className="bg-surface items-center p-4 rounded-xl mb-3" style={styles.statCard}>
@@ -102,7 +102,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                                 <Text className="text-foreground text-2xl font-bold mt-2">
                                     {formatCompactNumber(insights.stats.replies)}
                                 </Text>
-                                <Text className="text-muted-foreground text-xs font-medium mt-2">Replies</Text>
+                                <Text className="text-muted-foreground text-xs font-medium mt-2">{t('insights.post.replies')}</Text>
                             </View>
 
                             <View className="bg-surface items-center p-4 rounded-xl mb-3" style={styles.statCardLast}>
@@ -110,16 +110,16 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                                 <Text className="text-foreground text-2xl font-bold mt-2">
                                     {formatCompactNumber(insights.stats.reposts)}
                                 </Text>
-                                <Text className="text-muted-foreground text-xs font-medium mt-2">Reposts</Text>
+                                <Text className="text-muted-foreground text-xs font-medium mt-2">{t('insights.post.reposts')}</Text>
                             </View>
                         </View>
 
                         {/* Engagement Metrics */}
                         <View className="bg-surface p-4 rounded-xl mb-4">
-                            <Text className="text-foreground text-lg font-semibold mb-3">Engagement</Text>
+                            <Text className="text-foreground text-lg font-semibold mb-3">{t('insights.engagement')}</Text>
                             <View className="flex-row justify-between items-center mb-3">
                                 <Text className="text-muted-foreground text-sm">
-                                    Engagement Rate
+                                    {t('insights.post.engagementRate')}
                                 </Text>
                                 <Text className="text-primary text-lg font-semibold">
                                     {insights.engagement.engagementRate.toFixed(2)}%
@@ -127,14 +127,14 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             </View>
                             <View className="flex-row justify-between items-center mb-3">
                                 <Text className="text-muted-foreground text-sm">
-                                    Total Interactions
+                                    {t('insights.post.totalInteractions')}
                                 </Text>
                                 <Text className="text-foreground text-lg font-semibold">
                                     {formatCompactNumber(insights.engagement.totalInteractions)}
                                 </Text>
                             </View>
                             <View className="flex-row justify-between items-center mb-3">
-                                <Text className="text-muted-foreground text-sm">Reach</Text>
+                                <Text className="text-muted-foreground text-sm">{t('insights.post.reach')}</Text>
                                 <Text className="text-foreground text-lg font-semibold">
                                     {formatCompactNumber(insights.engagement.reach)}
                                 </Text>
@@ -144,7 +144,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                         {/* Additional Stats */}
                         {insights.stats.quotes > 0 && (
                             <View className="bg-surface p-4 rounded-xl mb-4">
-                                <Text className="text-foreground text-lg font-semibold mb-3">Quotes</Text>
+                                <Text className="text-foreground text-lg font-semibold mb-3">{t('insights.post.quotes')}</Text>
                                 <Text className="text-foreground text-2xl font-bold">
                                     {formatCompactNumber(insights.stats.quotes)}
                                 </Text>
@@ -153,7 +153,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
 
                         {insights.stats.shares > 0 && (
                             <View className="bg-surface p-4 rounded-xl mb-4">
-                                <Text className="text-foreground text-lg font-semibold mb-3">Shares</Text>
+                                <Text className="text-foreground text-lg font-semibold mb-3">{t('insights.post.shares')}</Text>
                                 <Text className="text-foreground text-2xl font-bold">
                                     {formatCompactNumber(insights.stats.shares)}
                                 </Text>
@@ -164,7 +164,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                     <View className="flex-1 justify-center items-center py-4">
                         <Ionicons name="bar-chart-outline" size={64} color={theme.colors.textSecondary} />
                         <Text className="text-muted-foreground text-base">
-                            No insights available
+                            {t('insights.post.noInsightsAvailable')}
                         </Text>
                     </View>
                 )}
