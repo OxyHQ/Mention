@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { show as toast } from '@oxyhq/bloom/toast';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { AgentIcon } from '@/assets/icons/agent-icon';
@@ -7,6 +10,7 @@ import { AutomatedIcon } from '@/assets/icons/automated-icon';
 
 interface Props {
     name?: string | null;
+    handle?: string | null;
     verified?: boolean;
     isFederated?: boolean;
     isAgent?: boolean;
@@ -16,12 +20,21 @@ interface Props {
     variant?: 'default' | 'small';
     style?: {
         name?: TextStyle;
+        handle?: TextStyle;
         container?: any;
     };
 }
 
-const UserName: React.FC<Props> = ({ name, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style }) => {
+const UserName: React.FC<Props> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style }) => {
+    const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
+
+    const handleCopyHandle = useCallback(async () => {
+        if (!handle) return;
+        const text = `@${handle}`;
+        await Clipboard.setStringAsync(text);
+        toast('Copied to clipboard', { type: 'success' });
+    }, [handle]);
 
     // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
     const flattenedNameStyle = style?.name ? (StyleSheet.flatten(style.name) as TextStyle) : undefined;
@@ -43,7 +56,7 @@ const UserName: React.FC<Props> = ({ name, verified, isFederated, isAgent, isAut
                     <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
                 )}
                 {isFederated && (
-                    <FediverseIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <FediverseIcon size={iconSize} color={theme.colors.text} style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
                 )}
                 {isAgent && (
                     <AgentIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
@@ -52,6 +65,19 @@ const UserName: React.FC<Props> = ({ name, verified, isFederated, isAgent, isAut
                     <AutomatedIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
                 )}
             </View>
+            {handle ? (
+                isFederated ? (
+                    <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
+                        <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
+                            @{handle}
+                        </Text>
+                    </TouchableOpacity>
+                ) : (
+                    <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
+                        @{handle}
+                    </Text>
+                )
+            ) : null}
         </View>
     );
 
@@ -69,9 +95,7 @@ const UserName: React.FC<Props> = ({ name, verified, isFederated, isAgent, isAut
 
 const styles = StyleSheet.create({
     container: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
+        flexDirection: 'column',
     },
     nameRow: {
         flexDirection: 'row',
@@ -84,6 +108,10 @@ const styles = StyleSheet.create({
     nameSmall: {
         fontSize: 14,
         fontWeight: '700',
+    },
+    handle: {
+        fontSize: 15,
+        lineHeight: 20,
     },
     badgeIcon: {
         marginLeft: 4,

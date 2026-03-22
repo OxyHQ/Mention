@@ -190,6 +190,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         return vars(getAppColorCSSVariables(visitedColorPreset, theme.isDark ? 'dark' : 'light'));
     }, [visitedColorPreset, theme.isDark]);
 
+    // Compute explicit background color from the preset so NativeWind bg-background gets overridden
+    const profileBgColor = useMemo(() => {
+        if (!visitedColorPreset) return undefined;
+        const hslValues = (theme.isDark ? visitedColorPreset.dark : visitedColorPreset.light)['--background'];
+        return hslValues ? `hsl(${hslValues.replace(/ /g, ', ')})` : undefined;
+    }, [visitedColorPreset, theme.isDark]);
+
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),
         [profileData]
@@ -431,7 +438,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 image={profileImage}
                 type="profile"
             />
-            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileColorVars]}>
+            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileColorVars, profileBgColor ? { backgroundColor: profileBgColor } : undefined]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
                 {loading ? (
@@ -521,7 +528,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                             top: 0,
                                             zIndex: 1,
                                             pointerEvents: 'none',
-                                            backgroundColor: theme.colors.background,
+                                            backgroundColor: profileBgColor || theme.colors.background,
                                             opacity: headerBackgroundOpacity,
                                         }}
                                     />
@@ -535,7 +542,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         style={[
                                             StyleSheet.absoluteFillObject,
                                             {
-                                                backgroundColor: theme.colors.background,
+                                                backgroundColor: profileBgColor || theme.colors.background,
                                                 opacity: headerBackgroundOpacity,
                                             },
                                         ]}

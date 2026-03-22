@@ -14,7 +14,6 @@ import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
 
@@ -114,21 +113,14 @@ export const ProfileContent = memo(function ProfileContent({
         <View>
           <UserName
             name={design?.displayName}
-            handle={profileData.isFederated ? profileData.username.split('@')[0] : profileData.username}
+            handle={profileData.username}
             verified={profileData.verified}
+            isFederated={profileData.isFederated}
             variant="default"
             style={userNameStyle}
           />
           <View className="flex-row items-center gap-2 flex-wrap">
             {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
-            {profileData.isFederated && profileData.instance && (
-              <View className="bg-secondary flex-row items-center gap-1 px-1.5 py-0.5 rounded">
-                <FediverseIcon size={12} className="text-muted-foreground" />
-                <Text className="text-muted-foreground text-xs font-medium">
-                  {profileData.instance}
-                </Text>
-              </View>
-            )}
             {!isOwnProfile && profileData.followsYou && (
               <View className="bg-secondary px-1.5 py-0.5 rounded">
                 <Text className="text-muted-foreground text-xs font-medium">
