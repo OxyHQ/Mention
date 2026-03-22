@@ -37,20 +37,20 @@ export const ProfileTabs = memo(function ProfileTabs({
   const { t } = useTranslation();
   const [pinnedPost, setPinnedPost] = useState<any>(null);
 
-  // Fetch pinned post (local profiles only)
+  // Fetch pinned post (local profiles only, posts tab only)
   useEffect(() => {
-    if (isFederated || !profileId || (isPrivate && !isOwnProfile)) {
+    if (isFederated || !profileId || (isPrivate && !isOwnProfile) || tab !== 'posts') {
       setPinnedPost(null);
       return;
     }
 
     let cancelled = false;
-    feedService.getPinnedPost(profileId).then((post) => {
-      if (!cancelled) setPinnedPost(post);
-    });
+    feedService.getPinnedPost(profileId)
+      .then((post) => { if (!cancelled) setPinnedPost(post); })
+      .catch(() => { if (!cancelled) setPinnedPost(null); });
 
     return () => { cancelled = true; };
-  }, [profileId, isPrivate, isOwnProfile, isFederated]);
+  }, [profileId, isPrivate, isOwnProfile, isFederated, tab]);
 
   // Don't render feed content without a valid profile identifier
   if (!profileId && !actorUri) {

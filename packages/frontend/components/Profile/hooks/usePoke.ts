@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { show as toast } from '@oxyhq/bloom/toast';
+import { useAuth } from '@oxyhq/services';
 import { pokeService } from '@/services/pokeService';
 import { useDeferredToggle } from './useDeferredToggle';
 
@@ -19,6 +20,7 @@ export function usePoke(
   isOwnProfile: boolean
 ): UsePokeReturn {
   const { t } = useTranslation();
+  const { isAuthenticated } = useAuth();
 
   const fetchStatus = useCallback(async () => {
     if (!profileId) return false;
@@ -39,7 +41,7 @@ export function usePoke(
   }, [profileId, t]);
 
   const { active, loading, toggle } = useDeferredToggle({
-    skip: isOwnProfile || !profileId,
+    skip: isOwnProfile || !profileId || !isAuthenticated,
     fetchStatus,
     onEnable,
     onDisable,
