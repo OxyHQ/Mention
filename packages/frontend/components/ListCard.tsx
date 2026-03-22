@@ -3,7 +3,7 @@ import { View, StyleSheet, ViewStyle } from 'react-native';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 
 /**
  * ListCard Component

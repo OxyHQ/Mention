@@ -2,7 +2,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { StableFollowButton } from '@/components/StableFollowButton';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';

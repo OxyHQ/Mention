@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { cn } from '@/lib/utils';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';

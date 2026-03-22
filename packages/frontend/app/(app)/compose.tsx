@@ -21,7 +21,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';

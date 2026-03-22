@@ -16,7 +16,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { statisticsService, UserStatistics } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';

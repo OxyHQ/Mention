@@ -25,7 +25,7 @@ import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';

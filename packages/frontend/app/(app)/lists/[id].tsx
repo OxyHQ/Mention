@@ -20,7 +20,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { listsService } from '@/services/listsService';

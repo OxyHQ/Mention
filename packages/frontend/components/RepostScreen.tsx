@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { show as toast } from '@oxyhq/bloom/toast';
 import * as Prompt from '@oxyhq/bloom/prompt';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@oxyhq/services";

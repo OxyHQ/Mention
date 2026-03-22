@@ -11,7 +11,7 @@ import {
 import { Loading } from '@oxyhq/bloom/loading';
 import { cn } from "@/lib/utils";
 import { useAuth } from "@oxyhq/services";
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { logger } from '@/lib/logger';
 
 export interface MentionUser {

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { useAuth } from "@oxyhq/services";
 import * as OxyServicesNS from "@oxyhq/services";
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
 import { useUsersStore, useUserById } from "@/stores/usersStore";

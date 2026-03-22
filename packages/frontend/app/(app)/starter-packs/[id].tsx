@@ -12,7 +12,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import { ResponsiveAvatarStack } from '@/components/AvatarStack';
 import SEO from '@/components/SEO';
 import { cn } from '@/lib/utils';

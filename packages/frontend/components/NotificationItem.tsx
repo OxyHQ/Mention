@@ -8,7 +8,7 @@ import { ThemedText } from './ThemedText';
 import { useTranslation } from 'react-i18next';
 import { useNotificationTransformer, RawNotification } from '../utils/notificationTransformer';
 import { useAuth } from '@oxyhq/services';
-import { Avatar } from '@/components/Avatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
