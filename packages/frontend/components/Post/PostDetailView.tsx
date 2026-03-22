@@ -9,7 +9,8 @@ import {
     PostEngagementSummary,
 } from '@mention/shared-types';
 import { usePostsStore } from '@/stores/postsStore';
-import PostAvatar from './PostAvatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '../MentionAvatarIcon';
 import UserName from '../UserName';
 import PostContentText from './PostContentText';
 import PostLocation from './PostLocation';
@@ -329,7 +330,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                 <View className="flex-row items-center mb-3">
                     <ProfileHoverCard username={viewPost.user.handle}>
                         <TouchableOpacity activeOpacity={0.7} onPress={goToUser}>
-                            <PostAvatar uri={avatarUri} size={AVATAR_SIZE} />
+                            <Avatar source={avatarUri} size={AVATAR_SIZE} placeholderIcon={<MentionAvatarIcon size={AVATAR_SIZE * 0.6} />} style={{ marginRight: 12 }} />
                         </TouchableOpacity>
                     </ProfileHoverCard>
                     <View className="flex-1 mr-2">

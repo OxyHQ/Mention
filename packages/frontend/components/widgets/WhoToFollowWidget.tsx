@@ -7,9 +7,11 @@ import { useAuth } from "@oxyhq/services";
 import * as OxyServicesNS from "@oxyhq/services";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
+import { MentionAvatarIcon } from "@/components/MentionAvatarIcon";
 import { BaseWidget } from "./BaseWidget";
 import { useUsersStore, useUserById } from "@/stores/usersStore";
 import { enrichMissingAvatars } from "@/utils/userEnrichment";
+import { getUserPlaceholderColor } from "@/utils/userPlaceholderColor";
 import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
 import { getRecommendationFilters } from '@/lib/recommendationFilters';
@@ -221,7 +223,7 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
       style={[styles.webCursor, showBorder && styles.itemBorder]}
     >
       <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} activeOpacity={0.7}>
-        <Avatar source={avatarUri} size={32} />
+        <Avatar source={avatarUri} size={32} placeholderColor={getUserPlaceholderColor(cachedUser)} placeholderIcon={<MentionAvatarIcon size={19} />} />
         <View className="ml-2 flex-1 mr-2">
           <UserName
             name={displayName}

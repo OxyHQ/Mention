@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import PostAvatar from './PostAvatar';
+import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from '../UserName';
+import { MentionAvatarIcon } from '../MentionAvatarIcon';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
@@ -31,6 +32,7 @@ interface PostHeaderProps {
   avatarUri?: string;
   avatarSize?: number;
   avatarGap?: number;
+  placeholderColor?: string;
   onPressUser?: () => void;
   onPressAvatar?: () => void;
   onPressMenu?: () => void;
@@ -47,6 +49,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarUri,
   avatarSize = 36,
 
+  placeholderColor,
   onPressUser,
   onPressAvatar,
   onPressMenu,
@@ -62,7 +65,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       <View className="flex-row items-start justify-between">
         <ProfileHoverCard username={user.handle}>
           <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
-            <PostAvatar uri={avatarUri} size={avatarSize} />
+            <Avatar source={avatarUri} size={avatarSize} placeholderColor={placeholderColor} placeholderIcon={<MentionAvatarIcon size={avatarSize * 0.6} />} style={{ marginRight: 12 }} />
           </TouchableOpacity>
         </ProfileHoverCard>
         <View className="flex-1" style={{ gap: 4 }}>
