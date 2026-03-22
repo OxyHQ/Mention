@@ -23,12 +23,14 @@ export async function getKeyPair(username: string): Promise<KeyPairData> {
   }
 
   const url = `${OXY_API_URL}/federation/keypair/${encodeURIComponent(username)}`;
+  logger.info(`[FedSync] fetching key pair from ${url}`);
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new Error(`Failed to fetch key pair for ${username}: ${res.status}`);
   }
 
   const data = await res.json() as KeyPairData;
+  logger.info(`[FedSync] key pair fetched for ${username}: keyId=${data.keyId}`);
   keyPairCache.set(username, { data, fetchedAt: Date.now() });
   return data;
 }
