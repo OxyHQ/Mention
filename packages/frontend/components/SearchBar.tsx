@@ -90,12 +90,9 @@ const styles = StyleSheet.create({
         ...Platform.select({
             web: { position: 'sticky' as any },
         }),
-        marginTop: SPACING.lg,
         top: 0,
         zIndex: 1000,
-        paddingVertical: SPACING.xs,
         width: '100%',
-        gap: SPACING.sm,
     },
     searchInputContainer: {
         borderRadius: 100,

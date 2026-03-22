@@ -23,11 +23,9 @@ export function RightBar() {
     if (!isRightBarVisible) return null;
 
     return (
-        <View className="flex-col ps-5" style={styles.container}>
+        <View className="flex-col px-4 pt-4 gap-4" style={styles.container}>
             <SearchBar />
-            <View className="mt-2">
-                <WidgetManager screenId="home" />
-            </View>
+            <WidgetManager screenId="home" />
             {Platform.OS === 'web' && <RightBarFooter />}
         </View>
     );
@@ -42,7 +40,7 @@ function RightBarFooter() {
     })), [t]);
 
     return (
-        <View className="pt-2 pb-3 px-1">
+        <View className="pb-3">
             <View className="flex-row flex-wrap">
                 {footerLinks.map((link) => (
                     <FooterLink key={link.label} label={link.label} url={link.url} />
