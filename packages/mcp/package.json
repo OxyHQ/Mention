@@ -10,7 +10,7 @@
     "start:node": "node dist/server-http.js",
     "dev": "bun --watch server.ts",
     "dev:http": "bun --watch server-http.ts",
-    "build": "tsc",
+    "build": "tsc --skipLibCheck",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
