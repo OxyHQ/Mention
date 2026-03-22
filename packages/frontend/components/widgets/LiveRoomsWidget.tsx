@@ -34,7 +34,7 @@ const RoomRow = React.memo(function RoomRow({
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center py-2 ${!isLast ? "border-border" : ""}`}
+      className={`flex-row items-center py-1.5 ${!isLast ? "border-border" : ""}`}
       style={[
         styles.webCursor,
         !isLast && styles.itemBorder,
@@ -141,17 +141,18 @@ export function LiveRoomsWidget() {
       ) : error ? (
         <Text className="text-destructive">{error}</Text>
       ) : (
-        <View>
-          {displayedRooms.map((room, index) => (
-            <RoomRow
-              key={room._id}
-              room={room}
-              isLast={index === displayedRooms.length - 1}
-              onPress={() => joinLiveRoom(room._id)}
-            />
-          ))}
+        <View className="gap-2">
+          <View>
+            {displayedRooms.map((room, index) => (
+              <RoomRow
+                key={room._id}
+                room={room}
+                isLast={index === displayedRooms.length - 1}
+                onPress={() => joinLiveRoom(room._id)}
+              />
+            ))}
+          </View>
           <TouchableOpacity
-            className="py-2"
             style={styles.webCursor}
             onPress={handleShowMore}
             activeOpacity={0.7}

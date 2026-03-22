@@ -11,7 +11,7 @@ type BaseWidgetProps = {
 export function BaseWidget({ title, icon, children }: BaseWidgetProps) {
     return (
         <View
-            className="bg-card border-border rounded-2xl overflow-hidden p-4 gap-3"
+            className="bg-card border-border rounded-2xl overflow-hidden p-3 gap-2"
             style={styles.hairlineBorder}
         >
             {title && (

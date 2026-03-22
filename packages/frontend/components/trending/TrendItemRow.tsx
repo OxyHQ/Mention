@@ -70,7 +70,7 @@ export const TrendItemRow = memo(function TrendItemRow({
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-2'} ${showBorder ? "border-border" : ""}`}
+      className={`flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-1.5'} ${showBorder ? "border-border" : ""}`}
       style={[
         styles.webCursor,
         showBorder && styles.itemBorder,

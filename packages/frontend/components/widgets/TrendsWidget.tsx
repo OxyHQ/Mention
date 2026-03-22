@@ -54,27 +54,27 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
   ) : error ? (
     <Text className="text-destructive">{t('error.fetch_trends')}</Text>
   ) : (
-    <View>
-      {summary ? (
-        <Text className="text-muted-foreground text-[13px] mb-2 leading-5" numberOfLines={2}>
-          {summary}
-        </Text>
-      ) : null}
-      {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
-        const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
-        return (
-          <TrendItemRow
-            key={trend.id}
-            trend={trend}
-            onPress={navigateToTrend}
-            onMenuPress={handleMenuPress}
-            showBorder={!isLast}
-          />
-        );
-      })}
-
+    <View className="gap-2">
+      <View>
+        {summary ? (
+          <Text className="text-muted-foreground text-[12px] mb-1 leading-4" numberOfLines={2}>
+            {summary}
+          </Text>
+        ) : null}
+        {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
+          const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
+          return (
+            <TrendItemRow
+              key={trend.id}
+              trend={trend}
+              onPress={navigateToTrend}
+              onMenuPress={handleMenuPress}
+              showBorder={!isLast}
+            />
+          );
+        })}
+      </View>
       <TouchableOpacity
-        className="py-2"
         style={styles.webCursor}
         onPress={handleMorePress}
         activeOpacity={0.7}

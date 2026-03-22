@@ -157,7 +157,7 @@ export function WhoToFollowWidget() {
 
   return (
     <BaseWidget title={t("Who to follow")}>
-      <View className="gap-3">
+      <View className="gap-2">
         <View>
           {displayedUsers.map((user, index) => (
             <FollowRowComponent
@@ -217,31 +217,23 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
 
   return (
     <View
-      className="flex-row justify-between items-center border-border py-2"
+      className="flex-row justify-between items-center border-border py-1.5"
       style={[styles.webCursor, showBorder && styles.itemBorder]}
     >
       <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} activeOpacity={0.7}>
-        <Avatar source={avatarUri} size={36} />
-        <View className="ml-2.5 flex-1 mr-2">
+        <Avatar source={avatarUri} size={32} />
+        <View className="ml-2 flex-1 mr-2">
           <UserName
             name={displayName}
             isFederated={profileData.isFederated}
             isAgent={profileData.isAgent}
             isAutomated={profileData.isAutomated}
             variant="small"
-            style={{ name: { fontSize: 14 } }}
+            style={{ name: { fontSize: 13 } }}
           />
-          <ThemedText className="text-muted-foreground text-[13px] pt-px">
+          <ThemedText className="text-muted-foreground text-[12px]">
             @{displayHandle}
           </ThemedText>
-          {profileData.bio && (
-            <ThemedText
-              className="text-muted-foreground text-[12px] pt-1 leading-4"
-              numberOfLines={2}
-            >
-              {profileData.bio}
-            </ThemedText>
-          )}
         </View>
       </TouchableOpacity>
       <FollowButton userId={profileData.id} size="small" />
