@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity } from 'react-native';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { Ionicons } from '@expo/vector-icons';
 
 interface Props {
@@ -18,7 +19,7 @@ const ComposeForm: React.FC<Props> = ({ id, value, onChange, onRemove, placehold
         <View className="flex-row items-start px-4 gap-3" key={id}>
             <View className="w-12 items-center">
                 <View className="w-0.5 h-2 rounded-sm bg-primary" />
-                {showAvatar && <Avatar source={avatarSrc ? { uri: avatarSrc } : undefined} size={36} />}
+                {showAvatar && <Avatar source={avatarSrc ? { uri: avatarSrc } : undefined} size={36}  placeholderIcon={<MentionAvatarIcon size={36 * 0.6} />} />}
                 <View className="w-0.5 flex-1 rounded-sm min-h-[16px] bg-primary" />
             </View>
 

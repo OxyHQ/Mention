@@ -13,6 +13,7 @@ import { useAuth } from '@oxyhq/services';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { ResponsiveAvatarStack } from '@/components/AvatarStack';
 import SEO from '@/components/SEO';
 import { cn } from '@/lib/utils';
@@ -250,7 +251,7 @@ export default function StarterPackDetailScreen() {
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={`${m.displayName || m.username}, @${m.username}`}>
-                  <Avatar source={m.avatar} size={44} />
+                  <Avatar source={m.avatar} size={44}  placeholderIcon={<MentionAvatarIcon size={44 * 0.6} />} />
                   <View className="flex-1 gap-0.5">
                     {m.displayName && (
                       <ThemedText

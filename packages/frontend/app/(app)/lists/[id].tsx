@@ -21,6 +21,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { listsService } from '@/services/listsService';
@@ -394,7 +395,7 @@ function ListMembers({
               onPress={() => router.push(`/profile/${memberId}`)}
               activeOpacity={0.7}
             >
-              <Avatar size={40} />
+              <Avatar size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
               <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
                 {memberId}
               </Text>

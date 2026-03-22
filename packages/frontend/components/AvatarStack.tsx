@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { ThemedText } from './ThemedText';
 
 /**
@@ -178,7 +179,7 @@ export const ResponsiveAvatarStack = React.memo(function ResponsiveAvatarStack({
               ]}>
               {size && item.uri ? (
                 <View style={StyleSheet.absoluteFill}>
-                  <Avatar source={item.uri} size={size} />
+                  <Avatar source={item.uri} size={size}  placeholderIcon={<MentionAvatarIcon size={size * 0.6} />} />
                 </View>
               ) : (
                 <View

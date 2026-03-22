@@ -6,6 +6,7 @@ import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -231,7 +232,7 @@ const PostActions: React.FC<Props> = ({
                     { zIndex: 3 - i, borderColor: theme.colors.background },
                   ]}
                 >
-                  <Avatar source={avatarId} size={MINI_AVATAR} />
+                  <Avatar source={avatarId} size={MINI_AVATAR}  placeholderIcon={<MentionAvatarIcon size={MINI_AVATAR * 0.6} />} />
                 </View>
               ))}
             </View>

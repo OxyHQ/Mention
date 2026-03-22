@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useNotificationTransformer, RawNotification } from '../utils/notificationTransformer';
 import { useAuth } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
@@ -230,7 +231,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             onLongPress={handleLongPress}
         >
             <View style={styles.avatarContainer}>
-                <Avatar source={actorAvatar} size={40} />
+                <Avatar source={actorAvatar} size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
                 <View className="border-background" style={[styles.actionBadge, { backgroundColor: getNotificationColor(notification.type) }]}>
                     <Ionicons name={getNotificationIcon(notification.type) as any} size={12} color="#fff" />
                 </View>
@@ -305,7 +306,7 @@ const PostNotificationItem: React.FC<{
                 style={styles.container}
             >
                 <View style={styles.avatarContainer}>
-                    <Avatar size={40} />
+                    <Avatar size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
                     <View className="bg-primary border-background" style={styles.actionBadge}>
                         <Ionicons name="create" size={12} color="#fff" />
                     </View>
@@ -325,7 +326,7 @@ const PostNotificationItem: React.FC<{
                 onPress={handleNotificationPress}
             >
                 <View style={styles.avatarContainer}>
-                    <Avatar size={40} />
+                    <Avatar size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
                     <View className="bg-primary border-background" style={styles.actionBadge}>
                         <Ionicons name="create" size={12} color="#fff" />
                     </View>

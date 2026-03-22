@@ -18,6 +18,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { Loading } from '@oxyhq/bloom/loading';
 import SEO from '@/components/SEO';
 
@@ -35,7 +36,7 @@ const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyService
   const profile = useUserById(userId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
   const displayName = getDisplayName(profile, userId);
-  return <Avatar size={32} source={avatarUri} shape="squircle" />;
+  return <Avatar size={32} source={avatarUri} shape="squircle"  placeholderIcon={<MentionAvatarIcon size={32 * 0.6} />} />;
 };
 
 // Host info with resolved profile
@@ -46,7 +47,7 @@ const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices:
 
   return (
     <View className="flex-row items-center">
-      <Avatar size={48} source={avatarUri} shape="squircle" />
+      <Avatar size={48} source={avatarUri} shape="squircle"  placeholderIcon={<MentionAvatarIcon size={48 * 0.6} />} />
       <View className="flex-1 ml-3">
         <ThemedText type="defaultSemiBold">{displayName}</ThemedText>
         {profile?.username && (

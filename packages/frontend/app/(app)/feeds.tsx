@@ -19,6 +19,7 @@ import { Header } from '@/components/Header';
 import { IconButton, FloatingActionButton as FAB } from '@/components/ui/Button';
 import { ThemedView } from '@/components/ThemedView';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import SEO from '@/components/SEO';
 
 import { getData, storeData } from '@/utils/storage';
@@ -96,7 +97,7 @@ const FeedRow = ({
       onPress={() => router.push(`/feeds/${item._id || item.id}`)}
       activeOpacity={0.7}
     >
-      <Avatar source={item.avatar || undefined} size={36} />
+      <Avatar source={item.avatar || undefined} size={36}  placeholderIcon={<MentionAvatarIcon size={36 * 0.6} />} />
       <View className="flex-1 gap-0.5">
         <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
           {item.title || 'Untitled Feed'}

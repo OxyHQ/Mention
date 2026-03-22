@@ -3,6 +3,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { StableFollowButton } from '@/components/StableFollowButton';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -241,7 +242,7 @@ export default function ConnectionsScreen() {
           onPress={() => router.push(`/@${usernameValue}` as any)}
           activeOpacity={0.7}
         >
-          <Avatar source={avatarSource || undefined} size={48} />
+          <Avatar source={avatarSource || undefined} size={48}  placeholderIcon={<MentionAvatarIcon size={48 * 0.6} />} />
           <View className="ml-3 flex-1">
             <ThemedText className="font-semibold text-base text-foreground" numberOfLines={1}>
               {displayName}

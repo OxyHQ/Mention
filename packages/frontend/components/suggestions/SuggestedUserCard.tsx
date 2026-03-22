@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/stores/usersStore';
@@ -73,7 +74,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       onPress={handlePress}
       activeOpacity={0.7}
     >
-      <Avatar source={user.avatar || cachedUser?.avatar} size={40} />
+      <Avatar source={user.avatar || cachedUser?.avatar} size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
       <View className="flex-1 ml-3 mr-3">
         <UserName
           name={displayName}

@@ -13,7 +13,6 @@ import { useIsScreenNotMobile, useIsSideBarExpanded } from "@/hooks/useOptimized
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MentionAvatarIcon } from '../MentionAvatarIcon';
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { Gear, GearActive } from "@/assets/icons/gear-icon";

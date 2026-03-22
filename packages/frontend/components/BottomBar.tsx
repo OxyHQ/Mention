@@ -3,6 +3,7 @@ import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, 
 import { useRouter, usePathname } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -235,7 +236,7 @@ export const BottomBar = () => {
             onLongPress: handleLongPressProfile,
             label: t('bottomBar.profile'),
             isActive: pathname.startsWith('/@'),
-            icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} />,
+            icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} placeholderIcon={<MentionAvatarIcon size={(ICON_SIZE + 4) * 0.6} />} />,
         },
     ], [
         handleHomePress, handlePressVideos, handlePressCompose, handlePressNotifications,

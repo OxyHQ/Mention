@@ -14,6 +14,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { Toggle } from '@/components/Toggle';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services';
@@ -280,7 +281,7 @@ const CreateFeedScreen: React.FC = () => {
                   onPress={() => addMember(u)}
                   activeOpacity={0.7}
                 >
-                  <Avatar source={u.avatar} size={40} />
+                  <Avatar source={u.avatar} size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
                   <View className="flex-1 gap-px">
                     <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                       {u.name?.full || u.username}
@@ -302,7 +303,7 @@ const CreateFeedScreen: React.FC = () => {
           {/* Added members */}
           {members.map((m) => (
             <View key={m.id} className="flex-row items-center gap-3 py-2.5 mt-1">
-              <Avatar source={m.avatar} size={40} />
+              <Avatar source={m.avatar} size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
               <View className="flex-1 gap-px">
                 <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                   {m.name?.full || m.username}

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import { cn } from '@/lib/utils';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
@@ -119,7 +120,7 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
     >
       {/* Avatar + action badge */}
       <View style={styles.avatarContainer}>
-        <Avatar source={group.actors[0]?.avatar} size={40} />
+        <Avatar source={group.actors[0]?.avatar} size={40}  placeholderIcon={<MentionAvatarIcon size={40 * 0.6} />} />
         <View className="border-background" style={[styles.actionBadge, { backgroundColor: getNotificationColor(group.type) }]}>
           <Ionicons name={getNotificationIcon(group.type) as any} size={12} color="#fff" />
         </View>
@@ -138,7 +139,7 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
                 ]}
               >
                 <View className="border-background" style={styles.avatarBorder}>
-                  <Avatar source={actor.avatar} size={24} />
+                  <Avatar source={actor.avatar} size={24}  placeholderIcon={<MentionAvatarIcon size={24 * 0.6} />} />
                 </View>
               </View>
             ))}
