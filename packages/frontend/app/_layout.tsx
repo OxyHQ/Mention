@@ -47,6 +47,7 @@ function resolveImageSource(fileId: string): string | undefined {
   return url.startsWith('http') ? url : undefined;
 }
 
+
 // Types
 interface SplashState {
   initializationComplete: boolean;

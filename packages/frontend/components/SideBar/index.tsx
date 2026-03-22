@@ -13,6 +13,7 @@ import { useIsScreenNotMobile, useIsSideBarExpanded } from "@/hooks/useOptimized
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MentionAvatarIcon } from '../MentionAvatarIcon';
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { Gear, GearActive } from "@/assets/icons/gear-icon";
@@ -92,8 +93,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         },
         ...(user ? [{
             title: t("sidebar.profile"),
-            icon: <Avatar source={avatarUri} size={24} />,
-            iconActive: <Avatar source={avatarUri} size={24} />,
+            icon: <Avatar source={avatarUri} size={24} placeholderIcon={<MentionAvatarIcon size={14} />} />,
+            iconActive: <Avatar source={avatarUri} size={24} placeholderIcon={<MentionAvatarIcon size={14} />} />,
             route: `/@${user.username}`,
         }] : []),
         {
