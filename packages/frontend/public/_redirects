@@ -1,1 +1,4 @@
+/ap/*  https://api.mention.earth/ap/:splat  200
+/.well-known/webfinger  https://api.mention.earth/.well-known/webfinger  200
+/.well-known/nodeinfo  https://api.mention.earth/.well-known/nodeinfo  200
 /*  /index.html  200
