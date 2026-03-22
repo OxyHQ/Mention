@@ -157,12 +157,17 @@ export function WhoToFollowWidget() {
 
   return (
     <BaseWidget title={t("Who to follow")}>
-      <View>
-        {displayedUsers.map((user) => (
-          <FollowRowComponent key={user.id} profileData={user} />
-        ))}
+      <View className="gap-3">
+        <View>
+          {displayedUsers.map((user, index) => (
+            <FollowRowComponent
+              key={user.id}
+              profileData={user}
+              showBorder={index < displayedUsers.length - 1}
+            />
+          ))}
+        </View>
         <TouchableOpacity
-          className="py-2"
           style={styles.webCursor}
           onPress={handleShowMore}
           activeOpacity={0.7}
@@ -181,7 +186,7 @@ const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<
   size?: "small" | "medium" | "large";
 }>;
 
-const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileData }) => {
+const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { profileData: ProfileData; showBorder?: boolean }) => {
   const router = useRouter();
   const cachedUser = useUserById(profileData.id);
 
@@ -213,7 +218,7 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   return (
     <View
       className="flex-row justify-between items-center border-border py-2"
-      style={[styles.webCursor, styles.itemBorder]}
+      style={[styles.webCursor, showBorder && styles.itemBorder]}
     >
       <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} activeOpacity={0.7}>
         <Avatar source={avatarUri} size={36} />

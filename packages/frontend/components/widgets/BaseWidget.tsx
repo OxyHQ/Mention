@@ -6,22 +6,21 @@ type BaseWidgetProps = {
     title?: string;
     icon?: ReactNode;
     children: ReactNode;
-    noPadding?: boolean;
 };
 
-export function BaseWidget({ title, icon, children, noPadding = false }: BaseWidgetProps) {
+export function BaseWidget({ title, icon, children }: BaseWidgetProps) {
     return (
         <View
-            className="bg-card border-border rounded-2xl overflow-hidden"
+            className="bg-card border-border rounded-2xl overflow-hidden p-4 gap-3"
             style={styles.hairlineBorder}
         >
             {title && (
-                <View className="flex-row justify-between items-center px-4 pt-3">
+                <View className="flex-row justify-between items-center">
                     <ThemedText className="text-[15px] font-bold">{title}</ThemedText>
                     {icon && <View>{icon}</View>}
                 </View>
             )}
-            <View className={noPadding ? "pb-3" : "px-4 pb-3"}>{children}</View>
+            <View>{children}</View>
         </View>
     );
 }
