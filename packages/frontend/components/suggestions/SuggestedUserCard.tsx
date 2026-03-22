@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as OxyServicesNS from '@oxyhq/services';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/stores/usersStore';

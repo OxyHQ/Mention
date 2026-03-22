@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 
 interface Props {

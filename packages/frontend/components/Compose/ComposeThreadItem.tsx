@@ -6,7 +6,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import RoomCard from '@/components/RoomCard';

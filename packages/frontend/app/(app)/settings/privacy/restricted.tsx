@@ -9,7 +9,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { searchService } from '@/services/searchService';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@oxyhq/services';

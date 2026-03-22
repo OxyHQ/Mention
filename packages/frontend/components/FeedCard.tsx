@@ -3,7 +3,7 @@ import { View, StyleSheet, ViewStyle } from 'react-native';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { AvatarStack, type AvatarStackProfile } from './AvatarStack';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';

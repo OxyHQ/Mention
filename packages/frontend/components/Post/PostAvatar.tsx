@@ -1,5 +1,5 @@
 import React from 'react';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { ViewStyle, ImageStyle, StyleProp } from 'react-native';
 
 interface PostAvatarProps {

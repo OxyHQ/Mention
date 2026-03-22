@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { ThemedText } from './ThemedText';
 
 /**

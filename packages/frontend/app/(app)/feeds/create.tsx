@@ -13,7 +13,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { Toggle } from '@/components/Toggle';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services';

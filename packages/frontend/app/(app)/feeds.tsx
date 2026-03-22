@@ -18,7 +18,7 @@ import { router } from 'expo-router';
 import { Header } from '@/components/Header';
 import { IconButton, FloatingActionButton as FAB } from '@/components/ui/Button';
 import { ThemedView } from '@/components/ThemedView';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import SEO from '@/components/SEO';
 
 import { getData, storeData } from '@/utils/storage';

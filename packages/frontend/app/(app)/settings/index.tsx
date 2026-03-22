@@ -10,7 +10,7 @@ import { useLayoutScroll } from "@/context/LayoutScrollContext";
 import { useRouter } from "expo-router";
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from "@/hooks/useProfileData";
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@/components/Avatar';
 import { Button } from "@/components/ui/Button";
 import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem";
 import { confirmDialog } from "@/utils/alerts";
