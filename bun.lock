@@ -278,9 +278,6 @@
       },
     },
   },
-  "trustedDependencies": [
-    "napi-postinstall",
-  ],
   "overrides": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo-file-system": "19.0.21",
