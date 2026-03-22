@@ -22,7 +22,7 @@ export async function getKeyPair(username: string): Promise<KeyPairData> {
     return cached.data;
   }
 
-  const url = `${OXY_API_URL}/api/federation/keypair/${encodeURIComponent(username)}`;
+  const url = `${OXY_API_URL}/federation/keypair/${encodeURIComponent(username)}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new Error(`Failed to fetch key pair for ${username}: ${res.status}`);
