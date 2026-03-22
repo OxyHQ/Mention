@@ -130,6 +130,7 @@
   "private": true,
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",
+    "@unrs/resolver-binding-linux-x64-gnu": "^1.11.1",
     "lightningcss-linux-x64-gnu": "^1.32.0"
   }
 }
