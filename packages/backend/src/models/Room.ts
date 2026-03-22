@@ -281,7 +281,7 @@ RoomSchema.index({ seriesId: 1, scheduledStart: -1 });
 // --- Validation ---
 
 // Ensure broadcastKind is set when type is BROADCAST
-RoomSchema.pre('validate', function(next) {
+RoomSchema.pre('validate', function() {
   if (this.type === RoomType.BROADCAST && !this.broadcastKind) {
     this.broadcastKind = BroadcastKind.USER;
   }
@@ -291,13 +291,12 @@ RoomSchema.pre('validate', function(next) {
   }
   // Ensure houseId is set when ownerType is HOUSE
   if (this.ownerType === OwnerType.HOUSE && !this.houseId) {
-    return next(new Error('houseId is required when ownerType is HOUSE'));
+    throw new Error('houseId is required when ownerType is HOUSE');
   }
   // Broadcast rooms should not have speaker permission set to 'everyone'
   if (this.type === RoomType.BROADCAST) {
     this.speakerPermission = SpeakerPermission.INVITED;
   }
-  next();
 });
 
 export default mongoose.model<IRoom>("Room", RoomSchema);

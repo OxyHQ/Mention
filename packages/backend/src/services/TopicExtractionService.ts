@@ -122,7 +122,7 @@ class TopicExtractionService {
         'content.text': { $exists: true, $ne: '' },
         status: 'published',
         repostOf: { $exists: false },
-      },
+      } as any,
       EMPTY_EXTRACTION(now),
     );
   }
@@ -143,7 +143,7 @@ class TopicExtractionService {
           { 'content.text': { $exists: false } },
           { 'content.text': '' },
         ],
-      },
+      } as any,
       EMPTY_EXTRACTION(now),
     );
   }

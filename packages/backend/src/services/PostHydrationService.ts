@@ -436,8 +436,8 @@ export class PostHydrationService {
           .lean();
 
         currentLevel = fetched.map((post) => ({
-          post,
-          depth: nextIdMap.get(this.resolveId(post)!) ?? depth + 1,
+          post: post as unknown as RawPost,
+          depth: nextIdMap.get(this.resolveId(post as unknown as RawPost)!) ?? depth + 1,
         }));
       } catch (error) {
         logger.error('[PostHydration] Failed to fetch referenced posts:', error);
