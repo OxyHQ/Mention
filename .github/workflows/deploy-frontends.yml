@@ -46,7 +46,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 'latest'
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - name: Build shared types
         run: bun run --cwd packages/shared-types build
       - name: Build frontend
@@ -72,7 +72,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 'latest'
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - name: Build shared types
         run: bun run --cwd packages/shared-types build
       - name: Build agora
