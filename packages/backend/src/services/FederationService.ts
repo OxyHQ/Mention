@@ -46,7 +46,7 @@ async function signedFetch(url: string, accept: string): Promise<Response> {
   // If the remote server returns a 5xx (e.g. it can't resolve our keyId to verify
   // the signature), retry without the signature as a fallback for public resources.
   if (res.status >= 500) {
-    logger.debug(`[FedSync] signedFetch got ${res.status} for ${url}, retrying unsigned`);
+    logger.info(`[FedSync] signedFetch got ${res.status} for ${url}, retrying unsigned`);
     return fetch(url, {
       headers: {
         Accept: acceptHeader,
@@ -122,7 +122,7 @@ class FederationService {
       let res = await signedFetch(actorUri, AP_CONTENT_TYPE);
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        logger.debug(`[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${actorUri} body=${body.slice(0, 500)}`);
+        logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${actorUri} body=${body.slice(0, 500)}`);
 
         // If direct fetch failed, try WebFinger to resolve the canonical actor URI.
         // Some servers (e.g., Threads) use numeric IDs in AP URIs that differ from
@@ -131,20 +131,20 @@ class FederationService {
         const pathUsername = parsed.pathname.split('/').filter(Boolean).pop();
         if (pathUsername) {
           const acct = `${pathUsername}@${parsed.hostname}`;
-          logger.debug(`[FedSync] attempting WebFinger fallback for ${acct}`);
+          logger.info(`[FedSync] attempting WebFinger fallback for ${acct}`);
           const resolved = await this.resolveWebFinger(acct);
           if (resolved && resolved !== actorUri) {
-            logger.debug(`[FedSync] WebFinger resolved ${acct} → ${resolved}`);
+            logger.info(`[FedSync] WebFinger resolved ${acct} → ${resolved}`);
             res = await signedFetch(resolved, AP_CONTENT_TYPE);
             if (res.ok) {
               actorUri = resolved;
             } else {
               const body2 = await res.text().catch(() => '');
-              logger.debug(`[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`);
+              logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`);
               return null;
             }
           } else {
-            logger.debug(`[FedSync] WebFinger returned ${resolved ?? 'null'} for ${acct}`);
+            logger.info(`[FedSync] WebFinger returned ${resolved ?? 'null'} for ${acct}`);
             return null;
           }
         } else {
@@ -154,13 +154,13 @@ class FederationService {
 
       const actor = await res.json() as Record<string, any>;
       if (!actor.id || !actor.inbox) {
-        logger.debug(`[FedSync] fetchRemoteActor missing fields for ${actorUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${actor.type} keys=${Object.keys(actor).join(',')}`);
+        logger.info(`[FedSync] fetchRemoteActor missing fields for ${actorUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${actor.type} keys=${Object.keys(actor).join(',')}`);
         return null;
       }
 
       const domain = new URL(actor.id).hostname;
       if (isBlockedDomain(domain)) {
-        logger.debug(`[FedSync] fetchRemoteActor blocked domain ${domain} for ${actorUri}`);
+        logger.info(`[FedSync] fetchRemoteActor blocked domain ${domain} for ${actorUri}`);
         return null;
       }
 
@@ -226,7 +226,7 @@ class FederationService {
       const fedActor = await FederatedActor.findOneAndUpdate(
         { uri: actor.id },
         { $set: update },
-        { upsert: true, new: true, lean: true },
+        { upsert: true, returnDocument: 'after', lean: true },
       );
 
       // Resolve to Oxy User if not already linked.
@@ -284,12 +284,12 @@ class FederationService {
       // Fetch the outbox collection (signed for authorized-fetch servers)
       const res = await signedFetch(actor.outboxUrl, AP_CONTENT_TYPE);
       if (!res.ok) {
-        logger.debug(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${actor.outboxUrl}`);
+        logger.info(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${actor.outboxUrl}`);
         return 0;
       }
 
       const collection = await res.json() as Record<string, any>;
-      logger.debug(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
+      logger.info(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
 
       // Get the first page of items
       let items: any[] = [];
@@ -303,12 +303,12 @@ class FederationService {
             const page = await pageRes.json() as Record<string, any>;
             items = page.orderedItems || [];
           } else {
-            logger.debug(`[FedSync] outbox first page fetch failed: ${pageRes.status} for ${firstUrl}`);
+            logger.info(`[FedSync] outbox first page fetch failed: ${pageRes.status} for ${firstUrl}`);
           }
         }
       }
 
-      logger.debug(`[FedSync] outbox items count: ${items.length} for ${actor.acct}`);
+      logger.info(`[FedSync] outbox items count: ${items.length} for ${actor.acct}`);
 
       // Parse all candidate notes and collect activity IDs for bulk dedup
       const candidates: { note: any; activity: any; activityId: string }[] = [];
@@ -331,7 +331,7 @@ class FederationService {
       }
 
       if (candidates.length === 0) {
-        logger.debug(`[FedSync] no candidate notes found from ${items.length} items for ${actor.acct}`);
+        logger.info(`[FedSync] no candidate notes found from ${items.length} items for ${actor.acct}`);
         return 0;
       }
 
@@ -378,7 +378,7 @@ class FederationService {
         }
       }
 
-      logger.debug(`[FedSync] ${candidates.length} candidates, ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
+      logger.info(`[FedSync] ${candidates.length} candidates, ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
 
       // Build documents for batch insert
       const newDocs: any[] = [];
@@ -397,7 +397,7 @@ class FederationService {
         const actorUri = this.extractActorUri(note.attributedTo);
         const resolvedOxyUserId = actorUri ? actorOxyMap.get(actorUri) || null : null;
         if (!resolvedOxyUserId) {
-          logger.debug(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
+          logger.info(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
         }
 
         newDocs.push({
@@ -680,7 +680,7 @@ class FederationService {
     await FederatedFollow.findOneAndUpdate(
       { localUserId: localOxyUserId, remoteActorUri, direction: 'outbound' },
       { $set: { status: 'pending', activityId } },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
 
     const activity: Record<string, unknown> = {
@@ -844,7 +844,7 @@ class FederationService {
           activityId: activity.id,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
 
     logger.info(`Accepted follow from ${actorUri} to ${username}`);
