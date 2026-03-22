@@ -10,12 +10,12 @@
     "start:node": "node dist/server-http.js",
     "dev": "bun --watch server.ts",
     "dev:http": "bun --watch server-http.ts",
-    "build": "tsc --skipLibCheck",
+    "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.12.1",
-    "zod": "3.23.8"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
