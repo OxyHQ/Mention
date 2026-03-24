@@ -63,6 +63,30 @@ export function isBlockedDomain(domain: string): boolean {
 
 export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;
 
+/** Path segments that typically separate an actor path from a post ID in ActivityPub URIs. */
+const POST_PATH_SEGMENTS = new Set(['statuses', 'posts', 'notes', 'objects', 'activities']);
+
+/**
+ * Given an ActivityPub activity/object ID (URL), extract the actor URI by
+ * trimming everything from the first recognised post-path segment onward.
+ *
+ * e.g. "https://mastodon.social/users/alice/statuses/12345"
+ *    → "https://mastodon.social/users/alice"
+ *
+ * Returns null when the URL is malformed or no post-path segment is found.
+ */
+export function extractActorUriFromActivityId(activityId: string): string | null {
+  try {
+    const url = new URL(activityId);
+    const segments = url.pathname.split('/').filter(Boolean);
+    const statusIdx = segments.findIndex(s => POST_PATH_SEGMENTS.has(s));
+    if (statusIdx < 1) return null;
+    return `${url.origin}/${segments.slice(0, statusIdx).join('/')}`;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Resolve an Oxy user by username (tries getUserByUsername, falls back to searchUsers).
  * Returns the user object or null.
