@@ -44,8 +44,19 @@ export function sharedInboxUrl(): string {
   return `https://${FEDERATION_DOMAIN}/ap/inbox`;
 }
 
+/** Own domains that must never be treated as remote federated sources. */
+const LOCAL_DOMAINS = new Set([
+  FEDERATION_DOMAIN.toLowerCase(),
+  ACTOR_DOMAIN.toLowerCase(),
+]);
+
+/**
+ * Returns true if the domain should be rejected for federation.
+ * Includes our own domains (prevents duplicate users) and explicitly blocked domains.
+ */
 export function isBlockedDomain(domain: string): boolean {
-  return FEDERATION_BLOCKED_DOMAINS.includes(domain.toLowerCase());
+  const d = domain.toLowerCase();
+  return LOCAL_DOMAINS.has(d) || FEDERATION_BLOCKED_DOMAINS.includes(d);
 }
 
 export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;

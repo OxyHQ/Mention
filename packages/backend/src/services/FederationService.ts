@@ -897,7 +897,7 @@ class FederationService {
       postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
     };
     await postCreationService.create({
-      oxyUserId: null,
+      oxyUserId: actor.oxyUserId || null,
       federation: {
         activityId: object.id,
         inReplyTo: object.inReplyTo || undefined,
