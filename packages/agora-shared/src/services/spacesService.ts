@@ -370,7 +370,7 @@ export function createAgoraService(httpClient: HttpClient) {
       if (!houseId) return null;
       try {
         const res = await httpClient.post(`/houses/${houseId}/avatar`, formData);
-        return res.data.avatar || null;
+        return (res.data.avatar as string) || null;
       } catch (error) {
         console.warn("Failed to upload house avatar", error);
         return null;
@@ -381,7 +381,7 @@ export function createAgoraService(httpClient: HttpClient) {
       if (!houseId) return null;
       try {
         const res = await httpClient.post(`/houses/${houseId}/cover`, formData);
-        return res.data.coverImage || null;
+        return (res.data.coverImage as string) || null;
       } catch (error) {
         console.warn("Failed to upload house cover", error);
         return null;
@@ -392,7 +392,7 @@ export function createAgoraService(httpClient: HttpClient) {
       if (!roomId) return null;
       try {
         const res = await httpClient.post(`/rooms/${roomId}/image`, formData);
-        return res.data.streamImage || null;
+        return (res.data.streamImage as string) || null;
       } catch (error) {
         console.warn("Failed to upload room image", error);
         return null;
@@ -403,7 +403,7 @@ export function createAgoraService(httpClient: HttpClient) {
       if (!seriesId) return null;
       try {
         const res = await httpClient.post(`/series/${seriesId}/cover`, formData);
-        return res.data.coverImage || null;
+        return (res.data.coverImage as string) || null;
       } catch (error) {
         console.warn("Failed to upload series cover", error);
         return null;
