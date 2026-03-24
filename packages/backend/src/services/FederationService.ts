@@ -273,7 +273,7 @@ class FederationService {
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
-  async syncOutboxPosts(actor: IFederatedActor, limit = 20): Promise<number> {
+  async syncOutboxPosts(actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'>, limit = 20): Promise<number> {
     if (!actor.outboxUrl) return 0;
 
     try {
@@ -897,7 +897,7 @@ class FederationService {
       postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
     };
     await postCreationService.create({
-      oxyUserId: actor.oxyUserId || null,
+      oxyUserId: actor.oxyUserId ?? null,
       federation: {
         activityId: object.id,
         inReplyTo: object.inReplyTo || undefined,

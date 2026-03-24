@@ -4,10 +4,12 @@ export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 export const FEDERATION_ENABLED = process.env.FEDERATION_ENABLED !== 'false';
 export const FEDERATION_MAX_CONTENT_LENGTH = parseInt(process.env.FEDERATION_MAX_CONTENT_LENGTH || '50000', 10);
 export const FEDERATION_DELIVERY_RETRIES = parseInt(process.env.FEDERATION_DELIVERY_RETRIES || '5', 10);
-export const FEDERATION_BLOCKED_DOMAINS = (process.env.FEDERATION_BLOCKED_DOMAINS || '')
-  .split(',')
-  .map(d => d.trim().toLowerCase())
-  .filter(Boolean);
+const FEDERATION_BLOCKED_DOMAINS = new Set(
+  (process.env.FEDERATION_BLOCKED_DOMAINS || '')
+    .split(',')
+    .map(d => d.trim().toLowerCase())
+    .filter(Boolean)
+);
 
 export const AP_CONTEXT = [
   'https://www.w3.org/ns/activitystreams',
@@ -56,7 +58,7 @@ const LOCAL_DOMAINS = new Set([
  */
 export function isBlockedDomain(domain: string): boolean {
   const d = domain.toLowerCase();
-  return LOCAL_DOMAINS.has(d) || FEDERATION_BLOCKED_DOMAINS.includes(d);
+  return LOCAL_DOMAINS.has(d) || FEDERATION_BLOCKED_DOMAINS.has(d);
 }
 
 export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;

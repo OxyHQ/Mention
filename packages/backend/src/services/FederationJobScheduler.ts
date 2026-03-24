@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger';
 import { FEDERATION_ENABLED } from '../utils/federation/constants';
-import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
+import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
@@ -31,26 +31,24 @@ class FederationJobScheduler {
       );
     }, 60 * 1000);
 
-    // Sync outbox posts from followed actors every 15 minutes
     this.outboxSyncInterval = setInterval(() => {
       this.syncFollowedActorsPosts().catch((err) =>
         logger.error('Outbox sync job failed:', err)
       );
     }, 15 * 60 * 1000);
 
-    // Run initial outbox sync after 30s startup delay
-    setTimeout(() => {
-      this.syncFollowedActorsPosts().catch((err) =>
-        logger.error('Initial outbox sync failed:', err)
-      );
-    }, 30 * 1000);
-
-    // Backfill existing federated posts missing oxyUserId (one-time on startup)
+    // Stagger startup tasks to let DB connections warm up
     setTimeout(() => {
       this.backfillFederatedPostOxyUserIds().catch((err) =>
         logger.error('Backfill federated post oxyUserIds failed:', err)
       );
     }, 10 * 1000);
+
+    setTimeout(() => {
+      this.syncFollowedActorsPosts().catch((err) =>
+        logger.error('Initial outbox sync failed:', err)
+      );
+    }, 30 * 1000);
 
     logger.info('Federation job scheduler started');
   }
@@ -123,18 +121,25 @@ class FederationJobScheduler {
     const actors = await FederatedActor.find({
       uri: { $in: followedActorUris },
       outboxUrl: { $ne: null },
-    }).lean();
+    })
+      .select('uri acct outboxUrl')
+      .lean();
 
     if (actors.length === 0) return;
 
     logger.info(`[FedSync] Syncing outbox posts for ${actors.length} followed actors`);
 
-    for (const actor of actors) {
-      try {
-        await federationService.syncOutboxPosts(actor as unknown as IFederatedActor, 20);
-      } catch (err) {
-        logger.debug(`[FedSync] Outbox sync failed for ${actor.acct}:`, err);
-      }
+    // Bounded concurrency to avoid overwhelming remote servers
+    const CONCURRENCY = 3;
+    for (let i = 0; i < actors.length; i += CONCURRENCY) {
+      const batch = actors.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        batch.map((actor) =>
+          federationService.syncOutboxPosts(actor, 20).catch((err) =>
+            logger.debug(`[FedSync] Outbox sync failed for ${actor.acct}:`, err)
+          )
+        )
+      );
     }
   }
 
@@ -154,39 +159,56 @@ class FederationJobScheduler {
 
     logger.info(`[FedSync] Backfilling oxyUserId for ${posts.length} federated posts`);
 
-    let updated = 0;
+    // Derive actor URIs from activity IDs in memory, then batch-lookup
+    const POST_PATH_SEGMENTS = new Set(['statuses', 'posts', 'notes', 'objects', 'activities']);
+    const postActorMap = new Map<string, string[]>(); // actorUri → [postId, ...]
+
     for (const post of posts) {
       const activityId = (post.federation as { activityId?: string } | undefined)?.activityId;
       if (!activityId) continue;
 
       try {
-        // ActivityPub activity IDs are typically https://instance/users/alice/statuses/123
-        // The actor URI is the prefix up to the username segment
         const url = new URL(activityId);
         const segments = url.pathname.split('/').filter(Boolean);
-        // Find the actor URI by taking segments before "statuses" or similar
-        // Common patterns: /users/alice/statuses/123, /users/alice/posts/123
-        const statusIdx = segments.findIndex(s => ['statuses', 'posts', 'notes', 'objects', 'activities'].includes(s));
+        const statusIdx = segments.findIndex(s => POST_PATH_SEGMENTS.has(s));
         if (statusIdx < 1) continue;
 
-        const actorPath = '/' + segments.slice(0, statusIdx).join('/');
-        const actorUri = `${url.origin}${actorPath}`;
-
-        const actor = await FederatedActor.findOne({
-          uri: actorUri,
-          oxyUserId: { $ne: null },
-        }).lean();
-
-        if (actor?.oxyUserId) {
-          await Post.updateOne({ _id: post._id }, { $set: { oxyUserId: actor.oxyUserId } });
-          updated++;
-        }
+        const actorUri = `${url.origin}/${segments.slice(0, statusIdx).join('/')}`;
+        const postIds = postActorMap.get(actorUri) ?? [];
+        postIds.push(String(post._id));
+        postActorMap.set(actorUri, postIds);
       } catch {
-        // Skip malformed activity IDs
+        logger.debug(`[FedSync] Backfill: malformed activityId ${activityId}`);
       }
     }
 
-    logger.info(`[FedSync] Backfill complete: updated ${updated}/${posts.length} posts`);
+    if (postActorMap.size === 0) return;
+
+    // Single batch query for all actor URIs
+    const actors = await FederatedActor.find({
+      uri: { $in: [...postActorMap.keys()] },
+      oxyUserId: { $ne: null },
+    })
+      .select('uri oxyUserId')
+      .lean();
+
+    // Build bulk updates grouped by oxyUserId
+    const bulkOps: Array<{ updateMany: { filter: Record<string, unknown>; update: Record<string, unknown> } }> = [];
+    for (const actor of actors) {
+      const postIds = postActorMap.get(actor.uri);
+      if (!postIds?.length || !actor.oxyUserId) continue;
+      bulkOps.push({
+        updateMany: {
+          filter: { _id: { $in: postIds } },
+          update: { $set: { oxyUserId: actor.oxyUserId } },
+        },
+      });
+    }
+
+    if (bulkOps.length === 0) return;
+
+    const result = await Post.bulkWrite(bulkOps, { ordered: false });
+    logger.info(`[FedSync] Backfill complete: updated ${result.modifiedCount}/${posts.length} posts`);
   }
 
   /**

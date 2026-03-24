@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
 import { federationService } from '../services/FederationService';
-import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
+import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
 import { FEDERATION_ENABLED } from '../utils/federation/constants';
@@ -218,7 +218,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // If no local posts and no cursor (first page), trigger async sync
     if (posts.length === 0 && !parsed.data.cursor && actor.outboxUrl) {
       // Fire-and-forget: sync in background, return syncing flag to client
-      federationService.syncOutboxPosts(actor as unknown as IFederatedActor, limit).catch((err) => {
+      federationService.syncOutboxPosts(actor, limit).catch((err) => {
         logger.warn('Background outbox sync failed:', err);
       });
       return res.json({ posts: [], hasMore: false, syncing: true });
