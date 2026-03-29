@@ -39,26 +39,24 @@ const PostActionsWithNotifications: React.FC<Props> = ({
     const { notifyLike, notifyRepost } = useNotificationActions();
 
     const handleLike = async () => {
+        onLike();
         try {
-            onLike();
             if (!isLiked) {
                 await notifyLike(postId, postAuthorId);
             }
         } catch (error) {
-            logger.error('Error handling like with notification');
-            onLike();
+            logger.error('Error sending like notification');
         }
     };
 
     const handleRepost = async () => {
+        onRepost();
         try {
-            onRepost();
             if (!isReposted) {
                 await notifyRepost(postId, postAuthorId);
             }
         } catch (error) {
-            logger.error('Error handling repost with notification');
-            onRepost();
+            logger.error('Error sending repost notification');
         }
     };
 

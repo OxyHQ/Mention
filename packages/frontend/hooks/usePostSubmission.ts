@@ -90,7 +90,7 @@ export const usePostSubmission = ({
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
     
     return hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent;
-  }, [postContent, mediaIds, pollOptions, hasArticleContent]);
+  }, [postContent, mediaIds, pollOptions, hasArticleContent, hasEventContent]);
 
   const buildMainPost = useCallback(() => {
     const formattedSources = sanitizeSourcesForSubmit(sources);
@@ -171,6 +171,8 @@ export const usePostSubmission = ({
     pollOptions,
     article,
     hasArticleContent,
+    event,
+    hasEventContent,
     location,
     sources,
     attachmentOrder,
