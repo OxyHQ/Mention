@@ -19,6 +19,14 @@ export function useFederatedFollowSync(
 
   const settledRef = useRef(false);
   const prevFollowingRef = useRef(isFollowing);
+  const prevProfileIdRef = useRef(profileId);
+
+  // Reset tracking when the profile changes (component reused via dynamic route)
+  if (prevProfileIdRef.current !== profileId) {
+    prevProfileIdRef.current = profileId;
+    settledRef.current = false;
+    prevFollowingRef.current = isFollowing;
+  }
 
   useEffect(() => {
     if (!isFederated || !actorUri || !profileId) return;
@@ -29,6 +37,7 @@ export function useFederatedFollowSync(
       settledRef.current = true;
       prevFollowingRef.current = isFollowing;
       return;
+    }
     }
 
     const wasFollowing = prevFollowingRef.current;
