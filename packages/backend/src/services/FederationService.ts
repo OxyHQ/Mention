@@ -576,7 +576,7 @@ class FederationService {
         ...sigHeaders,
       };
 
-      logger.debug(`[FedDeliver] POST ${targetInbox} headers=${JSON.stringify(Object.keys(allHeaders))} bodyLen=${body.length} sig=${sigHeaders['Signature']?.substring(0, 100)}...`);
+      logger.debug(`[FedDeliver] POST ${targetInbox} body=${body} sig-headers=${sigHeaders['Signature']?.match(/headers="([^"]+)"/)?.[1]}`);
 
       const res = await fetch(targetInbox, {
         method: 'POST',
