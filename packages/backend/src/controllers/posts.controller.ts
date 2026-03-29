@@ -1890,7 +1890,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
     }
 
     const drafts = await Post.find({
-      userID: userId,
+      oxyUserId: userId,
       status: 'draft'
     })
       .sort({ created_at: -1 })
@@ -1913,7 +1913,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
     }
 
     const scheduledPosts = await Post.find({
-      userID: userId,
+      oxyUserId: userId,
       status: 'scheduled'
     })
       .sort({ scheduledFor: 1 })

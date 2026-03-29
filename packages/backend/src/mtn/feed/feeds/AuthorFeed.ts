@@ -42,6 +42,11 @@ export class AuthorFeed implements FeedAPI {
 
   async fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse> {
     const { cursor, limit } = options;
+
+    if (this.filter === 'likes') {
+      return this.fetchLikes(options, context);
+    }
+
     const query = this.buildQuery(cursor);
 
     const posts = await Post.find(query)
@@ -84,6 +89,39 @@ export class AuthorFeed implements FeedAPI {
       cursorFromLastSlice: nextCursor,
       hasMore,
     });
+  }
+
+  private async fetchLikes(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse> {
+    const { limit } = options;
+    const authorId = this.authorId;
+    const hydrateOpts = {
+      viewerId: context.currentUserId,
+      oxyClient: context.oxyClient,
+      maxDepth: 0,
+      includeLinkMetadata: true,
+    };
+
+    const Like = (await import('../../../models/Like')).default;
+    const likes = await Like.find({ userId: authorId, value: 1 })
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .select('postId')
+      .lean();
+    const likedPostIds = likes.map(l => l.postId);
+    if (likedPostIds.length === 0) {
+      return { slices: [], items: [], hasMore: false, totalCount: 0 };
+    }
+    const hasMore = likedPostIds.length > limit;
+    const ids = hasMore ? likedPostIds.slice(0, limit) : likedPostIds;
+    const posts = await Post.find({ _id: { $in: ids }, status: 'published' })
+      .select(FEED_FIELDS)
+      .lean();
+    // Preserve like order
+    const postMap = new Map(posts.map(p => [String(p._id), p]));
+    const ordered = ids.map(id => postMap.get(String(id))).filter(Boolean);
+    const hydrated = await postHydrationService.hydratePosts(ordered as any[], hydrateOpts);
+    const nextCursor = hasMore ? ChronoCursor.build(likes[limit - 1]._id.toString()) : undefined;
+    return { slices: [], items: hydrated, hasMore, nextCursor, totalCount: hydrated.length };
   }
 
   private buildQuery(cursor?: string): any {

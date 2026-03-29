@@ -11,7 +11,7 @@ import { FeedDescriptor } from '@mention/shared-types';
 export interface FeedAPIResponse {
   slices: FeedPostSlice[];
   items: HydratedPost[];
-  cursor?: string;
+  nextCursor?: string;
   hasMore: boolean;
   totalCount: number;
 }

@@ -625,6 +625,7 @@ class FederationService {
         id: noteId,
         type: 'Note',
         attributedTo: actor,
+        url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${post._id}`,
         content: post.content.text || '',
         published: post.createdAt,
         to: ['https://www.w3.org/ns/activitystreams#Public'],
@@ -811,6 +812,9 @@ class FederationService {
       case 'Reject':
         await this.handleReject(activity, verifiedActorUri);
         break;
+      case 'Update':
+        await this.handleUpdate(activity, verifiedActorUri);
+        break;
       default:
         logger.debug(`Unhandled activity type: ${type}`);
     }
@@ -859,11 +863,36 @@ class FederationService {
 
     const objectType = typeof object === 'string' ? null : object.type;
     if (objectType === 'Follow') {
-      await FederatedFollow.deleteOne({
+      const targetActorUri = typeof object.object === 'string' ? object.object : object.object?.id;
+      const match = targetActorUri?.match(/\/ap\/users\/([^/]+)$/);
+      const filter: Record<string, unknown> = {
         remoteActorUri: actorUri,
         direction: 'inbound',
-      });
+      };
+      if (match) {
+        const user = await resolveOxyUser(match[1]);
+        if (user) filter.localUserId = String(user._id || user.id);
+      }
+      await FederatedFollow.deleteOne(filter);
       logger.debug(`Undo follow from ${actorUri}`);
+    } else if (objectType === 'Like') {
+      const likedObjectId = typeof object.object === 'string' ? object.object : object.object?.id;
+      if (likedObjectId) {
+        await Post.updateOne(
+          { 'federation.activityId': likedObjectId, 'stats.likesCount': { $gt: 0 } },
+          { $inc: { 'stats.likesCount': -1 } },
+        );
+        logger.debug(`Undo like from ${actorUri} on ${likedObjectId}`);
+      }
+    } else if (objectType === 'Announce') {
+      const announcedId = typeof object.object === 'string' ? object.object : object.object?.id;
+      if (announcedId) {
+        await Post.updateOne(
+          { 'federation.activityId': announcedId, 'stats.repostsCount': { $gt: 0 } },
+          { $inc: { 'stats.repostsCount': -1 } },
+        );
+        logger.debug(`Undo announce from ${actorUri} on ${announcedId}`);
+      }
     }
   }
 
@@ -933,13 +962,17 @@ class FederationService {
     const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     if (!objectId) return;
 
-    const result = await Post.deleteOne({
-      'federation.activityId': objectId,
-      federation: { $ne: null },
-    });
-    if (result.deletedCount > 0) {
-      logger.debug(`Deleted federated post: ${objectId}`);
+    const post = await Post.findOne({ 'federation.activityId': objectId, federation: { $ne: null } }).lean();
+    if (!post) return;
+    // Verify the deleting actor owns this post
+    const postActorUri = this.extractActorUri((post.federation as any)?.activityId ? actorUri : undefined);
+    const actorRecord = await FederatedActor.findOne({ uri: actorUri }).lean();
+    if (actorRecord && post.oxyUserId && actorRecord.oxyUserId !== post.oxyUserId) {
+      logger.warn(`Delete rejected: actor ${actorUri} does not own post ${objectId}`);
+      return;
     }
+    await Post.deleteOne({ _id: post._id });
+    logger.debug(`Deleted federated post: ${objectId}`);
   }
 
   private async handleLike(activity: Record<string, any>, actorUri: string): Promise<void> {
@@ -970,10 +1003,14 @@ class FederationService {
 
     const objectType = typeof object === 'string' ? null : object.type;
     if (objectType === 'Follow') {
-      await FederatedFollow.updateOne(
-        { remoteActorUri: actorUri, direction: 'outbound', status: 'pending' },
-        { $set: { status: 'accepted' } },
-      );
+      const followActivityId = typeof object === 'object' ? object.id : undefined;
+      const filter: Record<string, unknown> = {
+        remoteActorUri: actorUri,
+        direction: 'outbound',
+        status: 'pending',
+      };
+      if (followActivityId) filter.activityId = followActivityId;
+      await FederatedFollow.updateOne(filter, { $set: { status: 'accepted' } });
       logger.debug(`Follow accepted by ${actorUri}`);
     }
   }
@@ -984,11 +1021,46 @@ class FederationService {
 
     const objectType = typeof object === 'string' ? null : object.type;
     if (objectType === 'Follow') {
-      await FederatedFollow.updateOne(
-        { remoteActorUri: actorUri, direction: 'outbound', status: 'pending' },
-        { $set: { status: 'rejected' } },
-      );
+      const followActivityId = typeof object === 'object' ? object.id : undefined;
+      const filter: Record<string, unknown> = {
+        remoteActorUri: actorUri,
+        direction: 'outbound',
+        status: 'pending',
+      };
+      if (followActivityId) filter.activityId = followActivityId;
+      await FederatedFollow.updateOne(filter, { $set: { status: 'rejected' } });
       logger.debug(`Follow rejected by ${actorUri}`);
+    }
+  }
+
+  private async handleUpdate(activity: Record<string, any>, actorUri: string): Promise<void> {
+    const object = activity.object;
+    if (!object || typeof object !== 'object') return;
+
+    if (object.type === 'Note' || object.type === 'Article') {
+      const objectId = object.id;
+      if (!objectId) return;
+
+      const text = htmlToPlainText(object.content || '');
+      const { media, attachments } = this.extractApMedia(object);
+
+      await Post.updateOne(
+        { 'federation.activityId': objectId },
+        {
+          $set: {
+            'content.text': text,
+            'content.media': media.length > 0 ? media : undefined,
+            'content.attachments': attachments.length > 0 ? attachments : undefined,
+            'metadata.isEdited': true,
+            updatedAt: new Date(),
+          },
+        },
+      );
+      logger.debug(`Updated federated post: ${objectId}`);
+    } else if (object.type === 'Person' || object.type === 'Service' || object.type === 'Application') {
+      // Profile update — re-fetch the actor to get updated data
+      await this.fetchRemoteActor(actorUri);
+      logger.debug(`Updated federated actor: ${actorUri}`);
     }
   }
 

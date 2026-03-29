@@ -225,7 +225,7 @@ export class ForYouFeed implements FeedAPI {
       slices: [],
       items: hydrated,
       hasMore,
-      cursor: nextCursor,
+      nextCursor,
       totalCount: hydrated.length,
     };
   }

@@ -27,7 +27,7 @@ const router = Router();
 const apRateLimiter = rateLimit({
   store: new RedisStore({ prefix: 'rate-limit:ap:', windowMs: 60 * 1000 }),
   windowMs: 60 * 1000,
-  max: 30,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too Many Requests' },

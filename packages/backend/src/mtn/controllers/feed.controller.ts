@@ -72,6 +72,18 @@ class MtnFeedController {
       // Fetch
       const response = await feedApi.fetch({ cursor, limit }, context);
 
+      // Filter out posts from blocked/muted users
+      if (privacyState && privacyState.excludedUserIds.size > 0) {
+        response.items = response.items.filter((item: any) => {
+          const authorId = item.author?.id || item.oxyUserId;
+          return !authorId || !privacyState.excludedUserIds.has(authorId);
+        });
+        response.slices = response.slices.filter((slice: any) => {
+          const anchorAuthor = slice.items?.[0]?.author?.id || slice.items?.[0]?.oxyUserId;
+          return !anchorAuthor || !privacyState.excludedUserIds.has(anchorAuthor);
+        });
+      }
+
       // Apply tuner pipeline
       if (response.slices.length > 0) {
         const tuner = FeedTuner.default();

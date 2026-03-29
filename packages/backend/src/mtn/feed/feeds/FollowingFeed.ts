@@ -23,7 +23,7 @@ export class FollowingFeed implements FeedAPI {
 
     const post = await Post.findOne({
       oxyUserId: { $in: [context.currentUserId, ...context.followingIds] },
-      visibility: { $in: ['public', 'followers'] },
+      visibility: { $in: ['public', 'followers_only'] },
     })
       .select(FEED_FIELDS)
       .sort({ createdAt: -1 })
@@ -47,7 +47,7 @@ export class FollowingFeed implements FeedAPI {
 
     const match: any = {
       oxyUserId: { $in: [currentUserId, ...followingIds] },
-      visibility: { $in: ['public', 'followers'] },
+      visibility: { $in: ['public', 'followers_only'] },
     };
     ChronoCursor.applyToQuery(match, cursor);
 

@@ -110,9 +110,12 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+  // Set no-cache only for API routes, not for federation/AP endpoints which set their own Cache-Control
+  if (!req.path.startsWith('/ap/') && !req.path.startsWith('/.well-known/')) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
@@ -138,7 +141,10 @@ app.use(compression({
   threshold: 1024, // Only compress responses > 1KB
 }));
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({
+  limit: '1mb',
+  type: ['application/json', 'application/activity+json', 'application/ld+json'],
+}));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Global rate limiting — must be applied early
@@ -801,6 +807,44 @@ app.get('/metrics', (req, res) => {
 
 // --- Federation routes (ActivityPub protocol — must be public, before auth) ---
 app.use('/.well-known', webfingerRoutes);
+
+// NodeInfo — required for fediverse instance discovery
+app.get('/.well-known/nodeinfo', (req, res) => {
+  res.json({
+    links: [
+      {
+        rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+        href: `https://${process.env.FEDERATION_DOMAIN || 'mention.earth'}/nodeinfo/2.0`,
+      },
+    ],
+  });
+});
+
+app.get('/nodeinfo/2.0', async (req, res) => {
+  let userCount = 0;
+  let postCount = 0;
+  try {
+    const { Post } = require('./src/models/Post');
+    postCount = await Post.estimatedDocumentCount();
+    // User count is managed by Oxy, use a reasonable estimate
+    userCount = 0;
+  } catch {}
+
+  res.json({
+    version: '2.0',
+    software: {
+      name: 'mention',
+      version: '1.0.0',
+    },
+    protocols: ['activitypub'],
+    usage: {
+      users: { total: userCount },
+      localPosts: postCount,
+    },
+    openRegistrations: true,
+  });
+});
+
 app.use('/ap', federationRoutes);
 
 // Mount public and authenticated API routers

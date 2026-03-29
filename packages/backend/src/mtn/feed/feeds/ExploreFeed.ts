@@ -54,6 +54,7 @@ export class ExploreFeed implements FeedAPI {
 
     const match: any = {
       visibility: 'public',
+      status: 'published',
       createdAt: { $gte: trendingCutoff },
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
