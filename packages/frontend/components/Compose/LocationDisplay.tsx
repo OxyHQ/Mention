@@ -1,9 +1,10 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Loading } from '@oxyhq/bloom/loading';
+import { useTheme } from '@oxyhq/bloom/theme';
+import { useTranslation } from 'react-i18next';
 import { LocationIcon } from "@/assets/icons/location-icon";
 import { CloseIcon } from "@/assets/icons/close-icon";
-import { colors } from "@/styles/colors";
 
 interface LocationDisplayProps {
     location: {
@@ -22,20 +23,25 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
     isGettingLocation = false,
     style,
 }) => {
+    const theme = useTheme();
+    const { t } = useTranslation();
+
     if (!location && !isGettingLocation) return null;
 
     return (
-        <View style={[styles.container, style]}>
+        <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }, style]}>
             <View style={styles.header}>
                 <LocationIcon size={16} className="text-primary" />
                 {isGettingLocation ? (
                     <>
                         <Loading size="small" style={{ flex: undefined }} />
-                        <Text style={styles.text}>Getting location...</Text>
+                        <Text style={[styles.text, { color: theme.colors.textSecondary }]}>
+                            {t('compose.location.getting', { defaultValue: 'Getting location...' })}
+                        </Text>
                     </>
                 ) : (
                     <>
-                        <Text style={styles.text}>{location?.address}</Text>
+                        <Text style={[styles.text, { color: theme.colors.text }]}>{location?.address}</Text>
                         <TouchableOpacity onPress={onRemove}>
                             <CloseIcon size={16} className="text-muted-foreground" />
                         </TouchableOpacity>
@@ -48,12 +54,10 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
         borderRadius: 8,
         padding: 12,
         marginTop: 8,
         borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
     },
     header: {
         flexDirection: "row",
@@ -63,7 +67,6 @@ const styles = StyleSheet.create({
     text: {
         flex: 1,
         fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_2,
         fontWeight: "500",
     },
 });
