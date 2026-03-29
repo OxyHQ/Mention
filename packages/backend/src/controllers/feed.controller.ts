@@ -776,59 +776,45 @@ class FeedController {
         .lean();
 
       // If no posts found on the first page, check if this is a federated user
-      // and trigger outbox sync to pull their posts from the remote instance.
+      // and trigger outbox sync in the background. Return empty feed immediately
+      // so the request doesn't hang on slow remote servers.
       if (posts.length === 0 && !cursor && FEDERATION_ENABLED) {
-        let actor = await FederatedActor.findOne({ oxyUserId: userId }).lean() as IFederatedActor | null;
-        logger.info(`[FedSync] userId=${userId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
+        const syncUserId = userId;
+        const syncLimit = limit;
+        const syncQuery = query;
+        const syncReq = req;
 
-        // No FederatedActor yet — look up the Oxy User to get the AP actor URI,
-        // then fetch the remote actor (creates the FederatedActor document).
-        if (!actor) {
+        // Fire-and-forget background sync
+        (async () => {
           try {
-            // Use the request-scoped client (user's auth token) to look up the Oxy User.
-            // The service client (OXY_SERVICE_TOKEN) may not be configured in all envs,
-            // so we prefer the authenticated user's own token when available.
-            const scopedClient = createScopedOxyClient(req);
-            const oxyLookupClient = scopedClient || getServiceOxyClient();
-            const oxyUser = await (oxyLookupClient as any).getUserById(userId) as Record<string, unknown>;
-            const federation = oxyUser?.federation as Record<string, unknown> | undefined;
-            const actorUri = typeof federation?.actorUri === 'string' ? federation.actorUri : undefined;
-            logger.info(`[FedSync] oxyUser.type=${oxyUser?.type} federation.actorUri=${actorUri ?? 'missing'}`);
-            if (actorUri) {
-              const fetched = await federationService.fetchRemoteActor(actorUri);
-              logger.info(`[FedSync] fetchRemoteActor returned: id=${fetched?._id} oxyUserId=${fetched?.oxyUserId ?? 'null'} outboxUrl=${fetched?.outboxUrl ?? 'none'}`);
-              if (fetched && !fetched.oxyUserId) {
-                // Link the FederatedActor to the Oxy User
-                await FederatedActor.updateOne(
-                  { _id: fetched._id },
-                  { $set: { oxyUserId: userId } },
-                );
+            let actor = await FederatedActor.findOne({ oxyUserId: syncUserId }).lean() as IFederatedActor | null;
+            logger.info(`[FedSync] userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
+
+            if (!actor) {
+              const scopedClient = createScopedOxyClient(syncReq);
+              const oxyLookupClient = scopedClient || getServiceOxyClient();
+              const oxyUser = await (oxyLookupClient as any).getUserById(syncUserId) as Record<string, unknown>;
+              const federation = oxyUser?.federation as Record<string, unknown> | undefined;
+              const actorUri = typeof federation?.actorUri === 'string' ? federation.actorUri : undefined;
+              logger.info(`[FedSync] oxyUser.type=${oxyUser?.type} federation.actorUri=${actorUri ?? 'missing'}`);
+              if (actorUri) {
+                const fetched = await federationService.fetchRemoteActor(actorUri);
+                logger.info(`[FedSync] fetchRemoteActor returned: id=${fetched?._id} oxyUserId=${fetched?.oxyUserId ?? 'null'} outboxUrl=${fetched?.outboxUrl ?? 'none'}`);
+                if (fetched && !fetched.oxyUserId) {
+                  await FederatedActor.updateOne({ _id: fetched._id }, { $set: { oxyUserId: syncUserId } });
+                }
+                actor = fetched ? await FederatedActor.findById(fetched._id).lean() as IFederatedActor | null : null;
               }
-              actor = fetched ? await FederatedActor.findById(fetched._id).lean() as IFederatedActor | null : null;
             }
-          } catch (resolveErr) {
-            logger.warn('Failed to resolve FederatedActor for user profile feed:', resolveErr);
-          }
-        }
 
-        if (actor?.outboxUrl) {
-          try {
-            const syncedCount = await federationService.syncOutboxPosts(actor, limit);
-            logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
-            // Re-query after sync
-            posts = await Post.find(query)
-              .select(this.FEED_FIELDS)
-              .sort({ createdAt: -1 })
-              .limit(limit + 1)
-              .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-              .lean();
-            logger.info(`[FedSync] re-query found ${posts.length} posts for userId=${userId}`);
-          } catch (syncErr) {
-            logger.warn('Federation outbox sync failed for user profile feed:', syncErr);
+            if (actor?.outboxUrl) {
+              const syncedCount = await federationService.syncOutboxPosts(actor, syncLimit);
+              logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
+            }
+          } catch (err) {
+            logger.warn('[FedSync] Background outbox sync failed:', err);
           }
-        } else if (actor) {
-          logger.info(`[FedSync] actor found but no outboxUrl for ${actor.acct}`);
-        }
+        })();
       }
 
       // Validate result size
