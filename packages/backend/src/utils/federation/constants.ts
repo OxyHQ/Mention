@@ -92,16 +92,20 @@ export function extractActorUriFromActivityId(activityId: string): string | null
  * Returns the user object or null.
  */
 export async function resolveOxyUser(username: string): Promise<any> {
+  const { logger } = require('../logger');
   const { oxy } = require('../../../server.js');
   try {
-    return await oxy.getUserByUsername(username);
-  } catch {
+    return await oxy.getProfileByUsername(username);
+  } catch (err) {
+    logger.debug(`[Federation] getProfileByUsername('${username}') failed, trying searchProfiles`, err);
     try {
-      const results = await oxy.searchUsers(username);
+      const response = await oxy.searchProfiles(username);
+      const results = Array.isArray(response) ? response : response?.data;
       return results?.find?.((u: any) =>
         u.username?.toLowerCase() === username.toLowerCase()
       ) || null;
-    } catch {
+    } catch (searchErr) {
+      logger.warn(`[Federation] resolveOxyUser('${username}') failed completely`, searchErr);
       return null;
     }
   }

@@ -15,6 +15,7 @@ import {
   USER_AGENT,
   actorUrl,
   isBlockedDomain,
+  resolveOxyUser,
 } from '../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
@@ -824,24 +825,30 @@ class FederationService {
     if (!match) return;
     const username = match[1];
 
-    // We need to resolve the Oxy user from the username
-    // This will be handled by the route that has access to OxyServices
-    // Store the follow as pending — the controller will resolve the user and accept
+    // Resolve the Oxy user to get a real user ID
+    const user = await resolveOxyUser(username);
+    if (!user) {
+      logger.warn(`Incoming follow for unknown user ${username} from ${actorUri}`);
+      return;
+    }
+    const localUserId = String(user._id || user.id);
+
     const actor = await this.getOrFetchActor(actorUri);
     if (!actor) return;
 
-    // Store follow record (will be completed by the controller)
     await FederatedFollow.findOneAndUpdate(
-      { remoteActorUri: actorUri, direction: 'inbound' },
+      { localUserId, remoteActorUri: actorUri, direction: 'inbound' },
       {
         $set: {
-          localUserId: username, // Temporarily store username; controller resolves to oxyUserId
           status: 'accepted',
           activityId: activity.id,
         },
       },
       { upsert: true, returnDocument: 'after' },
     );
+
+    // Send Accept back so the remote server knows the follow succeeded
+    await this.sendAccept(localUserId, username, activity.id, actorUri);
 
     logger.info(`Accepted follow from ${actorUri} to ${username}`);
   }

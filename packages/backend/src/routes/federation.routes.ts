@@ -280,8 +280,12 @@ router.get('/users/:username/followers', async (req: Request, res: Response) => 
   const username = getUsername(req);
 
   try {
-    // Count inbound follows for this user
+    const user = await resolveOxyUser(username);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userId = String(user._id || user.id);
+
     const count = await FederatedFollow.countDocuments({
+      localUserId: userId,
       direction: 'inbound',
       status: 'accepted',
     });
@@ -308,7 +312,12 @@ router.get('/users/:username/following', async (req: Request, res: Response) => 
   const username = getUsername(req);
 
   try {
+    const user = await resolveOxyUser(username);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userId = String(user._id || user.id);
+
     const count = await FederatedFollow.countDocuments({
+      localUserId: userId,
       direction: 'outbound',
       status: 'accepted',
     });
