@@ -584,7 +584,7 @@ export default function RestrictedUsersScreen() {
                                                 style={{ backgroundColor: colors.error + '20' }}
                                                 activeOpacity={0.7}
                                                 onPress={() => {
-                                                    restrictedLogger.debug(`Unrestrict button pressed for userId: ${userId}`);
+                                                    restrictedLogger.debug('Unrestrict button pressed', { userId, user });
                                                     if (userId) {
                                                         handleUnrestrict(userId);
                                                     } else {
