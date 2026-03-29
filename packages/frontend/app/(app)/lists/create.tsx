@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -26,15 +26,27 @@ export default function CreateListScreen() {
   const [members, setMembers] = useState<MinimalUser[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const doSearch = useCallback(async (q: string) => {
-    try {
-      setSearch(q);
-      if (!q.trim()) { setResults([]); return; }
-      const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
-      setResults(res as any);
-    } catch (e) {
-      logger.warn('searchProfiles failed');
-    }
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, []);
+
+  const doSearch = useCallback((q: string) => {
+    setSearch(q);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!q.trim()) { setResults([]); return; }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
+        const data = (res as any)?.data ?? res;
+        setResults(Array.isArray(data) ? data : []);
+      } catch (e) {
+        logger.warn('searchProfiles failed', { error: e });
+      }
+    }, 300);
   }, [oxyServices]);
 
   const addMember = (u: MinimalUser) => {
