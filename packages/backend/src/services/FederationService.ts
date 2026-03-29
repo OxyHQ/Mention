@@ -58,6 +58,33 @@ async function signedFetch(url: string, accept: string): Promise<Response> {
 
 class FederationService {
   /**
+   * Extract candidate top-level notes from outbox items into the candidates array.
+   */
+  private extractCandidates(
+    items: any[],
+    candidates: { note: any; activity: any; activityId: string }[],
+    limit: number,
+  ): void {
+    for (const item of items) {
+      if (candidates.length >= limit) break;
+
+      const activity = typeof item === 'string' ? null : item;
+      if (!activity) continue;
+
+      const note = activity.type === 'Create' ? activity.object :
+        (activity.type === 'Note' || activity.type === 'Article') ? activity : null;
+      if (!note || typeof note !== 'object') continue;
+      if (note.type !== 'Note' && note.type !== 'Article') continue;
+      if (note.inReplyTo) continue;
+
+      const activityId = note.id || activity.id;
+      if (!activityId) continue;
+
+      candidates.push({ note, activity, activityId });
+    }
+  }
+
+  /**
    * Extract the actor URI from an AP attributedTo value,
    * which may be a plain URI string or an object with an id property.
    */
@@ -288,47 +315,43 @@ class FederationService {
       const collection = await res.json() as Record<string, any>;
       logger.info(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
 
-      // Get the first page of items
-      let items: any[] = [];
+      // Paginate through outbox pages to collect enough top-level posts.
+      // Most outbox items are replies/boosts which we skip, so we may need
+      // several pages to reach the desired limit.
+      const candidates: { note: any; activity: any; activityId: string }[] = [];
+      const MAX_PAGES = 10;
+      let nextPageUrl: string | null = null;
+
       if (collection.orderedItems) {
-        items = collection.orderedItems;
+        this.extractCandidates(collection.orderedItems, candidates, limit);
       } else if (collection.first) {
-        const firstUrl = typeof collection.first === 'string' ? collection.first : collection.first.id;
-        if (firstUrl) {
-          const pageRes = await signedFetch(firstUrl, AP_CONTENT_TYPE);
-          if (pageRes.ok) {
-            const page = await pageRes.json() as Record<string, any>;
-            items = page.orderedItems || [];
-          } else {
-            logger.info(`[FedSync] outbox first page fetch failed: ${pageRes.status} for ${firstUrl}`);
+        nextPageUrl = typeof collection.first === 'string' ? collection.first : collection.first.id;
+      }
+
+      // Paginate through pages until we have enough candidates or run out of pages
+      for (let page = 0; page < MAX_PAGES && nextPageUrl && candidates.length < limit; page++) {
+        try {
+          const pageRes = await signedFetch(nextPageUrl, AP_CONTENT_TYPE);
+          if (!pageRes.ok) {
+            logger.info(`[FedSync] outbox page fetch failed: ${pageRes.status} for ${nextPageUrl}`);
+            break;
           }
+          const pageData = await pageRes.json() as Record<string, any>;
+          const items = pageData.orderedItems || [];
+          if (items.length === 0) break;
+
+          this.extractCandidates(items, candidates, limit);
+          nextPageUrl = pageData.next || null;
+        } catch (pageErr) {
+          logger.debug(`[FedSync] outbox pagination error: ${pageErr}`);
+          break;
         }
       }
 
-      logger.info(`[FedSync] outbox items count: ${items.length} for ${actor.acct}`);
-
-      // Parse all candidate notes and collect activity IDs for bulk dedup
-      const candidates: { note: any; activity: any; activityId: string }[] = [];
-      for (const item of items) {
-        if (candidates.length >= limit) break;
-
-        const activity = typeof item === 'string' ? null : item;
-        if (!activity) continue;
-
-        const note = activity.type === 'Create' ? activity.object :
-          (activity.type === 'Note' || activity.type === 'Article') ? activity : null;
-        if (!note || typeof note !== 'object') continue;
-        if (note.type !== 'Note' && note.type !== 'Article') continue;
-        if (note.inReplyTo) continue;
-
-        const activityId = note.id || activity.id;
-        if (!activityId) continue;
-
-        candidates.push({ note, activity, activityId });
-      }
+      logger.info(`[FedSync] collected ${candidates.length} candidates across pages for ${actor.acct}`);
 
       if (candidates.length === 0) {
-        logger.info(`[FedSync] no candidate notes found from ${items.length} items for ${actor.acct}`);
+        logger.info(`[FedSync] no candidate notes found for ${actor.acct}`);
         return 0;
       }
 
