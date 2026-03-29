@@ -274,7 +274,7 @@ class FederationService {
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
-  async syncOutboxPosts(actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'>, limit = 20): Promise<number> {
+  async syncOutboxPosts(actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string }, limit = 20): Promise<number> {
     if (!actor.outboxUrl) return 0;
 
     try {
@@ -351,6 +351,10 @@ class FederationService {
 
       // Batch lookup: actor URI → oxyUserId from stored FederatedActors
       const actorOxyMap = new Map<string, string>();
+      // Seed with caller-provided oxyUserId for the main actor
+      if (actor.oxyUserId) {
+        actorOxyMap.set(actor.uri, actor.oxyUserId);
+      }
       if (actorUris.size > 0) {
         const actors = await FederatedActor.find(
           { uri: { $in: [...actorUris] }, oxyUserId: { $ne: null } },
