@@ -98,6 +98,7 @@ export const ProfileContent = memo(function ProfileContent({
           <ProfileActions
             isOwnProfile={isOwnProfile}
             isFederated={profileData.isFederated}
+            actorUri={profileData.actorUri}
             currentUsername={currentUsername}
             profileUsername={profileData.username}
             profileId={profileData.id}

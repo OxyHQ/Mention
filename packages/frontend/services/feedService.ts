@@ -584,6 +584,26 @@ class FeedService {
       // Non-critical — swallow errors
     }
   }
+
+  // ────────────────────────────────────────────────────────────
+  // Federation — ActivityPub follow/unfollow
+  // ────────────────────────────────────────────────────────────
+
+  /**
+   * Send an ActivityPub Follow activity to a remote federated actor.
+   */
+  async followFederatedActor(actorUri: string): Promise<{ success: boolean; pending: boolean }> {
+    const response = await authenticatedClient.post('/federation/follow', { actorUri });
+    return response.data;
+  }
+
+  /**
+   * Send an ActivityPub Undo(Follow) activity to a remote federated actor.
+   */
+  async unfollowFederatedActor(actorUri: string): Promise<{ success: boolean }> {
+    const response = await authenticatedClient.post('/federation/unfollow', { actorUri });
+    return response.data;
+  }
 }
 
 export const feedService = new FeedService(); 

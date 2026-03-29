@@ -11,6 +11,7 @@ import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { usePoke } from './hooks/usePoke';
+import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
@@ -39,6 +40,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
 }: ProfileHeaderDefaultProps) {
   const { t } = useTranslation();
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
+  useFederatedFollowSync(profileId, isFederated, actorUri);
 
   return (
     <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -45 }}>
@@ -187,6 +189,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
 export const ProfileActions = memo(function ProfileActions({
   isOwnProfile,
   isFederated,
+  actorUri,
   currentUsername,
   profileUsername,
   profileId,
@@ -195,6 +198,7 @@ export const ProfileActions = memo(function ProfileActions({
 }: {
   isOwnProfile: boolean;
   isFederated?: boolean;
+  actorUri?: string;
   currentUsername?: string;
   profileUsername?: string;
   profileId?: string;
@@ -204,6 +208,7 @@ export const ProfileActions = memo(function ProfileActions({
   const theme = useTheme();
   const { t } = useTranslation();
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
+  useFederatedFollowSync(profileId, isFederated, actorUri);
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
     if (!profileId) return null;

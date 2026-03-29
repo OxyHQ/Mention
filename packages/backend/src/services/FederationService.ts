@@ -671,12 +671,13 @@ class FederationService {
     const actor = await this.getOrFetchActor(remoteActorUri);
     if (!actor) return { success: false, pending: false };
 
+    const canonicalUri = actor.uri; // Use canonical URI from fetched actor
     const localActorUri = actorUrl(localUsername);
     const activityId = `${localActorUri}/follows/${actor._id}`;
 
     // Create or update the follow record
     await FederatedFollow.findOneAndUpdate(
-      { localUserId: localOxyUserId, remoteActorUri, direction: 'outbound' },
+      { localUserId: localOxyUserId, remoteActorUri: canonicalUri, direction: 'outbound' },
       { $set: { status: 'pending', activityId } },
       { upsert: true, returnDocument: 'after' },
     );
@@ -686,7 +687,7 @@ class FederationService {
       id: activityId,
       type: 'Follow',
       actor: localActorUri,
-      object: remoteActorUri,
+      object: canonicalUri,
     };
 
     const delivered = await this.deliverActivity(activity, actor.inboxUrl, localOxyUserId, localUsername);
@@ -1001,17 +1002,42 @@ class FederationService {
     const object = activity.object;
     if (!object) return;
 
-    const objectType = typeof object === 'string' ? null : object.type;
-    if (objectType === 'Follow') {
-      const followActivityId = typeof object === 'object' ? object.id : undefined;
+    let updated = false;
+
+    if (typeof object === 'string') {
+      // Remote sent Accept with a string reference (the Follow activity ID)
+      const filter: Record<string, unknown> = {
+        remoteActorUri: actorUri,
+        direction: 'outbound',
+        status: 'pending',
+      };
+      // Try matching by activityId first, fall back to any pending follow
+      let result = await FederatedFollow.updateOne({ ...filter, activityId: object }, { $set: { status: 'accepted' } });
+      if ((result?.modifiedCount ?? 0) === 0) {
+        result = await FederatedFollow.updateOne(filter, { $set: { status: 'accepted' } });
+      }
+      updated = (result?.modifiedCount ?? 0) > 0;
+    } else if (object.type === 'Follow') {
+      const followActivityId = object.id;
       const filter: Record<string, unknown> = {
         remoteActorUri: actorUri,
         direction: 'outbound',
         status: 'pending',
       };
       if (followActivityId) filter.activityId = followActivityId;
-      await FederatedFollow.updateOne(filter, { $set: { status: 'accepted' } });
+      const result = await FederatedFollow.updateOne(filter, { $set: { status: 'accepted' } });
+      updated = (result?.modifiedCount ?? 0) > 0;
+    }
+
+    if (updated) {
       logger.debug(`Follow accepted by ${actorUri}`);
+      // Fire-and-forget: backfill the newly followed actor's recent posts
+      const actor = await FederatedActor.findOne({ uri: actorUri }).lean();
+      if (actor) {
+        this.syncOutboxPosts(actor, 20).catch(err =>
+          logger.warn(`Failed to sync outbox after accept from ${actorUri}: ${err}`),
+        );
+      }
     }
   }
 
