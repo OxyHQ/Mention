@@ -729,7 +729,7 @@ publicApiRouter.use("/images", imagesRoutes); // Image optimization (public, rat
 publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (optional auth for tracking)
 publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth required)
 publicApiRouter.use("/topics", topicsRoutes); // Topic collection (no auth required)
-publicApiRouter.use("/federation", federationApiRoutes); // Write endpoints enforce auth internally
+publicApiRouter.use("/federation", optionalAuth, federationApiRoutes); // Write endpoints enforce auth internally
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
