@@ -169,15 +169,10 @@ export function useProfileData(username?: string): {
   loading: boolean;
   error: boolean;
 } {
-  const isFederated = Boolean(username && isFederatedUsername(username));
-
-  // Federated path
-  const fedResult = useFederatedProfileData(isFederated ? username! : '');
-
-  // Local path
-  const localResult = useLocalProfileData(isFederated ? undefined : username);
-
-  return isFederated ? fedResult : localResult;
+  // All profiles (local and federated) use the same code path.
+  // The OxyHQ API resolves federated handles (user@domain) transparently
+  // via WebFinger when they're not yet in the local DB.
+  return useLocalProfileData(username);
 }
 
 /**
@@ -254,12 +249,19 @@ function useLocalProfileData(username?: string): {
 
     const design = computeDesign(oxyProfile, appearance);
 
+    const federation = oxyProfile.federation as { actorUri?: string; domain?: string } | undefined;
+
     return {
       ...oxyProfile,
       id: oxyProfile.id || '',
       username: oxyProfile.username || '',
       postsCount: appearance?.postsCount,
       followsYou: appearance?.followsYou,
+      isFederated: oxyProfile.isFederated || oxyProfile.type === 'federated',
+      actorUri: oxyProfile.actorUri || federation?.actorUri,
+      instance: oxyProfile.instance || federation?.domain,
+      followersCount: oxyProfile._count?.followers ?? oxyProfile.followersCount ?? 0,
+      followingCount: oxyProfile._count?.following ?? oxyProfile.followingCount ?? 0,
       design,
       privacy: appearance?.privacy,
     };
