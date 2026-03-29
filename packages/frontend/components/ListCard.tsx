@@ -48,9 +48,8 @@ export function ListCard({
     const handlePress = () => {
         if (onPress) {
             onPress();
-        } else {
-            // Navigate to list detail page if route exists
-            // router.push(`/lists/${list.id}`);
+        } else if (list.id) {
+            router.push(`/lists/${list.id}` as never);
         }
     };
 
@@ -112,37 +111,7 @@ export function ListCard({
     );
 }
 
-/**
- * Outer container
- */
-export function ListCardOuter({
-    children,
-    style,
-}: {
-    children: React.ReactNode;
-    style?: ViewStyle;
-}) {
-    return <View style={[styles.outerContainer, style]}>{children}</View>;
-}
-
-/**
- * Header section
- */
-export function ListCardHeader({
-    children,
-    style,
-}: {
-    children: React.ReactNode;
-    style?: ViewStyle;
-}) {
-    return <View style={[styles.header, style]}>{children}</View>;
-}
-
 const styles = StyleSheet.create({
-    outerContainer: {
-        width: '100%',
-        gap: 12,
-    },
     outer: {
         width: '100%',
         padding: 16,

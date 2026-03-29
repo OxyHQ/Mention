@@ -1,11 +1,12 @@
 import { authenticatedClient } from '@/utils/api';
-import { FeedResponse } from '@mention/shared-types';
+import type { FeedResponse } from '@mention/shared-types';
+>>>>>>> origin/main
 
 class CustomFeedsService {
   async list(params?: { mine?: boolean; publicOnly?: boolean; search?: string; userId?: string }): Promise<{ items: any[]; total: number }> {
     const res = await authenticatedClient.get('/feeds', { params });
     return res.data;
-    }
+  }
 
   async get(id: string): Promise<any> {
     const res = await authenticatedClient.get(`/feeds/${id}`);
