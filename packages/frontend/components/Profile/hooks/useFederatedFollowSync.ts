@@ -10,9 +10,9 @@ import { feedService } from '@/services/feedService';
  * This hook is a no-op when `isFederated` is false or `actorUri` is absent.
  */
 export function useFederatedFollowSync(
-  profileId: string | undefined,
-  isFederated: boolean | undefined,
-  actorUri: string | undefined,
+  profileId?: string,
+  isFederated?: boolean,
+  actorUri?: string
 ) {
   const oxyUserId = isFederated && profileId ? profileId : '';
   const { isFollowing } = useFollow(oxyUserId);
@@ -37,13 +37,11 @@ export function useFederatedFollowSync(
     if (wasFollowing === isFollowing) return;
 
     if (isFollowing) {
-      feedService.followFederatedActor(actorUri).catch(err => {
-        console.warn('[Federation] Failed to send AP Follow:', err);
-      });
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      feedService.followFederatedActor(actorUri).catch(() => {});
     } else {
-      feedService.unfollowFederatedActor(actorUri).catch(err => {
-        console.warn('[Federation] Failed to send AP Unfollow:', err);
-      });
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      feedService.unfollowFederatedActor(actorUri).catch(() => {});
     }
   }, [isFederated, actorUri, profileId, isFollowing]);
 }
