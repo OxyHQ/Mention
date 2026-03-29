@@ -16,6 +16,38 @@ import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
 import { logger } from '../../utils/logger';
 import { oxy as oxyClient } from '../../../server';
 import { extractFollowingIds } from '../../utils/privacyHelpers';
+import FederatedFollow from '../../models/FederatedFollow';
+import FederatedActor from '../../models/FederatedActor';
+
+/**
+ * Merge oxyUserIds from accepted federated (ActivityPub) follows into the
+ * given followingIds array, deduplicating in-place.
+ */
+async function mergeFederatedFollowIds(
+  localUserId: string,
+  followingIds: string[],
+): Promise<void> {
+  const fedFollowUris = await FederatedFollow.distinct('remoteActorUri', {
+    localUserId,
+    direction: 'outbound',
+    status: 'accepted',
+  });
+  if (fedFollowUris.length === 0) return;
+
+  const fedActors = await FederatedActor.find(
+    { uri: { $in: fedFollowUris }, oxyUserId: { $ne: null } },
+    { oxyUserId: 1 },
+  ).lean();
+
+  const existing = new Set(followingIds);
+  for (const actor of fedActors) {
+    const id = actor.oxyUserId;
+    if (id && !existing.has(id)) {
+      followingIds.push(id);
+      existing.add(id);
+    }
+  }
+}
 
 class MtnFeedController {
   /**
@@ -52,6 +84,12 @@ class MtnFeedController {
           followingIds = extractFollowingIds(followingRes);
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load following list', error);
+        }
+
+        try {
+          await mergeFederatedFollowIds(currentUserId, followingIds);
+        } catch (error) {
+          logger.warn('[MtnFeedController] Failed to load federated following', error);
         }
       }
 
@@ -135,6 +173,12 @@ class MtnFeedController {
           followingIds = extractFollowingIds(followingRes);
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load following list', error);
+        }
+
+        try {
+          await mergeFederatedFollowIds(currentUserId, followingIds);
+        } catch (error) {
+          logger.warn('[MtnFeedController] Failed to load federated following', error);
         }
       }
 
