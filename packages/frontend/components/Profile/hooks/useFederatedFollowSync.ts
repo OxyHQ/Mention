@@ -19,6 +19,14 @@ export function useFederatedFollowSync(
 
   const settledRef = useRef(false);
   const prevFollowingRef = useRef(isFollowing);
+  const prevIdentityRef = useRef(oxyUserId);
+
+  // Reset tracking when the profile identity changes (mirrors ProfileScreen pattern)
+  if (prevIdentityRef.current !== oxyUserId) {
+    prevIdentityRef.current = oxyUserId;
+    settledRef.current = false;
+    prevFollowingRef.current = isFollowing;
+  }
 
   useEffect(() => {
     if (!isFederated || !actorUri || !profileId) return;
@@ -29,6 +37,7 @@ export function useFederatedFollowSync(
       settledRef.current = true;
       prevFollowingRef.current = isFollowing;
       return;
+    }
     }
 
     const wasFollowing = prevFollowingRef.current;
