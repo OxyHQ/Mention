@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface SectionHeaderProps {
     icon?: string;
@@ -9,11 +10,21 @@ interface SectionHeaderProps {
 }
 
 const SectionHeader: React.FC<SectionHeaderProps> = ({
+    icon,
     title,
+    iconColor,
     titleColor,
 }) => {
     return (
         <View className="flex-row items-center mb-3">
+            {icon && (
+                <Ionicons
+                    name={icon as any}
+                    size={20}
+                    color={iconColor}
+                    style={{ marginRight: 8 }}
+                />
+            )}
             <Text
                 className="text-foreground text-lg font-bold"
                 style={titleColor ? { color: titleColor } : undefined}
