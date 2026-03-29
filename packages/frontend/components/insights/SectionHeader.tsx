@@ -19,7 +19,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
         <View className="flex-row items-center mb-3">
             {icon && (
                 <Ionicons
-                    name={icon as any}
+                    name={icon as React.ComponentProps<typeof Ionicons>['name']}
                     size={20}
                     color={iconColor}
                     style={{ marginRight: 8 }}
