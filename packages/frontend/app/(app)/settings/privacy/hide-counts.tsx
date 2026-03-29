@@ -68,6 +68,11 @@ export default function HideCountsScreen() {
             await updatePrivacySettingsCache(updatedPrivacy);
         } catch (error) {
             hideCountsLogger.error('Error updating setting', { error });
+            // Revert on failure
+            if (field === 'hideLikeCounts') setHideLikeCounts(!value);
+            if (field === 'hideShareCounts') setHideShareCounts(!value);
+            if (field === 'hideReplyCounts') setHideReplyCounts(!value);
+            if (field === 'hideSaveCounts') setHideSaveCounts(!value);
         }
     };
 
