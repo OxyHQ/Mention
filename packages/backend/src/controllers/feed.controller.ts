@@ -788,7 +788,7 @@ class FeedController {
             logger.info(`[FedSync] userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
 
             if (!actor) {
-              const scopedClient = createScopedOxyClient(syncReq);
+              const scopedClient = createScopedOxyClient(req);
               const oxyLookupClient = scopedClient || getServiceOxyClient();
               const oxyUser = await (oxyLookupClient as any).getUserById(syncUserId) as Record<string, unknown>;
               const federation = oxyUser?.federation as Record<string, unknown> | undefined;
