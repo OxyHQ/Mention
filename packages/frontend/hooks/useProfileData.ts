@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
