@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -8,7 +8,6 @@ import {
     Platform
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -155,7 +154,7 @@ const InsightsScreen: React.FC = () => {
 
     useEffect(() => {
         loadStatistics();
-    }, [selectedPeriod]);
+    }, [loadStatistics]);
 
     const handlePeriodChange = useCallback((val: number) => {
         if (val !== selectedPeriod) setSelectedPeriod(val);

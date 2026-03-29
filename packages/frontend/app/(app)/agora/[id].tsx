@@ -35,7 +35,6 @@ import { logger } from '@/lib/logger';
 const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: any }) => {
   const profile = useUserById(userId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
-  const displayName = getDisplayName(profile, userId);
   return <Avatar size={32} source={avatarUri} shape="squircle"  placeholderIcon={<MentionAvatarIcon size={32 * 0.6} />} />;
 };
 
@@ -86,7 +85,7 @@ const RoomDetailScreen = () => {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     loadRoom();
@@ -135,7 +134,7 @@ const RoomDetailScreen = () => {
   };
 
   // Resolve user IDs to real profiles (must be before conditional return for hooks rules)
-  const allUserIds = [room?.host, ...(room?.participants || []), ...(room?.speakers || [])].filter(Boolean);
+  const allUserIds = [room?.host, ...(room?.participants || []), ...(room?.speakers || [])].filter((id): id is string => Boolean(id));
   useRoomUsers(allUserIds);
 
   const isLive = room?.status === 'live';

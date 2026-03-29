@@ -84,11 +84,9 @@ import { useMultiRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
-import { LinkPreview, LinkPreviewLoading } from '@/components/Compose/LinkPreview';
+import { LinkPreview } from '@/components/Compose/LinkPreview';
 import {
   PollCreator,
-  PollAttachmentCard,
-  MediaPreview,
   VideoPreview,
   ArticleEditor,
   EventEditor,

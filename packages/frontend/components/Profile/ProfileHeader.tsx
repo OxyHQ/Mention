@@ -39,7 +39,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   showBottomSheet,
 }: ProfileHeaderDefaultProps) {
   const { t } = useTranslation();
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   return (
@@ -58,7 +58,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           }}
           imageStyle={{}}
         />
-        {!isOwnProfile && !isFederated && profileId && (
+        {!isOwnProfile && profileId && (
           <PresenceIndicator
             userId={profileId}
             size="medium"
@@ -99,20 +99,18 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           </View>
         ) : profileId ? (
           <View className="flex-row items-center gap-3">
-            {!isFederated && (
-              <TouchableOpacity
-                className={cn(
-                  'w-10 h-10 rounded-full border items-center justify-center',
-                  poked ? 'bg-primary border-primary' : 'bg-background border-border',
-                )}
-                onPress={togglePoke}
-                disabled={pokeLoading}
-                accessibilityRole="button"
-                accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-              >
-                <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              className={cn(
+                'w-10 h-10 rounded-full border items-center justify-center',
+                poked ? 'bg-primary border-primary' : 'bg-background border-border',
+              )}
+              onPress={togglePoke}
+              disabled={pokeLoading}
+              accessibilityRole="button"
+              accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
+            >
+              <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
+            </TouchableOpacity>
             <FollowButtonComponent userId={profileId} />
           </View>
         ) : null}
@@ -207,27 +205,25 @@ export const ProfileActions = memo(function ProfileActions({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
     if (!profileId) return null;
     return (
       <View className="flex-row items-center gap-3">
-        {!isFederated && (
-          <TouchableOpacity
-            className={cn(
-              'w-10 h-10 rounded-full border items-center justify-center',
-              poked ? 'bg-primary border-primary' : 'bg-background border-border',
-            )}
-            onPress={togglePoke}
-            disabled={pokeLoading}
-            accessibilityRole="button"
-            accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-          >
-            <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          className={cn(
+            'w-10 h-10 rounded-full border items-center justify-center',
+            poked ? 'bg-primary border-primary' : 'bg-background border-border',
+          )}
+          onPress={togglePoke}
+          disabled={pokeLoading}
+          accessibilityRole="button"
+          accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
+        >
+          <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
+        </TouchableOpacity>
         <FollowButtonComponent userId={profileId} />
       </View>
     );

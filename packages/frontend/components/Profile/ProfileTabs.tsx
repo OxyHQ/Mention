@@ -30,16 +30,15 @@ export const ProfileTabs = memo(function ProfileTabs({
   profileId,
   isPrivate,
   isOwnProfile,
-  isFederated,
   actorUri,
 }: ProfileTabsProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [pinnedPost, setPinnedPost] = useState<any>(null);
 
-  // Fetch pinned post once per profile (local profiles only)
+  // Fetch pinned post once per profile
   useEffect(() => {
-    if (isFederated || !profileId || (isPrivate && !isOwnProfile)) {
+    if (!profileId || (isPrivate && !isOwnProfile)) {
       setPinnedPost(null);
       return;
     }
@@ -53,7 +52,7 @@ export const ProfileTabs = memo(function ProfileTabs({
       });
 
     return () => { cancelled = true; };
-  }, [profileId, isPrivate, isOwnProfile, isFederated]);
+  }, [profileId, isPrivate, isOwnProfile]);
 
   // Don't render feed content without a valid profile identifier
   if (!profileId && !actorUri) {
@@ -80,8 +79,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Starter Packs tab (local profiles only)
-  if (tab === 'starter_packs' && !isFederated) {
+  // Starter Packs tab
+  if (tab === 'starter_packs') {
     return (
       <ProfileStarterPacks
         profileId={profileId}
@@ -90,8 +89,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Lists tab (local profiles only)
-  if (tab === 'lists' && !isFederated) {
+  // Lists tab
+  if (tab === 'lists') {
     return (
       <ProfileLists
         profileId={profileId}
@@ -100,8 +99,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Feeds tab (local profiles only)
-  if (tab === 'feeds' && !isFederated) {
+  // Feeds tab
+  if (tab === 'feeds') {
     return (
       <ProfileFeeds
         profileId={profileId}
@@ -110,8 +109,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Media grid (local profiles only)
-  if (tab === 'media' && !isFederated) {
+  // Media grid
+  if (tab === 'media') {
     return (
       <MediaGrid
         userId={profileId}
@@ -121,8 +120,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Videos grid (local profiles only)
-  if (tab === 'videos' && !isFederated) {
+  // Videos grid
+  if (tab === 'videos') {
     return (
       <VideosGrid
         userId={profileId}
@@ -135,14 +134,14 @@ export const ProfileTabs = memo(function ProfileTabs({
   // Unified feed for posts, replies, likes, reposts — works for both native and federated
   return (
     <View>
-      {/* Pinned post - only show on posts tab for local profiles */}
-      {!isFederated && tab === 'posts' && pinnedPost && (
+      {/* Pinned post - only show on posts tab */}
+      {tab === 'posts' && pinnedPost && (
         <React.Suspense fallback={null}>
           <PinnedPostItem post={pinnedPost} showPinned />
         </React.Suspense>
       )}
       <Feed
-        type={(isFederated ? 'posts' : tab) as FeedType}
+        type={tab as FeedType}
         userId={profileId}
         hideHeader={true}
         scrollEnabled={false}

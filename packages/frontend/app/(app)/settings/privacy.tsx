@@ -18,18 +18,7 @@ import {
     getRecommendationFilters,
     saveRecommendationFilters,
 } from '@/lib/recommendationFilters';
-
-interface PrivacySettings {
-    profileVisibility?: 'public' | 'private' | 'followers_only';
-    showContactInfo?: boolean;
-    allowTags?: boolean;
-    allowMentions?: boolean;
-    showOnlineStatus?: boolean;
-    hideLikeCounts?: boolean;
-    hideShareCounts?: boolean;
-    hiddenWords?: string[];
-    restrictedUsers?: string[];
-}
+import type { PrivacySettings } from '@/hooks/usePrivacySettings';
 
 const FILTER_TOGGLES: Array<{
     icon: string;

@@ -1,8 +1,22 @@
 // A tiny shared echo guard to suppress socket echo updates after local actions
 
-type EchoAction = "like" | "unlike" | "repost" | "unrepost" | "save" | "unsave" | "reply";
+type EchoAction = "like" | "unlike" | "downvote" | "repost" | "unrepost" | "save" | "unsave" | "reply";
 
 const recentActions: Map<string, Record<EchoAction, number>> = new Map();
+
+// Periodically clean up stale entries to prevent unbounded memory growth
+const CLEANUP_INTERVAL_MS = 30_000;
+const STALE_THRESHOLD_MS = 5_000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [postId, rec] of recentActions.entries()) {
+    const allStale = Object.values(rec).every((ts) => now - ts > STALE_THRESHOLD_MS);
+    if (allStale) {
+      recentActions.delete(postId);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
 
 export const markLocalAction = (postId: string, action: EchoAction) => {
   const now = Date.now();

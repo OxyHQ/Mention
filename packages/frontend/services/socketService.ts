@@ -5,7 +5,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
 import { createScopedLogger } from '@/lib/logger';
-import { wasRecent } from './echoGuard';
+import { wasRecent, type EchoAction } from './echoGuard';
 
 const logger = createScopedLogger('SocketService');
 
@@ -153,7 +153,7 @@ class SocketService {
     // If server includes actor identity and it's us, ignore
     if (actorId && this.currentUserId && actorId === this.currentUserId) return true;
     // Otherwise, ignore if we performed the same action very recently
-    return wasRecent(postId, action as any);
+    return wasRecent(postId, action as EchoAction);
   }
 
   /**

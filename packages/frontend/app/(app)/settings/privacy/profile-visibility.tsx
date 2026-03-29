@@ -68,18 +68,11 @@ export default function ProfileVisibilityScreen() {
                 profileVisibility: newVisibility
             };
             await authenticatedClient.put('/profile/settings', {
-                privacy: updatedPrivacy
+                privacy: updatedPrivacy,
             });
 
-            // Update cache immediately
-            try {
-                const currentResponse = await authenticatedClient.get('/profile/settings/me');
-                if (currentResponse.data?.privacy) {
-                    await updatePrivacySettingsCache(currentResponse.data.privacy);
-                }
-            } catch (e) {
-                logger.debug('Failed to update privacy settings cache', { error: e });
-            }
+            // Update cache from local state to avoid extra GET
+            await updatePrivacySettingsCache(updatedPrivacy);
 
             setProfileVisibility(newVisibility);
             await alertDialog({

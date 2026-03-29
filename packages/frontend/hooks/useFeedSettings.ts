@@ -18,7 +18,7 @@ export interface FeedSettings {
   };
 }
 
-const DEFAULT_FEED_SETTINGS: FeedSettings = {
+export const DEFAULT_FEED_SETTINGS: FeedSettings = {
   diversity: {
     enabled: true,
     sameAuthorPenalty: 0.95,
@@ -119,10 +119,6 @@ export function useFeedSettings() {
     reloadSettings: loadSettings,
   };
 }
-
-
-
-
 
 
 

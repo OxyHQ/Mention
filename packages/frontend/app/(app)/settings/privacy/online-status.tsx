@@ -35,13 +35,26 @@ export default function OnlineStatusScreen() {
 
     const updateSetting = async (value: boolean) => {
         try {
+            // Load current settings first to preserve other privacy settings
+            let currentPrivacy = {};
+            try {
+                const currentResponse = await authenticatedClient.get('/profile/settings/me');
+                currentPrivacy = currentResponse.data?.privacy || {};
+            } catch (e) {
+                logger.debug('Could not load current privacy settings', { error: e });
+            }
+
+            const updatedPrivacy = {
+                ...currentPrivacy,
+                showOnlineStatus: value,
+            };
             await authenticatedClient.put('/profile/settings', {
-                privacy: {
-                    showOnlineStatus: value
-                }
+                privacy: updatedPrivacy,
             });
         } catch (error) {
             logger.error('Error updating setting', { error });
+            // Revert on failure
+            setShowOnlineStatus(!value);
         }
     };
 

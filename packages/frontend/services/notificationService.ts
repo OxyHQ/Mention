@@ -8,21 +8,21 @@ interface NotificationsResponse {
     notifications: Notification[];
     unreadCount: number;
     hasMore: boolean;
-    page: number;
+    nextCursor?: string;
     limit: number;
 }
 
 class NotificationService {
     /**
-     * Get notifications for the current user
+     * Get notifications for the current user.
+     * Backend uses cursor-based pagination where cursor is the _id of the last notification.
      */
     async getNotifications(cursor?: string, limit: number = 20): Promise<NotificationsResponse> {
         try {
             const params: any = { limit };
 
             if (cursor) {
-                // For pagination, use page parameter if cursor represents page number
-                params.page = parseInt(cursor) || 1;
+                params.cursor = cursor;
             }
 
             const response = await authenticatedClient.get('/notifications', { params });
@@ -31,7 +31,7 @@ class NotificationService {
                 notifications: response.data.notifications || [],
                 unreadCount: response.data.unreadCount || 0,
                 hasMore: response.data.hasMore || false,
-                page: response.data.page || 1,
+                nextCursor: response.data.nextCursor,
                 limit: response.data.limit || limit,
             };
         } catch (error) {
