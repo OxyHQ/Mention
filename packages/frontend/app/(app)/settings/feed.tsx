@@ -10,28 +10,13 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
-import { useFeedSettings, FeedSettings } from '@/hooks/useFeedSettings';
+import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
 import { logger } from '@/lib/logger';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
-
-const DEFAULT_FEED_SETTINGS: FeedSettings = {
-  diversity: {
-    enabled: true,
-    sameAuthorPenalty: 0.95,
-    sameTopicPenalty: 0.92,
-  },
-  recency: {
-    halfLifeHours: 24,
-    maxAgeHours: 168,
-  },
-  quality: {
-    boostHighQuality: true,
-  },
-};
 
 const PRESETS = {
   mostRecent: {

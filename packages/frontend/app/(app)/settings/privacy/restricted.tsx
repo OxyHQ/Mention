@@ -17,12 +17,9 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
+import { createScopedLogger } from '@/lib/logger';
 
-// Production check - disable verbose logging in production
-const IS_DEV = __DEV__;
-const log = IS_DEV ? console.log : () => {};
-const logError = IS_DEV ? console.error : () => {};
-const logWarn = IS_DEV ? console.warn : () => {};
+const restrictedLogger = createScopedLogger('RestrictedUsers');
 
 const IconComponent = Ionicons as any;
 
@@ -55,17 +52,17 @@ export default function RestrictedUsersScreen() {
 
     const loadRestrictedUsers = useCallback(async () => {
         if (!isAuthenticated) {
-            log('[RestrictedUsers] Not authenticated, skipping load');
+            restrictedLogger.debug('Not authenticated, skipping load');
             setLoading(false);
             return;
         }
 
         try {
             setLoading(true);
-            log('[RestrictedUsers] Loading restricted users...');
+            restrictedLogger.debug('Loading restricted users...');
             // Use Oxy services directly
             const restrictedUsersList = await oxyServices.getRestrictedUsers();
-            log('[RestrictedUsers] Oxy response:', restrictedUsersList);
+            restrictedLogger.debug('Oxy response', { count: restrictedUsersList?.length });
             // Extract user IDs from RestrictedUser objects (restrictedId can be string or object)
             let userIds = restrictedUsersList
                 .map((user: any) => {
@@ -82,7 +79,7 @@ export default function RestrictedUsersScreen() {
                 userIds = userIds.filter((id: string) => id !== currentUserId);
             }
 
-            log('[RestrictedUsers] Restricted user IDs (filtered):', userIds);
+            restrictedLogger.debug('Restricted user IDs filtered', { count: userIds.length });
             setRestrictedUserIds(userIds);
 
             if (userIds.length === 0) {
@@ -99,7 +96,7 @@ export default function RestrictedUsersScreen() {
                 const batch = userIds.slice(i, i + BATCH_SIZE);
                 const batchPromises = batch.map(async (userId: string) => {
                     try {
-                        log(`[RestrictedUsers] Fetching user details for: ${userId}`);
+                        restrictedLogger.debug(`Fetching user details for: ${userId}`);
 
                         // Use usersStore's ensureById which tries multiple methods and caches
                         const { useUsersStore } = await import('@/stores/usersStore');
@@ -112,39 +109,39 @@ export default function RestrictedUsersScreen() {
                                 try {
                                     return await svc.getProfileById(id);
                                 } catch (e) {
-                                    log(`[RestrictedUsers] getProfileById failed for ${id}`);
+                                    restrictedLogger.debug(`getProfileById failed for ${id}`);
                                 }
                             }
                             if (typeof svc.getProfile === 'function') {
                                 try {
                                     return await svc.getProfile(id);
                                 } catch (e) {
-                                    log(`[RestrictedUsers] getProfile failed for ${id}`);
+                                    restrictedLogger.debug(`getProfile failed for ${id}`);
                                 }
                             }
                             if (typeof svc.getUserById === 'function') {
                                 try {
                                     return await svc.getUserById(id);
                                 } catch (e) {
-                                    log(`[RestrictedUsers] getUserById failed for ${id}`);
+                                    restrictedLogger.debug(`getUserById failed for ${id}`);
                                 }
                             }
                             if (typeof svc.getUser === 'function') {
                                 try {
                                     return await svc.getUser(id);
                                 } catch (e) {
-                                    log(`[RestrictedUsers] getUser failed for ${id}`);
+                                    restrictedLogger.debug(`getUser failed for ${id}`);
                                 }
                             }
                             return null;
                         };
 
                         const user = await usersState.ensureById(String(userId), loader);
-                        log(`[RestrictedUsers] Found user for ${userId}:`, user ? 'yes' : 'no');
+                        restrictedLogger.debug(`Found user for ${userId}: ${user ? 'yes' : 'no'}`);
 
                         // If we couldn't fetch user details, create a minimal user object
                         if (!user) {
-                            log(`[RestrictedUsers] Creating fallback user object for ${userId}`);
+                            restrictedLogger.debug(`Creating fallback user object for ${userId}`);
                             return {
                                 id: userId,
                                 username: userId.substring(0, 8) + '...',
@@ -154,7 +151,7 @@ export default function RestrictedUsersScreen() {
 
                         return user;
                     } catch (error) {
-                        logWarn(`[RestrictedUsers] Failed to fetch user ${userId}:`, error);
+                        restrictedLogger.warn(`Failed to fetch user ${userId}`, { error });
                         // Return fallback user object instead of null
                         return {
                             id: userId,
@@ -167,11 +164,10 @@ export default function RestrictedUsersScreen() {
             }
 
             const users = (await Promise.all(userPromises)).filter(Boolean) as RestrictedUser[];
-            log('[RestrictedUsers] Loaded users:', users.length);
+            restrictedLogger.debug(`Loaded ${users.length} users`);
             setRestrictedUsers(users);
         } catch (error: any) {
-            logError('[RestrictedUsers] Error loading restricted users:', error);
-            logError('[RestrictedUsers] Error response:', error.response?.data);
+            restrictedLogger.error('Error loading restricted users', { error, responseData: error.response?.data });
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -225,7 +221,7 @@ export default function RestrictedUsersScreen() {
                     const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
                     results = Array.isArray(data) ? data : [];
                 } catch (oxyError) {
-                    logWarn('[RestrictedUsers] oxyServices.searchProfiles failed, falling back:', oxyError);
+                    restrictedLogger.warn('oxyServices.searchProfiles failed, falling back', { error: oxyError });
                     results = await searchService.searchUsers(query);
                 }
             } else {
@@ -248,7 +244,7 @@ export default function RestrictedUsersScreen() {
         } catch (error: any) {
             // Ignore abort errors
             if (error.name !== 'AbortError') {
-                logError('Error searching users:', error);
+                restrictedLogger.error('Error searching users', { error });
             }
         } finally {
             if (!abortController.signal.aborted) {
@@ -321,7 +317,7 @@ export default function RestrictedUsersScreen() {
             }));
             // Use Oxy services directly
             await oxyServices.restrictUser(userId);
-            log('[RestrictedUsers] User restricted successfully');
+            restrictedLogger.debug('User restricted successfully');
 
             // Reload from server to ensure consistency
             await loadRestrictedUsers();
@@ -337,7 +333,7 @@ export default function RestrictedUsersScreen() {
             );
             bottomSheet.openBottomSheet(true);
         } catch (error: any) {
-            logError('Error restricting user:', error);
+            restrictedLogger.error('Error restricting user', { error });
             // Revert optimistic update on error
             setRestrictedUserIds(prev => prev.filter(id => id !== userId));
             setRestrictedUsers(prev => prev.filter(u => {
@@ -368,7 +364,7 @@ export default function RestrictedUsersScreen() {
 
         const performUnrestrict = async () => {
             try {
-                log('[RestrictedUsers] Unrestricting user:', userId);
+                restrictedLogger.debug(`Unrestricting user: ${userId}`);
 
                 // Optimistically remove from list
                 setRestrictedUserIds(prev => prev.filter(id => id !== userId));
@@ -379,7 +375,7 @@ export default function RestrictedUsersScreen() {
 
                 // Use Oxy services directly
                 await oxyServices.unrestrictUser(userId);
-                log('[RestrictedUsers] User unrestricted successfully');
+                restrictedLogger.debug('User unrestricted successfully');
 
                 // Reload from server to ensure consistency
                 await loadRestrictedUsers();
@@ -394,8 +390,7 @@ export default function RestrictedUsersScreen() {
                 );
                 bottomSheet.openBottomSheet(true);
             } catch (error: any) {
-                logError('[RestrictedUsers] Error unrestricting user:', error);
-                logError('[RestrictedUsers] Error response:', error.response?.data);
+                restrictedLogger.error('Error unrestricting user', { error, responseData: error.response?.data });
                 // Revert optimistic update on error
                 if (userToRemove) {
                     setRestrictedUserIds(prev => [...prev, userId]);
@@ -589,11 +584,11 @@ export default function RestrictedUsersScreen() {
                                                 style={{ backgroundColor: colors.error + '20' }}
                                                 activeOpacity={0.7}
                                                 onPress={() => {
-                                                    log('[RestrictedUsers] Unrestrict button pressed for userId:', userId, 'user:', user);
+                                                    restrictedLogger.debug('Unrestrict button pressed', { userId, user });
                                                     if (userId) {
                                                         handleUnrestrict(userId);
                                                     } else {
-                                                        logError('[RestrictedUsers] No userId found for user:', user);
+                                                        restrictedLogger.error('No userId found for user', { user });
                                                         bottomSheet.setBottomSheetContent(
                                                             <MessageBottomSheet
                                                                 title={t('common.error')}

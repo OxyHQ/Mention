@@ -53,30 +53,26 @@ export default function HideCountsScreen() {
                 const currentResponse = await authenticatedClient.get('/profile/settings/me');
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
-                // If we can't load current settings, start fresh
                 hideCountsLogger.debug('Could not load current privacy settings', { error: e });
             }
 
-            // Update with merged settings
             const updatedPrivacy = {
                 ...currentPrivacy,
-                [field]: value
+                [field]: value,
             };
             await authenticatedClient.put('/profile/settings', {
-                privacy: updatedPrivacy
+                privacy: updatedPrivacy,
             });
 
-            // Update cache immediately
-            try {
-                const currentResponse = await authenticatedClient.get('/profile/settings/me');
-                if (currentResponse.data?.privacy) {
-                    await updatePrivacySettingsCache(currentResponse.data.privacy);
-                }
-            } catch (e) {
-                hideCountsLogger.debug('Failed to update privacy settings cache', { error: e });
-            }
+            // Update cache from local state to avoid extra GET
+            await updatePrivacySettingsCache(updatedPrivacy);
         } catch (error) {
             hideCountsLogger.error('Error updating setting', { error });
+            // Revert on failure
+            if (field === 'hideLikeCounts') setHideLikeCounts(!value);
+            if (field === 'hideShareCounts') setHideShareCounts(!value);
+            if (field === 'hideReplyCounts') setHideReplyCounts(!value);
+            if (field === 'hideSaveCounts') setHideSaveCounts(!value);
         }
     };
 
@@ -100,7 +96,7 @@ export default function HideCountsScreen() {
                 hideSaveCounts: value
             };
             await authenticatedClient.put('/profile/settings', {
-                privacy: updatedPrivacy
+                privacy: updatedPrivacy,
             });
 
             // Update local state
@@ -109,15 +105,8 @@ export default function HideCountsScreen() {
             setHideReplyCounts(value);
             setHideSaveCounts(value);
 
-            // Update cache immediately
-            try {
-                const currentResponse = await authenticatedClient.get('/profile/settings/me');
-                if (currentResponse.data?.privacy) {
-                    await updatePrivacySettingsCache(currentResponse.data.privacy);
-                }
-            } catch (e) {
-                hideCountsLogger.debug('Failed to update privacy settings cache', { error: e });
-            }
+            // Update cache from local state to avoid extra GET
+            await updatePrivacySettingsCache(updatedPrivacy);
         } catch (error) {
             hideCountsLogger.error('Error updating all settings', { error });
         }

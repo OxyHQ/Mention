@@ -37,13 +37,27 @@ export default function TagsMentionsScreen() {
 
     const updateSetting = async (field: 'allowTags' | 'allowMentions', value: boolean) => {
         try {
+            // Load current settings first to preserve other privacy settings
+            let currentPrivacy = {};
+            try {
+                const currentResponse = await authenticatedClient.get('/profile/settings/me');
+                currentPrivacy = currentResponse.data?.privacy || {};
+            } catch (e) {
+                logger.debug('Could not load current privacy settings', { error: e });
+            }
+
+            const updatedPrivacy = {
+                ...currentPrivacy,
+                [field]: value,
+            };
             await authenticatedClient.put('/profile/settings', {
-                privacy: {
-                    [field]: value
-                }
+                privacy: updatedPrivacy,
             });
         } catch (error) {
             logger.error('Error updating setting', { error });
+            // Revert on failure
+            if (field === 'allowTags') setAllowTags(!value);
+            if (field === 'allowMentions') setAllowMentions(!value);
         }
     };
 
