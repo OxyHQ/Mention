@@ -808,8 +808,20 @@ class FeedController {
             }
 
             if (actor?.outboxUrl) {
+              // Ensure the actor has oxyUserId before syncing so posts get the right author
+              if (!actor.oxyUserId) {
+                await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
+                (actor as any).oxyUserId = syncUserId;
+              }
               const syncedCount = await federationService.syncOutboxPosts(actor, syncLimit);
               logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
+              // Backfill oxyUserId on any posts that were stored without it
+              if (syncedCount > 0) {
+                await Post.updateMany(
+                  { 'federation.activityId': { $regex: `^${actor.uri}` }, oxyUserId: null },
+                  { $set: { oxyUserId: syncUserId } },
+                );
+              }
             }
           } catch (err) {
             logger.warn('[FedSync] Background outbox sync failed:', err);
