@@ -433,12 +433,31 @@ class FederationService {
         });
       }
 
-      // Batch insert (ordered: false to continue on duplicate key errors)
+      // Strip empty location/coordinates from content to avoid 2dsphere index errors
+      for (const doc of newDocs) {
+        if (doc.content?.location) {
+          if (!doc.content.location.coordinates || doc.content.location.coordinates.length !== 2) {
+            delete doc.content.location;
+          }
+        }
+        if (doc.location) {
+          if (!doc.location.coordinates || doc.location.coordinates.length !== 2) {
+            delete doc.location;
+          }
+        }
+      }
+
+      // Batch insert (ordered: false to continue on individual errors)
       if (newDocs.length > 0) {
         await Post.insertMany(newDocs, { ordered: false }).catch((err: any) => {
-          // E11000 duplicate key errors are expected from race conditions — ignore them
-          if (err?.code !== 11000 && !err?.writeErrors?.every((e: any) => e.err?.code === 11000)) {
+          // Partial write errors (duplicate key, geo errors) are expected — log but don't throw
+          const writeErrors = err?.writeErrors || [];
+          const unexpectedErrors = writeErrors.filter((e: any) => e.err?.code !== 11000 && e.err?.code !== 16755);
+          if (unexpectedErrors.length > 0) {
             throw err;
+          }
+          if (writeErrors.length > 0) {
+            logger.debug(`[FedSync] insertMany partial: ${writeErrors.length} errors (expected), ${newDocs.length - writeErrors.length} inserted`);
           }
         });
       }
