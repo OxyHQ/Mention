@@ -588,7 +588,7 @@ export default function RestrictedUsersScreen() {
                                                     if (userId) {
                                                         handleUnrestrict(userId);
                                                     } else {
-                                                        restrictedLogger.error('No userId found for user');
+                                                        restrictedLogger.error('No userId found for user', { user });
                                                         bottomSheet.setBottomSheetContent(
                                                             <MessageBottomSheet
                                                                 title={t('common.error')}
