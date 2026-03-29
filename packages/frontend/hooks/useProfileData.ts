@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
@@ -66,96 +66,6 @@ function computeDesign(
 }
 
 /**
- * Check if a username is a federated handle (contains @ after stripping leading @).
- * e.g. "user@mastodon.social" → true, "localuser" → false
- */
-function isFederatedUsername(username: string): boolean {
-  return username.includes('@');
-}
-
-/**
- * Hook for federated profile data.
- * Resolves fediverse handles via OxyHQServices (WebFinger → actor fetch → upsert).
- */
-const federatedProfileCache = new Map<string, { user: any; fetchedAt: number }>();
-const FEDERATED_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-function useFederatedProfileData(handle: string): {
-  data: ProfileData | null;
-  loading: boolean;
-  error: boolean;
-} {
-  const { oxyServices } = useAuth();
-  const cached = handle ? federatedProfileCache.get(handle) : undefined;
-  const [user, setUser] = useState<any>(cached?.user || null);
-  const [loading, setLoading] = useState(!cached?.user);
-  const [error, setError] = useState(false);
-  const fetchedRef = useRef(false);
-
-  useEffect(() => {
-    if (!handle) return;
-    let cancelled = false;
-
-    const cachedEntry = federatedProfileCache.get(handle);
-    const isStale = !cachedEntry || Date.now() - cachedEntry.fetchedAt > FEDERATED_CACHE_TTL;
-
-    if (cachedEntry?.user && !fetchedRef.current) {
-      setUser(cachedEntry.user);
-      setLoading(false);
-      setError(false);
-    }
-
-    if (!isStale) return;
-    if (!cachedEntry?.user) setLoading(true);
-
-    (async () => {
-      try {
-        const result = await oxyServices.resolveProfile(handle);
-        if (!cancelled) {
-          setUser(result);
-          setError(!result);
-          if (result) {
-            federatedProfileCache.set(handle, { user: result, fetchedAt: Date.now() });
-          }
-          fetchedRef.current = true;
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [handle, oxyServices]);
-
-  const profileData = useMemo((): ProfileData | null => {
-    if (!user) return null;
-
-    const nameValue = typeof user.name === 'string' ? user.name : user.name?.full || user.name?.first;
-
-    return {
-      id: user.id || handle,
-      username: handle,
-      bio: user.bio || user.description,
-      verified: false,
-      isFederated: true,
-      actorUri: user.federation?.actorUri,
-      instance: user.federation?.domain,
-      followersCount: user._count?.followers ?? 0,
-      followingCount: user._count?.following ?? 0,
-      createdAt: user.createdAt,
-      design: {
-        displayName: nameValue || handle.split('@')[0],
-        avatar: user.avatar,
-        coverPhotoEnabled: false,
-        minimalistMode: false,
-      },
-    };
-  }, [user, handle]);
-
-  return { data: profileData, loading, error };
-}
-
-/**
  * Unified hook for profile data that combines:
  * - Oxy profile data (from usersStore)
  * - Appearance/customization settings (from appearanceStore, which includes privacy)
@@ -176,7 +86,8 @@ export function useProfileData(username?: string): {
 }
 
 /**
- * Hook for local (non-federated) profile data.
+ * Hook for profile data — handles both local and federated users via the
+ * unified Oxy flow (federated handles are resolved server-side via WebFinger).
  */
 function useLocalProfileData(username?: string): {
   data: ProfileData | null;
