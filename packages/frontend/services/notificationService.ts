@@ -14,7 +14,8 @@ interface NotificationsResponse {
 
 class NotificationService {
     /**
-     * Get notifications for the current user
+     * Get notifications for the current user.
+     * Backend uses cursor-based pagination where cursor is the _id of the last notification.
      */
     async getNotifications(cursor?: string, limit: number = 20): Promise<NotificationsResponse> {
         try {

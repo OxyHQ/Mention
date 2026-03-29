@@ -1,4 +1,5 @@
 import { authenticatedClient } from '@/utils/api';
+import { FeedResponse } from '@mention/shared-types';
 
 class CustomFeedsService {
   async list(params?: { mine?: boolean; publicOnly?: boolean; search?: string; userId?: string }): Promise<{ items: any[]; total: number }> {
