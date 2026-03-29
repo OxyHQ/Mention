@@ -145,7 +145,7 @@ class FederationJobScheduler {
         uri: { $in: followedActorUris },
         outboxUrl: { $ne: null },
       })
-        .select('uri acct outboxUrl')
+        .select('uri acct outboxUrl oxyUserId')
         .lean();
 
       if (actors.length === 0) return;

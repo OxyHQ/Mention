@@ -253,9 +253,9 @@ class FederationService {
         { upsert: true, returnDocument: 'after', lean: true },
       );
 
-      // Resolve to Oxy User if not already linked.
-      // Also retries on stale refresh if a previous resolution failed.
-      if (fedActor && !fedActor.oxyUserId) {
+      // Always upsert into Oxy so profile changes (avatar, name, bio) are synced.
+      // resolveExternalUser creates the user if not exists, updates if changed.
+      if (fedActor) {
         try {
           const oxyClient = getServiceOxyClient();
           const oxyUser = await oxyClient.resolveExternalUser({
@@ -267,7 +267,7 @@ class FederationService {
             avatar: actor.icon?.url || actor.icon?.href,
             bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
           });
-          if (oxyUser?.id) {
+          if (oxyUser?.id && fedActor.oxyUserId !== String(oxyUser.id)) {
             await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: String(oxyUser.id) } });
           }
         } catch (resolveErr) {
@@ -1021,8 +1021,7 @@ class FederationService {
 
     const post = await Post.findOne({ 'federation.activityId': objectId, federation: { $ne: null } }).lean();
     if (!post) return;
-    // Verify the deleting actor owns this post
-    const postActorUri = this.extractActorUri((post.federation as any)?.activityId ? actorUri : undefined);
+    // Verify the deleting actor owns this post via Oxy user ID
     const actorRecord = await FederatedActor.findOne({ uri: actorUri }).lean();
     if (actorRecord && post.oxyUserId && actorRecord.oxyUserId !== post.oxyUserId) {
       logger.warn(`Delete rejected: actor ${actorUri} does not own post ${objectId}`);
