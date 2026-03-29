@@ -568,13 +568,19 @@ class FederationService {
       const body = JSON.stringify(activity);
       const sigHeaders = signRequest(keyPair.privateKeyPem, keyPair.keyId, 'POST', targetInbox, body);
 
+      const allHeaders: Record<string, string> = {
+        'Content-Type': AP_CONTENT_TYPE,
+        'Content-Length': String(Buffer.byteLength(body, 'utf-8')),
+        'User-Agent': USER_AGENT,
+        Accept: AP_CONTENT_TYPE,
+        ...sigHeaders,
+      };
+
+      logger.debug(`[FedDeliver] POST ${targetInbox} headers=${JSON.stringify(Object.keys(allHeaders))} bodyLen=${body.length} sig=${sigHeaders['Signature']?.substring(0, 100)}...`);
+
       const res = await fetch(targetInbox, {
         method: 'POST',
-        headers: {
-          'Content-Type': AP_CONTENT_TYPE,
-          'User-Agent': USER_AGENT,
-          ...sigHeaders,
-        },
+        headers: allHeaders,
         body,
         signal: AbortSignal.timeout(15000),
       });
@@ -733,7 +739,7 @@ class FederationService {
     );
 
     const activity: Record<string, unknown> = {
-      '@context': AP_CONTEXT,
+      '@context': 'https://www.w3.org/ns/activitystreams',
       id: activityId,
       type: 'Follow',
       actor: localActorUri,
