@@ -47,11 +47,11 @@ export function useFederatedFollowSync(
 
     if (isFollowing) {
       feedService.followFederatedActor(actorUri).catch(err => {
-        console.warn('[Federation] Failed to send AP Follow:', err);
+        logger.warn('[Federation] Failed to send AP Follow:', { error: err });
       });
     } else {
       feedService.unfollowFederatedActor(actorUri).catch(err => {
-        console.warn('[Federation] Failed to send AP Unfollow:', err);
+        logger.warn('[Federation] Failed to send AP Unfollow:', { error: err });
       });
     }
   }, [isFederated, actorUri, profileId, isFollowing]);
