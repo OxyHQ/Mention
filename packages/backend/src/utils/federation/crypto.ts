@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { logger } from '../logger';
-import { OXY_API_URL } from './constants';
+import { OXY_API_URL, AP_CONTENT_TYPE } from './constants';
 
 interface KeyPairData {
   keyId: string;
@@ -65,6 +65,9 @@ export function signRequest(
     headers['Digest'] = `SHA-256=${digest}`;
     signedHeaderNames.push('digest');
     signingParts.push(`digest: SHA-256=${digest}`);
+    // Include content-type in signature (required by some servers like Threads)
+    signedHeaderNames.push('content-type');
+    signingParts.push(`content-type: ${AP_CONTENT_TYPE}`);
   }
 
   const signingString = signingParts.join('\n');
