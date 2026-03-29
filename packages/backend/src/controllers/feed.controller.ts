@@ -849,7 +849,7 @@ class FeedController {
         try {
           await Promise.race([
             syncPromise,
-            new Promise(resolve => setTimeout(resolve, 10000)),
+            new Promise(resolve => setTimeout(resolve, 25000)),
           ]);
           posts = await Post.find(query)
             .select(this.FEED_FIELDS)
