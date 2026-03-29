@@ -106,7 +106,7 @@ export const useRealtimeNotifications = () => {
     return () => {
       disconnectSocket();
     };
-  }, [isAuthenticated, user?.id, connectSocket, disconnectSocket]);
+  }, [isAuthenticated, isReady, user?.id, connectSocket, disconnectSocket]);
 
   return {
     isConnected: socket?.connected || false,

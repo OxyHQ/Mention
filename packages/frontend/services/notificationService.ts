@@ -8,7 +8,7 @@ interface NotificationsResponse {
     notifications: Notification[];
     unreadCount: number;
     hasMore: boolean;
-    page: number;
+    nextCursor?: string;
     limit: number;
 }
 
@@ -21,8 +21,7 @@ class NotificationService {
             const params: any = { limit };
 
             if (cursor) {
-                // For pagination, use page parameter if cursor represents page number
-                params.page = parseInt(cursor) || 1;
+                params.cursor = cursor;
             }
 
             const response = await authenticatedClient.get('/notifications', { params });
@@ -31,7 +30,7 @@ class NotificationService {
                 notifications: response.data.notifications || [],
                 unreadCount: response.data.unreadCount || 0,
                 hasMore: response.data.hasMore || false,
-                page: response.data.page || 1,
+                nextCursor: response.data.nextCursor,
                 limit: response.data.limit || limit,
             };
         } catch (error) {
