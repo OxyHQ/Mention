@@ -1,6 +1,6 @@
 // A tiny shared echo guard to suppress socket echo updates after local actions
 
-type EchoAction = "like" | "unlike" | "repost" | "unrepost" | "save" | "unsave" | "reply";
+type EchoAction = "like" | "unlike" | "downvote" | "repost" | "unrepost" | "save" | "unsave" | "reply";
 
 const recentActions: Map<string, Record<EchoAction, number>> = new Map();
 
