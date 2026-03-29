@@ -470,17 +470,20 @@ class FederationService {
         }
       }
 
-      // Batch insert (ordered: false to continue on individual errors)
+      // Batch insert using raw collection to bypass Mongoose schema defaults
+      // (Mongoose adds empty location.coordinates which breaks 2dsphere index)
       if (newDocs.length > 0) {
-        await Post.insertMany(newDocs, { ordered: false }).catch((err: any) => {
-          // Partial write errors (duplicate key, geo errors) are expected — log but don't throw
+        await Post.collection.insertMany(newDocs, { ordered: false }).catch((err: any) => {
+          // Partial write errors (duplicate key) are expected — log but don't throw
           const writeErrors = err?.writeErrors || [];
-          const unexpectedErrors = writeErrors.filter((e: any) => e.err?.code !== 11000 && e.err?.code !== 16755);
+          const unexpectedErrors = writeErrors.filter((e: any) => e.err?.code !== 11000);
           if (unexpectedErrors.length > 0) {
-            throw err;
+            logger.warn(`[FedSync] insertMany unexpected errors: ${unexpectedErrors.map((e: any) => e.err?.errmsg).join('; ')}`);
           }
-          if (writeErrors.length > 0) {
-            logger.debug(`[FedSync] insertMany partial: ${writeErrors.length} errors (expected), ${newDocs.length - writeErrors.length} inserted`);
+          if (writeErrors.length > 0 && writeErrors.length < newDocs.length) {
+            logger.debug(`[FedSync] insertMany partial: ${writeErrors.length} errors, ${newDocs.length - writeErrors.length} inserted`);
+          } else if (writeErrors.length === 0) {
+            throw err;
           }
         });
       }
