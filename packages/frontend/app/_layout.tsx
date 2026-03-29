@@ -67,12 +67,6 @@ export default function RootLayout() {
   // Font Loading
   const [fontsLoaded, fontError] = useFonts(
     useMemo(() => {
-      // On web, register a single variable-font entry (woff2) to avoid
-      // duplicate @font-face declarations that produce OTS parsing errors.
-      if (Platform.OS === 'web') {
-        return { 'Inter': require('@/assets/fonts/inter/InterVariable.ttf') };
-      }
-
       const fontMap: Record<string, any> = {};
       const InterVariable = require('@/assets/fonts/inter/InterVariable.ttf');
 
