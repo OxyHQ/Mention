@@ -122,11 +122,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         currentTab: tab,
     });
 
-    // Follow data — skip useFollow for federated profiles (uses data from profileData)
-    const stableUserId = isFederated ? '' : (profileData?.id || '');
-    const { followerCount: localFollowerCount = 0, followingCount: localFollowingCount = 0, isFollowing: isFollowingProfileUser = false } = useFollow(stableUserId);
-    const followerCount = isFederated ? (profileData?.followersCount ?? 0) : localFollowerCount;
-    const followingCount = isFederated ? (profileData?.followingCount ?? 0) : localFollowingCount;
+    // Follow data — federated users are stored in Oxy, so useFollow works with their Oxy ID
+    const stableUserId = profileData?.id || '';
+    const { followerCount: rawFollowerCount, followingCount: rawFollowingCount, isFollowing: isFollowingProfileUser = false } = useFollow(stableUserId);
+    const followerCount = rawFollowerCount ?? 0;
+    const followingCount = rawFollowingCount ?? 0;
 
     // Track "just followed" — show suggestions only on the follow action, not on revisits
     const [justFollowed, setJustFollowed] = useState(false);
@@ -155,11 +155,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         prevFollowRef.current = isFollowingProfileUser;
     }
 
-    // Subscription handling — disabled for federated profiles
+    // Subscription handling
     const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(
-        isFederated ? undefined : profileData?.id,
+        profileData?.id,
         currentUser?.id,
-        isFederated || currentUser?.id === profileData?.id
+        currentUser?.id === profileData?.id
     );
 
     // Computed values
@@ -202,22 +202,20 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         [profileData]
     );
 
-    // Tabs — federated profiles only show Posts
+    // Tabs — all users (including federated) get full tabs since data is in Oxy/Mention DB
     const tabs = useMemo(
-        () => isFederated
-            ? [t('profile.tabs.posts')]
-            : [
-                t('profile.tabs.posts'),
-                t('profile.tabs.replies'),
-                t('profile.tabs.media'),
-                t('profile.tabs.videos'),
-                t('profile.tabs.likes'),
-                t('profile.tabs.reposts'),
-                t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
-                t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
-                t('profile.tabs.lists', { defaultValue: 'Lists' }),
-            ],
-        [t, isFederated]
+        () => [
+            t('profile.tabs.posts'),
+            t('profile.tabs.replies'),
+            t('profile.tabs.media'),
+            t('profile.tabs.videos'),
+            t('profile.tabs.likes'),
+            t('profile.tabs.reposts'),
+            t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
+            t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
+            t('profile.tabs.lists', { defaultValue: 'Lists' }),
+        ],
+        [t]
     );
 
     // Clear cached feed data for private profiles
@@ -234,13 +232,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const onTabPress = useCallback(
         (index: number) => {
             if (!username) return;
-            // Federated profiles only have 1 tab
-            if (isFederated) return;
             const tabName = TAB_NAMES[index];
             const path = index === 0 ? `/@${username}` : `/@${username}/${tabName}`;
             router.push(path as any);
         },
-        [username, isFederated]
+        [username]
     );
 
     const handlePostsPress = useCallback(() => {
@@ -454,7 +450,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     <>
                         {/* Header actions */}
                         <View className="absolute flex-row items-center" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING, gap: 8 }, themedStyles.headerActions]}>
-                            {!isOwnProfile && !isFederated && (
+                            {!isOwnProfile && (
                                 <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
                                     {subscribed ? (
                                         <BellActive size={20} className="text-primary" />
@@ -463,7 +459,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     )}
                                 </IconButton>
                             )}
-                            {!isOwnProfile && !isFederated && (
+                            {!isOwnProfile && (
                                 <IconButton variant="icon" onPress={handleDM}>
                                     <Ionicons name="mail-outline" size={20} color={theme.colors.text} />
                                 </IconButton>
@@ -476,7 +472,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             <IconButton variant="icon" onPress={handleShare}>
                                 <ShareIcon size={20} className="text-foreground" />
                             </IconButton>
-                            {!isOwnProfile && !isFederated && (
+                            {!isOwnProfile && (
                                 <IconButton variant="icon" onPress={handleMoreOptions}>
                                     <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
                                 </IconButton>
@@ -583,7 +579,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         onLayout={setProfileContentHeight}
                                     />
                                 )}
-                                {!isOwnProfile && !isFederated && profileData?.id && (
+                                {!isOwnProfile && profileData?.id && (
                                     <SuggestedUsers
                                         visible={justFollowed}
                                         sourceUserId={profileData.id}
