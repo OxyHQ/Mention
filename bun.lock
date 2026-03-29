@@ -27,7 +27,7 @@
         "@expo/vector-icons": "^15.0.3",
         "@livekit/react-native": "^2.9.6",
         "@livekit/react-native-expo-plugin": "^1.0.1",
-        "@livekit/react-native-webrtc": "^137.0.2",
+        "@livekit/react-native-webrtc": "^137.0.3",
         "@mention/agora-shared": "*",
         "@oxyhq/bloom": "0.1.17",
         "@oxyhq/core": "1.11.6",
@@ -166,7 +166,7 @@
         "@legendapp/list": "^2.0.19",
         "@livekit/react-native": "^2.9.6",
         "@livekit/react-native-expo-plugin": "^1.0.2",
-        "@livekit/react-native-webrtc": "^137.0.2",
+        "@livekit/react-native-webrtc": "^137.0.3",
         "@oxyhq/bloom": "0.1.17",
         "@oxyhq/core": "1.11.6",
         "@oxyhq/services": "6.9.22",
@@ -793,7 +793,7 @@
 
     "@livekit/react-native-expo-plugin": ["@livekit/react-native-expo-plugin@1.0.2", "", { "peerDependencies": { "@livekit/react-native": "^2.1.0", "expo": "*", "react": "*", "react-native": "*" } }, ""],
 
-    "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@137.0.2", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4", "event-target-shim": "6.0.2" }, "peerDependencies": { "react-native": ">=0.60.0" } }, ""],
+    "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@137.0.3", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4" }, "peerDependencies": { "react-native": ">=0.60.0" } }, "sha512-vfg2w/lMLNIRsIkRO0HWo6aTzkpCiBsgtHuvuIf3QF2pMgCK1w206nmrb4ATlv7v0Xu8e+/q/22gBRdsyIV4Aw=="],
 
     "@lottiefiles/dotlottie-react": ["@lottiefiles/dotlottie-react@0.18.7", "", { "dependencies": { "@lottiefiles/dotlottie-web": "0.67.0" }, "peerDependencies": { "react": "^17 || ^18 || ^19" } }, "sha512-aEUS3GR7U3ldT74Xt4l1pPz5KfY4IOXM30e4LMChXH2qNcwy3PZdoT7i44jf+vV+qgEffXshAAepVAZD6XZmTw=="],
 

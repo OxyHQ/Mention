@@ -18,7 +18,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@livekit/react-native": "^2.9.6",
     "@livekit/react-native-expo-plugin": "^1.0.1",
-    "@livekit/react-native-webrtc": "^137.0.2",
+    "@livekit/react-native-webrtc": "^137.0.3",
     "@mention/agora-shared": "*",
     "@oxyhq/core": "1.11.6",
     "@oxyhq/services": "6.9.22",
