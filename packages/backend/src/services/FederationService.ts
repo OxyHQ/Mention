@@ -581,7 +581,8 @@ class FederationService {
 
       if (res.ok || res.status === 202) return true;
 
-      logger.debug(`Activity delivery failed to ${targetInbox}: ${res.status} ${res.statusText}`);
+      const responseBody = await res.text().catch(() => '');
+      logger.debug(`Activity delivery failed to ${targetInbox}: ${res.status} ${res.statusText} body=${responseBody.slice(0, 500)}`);
       return false;
     } catch (err) {
       logger.debug(`Activity delivery error to ${targetInbox}:`, err);
