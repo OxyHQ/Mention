@@ -5,6 +5,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { LinkMetadata } from '../../stores/linksStore';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { CloseIcon } from '@/assets/icons/close-icon';
+import { useTranslation } from 'react-i18next';
 import { ScaleAndFadeIn, ScaleAndFadeOut } from '@/lib/animations/ScaleAndFade';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getApiOrigin } from '@/utils/api';
@@ -172,6 +173,7 @@ interface LinkPreviewLoadingProps {
 
 export const LinkPreviewLoading: React.FC<LinkPreviewLoadingProps> = ({ style }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <View
@@ -187,7 +189,7 @@ export const LinkPreviewLoading: React.FC<LinkPreviewLoadingProps> = ({ style })
       <View className="flex-row items-center justify-center p-4">
         <Loading size="small" style={{ flex: undefined }} />
         <Text className="text-[13px] text-muted-foreground ml-2">
-          Loading preview...
+          {t('compose.linkPreview.loading', { defaultValue: 'Loading preview...' })}
         </Text>
       </View>
     </View>
