@@ -38,7 +38,6 @@ export function useFederatedFollowSync(
       prevFollowingRef.current = isFollowing;
       return;
     }
-    }
 
     const wasFollowing = prevFollowingRef.current;
     prevFollowingRef.current = isFollowing;
