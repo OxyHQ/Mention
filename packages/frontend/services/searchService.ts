@@ -106,13 +106,11 @@ class SearchService {
     }
   }
 
-  // Search hashtags
+  // Search hashtags — backend exposes POST /hashtags/search with body { query }
   async searchHashtags(query: string): Promise<any[]> {
     try {
-      const res = await authenticatedClient.get("/hashtags", {
-        params: { search: query }
-      });
-      return res.data.hashtags || [];
+      const res = await authenticatedClient.post("/hashtags/search", { query });
+      return res.data.data || [];
     } catch (error) {
       // Silently return empty array on error
       return [];

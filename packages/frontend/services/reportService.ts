@@ -22,9 +22,11 @@ class ReportService {
       return true;
     } catch (error: any) {
       if (error?.response?.status === 409) {
-        // Already reported
+        // Already reported — treat as success
         logger.warn("Already reported this content");
+        return true;
       }
+      logger.warn("Failed to report post", { error });
       return false;
     }
   }
@@ -38,7 +40,11 @@ class ReportService {
         details
       });
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.response?.status === 409) {
+        logger.warn("Already reported this user");
+        return true;
+      }
       logger.warn("Failed to report user", { error });
       return false;
     }

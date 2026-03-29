@@ -368,25 +368,15 @@ class FeedService {
    * Get post by ID
    */
   async getPostById(postId: string): Promise<any> {
+    // Prefer transformed feed item for consistent user/engagement shape
     try {
-      // Prefer transformed feed item for consistent user/enagement shape
-      try {
-        const transformed = await authenticatedClient.get(`/feed/item/${postId}`);
-        return transformed.data;
-      } catch (e) {
-        // Fallback to posts endpoint for backward compatibility
-        const response = await authenticatedClient.get(`/posts/${postId}`);
-        return response.data;
-      }
-    } catch (error: any) {
-      // Preserve original error (especially for 404 handling)
-      if (error?.response?.status === 404) {
-        // Don't log 404s - post may have been deleted
-        throw error; // Re-throw original Axios error to preserve status
-      }
-      // Error will be handled by caller
-      throw error; // Re-throw original error instead of creating new one
+      const transformed = await authenticatedClient.get(`/feed/item/${postId}`);
+      return transformed.data;
+    } catch {
+      // Fallback to posts endpoint for backward compatibility
     }
+    const response = await authenticatedClient.get(`/posts/${postId}`);
+    return response.data;
   }
 
   /**
@@ -434,19 +424,6 @@ class FeedService {
     if (request.limit) params.limit = request.limit;
 
     const response = await authenticatedClient.get(`/posts/topic/${encodeURIComponent(topic)}`, { params });
-    return response.data;
-  }
-
-  /**
-   * Get posts by user mentions
-   */
-  async getPostsByMentions(userId: string, request: FeedRequest): Promise<FeedResponse> {
-    const params: Record<string, unknown> = {};
-
-    if (request.cursor) params.cursor = request.cursor;
-    if (request.limit) params.limit = request.limit;
-
-    const response = await authenticatedClient.get(`/posts/mentions/${userId}`, { params });
     return response.data;
   }
 
