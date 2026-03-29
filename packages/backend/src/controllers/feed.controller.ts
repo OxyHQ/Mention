@@ -798,12 +798,32 @@ class FeedController {
               const actorUri = typeof federation?.actorUri === 'string' ? federation.actorUri : undefined;
               logger.info(`[FedSync] oxyUser.type=${oxyUser?.type} federation.actorUri=${actorUri ?? 'missing'}`);
               if (actorUri) {
-                const fetched = await federationService.fetchRemoteActor(actorUri);
-                logger.info(`[FedSync] fetchRemoteActor returned: id=${fetched?._id} oxyUserId=${fetched?.oxyUserId ?? 'null'} outboxUrl=${fetched?.outboxUrl ?? 'none'}`);
-                if (fetched && !fetched.oxyUserId) {
-                  await FederatedActor.updateOne({ _id: fetched._id }, { $set: { oxyUserId: syncUserId } });
-                }
-                actor = fetched ? await FederatedActor.findById(fetched._id).lean() as IFederatedActor | null : null;
+                // Quick path: create a minimal FederatedActor with just the outbox URL
+                // instead of doing a full fetchRemoteActor (which fetches collection counts).
+                // The full actor refresh will happen via the scheduled job later.
+                const domain = new URL(actorUri).hostname;
+                const username = (oxyUser?.username as string || '').split('@')[0] || 'unknown';
+                const acct = `${username}@${domain}`;
+                const outboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
+                logger.info(`[FedSync] creating minimal FederatedActor: acct=${acct} outboxUrl=${outboxUrl}`);
+                const created = await FederatedActor.findOneAndUpdate(
+                  { uri: actorUri },
+                  {
+                    $set: {
+                      uri: actorUri,
+                      username,
+                      domain,
+                      acct,
+                      inboxUrl: `${actorUri}${actorUri.endsWith('/') ? '' : '/'}inbox`,
+                      outboxUrl,
+                      oxyUserId: syncUserId,
+                      lastFetchedAt: new Date(0), // Mark as stale so scheduled job refreshes it
+                    },
+                    $setOnInsert: { type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, fields: [], followersCount: 0, followingCount: 0, postsCount: 0 },
+                  },
+                  { upsert: true, returnDocument: 'after', lean: true },
+                ) as IFederatedActor | null;
+                actor = created;
               }
             }
 
