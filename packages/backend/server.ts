@@ -61,6 +61,7 @@ import roomsRoutes from './src/routes/rooms.routes';
 import recordingsRoutes from './src/routes/recordings.routes';
 import housesRoutes from './src/routes/houses.routes';
 import seriesRoutes from './src/routes/series.routes';
+import entityFollowRoutes from './src/routes/entity-follow.routes';
 import adminRoutes from './src/routes/admin';
 
 // Federation (ActivityPub)
@@ -756,6 +757,7 @@ authenticatedApiRouter.use("/recordings", recordingsRoutes);
 authenticatedApiRouter.use("/houses", housesRoutes);
 authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
+authenticatedApiRouter.use("/entity-follows", entityFollowRoutes);
 authenticatedApiRouter.use("/starter-packs", starterPacksRoutes);
 authenticatedApiRouter.use("/admin", adminRoutes);
 
