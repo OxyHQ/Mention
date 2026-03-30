@@ -24,6 +24,7 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     scrollY,
     createAnimatedScrollHandler,
     registerScrollable,
+    setScrollY,
   } = useLayoutScroll();
 
   // Refs - using any for ScrollView ref due to Animated wrapper complexity
@@ -66,9 +67,12 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     scrollRef.current = node;
     clearRegistration();
     if (node && registerScrollable) {
+      // Reset shared scrollY so header animations start from 0
+      // (prevents stale scroll position from a previous screen hiding the banner)
+      setScrollY(0);
       unregisterRef.current = registerScrollable(node);
     }
-  }, [clearRegistration, registerScrollable]);
+  }, [clearRegistration, registerScrollable, setScrollY]);
 
   // Scroll event handler with throttling and infinite scroll
   const handleScrollEvent = useCallback((event: any) => {
