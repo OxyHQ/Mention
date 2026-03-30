@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
+
 import { useUsersStore, useUserById } from '@/stores/usersStore';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -229,7 +229,7 @@ const FollowRow = React.memo(({ item }: { item: any }) => {
         onPress={handlePress}
         activeOpacity={0.7}
       >
-        <Avatar source={avatarUri} size={48}  placeholderIcon={<MentionAvatarIcon size={48 * 0.6} />} />
+        <Avatar source={avatarUri} size={48} />
         <View style={styles.rowTextWrap}>
           <ThemedText className="text-foreground" style={styles.rowTitle}>
             {displayName}

@@ -14,7 +14,7 @@ import {
 import { show as toast } from '@oxyhq/bloom/toast';
 import * as Prompt from '@oxyhq/bloom/prompt';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
+
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@oxyhq/services";
@@ -161,7 +161,7 @@ const RepostScreen: React.FC = () => {
                 {/* Original Post */}
                 <View className="py-4 border-b border-border mb-4">
                     <View className="flex-row items-center mb-2">
-                        <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }}  placeholderIcon={<MentionAvatarIcon size={32 * 0.6} />} />
+                        <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }} />
                         <View className="flex-1">
                             <UserName
                                 name={originalPost.user.name}

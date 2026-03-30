@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
+
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -65,7 +65,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       <View className="flex-row items-start justify-between">
         <ProfileHoverCard username={user.handle}>
           <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
-            <Avatar source={avatarUri} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }}  placeholderIcon={<MentionAvatarIcon size={avatarSize * 0.6} />} />
+            <Avatar source={avatarUri} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }} />
           </TouchableOpacity>
         </ProfileHoverCard>
         <View className="flex-1" style={{ gap: 4 }}>
