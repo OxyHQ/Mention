@@ -26,7 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
+
 import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
@@ -94,7 +94,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
         {({ pressed }) => (
           <>
             <View style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]} className="bg-secondary" />
-            <Avatar source={feed.avatar} size={36}  placeholderIcon={<MentionAvatarIcon size={36 * 0.6} />} />
+            <Avatar source={feed.avatar} size={36} />
             <View className="flex-1">
               <Text className="text-[15px] font-bold leading-snug text-foreground" numberOfLines={2}>
                 {feed.title}
@@ -162,7 +162,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
     <View className="gap-4 px-5 pb-8 pt-2">
       {/* Avatar + title + share */}
       <View className="flex-row items-center gap-3.5">
-        <Avatar source={feed.avatar} size={48}  placeholderIcon={<MentionAvatarIcon size={48 * 0.6} />} />
+        <Avatar source={feed.avatar} size={48} />
         <View className="flex-1 gap-0.5">
           <Text className="text-2xl font-bold leading-tight text-foreground" numberOfLines={2}>
             {feed.title}
@@ -283,7 +283,7 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Memb
           onPress={() => router.push(`/@${m.username}` as any)}
           activeOpacity={0.7}
         >
-          <Avatar source={m.avatar} size={44}  placeholderIcon={<MentionAvatarIcon size={44 * 0.6} />} />
+          <Avatar source={m.avatar} size={44} />
           <View className="flex-1 gap-0.5">
             <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
               {m.username}
@@ -527,7 +527,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
               style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
             >
               <View className="flex-row items-start gap-2.5">
-                <Avatar source={reviewerAvatar} size={36}  placeholderIcon={<MentionAvatarIcon size={36 * 0.6} />} />
+                <Avatar source={reviewerAvatar} size={36} />
                 <View className="flex-1 gap-[3px]">
                   <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                     {reviewerName}

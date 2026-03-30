@@ -7,7 +7,7 @@ import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { feedService } from '@/services/feedService';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
+
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -84,7 +84,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
         style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent' }}
         onPress={() => handleUserPress(item.handle)}
       >
-        <Avatar source={item.avatar} size={50} style={{ marginRight: 12 }}  placeholderIcon={<MentionAvatarIcon size={50 * 0.6} />} />
+        <Avatar source={item.avatar} size={50} style={{ marginRight: 12 }} />
         <View className="flex-1">
           <View className="flex-row items-center">
             <Text className="text-foreground text-base font-semibold" numberOfLines={1}>
