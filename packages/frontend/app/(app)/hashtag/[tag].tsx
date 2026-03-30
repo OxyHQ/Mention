@@ -10,6 +10,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import SEO from '@/components/SEO';
+import { EntityFollowButton } from '@/components/EntityFollowButton';
 
 export default function HashtagScreen() {
     const { tag } = useLocalSearchParams<{ tag: string }>();
@@ -24,11 +25,14 @@ export default function HashtagScreen() {
 
     const listHeader = useMemo(() => (
         <View className="px-4 pb-2" style={{ paddingTop: insets.top }}>
-            <ThemedText type="title" className="text-[28px] font-bold mb-1 font-primary">
-                {displayTag}
-            </ThemedText>
+            <View className="flex-row items-center justify-between">
+                <ThemedText type="title" className="text-[28px] font-bold mb-1 font-primary flex-1">
+                    {displayTag}
+                </ThemedText>
+                <EntityFollowButton entityType="hashtag" entityId={hashtag} label="Subscribe" followingLabel="Subscribed" />
+            </View>
         </View>
-    ), [displayTag, insets.top]);
+    ), [displayTag, hashtag, insets.top]);
 
     return (
         <SafeAreaView className="flex-1" edges={['top', 'bottom']}>

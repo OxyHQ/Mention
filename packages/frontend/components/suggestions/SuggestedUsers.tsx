@@ -34,6 +34,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
 
   useEffect(() => {
     if (!isAuthenticated || !visible) return;
+
     if (fetchInFlightRef.current) return;
     fetchInFlightRef.current = true;
 
@@ -42,7 +43,16 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     const fetchRecommendations = async () => {
       try {
         setLoading(true);
-        const response = await oxyServices.getProfileRecommendations();
+        let response: any;
+        if (sourceUserId) {
+          try {
+            response = await (oxyServices as any).getSimilarProfiles(sourceUserId);
+          } catch {
+            response = await oxyServices.getProfileRecommendations();
+          }
+        } else {
+          response = await oxyServices.getProfileRecommendations();
+        }
         if (!mounted) return;
 
         const users = Array.isArray(response) ? response : [];
@@ -65,9 +75,9 @@ export const SuggestedUsers = memo(function SuggestedUsers({
         if (!mounted) return;
         logger.error('SuggestedUsers: error fetching recommendations');
       } finally {
+        fetchInFlightRef.current = false;
         if (mounted) {
           setLoading(false);
-          fetchInFlightRef.current = false;
         }
       }
     };
@@ -77,7 +87,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     return () => {
       mounted = false;
     };
-  }, [oxyServices, isAuthenticated, visible]);
+  }, [oxyServices, isAuthenticated, visible, sourceUserId]);
 
   const handleDismiss = useCallback((userId: string) => {
     setDismissedIds((prev) => {

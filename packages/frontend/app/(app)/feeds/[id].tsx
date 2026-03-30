@@ -35,6 +35,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import BottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
 import * as OxyServicesNS from '@oxyhq/services';
+import { EntityFollowButton } from '@/components/EntityFollowButton';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -59,6 +60,7 @@ const TABS_CONFIG = [
 // Compact header bar matching Bluesky's ProfileFeedHeader
 const FeedHeaderBar = React.memo(function FeedHeaderBar({
   feed,
+  feedId,
   likeCount,
   isLiked,
   isPinned,
@@ -66,6 +68,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   onOpenInfo,
 }: {
   feed: { title: string; avatar?: string; owner?: { username?: string; displayName?: string } };
+  feedId: string;
   likeCount: number;
   isLiked: boolean;
   isPinned: boolean;
@@ -121,6 +124,8 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
           </>
         )}
       </Pressable>
+
+      <EntityFollowButton entityType="feed" entityId={feedId} label="Subscribe" followingLabel="Subscribed" size="sm" />
 
       <IconButton variant="icon" onPress={onTogglePin}>
         <Ionicons
@@ -741,6 +746,7 @@ export default function CustomFeedTimelineScreen() {
       {feed ? (
         <FeedHeaderBar
           feed={feed}
+          feedId={String(id)}
           likeCount={likeCount}
           isLiked={isLiked}
           isPinned={isPinned}

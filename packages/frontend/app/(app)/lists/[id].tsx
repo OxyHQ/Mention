@@ -27,6 +27,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { listsService } from '@/services/listsService';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { EntityFollowButton } from '@/components/EntityFollowButton';
 
 interface ListOwner {
   _id?: string;
@@ -262,6 +263,9 @@ export default function ListDetailScreen() {
             <Text className="text-muted-foreground text-sm">
               {list.isPublic ? 'Public' : 'Private'}
             </Text>
+          </View>
+          <View className="ml-auto">
+            <EntityFollowButton entityType="list" entityId={listId} label="Join" followingLabel="Joined" size="sm" />
           </View>
         </View>
       </View>
