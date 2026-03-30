@@ -13,7 +13,7 @@ export function enrichMissingAvatars(
   getUserById: (id: string) => Promise<unknown>,
 ): Promise<void> {
   const store = useUsersStore.getState();
-  const missing = users.filter((u) => !u.avatar);
+  const missing = users.filter((u) => !u.avatar || (typeof u.avatar === 'string' && !u.avatar.startsWith('http')));
   if (missing.length === 0) return Promise.resolve();
 
   return Promise.all(
