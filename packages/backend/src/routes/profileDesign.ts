@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import UserSettings from '../models/UserSettings';
 import Post from '../models/Post';
+import FederatedActor from '../models/FederatedActor';
 import { extractPublicProfileData } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
@@ -93,6 +94,14 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     });
     
     response.postsCount = postsCount;
+
+    // For federated users, use the remote banner if no custom cover image is set
+    if (!response.profileCustomization?.coverImage && !response.profileHeaderImage) {
+      const fedActor = await FederatedActor.findOne({ oxyUserId: userId }, { headerUrl: 1 }).lean();
+      if (fedActor?.headerUrl) {
+        response.profileHeaderImage = fedActor.headerUrl;
+      }
+    }
 
     // Check if profile user follows the viewer (for "Follows you" badge)
     if (currentUserId && currentUserId !== userId) {
