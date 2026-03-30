@@ -15,8 +15,10 @@ import { AppState, Platform, Text, TextInput, useColorScheme as useRNColorScheme
 import { useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
+import { AvatarPlaceholderProvider } from '@oxyhq/bloom/avatar';
 
 // Components
+import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
 import { ThemedView } from "@/components/ThemedView";
@@ -46,6 +48,9 @@ function resolveImageSource(fileId: string): string | undefined {
   const url = getCachedFileDownloadUrlSync(oxyServices, fileId, 'thumb');
   return url.startsWith('http') ? url : undefined;
 }
+
+// Stable ref so AvatarPlaceholderProvider never triggers re-renders.
+const avatarPlaceholderConfig = { icon: (size: number) => <MentionAvatarIcon size={size * 0.6} /> };
 
 // Types
 interface SplashState {
@@ -229,16 +234,18 @@ export default function RootLayout() {
 
   return (
     <ImageResolverProvider value={resolveImageSource}>
-      <BloomThemeProvider
-        mode={mode}
-        colorPreset={appColor}
-        onModeChange={setMode}
-        onColorPresetChange={setAppColor}
-      >
-        <ThemedView style={[{ flex: 1 }, colorVars]}>
-          {appContent}
-        </ThemedView>
-      </BloomThemeProvider>
+      <AvatarPlaceholderProvider value={avatarPlaceholderConfig}>
+        <BloomThemeProvider
+          mode={mode}
+          colorPreset={appColor}
+          onModeChange={setMode}
+          onColorPresetChange={setAppColor}
+        >
+          <ThemedView style={[{ flex: 1 }, colorVars]}>
+            {appContent}
+          </ThemedView>
+        </BloomThemeProvider>
+      </AvatarPlaceholderProvider>
     </ImageResolverProvider>
   );
 }
