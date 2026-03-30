@@ -50,7 +50,7 @@ function resolveImageSource(fileId: string): string | undefined {
 }
 
 // Stable ref so AvatarPlaceholderProvider never triggers re-renders.
-const avatarPlaceholderConfig = { icon: (size: number) => <MentionAvatarIcon size={size} /> };
+const avatarPlaceholderConfig = { icon: (size: number) => <MentionAvatarIcon size={size * 0.6} /> };
 
 // Types
 interface SplashState {
