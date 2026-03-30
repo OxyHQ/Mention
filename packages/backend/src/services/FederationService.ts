@@ -21,6 +21,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
 import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import UserSettings from '../models/UserSettings';
 
 /**
  * Sign a GET request using the instance actor key pair (managed by Oxy).
@@ -268,9 +269,32 @@ class FederationService {
             avatar: actor.icon?.url || actor.icon?.href,
             bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
           });
-          const resolvedId = oxyUser?._id || oxyUser?.id;
-          if (resolvedId && fedActor.oxyUserId !== String(resolvedId)) {
-            await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: String(resolvedId) } });
+          const oxyId = String(oxyUser?._id || oxyUser?.id || '');
+          if (oxyId && fedActor.oxyUserId !== oxyId) {
+            await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyId } });
+          }
+          // Download and upload remote banner to Oxy (same pattern as avatar)
+          const headerUrl = actor.image?.url || actor.image?.href;
+          if (oxyId && headerUrl) {
+            try {
+              const imgRes = await fetch(headerUrl);
+              if (imgRes.ok) {
+                const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+                const buffer = await imgRes.arrayBuffer();
+                const blob = new Blob([buffer], { type: contentType });
+                const asset = await oxyClient.uploadProfileBanner(blob as any, oxyId);
+                const fileId = asset?.file?.id;
+                if (fileId) {
+                  await UserSettings.updateOne(
+                    { oxyUserId: oxyId },
+                    { $set: { profileHeaderImage: fileId } },
+                    { upsert: true },
+                  );
+                }
+              }
+            } catch (bannerErr) {
+              logger.debug(`Failed to sync banner for ${actorUri}:`, bannerErr);
+            }
           }
         } catch (resolveErr) {
           logger.warn(`Failed to resolve Oxy user for ${actorUri}:`, resolveErr);
