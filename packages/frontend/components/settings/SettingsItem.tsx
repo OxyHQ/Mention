@@ -34,11 +34,11 @@ export function SettingsItem({
   const titleColor = destructive ? 'text-destructive' : 'text-foreground';
 
   const content = (
-    <View className="px-4 py-3 flex-row items-center gap-3" style={{ minHeight: 48 }}>
+    <View className="px-4 py-2.5 flex-row items-center gap-3" style={{ minHeight: 44 }}>
       {icon ? (
         <View className="w-6 items-center justify-center">
           {typeof icon === 'string' ? (
-            <Icon name={icon as IconName} size={22} color={resolvedIconColor} />
+            <Icon name={icon as IconName} size={20} color={resolvedIconColor} />
           ) : (
             icon
           )}
@@ -46,29 +46,29 @@ export function SettingsItem({
       ) : null}
       {description ? (
         <View className="flex-1">
-          <Text className={`text-[16px] ${titleColor}`} style={{ lineHeight: 22 }}>
+          <Text className={`text-[15px] font-medium ${titleColor}`} style={{ lineHeight: 20 }}>
             {title}
           </Text>
-          <Text className="text-[13px] text-muted-foreground mt-0.5" style={{ lineHeight: 18 }}>
+          <Text className="text-[13px] text-muted-foreground" style={{ lineHeight: 17 }}>
             {description}
           </Text>
         </View>
       ) : (
-        <Text className={`text-[16px] flex-1 ${titleColor}`} style={{ lineHeight: 22 }}>
+        <Text className={`text-[15px] font-medium flex-1 ${titleColor}`} style={{ lineHeight: 20 }}>
           {title}
         </Text>
       )}
       {subtitle ? (
-        <Text className="text-[14px] text-muted-foreground" numberOfLines={1}>
+        <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
           {subtitle}
         </Text>
       ) : null}
       {badgeText ? (
-        <Text className="text-[14px] text-muted-foreground">{badgeText}</Text>
+        <Text className="text-[13px] text-muted-foreground">{badgeText}</Text>
       ) : null}
       {rightElement}
       {showChevron && onPress ? (
-        <ChevronRightIcon size={18} className="text-muted-foreground" />
+        <ChevronRightIcon size={16} className="text-muted-foreground" />
       ) : null}
     </View>
   );
@@ -89,7 +89,7 @@ export function SettingsItem({
 }
 
 export function SettingsDivider() {
-  return <View className="h-px mx-5 bg-border" />;
+  return <View className="h-px mx-4 bg-border/50" />;
 }
 
 interface SettingsGroupProps {
@@ -100,19 +100,19 @@ interface SettingsGroupProps {
 export function SettingsGroup({ title, children }: SettingsGroupProps) {
   const filteredChildren = React.Children.toArray(children).filter(Boolean);
   return (
-    <View className="mb-6">
+    <View className="mb-4">
       {title ? (
-        <View className="px-5 pt-2 pb-2">
+        <View className="px-5 pt-1 pb-1.5">
           <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
           </Text>
         </View>
       ) : null}
-      <View className="mx-4 rounded-xl border border-border bg-card overflow-hidden">
+      <View className="mx-4 rounded-xl bg-surface overflow-hidden">
         {filteredChildren.map((child, index) => (
           <React.Fragment key={index}>
             {child}
-            {index < filteredChildren.length - 1 ? <View className="h-px mx-4 bg-border" /> : null}
+            {index < filteredChildren.length - 1 ? <View className="h-px mx-4 bg-border/30" /> : null}
           </React.Fragment>
         ))}
       </View>
