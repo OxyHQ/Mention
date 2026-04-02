@@ -1,10 +1,9 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
-
-import { Button } from '@/components/ui/Button';
+import { Button } from '@oxyhq/bloom/button';
 
 export const SignInBanner = memo(function SignInBanner() {
   const insets = useSafeAreaInsets();
@@ -13,86 +12,33 @@ export const SignInBanner = memo(function SignInBanner() {
 
   return (
     <View
-      className="bg-primary"
+      className="bg-primary z-[999]"
       style={[
-        styles.container,
-        {
-          paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom,
-        },
+        Platform.select({
+          web: { position: 'sticky' as any, bottom: 0 },
+          default: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+        }),
+        { paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom },
       ]}
     >
-      <View style={styles.content}>
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>{t('Don\u2019t miss what\u2019s happening')}</Text>
-          <Text style={styles.subtitle}>
+      <View className="flex-row items-center justify-center px-4 py-3 gap-4 w-full">
+        <View className="flex-1">
+          <Text className="text-primary-foreground text-base font-bold">
+            {t('Don\u2019t miss what\u2019s happening')}
+          </Text>
+          <Text className="text-primary-foreground/85 text-[13px] mt-0.5">
             {t('People on Mention are the first to know.')}
           </Text>
         </View>
-        <View style={styles.actions}>
-          <Button
-            variant="secondary"
-            size="small"
-            style={styles.signInButton}
-            textStyle={styles.signInButtonText}
-            onPress={() => signIn().catch(() => {})}
-          >
-            {t('Sign In')}
-          </Button>
-        </View>
+        <Button
+          variant="secondary"
+          size="small"
+          style={{ borderRadius: 100, paddingHorizontal: 16 }}
+          onPress={() => signIn().catch(() => {})}
+        >
+          {t('Sign In')}
+        </Button>
       </View>
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  container: {
-    ...Platform.select({
-      web: {
-        position: 'sticky' as any,
-        bottom: 0,
-      },
-      default: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-      },
-    }),
-    zIndex: 999,
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 16,
-    width: '100%',
-  },
-  textContainer: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginTop: 2,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  signInButton: {
-    borderColor: '#fff',
-    borderRadius: 100,
-    paddingHorizontal: 16,
-  },
-  signInButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
 });
