@@ -32,6 +32,7 @@ import { logger } from '@/lib/logger';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
+import { useScreenColor } from '@/context/ScreenColorContext';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -180,10 +181,18 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     }, [currentUser?.id, profileData?.id, isFederated]);
 
     // Scoped CSS variable override: apply visited user's color preset to entire profile subtree
+    const { setScreenColor } = useScreenColor();
     const visitedColorPreset = useMemo(() => {
         if (isOwnProfile || !design?.color) return undefined;
         return APP_COLOR_PRESETS[design.color as keyof typeof APP_COLOR_PRESETS];
     }, [isOwnProfile, design?.color]);
+
+    // Propagate color to layout so layout-owned elements (SignInBanner, etc.) inherit it
+    useEffect(() => {
+        const colorName = !isOwnProfile && design?.color ? design.color as keyof typeof APP_COLOR_PRESETS : undefined;
+        setScreenColor(colorName && APP_COLOR_PRESETS[colorName] ? colorName : undefined);
+        return () => setScreenColor(undefined);
+    }, [isOwnProfile, design?.color, setScreenColor]);
 
     const profileColorVars = useMemo(() => {
         if (!visitedColorPreset) return undefined;
@@ -613,6 +622,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
                             style={visitedColorPreset ? { backgroundColor: visitedColorPreset.hex } : undefined}
                         />
+
                     </>
                 )}
             </View>

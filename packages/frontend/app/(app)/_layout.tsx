@@ -21,6 +21,10 @@ import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
+import { ScreenColorProvider, useScreenColor } from '@/context/ScreenColorContext';
+import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
+import { useTheme } from '@oxyhq/bloom/theme';
+import { vars } from 'react-native-css';
 import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
@@ -62,6 +66,8 @@ const DrawerOverlay = memo(function DrawerOverlay() {
 
 const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = memo(({ isScreenNotMobile, isAuthenticated }) => {
   const { forwardWheelEvent } = useLayoutScroll();
+  const { screenColor } = useScreenColor();
+  const theme = useTheme();
 
   const handleWheel = useCallback((event: any) => {
     forwardWheelEvent(event);
@@ -71,6 +77,15 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = mem
     () => (Platform.OS === 'web' ? { onWheel: handleWheel } : {}),
     [handleWheel]
   );
+
+  // Apply screen-level color scoping to the middle column so layout-owned
+  // elements (e.g. SignInBanner) inherit the active screen's color preset.
+  const screenColorVars = useMemo(() => {
+    if (!screenColor) return undefined;
+    const preset = APP_COLOR_PRESETS[screenColor];
+    if (!preset) return undefined;
+    return vars(getScopedColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
+  }, [screenColor, theme.isDark]);
 
   return (
     <View
@@ -93,9 +108,10 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = mem
             "bg-background",
             isScreenNotMobile && "border-x border-border"
           )}
-          style={{
-            flex: isScreenNotMobile ? 2.2 : 1,
-          }}
+          style={[
+            { flex: isScreenNotMobile ? 2.2 : 1 },
+            screenColorVars,
+          ]}
         >
           <Slot />
           {!isAuthenticated && <SignInBanner />}
@@ -116,6 +132,7 @@ export default function AppLayout() {
   const handleCloseHelpModal = useCallback(() => setShowHelpModal(false), [setShowHelpModal]);
 
   return (
+    <ScreenColorProvider>
     <DrawerProvider>
       <ConnectionStatus />
       <RealtimePostsBridge />
@@ -131,6 +148,7 @@ export default function AppLayout() {
         />
       )}
     </DrawerProvider>
+    </ScreenColorProvider>
   );
 }
 
