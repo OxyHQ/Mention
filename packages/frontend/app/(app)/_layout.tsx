@@ -60,7 +60,7 @@ const DrawerOverlay = memo(function DrawerOverlay() {
   );
 });
 
-const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
+const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = memo(({ isScreenNotMobile, isAuthenticated }) => {
   const { forwardWheelEvent } = useLayoutScroll();
 
   const handleWheel = useCallback((event: any) => {
@@ -98,6 +98,7 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
           }}
         >
           <Slot />
+          {!isAuthenticated && <SignInBanner />}
         </ThemedView>
         <RightBar />
       </View>
@@ -118,11 +119,10 @@ export default function AppLayout() {
     <DrawerProvider>
       <ConnectionStatus />
       <RealtimePostsBridge />
-      <MainLayout isScreenNotMobile={isScreenNotMobile} />
+      <MainLayout isScreenNotMobile={isScreenNotMobile} isAuthenticated={isAuthenticated} />
       <RegisterPush />
       {isAuthenticated && !isScreenNotMobile && !keyboardVisible && <BottomBar />}
       {!isScreenNotMobile && <DrawerOverlay />}
-      {!isAuthenticated && <SignInBanner />}
       <WelcomeModalGate appIsReady={true} />
       {Platform.OS === 'web' && (
         <KeyboardShortcutsModal

@@ -48,10 +48,8 @@ const styles = StyleSheet.create({
   container: {
     ...Platform.select({
       web: {
-        position: 'fixed' as any,
+        position: 'sticky' as any,
         bottom: 0,
-        left: 0,
-        right: 0,
       },
       default: {
         position: 'absolute',
@@ -69,8 +67,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 16,
-    maxWidth: 1200,
-    marginHorizontal: 'auto',
     width: '100%',
   },
   textContainer: {
