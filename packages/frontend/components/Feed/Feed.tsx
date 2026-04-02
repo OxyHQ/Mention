@@ -668,10 +668,9 @@ const styles = StyleSheet.create({
         minHeight: 0,
     },
     initialLoadingContainer: {
-        ...StyleSheet.absoluteFillObject,
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1,
+        paddingVertical: 48,
     },
     list: {
         flex: 1,
