@@ -1,8 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/auth";
 import Post from "../models/Post";
-import Like from "../models/Like";
-import Bookmark from "../models/Bookmark";
 import { logger } from '../utils/logger';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { oxy as oxyClient } from '../../server';

@@ -1,13 +1,10 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import MiniChart from '@/components/MiniChart';
 
 interface StatCardProps {
-    icon: string;
-    iconColor?: string;
+    icon: React.ReactNode;
     title: string;
     value: number;
     previous?: number;
@@ -20,7 +17,6 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({
     icon,
-    iconColor,
     title,
     value,
     previous,
@@ -31,8 +27,6 @@ const StatCard: React.FC<StatCardProps> = ({
     formatNumber = (num) => num.toString(),
 }) => {
     const { t } = useTranslation();
-    const theme = useTheme();
-    const defaultIconColor = iconColor || theme.colors.primary;
     const dayLabels = chartLabels || [
         t('insights.weeklyRecap.days.mon'),
         t('insights.weeklyRecap.days.tue'),
@@ -47,7 +41,7 @@ const StatCard: React.FC<StatCardProps> = ({
         <View className="bg-card border border-border rounded-[15px] p-4 mb-3 overflow-hidden">
             <View className="mb-3">
                 <View className="flex-row items-center">
-                    <Ionicons name={icon as any} size={20} color={defaultIconColor} style={{ marginRight: 8 }} />
+                    <View style={{ marginRight: 8 }}>{icon}</View>
                     <Text className="text-foreground text-sm font-semibold">
                         {title}
                     </Text>

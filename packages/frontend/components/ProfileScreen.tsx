@@ -15,7 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { APP_COLOR_PRESETS, getAppColorCSSVariables } from '@/lib/app-color-presets';
+import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
 import { vars } from 'react-native-css';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxyhq/services';
@@ -187,7 +187,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     const profileColorVars = useMemo(() => {
         if (!visitedColorPreset) return undefined;
-        return vars(getAppColorCSSVariables(visitedColorPreset, theme.isDark ? 'dark' : 'light'));
+        return vars(getScopedColorCSSVariables(visitedColorPreset, theme.isDark ? 'dark' : 'light'));
     }, [visitedColorPreset, theme.isDark]);
 
     // Compute explicit background color from the preset so NativeWind bg-background gets overridden
@@ -496,7 +496,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 <UserName
                                     name={displayName}
                                     verified={profileData?.verified}
-                                    style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3, color: theme.colors.text } }}
+                                    style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3 } }}
                                     unifiedColors={true}
                                 />
                                 <Text className="text-muted-foreground text-[13px]">

@@ -137,13 +137,12 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                 <VideoGridItem
                     uri={item.uri}
                     itemSize={itemSize}
-                    backgroundColor={theme.colors.backgroundSecondary}
                 />
             </TouchableOpacity>
         );
-    }, [itemSize, router, theme.colors.backgroundSecondary]);
+    }, [itemSize, router]);
 
-    const VideoGridItem: React.FC<{ uri: string; itemSize: number; backgroundColor: string }> = ({ uri, itemSize, backgroundColor }) => {
+    const VideoGridItem: React.FC<{ uri: string; itemSize: number }> = ({ uri, itemSize }) => {
         const player = useVideoPlayer(uri, (player) => {
             if (player) {
                 player.loop = true;
@@ -154,9 +153,8 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         const containerStyle = useMemo(() => ({
             width: itemSize,
             height: itemSize,
-            backgroundColor,
             overflow: 'hidden' as const,
-        }), [itemSize, backgroundColor]);
+        }), [itemSize]);
 
         useEffect(() => {
             if (player) {
@@ -170,7 +168,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         }, [player]);
 
         return (
-            <View style={containerStyle}>
+            <View className="bg-secondary" style={containerStyle}>
                 {player ? (
                     <VideoView
                         player={player}
@@ -181,7 +179,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                         allowsPictureInPicture={false}
                     />
                 ) : (
-                    <View className="w-full h-full items-center justify-center" style={{ backgroundColor }}>
+                    <View className="w-full h-full items-center justify-center bg-secondary">
                         <Ionicons name="videocam-outline" size={24} color={theme.colors.textSecondary} />
                     </View>
                 )}

@@ -352,7 +352,7 @@ class PollsController {
 
       // Remove poll reference from post metadata
       await Post.findByIdAndUpdate(poll.postId, {
-        $set: { metadata: null }
+        $unset: { 'metadata.pollId': '', 'content.pollId': '' }
       });
 
       // Delete poll

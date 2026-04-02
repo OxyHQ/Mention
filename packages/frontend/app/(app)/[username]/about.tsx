@@ -13,6 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
+import { useAuth } from '@oxyhq/services';
+import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
+import { vars } from 'react-native-css';
 
 export default function AccountInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -21,8 +24,20 @@ export default function AccountInfoScreen() {
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const { t } = useTranslation();
   const theme = useTheme();
+  const { user: currentUser } = useAuth();
   // Use unified profile data hook - automatically fetches profile and appearance settings
   const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
+
+  const isOwnProfile = currentUser?.id === profileData?.id;
+  const design = profileData?.design;
+
+  // Scoped color override for visited user's color preset
+  const profileColorVars = useMemo(() => {
+    if (isOwnProfile || !design?.color) return undefined;
+    const preset = APP_COLOR_PRESETS[design.color as keyof typeof APP_COLOR_PRESETS];
+    if (!preset) return undefined;
+    return vars(getScopedColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
+  }, [isOwnProfile, design?.color, theme.isDark]);
 
   const avatarSource = profileData?.design?.avatar || profileData?.avatar;
 
@@ -54,7 +69,7 @@ export default function AccountInfoScreen() {
   ), [profileData, cleanUsername]);
 
   return (
-    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
+    <ThemedView className="flex-1" style={[{ paddingTop: insets.top }, profileColorVars]}>
       <Header
         options={{
           title: t('About', { defaultValue: 'About' }),
@@ -104,7 +119,7 @@ export default function AccountInfoScreen() {
         <View className="rounded-2xl overflow-hidden bg-card">
           {/* Date Joined */}
           {profileData?.createdAt && (
-            <View style={[styles.detailRow, styles.firstRow, { borderBottomColor: theme.colors.border }]}>
+            <View className="border-border" style={[styles.detailRow, styles.firstRow]}>
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
               </View>
@@ -121,7 +136,7 @@ export default function AccountInfoScreen() {
 
           {/* Account Based In */}
           {profileData?.primaryLocation && (
-            <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
+            <View className="border-border" style={[styles.detailRow]}>
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="location-outline" size={18} color={theme.colors.textSecondary} />
               </View>
@@ -139,7 +154,7 @@ export default function AccountInfoScreen() {
           {/* Verified */}
           {profileData?.verified && (
             <TouchableOpacity
-              style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}
+              className="border-border" style={[styles.detailRow]}
               activeOpacity={0.7}
             >
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
@@ -159,7 +174,7 @@ export default function AccountInfoScreen() {
 
           {/* Username Changes */}
           {(profileData?.usernameChangeCount ?? 0) > 0 && (
-            <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
+            <View className="border-border" style={[styles.detailRow]}>
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
               </View>

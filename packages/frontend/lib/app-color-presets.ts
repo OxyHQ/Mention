@@ -860,6 +860,51 @@ export function getAppColorCSSVariables(
   return mode === 'light' ? preset.light : preset.dark;
 }
 
+/**
+ * Returns CSS variables for scoped overrides (e.g. profile color theming).
+ * Includes both raw HSL vars (--background) AND resolved --color-* vars
+ * because Tailwind v4's @theme block pre-computes --color-* at :root,
+ * so overriding --background alone doesn't cascade to utilities like bg-background.
+ */
+export function getScopedColorCSSVariables(
+  preset: AppColorPreset,
+  mode: 'light' | 'dark',
+): Record<string, string> {
+  const raw = mode === 'light' ? preset.light : preset.dark;
+  const resolved: Record<string, string> = { ...raw };
+
+  // Map raw HSL vars → resolved --color-* vars that Tailwind utilities reference
+  const colorMap: Record<string, string> = {
+    '--background': '--color-background',
+    '--foreground': '--color-foreground',
+    '--primary': '--color-primary',
+    '--primary-foreground': '--color-primary-foreground',
+    '--secondary': '--color-secondary',
+    '--secondary-foreground': '--color-secondary-foreground',
+    '--muted': '--color-muted',
+    '--muted-foreground': '--color-muted-foreground',
+    '--accent': '--color-accent',
+    '--accent-foreground': '--color-accent-foreground',
+    '--destructive': '--color-destructive',
+    '--border': '--color-border',
+    '--input': '--color-input',
+    '--ring': '--color-ring',
+    '--popover': '--color-popover',
+    '--popover-foreground': '--color-popover-foreground',
+    '--surface': '--color-surface',
+    '--surface-foreground': '--color-surface-foreground',
+    '--card': '--color-card',
+  };
+
+  for (const [rawKey, colorKey] of Object.entries(colorMap)) {
+    if (raw[rawKey]) {
+      resolved[colorKey] = `hsl(${raw[rawKey]})`;
+    }
+  }
+
+  return resolved;
+}
+
 let _lastApplied: { color: AppColorName; mode: 'light' | 'dark' } | null = null;
 
 export function applyAppColorToDocument(

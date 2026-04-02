@@ -3,7 +3,6 @@ import { StyleSheet, Text } from 'react-native';
 import LinkifiedText from '../common/LinkifiedText';
 import { useRouter, usePathname } from 'expo-router';
 import { PostContent } from '@mention/shared-types';
-import { useTheme } from '@oxyhq/bloom/theme';
 
 interface Props {
   content?: string | PostContent;
@@ -18,8 +17,6 @@ const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280, translatedText, linkPreviewUrl }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const theme = useTheme();
-
   // Extract text from content (handle both string and PostContent object)
   const originalText = typeof content === 'string' ? content : content?.text || '';
   const rawText = translatedText || originalText;
@@ -44,8 +41,8 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280,
   return (
     <LinkifiedText
       text={displayed}
-      style={[styles.postText, { color: theme.colors.text }]}
-      linkStyle={[{ color: theme.colors.primary }]}
+      style={styles.postText}
+      className="text-foreground"
       suffix={suffix}
     />
   );

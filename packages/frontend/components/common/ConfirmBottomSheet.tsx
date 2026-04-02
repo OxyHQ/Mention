@@ -59,8 +59,7 @@ export const ConfirmBottomSheet: React.FC<ConfirmBottomSheetProps> = ({
                 {/* Buttons */}
                 <View className="flex-row gap-3">
                     <TouchableOpacity
-                        className="flex-1 py-3.5 rounded-xl items-center justify-center min-h-[50px] border border-border"
-                        style={{ backgroundColor: theme.colors.card }}
+                        className="flex-1 py-3.5 rounded-xl items-center justify-center min-h-[50px] border border-border bg-card"
                         onPress={onCancel}
                         activeOpacity={0.7}
                     >

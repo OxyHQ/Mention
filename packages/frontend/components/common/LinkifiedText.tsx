@@ -1,19 +1,18 @@
 import React, { useMemo } from 'react';
 import { Text, StyleProp, TextStyle, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@oxyhq/bloom/theme';
 
 interface LinkifiedTextProps {
   text: string;
   style?: StyleProp<TextStyle>;
+  className?: string;
   linkStyle?: StyleProp<TextStyle>;
   suffix?: React.ReactNode;
 }
 
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs
-export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkStyle, suffix }) => {
+export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix }) => {
   const router = useRouter();
-  const theme = useTheme();
   const nodes = useMemo(() => {
     if (!text) return null;
 
@@ -53,14 +52,14 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
       const entity = match[6];
 
       if (mentionFull) {
-        // Handle mention: display "DisplayName" (without @) but make it clickable
         const start = match.index;
         pushText(text.slice(lastIndex, start));
 
         elements.push(
           <Text
             key={`m-${key++}`}
-            style={[{ color: theme.colors.primary }, linkStyle]}
+            className="text-primary"
+            style={linkStyle}
             onPress={() => router.push(`/@${mentionUsername}`)}
           >
             {mentionDisplay}
@@ -76,7 +75,8 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
         elements.push(
           <Text
             key={`u-${key++}`}
-            style={[{ color: theme.colors.primary }, linkStyle]}
+            className="text-primary"
+            style={linkStyle}
             onPress={() => Linking.openURL(href)}
           >
             {url}
@@ -94,7 +94,8 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
           elements.push(
             <Text
               key={`h-${key++}`}
-              style={[{ color: theme.colors.primary }, linkStyle]}
+              className="text-primary"
+              style={linkStyle}
               onPress={() => router.push(`/hashtag/${encodeURIComponent(tag)}` as any)}
             >
               {entity}
@@ -106,7 +107,8 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
           elements.push(
             <Text
               key={`c-${key++}`}
-              style={[{ color: theme.colors.primary }, linkStyle]}
+              className="text-primary"
+              style={linkStyle}
               onPress={() => router.push(`/search/${q}`)}
             >
               {entity}
@@ -122,10 +124,10 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
 
     pushText(text.slice(lastIndex));
     return elements;
-  }, [text, linkStyle, router, theme.colors.primary]);
+  }, [text, linkStyle, router]);
 
   if (!text) return null;
-  return <Text style={style}>{nodes}{suffix}</Text>;
+  return <Text style={style} className={className}>{nodes}{suffix}</Text>;
 };
 
 export default LinkifiedText;

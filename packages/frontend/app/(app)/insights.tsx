@@ -29,6 +29,17 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { StatusBar } from 'expo-status-bar';
 import SEO from '@/components/SEO';
 import { logger } from '@/lib/logger';
+import { HeartIcon } from '@/assets/icons/heart-icon';
+import { CommentIcon } from '@/assets/icons/comment-icon';
+import { RepostIcon } from '@/assets/icons/repost-icon';
+import { ShareIcon } from '@/assets/icons/share-icon';
+import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
+import { ArticleIcon } from '@/assets/icons/article-icon';
+import { MediaIcon } from '@/assets/icons/media-icon';
+import { Video } from '@/assets/icons/video-icon';
+import { PollIcon } from '@/assets/icons/poll-icon';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 
 const PERIOD_OPTIONS = [
     { labelKey: 'insights.period.7days', value: 7 },
@@ -38,19 +49,18 @@ const PERIOD_OPTIONS = [
 
 // Reusable stat row
 interface StatRowProps {
-    icon: string;
-    iconColor: string;
+    icon: React.ReactNode;
     label: string;
     value: string | number;
     sub?: string;
     showDivider?: boolean;
 }
 
-const StatRow: React.FC<StatRowProps & { theme: any }> = ({ icon, iconColor, label, value, sub, showDivider = true, theme }) => (
+const StatRow: React.FC<StatRowProps & { theme: any }> = ({ icon, label, value, sub, showDivider = true, theme }) => (
     <View>
         <View className="flex-row items-center justify-between py-3">
             <View className="flex-row items-center gap-3">
-                <Ionicons name={icon as any} size={18} color={iconColor} />
+                {icon}
                 <Text className="text-[15px] font-medium text-foreground">{label}</Text>
             </View>
             <View className="flex-row items-center gap-2.5">
@@ -101,29 +111,27 @@ const InsightsScreen: React.FC = () => {
     const safeBack = useSafeBack();
 
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<UserStatistics | null>(null);
-    const [engagementRatios, setEngagementRatios] = useState<EngagementRatios | null>(null);
     const [selectedPeriod, setSelectedPeriod] = useState(30);
     const [activeTab, setActiveTab] = useState<'overview' | 'engagement'>('overview');
-    const [topPostsData, setTopPostsData] = useState<HydratedPost[]>([]);
-    const [loadingTopPosts, setLoadingTopPosts] = useState(false);
+    const [cache, setCache] = useState<Record<number, { stats: UserStatistics; engagement: EngagementRatios; topPosts: HydratedPost[] }>>({});
 
     const { getPostById } = usePostsStore();
 
-    const loadStatistics = useCallback(async () => {
+    const stats = cache[selectedPeriod]?.stats ?? null;
+    const engagementRatios = cache[selectedPeriod]?.engagement ?? null;
+    const topPostsData = cache[selectedPeriod]?.topPosts ?? [];
+
+    const loadPeriod = useCallback(async (period: number) => {
         if (!user) return;
 
         try {
-            setLoading(true);
             const [statsData, engagementData] = await Promise.all([
-                statisticsService.getUserStatistics(selectedPeriod),
-                statisticsService.getEngagementRatios(selectedPeriod)
+                statisticsService.getUserStatistics(period),
+                statisticsService.getEngagementRatios(period)
             ]);
-            setStats(statsData);
-            setEngagementRatios(engagementData);
 
+            let topPosts: HydratedPost[] = [];
             if (statsData.topPosts && statsData.topPosts.length > 0) {
-                setLoadingTopPosts(true);
                 try {
                     const postsPromises = statsData.topPosts.slice(0, 5).map(async (postInfo) => {
                         try {
@@ -136,25 +144,32 @@ const InsightsScreen: React.FC = () => {
                         }
                     });
                     const posts = await Promise.all(postsPromises);
-                    setTopPostsData(posts.filter((p): p is HydratedPost => p !== null));
+                    topPosts = posts.filter((p): p is HydratedPost => p !== null);
                 } catch (error) {
                     logger.error('Error loading top posts', { error });
-                } finally {
-                    setLoadingTopPosts(false);
                 }
-            } else {
-                setTopPostsData([]);
             }
+
+            setCache(prev => ({ ...prev, [period]: { stats: statsData, engagement: engagementData, topPosts } }));
         } catch (error) {
             logger.error('Error loading statistics', { error });
-        } finally {
-            setLoading(false);
         }
-    }, [selectedPeriod, user, getPostById]);
+    }, [user, getPostById]);
 
     useEffect(() => {
-        loadStatistics();
-    }, [loadStatistics]);
+        if (!user) return;
+
+        const loadAll = async () => {
+            setLoading(true);
+            // Load selected period first, then others in background
+            await loadPeriod(30);
+            setLoading(false);
+            // Pre-fetch remaining periods
+            Promise.all([loadPeriod(7), loadPeriod(90)]);
+        };
+
+        loadAll();
+    }, [user, loadPeriod]);
 
     const handlePeriodChange = useCallback((val: number) => {
         if (val !== selectedPeriod) setSelectedPeriod(val);
@@ -177,10 +192,10 @@ const InsightsScreen: React.FC = () => {
                     activeOpacity={0.7}
                 >
                     <View className="flex-row items-center gap-2.5">
-                        <Ionicons name="calendar" size={18} color={theme.colors.primary} />
+                        <CalendarIcon size={18} className="text-foreground" />
                         <Text className="text-[15px] font-semibold text-foreground">{t('insights.weeklyRecap.ready')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+                    <ChevronRightIcon size={18} className="text-muted-foreground" />
                 </TouchableOpacity>
 
                 {/* Top-line metrics */}
@@ -229,10 +244,10 @@ const InsightsScreen: React.FC = () => {
                     {t('insights.post.interactions')}
                 </Text>
 
-                <StatRow icon="heart" iconColor="#FF3040" label={t('insights.post.likes')} value={stats.interactions.likes} sub={perPost(stats.interactions.likes)} theme={theme} />
-                <StatRow icon="chatbubble" iconColor={theme.colors.primary} label={t('insights.post.replies')} value={stats.interactions.replies} sub={perPost(stats.interactions.replies)} theme={theme} />
-                <StatRow icon="repeat" iconColor={theme.colors.primary} label={t('insights.post.reposts')} value={stats.interactions.reposts} sub={perPost(stats.interactions.reposts)} theme={theme} />
-                <StatRow icon="share-social" iconColor={theme.colors.primary} label={t('insights.post.shares')} value={stats.interactions.shares} sub={perPost(stats.interactions.shares)} showDivider={false} theme={theme} />
+                <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.post.likes')} value={stats.interactions.likes} sub={perPost(stats.interactions.likes)} theme={theme} />
+                <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.post.replies')} value={stats.interactions.replies} sub={perPost(stats.interactions.replies)} theme={theme} />
+                <StatRow icon={<RepostIcon size={18} className="text-foreground" />} label={t('insights.post.reposts')} value={stats.interactions.reposts} sub={perPost(stats.interactions.reposts)} theme={theme} />
+                <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.post.shares')} value={stats.interactions.shares} sub={perPost(stats.interactions.shares)} showDivider={false} theme={theme} />
 
                 {/* Posts by Type */}
                 {Object.keys(stats.postsByType).length > 0 && (
@@ -242,13 +257,16 @@ const InsightsScreen: React.FC = () => {
                         </Text>
                         {Object.entries(stats.postsByType).map(([type, count], index, array) => {
                             const pct = totalPosts > 0 ? `${((count / totalPosts) * 100).toFixed(0)}%` : undefined;
-                            const iconMap: Record<string, string> = { text: 'document-text', image: 'image', video: 'videocam', poll: 'bar-chart' };
-                            const colorMap: Record<string, string> = { text: theme.colors.primary, image: '#10B981', video: '#EF4444', poll: '#F59E0B' };
+                            const iconMap: Record<string, React.ReactNode> = {
+                                text: <ArticleIcon size={18} className="text-foreground" />,
+                                image: <MediaIcon size={18} className="text-foreground" />,
+                                video: <Video size={18} className="text-foreground" />,
+                                poll: <PollIcon size={18} className="text-foreground" />,
+                            };
                             return (
                                 <StatRow
                                     key={type}
-                                    icon={iconMap[type] || 'document'}
-                                    iconColor={colorMap[type] || theme.colors.primary}
+                                    icon={iconMap[type] || <ArticleIcon size={18} className="text-foreground" />}
                                     label={t(`insights.postType.${type}`)}
                                     value={count}
                                     sub={pct}
@@ -266,14 +284,10 @@ const InsightsScreen: React.FC = () => {
                         <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                             {t('insights.topPerformingPosts')}
                         </Text>
-                        {loadingTopPosts ? (
-                            <View className="p-6 items-center">
-                                <Loading size="small" style={{ flex: undefined }} />
-                            </View>
-                        ) : topPostsData.length > 0 ? (
+                        {topPostsData.length > 0 ? (
                             topPostsData.map((post, index) => (
                                 <View key={post.id} style={[styles.topPostRow, index < topPostsData.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }]}>
-                                    <Text className="text-sm font-bold w-6 pt-3.5 text-muted-foreground">
+                                    <Text className="text-xl font-extrabold w-8 pt-3.5 text-muted-foreground" style={{ position: 'sticky' as any, top: 12 }}>
                                         {index + 1}
                                     </Text>
                                     <View className="flex-1">
@@ -336,27 +350,27 @@ const InsightsScreen: React.FC = () => {
                     {t('insights.engagementRatios')}
                 </Text>
 
-                <StatRow icon="heart" iconColor="#FF3040" label={t('insights.likeRate')} value={`${engagementRatios.ratios.likeRate.toFixed(2)}%`} theme={theme} />
-                <StatRow icon="chatbubble" iconColor={theme.colors.primary} label={t('insights.replyRate')} value={`${engagementRatios.ratios.replyRate.toFixed(2)}%`} theme={theme} />
-                <StatRow icon="repeat" iconColor={theme.colors.primary} label={t('insights.repostRate')} value={`${engagementRatios.ratios.repostRate.toFixed(2)}%`} theme={theme} />
-                <StatRow icon="share-social" iconColor={theme.colors.primary} label={t('insights.shareRate')} value={`${engagementRatios.ratios.shareRate.toFixed(2)}%`} showDivider={false} theme={theme} />
+                <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.likeRate')} value={`${engagementRatios.ratios.likeRate.toFixed(2)}%`} theme={theme} />
+                <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.replyRate')} value={`${engagementRatios.ratios.replyRate.toFixed(2)}%`} theme={theme} />
+                <StatRow icon={<RepostIcon size={18} className="text-foreground" />} label={t('insights.repostRate')} value={`${engagementRatios.ratios.repostRate.toFixed(2)}%`} theme={theme} />
+                <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.shareRate')} value={`${engagementRatios.ratios.shareRate.toFixed(2)}%`} showDivider={false} theme={theme} />
 
                 {/* Averages */}
                 <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                     {t('insights.averages')}
                 </Text>
 
-                <StatRow icon="eye" iconColor={theme.colors.primary} label={t('insights.viewsPerPost')} value={formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))} sub={`${engagementRatios.totals.posts} ${t('insights.posts').toLowerCase()}`} theme={theme} />
-                <StatRow icon="trending-up" iconColor={theme.colors.primary} label={t('insights.engagementPerPost')} value={engagementRatios.averages.engagementPerPost.toFixed(1)} showDivider={false} theme={theme} />
+                <StatRow icon={<Ionicons name="eye" size={18} color={theme.colors.text} />} label={t('insights.viewsPerPost')} value={formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))} sub={`${engagementRatios.totals.posts} ${t('insights.posts').toLowerCase()}`} theme={theme} />
+                <StatRow icon={<AnalyticsIcon size={18} className="text-foreground" />} label={t('insights.engagementPerPost')} value={engagementRatios.averages.engagementPerPost.toFixed(1)} showDivider={false} theme={theme} />
 
                 {/* Totals */}
                 <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                     {t('insights.totalActivity')}
                 </Text>
 
-                <StatRow icon="document-text" iconColor={theme.colors.primary} label={t('insights.posts')} value={engagementRatios.totals.posts} theme={theme} />
-                <StatRow icon="eye" iconColor={theme.colors.primary} label={t('insights.post.views')} value={engagementRatios.totals.views} theme={theme} />
-                <StatRow icon="flash" iconColor={theme.colors.primary} label={t('insights.post.interactions')} value={engagementRatios.totals.interactions} showDivider={false} theme={theme} />
+                <StatRow icon={<ArticleIcon size={18} className="text-foreground" />} label={t('insights.posts')} value={engagementRatios.totals.posts} theme={theme} />
+                <StatRow icon={<Ionicons name="eye" size={18} color={theme.colors.text} />} label={t('insights.post.views')} value={engagementRatios.totals.views} theme={theme} />
+                <StatRow icon={<Ionicons name="flash" size={18} color={theme.colors.text} />} label={t('insights.post.interactions')} value={engagementRatios.totals.interactions} showDivider={false} theme={theme} />
 
                 <View className="h-10" />
             </ScrollView>

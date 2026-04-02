@@ -187,7 +187,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     // Note: Grid is rendered inside ProfileScreen's outer ScrollView; keep FlatList non-scrollable
 
     // Video grid item component
-    const VideoGridItem: React.FC<{ uri: string; itemSize: number; backgroundColor: string }> = ({ uri, itemSize, backgroundColor }) => {
+    const VideoGridItem: React.FC<{ uri: string; itemSize: number }> = ({ uri, itemSize }) => {
         const [hasError, setHasError] = useState(false);
 
         const player = useVideoPlayer(uri || '', (player) => {
@@ -200,8 +200,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         const containerStyle = useMemo(() => ({
             width: itemSize,
             height: itemSize,
-            backgroundColor,
-        }), [itemSize, backgroundColor]);
+        }), [itemSize]);
 
         const errorContainerStyle = useMemo(() => ({
             ...containerStyle,
@@ -230,7 +229,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
         if (hasError || !uri) {
             return (
-                <View style={errorContainerStyle}>
+                <View className="bg-secondary" style={errorContainerStyle}>
                     <Ionicons name="videocam-outline" size={32} color={theme.colors.textSecondary} />
                     <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
                         <Ionicons name="play-circle" size={24} color="rgba(255, 255, 255, 0.9)" />
@@ -263,8 +262,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     const imageStyle = useMemo(() => ({
         width: '100%' as const,
         height: '100%' as const,
-        backgroundColor: theme.colors.backgroundSecondary,
-    }), [theme.colors.backgroundSecondary]);
+    }), []);
 
     const renderItem = useCallback(({ item }: { item: { postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number } }) => {
         const handlePress = () => {
@@ -285,11 +283,11 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                     <VideoGridItem
                         uri={item.uri}
                         itemSize={itemSize}
-                        backgroundColor={theme.colors.backgroundSecondary}
                     />
                 ) : (
                     <Image
                         source={{ uri: item.uri }}
+                        className="bg-secondary"
                         style={imageStyle}
                         resizeMode="cover"
                     />
@@ -304,7 +302,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 )}
             </TouchableOpacity>
         );
-    }, [itemSize, router, theme.colors.backgroundSecondary, gridItemStyle, imageStyle]);
+    }, [itemSize, router, gridItemStyle, imageStyle]);
 
     const keyExtractor = useCallback((it: { postId: string; uri: string; mediaIndex?: number }, index: number) => `${it.postId}:${it.mediaIndex ?? index}`, []);
 

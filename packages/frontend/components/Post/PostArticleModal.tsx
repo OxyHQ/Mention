@@ -202,10 +202,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   const articleTitleStyle = styles.articleTitle;
   const articleBodyStyle = styles.articleBody;
   const articleBodyPlaceholderStyle = styles.articleBodyPlaceholder;
-  const errorStyle = useMemo(
-    () => [styles.articleBodyPlaceholder, { color: theme.colors.error }],
-    [theme.colors.error]
-  );
+  const errorStyle = styles.articleBodyPlaceholder;
 
   // Early return if not visible (prevents unnecessary rendering)
   if (!visible) {
@@ -266,17 +263,17 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
               <View style={styles.articleWrapper}>
                 <LinkifiedText
                   text={trimmedTitle || untitledText}
-                  style={[articleTitleStyle, { color: theme.colors.text }]}
-                  linkStyle={[{ color: theme.colors.primary }]}
+                  style={articleTitleStyle}
+                  className="text-foreground"
                 />
                 {trimmedBody ? (
                   <LinkifiedText
                     text={trimmedBody}
-                    style={[articleBodyStyle, { color: theme.colors.textSecondary }]}
-                    linkStyle={[{ color: theme.colors.primary }]}
+                    style={articleBodyStyle}
+                    className="text-muted-foreground"
                   />
                 ) : loadError ? (
-                  <Text style={errorStyle}>
+                  <Text style={errorStyle} className="text-destructive">
                     {loadError}
                   </Text>
                 ) : (

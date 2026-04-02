@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCommunitiesProps, Community } from './types';

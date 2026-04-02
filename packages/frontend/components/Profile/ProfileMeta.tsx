@@ -1,9 +1,11 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Linking } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { LocationIcon } from '@/assets/icons/location-icon';
+import { LinkIcon } from '@/assets/icons/link-icon';
+import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import type { ProfileMetaProps } from './types';
 
 /**
@@ -16,7 +18,6 @@ export const ProfileMeta = memo(function ProfileMeta({
   createdAt,
   username,
 }: ProfileMetaProps) {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const hasLocation = Boolean(location);
@@ -38,11 +39,7 @@ export const ProfileMeta = memo(function ProfileMeta({
     <View className="flex-row flex-wrap mb-3">
       {hasLocation && (
         <View className="flex-row items-center mr-4 mb-1">
-          <Ionicons
-            name="location-outline"
-            size={16}
-            color={theme.colors.textSecondary}
-          />
+          <LocationIcon size={16} className="text-muted-foreground" />
           <Text className="text-muted-foreground text-[15px] ml-1">
             {location}
           </Text>
@@ -60,11 +57,7 @@ export const ProfileMeta = memo(function ProfileMeta({
             activeOpacity={0.7}
           >
             <View style={{ transform: [{ rotate: '-45deg' }] }}>
-              <Ionicons
-                name="link-outline"
-                size={16}
-                color={theme.colors.textSecondary}
-              />
+              <LinkIcon size={16} className="text-muted-foreground" />
             </View>
             <Text className="text-primary text-[15px] ml-1 underline">
               {displayText}
@@ -79,20 +72,11 @@ export const ProfileMeta = memo(function ProfileMeta({
           onPress={() => router.push(`/@${username}/about` as any)}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={theme.colors.textSecondary}
-          />
+          <CalendarIcon size={16} className="text-muted-foreground" />
           <Text className="text-muted-foreground text-[15px] ml-1">
             {t('profile.joined')} {formatJoinDate(createdAt!)}
           </Text>
-          <Ionicons
-            name="chevron-forward"
-            size={16}
-            color={theme.colors.textSecondary}
-            style={{ marginLeft: 4 }}
-          />
+          <ChevronRightIcon size={16} className="text-muted-foreground" style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       )}
     </View>

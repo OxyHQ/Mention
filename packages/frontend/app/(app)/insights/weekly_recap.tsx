@@ -20,6 +20,9 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
+import { ArticleIcon } from '@/assets/icons/article-icon';
+import { CommentIcon } from '@/assets/icons/comment-icon';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 
 
 interface WeeklyRecapData {
@@ -120,12 +123,6 @@ const WeeklyRecapScreen: React.FC = () => {
 
         try {
             setLoading(true);
-            const currentWeekDates = getWeekDates(0);
-            const previousWeekDates = getWeekDates(1);
-
-            // Calculate days for each week (7 days per week)
-            const daysDiff = 7;
-            const prevDaysDiff = 7;
 
             // Fetch statistics for both weeks
             // Fetch 14 days total, then split into current week (last 7) and previous week (first 7)
@@ -265,8 +262,8 @@ const WeeklyRecapScreen: React.FC = () => {
                     />
                 </View>
                 <View className="flex-1 items-center justify-center p-6">
-                    <Ionicons name="bar-chart-outline" size={64} color={theme.colors.primary + '60'} />
-                    <Text className="text-base mt-3" style={{ color: theme.colors.primary + '80' }}>
+                    <AnalyticsIcon size={64} color={theme.colors.text + '60'} />
+                    <Text className="text-base mt-3 text-muted-foreground">
                         {t('insights.weeklyRecap.noDataAvailable')}
                     </Text>
                 </View>
@@ -280,8 +277,7 @@ const WeeklyRecapScreen: React.FC = () => {
 
     const statCards = [
         {
-            icon: 'document-text',
-            iconColor: theme.colors.primary,
+            icon: <ArticleIcon size={20} className="text-foreground" />,
             title: t('insights.weeklyRecap.yourActivity'),
             current: data.currentWeek.overview.totalPosts,
             previous: data.previousWeek.overview.totalPosts,
@@ -289,8 +285,7 @@ const WeeklyRecapScreen: React.FC = () => {
             chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'interactions')
         },
         {
-            icon: 'eye',
-            iconColor: theme.colors.primary,
+            icon: <Ionicons name="eye" size={20} color={theme.colors.text} />,
             title: t('insights.weeklyRecap.views'),
             current: data.currentWeek.overview.totalViews,
             previous: data.previousWeek.overview.totalViews,
@@ -298,8 +293,7 @@ const WeeklyRecapScreen: React.FC = () => {
             chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'views')
         },
         {
-            icon: 'chatbubble',
-            iconColor: theme.colors.primary,
+            icon: <CommentIcon size={20} className="text-foreground" />,
             title: t('insights.weeklyRecap.replies'),
             current: data.currentWeek.interactions.replies,
             previous: data.previousWeek.interactions.replies,
@@ -307,8 +301,7 @@ const WeeklyRecapScreen: React.FC = () => {
             chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'replies')
         },
         {
-            icon: 'person-add',
-            iconColor: theme.colors.primary,
+            icon: <Ionicons name="person-add" size={20} color={theme.colors.text} />,
             title: t('insights.weeklyRecap.newFollowers'),
             current: data.newFollowers,
             previous: data.previousFollowers,
@@ -356,7 +349,6 @@ const WeeklyRecapScreen: React.FC = () => {
                     <StatCard
                         key={index}
                         icon={card.icon}
-                        iconColor={card.iconColor}
                         title={card.title}
                         value={card.current}
                         previous={card.previous}

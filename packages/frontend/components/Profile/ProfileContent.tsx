@@ -1,7 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import UserName from '@/components/UserName';
 import LinkifiedText from '@/components/common/LinkifiedText';
@@ -35,7 +34,6 @@ export const ProfileContent = memo(function ProfileContent({
   onPostsPress,
   onLayout,
 }: ProfileContentProps) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const design = profileData.design;
   const minimalistMode = design?.minimalistMode ?? false;
@@ -45,10 +43,10 @@ export const ProfileContent = memo(function ProfileContent({
   };
 
   const userNameStyle = useMemo(() => ({
-    name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4, color: theme.colors.text },
-    handle: { fontSize: 15, marginBottom: 12, color: theme.colors.textSecondary },
+    name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
+    handle: { fontSize: 15, marginBottom: 12 },
     container: undefined,
-  }), [theme.colors.text, theme.colors.textSecondary]);
+  }), []);
 
   return (
     <View
@@ -68,7 +66,6 @@ export const ProfileContent = memo(function ProfileContent({
           isPrivate={isPrivate}
           privacySettings={profileData.privacy}
 
-          theme={theme}
           UserNameComponent={UserName}
         />
       ) : (
@@ -85,7 +82,6 @@ export const ProfileContent = memo(function ProfileContent({
           currentUsername={currentUsername}
           profileId={profileData.id}
 
-          theme={theme}
           UserNameComponent={UserName}
           FollowButtonComponent={FollowButtonComponent}
           showBottomSheet={showBottomSheet}
@@ -137,8 +133,8 @@ export const ProfileContent = memo(function ProfileContent({
       {!minimalistMode && profileData.bio && (
         <LinkifiedText
           text={profileData.bio}
-          style={{ fontSize: 15, lineHeight: 20, marginBottom: 12, color: theme.colors.text }}
-          linkStyle={{ color: theme.colors.primary }}
+          className="text-foreground"
+          style={{ fontSize: 15, lineHeight: 20, marginBottom: 12 }}
         />
       )}
 
@@ -156,8 +152,8 @@ export const ProfileContent = memo(function ProfileContent({
               </Text>
               <LinkifiedText
                 text={field.value?.replace(/<[^>]*>/g, '') || ''}
-                style={{ fontSize: 14, flex: 1, color: theme.colors.text }}
-                linkStyle={{ color: theme.colors.primary }}
+                className="text-foreground"
+                style={{ fontSize: 14, flex: 1 }}
               />
               {field.verifiedAt && (
                 <Ionicons name="checkmark-circle" size={14} color="#2ecc71" style={{ marginLeft: 4 }} />

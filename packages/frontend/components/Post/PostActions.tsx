@@ -226,10 +226,11 @@ const PostActions: React.FC<Props> = ({
               {replierAvatars.slice(0, 3).map((avatarId, i) => (
                 <View
                   key={i}
+                  className="border-background"
                   style={[
                     styles.miniAvatarWrap,
                     i > 0 && { marginLeft: AVATAR_OVERLAP },
-                    { zIndex: 3 - i, borderColor: theme.colors.background },
+                    { zIndex: 3 - i },
                   ]}
                 >
                   <Avatar source={avatarId} size={MINI_AVATAR} />

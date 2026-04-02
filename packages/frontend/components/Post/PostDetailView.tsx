@@ -487,7 +487,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
             <View style={{ paddingHorizontal: HPAD }}>
                 {/* Timestamp row */}
                 {timestampString ? (
-                    <View className="flex-row items-center py-3" style={{ borderTopWidth: shouldRenderMediaBlock ? 0 : StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }}>
+                    <View className="flex-row items-center py-3 border-border" style={{ borderTopWidth: shouldRenderMediaBlock ? 0 : StyleSheet.hairlineWidth }}>
                         <Text className="text-muted-foreground text-[14px]">
                             {timestampString}
                         </Text>
@@ -503,8 +503,8 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                 {/* Engagement stats row */}
                 {statsEntries.length > 0 && (
                     <View
-                        className="flex-row items-center py-3"
-                        style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, gap: 16 }}
+                        className="flex-row items-center py-3 border-border"
+                        style={{ borderTopWidth: StyleSheet.hairlineWidth, gap: 16 }}
                     >
                         {statsEntries.map((stat, index) => (
                             <TouchableOpacity
@@ -528,8 +528,8 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
 
                 {/* Action buttons row */}
                 <View
-                    className="flex-row items-center justify-between py-2.5"
-                    style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }}
+                    className="flex-row items-center justify-between py-2.5 border-border"
+                    style={{ borderTopWidth: StyleSheet.hairlineWidth }}
                 >
                     {/* Like */}
                     {voteStyle === 'pill' && handleDownvote ? (
@@ -600,8 +600,8 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                         )}
                         {reposts > 0 && (
                             <Text
-                                className="text-[13px]"
-                                style={{ color: isReposted ? theme.colors.success : theme.colors.textSecondary }}
+                                className={isReposted ? "text-[13px]" : "text-[13px] text-muted-foreground"}
+                                style={isReposted ? { color: theme.colors.success } : undefined}
                             >
                                 {formatCompactNumber(reposts)}
                             </Text>
@@ -652,7 +652,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                 </View>
 
                 {/* Bottom divider */}
-                <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border }} />
+                <View className="bg-border" style={{ height: StyleSheet.hairlineWidth }} />
             </View>
 
             {articleContent ? (

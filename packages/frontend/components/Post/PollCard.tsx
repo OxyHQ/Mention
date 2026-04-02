@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { pollService } from '@/services/pollService';
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 
 interface PollCardProps {
@@ -13,7 +12,6 @@ interface PollCardProps {
 
 const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   const { user } = useAuth();
-  const theme = useTheme();
   const [poll, setPoll] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
@@ -95,7 +93,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
               ]}
             >
               <View className="absolute left-0 top-0 bottom-0 w-full bg-secondary">
-                <View className="absolute left-0 top-0 bottom-0" style={{ width: `${pct * 100}%`, backgroundColor: `${theme.colors.primary}40` }} />
+                <View className="absolute left-0 top-0 bottom-0 bg-primary/25" style={{ width: `${pct * 100}%` }} />
               </View>
               <View className="flex-row justify-between items-center">
                 <Text className="text-foreground text-sm flex-1 mr-2" numberOfLines={1}>{opt.text}</Text>

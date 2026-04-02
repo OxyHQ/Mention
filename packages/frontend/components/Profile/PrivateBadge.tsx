@@ -17,7 +17,7 @@ export const PrivateBadge = memo(function PrivateBadge({
   const isFollowersOnly = privacySettings?.profileVisibility === 'followers_only';
 
   return (
-    <View className="flex-row items-center self-start rounded-xl px-1.5 py-0.5 gap-1 mt-1 mb-1" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+    <View className="flex-row items-center self-start rounded-xl px-1.5 py-0.5 gap-1 mt-1 mb-1 bg-muted">
       <Ionicons
         name="lock-closed"
         size={12}

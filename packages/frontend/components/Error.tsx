@@ -118,11 +118,7 @@ export function Error({
 
           {!hideBackButton && (
             <TouchableOpacity
-              className="flex-row items-center justify-center py-2.5 px-5 rounded-[20px] min-w-[140px] gap-1.5"
-              style={{
-                borderWidth: 1,
-                borderColor: theme.colors.border,
-              }}
+              className="flex-row items-center justify-center py-2.5 px-5 rounded-[20px] min-w-[140px] gap-1.5 border border-border"
               onPress={handleGoBack}
               activeOpacity={0.8}
             >
