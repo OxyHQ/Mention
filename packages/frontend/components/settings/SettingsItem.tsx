@@ -2,9 +2,10 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Icon, type IconName } from '@/lib/icons';
+import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 
 interface SettingsItemProps {
-  icon?: IconName;
+  icon?: IconName | React.ReactNode;
   iconColor?: string;
   title: string;
   subtitle?: string;
@@ -36,7 +37,11 @@ export function SettingsItem({
     <View className="px-4 py-3 flex-row items-center gap-3" style={{ minHeight: 48 }}>
       {icon ? (
         <View className="w-6 items-center justify-center">
-          <Icon name={icon} size={22} color={resolvedIconColor} />
+          {typeof icon === 'string' ? (
+            <Icon name={icon as IconName} size={22} color={resolvedIconColor} />
+          ) : (
+            icon
+          )}
         </View>
       ) : null}
       {description ? (
@@ -63,7 +68,7 @@ export function SettingsItem({
       ) : null}
       {rightElement}
       {showChevron && onPress ? (
-        <Icon name="chevron-forward" size={18} color={colors.textTertiary} />
+        <ChevronRightIcon size={18} className="text-muted-foreground" />
       ) : null}
     </View>
   );
