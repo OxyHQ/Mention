@@ -20,15 +20,10 @@ interface SettingsItemProps extends Omit<SettingsListItemProps, 'icon'> {
 export function SettingsItem({ icon, iconColor, subtitle, badgeText, ...rest }: SettingsItemProps) {
   const { colors } = useTheme();
 
-  // Resolve icon: string → wrap in Ionicons, ReactNode → pass through
-  let resolvedIcon: React.ReactNode | undefined;
-  if (typeof icon === 'string') {
-    resolvedIcon = <Icon name={icon as IconName} size={20} color={iconColor ?? (rest.destructive ? colors.error : colors.text)} />;
-  } else {
-    resolvedIcon = icon;
-  }
+  const resolvedIcon = typeof icon === 'string'
+    ? <Icon name={icon as IconName} size={20} color={iconColor ?? (rest.destructive ? colors.error : colors.text)} />
+    : icon;
 
-  // Map legacy props to bloom's `value`
   const value = rest.value ?? badgeText ?? subtitle;
 
   return <SettingsListItem {...rest} icon={resolvedIcon} value={value} />;

@@ -22,14 +22,11 @@ import { Gear } from "@/assets/icons/gear-icon";
 import { Chat } from "@/assets/icons/chat-icon";
 import { Feeds } from "@/assets/icons/feeds-icon";
 import { HideIcon } from "@/assets/icons/hide-icon";
-import { Icon } from "@/lib/icons";
-import { useTheme } from "@oxyhq/bloom/theme";
 
 export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const safeBack = useSafeBack();
-    const { colors } = useTheme();
     const { user, showBottomSheet } = useAuth();
     const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
@@ -163,19 +160,19 @@ export default function SettingsScreen() {
                 {/* Personalization */}
                 <SettingsGroup>
                     <SettingsItem
-                        icon={<Icon name="color-palette" size={20} color={colors.text} />}
+                        icon="color-palette"
                         title={t('settings.preferences.appearance')}
                         description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, colors, display' })}
                         onPress={() => router.push('/settings/appearance')}
                     />
                     <SettingsItem
-                        icon={<Icon name="accessibility" size={20} color={colors.text} />}
+                        icon="accessibility"
                         title={t('settings.accessibility.title', { defaultValue: 'Accessibility' })}
                         description={t('settings.accessibility.description', { defaultValue: 'Haptic feedback, alt text' })}
                         onPress={() => router.push('/settings/accessibility')}
                     />
                     <SettingsItem
-                        icon={<Icon name="language" size={20} color={colors.text} />}
+                        icon="language"
                         title={t('Language')}
                         description={t('settings.language.description', { defaultValue: 'App display language' })}
                         onPress={() => router.push('/settings/language')}
@@ -207,7 +204,7 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/settings/links')}
                     />
                     <SettingsItem
-                        icon={<Icon name="help-circle" size={20} color={colors.text} />}
+                        icon="help-circle"
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => router.push('/settings/about')}
