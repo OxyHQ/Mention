@@ -1,9 +1,10 @@
 import React, { memo, useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { Loading as LoadingSpinner } from '@/assets/icons/loading-icon';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
@@ -202,7 +203,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
   if (loading) {
     return (
       <View className="items-center justify-center p-8">
-        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <LoadingSpinner size={28} className="text-primary" />
       </View>
     );
   }
@@ -377,7 +378,7 @@ const ProfileLists = memo(function ProfileLists({
   if (loading) {
     return (
       <View className="items-center justify-center p-8">
-        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <LoadingSpinner size={28} className="text-primary" />
       </View>
     );
   }
