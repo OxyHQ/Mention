@@ -1,9 +1,8 @@
 import React, { memo } from 'react';
-import { View, Text, Platform } from 'react-native';
+import { View, Text, Platform, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxyhq/bloom/button';
 
 export const SignInBanner = memo(function SignInBanner() {
   const insets = useSafeAreaInsets();
@@ -30,14 +29,15 @@ export const SignInBanner = memo(function SignInBanner() {
             {t('People on Mention are the first to know.')}
           </Text>
         </View>
-        <Button
-          variant="secondary"
-          size="small"
-          style={{ borderRadius: 100, paddingHorizontal: 16 }}
+        <TouchableOpacity
+          className="bg-primary-foreground rounded-full px-5 py-2"
+          activeOpacity={0.8}
           onPress={() => signIn().catch(() => {})}
         >
-          {t('Sign In')}
-        </Button>
+          <Text className="text-primary text-sm font-bold">
+            {t('Sign In')}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
