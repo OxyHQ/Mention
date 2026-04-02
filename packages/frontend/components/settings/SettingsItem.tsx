@@ -36,7 +36,7 @@ export function SettingsItem({
   const content = (
     <View className="px-4 py-2.5 flex-row items-center gap-3" style={{ minHeight: 44 }}>
       {icon ? (
-        <View className="w-6 items-center justify-center">
+        <View className="w-5 h-5 items-center justify-center">
           {typeof icon === 'string' ? (
             <Icon name={icon as IconName} size={20} color={resolvedIconColor} />
           ) : (
@@ -108,7 +108,7 @@ export function SettingsGroup({ title, children }: SettingsGroupProps) {
           </Text>
         </View>
       ) : null}
-      <View className="mx-4 rounded-xl bg-surface overflow-hidden">
+      <View className="mx-4 rounded-2xl bg-surface overflow-hidden">
         {filteredChildren.map((child, index) => (
           <React.Fragment key={index}>
             {child}

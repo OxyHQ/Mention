@@ -128,7 +128,7 @@ export default function SettingsScreen() {
                 {/* Privacy */}
                 <SettingsGroup>
                     <SettingsItem
-                        icon={<HideIcon size={22} className="text-foreground" />}
+                        icon={<HideIcon size={20} className="text-foreground" />}
                         title={t('settings.privacy.title')}
                         description={t('settings.privacy.description', { defaultValue: 'Profile visibility, blocked profiles, hidden words' })}
                         onPress={() => router.push('/settings/privacy')}
@@ -138,19 +138,19 @@ export default function SettingsScreen() {
                 {/* Preferences */}
                 <SettingsGroup>
                     <SettingsItem
-                        icon={<Bell size={22} className="text-foreground" />}
+                        icon={<Bell size={20} className="text-foreground" />}
                         title={t('settings.preferences.notifications')}
                         description={t('settings.preferences.notificationsDesc', { defaultValue: 'Push notifications, email alerts' })}
                         onPress={() => router.push('/settings/notifications')}
                     />
                     <SettingsItem
-                        icon={<Feeds size={22} className="text-foreground" />}
+                        icon={<Feeds size={20} className="text-foreground" />}
                         title={t('settings.feed.title')}
                         description={t('settings.feed.description', { defaultValue: 'Content preferences, feed algorithm' })}
                         onPress={() => router.push('/settings/feed')}
                     />
                     <SettingsItem
-                        icon={<Chat size={22} className="text-foreground" />}
+                        icon={<Chat size={20} className="text-foreground" />}
                         title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
                         description={t('settings.threadPreferences.description', { defaultValue: 'Reply sorting, thread display' })}
                         onPress={() => router.push('/settings/thread-preferences')}
@@ -182,13 +182,13 @@ export default function SettingsScreen() {
                 {/* Profile */}
                 <SettingsGroup>
                     <SettingsItem
-                        icon={<ProfileIcon size={22} className="text-foreground" />}
+                        icon={<ProfileIcon size={20} className="text-foreground" />}
                         title={t('settings.preferences.profileCustomization')}
                         description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, profile color' })}
                         onPress={() => router.push('/settings/profile-customization')}
                     />
                     <SettingsItem
-                        icon={<HeartIcon size={22} className="text-foreground" />}
+                        icon={<HeartIcon size={20} className="text-foreground" />}
                         title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
                         description={t('settings.preferences.interestsDesc', { defaultValue: 'Topics and categories you follow' })}
                         onPress={() => router.push('/settings/interests')}
@@ -198,7 +198,7 @@ export default function SettingsScreen() {
                 {/* Support */}
                 <SettingsGroup>
                     <SettingsItem
-                        icon={<LinkIcon size={22} className="text-foreground" />}
+                        icon={<LinkIcon size={20} className="text-foreground" />}
                         title={t('settings.data.linkManagement')}
                         description={t('settings.data.linkManagementDesc', { defaultValue: 'Link previews and cache' })}
                         onPress={() => router.push('/settings/links')}
@@ -210,7 +210,7 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/settings/about')}
                     />
                     <SettingsItem
-                        icon={<Gear size={22} className="text-foreground" />}
+                        icon={<Gear size={20} className="text-foreground" />}
                         title={t('settings.aboutMention.title', { defaultValue: 'About' })}
                         description={t('settings.aboutMention.description', { defaultValue: 'Version, system info, debug' })}
                         onPress={() => router.push('/settings/about')}
