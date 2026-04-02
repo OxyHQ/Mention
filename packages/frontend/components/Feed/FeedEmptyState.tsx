@@ -1,7 +1,9 @@
 import React, { memo } from 'react';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FeedType } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Loading } from '@/assets/icons/loading-icon';
 import { Home } from '@/assets/icons/home-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
@@ -22,7 +24,11 @@ interface FeedEmptyStateProps {
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
     ({ isLoading, error, hasItems, type, showOnlySaved, onRetry }) => {
         const { t } = useTranslation();
-        if (isLoading) return null;
+        if (isLoading) return (
+            <View className="items-center justify-center py-12">
+                <Loading size={44} className="text-primary" />
+            </View>
+        );
 
         const hasError = !!error;
         const hasNoItems = !hasItems;

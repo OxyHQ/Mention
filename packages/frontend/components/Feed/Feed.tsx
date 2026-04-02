@@ -32,7 +32,6 @@ interface FeedRow {
 const MAX_THREAD_NESTING_DEPTH = 3;
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
-import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
@@ -586,11 +585,6 @@ const Feed = ((props: FeedProps) => {
                 style={[{ minHeight: 0 }, scrollEnabled !== false && containerStyle]}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
-                {feedState.isLoading && !refreshing && !isLoadingMore && feedRows.length === 0 ? (
-                    <View style={styles.initialLoadingContainer}>
-                        <LoadingIcon size={44} className="text-primary" />
-                    </View>
-                ) : null}
                 <FlashList
                     ref={assignListRef}
                     data={feedRows}
@@ -666,11 +660,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         minHeight: 0,
-    },
-    initialLoadingContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 48,
     },
     list: {
         flex: 1,
