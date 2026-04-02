@@ -9,7 +9,6 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { LogoIcon } from '@/assets/logo';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
@@ -18,7 +17,6 @@ import { confirmDialog, alertDialog } from '@/utils/alerts';
 export default function AboutScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { colors } = useTheme();
     const { showBottomSheet } = useAuth() as { showBottomSheet?: (screen: string) => void };
     const router = useRouter();
 
