@@ -159,13 +159,7 @@ const PostDetailScreen: React.FC = () => {
 
     // List header for Feed: parent post + main post + compose prompt + replies heading
     const listHeader = useMemo(() => {
-        if (!post) {
-            return (
-                <View className="items-center justify-center py-12">
-                    <Loading size="large" />
-                </View>
-            );
-        }
+        if (!post) return null;
         return (
             <View>
                 {parentPost && (post as any)?.parentPostId && (
@@ -268,16 +262,22 @@ const PostDetailScreen: React.FC = () => {
                     disableSticky={true}
                 />
 
-                <Feed
-                    type={'replies' as FeedType}
-                    filters={feedFilters}
-                    reloadKey={repliesReloadKey}
-                    listHeaderComponent={listHeader}
-                    hideHeader={true}
-                    threaded={treeView}
-                    threadPostId={String(id)}
-                    contentContainerStyle={styles.feedContent}
-                />
+                {loading && !post ? (
+                    <View className="flex-1 items-center justify-center">
+                        <Loading size="large" />
+                    </View>
+                ) : (
+                    <Feed
+                        type={'replies' as FeedType}
+                        filters={feedFilters}
+                        reloadKey={repliesReloadKey}
+                        listHeaderComponent={listHeader}
+                        hideHeader={true}
+                        threaded={treeView}
+                        threadPostId={String(id)}
+                        contentContainerStyle={styles.feedContent}
+                    />
+                )}
             </ThemedView>
         </>
     );
