@@ -464,7 +464,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 ) : (
                     <>
                         {/* Header actions */}
-                        <View className="absolute flex-row items-center" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING, gap: 8 }, themedStyles.headerActions]}>
+                        <View className="absolute flex-row items-center gap-2" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING }, themedStyles.headerActions]}>
                             {!isOwnProfile && (
                                 <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
                                     {subscribed ? (
