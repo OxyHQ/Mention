@@ -1,5 +1,5 @@
-import React, { useRef, useLayoutEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useLayoutEffect, useState, useCallback, useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
 import { cn } from '@/lib/utils';
 
@@ -46,47 +46,44 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
         },
     });
 
-    // Update indicator position when active tab changes
+    // Update indicator position and auto-scroll to active tab when it changes
     useLayoutEffect(() => {
         const layout = tabLayouts.current[activeTabId];
 
         if (!layout || !layout.textWidth || layout.width === 0 || layout.x < 0) {
-            // Wait for layout to be measured - will be updated by onLayout callbacks
             return;
         }
 
         const padding = 16;
         const indicatorWidthValue = layout.textWidth + padding;
-        // Center the indicator under the text
-        // x is relative to the container, so we use it directly
         const basePosition = layout.x + (layout.width / 2) - (indicatorWidthValue / 2);
 
-        // Get previous state from module-level store (persists across remounts)
         const previousState = previousTabStore.get(instanceId);
         const previousActiveTabId = previousState?.tabId || null;
-
-        // Always animate unless this is the very first render
         const shouldAnimate = previousActiveTabId !== null && previousActiveTabId !== activeTabId;
 
         if (shouldAnimate) {
-            // Animate to new position from current position (which was restored from store)
-            indicatorPosition.value = withTiming(basePosition, {
-                duration: 250,
-            });
+            indicatorPosition.value = withTiming(basePosition, { duration: 250 });
             indicatorWidth.value = withTiming(indicatorWidthValue, { duration: 250 });
         } else {
-            // First render: set immediately without animation
             indicatorPosition.value = basePosition;
             indicatorWidth.value = indicatorWidthValue;
         }
 
-        // Always update previous state in module-level store after setting position
         previousTabStore.set(instanceId, {
             tabId: activeTabId,
             position: basePosition,
             width: indicatorWidthValue,
         });
-    }, [activeTabId, indicatorPosition, indicatorWidth, layoutReady, instanceId]);
+
+        // Auto-scroll to keep active tab visible (centered if possible)
+        if (scrollEnabled && scrollRef.current) {
+            const tabCenter = layout.x + layout.width / 2;
+            // Scroll so the tab is roughly centered; ScrollView handles clamping
+            const scrollTo = Math.max(0, tabCenter - 150);
+            scrollRef.current.scrollTo?.({ x: scrollTo, animated: shouldAnimate });
+        }
+    }, [activeTabId, indicatorPosition, indicatorWidth, layoutReady, instanceId, scrollEnabled]);
 
     const animatedIndicatorStyle = useAnimatedStyle(() => {
         // Adjust indicator position by subtracting scroll offset when scrollEnabled
@@ -103,6 +100,48 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
             opacity: width > 0 ? 1 : 0,
         };
     });
+
+    // Mouse drag scrolling for web (makes tab bar draggable without visible scrollbar)
+    const dragRef = useRef<{ isDown: boolean; startX: number; scrollLeft: number }>({ isDown: false, startX: 0, scrollLeft: 0 });
+
+    const handleMouseDown = useCallback((e: any) => {
+        const el = scrollRef.current?.getScrollableNode?.() ?? scrollRef.current;
+        if (!el) return;
+        dragRef.current = { isDown: true, startX: e.pageX ?? e.clientX, scrollLeft: el.scrollLeft ?? 0 };
+        if (el.style) el.style.cursor = 'grabbing';
+    }, []);
+
+    const handleMouseUp = useCallback(() => {
+        dragRef.current.isDown = false;
+        const el = scrollRef.current?.getScrollableNode?.() ?? scrollRef.current;
+        if (el?.style) el.style.cursor = 'grab';
+    }, []);
+
+    const handleMouseMove = useCallback((e: any) => {
+        if (!dragRef.current.isDown) return;
+        e.preventDefault?.();
+        const el = scrollRef.current?.getScrollableNode?.() ?? scrollRef.current;
+        if (!el) return;
+        const x = e.pageX ?? e.clientX;
+        const walk = x - dragRef.current.startX;
+        el.scrollLeft = dragRef.current.scrollLeft - walk;
+    }, []);
+
+    // Attach native mouse events on web for smooth drag
+    useEffect(() => {
+        if (Platform.OS !== 'web' || !scrollEnabled) return;
+        const el = scrollRef.current?.getScrollableNode?.() ?? scrollRef.current;
+        if (!el?.addEventListener) return;
+        el.style.cursor = 'grab';
+        el.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            el.removeEventListener('mousedown', handleMouseDown);
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [scrollEnabled, handleMouseDown, handleMouseMove, handleMouseUp]);
 
     const Container = scrollEnabled ? Animated.ScrollView : View;
     const containerProps = scrollEnabled
