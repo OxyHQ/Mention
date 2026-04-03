@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -102,7 +103,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               accessibilityRole="button"
               accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
             >
-              <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
+              <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
             </TouchableOpacity>
             <FollowButtonComponent userId={profileId} />
           </View>
@@ -209,7 +210,7 @@ export const ProfileActions = memo(function ProfileActions({
           accessibilityRole="button"
           accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
         >
-          <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
+          <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
         </TouchableOpacity>
         <FollowButtonComponent userId={profileId} />
       </View>
