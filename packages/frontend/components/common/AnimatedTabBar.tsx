@@ -152,6 +152,8 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                     showsHorizontalScrollIndicator={false}
                     onScroll={scrollHandler}
                     scrollEventThrottle={16}
+                    bounces={false}
+                    overScrollMode="never"
                     contentContainerStyle={styles.scrollContent}
                 >
                     {tabItems}

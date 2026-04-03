@@ -318,7 +318,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     const isLoading = (!mediaFeed && !postsFeed) || mediaFeed?.isLoading || postsFeed?.isLoading;
     if (isLoading && mediaItems.length === 0) {
         return (
-            <View className="py-6">
+            <View className="items-center justify-center p-8">
                 <SpinnerIcon size={28} className="text-primary" />
             </View>
         );

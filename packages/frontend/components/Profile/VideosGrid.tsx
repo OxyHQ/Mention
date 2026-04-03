@@ -212,7 +212,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
 
     if (isLoading) {
         return (
-            <View className="items-center justify-center" style={{ padding: 40 }}>
+            <View className="items-center justify-center p-8">
                 <SpinnerIcon size={28} className="text-primary" />
             </View>
         );
