@@ -16,6 +16,8 @@ import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
 import { useUsersStore } from '@/stores/usersStore';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
+import { vars } from 'react-native-css';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useAuth } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,6 +42,16 @@ export default function ConnectionsScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
   const { data: profileData } = useProfileData(cleanUsername);
+
+  // Scoped color override for visited user's color preset
+  const isOwnProfile = user?.id === profileData?.id;
+  const profileColorVars = useMemo(() => {
+    const color = profileData?.design?.color;
+    if (isOwnProfile || !color) return undefined;
+    const preset = APP_COLOR_PRESETS[color as keyof typeof APP_COLOR_PRESETS];
+    if (!preset) return undefined;
+    return vars(getScopedColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
+  }, [isOwnProfile, profileData?.design?.color, theme.isDark]);
 
   // Determine active tab from pathname
   const getActiveTab = useCallback((): TabType => {
@@ -411,7 +423,7 @@ export default function ConnectionsScreen() {
   };
 
   return (
-    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
+    <ThemedView className="flex-1" style={[{ paddingTop: insets.top }, profileColorVars]}>
       <Header
         options={{
           title: getTitle(),
