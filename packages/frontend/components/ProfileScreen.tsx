@@ -107,8 +107,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const username = urlUsername || '';
     const isFederated = username.includes('@');
 
-    // Active tab index
-    const activeTab = useMemo(() => tabToIndex(tab), [tab]);
+    // Active tab — use local state so tab switching doesn't trigger router navigation.
+    // Initialize from the route prop, then manage locally.
+    const [activeTab, setActiveTab] = useState(() => tabToIndex(tab));
 
     // Profile data
     const { data: profileData, loading, error: profileError } = useProfileData(username);
@@ -120,7 +121,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     // Scroll handling
     const { scrollY, onScroll, assignScrollRef, scrollToContent } = useProfileScroll({
         profileId: profileData?.id,
-        currentTab: tab,
+        currentTab: TAB_NAMES[activeTab] || 'posts',
     });
 
     // Follow data — federated users are stored in Oxy, so useFollow works with their Oxy ID
@@ -241,9 +242,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const onTabPress = useCallback(
         (index: number) => {
             if (!username) return;
+            setActiveTab(index);
+            // Update URL silently for deep-linking / sharing without triggering navigation
             const tabName = TAB_NAMES[index];
             const path = index === 0 ? `/@${username}` : `/@${username}/${tabName}`;
-            router.push(path as any);
+            router.replace(path as any);
         },
         [username]
     );
@@ -607,7 +610,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
                             {/* Tab content */}
                             <ProfileTabs
-                                tab={tab}
+                                tab={TAB_NAMES[activeTab] || 'posts'}
                                 profileId={profileData?.id}
                                 isPrivate={isPrivate}
                                 isOwnProfile={isOwnProfile}

@@ -16,6 +16,8 @@ const UsernameLayout = () => {
         if (pathname?.endsWith('/likes')) return 'likes';
         if (pathname?.endsWith('/reposts')) return 'reposts';
         if (pathname?.endsWith('/feeds')) return 'feeds';
+        if (pathname?.endsWith('/starter_packs')) return 'starter_packs';
+        if (pathname?.endsWith('/lists')) return 'lists';
         return 'posts'; // Default to posts
     };
 
