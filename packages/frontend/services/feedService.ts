@@ -150,6 +150,21 @@ class FeedService {
             }
           }
 
+          // Handle replies feed — dedicated endpoint with parentPostId
+          if (request.type === 'replies' && request.filters?.parentPostId) {
+            const parentId = request.filters.parentPostId;
+            const repliesParams: any = {};
+            if (request.cursor) repliesParams.cursor = request.cursor;
+            if (request.limit) repliesParams.limit = request.limit;
+            if (request.filters.sort) repliesParams.sort = request.filters.sort;
+
+            const response = await authenticatedClient.get(`/feed/replies/${parentId}`, {
+              params: repliesParams,
+              signal: options?.signal,
+            });
+            return response.data;
+          }
+
           // Route all standard feed types through the MTN descriptor-based API
           const descriptor: FeedDescriptor = (request.type || 'for_you') as FeedDescriptor;
           return await this.getMtnFeed(descriptor, {
