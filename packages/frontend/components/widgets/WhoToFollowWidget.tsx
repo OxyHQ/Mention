@@ -116,13 +116,13 @@ export function WhoToFollowWidget() {
   if (loading) {
     return (
       <BaseWidget title={t("Who to follow")}>
-        <View className="gap-2.5 py-1">
+        <View className="gap-1 py-1">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 10 }}>
-              <Skeleton.Circle size={36} />
+            <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+              <Skeleton.Circle size={40} />
               <Skeleton.Col>
-                <Skeleton.Text style={{ fontSize: 14, lineHeight: 16, width: 120 }} />
-                <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 90 }} />
+                <Skeleton.Text style={{ fontSize: 14, lineHeight: 18, width: 120 }} />
+                <Skeleton.Text style={{ fontSize: 13, lineHeight: 16, width: 90 }} />
               </Skeleton.Col>
               <Skeleton.Pill size={16} style={{ marginLeft: 'auto' }} />
             </Skeleton.Row>
@@ -217,28 +217,27 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
   }, [router, username, displayHandle, profileData.isFederated]);
 
   return (
-    <View
-      className="flex-row justify-between items-center border-border py-1.5"
+    <TouchableOpacity
+      className="flex-row items-center py-3 border-border"
       style={[styles.webCursor, showBorder && styles.itemBorder]}
+      onPress={handlePress}
+      activeOpacity={0.7}
     >
-      <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} activeOpacity={0.7}>
-        <Avatar source={avatarUri} size={32} placeholderColor={getUserPlaceholderColor(cachedUser)} />
-        <View className="ml-2 flex-1 mr-2">
-          <UserName
-            name={displayName}
-            isFederated={profileData.isFederated}
-            isAgent={profileData.isAgent}
-            isAutomated={profileData.isAutomated}
-            variant="small"
-            style={{ name: { fontSize: 13 } }}
-          />
-          <ThemedText className="text-muted-foreground text-[12px]">
-            @{displayHandle}
-          </ThemedText>
-        </View>
-      </TouchableOpacity>
+      <Avatar source={avatarUri} size={40} placeholderColor={getUserPlaceholderColor(cachedUser)} />
+      <View className="ml-3 flex-1 mr-3">
+        <UserName
+          name={displayName}
+          isFederated={profileData.isFederated}
+          isAgent={profileData.isAgent}
+          isAutomated={profileData.isAutomated}
+          variant="small"
+        />
+        <ThemedText className="text-muted-foreground text-[13px]" numberOfLines={1}>
+          @{displayHandle}
+        </ThemedText>
+      </View>
       <FollowButton userId={profileData.id} size="small" />
-    </View>
+    </TouchableOpacity>
   );
 });
 
