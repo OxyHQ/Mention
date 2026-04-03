@@ -99,7 +99,9 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     // Derive view post from store (reactive) or prop
     const postId = post?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[String(postId)] : null));
-    const viewPost = (storePost ?? post) as PostEntity;
+    const rawPost = (storePost ?? post) as PostEntity;
+    // If this is a repost, display the original post as the main content
+    const viewPost = (rawPost?.repost?.originalPost || rawPost?.original || rawPost) as PostEntity;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
     // Extract all data with safe defaults (hooks must not be conditional)
