@@ -80,8 +80,9 @@ const PostDetailScreen: React.FC = () => {
                 const cachedPost = postsById[id];
 
                 if (cachedPost) {
-                    // Post is cached - load instantly
-                    setPost(cachedPost as any);
+                    // If it's a repost, display the original post
+                    const resolvedPost = (cachedPost as any).repost?.originalPost || (cachedPost as any).originalPost || cachedPost;
+                    setPost(resolvedPost as any);
                     setLoading(false);
 
                     // Fetch parent post if this is a reply
@@ -107,7 +108,9 @@ const PostDetailScreen: React.FC = () => {
                     // Post not in cache - fetch from API
                     setLoading(true);
                     const response = await getPostById(id);
-                    setPost(response);
+                    // If it's a repost, display the original post
+                    const resolvedResponse = (response as any)?.repost?.originalPost || (response as any)?.originalPost || response;
+                    setPost(resolvedResponse);
 
                     // Fetch parent post if this is a reply
                     if (response && (response as any).parentPostId) {
