@@ -1531,12 +1531,12 @@ class FeedController {
 
   async getRepliesFeed(req: AuthRequest, res: Response) {
     req.query.type = 'replies';
-    // If parentId is in route params, pass it as a filter for server-side filtering
     if (req.params.parentId) {
-      if (!req.query.filters || typeof req.query.filters !== 'object') {
-        req.query.filters = {} as any;
-      }
-      (req.query as any)['filters[parentPostId]'] = req.params.parentId;
+      // Set filters as an object so parseFeedFilters picks it up directly
+      (req.query as any).filters = {
+        ...((typeof req.query.filters === 'object' && req.query.filters) || {}),
+        parentPostId: req.params.parentId,
+      };
     }
     return this.getFeed(req, res);
   }

@@ -151,12 +151,16 @@ class FeedService {
           }
 
           // Handle replies feed — dedicated endpoint with parentPostId
-          if (request.type === 'replies' && request.filters?.parentPostId) {
-            const parentId = request.filters.parentPostId;
+          if (request.type === 'replies') {
+            const parentId = request.filters?.parentPostId || request.filters?.postId;
+            if (!parentId) {
+              // No parent post ID — can't fetch replies without a target post
+              return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
+            }
             const repliesParams: any = {};
             if (request.cursor) repliesParams.cursor = request.cursor;
             if (request.limit) repliesParams.limit = request.limit;
-            if (request.filters.sort) repliesParams.sort = request.filters.sort;
+            if (request.filters?.sort) repliesParams.sort = request.filters.sort;
 
             const response = await authenticatedClient.get(`/feed/replies/${parentId}`, {
               params: repliesParams,
