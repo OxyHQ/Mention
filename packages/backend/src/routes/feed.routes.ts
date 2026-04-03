@@ -6,13 +6,12 @@ import { cachePublicProfile } from '../middleware/cacheControl';
 
 const router = Router();
 
-// Apply multi-layer rate limiting to all feed routes
-// Layer 1: Per-IP rate limiting (10 requests/second)
-router.use(feedIPRateLimiter);
-// Layer 2: Per-user rate limiting (100 requests/minute for authenticated, 50 for unauthenticated)
-router.use(feedRateLimiter);
-// Layer 3: Throttling for expensive operations
-router.use(feedThrottle);
+// Apply rate limiting in production only
+if (process.env.NODE_ENV === 'production') {
+  router.use(feedIPRateLimiter);
+  router.use(feedRateLimiter);
+  router.use(feedThrottle);
+}
 
 // ────────────────────────────────────────────────────────────
 // MTN Protocol routes — unified descriptor-based feed API
