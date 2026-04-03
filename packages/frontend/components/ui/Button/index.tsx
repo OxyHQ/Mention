@@ -183,9 +183,7 @@ const ButtonComponent: React.FC<ButtonProps> = ({
         styles.borderRadius = 20;
         break;
       case 'icon':
-        styles.backgroundColor = theme.colors.background;
-        styles.borderWidth = 1;
-        styles.borderColor = theme.colors.border;
+        // bg/border set via NativeWind className for CSS variable inheritance
         styles.borderRadius = 100;
         styles.padding = 8;
         styles.width = sizeConfig.minHeight;
@@ -366,6 +364,7 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   // Regular button
   const TouchableComponent = (
     <TouchableOpacity
+      className={effectiveVariant === 'icon' ? 'bg-background border border-border' : undefined}
       style={flattenStyleArray([finalStyle, animatedWrapperStyle])}
       onPress={handlePress}
       disabled={disabled}
