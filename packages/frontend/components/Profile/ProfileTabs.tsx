@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { Spinner } from '@/components/ui/Spinner';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
@@ -203,7 +203,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
   if (loading) {
     return (
       <View className="items-center justify-center p-8">
-        <SpinnerIcon size={28} className="text-primary" />
+        <Spinner />
       </View>
     );
   }
@@ -378,7 +378,7 @@ const ProfileLists = memo(function ProfileLists({
   if (loading) {
     return (
       <View className="items-center justify-center p-8">
-        <SpinnerIcon size={28} className="text-primary" />
+        <Spinner />
       </View>
     );
   }

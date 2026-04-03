@@ -39,6 +39,9 @@ import { Search } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
+import { MailIcon } from '@/assets/icons/mail-icon';
+import { MoreIcon } from '@/assets/icons/more-icon';
+import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 
 // Components
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -473,12 +476,12 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             )}
                             {!isOwnProfile && (
                                 <IconButton variant="icon" onPress={handleDM}>
-                                    <Ionicons name="mail-outline" size={20} color={theme.colors.text} />
+                                    <MailIcon size={20} className="text-foreground" />
                                 </IconButton>
                             )}
                             {isFederated && (
                                 <IconButton variant="icon" onPress={handleOpenOnInstance}>
-                                    <Ionicons name="open-outline" size={20} color={theme.colors.text} />
+                                    <ExternalLinkIcon size={20} className="text-foreground" />
                                 </IconButton>
                             )}
                             <IconButton variant="icon" onPress={handleShare}>
@@ -486,7 +489,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             </IconButton>
                             {!isOwnProfile && (
                                 <IconButton variant="icon" onPress={handleMoreOptions}>
-                                    <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
+                                    <MoreIcon size={20} className="text-foreground" />
                                 </IconButton>
                             )}
                         </View>

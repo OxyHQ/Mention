@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FeedType } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { Spinner } from '@/components/ui/Spinner';
 import { Home } from '@/assets/icons/home-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
@@ -26,7 +26,7 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
         const { t } = useTranslation();
         if (isLoading) return (
             <View className="items-center justify-center py-12">
-                <SpinnerIcon size={28} className="text-primary" />
+                <Spinner />
             </View>
         );
 
