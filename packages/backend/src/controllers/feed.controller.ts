@@ -1530,54 +1530,78 @@ class FeedController {
   // Debug method removed for production
 
   async getRepliesFeed(req: AuthRequest, res: Response) {
-    const parentId = req.params.parentId || (req.query as any)['filters[parentPostId]'] || (req.query.filters as any)?.parentPostId;
-    if (!parentId) {
-      return res.json({ items: [], hasMore: false, totalCount: 0 });
+    try {
+      const parentId = req.params.parentId || (req.query as any)['filters[parentPostId]'] || (req.query.filters as any)?.parentPostId;
+      if (!parentId) {
+        return res.json({ items: [], hasMore: false });
+      }
+
+      const currentUserId = req.user?.id;
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
+      const sort = req.query.sort as string | undefined;
+      const cursor = req.query.cursor as string | undefined;
+
+      const query: any = {
+        parentPostId: String(parentId),
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+      };
+
+      if (cursor) {
+        const cursorId = parseFeedCursor(cursor);
+        if (cursorId) query._id = { $lt: cursorId };
+      }
+
+      const feedFieldsProject = Object.fromEntries(
+        this.FEED_FIELDS.split(' ').map(f => [f, 1])
+      );
+
+      let posts;
+      if (sort === 'best') {
+        posts = await Post.aggregate([
+          { $match: query },
+          {
+            $addFields: {
+              engagementScore: {
+                $add: [
+                  { $ifNull: ['$stats.likesCount', 0] },
+                  { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                  { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] },
+                ],
+              },
+            },
+          },
+          { $sort: { engagementScore: -1, createdAt: -1 } },
+          { $limit: limit + 1 },
+          { $project: feedFieldsProject },
+        ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+      } else {
+        const sortOrder = sort === 'oldest' ? 1 : -1;
+        posts = await Post.find(query)
+          .select(this.FEED_FIELDS)
+          .sort({ createdAt: sortOrder })
+          .limit(limit + 1)
+          .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+          .lean();
+      }
+
+      const hasMore = posts.length > limit;
+      const slicedPosts = hasMore ? posts.slice(0, limit) : posts;
+
+      let filteredPosts = slicedPosts;
+      if (currentUserId) {
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
+        filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
+      }
+
+      const items = await this.transformPostsWithProfiles(filteredPosts, currentUserId, createScopedOxyClient(req));
+      const nextCursor = hasMore && slicedPosts.length > 0 ? String(slicedPosts[slicedPosts.length - 1]._id) : undefined;
+
+      return res.json({ items, hasMore, nextCursor });
+    } catch (error) {
+      logger.error('[getRepliesFeed] Error:', error);
+      return res.status(500).json({ message: 'Error fetching replies' });
     }
-
-    const currentUserId = req.user?.id;
-    const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
-    const sort = req.query.sort as string | undefined;
-    const cursor = req.query.cursor as string | undefined;
-
-    const query: any = {
-      parentPostId: String(parentId),
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-    };
-
-    if (cursor) {
-      const cursorId = parseFeedCursor(cursor);
-      if (cursorId) query._id = { $lt: cursorId };
-    }
-
-    let posts;
-    if (sort === 'best') {
-      posts = await Post.aggregate([
-        { $match: query },
-        { $addFields: { engagementScore: { $add: [{ $ifNull: ['$stats.likesCount', 0] }, { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] }, { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }] } } },
-        { $sort: { engagementScore: -1, createdAt: -1 } },
-        { $limit: limit + 1 },
-      ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
-    } else if (sort === 'oldest') {
-      posts = await Post.find(query).select(this.FEED_FIELDS).sort({ createdAt: 1 }).limit(limit + 1).maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS).lean();
-    } else {
-      posts = await Post.find(query).select(this.FEED_FIELDS).sort({ createdAt: -1 }).limit(limit + 1).maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS).lean();
-    }
-
-    const hasMore = posts.length > limit;
-    const slicedPosts = hasMore ? posts.slice(0, limit) : posts;
-
-    let filteredPosts = slicedPosts;
-    if (currentUserId) {
-      const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
-      filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
-    }
-
-    const items = await this.transformPostsWithProfiles(filteredPosts, currentUserId, createScopedOxyClient(req));
-    const nextCursor = hasMore && slicedPosts.length > 0 ? String(slicedPosts[slicedPosts.length - 1]._id) : undefined;
-
-    return res.json({ items, hasMore, nextCursor, totalCount: items.length });
   }
 
   /**

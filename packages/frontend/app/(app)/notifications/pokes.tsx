@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -22,7 +21,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import SEO from '@/components/SEO';
-import { pokeService, ReceivedPoke, SentPoke, SuggestedPoke } from '@/services/pokeService';
+import { pokeService } from '@/services/pokeService';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 
 const SENT_PREVIEW_COUNT = 3;
@@ -70,10 +69,15 @@ export default function PokesScreen() {
         enabled: isAuthenticated,
     });
 
+    const invalidatePokeQueries = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: ['pokes', 'received'] });
+        queryClient.invalidateQueries({ queryKey: ['pokes', 'sent'] });
+    }, [queryClient]);
+
     const pokeMutation = useMutation({
         mutationFn: (userId: string) => pokeService.poke(userId),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['pokes'] });
+            invalidatePokeQueries();
             toast(t('poke.sent', { defaultValue: 'Poked!' }), { type: 'success' });
         },
         onError: () => {
@@ -84,7 +88,7 @@ export default function PokesScreen() {
     const unpokeMutation = useMutation({
         mutationFn: (userId: string) => pokeService.unpoke(userId),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['pokes'] });
+            invalidatePokeQueries();
             toast(t('poke.undone', { defaultValue: 'Poke undone' }), { type: 'success' });
         },
         onError: () => {
@@ -111,104 +115,63 @@ export default function PokesScreen() {
 
     const isLoading = loadingReceived || loadingSent || loadingSuggested;
 
-    /** Shared circular poke button used across all sections */
+    const handlePoke = pokeMutation.mutate;
+    const handleUnpoke = unpokeMutation.mutate;
+    const isMutating = pokeMutation.isPending || unpokeMutation.isPending;
+
     const renderPokeButton = useCallback((
         userId: string,
         variant: 'poke' | 'pokeBack' | 'undo',
     ) => {
-        const isPoked = variant === 'undo';
-        const isPokeBack = variant === 'pokeBack';
+        const filled = variant !== 'poke';
         return (
             <TouchableOpacity
                 style={[
                     styles.pokeButton,
-                    isPoked
+                    filled
                         ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }
-                        : isPokeBack
-                            ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }
-                            : { borderColor: theme.colors.border },
+                        : { borderColor: theme.colors.border },
                 ]}
-                onPress={() => isPoked
-                    ? unpokeMutation.mutate(userId)
-                    : pokeMutation.mutate(userId)
-                }
-                disabled={pokeMutation.isPending || unpokeMutation.isPending}
+                onPress={() => variant === 'undo' ? handleUnpoke(userId) : handlePoke(userId)}
+                disabled={isMutating}
                 activeOpacity={0.7}
-                accessibilityLabel={isPoked ? 'Unpoke' : 'Poke'}
+                accessibilityLabel={variant === 'undo' ? 'Unpoke' : 'Poke'}
             >
                 <FontAwesome5
                     name="hand-point-right"
                     size={18}
-                    color={isPoked || isPokeBack ? '#fff' : theme.colors.text}
-                    solid={isPoked}
+                    color={filled ? '#fff' : theme.colors.text}
+                    solid={variant === 'undo'}
                 />
             </TouchableOpacity>
         );
-    }, [theme, pokeMutation, unpokeMutation]);
+    }, [theme, handlePoke, handleUnpoke, isMutating]);
 
-    const renderReceivedItem = useCallback((item: ReceivedPoke) => (
-        <View key={item.id} style={[styles.row, { borderBottomColor: theme.colors.border }]}>
+    const renderUserRow = useCallback((
+        key: string,
+        user: { id: string; username: string; name: string; avatar?: string },
+        subtitle: React.ReactNode,
+        buttonVariant: 'poke' | 'pokeBack' | 'undo',
+    ) => (
+        <View key={key} style={[styles.row, { borderBottomColor: theme.colors.border }]}>
             <TouchableOpacity
                 style={styles.userInfo}
-                onPress={() => navigateToProfile(item.user.username)}
+                onPress={() => navigateToProfile(user.username)}
                 activeOpacity={0.7}
             >
-                <Avatar source={item.user.avatar || undefined} size={40} />
+                <Avatar source={user.avatar || undefined} size={40} />
                 <View style={styles.userText}>
                     <ThemedText style={styles.userName} numberOfLines={1}>
-                        {item.user.name}
+                        {user.name}
                     </ThemedText>
                     <ThemedText className="text-muted-foreground" style={styles.userMeta} numberOfLines={1}>
-                        {formatRelativeTimeLocalized(item.createdAt, t)}
-                        {item.pokeCount > 1 ? ` \u00B7 ${item.pokeCount} ${t('pokes.count', { defaultValue: 'pokes' })}` : ''}
+                        {subtitle}
                     </ThemedText>
                 </View>
             </TouchableOpacity>
-            {renderPokeButton(item.user.id, item.pokedBack ? 'undo' : 'pokeBack')}
+            {renderPokeButton(user.id, buttonVariant)}
         </View>
-    ), [theme, navigateToProfile, renderPokeButton, t]);
-
-    const renderSentItem = useCallback((item: SentPoke) => (
-        <View key={item.id} style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-            <TouchableOpacity
-                style={styles.userInfo}
-                onPress={() => navigateToProfile(item.user.username)}
-                activeOpacity={0.7}
-            >
-                <Avatar source={item.user.avatar || undefined} size={40} />
-                <View style={styles.userText}>
-                    <ThemedText style={styles.userName} numberOfLines={1}>
-                        {item.user.name}
-                    </ThemedText>
-                    <ThemedText className="text-muted-foreground" style={styles.userMeta} numberOfLines={1}>
-                        {formatRelativeTimeLocalized(item.createdAt, t)}
-                    </ThemedText>
-                </View>
-            </TouchableOpacity>
-            {renderPokeButton(item.user.id, 'undo')}
-        </View>
-    ), [theme, navigateToProfile, renderPokeButton, t]);
-
-    const renderSuggestedItem = useCallback((item: SuggestedPoke) => (
-        <View key={item.user.id} style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-            <TouchableOpacity
-                style={styles.userInfo}
-                onPress={() => navigateToProfile(item.user.username)}
-                activeOpacity={0.7}
-            >
-                <Avatar source={item.user.avatar || undefined} size={40} />
-                <View style={styles.userText}>
-                    <ThemedText style={styles.userName} numberOfLines={1}>
-                        {item.user.name}
-                    </ThemedText>
-                    <ThemedText className="text-muted-foreground" style={styles.userMeta} numberOfLines={1}>
-                        @{item.user.username}
-                    </ThemedText>
-                </View>
-            </TouchableOpacity>
-            {renderPokeButton(item.user.id, 'poke')}
-        </View>
-    ), [theme, navigateToProfile, renderPokeButton, t]);
+    ), [theme, navigateToProfile, renderPokeButton]);
 
     const renderSectionHeader = useCallback((
         title: string,
@@ -314,17 +277,21 @@ export default function PokesScreen() {
                 }
                 showsVerticalScrollIndicator={false}
             >
-                {/* Followers who poked you */}
                 {receivedPokes.length > 0 && (
                     <View>
-                        {renderSectionHeader(
-                            t('pokes.receivedTitle', { defaultValue: 'Followers who poked you' }),
-                        )}
-                        {receivedPokes.map(renderReceivedItem)}
+                        {renderSectionHeader(t('pokes.receivedTitle', { defaultValue: 'Followers who poked you' }))}
+                        {receivedPokes.map((item) => renderUserRow(
+                            item.id,
+                            item.user,
+                            <>
+                                {formatRelativeTimeLocalized(item.createdAt, t)}
+                                {item.pokeCount > 1 ? ` \u00B7 ${item.pokeCount} ${t('pokes.count', { defaultValue: 'pokes' })}` : ''}
+                            </>,
+                            item.pokedBack ? 'undo' : 'pokeBack',
+                        ))}
                     </View>
                 )}
 
-                {/* Followers you poked */}
                 {sentPokes.length > 0 && (
                     <View>
                         {renderSectionHeader(
@@ -333,11 +300,12 @@ export default function PokesScreen() {
                             showAllSent,
                             sentPokes.length > SENT_PREVIEW_COUNT ? () => setShowAllSent((v) => !v) : undefined,
                         )}
-                        {visibleSent.map(renderSentItem)}
+                        {visibleSent.map((item) => renderUserRow(
+                            item.id, item.user, formatRelativeTimeLocalized(item.createdAt, t), 'undo',
+                        ))}
                     </View>
                 )}
 
-                {/* Suggested — people to poke */}
                 {suggestions.length > 0 && (
                     <View>
                         {renderSectionHeader(
@@ -346,11 +314,11 @@ export default function PokesScreen() {
                             showAllSuggested,
                             suggestions.length > SUGGESTED_PREVIEW_COUNT ? () => setShowAllSuggested((v) => !v) : undefined,
                         )}
-                        {visibleSuggested.map(renderSuggestedItem)}
+                        {visibleSuggested.map((item) => renderUserRow(
+                            item.user.id, item.user, `@${item.user.username}`, 'poke',
+                        ))}
                     </View>
                 )}
-
-                {/* People you may know */}
                 <SuggestedUsers
                     title={t('pokes.peopleToFollow', { defaultValue: 'People you may know' })}
                     maxCards={10}

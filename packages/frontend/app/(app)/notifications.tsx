@@ -49,7 +49,6 @@ const NotificationsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const [activeTab, setActiveTab] = useState<NotificationTab>('all');
-    const [refreshKey, setRefreshKey] = useState(0);
     const listRef = useRef<any>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
@@ -143,7 +142,7 @@ const NotificationsScreen: React.FC = () => {
     const handleTabPress = useCallback((tabId: string) => {
         const tab = tabId as NotificationTab;
         if (tab === activeTab) {
-            setRefreshKey(prev => prev + 1);
+            refetch();
             if (listRef.current) {
                 try {
                     if (typeof listRef.current.scrollToOffset === 'function') {
@@ -151,42 +150,40 @@ const NotificationsScreen: React.FC = () => {
                     } else if (typeof listRef.current.scrollTo === 'function') {
                         listRef.current.scrollTo({ y: 0, animated: true });
                     }
-                } catch (error) {
-                    // Ignore scroll errors
-                }
+                } catch { /* scroll errors are non-critical */ }
             }
         } else {
             setActiveTab(tab);
-            setRefreshKey(prev => prev + 1);
         }
-    }, [activeTab]);
+    }, [activeTab, refetch]);
+
+    const validatedNotifications = useMemo(() => {
+        const raw: any[] = notificationsData?.notifications || [];
+        return validateNotifications(raw);
+    }, [notificationsData]);
 
     const filteredNotifications = useMemo(() => {
-        const raw: any[] = notificationsData?.notifications || [];
-        const list: TRawNotification[] = validateNotifications(raw);
         switch (activeTab) {
             case 'mentions':
-                return list.filter((n: any) => n.type === 'mention' || n.type === 'reply');
+                return validatedNotifications.filter((n: any) => n.type === 'mention' || n.type === 'reply');
             case 'follows':
-                return list.filter((n: any) => n.type === 'follow');
+                return validatedNotifications.filter((n: any) => n.type === 'follow');
             case 'likes':
-                return list.filter((n: any) => n.type === 'like' || n.type === 'repost' || n.type === 'quote');
+                return validatedNotifications.filter((n: any) => n.type === 'like' || n.type === 'repost' || n.type === 'quote');
             case 'posts':
-                return list.filter((n: any) => n.type === 'post');
+                return validatedNotifications.filter((n: any) => n.type === 'post');
             case 'pokes':
-                return list.filter((n: any) => n.type === 'poke');
+                return validatedNotifications.filter((n: any) => n.type === 'poke');
             default:
-                return list;
+                return validatedNotifications;
         }
-    }, [notificationsData, activeTab]);
+    }, [validatedNotifications, activeTab]);
 
     const groupedNotifications = useMemo(() => {
         return groupNotifications(filteredNotifications);
     }, [filteredNotifications]);
 
-    const getItemKey = useCallback((item: GroupedNotification) => {
-        return item.key;
-    }, []);
+    const getItemKey = useCallback((item: GroupedNotification) => item.key, []);
 
     const listItems = useMemo(() => {
         const seen = new Set<string>();
@@ -379,7 +376,7 @@ const NotificationsScreen: React.FC = () => {
                 <FlashList
                     ref={assignListRef}
                     data={listItems}
-                    keyExtractor={(item: any) => getItemKey(item)}
+                    keyExtractor={getItemKey}
                     renderItem={renderNotification}
                     estimatedItemSize={100}
                     ListHeaderComponent={activeTab === 'pokes' ? (
@@ -440,7 +437,7 @@ const NotificationsScreen: React.FC = () => {
                         backgroundColor: theme.colors.background,
                     }}
                     drawDistance={500}
-                    key={`notifications-${activeTab}-${refreshKey}`}
+                    key={`notifications-${activeTab}`}
                 />
             </View>
         );
@@ -456,7 +453,6 @@ const NotificationsScreen: React.FC = () => {
                 <ThemedView className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                    {/* Header */}
                     <Header
                         options={{
                             title: t('Notifications'),
@@ -481,7 +477,6 @@ const NotificationsScreen: React.FC = () => {
                         hideBottomBorder={isAuthenticated}
                     />
 
-                    {/* Tab Navigation */}
                     {isAuthenticated && (
                         <AnimatedTabBar
                             tabs={[
@@ -498,7 +493,6 @@ const NotificationsScreen: React.FC = () => {
                         />
                     )}
 
-                    {/* Content */}
                     {renderContent()}
                 </ThemedView>
             </SafeAreaView>
