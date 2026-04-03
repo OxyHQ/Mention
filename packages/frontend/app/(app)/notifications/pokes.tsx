@@ -109,7 +109,7 @@ export default function PokesScreen() {
     const visibleSent = showAllSent ? sentPokes : sentPokes.slice(0, SENT_PREVIEW_COUNT);
     const visibleSuggested = showAllSuggested ? suggestions : suggestions.slice(0, SUGGESTED_PREVIEW_COUNT);
 
-    const isLoading = loadingReceived && loadingSent && loadingSuggested;
+    const isLoading = loadingReceived || loadingSent || loadingSuggested;
 
     /** Shared circular poke button used across all sections */
     const renderPokeButton = useCallback((

@@ -89,23 +89,20 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    // Get users the current user has already poked
-    const existingPokes = await Poke.find({ pokerId: userId }).lean();
+    // Fetch existing pokes, followers, and following in parallel
+    const [existingPokes, followersResult, followingResult] = await Promise.all([
+      Poke.find({ pokerId: userId }).lean(),
+      oxy.getUserFollowers(userId).catch(() => []),
+      oxy.getUserFollowing(userId).catch(() => []),
+    ]);
     const alreadyPokedIds = new Set(existingPokes.map((p) => p.pokedId));
 
-    // Get followers and following via OxyServices
-    let followerIds: string[] = [];
-    let followingIds: string[] = [];
-    try {
-      const followersResult: any = await oxy.getUserFollowers(userId);
-      const fList = followersResult?.followers || followersResult || [];
-      followerIds = fList.map((u: any) => String(u.id || u._id || u.userID));
-    } catch { /* ignore */ }
-    try {
-      const followingResult: any = await oxy.getUserFollowing(userId);
-      const fList = followingResult?.following || followingResult || [];
-      followingIds = fList.map((u: any) => String(u.id || u._id || u.userID));
-    } catch { /* ignore */ }
+    const extractIds = (result: any, key: string) => {
+      const list = result?.[key] || result || [];
+      return Array.isArray(list) ? list.map((u: any) => String(u.id || u._id || u.userID)) : [];
+    };
+    const followerIds = extractIds(followersResult, 'followers');
+    const followingIds = extractIds(followingResult, 'following');
 
     // Merge and deduplicate, excluding self and already-poked
     const candidateIds = [...new Set([...followerIds, ...followingIds])]
@@ -153,20 +150,22 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(400).json({ message: 'userId is required' });
     if (userId === pokerId) return res.status(400).json({ message: 'Cannot poke yourself' });
 
-    await Poke.updateOne(
+    const result = await Poke.updateOne(
       { pokerId, pokedId: userId },
       { $setOnInsert: { pokerId, pokedId: userId } },
       { upsert: true }
     );
 
-    // Send notification to the poked user
-    await createNotification({
-      recipientId: String(userId),
-      actorId: String(pokerId),
-      type: 'poke',
-      entityId: String(pokerId),
-      entityType: 'profile',
-    });
+    // Only send notification when a new poke was created (not on duplicate)
+    if (result.upsertedCount === 1) {
+      await createNotification({
+        recipientId: String(userId),
+        actorId: String(pokerId),
+        type: 'poke',
+        entityId: String(pokerId),
+        entityType: 'profile',
+      });
+    }
 
     return res.json({ poked: true });
   } catch (error: any) {
