@@ -25,6 +25,7 @@ interface SuggestedUserData {
 interface SuggestedUserCardProps {
   user: SuggestedUserData;
   onDismiss: (id: string) => void;
+  hideDismiss?: boolean;
 }
 
 const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
@@ -35,6 +36,7 @@ const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<
 export const SuggestedUserCard = memo(function SuggestedUserCard({
   user,
   onDismiss,
+  hideDismiss,
 }: SuggestedUserCardProps) {
   const theme = useTheme();
   const router = useRouter();
@@ -98,13 +100,15 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
         ) : null}
       </View>
       <FollowButton userId={user.id} size="small" />
-      <Pressable
-        className="p-1 ml-2"
-        onPress={handleDismiss}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
-      </Pressable>
+      {!hideDismiss && (
+        <Pressable
+          className="p-1 ml-2"
+          onPress={handleDismiss}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
+        </Pressable>
+      )}
     </TouchableOpacity>
   );
 });

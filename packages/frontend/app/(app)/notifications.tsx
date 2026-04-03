@@ -3,11 +3,14 @@ import {
     View,
     RefreshControl,
     Platform,
+    TouchableOpacity,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -36,11 +39,12 @@ import { Bell } from '@/assets/icons/bell-icon';
 
 const notificationLogger = createScopedLogger('Notifications');
 
-type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
+type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts' | 'pokes';
 
 const NotificationsScreen: React.FC = () => {
     const { user, isAuthenticated } = useAuth();
     const queryClient = useQueryClient();
+    const router = useRouter();
     const [refreshing, setRefreshing] = useState(false);
     const { t } = useTranslation();
     const theme = useTheme();
@@ -136,8 +140,9 @@ const NotificationsScreen: React.FC = () => {
         }
     }, [markAllAsReadMutation, t, unreadCount]);
 
-    const handleTabPress = useCallback((tabId: NotificationTab) => {
-        if (tabId === activeTab) {
+    const handleTabPress = useCallback((tabId: string) => {
+        const tab = tabId as NotificationTab;
+        if (tab === activeTab) {
             setRefreshKey(prev => prev + 1);
             if (listRef.current) {
                 try {
@@ -151,7 +156,7 @@ const NotificationsScreen: React.FC = () => {
                 }
             }
         } else {
-            setActiveTab(tabId);
+            setActiveTab(tab);
             setRefreshKey(prev => prev + 1);
         }
     }, [activeTab]);
@@ -168,6 +173,8 @@ const NotificationsScreen: React.FC = () => {
                 return list.filter((n: any) => n.type === 'like' || n.type === 'repost' || n.type === 'quote');
             case 'posts':
                 return list.filter((n: any) => n.type === 'post');
+            case 'pokes':
+                return list.filter((n: any) => n.type === 'poke');
             default:
                 return list;
         }
@@ -261,10 +268,59 @@ const NotificationsScreen: React.FC = () => {
         </ErrorBoundary>
     );
 
+    const emptyStateConfig = useMemo(() => {
+        const iconBg = theme.colors.surfaceSecondary ?? `${theme.colors.border}33`;
+        const iconColor = theme.colors.textSecondary;
+        switch (activeTab) {
+            case 'mentions':
+                return {
+                    title: t('notification.empty.mentions.title', { defaultValue: 'No mentions yet' }),
+                    subtitle: t('notification.empty.mentions.subtitle', { defaultValue: 'When someone mentions you, it will appear here.' }),
+                    icon: <Ionicons name="chatbubble-ellipses-outline" size={36} color={iconColor} />,
+                    iconBg,
+                };
+            case 'follows':
+                return {
+                    title: t('notification.empty.follows.title', { defaultValue: 'No new followers' }),
+                    subtitle: t('notification.empty.follows.subtitle', { defaultValue: 'When someone follows you, it will appear here.' }),
+                    icon: <Ionicons name="person-add-outline" size={36} color={iconColor} />,
+                    iconBg,
+                };
+            case 'likes':
+                return {
+                    title: t('notification.empty.likes.title', { defaultValue: 'No likes yet' }),
+                    subtitle: t('notification.empty.likes.subtitle', { defaultValue: 'When someone likes or reposts your content, it will appear here.' }),
+                    icon: <Ionicons name="heart-outline" size={36} color={iconColor} />,
+                    iconBg,
+                };
+            case 'posts':
+                return {
+                    title: t('notification.empty.posts.title', { defaultValue: 'No post updates' }),
+                    subtitle: t('notification.empty.posts.subtitle', { defaultValue: 'When people you follow post something new, it will appear here.' }),
+                    icon: <Ionicons name="create-outline" size={36} color={iconColor} />,
+                    iconBg,
+                };
+            case 'pokes':
+                return {
+                    title: t('notification.empty.pokes.title', { defaultValue: 'No pokes yet' }),
+                    subtitle: t('notification.empty.pokes.subtitle', { defaultValue: 'When someone pokes you, it will appear here. Poke your followers to get started!' }),
+                    icon: <FontAwesome5 name="hand-point-right" size={32} color={iconColor} />,
+                    iconBg,
+                };
+            default:
+                return {
+                    title: t('notification.empty.title', { defaultValue: "You're all caught up" }),
+                    subtitle: t('notification.empty.subtitle', { defaultValue: 'We will let you know when something new happens.' }),
+                    icon: <Bell color={iconColor} size={36} />,
+                    iconBg,
+                };
+        }
+    }, [activeTab, t, theme]);
+
     const renderEmptyState = useCallback(() => (
         <EmptyState
-            title={t('notification.empty.title', { defaultValue: "You're all caught up" })}
-            subtitle={t('notification.empty.subtitle', { defaultValue: 'We will let you know when something new happens.' })}
+            title={emptyStateConfig.title}
+            subtitle={emptyStateConfig.subtitle}
             customIcon={
                 <View
                     style={{
@@ -273,14 +329,14 @@ const NotificationsScreen: React.FC = () => {
                         borderRadius: 36,
                         justifyContent: 'center',
                         alignItems: 'center',
-                        backgroundColor: theme.colors.surfaceSecondary ?? `${theme.colors.border}33`,
+                        backgroundColor: emptyStateConfig.iconBg,
                     }}
                 >
-                    <Bell color={theme.colors.textSecondary} size={36} />
+                    {emptyStateConfig.icon}
                 </View>
             }
         />
-    ), [t, theme]);
+    ), [emptyStateConfig]);
 
     const renderErrorState = () => (
         <Error
@@ -326,6 +382,43 @@ const NotificationsScreen: React.FC = () => {
                     keyExtractor={(item: any) => getItemKey(item)}
                     renderItem={renderNotification}
                     estimatedItemSize={100}
+                    ListHeaderComponent={activeTab === 'pokes' ? (
+                        <TouchableOpacity
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingHorizontal: 16,
+                                paddingVertical: 14,
+                                borderBottomWidth: 1,
+                                borderBottomColor: theme.colors.border,
+                                gap: 12,
+                            }}
+                            onPress={() => router.push('/notifications/pokes' as any)}
+                            activeOpacity={0.7}
+                        >
+                            <View
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 20,
+                                    backgroundColor: theme.colors.primary,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <FontAwesome5 name="hand-point-right" size={18} color="#fff" solid />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <ThemedText style={{ fontSize: 15, fontWeight: '600' }}>
+                                    {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
+                                </ThemedText>
+                                <ThemedText className="text-muted-foreground" style={{ fontSize: 13, marginTop: 1 }}>
+                                    {t('pokes.seeAllPokesSubtitle', { defaultValue: 'Suggested follows, poke history & more' })}
+                                </ThemedText>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+                        </TouchableOpacity>
+                    ) : undefined}
                     ListEmptyComponent={renderEmptyState}
                     refreshControl={
                         <RefreshControl
@@ -397,6 +490,7 @@ const NotificationsScreen: React.FC = () => {
                                 { id: 'follows', label: t('notifications.tabs.follows') },
                                 { id: 'likes', label: t('notifications.tabs.likes') },
                                 { id: 'posts', label: t('notifications.tabs.posts') },
+                                { id: 'pokes', label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }) },
                             ]}
                             activeTabId={activeTab}
                             onTabPress={handleTabPress}

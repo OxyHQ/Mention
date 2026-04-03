@@ -14,6 +14,7 @@ interface SuggestedUsersProps {
   sourceUserId?: string;
   title?: string;
   maxCards?: number;
+  hideDismiss?: boolean;
 }
 
 const DEFAULT_MAX_CARDS = 10;
@@ -23,6 +24,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   sourceUserId,
   title,
   maxCards = DEFAULT_MAX_CARDS,
+  hideDismiss,
 }: SuggestedUsersProps) {
   const { oxyServices, isAuthenticated } = useAuth();
   const { t } = useTranslation();
@@ -118,7 +120,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
         {title || t('Suggested for you')}
       </ThemedText>
       {displayedUsers.map((user) => (
-        <SuggestedUserCard key={user.id} user={user} onDismiss={handleDismiss} />
+        <SuggestedUserCard key={user.id} user={user} onDismiss={handleDismiss} hideDismiss={hideDismiss} />
       ))}
     </View>
   );

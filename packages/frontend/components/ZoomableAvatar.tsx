@@ -41,6 +41,7 @@ interface ZoomableAvatarProps {
   size?: number;
   style?: any;
   imageStyle?: any;
+  className?: string;
 }
 
 export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
@@ -48,6 +49,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   size = 40,
   style,
   imageStyle,
+  className,
 }) => {
   const theme = useTheme();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
@@ -365,6 +367,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           collapsable={false}
         >
           <Animated.View
+            className={className}
             style={[
               styles.avatarContainer,
               { width: size, height: size, borderRadius: size / 2 },

@@ -14,8 +14,9 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, BloomColorScope } from '@oxyhq/bloom/theme';
 import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
+import type { AppColorName } from '@oxyhq/bloom/theme';
 import { vars } from 'react-native-css';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxyhq/services';
@@ -91,6 +92,11 @@ const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts']
  * Profile Screen - Main orchestrator component
  * Follows industry best practices with clean separation of concerns
  */
+function ProfileColorScope({ colorPreset, children }: { colorPreset?: AppColorName; children: React.ReactNode }) {
+    if (!colorPreset) return <>{children}</>;
+    return <BloomColorScope colorPreset={colorPreset}>{children}</BloomColorScope>;
+}
+
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { user: currentUser, oxyServices, showBottomSheet } = useAuth();
     const theme = useTheme();
@@ -184,12 +190,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
 
-    // Scoped CSS variable override: apply visited user's color preset to entire profile subtree
+    // Scoped color override: apply visited user's color preset to entire profile subtree
     const { setScreenColor } = useScreenColor();
-    const visitedColorPreset = useMemo(() => {
+    const visitedColorName = useMemo<AppColorName | undefined>(() => {
         if (isOwnProfile || !design?.color) return undefined;
-        return APP_COLOR_PRESETS[design.color as keyof typeof APP_COLOR_PRESETS];
+        const name = design.color as AppColorName;
+        return APP_COLOR_PRESETS[name] ? name : undefined;
     }, [isOwnProfile, design?.color]);
+    const visitedColorPreset = visitedColorName ? APP_COLOR_PRESETS[visitedColorName] : undefined;
 
     // Propagate color to layout so layout-owned elements (SignInBanner, etc.) inherit it
     useEffect(() => {
@@ -210,6 +218,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         return hslValues ? `hsl(${hslValues.replace(/ /g, ', ')})` : undefined;
     }, [visitedColorPreset, theme.isDark]);
 
+    // User's profile color hex for passing to buttons
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),
         [profileData]
@@ -449,6 +458,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 image={profileImage}
                 type="profile"
             />
+            <ProfileColorScope colorPreset={visitedColorName}>
             <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileColorVars, profileBgColor ? { backgroundColor: profileBgColor } : undefined]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
@@ -632,6 +642,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     </>
                 )}
             </View>
+            </ProfileColorScope>
         </>
     );
 };

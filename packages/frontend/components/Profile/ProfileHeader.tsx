@@ -49,7 +49,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
         <ZoomableAvatar
           source={avatarUri}
           size={90}
-          className="border-4 border-background bg-secondary"
+          className="border-[3px] border-background bg-secondary"
           style={{ width: 90, height: 90, borderRadius: 45 }}
           imageStyle={{}}
         />
@@ -95,9 +95,10 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           <View className="flex-row items-center gap-3">
             <TouchableOpacity
               className={cn(
-                'w-10 h-10 rounded-full border items-center justify-center',
+                'rounded-full border items-center justify-center',
                 poked ? 'bg-primary border-primary' : 'bg-background border-border',
               )}
+              style={{ width: 38, height: 38 }}
               onPress={togglePoke}
               disabled={pokeLoading}
               accessibilityRole="button"
@@ -148,7 +149,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
         <ZoomableAvatar
           source={avatarUri}
           size={70}
-          className="border-2 border-background bg-secondary"
+          className="border-[3px] border-background bg-secondary"
           style={{ width: 70, height: 70, borderRadius: 35 }}
           imageStyle={{}}
         />
@@ -202,9 +203,10 @@ export const ProfileActions = memo(function ProfileActions({
       <View className="flex-row items-center gap-3">
         <TouchableOpacity
           className={cn(
-            'w-10 h-10 rounded-full border items-center justify-center',
+            'rounded-full border items-center justify-center',
             poked ? 'bg-primary border-primary' : 'bg-background border-border',
           )}
+          style={{ width: 38, height: 38 }}
           onPress={togglePoke}
           disabled={pokeLoading}
           accessibilityRole="button"
