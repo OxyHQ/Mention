@@ -6,6 +6,7 @@ import {
     StatusBar,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
     Share,
     Platform,
@@ -464,33 +465,33 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 ) : (
                     <>
                         {/* Header actions */}
-                        <View className="absolute flex-row items-center gap-2" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING }, themedStyles.headerActions]}>
+                        <View className="absolute flex-row items-center" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING }, themedStyles.headerActions]}>
                             {!isOwnProfile && (
-                                <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
+                                <TouchableOpacity className="p-2" onPress={toggleSubscription} disabled={subLoading} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                     {subscribed ? (
-                                        <BellActive size={20} className="text-primary" />
+                                        <BellActive size={22} className="text-primary" />
                                     ) : (
-                                        <Bell size={20} className="text-foreground" />
+                                        <Bell size={22} className="text-foreground" />
                                     )}
-                                </IconButton>
+                                </TouchableOpacity>
                             )}
                             {!isOwnProfile && (
-                                <IconButton variant="icon" onPress={handleDM}>
-                                    <MailIcon size={20} className="text-foreground" />
-                                </IconButton>
+                                <TouchableOpacity className="p-2" onPress={handleDM} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <MailIcon size={22} className="text-foreground" />
+                                </TouchableOpacity>
                             )}
                             {isFederated && (
-                                <IconButton variant="icon" onPress={handleOpenOnInstance}>
-                                    <ExternalLinkIcon size={20} className="text-foreground" />
-                                </IconButton>
+                                <TouchableOpacity className="p-2" onPress={handleOpenOnInstance} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <ExternalLinkIcon size={22} className="text-foreground" />
+                                </TouchableOpacity>
                             )}
-                            <IconButton variant="icon" onPress={handleShare}>
-                                <ShareIcon size={20} className="text-foreground" />
-                            </IconButton>
+                            <TouchableOpacity className="p-2" onPress={handleShare} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <ShareIcon size={22} className="text-foreground" />
+                            </TouchableOpacity>
                             {!isOwnProfile && (
-                                <IconButton variant="icon" onPress={handleMoreOptions}>
-                                    <MoreIcon size={20} className="text-foreground" />
-                                </IconButton>
+                                <TouchableOpacity className="p-2" onPress={handleMoreOptions} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <MoreIcon size={22} className="text-foreground" />
+                                </TouchableOpacity>
                             )}
                         </View>
 
