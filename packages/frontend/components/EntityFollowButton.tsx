@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useFollowEntity } from '@/hooks/useFollowEntity';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -42,7 +43,7 @@ export const EntityFollowButton = memo(function EntityFollowButton({
       ]}
     >
       {isLoading ? (
-        <ActivityIndicator size="small" color={isFollowing ? theme.colors.text : '#fff'} />
+        <SpinnerIcon size={16} className={isFollowing ? "text-foreground" : "text-primary-foreground"} />
       ) : (
         <Text
           style={[

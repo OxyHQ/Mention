@@ -36,7 +36,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   UserNameComponent,
   FollowButtonComponent,
   showBottomSheet,
-}: Omit<ProfileHeaderDefaultProps, 'theme'>) {
+}: ProfileHeaderDefaultProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
@@ -125,7 +125,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   profileId,
   isOwnProfile,
   UserNameComponent,
-}: Omit<ProfileHeaderMinimalistProps, 'theme'> & { profileId?: string; isOwnProfile?: boolean }) {
+}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean }) {
   const theme = useTheme();
   return (
     <View className="flex-row justify-between items-start mb-4 relative w-full">

@@ -18,7 +18,6 @@ import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 import { AvatarPlaceholderProvider } from '@oxyhq/bloom/avatar';
 
 // Components
-import { MentionAvatarIcon } from '@/components/MentionAvatarIcon';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
 import { ThemedView } from "@/components/ThemedView";
@@ -50,7 +49,8 @@ function resolveImageSource(fileId: string): string | undefined {
 }
 
 // Stable ref so AvatarPlaceholderProvider never triggers re-renders.
-const avatarPlaceholderConfig = { icon: (size: number) => <MentionAvatarIcon size={size * 0.6} /> };
+// Bloom's Avatar now uses a built-in default avatar image, so no custom icon is needed.
+const avatarPlaceholderConfig = {};
 
 // Types
 interface SplashState {

@@ -3,9 +3,9 @@ import {
   View,
   Text,
   SectionList,
-  ActivityIndicator,
   SectionListData,
 } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -136,7 +136,7 @@ export default function TrendingHistoryScreen() {
     if (!isLoadingMore) return null;
     return (
       <View className="items-center py-4">
-        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <SpinnerIcon size={20} className="text-primary" />
       </View>
     );
   }, [isLoadingMore, theme]);
@@ -149,7 +149,7 @@ export default function TrendingHistoryScreen() {
             options={{ title: t('screens.trending.title'), headerBackVisible: true }}
           />
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <SpinnerIcon size={28} className="text-primary" />
           </View>
         </SafeAreaView>
       </ThemedView>

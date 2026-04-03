@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
@@ -177,7 +178,7 @@ const PostActions: React.FC<Props> = ({
             disabled={isTranslating}
           >
             {isTranslating ? (
-              <ActivityIndicator size={ICON_SIZE - 4} color={theme.colors.textSecondary} />
+              <SpinnerIcon size={16} className="text-muted-foreground" />
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons

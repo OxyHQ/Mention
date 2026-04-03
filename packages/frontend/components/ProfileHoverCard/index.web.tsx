@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useReducer, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
 import * as OxyServicesNS from '@oxyhq/services';
@@ -293,7 +294,7 @@ let Card = ({
         <CardContent profile={profile} username={username} hide={hide} onPressProfile={handlePressProfile} />
       ) : (
         <View className="items-center justify-center" style={{ minHeight: 120 }}>
-          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <SpinnerIcon size={20} className="text-primary" />
         </View>
       )}
     </View>

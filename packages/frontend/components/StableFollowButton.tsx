@@ -12,10 +12,10 @@ import React, { useCallback, useState, useEffect, useRef, memo } from 'react';
 import {
   TouchableOpacity,
   Text,
-  ActivityIndicator,
   StyleSheet,
   Platform,
 } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { oxyServices } from '@/lib/oxyServices';
@@ -116,10 +116,7 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
       activeOpacity={0.8}
     >
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={isFollowing ? '#FFFFFF' : theme.colors.primary}
-        />
+        <SpinnerIcon size={16} className={isFollowing ? "text-primary-foreground" : "text-primary"} />
       ) : (
         <Text style={textStyle}>
           {isFollowing ? 'Following' : 'Follow'}

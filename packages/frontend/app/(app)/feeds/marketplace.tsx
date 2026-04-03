@@ -9,9 +9,9 @@ import {
   TextStyle,
   ScrollView,
   Platform,
-  ActivityIndicator,
   StyleProp,
 } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -64,7 +64,7 @@ const SubscribeButton = React.memo(function SubscribeButton({
       disabled={isSubscribing}
       activeOpacity={0.7}>
       {isSubscribing ? (
-        <ActivityIndicator size="small" color={isSubscribed ? theme.colors.text : '#fff'} />
+        <SpinnerIcon size={16} className={isSubscribed ? "text-foreground" : "text-primary-foreground"} />
       ) : (
         <Text
           className={cn(
@@ -442,7 +442,7 @@ export default function FeedMarketplaceScreen() {
     if (!loadingMore) return <View className="h-8" />;
     return (
       <View className="py-5 items-center">
-        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <SpinnerIcon size={20} className="text-primary" />
       </View>
     );
   }, [loadingMore, theme.colors.primary]);

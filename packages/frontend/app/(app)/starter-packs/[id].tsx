@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -150,7 +151,7 @@ export default function StarterPackDetailScreen() {
           </View>
         ) : loading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <SpinnerIcon size={28} className="text-primary" />
           </View>
         ) : pack ? (
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -207,7 +208,7 @@ export default function StarterPackDetailScreen() {
                   }>
                   {followState === 'processing' ? (
                     <>
-                      <ActivityIndicator size="small" color="#fff" />
+                      <SpinnerIcon size={16} className="text-primary-foreground" />
                       <Text className="text-white font-bold text-base">
                         Following...
                       </Text>

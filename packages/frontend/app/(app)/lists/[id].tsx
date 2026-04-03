@@ -4,12 +4,12 @@ import {
   Text,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   Share,
   Platform,
   TouchableOpacity,
   Pressable,
 } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
@@ -156,7 +156,7 @@ export default function ListDetailScreen() {
           disableSticky
         />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <SpinnerIcon size={28} className="text-primary" />
         </View>
       </ThemedView>
     );

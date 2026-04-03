@@ -15,21 +15,6 @@ export interface ProfileScreenProps {
   tab?: ProfileTab;
 }
 
-// Theme colors interface (subset of full theme)
-export interface ThemeColors {
-  text: string;
-  textSecondary: string;
-  background: string;
-  backgroundSecondary: string;
-  primary: string;
-  border: string;
-}
-
-export interface Theme {
-  colors: ThemeColors;
-  isDark: boolean;
-}
-
 // Component props for FollowButton from @oxyhq/services
 export interface FollowButtonProps {
   userId: string;
@@ -63,7 +48,6 @@ export interface ProfileHeaderBaseProps {
   username?: string;
   avatarUri?: string;
   verified?: boolean;
-  theme: Theme;
   UserNameComponent: UserNameComponent;
 }
 

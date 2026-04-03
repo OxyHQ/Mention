@@ -17,7 +17,6 @@ import Animated, {
   withSpring,
   withTiming,
   runOnJS,
-  runOnUI,
   Easing,
 } from 'react-native-reanimated';
 import {
@@ -287,11 +286,26 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           const scaleReduction = Math.max(0.5, 1 - dragDistance / (SCREEN_HEIGHT * 0.5));
           scale.value = startScale.value * scaleReduction;
         })
-        .onEnd(() => {
-          // When finger is released, always return to original position and dismiss
-          runOnJS(handleDismiss)();
+        .onEnd((event) => {
+          const dragDistance = Math.sqrt(
+            event.translationX ** 2 + event.translationY ** 2
+          );
+          const dismissThreshold = SCREEN_HEIGHT * 0.15;
+
+          if (dragDistance > dismissThreshold) {
+            // Dragged far enough — dismiss
+            runOnJS(handleDismiss)();
+          } else {
+            // Snap back to center (stay zoomed)
+            const zoomScale = MAX_ZOOM_SIZE / size;
+            const springConfig = { damping: 20, stiffness: 400, mass: 0.4 };
+            scale.value = withSpring(zoomScale, springConfig);
+            translateX.value = withSpring(0, springConfig);
+            translateY.value = withSpring(0, springConfig);
+            opacity.value = withTiming(1, { duration: 200 });
+          }
         }),
-    [handleDismiss, isZoomed, SCREEN_HEIGHT]
+    [handleDismiss, isZoomed, SCREEN_HEIGHT, MAX_ZOOM_SIZE, size]
   );
 
   // Style for the small avatar (not zoomed)
@@ -377,6 +391,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
               imageStyle,
             ]}
             transition={200}
+            {...(Platform.OS === 'web' ? { draggable: false } as any : {})}
           />
           </Animated.View>
         </View>
@@ -409,12 +424,12 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                 </Pressable>
 
                 <GestureDetector gesture={panGesture}>
-                  <Animated.View
+                  <Pressable
+                    onPress={handleDismiss}
                     style={[
                       StyleSheet.absoluteFillObject,
                       styles.zoomContainer,
                       { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
-                      { pointerEvents: 'box-none' },
                     ]}
                   >
                     <AnimatedImage
@@ -442,8 +457,9 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                         zoomedImageAnimatedStyle,
                       ]}
                       transition={200}
+                      {...(Platform.OS === 'web' ? { draggable: false } as any : {})}
                     />
-                  </Animated.View>
+                  </Pressable>
                 </GestureDetector>
               </GestureHandlerRootView>
             </Portal>
@@ -512,6 +528,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                         zoomedImageAnimatedStyle,
                       ]}
                       transition={200}
+                      {...(Platform.OS === 'web' ? { draggable: false } as any : {})}
                     />
                   </Animated.View>
                 </GestureDetector>
@@ -530,6 +547,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+    ...Platform.select({
+      web: {
+        userSelect: 'none',
+        WebkitUserDrag: 'none',
+        cursor: 'pointer',
+      } as any,
+      default: {},
+    }),
   },
   modalContainer: {
     ...Platform.select({
@@ -554,6 +579,14 @@ const styles = StyleSheet.create({
   zoomContainer: {
     justifyContent: 'center',
     alignItems: 'center',
+    ...Platform.select({
+      web: {
+        userSelect: 'none',
+        WebkitUserDrag: 'none',
+        cursor: 'grab',
+      } as any,
+      default: {},
+    }),
   },
 });
 

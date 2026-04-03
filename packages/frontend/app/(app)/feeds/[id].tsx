@@ -9,10 +9,10 @@ import {
   Platform,
   TextInput,
   Modal,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Pressable,
 } from 'react-native';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
 import { IconButton } from '@/components/ui/Button';
@@ -416,7 +416,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
               activeOpacity={0.7}
             >
               {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <SpinnerIcon size={16} className="text-primary-foreground" />
               ) : (
                 <Text className="text-[15px] font-bold text-white">Submit</Text>
               )}
@@ -488,7 +488,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
   if (loading) {
     return (
       <View className="p-10 items-center justify-center gap-3">
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <SpinnerIcon size={28} className="text-primary" />
       </View>
     );
   }
@@ -565,7 +565,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
           activeOpacity={0.7}
         >
           {loadingMore ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <SpinnerIcon size={20} className="text-primary" />
           ) : (
             <Text className="text-sm font-semibold text-primary">
               Load more reviews

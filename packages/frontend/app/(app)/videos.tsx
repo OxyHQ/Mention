@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
-import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -711,7 +711,7 @@ export default function VideosScreen() {
             <ThemedView style={styles.container}>
                 {isLoading && posts.length === 0 && (
                     <View style={styles.initialLoadingContainer}>
-                        <LoadingIcon size={44} color="#FFFFFF" />
+                        <SpinnerIcon size={44} className="text-primary-foreground" />
                     </View>
                 )}
 
