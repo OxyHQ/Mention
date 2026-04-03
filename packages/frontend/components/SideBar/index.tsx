@@ -44,7 +44,7 @@ interface SideBarProps {
 export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const { t } = useTranslation();
     const router = useRouter();
-    const { user, signIn, logout } = useAuth();
+    const { user, signIn, signOut } = useAuth();
     const theme = useTheme();
     const avatarUri = user?.avatar;
 
@@ -58,13 +58,13 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         });
         if (!confirmed) return;
         try {
-            await logout();
+            await signOut();
             onNavigate?.();
             router.replace('/');
         } catch (error) {
-            logger.error('Logout failed');
+            logger.error('Sign out failed');
         }
-    }, [t, logout, onNavigate, router]);
+    }, [t, signOut, onNavigate, router]);
 
     const handleNavPress = useCallback((route: string) => {
         onNavigate?.();
