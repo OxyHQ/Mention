@@ -5,7 +5,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -213,7 +213,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
     if (isLoading) {
         return (
             <View className="items-center justify-center" style={{ padding: 40 }}>
-                <Loading size="large" />
+                <SpinnerIcon size={28} className="text-primary" />
             </View>
         );
     }

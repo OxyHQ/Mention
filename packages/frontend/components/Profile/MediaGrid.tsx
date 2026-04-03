@@ -6,7 +6,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -319,7 +319,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     if (isLoading && mediaItems.length === 0) {
         return (
             <View className="py-6">
-                <Loading size="small" style={{ flex: undefined }} />
+                <SpinnerIcon size={28} className="text-primary" />
             </View>
         );
     }
