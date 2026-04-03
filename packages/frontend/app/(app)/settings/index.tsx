@@ -27,7 +27,7 @@ export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const safeBack = useSafeBack();
-    const { user, showBottomSheet } = useAuth();
+    const { user, signOut, showBottomSheet } = useAuth();
     const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
@@ -68,6 +68,9 @@ export default function SettingsScreen() {
             destructive: true,
         });
         if (!confirmed) return;
+        try {
+            await signOut();
+        } catch { /* signOut handles cleanup internally */ }
         router.replace('/');
     };
 
