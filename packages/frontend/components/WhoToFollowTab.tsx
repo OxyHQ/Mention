@@ -133,7 +133,7 @@ export function WhoToFollowTab() {
   if (loading && recommendations.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <Loading size="large" />
+        <Loading className="text-primary" size="large" />
         <ThemedText className="text-muted-foreground" style={styles.loadingText}>
           {t('Loading...')}
         </ThemedText>

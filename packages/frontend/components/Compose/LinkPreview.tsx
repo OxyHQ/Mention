@@ -187,7 +187,7 @@ export const LinkPreviewLoading: React.FC<LinkPreviewLoadingProps> = ({ style })
       ]}
     >
       <View className="flex-row items-center justify-center p-4">
-        <Loading size="small" style={{ flex: undefined }} />
+        <Loading className="text-primary" size="small" style={{ flex: undefined }} />
         <Text className="text-[13px] text-muted-foreground ml-2">
           {t('compose.linkPreview.loading', { defaultValue: 'Loading preview...' })}
         </Text>

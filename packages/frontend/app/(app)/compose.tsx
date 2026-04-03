@@ -1204,7 +1204,7 @@ const ComposeScreen = () => {
             {replyToPostId && (
               replyLoading ? (
                 <View style={styles.replyPreviewLoading}>
-                  <Loading variant="inline" size="small" style={{ flex: undefined }} />
+                  <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                 </View>
               ) : replyToPost ? (
                 <View className="border-b border-border">
@@ -1695,7 +1695,7 @@ const ComposeScreen = () => {
           ]}
         >
           {isPosting ? (
-            <Loading variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
             <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{isEditMode ? t('Save') : replyToPostId ? t('Reply') : t('Post')}</Text>
           )}

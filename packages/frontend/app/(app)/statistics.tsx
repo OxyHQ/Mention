@@ -245,7 +245,7 @@ const InsightsScreen: React.FC = () => {
                         </View>
                         {loadingTopPosts ? (
                             <View style={styles.loadingPosts}>
-                                <Loading size="small" style={{ flex: undefined }} />
+                                <Loading className="text-primary" size="small" style={{ flex: undefined }} />
                             </View>
                         ) : topPostsData.length > 0 ? (
                             topPostsData.map((post, index) => (
@@ -554,7 +554,7 @@ const InsightsScreen: React.FC = () => {
             {/* Content */}
             {loading ? (
                 <View className="flex-1 items-center justify-center">
-                    <Loading size="large" />
+                    <Loading className="text-primary" size="large" />
                 </View>
             ) : (
                 activeTab === 'overview' ? renderOverviewTab() : renderEngagementTab()

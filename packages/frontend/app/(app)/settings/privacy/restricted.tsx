@@ -485,7 +485,7 @@ export default function RestrictedUsersScreen() {
                             autoCorrect={false}
                         />
                         {searching && (
-                            <Loading size="small" style={{ flex: undefined, marginLeft: 8 }} />
+                            <Loading className="text-primary" size="small" style={{ flex: undefined, marginLeft: 8 }} />
                         )}
                     </View>
 
@@ -519,7 +519,7 @@ export default function RestrictedUsersScreen() {
                                             </Text>
                                         </View>
                                         {isRestricting ? (
-                                            <Loading variant="inline" size="small" style={{ flex: undefined }} />
+                                            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                                         ) : (
                                             <IconComponent name="add-circle" size={24} color={colors.primary} />
                                         )}
@@ -546,7 +546,7 @@ export default function RestrictedUsersScreen() {
 
                     {loading ? (
                         <View className="py-10 items-center">
-                            <Loading size="large" style={{ flex: undefined }} />
+                            <Loading className="text-primary" size="large" style={{ flex: undefined }} />
                         </View>
                     ) : restrictedUsers.length === 0 ? (
                         <EmptyState

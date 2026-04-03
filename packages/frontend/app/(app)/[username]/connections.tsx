@@ -372,7 +372,7 @@ export default function ConnectionsScreen() {
     if (loading && currentData.length === 0) {
       return (
         <View className="flex-1 items-center justify-center gap-3 px-4">
-          <Loading size="large" />
+          <Loading className="text-primary" size="large" />
           <ThemedText className="text-base text-muted-foreground">
             {t('Loading...', { defaultValue: 'Loading...' })}
           </ThemedText>

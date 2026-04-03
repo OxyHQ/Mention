@@ -134,7 +134,7 @@ export default function InterestsSettingsScreen() {
           disableSticky={true}
         />
         <View className="flex-1 justify-center items-center bg-background">
-          <Loading size="large" />
+          <Loading className="text-primary" size="large" />
         </View>
       </ThemedView>
     );
@@ -155,7 +155,7 @@ export default function InterestsSettingsScreen() {
           ],
           rightComponents: isSaving ? [
             <View key="loading" className="p-1 mr-2">
-              <Loading variant="inline" size="small" style={{ flex: undefined }} />
+              <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
             </View>,
           ] : [],
         }}

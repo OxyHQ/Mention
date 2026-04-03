@@ -306,7 +306,7 @@ const NotificationsScreen: React.FC = () => {
         if (isLoading && !refreshing) {
             return (
                 <ThemedView className="flex-1 justify-center items-center">
-                    <Loading size="large" />
+                    <Loading className="text-primary" size="large" />
                 </ThemedView>
             );
         }

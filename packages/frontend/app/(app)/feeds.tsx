@@ -260,7 +260,7 @@ const FeedsScreen: React.FC = () => {
           </View>
 
           {loading && !refreshing && publicFeeds.length === 0 ? (
-            <Loading size="large" style={{ flex: undefined, marginTop: 24 }} />
+            <Loading className="text-primary" size="large" style={{ flex: undefined, marginTop: 24 }} />
           ) : (
             filteredPublic.map((item) => (
               <FeedRow

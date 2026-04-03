@@ -205,7 +205,7 @@ const SavedPostsScreen: React.FC = () => {
                 <ScrollView className="flex-1">
                     {loading && (
                         <View className="flex-1 items-center justify-center pt-[60px]">
-                            <Loading size="large" />
+                            <Loading className="text-primary" size="large" />
                         </View>
                     )}
 

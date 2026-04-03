@@ -400,7 +400,7 @@ export default function BlockedUsersScreen() {
                             autoCorrect={false}
                         />
                         {searching && (
-                            <Loading size="small" style={{ flex: undefined, marginLeft: 8 }} />
+                            <Loading className="text-primary" size="small" style={{ flex: undefined, marginLeft: 8 }} />
                         )}
                     </View>
 
@@ -434,7 +434,7 @@ export default function BlockedUsersScreen() {
                                             </Text>
                                         </View>
                                         {isBlocking ? (
-                                            <Loading variant="inline" size="small" style={{ flex: undefined }} />
+                                            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                                         ) : (
                                             <IconComponent name="add-circle" size={24} color={colors.primary} />
                                         )}
@@ -461,7 +461,7 @@ export default function BlockedUsersScreen() {
 
                     {loading ? (
                         <View className="py-10 items-center">
-                            <Loading size="large" style={{ flex: undefined }} />
+                            <Loading className="text-primary" size="large" style={{ flex: undefined }} />
                         </View>
                     ) : blockedUsers.length === 0 ? (
                         <EmptyState

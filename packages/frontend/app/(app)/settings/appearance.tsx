@@ -111,7 +111,7 @@ export default function AppearanceSettingsScreen() {
           ],
           rightComponents: saving ? [
             <View key="saving" className="pr-2">
-              <Loading variant="inline" size="small" />
+              <Loading className="text-primary" variant="inline" size="small" />
             </View>,
           ] : [],
         }}

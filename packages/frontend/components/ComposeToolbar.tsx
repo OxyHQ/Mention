@@ -227,7 +227,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     className="p-1"
                 >
                     {isGettingLocation ? (
-                        <Loading variant="inline" size="small" style={{ flex: undefined }} />
+                        <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                     ) : (
                         <LocationIcon
                             size={20}

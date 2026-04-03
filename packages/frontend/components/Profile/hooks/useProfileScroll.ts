@@ -80,7 +80,14 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     }
   }, [clearRegistration, registerScrollable, setScrollY, profileId]);
 
+  // Use refs for values that change on tab switch to keep handleScrollEvent stable
+  const currentTabRef = useRef(currentTab);
+  currentTabRef.current = currentTab;
+  const profileIdRef = useRef(profileId);
+  profileIdRef.current = profileId;
+
   // Scroll event handler with throttling and infinite scroll
+  // Stable callback — uses refs for tab/profileId to avoid re-creating onScroll
   const handleScrollEvent = useCallback((event: any) => {
     const now = Date.now();
     if (now - lastScrollCheckRef.current < LAYOUT.SCROLL_CHECK_THROTTLE) {
@@ -108,17 +115,19 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
 
       // Load more when near bottom
       if (distanceFromBottom < LAYOUT.LOAD_MORE_THRESHOLD) {
-        if (!profileId || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
+        const pid = profileIdRef.current;
+        const tab = currentTabRef.current;
+        if (!pid || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
           return;
         }
 
-        const slice = getUserSliceRef.current(profileId, currentTab as FeedType);
+        const slice = getUserSliceRef.current(pid, tab as FeedType);
         if (slice && slice.hasMore && !slice.isLoading) {
           loadingMoreRef.current = true;
           void (async () => {
             try {
-              await fetchUserFeedRef.current!(profileId, {
-                type: currentTab as FeedType,
+              await fetchUserFeedRef.current!(pid, {
+                type: tab as FeedType,
                 cursor: slice.nextCursor,
                 limit: LAYOUT.FEED_LIMIT,
               });
@@ -131,7 +140,7 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     } catch {
       // Ignore scroll read errors
     }
-  }, [currentTab, profileId]);
+  }, []);
 
   // Create animated scroll handler
   const onScroll = useMemo(

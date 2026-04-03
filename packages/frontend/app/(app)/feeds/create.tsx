@@ -167,7 +167,7 @@ const CreateFeedScreen: React.FC = () => {
                   className="px-4 py-[7px] rounded-[20px] bg-primary"
                 >
                   {saving ? (
-                    <Loading variant="inline" size="small" style={{ flex: undefined }} />
+                    <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                   ) : (
                     <Text className="text-white font-bold text-sm">
                       {t('feeds.create.createButton', { defaultValue: 'Create' })}

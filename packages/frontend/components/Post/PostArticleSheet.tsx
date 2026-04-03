@@ -76,7 +76,7 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <Loading size="small" />
+          <Loading className="text-primary" size="small" />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

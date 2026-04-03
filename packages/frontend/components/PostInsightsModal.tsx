@@ -75,7 +75,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                 {/* Content */}
                 {loading ? (
                     <View className="flex-1 justify-center items-center">
-                        <Loading size="large" />
+                        <Loading className="text-primary" size="large" />
                     </View>
                 ) : insights ? (
                     <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>

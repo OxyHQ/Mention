@@ -122,7 +122,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           disableSticky={true}
         />
         <View className="flex-1 justify-center items-center">
-          <Loading size="large" />
+          <Loading className="text-primary" size="large" />
         </View>
       </View>
     );
@@ -165,7 +165,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           ListFooterComponent={
             loadingMore ? (
               <View className="py-4 items-center">
-                <Loading size="small" style={{ flex: undefined }} />
+                <Loading className="text-primary" size="small" style={{ flex: undefined }} />
               </View>
             ) : null
           }

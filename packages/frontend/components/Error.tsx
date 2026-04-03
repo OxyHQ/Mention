@@ -97,7 +97,7 @@ export function Error({
               activeOpacity={0.8}
             >
               {isRetrying ? (
-                <Loading variant="inline" size="small" style={{ flex: undefined }} />
+                <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
               ) : (
                 <>
                   <Ionicons

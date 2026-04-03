@@ -184,7 +184,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           activeOpacity={0.7}
         >
           {isDeleting ? (
-            <Loading variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
             <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
           )}
@@ -212,7 +212,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           disableSticky={true}
         />
         <View className="flex-1 justify-center items-center py-12">
-          <Loading size="large" />
+          <Loading className="text-primary" size="large" />
         </View>
       </View>
     );

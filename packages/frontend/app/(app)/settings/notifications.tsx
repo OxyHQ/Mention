@@ -101,7 +101,7 @@ export default function NotificationSettingsScreen() {
                     disableSticky
                 />
                 <View className="flex-1 justify-center items-center">
-                    <Loading size="large" />
+                    <Loading className="text-primary" size="large" />
                 </View>
             </ThemedView>
         );
@@ -119,7 +119,7 @@ export default function NotificationSettingsScreen() {
                     ],
                     rightComponents: saving ? [
                         <View key="saving" className="pr-2">
-                            <Loading variant="inline" size="small" />
+                            <Loading className="text-primary" variant="inline" size="small" />
                         </View>,
                     ] : [],
                 }}

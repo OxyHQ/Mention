@@ -77,7 +77,7 @@ export default function OnlineStatusScreen() {
                     disableSticky={true}
                 />
                 <View className="flex-1 justify-center items-center">
-                    <Loading size="large" />
+                    <Loading className="text-primary" size="large" />
                 </View>
             </ThemedView>
         );

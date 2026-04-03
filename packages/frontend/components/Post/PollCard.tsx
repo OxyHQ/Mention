@@ -67,7 +67,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
 
   if (loading) return (
     <View className="flex-1 w-full p-3 bg-background" style={{ width }}>
-      <Loading size="small" style={{ flex: undefined }} />
+      <Loading className="text-primary" size="small" style={{ flex: undefined }} />
     </View>
   );
 

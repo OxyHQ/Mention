@@ -81,7 +81,7 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
           activeOpacity={0.7}
         >
           {subscribing ? (
-            <Loading variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
             <Text
               className={cn(
@@ -297,7 +297,7 @@ const LabelersScreen: React.FC = () => {
 
       {loading ? (
         <View className="flex-1 justify-center items-center">
-          <Loading size="large" />
+          <Loading className="text-primary" size="large" />
         </View>
       ) : (
         <FlatList

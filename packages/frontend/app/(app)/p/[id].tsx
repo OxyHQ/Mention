@@ -264,7 +264,7 @@ const PostDetailScreen: React.FC = () => {
 
                 {loading && !post ? (
                     <View className="flex-1 items-center justify-center">
-                        <Loading size="large" />
+                        <Loading className="text-primary" size="large" />
                     </View>
                 ) : (
                     <Feed

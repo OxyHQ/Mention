@@ -470,7 +470,7 @@ export default function SearchIndex() {
                     >
                         {loading && (
                             <View className="flex-1 items-center justify-center" style={{ minHeight: 300 }}>
-                                <Loading size="large" />
+                                <Loading className="text-primary" size="large" />
                             </View>
                         )}
 

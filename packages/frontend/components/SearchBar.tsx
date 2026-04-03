@@ -50,7 +50,7 @@ export const SearchBar = () => {
         <View className="bg-background" style={styles.container}>
             <View className="bg-muted" style={styles.searchInputContainer}>
                 {isLoading ? (
-                    <Loading variant="inline" size="small" style={styles.searchIconWrapper} />
+                    <Loading className="text-primary" variant="inline" size="small" style={styles.searchIconWrapper} />
                 ) : (
                     <View style={styles.searchIconWrapper}>
                         <Search size={18} className="text-muted-foreground" />

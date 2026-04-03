@@ -156,7 +156,7 @@ const RoomDetailScreen = () => {
           }}
         />
         <View className="flex-1 items-center justify-center">
-          <Loading />
+          <Loading className="text-primary" />
         </View>
       </SafeAreaView>
     );
