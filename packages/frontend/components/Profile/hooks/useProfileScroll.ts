@@ -62,17 +62,23 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     }
   }, []);
 
+  // Track which profile we last registered for, so we only reset scroll on profile change
+  const lastProfileRef = useRef<string | undefined>(undefined);
+
   // Assign scroll ref with registration
   const assignScrollRef = useCallback((node: any) => {
     scrollRef.current = node;
     clearRegistration();
     if (node && registerScrollable) {
-      // Reset shared scrollY so header animations start from 0
-      // (prevents stale scroll position from a previous screen hiding the banner)
-      setScrollY(0);
+      // Only reset scroll position when navigating to a different profile,
+      // not when switching tabs within the same profile
+      if (lastProfileRef.current !== profileId) {
+        setScrollY(0);
+        lastProfileRef.current = profileId;
+      }
       unregisterRef.current = registerScrollable(node);
     }
-  }, [clearRegistration, registerScrollable, setScrollY]);
+  }, [clearRegistration, registerScrollable, setScrollY, profileId]);
 
   // Scroll event handler with throttling and infinite scroll
   const handleScrollEvent = useCallback((event: any) => {
