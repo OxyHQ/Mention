@@ -49,22 +49,12 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const avatarUri = user?.avatar;
 
     const handleSignOut = useCallback(async () => {
-        const confirmed = await confirmDialog({
-            title: t('settings.signOut'),
-            message: t('settings.signOutMessage'),
-            okText: t('settings.signOut'),
-            cancelText: t('common.cancel'),
-            destructive: true,
-        });
-        if (!confirmed) return;
         try {
             await signOut();
-            onNavigate?.();
-            router.replace('/');
-        } catch (error) {
-            logger.error('Sign out failed');
-        }
-    }, [t, signOut, onNavigate, router]);
+        } catch { /* server may reject if session already expired */ }
+        onNavigate?.();
+        router.replace('/');
+    }, [signOut, onNavigate, router]);
 
     const handleNavPress = useCallback((route: string) => {
         onNavigate?.();
