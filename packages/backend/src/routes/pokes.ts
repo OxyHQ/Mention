@@ -31,19 +31,21 @@ function toUserSummary(user: any, id: string) {
   };
 }
 
-// List pokes received by the current user
+const POKES_LIMIT = 100;
+
 router.get('/received', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const pokes = await Poke.find({ pokedId: userId }).sort({ createdAt: -1 }).lean();
+    const [pokes, pokedBackDocs] = await Promise.all([
+      Poke.find({ pokedId: userId }).sort({ createdAt: -1 }).limit(POKES_LIMIT).lean(),
+      Poke.find({ pokerId: userId }).select('pokedId').lean(),
+    ]);
+
+    const pokedBackSet = new Set(pokedBackDocs.map((p) => p.pokedId));
     const pokerIds = pokes.map((p) => p.pokerId);
     const profiles = await resolveUsers(pokerIds);
-
-    // Also check which ones the current user has poked back
-    const pokedBack = await Poke.find({ pokerId: userId, pokedId: { $in: pokerIds } }).lean();
-    const pokedBackSet = new Set(pokedBack.map((p) => p.pokedId));
 
     const items = pokes.map((p) => ({
       id: p._id,
@@ -60,13 +62,12 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// List pokes sent by the current user
 router.get('/sent', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const pokes = await Poke.find({ pokerId: userId }).sort({ createdAt: -1 }).lean();
+    const pokes = await Poke.find({ pokerId: userId }).sort({ createdAt: -1 }).limit(POKES_LIMIT).lean();
     const pokedIds = pokes.map((p) => p.pokedId);
     const profiles = await resolveUsers(pokedIds);
 
@@ -91,7 +92,7 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
 
     // Fetch existing pokes, followers, and following in parallel
     const [existingPokes, followersResult, followingResult] = await Promise.all([
-      Poke.find({ pokerId: userId }).lean(),
+      Poke.find({ pokerId: userId }).select('pokedId').lean(),
       oxy.getUserFollowers(userId).catch(() => []),
       oxy.getUserFollowing(userId).catch(() => []),
     ]);

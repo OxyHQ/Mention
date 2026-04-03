@@ -7,6 +7,8 @@
 @source "./components/**/*.{js,jsx,ts,tsx}";
 @source "./lib/**/*.{js,jsx,ts,tsx}";
 @source "./hooks/**/*.{js,jsx,ts,tsx}";
+@source "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
+@source "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
 
 @theme {
   --font-sans: Inter, sans-serif;
@@ -38,6 +40,9 @@
 
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--surface));
+  --color-card-foreground: hsl(var(--surface-foreground));
 
   --color-surface: hsl(var(--surface));
   --color-surface-foreground: hsl(var(--surface-foreground));

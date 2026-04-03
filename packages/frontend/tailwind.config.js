@@ -7,6 +7,8 @@ module.exports = {
     "./components/**/*.{js,jsx,ts,tsx}",
     "./lib/**/*.{js,jsx,ts,tsx}",
     "./hooks/**/*.{js,jsx,ts,tsx}",
+    "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}",
+    "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}",
   ],
   theme: {
     extend: {
@@ -47,6 +49,10 @@ module.exports = {
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--surface))",
+          foreground: "hsl(var(--surface-foreground))",
         },
         surface: {
           DEFAULT: "hsl(var(--surface))",
