@@ -1,6 +1,12 @@
 // Import Reanimated early to ensure proper initialization before other modules
 import 'react-native-reanimated';
 
+// Suppress known React Native Web warning about empty text nodes in Views.
+// The React Compiler (Hermes) can produce empty string children in compiled JSX
+// which triggers a harmless dev-only console.error in RNW's View component.
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs(['Unexpected text node: . A text node cannot be a child of a <View>.']);
+
 // Register LiveKit WebRTC globals (must be called before any LiveKit usage)
 // Platform-split: livekit.native.ts imports @livekit/react-native, livekit.web.ts is a no-op
 import { initLiveKit } from '@/lib/livekit';
