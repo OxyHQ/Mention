@@ -255,10 +255,11 @@ class FederationService {
 
       // Always upsert into Oxy so profile changes (avatar, name, bio) are synced.
       // resolveExternalUser creates the user if not exists, updates if changed.
+      // Uses makeServiceRequest because PUT /users/resolve requires a service token.
       if (fedActor) {
         try {
           const oxyClient = getServiceOxyClient();
-          const oxyUser = await oxyClient.resolveExternalUser({
+          const oxyUser = await oxyClient.makeServiceRequest<{ _id?: string; id?: string }>('PUT', '/users/resolve', {
             type: 'federated',
             username: acct,
             actorUri: actor.id,
@@ -267,8 +268,9 @@ class FederationService {
             avatar: actor.icon?.url || actor.icon?.href,
             bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
           });
-          if (oxyUser?.id && fedActor.oxyUserId !== String(oxyUser.id)) {
-            await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: String(oxyUser.id) } });
+          const resolvedId = oxyUser?._id || oxyUser?.id;
+          if (resolvedId && fedActor.oxyUserId !== String(resolvedId)) {
+            await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: String(resolvedId) } });
           }
         } catch (resolveErr) {
           logger.warn(`Failed to resolve Oxy user for ${actorUri}:`, resolveErr);

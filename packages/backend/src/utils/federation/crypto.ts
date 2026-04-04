@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { logger } from '../logger';
 import { OXY_API_URL, AP_CONTENT_TYPE } from './constants';
+import { getServiceOxyClient } from '../oxyHelpers';
 
 interface KeyPairData {
   keyId: string;
@@ -15,6 +16,7 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 /**
  * Fetch a key pair from Oxy's federation API.
  * Oxy manages all key pairs; Mention uses them for signing.
+ * The endpoint requires a valid service token (serviceAuthMiddleware).
  */
 export async function getKeyPair(username: string): Promise<KeyPairData> {
   const cached = keyPairCache.get(username);
@@ -24,9 +26,21 @@ export async function getKeyPair(username: string): Promise<KeyPairData> {
 
   const url = `${OXY_API_URL}/federation/keypair/${encodeURIComponent(username)}`;
   logger.debug(`[FedSync] fetching key pair from ${url}`);
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+
+  // Obtain a service token via the OxyServices client (auto-acquires/refreshes)
+  const headers: Record<string, string> = {};
+  try {
+    const serviceToken = await getServiceOxyClient().getServiceToken();
+    headers['Authorization'] = `Bearer ${serviceToken}`;
+  } catch (err) {
+    logger.debug(`[FedSync] Could not get service token for keypair fetch: ${err}`);
+    // Fall back to no auth (may work in dev if serviceAuthMiddleware is relaxed)
+  }
+
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
-    throw new Error(`Failed to fetch key pair for ${username}: ${res.status}`);
+    const body = await res.text().catch(() => '');
+    throw new Error(`Failed to fetch key pair for ${username}: ${res.status} ${body.slice(0, 200)}`);
   }
 
   const data = await res.json() as KeyPairData;
