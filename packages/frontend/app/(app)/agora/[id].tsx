@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -30,6 +31,10 @@ import { roomsService, type Room } from '@/services/roomsService';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { confirmDialog } from '@/utils/alerts';
+import { reportService } from '@/services/reportService';
+import { ReportModal } from '@/components/report/ReportModal';
 
 // Wrapper to use useUserById hook for each participant
 const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: any }) => {
@@ -70,6 +75,7 @@ const RoomDetailScreen = () => {
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const bottomSheet = useContext(BottomSheetContext);
 
   const loadRoom = useCallback(async () => {
     if (!id) return;
@@ -133,14 +139,114 @@ const RoomDetailScreen = () => {
     setActionLoading(false);
   };
 
-  // Resolve user IDs to real profiles (must be before conditional return for hooks rules)
-  const allUserIds = [room?.host, ...(room?.participants || []), ...(room?.speakers || [])].filter((id): id is string => Boolean(id));
-  useRoomUsers(allUserIds);
-
   const isLive = room?.status === 'live';
   const isScheduled = room?.status === 'scheduled';
   const isEnded = room?.status === 'ended';
   const isHost = room?.host === user?.id;
+
+  const handleShareRoom = useCallback(async () => {
+    if (!room) return;
+    const url = `https://mention.earth/agora/${id}`;
+    try {
+      await Share.share({
+        message: `${room.title}\n\n${url}`,
+        url,
+        title: room.title,
+      });
+    } catch {
+      // User cancelled or share failed silently
+    }
+  }, [room, id]);
+
+  const handleMoreOptions = useCallback(() => {
+    if (!room || !id) return;
+
+    const handleShare = () => {
+      bottomSheet.openBottomSheet(false);
+      handleShareRoom();
+    };
+
+    const handleLeave = async () => {
+      bottomSheet.openBottomSheet(false);
+      const confirmed = await confirmDialog({
+        title: t('agora.leaveRoomConfirmTitle', { defaultValue: 'Leave room' }),
+        message: t('agora.leaveRoomConfirmMessage', { defaultValue: 'Are you sure you want to leave this room?' }),
+        okText: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
+        cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+        destructive: true,
+      });
+      if (!confirmed) return;
+      setActionLoading(true);
+      const success = await roomsService.leaveRoom(id);
+      if (success) {
+        setIsJoined(false);
+        loadRoom();
+        toast(t('agora.leftRoom', { defaultValue: 'You have left the room' }), { type: 'success' });
+      } else {
+        toast(t('agora.leaveRoomFailed', { defaultValue: 'Failed to leave room' }), { type: 'error' });
+      }
+      setActionLoading(false);
+    };
+
+    const handleReport = () => {
+      bottomSheet.setBottomSheetContent(
+        <ReportModal
+          visible={true}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSubmit={async (categories, details) => {
+            bottomSheet.openBottomSheet(false);
+            const success = await reportService.reportRoom(id, categories, details);
+            if (success) {
+              toast(t('agora.reportThankYou', { defaultValue: 'Thank you for helping keep our community safe.' }), { type: 'success' });
+            } else {
+              toast(t('agora.reportFailed', { defaultValue: 'Failed to submit report.' }), { type: 'error' });
+            }
+          }}
+        />
+      );
+      bottomSheet.openBottomSheet(true);
+    };
+
+    const MenuContent = () => (
+      <View className="py-2 px-4">
+        <IconButton variant="icon" onPress={handleShare} style={{ width: '100%', paddingVertical: 14 }}>
+          <View className="flex-row items-center w-full" style={{ gap: 14 }}>
+            <Ionicons name="share-outline" size={22} color={theme.colors.text} />
+            <Text className="text-foreground text-base font-medium">
+              {t('agora.shareRoom', { defaultValue: 'Share room' })}
+            </Text>
+          </View>
+        </IconButton>
+        {isJoined && !isHost && (
+          <IconButton variant="icon" onPress={handleLeave} style={{ width: '100%', paddingVertical: 14 }}>
+            <View className="flex-row items-center w-full" style={{ gap: 14 }}>
+              <Ionicons name="exit-outline" size={22} color={theme.colors.error} />
+              <Text className="text-destructive text-base font-medium">
+                {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
+              </Text>
+            </View>
+          </IconButton>
+        )}
+        {!isHost && (
+          <IconButton variant="icon" onPress={handleReport} style={{ width: '100%', paddingVertical: 14 }}>
+            <View className="flex-row items-center w-full" style={{ gap: 14 }}>
+              <Ionicons name="flag-outline" size={22} color={theme.colors.error} />
+              <Text className="text-destructive text-base font-medium">
+                {t('agora.reportRoom', { defaultValue: 'Report room' })}
+              </Text>
+            </View>
+          </IconButton>
+        )}
+      </View>
+    );
+
+    bottomSheet.setBottomSheetContent(<MenuContent />);
+    bottomSheet.openBottomSheet(true);
+  }, [room, id, isJoined, isHost, theme, t, bottomSheet, handleShareRoom, loadRoom]);
+
+  // Resolve user IDs to real profiles (must be before conditional return for hooks rules)
+  const allUserIds = [room?.host, ...(room?.participants || []), ...(room?.speakers || [])].filter((id): id is string => Boolean(id));
+  useRoomUsers(allUserIds);
 
   if (loading || !room) {
     return (
@@ -175,7 +281,7 @@ const RoomDetailScreen = () => {
               </IconButton>,
             ],
             rightComponents: [
-              <IconButton variant="icon" key="more" onPress={() => {}}>
+              <IconButton variant="icon" key="more" onPress={handleMoreOptions}>
                 <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
               </IconButton>,
             ],
