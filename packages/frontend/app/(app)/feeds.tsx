@@ -203,7 +203,7 @@ const FeedsScreen: React.FC = () => {
           options={{
             title: t('Feeds'),
             rightComponents: [
-              <IconButton variant="icon" key="settings" onPress={() => router.push('/settings/feeds')}>
+              <IconButton variant="icon" key="settings" onPress={() => router.push('/settings/feed')}>
                 <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
               </IconButton>,
             ],
@@ -220,9 +220,6 @@ const FeedsScreen: React.FC = () => {
         >
           {/* Quick access feeds */}
           <QuickFeedRow icon="swap-vertical" iconColor={theme.colors.primary} label={t('feeds.following')} onPress={() => router.push('/')} />
-          <QuickFeedRow icon="people" iconColor={theme.colors.primary} label={t('feeds.mutuals')} onPress={() => router.push('/')} />
-          <QuickFeedRow icon="compass" iconColor="#10B981" label={t('feeds.discover')} onPress={() => router.push('/')} />
-          <QuickFeedRow icon="heart" iconColor="#FF3040" label={t('feeds.popularWithFriends')} onPress={() => router.push('/')} />
 
           {/* Pinned custom feeds in quick list */}
           {myFeeds

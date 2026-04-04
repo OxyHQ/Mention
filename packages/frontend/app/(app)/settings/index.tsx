@@ -19,7 +19,7 @@ export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const safeBack = useSafeBack();
-    const { user, showBottomSheet } = useAuth();
+    const { user, showBottomSheet, signOut } = useAuth();
     const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
@@ -60,6 +60,11 @@ export default function SettingsScreen() {
             destructive: true,
         });
         if (!confirmed) return;
+        try {
+            await signOut();
+        } catch {
+            // Sign-out may fail if session is already invalid; navigate anyway
+        }
         router.replace('/');
     };
 
