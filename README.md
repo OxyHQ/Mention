@@ -167,6 +167,7 @@ All project documentation is available in the [`docs/`](./docs/) folder:
 - [Theming Troubleshooting](./docs/THEMING_TROUBLESHOOTING.md) - Common theming issues and solutions
 - [Compose Refactoring](./docs/COMPOSE_REFACTORING.md) - Compose screen architecture
 - [Performance Optimizations](./docs/PERFORMANCE_OPTIMIZATIONS.md) - Performance best practices
+- [Federation (ActivityPub)](./packages/backend/README.md#federation-activitypub--fediverse) - Fediverse federation setup, endpoints, and sync
 - [DigitalOcean Deployment](./docs/DIGITALOCEAN_DEPLOYMENT.md) - Production deployment guide for DigitalOcean App Platform
 - [Vercel Deployment](./docs/VERCEL_DEPLOYMENT.md) - Deployment guide for Vercel
 

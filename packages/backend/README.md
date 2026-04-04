@@ -343,35 +343,70 @@ vercel --prod
 
 ## Federation (ActivityPub / Fediverse)
 
-Mention supports ActivityPub federation, allowing users to interact with Mastodon and other fediverse platforms.
-
-### How It Works
-
-Mention acts as an ActivityPub server. Each Mention user gets a fediverse identity at `@username@mention.earth`. Users on Mastodon or other instances can follow Mention users and vice versa.
+Mention supports ActivityPub federation, allowing users to interact with Mastodon, Threads, and other fediverse platforms.
 
 ### Architecture
 
-- **Domain**: `mention.earth` (configured via `FEDERATION_DOMAIN` env var)
-- **Protocol endpoints** are public (no auth required — served to other ActivityPub servers):
-  - `GET /.well-known/webfinger?resource=acct:user@mention.earth` — Profile discovery
-  - `GET /ap/users/:username` — Actor profile (returns ActivityPub Person object)
-  - `POST /ap/users/:username/inbox` — Receive activities from remote instances
-  - `POST /ap/inbox` — Shared inbox for all users
-  - `GET /ap/users/:username/outbox` — Public posts as ActivityPub activities
-  - `GET /ap/users/:username/followers` — Followers collection
-  - `GET /ap/users/:username/following` — Following collection
+Each Mention user gets a fediverse identity at `@username@mention.earth`. Data is split across two systems:
 
-- **API endpoints** (auth required — used by the Mention frontend):
-  - `GET /federation/search?q=user@instance` — Search fediverse handles
-  - `GET /federation/lookup?handle=@user@instance` — Resolve a single handle
-  - `POST /federation/follow` — Follow a remote actor
-  - `POST /federation/unfollow` — Unfollow a remote actor
-  - `GET /federation/following` — List federated accounts you follow
-  - `GET /federation/followers` — List remote followers
+- **Users** live in Oxy (federated users have `type: 'federated'`)
+- **Posts** live in Mention's MongoDB
 
-### Deployment Requirements
+Both are linked by `oxyUserId`. When a remote actor is resolved, a shadow Oxy user is created and its ID is stored on the `FederatedActor` record and on any posts from that actor.
 
-The `/.well-known/` and `/ap/` paths on the federation domain (`mention.earth`) **must** route to this backend service, not the static frontend. On DigitalOcean App Platform, this is handled via ingress rules with path-based routing.
+### Endpoints
+
+**Protocol endpoints** (public, no auth -- served to other AP servers):
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/.well-known/webfinger?resource=acct:user@mention.earth` | Profile discovery |
+| GET | `/ap/users/:username` | Actor profile (AP Person object) |
+| POST | `/ap/users/:username/inbox` | Receive activities from remote instances |
+| POST | `/ap/inbox` | Shared inbox |
+| GET | `/ap/users/:username/outbox` | Public posts as AP activities |
+
+**API endpoints** (auth required -- used by the Mention frontend):
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/federation/follow` | Follow a remote actor |
+| POST | `/federation/unfollow` | Unfollow a remote actor |
+| GET | `/federation/following` | List federated accounts you follow |
+| GET | `/federation/followers` | List remote followers |
+| GET | `/federation/actor/posts?uri=...` | Get locally stored posts from a federated actor |
+| GET | `/federation/search?q=user@instance` | Search fediverse handles |
+| GET | `/federation/lookup?handle=@user@instance` | Resolve a single handle |
+
+### How Sync Works
+
+1. **Follow triggers backfill**: When a follow is accepted, `syncOutboxPosts` fetches the last 20 posts from the remote actor's outbox and stores them locally.
+2. **Incoming posts**: The shared inbox only accepts `Create` activities from actors that have at least one local follower.
+3. **HTTP signatures**: All outbound requests (fetches and deliveries) use HTTP Signatures. RSA keypairs are generated per-user and stored in the `ActorKeyPair` collection.
+
+### Instance-Specific Notes
+
+| Instance | Notes |
+|---|---|
+| **Mastodon** (mastodon.social) | Standard AP. Works with unsigned fetches for public data. Test: `@gargron@mastodon.social` |
+| **Threads** (threads.net) | Requires signed fetches. Uses numeric user IDs resolved via WebFinger. Test: `@zuck@threads.net` |
+
+### Local Development
+
+Federation requires a publicly reachable domain. For local testing:
+
+```bash
+# 1. Start the backend
+bun run dev:backend
+
+# 2. In another terminal, create a tunnel
+cloudflared tunnel --url http://localhost:3000
+
+# 3. Set the tunnel domain in .env
+FEDERATION_DOMAIN=your-random-subdomain.trycloudflare.com
+```
+
+Restart the backend after changing `FEDERATION_DOMAIN`. The tunnel URL changes each run unless you use a named tunnel.
 
 ### Environment Variables
 
@@ -383,16 +418,20 @@ FEDERATION_DELIVERY_RETRIES=5            # Max retry attempts for outgoing activ
 FEDERATION_MAX_CONTENT_LENGTH=50000      # Max content size for incoming activities
 ```
 
+### Deployment Requirements
+
+The `/.well-known/` and `/ap/` paths on the federation domain (`mention.earth`) **must** route to this backend service, not the static frontend. In production, Cloudflare redirect rules handle this (see [DigitalOcean Deployment](../../docs/DIGITALOCEAN_DEPLOYMENT.md)).
+
 ### Key Files
 
 - `src/routes/webfinger.routes.ts` — WebFinger endpoint
 - `src/routes/federation.routes.ts` — ActivityPub protocol endpoints
 - `src/routes/federation.api.routes.ts` — Frontend-facing API endpoints
-- `src/services/FederationService.ts` — Core federation logic
+- `src/services/FederationService.ts` — Core federation logic (actor resolution, inbox handling, outbox sync)
 - `src/services/FederationJobScheduler.ts` — Background jobs (actor refresh, delivery retry)
 - `src/utils/federation/constants.ts` — Configuration and URL builders
 - `src/utils/federation/crypto.ts` — HTTP signature signing/verification
-- `src/models/FederatedActor.ts` — Cached remote actor profiles
+- `src/models/FederatedActor.ts` — Cached remote actor profiles (includes `oxyUserId` link)
 - `src/models/FederatedFollow.ts` — Follow relationships
 - `src/models/ActorKeyPair.ts` — RSA keypairs for local users
 - `src/models/FederationDeliveryQueue.ts` — Outgoing activity retry queue
