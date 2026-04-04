@@ -49,6 +49,25 @@ class ReportService {
       return false;
     }
   }
+
+  async reportRoom(roomId: string, categories: string[], details?: string): Promise<boolean> {
+    try {
+      await authenticatedClient.post("/reports", {
+        reportedType: 'room',
+        reportedId: roomId,
+        categories,
+        details
+      });
+      return true;
+    } catch (error: any) {
+      if (error?.response?.status === 409) {
+        logger.warn("Already reported this room");
+        return true;
+      }
+      logger.warn("Failed to report room", { error });
+      return false;
+    }
+  }
 }
 
 export const reportService = new ReportService();
