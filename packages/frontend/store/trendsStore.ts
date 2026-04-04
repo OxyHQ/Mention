@@ -8,6 +8,7 @@ interface TrendsStore {
   trends: Trend[];
   summary: string;
   isLoading: boolean;
+  hasFetched: boolean;
   error: string | null;
   _pollHandle: ReturnType<typeof setInterval> | null;
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
@@ -25,6 +26,7 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
   trends: [],
   summary: '',
   isLoading: false,
+  hasFetched: false,
   error: null,
   _pollHandle: null,
 
@@ -63,9 +65,9 @@ export const useTrendsStore = create<TrendsStore>((set, get) => ({
       const nextSummary = response.data.summary || '';
 
       if (changed || prevSummary !== nextSummary) {
-        set({ trends: next, summary: nextSummary, isLoading: false });
-      } else if (!silent) {
-        set({ isLoading: false });
+        set({ trends: next, summary: nextSummary, isLoading: false, hasFetched: true });
+      } else {
+        set({ isLoading: false, hasFetched: true });
       }
     } catch (error: any) {
       const message = error?.message || 'Failed to fetch trends';

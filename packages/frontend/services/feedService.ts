@@ -267,6 +267,9 @@ class FeedService {
     const response = await authenticatedClient.post('/posts', backendRequest);
     const data = response?.data;
 
+    // Invalidate feed cache so new post appears immediately
+    feedCache.clear();
+
     if (data && typeof data === 'object' && data !== null && 'post' in data) {
       return {
         success: typeof (data as Record<string, unknown>).success === 'boolean'
@@ -284,6 +287,7 @@ class FeedService {
    */
   async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: unknown[] }> {
     const response = await authenticatedClient.post('/posts/thread', request);
+    feedCache.clear();
     return { success: true, posts: response.data };
   }
 
@@ -299,6 +303,8 @@ class FeedService {
     };
 
     const response = await authenticatedClient.post('/feed/reply', backendRequest);
+    // Invalidate cache so reply appears immediately
+    feedCache.clear();
     return { success: true, reply: response.data };
   }
 
@@ -314,6 +320,8 @@ class FeedService {
     };
 
     const response = await authenticatedClient.post('/feed/repost', backendRequest);
+    // Invalidate cache so repost appears immediately
+    feedCache.clear();
     return { success: true, repost: response.data };
   }
 

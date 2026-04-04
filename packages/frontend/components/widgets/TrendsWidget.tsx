@@ -18,7 +18,7 @@ interface TrendsWidgetProps {
 
 export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
   const { t } = useTranslation();
-  const { trends, summary, isLoading, error, startPolling } = useTrendsStore();
+  const { trends, summary, isLoading, hasFetched, error, startPolling } = useTrendsStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -35,11 +35,11 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
     logger.debug(`Menu pressed for trend: ${trend.text}`);
   }, []);
 
-  if (!isLoading && !error && (!trends || trends.length === 0)) {
+  if (hasFetched && !error && (!trends || trends.length === 0)) {
     return null;
   }
 
-  const content = isLoading ? (
+  const content = (isLoading && !hasFetched) ? (
     <View className="gap-2.5 py-1">
       {Array.from({ length: 5 }).map((_, i) => (
         <Skeleton.Row key={i} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
