@@ -146,21 +146,21 @@ export class AppInitializer {
 
     try {
       // Run all init tasks in parallel to minimize startup time
-      console.log('[AppInit] Starting initialization...');
+      logger.debug('Starting initialization');
       const authPromise = waitForAuth(services, INITIALIZATION_TIMEOUT.AUTH);
 
       const results = await Promise.allSettled([
-        setupNotificationsIfNeeded().then(() => console.log('[AppInit] Notifications done')),
-        loadAppearanceSettings(services).then(() => console.log('[AppInit] Appearance done')),
-        loadVideoMuteState().then(() => console.log('[AppInit] VideoMute done')),
+        setupNotificationsIfNeeded().then(() => logger.debug('Notifications done')),
+        loadAppearanceSettings(services).then(() => logger.debug('Appearance done')),
+        loadVideoMuteState().then(() => logger.debug('VideoMute done')),
         // Fetch current user once auth resolves
         authPromise.then((authReady) => {
-          console.log('[AppInit] Auth resolved:', authReady);
+          logger.debug('Auth resolved', { authReady });
           return fetchCurrentUser(services, authReady);
-        }).then(() => console.log('[AppInit] CurrentUser done')),
+        }).then(() => logger.debug('CurrentUser done')),
       ]);
 
-      console.log('[AppInit] All tasks settled:', results.map(r => r.status));
+      logger.debug('All tasks settled', { statuses: results.map(r => r.status) });
 
       // Hide splash screen
       try {
@@ -169,10 +169,10 @@ export class AppInitializer {
         logger.warn('Failed to hide native splash screen', { error });
       }
 
-      console.log('[AppInit] Complete');
+      logger.debug('Initialization complete');
       return { success: true };
     } catch (error) {
-      console.error('[AppInit] Error:', error);
+      logger.error(error instanceof Error ? error : new Error(String(error)));
       return {
         success: false,
         error: error instanceof Error ? error : new Error('Unknown initialization error'),

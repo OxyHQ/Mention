@@ -9,6 +9,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { Platform } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import type { HydratedPost, FeedType } from '@mention/shared-types';
@@ -321,8 +322,7 @@ export function usePostActions({
                     if (Platform.OS === 'web') {
                         await navigator.clipboard.writeText(postUrl);
                     } else {
-                        const { Clipboard } = require('react-native');
-                        Clipboard.setString(postUrl);
+                        await Clipboard.setStringAsync(postUrl);
                     }
                 } catch (e) { logger.warn('Failed to copy link'); }
                 bottomSheet.openBottomSheet(false);

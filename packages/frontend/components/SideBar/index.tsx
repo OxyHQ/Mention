@@ -51,7 +51,9 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const handleSignOut = useCallback(async () => {
         try {
             await signOut();
-        } catch { /* server may reject if session already expired */ }
+        } catch {
+            // Server may reject if session already expired; navigate anyway
+        }
         onNavigate?.();
         router.replace('/');
     }, [signOut, onNavigate, router]);
