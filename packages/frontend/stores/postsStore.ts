@@ -492,7 +492,20 @@ export const usePostsStore = create<FeedState>()(
           // Verify this is still the latest request
           const latestPending = pendingRequests.get(requestKey);
           if (!latestPending || latestPending.timestamp !== now) {
-            // A newer request was made, discard this response
+            // A newer request was made, discard this response but ensure
+            // isLoading is not left stuck if no newer request will reset it.
+            if (!latestPending) {
+              return {
+                ...state,
+                feeds: {
+                  ...state.feeds,
+                  [type]: {
+                    ...state.feeds[type],
+                    isLoading: false,
+                  },
+                },
+              };
+            }
             return state;
           }
           
@@ -573,8 +586,13 @@ export const usePostsStore = create<FeedState>()(
           error: errorMessage
         }));
       } finally {
-        // Clean up request tracking
-        pendingRequests.delete(requestKey);
+        // Clean up request tracking — only if this call still owns the entry.
+        // A newer call for the same key may have overwritten pendingRequests,
+        // so we must not delete the newer entry.
+        const current = pendingRequests.get(requestKey);
+        if (current && current.timestamp === now) {
+          pendingRequests.delete(requestKey);
+        }
       }
     },
 
