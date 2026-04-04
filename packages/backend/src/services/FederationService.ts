@@ -259,7 +259,7 @@ class FederationService {
       if (fedActor) {
         try {
           const oxyClient = getServiceOxyClient();
-          const oxyUser = await oxyClient.makeServiceRequest<{ _id?: string; id?: string }>('PUT', '/users/resolve', {
+          const oxyUser = await oxyClient.makeServiceRequest('PUT', '/users/resolve', {
             type: 'federated',
             username: acct,
             actorUri: actor.id,
@@ -268,7 +268,7 @@ class FederationService {
             avatar: actor.icon?.url || actor.icon?.href,
             bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
           });
-          const resolvedId = oxyUser?._id || oxyUser?.id;
+          const resolvedId = (oxyUser as any)?._id || (oxyUser as any)?.id;
           if (resolvedId && fedActor.oxyUserId !== String(resolvedId)) {
             await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: String(resolvedId) } });
           }
