@@ -149,7 +149,7 @@ export const EmptyState = memo<EmptyStateProps>(
                 className="flex-1 justify-center items-center py-8 px-6 bg-background"
                 accessible={accessible}
                 accessibilityRole="text"
-                accessibilityLabel={accessibilityLabel || `${title || ''}. ${subtitle || ''}`}
+                accessibilityLabel={accessibilityLabel || [title, subtitle].filter(Boolean).join('. ')}
             >
                 {customIcon && <View className="mb-3">{customIcon}</View>}
 
