@@ -258,7 +258,8 @@ class FederationJobScheduler {
         status: 'pending',
         nextAttemptAt: { $lte: now },
       })
-        .limit(50) // Process in batches
+        .limit(200) // Process in larger batches to avoid backlog
+        .sort({ nextAttemptAt: 1 })
         .lean();
 
       if (pending.length === 0) return;
@@ -288,7 +289,7 @@ class FederationJobScheduler {
           if (success) {
             await FederationDeliveryQueue.updateOne(
               { _id: delivery._id },
-              { $set: { status: 'delivered', lastAttemptAt: now } },
+              { $set: { status: 'delivered', lastAttemptAt: now, error: undefined } },
             );
           } else {
             const nextAttempt = getNextRetryTime(delivery.attempts + 1);

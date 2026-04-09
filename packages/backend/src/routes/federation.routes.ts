@@ -150,19 +150,19 @@ router.post('/inbox', async (req: Request, res: Response) => {
  */
 async function handleInbox(req: Request, res: Response): Promise<Response> {
   try {
-    // Verify HTTP signature
-    const { verified, actorUri } = await verifyHttpSignature(
+    // Verify HTTP signature (use originalUrl to avoid proxy path mangling)
+    const { verified, actorUri, reason: signatureError } = await verifyHttpSignature(
       {
         method: req.method,
-        path: req.path,
+        path: req.originalUrl || req.path,
         headers: req.headers as Record<string, string | string[] | undefined>,
-        body: req.body,
+        body: req.rawBody ?? req.body,
       },
       (keyId) => federationService.fetchPublicKey(keyId),
     );
 
     if (!verified || !actorUri) {
-      logger.debug('Inbox: HTTP signature verification failed');
+      logger.debug('Inbox: HTTP signature verification failed', { reason: signatureError });
       return res.status(401).json({ error: 'Invalid signature' });
     }
 

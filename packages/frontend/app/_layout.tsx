@@ -36,8 +36,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Platform, Text, TextInput, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
-import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
-import { AvatarPlaceholderProvider } from '@oxyhq/bloom/avatar';
+import { ImageResolverProvider } from '@/lib/imageResolver';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -63,16 +62,11 @@ import { vars } from 'react-native-css';
 // Styles
 import '../global.css';
 
-// Resolve file IDs to download URLs for Bloom's Avatar and other image components.
-// Configured once here; all Bloom components that use useImageResolver() pick it up.
+// Resolve file IDs to download URLs for Bloom components that call useImageResolver().
 function resolveImageSource(fileId: string): string | undefined {
   const url = getCachedFileDownloadUrlSync(oxyServices, fileId, 'thumb');
-  return url.startsWith('http') ? url : undefined;
+  return url && url.startsWith('http') ? url : undefined;
 }
-
-// Stable ref so AvatarPlaceholderProvider never triggers re-renders.
-// Bloom's Avatar now uses a built-in default avatar image, so no custom icon is needed.
-const avatarPlaceholderConfig = {};
 
 // Types
 interface SplashState {
@@ -89,6 +83,7 @@ export default function RootLayout() {
   });
 
   // Memoized instances
+  // Stable QueryClient (single instance app-wide)
   const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
 
   // Font Loading
@@ -255,18 +250,16 @@ export default function RootLayout() {
 
   return (
     <ImageResolverProvider value={resolveImageSource}>
-      <AvatarPlaceholderProvider value={avatarPlaceholderConfig}>
-        <BloomThemeProvider
-          mode={mode}
-          colorPreset={appColor}
-          onModeChange={setMode}
-          onColorPresetChange={setAppColor}
-        >
-          <ThemedView style={[{ flex: 1 }, colorVars]}>
-            {appContent}
-          </ThemedView>
-        </BloomThemeProvider>
-      </AvatarPlaceholderProvider>
+      <BloomThemeProvider
+        mode={mode}
+        colorPreset={appColor}
+        onModeChange={setMode}
+        onColorPresetChange={setAppColor}
+      >
+        <ThemedView style={[{ flex: 1 }, colorVars]}>
+          {appContent}
+        </ThemedView>
+      </BloomThemeProvider>
     </ImageResolverProvider>
   );
 }

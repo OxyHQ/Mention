@@ -26,9 +26,13 @@ export const config = {
     compressionThreshold: 1024,
   },
   db: {
-    socketTimeoutMS: 45000,
-    serverSelectionTimeoutMS: 20000,
-    maxRetries: 5,
+    socketTimeoutMS: parseInt(process.env.MONGODB_SOCKET_TIMEOUT_MS || '45000', 10),
+    serverSelectionTimeoutMS: parseInt(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || '20000', 10),
+    maxRetries: parseInt(process.env.MONGODB_MAX_RETRIES || '5', 10),
+    maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '100', 10),
+    minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10', 10),
+    maxIdleTimeMS: parseInt(process.env.MONGODB_MAX_IDLE_TIME_MS || '60000', 10),
+    heartbeatFrequencyMS: parseInt(process.env.MONGODB_HEARTBEAT_FREQUENCY_MS || '10000', 10),
   },
   feed: {
     defaultLimit: 20,

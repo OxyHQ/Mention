@@ -42,23 +42,43 @@ export const ScoreCursor = {
 // --- Chronological cursor (for following, author, custom, list, hashtag, saved) ---
 
 export const ChronoCursor = {
-  build(id: string): string {
+  build(id: string, createdAt?: Date | string): string {
+    if (createdAt) {
+      return `${new Date(createdAt).getTime()}:${id}`;
+    }
     return id;
   },
 
-  parse(cursor?: string): mongoose.Types.ObjectId | undefined {
+  parse(cursor?: string): { id: mongoose.Types.ObjectId; ts?: number } | undefined {
     if (!cursor) return undefined;
+
+    const parts = cursor.split(':');
+    if (parts.length === 2 && mongoose.Types.ObjectId.isValid(parts[1])) {
+      const ts = Number(parts[0]);
+      if (!Number.isNaN(ts)) {
+        return { id: new mongoose.Types.ObjectId(parts[1]), ts };
+      }
+    }
+
     if (mongoose.Types.ObjectId.isValid(cursor)) {
-      return new mongoose.Types.ObjectId(cursor);
+      return { id: new mongoose.Types.ObjectId(cursor) };
     }
     return undefined;
   },
 
   /** Apply cursor filter to a Mongoose match object */
   applyToQuery(match: Record<string, unknown>, cursor?: string): void {
-    const cursorId = this.parse(cursor);
-    if (cursorId) {
-      match._id = { $lt: cursorId };
+    const parsed = this.parse(cursor);
+    if (parsed?.id) {
+      const createdAtFilter = parsed.ts ? new Date(parsed.ts) : undefined;
+      if (createdAtFilter) {
+        match.$or = [
+          { createdAt: { $lt: createdAtFilter } },
+          { createdAt: createdAtFilter, _id: { $lt: parsed.id } },
+        ];
+      } else {
+        match._id = { $lt: parsed.id };
+      }
     }
   },
 };

@@ -31,9 +31,10 @@ export class ListFeed implements FeedAPI {
     const post = await Post.findOne({
       oxyUserId: { $in: memberIds },
       visibility: 'public',
+      status: 'published',
     })
       .select(FEED_FIELDS)
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .lean();
 
     if (!post) return undefined;
@@ -54,12 +55,13 @@ export class ListFeed implements FeedAPI {
     const match: any = {
       oxyUserId: { $in: memberIds },
       visibility: 'public',
+      status: 'published',
     };
     ChronoCursor.applyToQuery(match, cursor);
 
     const posts = await Post.find(match)
       .select(FEED_FIELDS)
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .limit(limit + 1)
       .maxTimeMS(5000)
       .lean();
@@ -69,7 +71,8 @@ export class ListFeed implements FeedAPI {
 
     let nextCursor: string | undefined;
     if (postsToReturn.length > 0 && hasMore) {
-      nextCursor = ChronoCursor.build(postsToReturn[postsToReturn.length - 1]._id.toString());
+      const last = postsToReturn[postsToReturn.length - 1];
+      nextCursor = ChronoCursor.build(last._id.toString(), last.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
         logger.warn('[ListFeed] Cursor did not advance', { cursor, nextCursor });
         nextCursor = undefined;

@@ -20,7 +20,7 @@ export class SavedFeed implements FeedAPI {
     if (!context.currentUserId) return undefined;
 
     const bookmark = await Bookmark.findOne({ userId: context.currentUserId })
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .lean();
 
     if (!bookmark) return undefined;
@@ -58,7 +58,7 @@ export class SavedFeed implements FeedAPI {
     const postIds = bookmarksToProcess.map((b: any) => b.postId).filter(Boolean);
     if (postIds.length === 0) return empty;
 
-    const posts = await Post.find({ _id: { $in: postIds } })
+    const posts = await Post.find({ _id: { $in: postIds }, status: 'published' })
       .select(FEED_FIELDS)
       .lean();
 
@@ -83,9 +83,8 @@ export class SavedFeed implements FeedAPI {
 
     let nextCursor: string | undefined;
     if (bookmarksToProcess.length > 0 && hasMore) {
-      nextCursor = ChronoCursor.build(
-        bookmarksToProcess[bookmarksToProcess.length - 1]._id.toString()
-      );
+      const lastBookmark = bookmarksToProcess[bookmarksToProcess.length - 1];
+      nextCursor = ChronoCursor.build(lastBookmark._id.toString(), lastBookmark.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
         logger.warn('[SavedFeed] Cursor did not advance', { cursor, nextCursor });
         nextCursor = undefined;

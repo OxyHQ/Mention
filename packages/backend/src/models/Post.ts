@@ -423,16 +423,18 @@ PostSchema.index({ 'content.location': '2dsphere' }); // User's shared location
 PostSchema.index({ 'location': '2dsphere' }); // Post creation location
 
 // Compound indexes for common query patterns
-PostSchema.index({ oxyUserId: 1, visibility: 1, createdAt: -1 });
+PostSchema.index({ oxyUserId: 1, visibility: 1, status: 1, createdAt: -1 });
 // Additional compound index for following feeds (visibility first, then user, then time)
-PostSchema.index({ visibility: 1, oxyUserId: 1, createdAt: -1 });
-PostSchema.index({ type: 1, visibility: 1, createdAt: -1 });
-PostSchema.index({ hashtags: 1, visibility: 1, createdAt: -1 });
+PostSchema.index({ visibility: 1, status: 1, oxyUserId: 1, createdAt: -1 });
+PostSchema.index({ type: 1, visibility: 1, status: 1, createdAt: -1 });
+PostSchema.index({ hashtags: 1, visibility: 1, status: 1, createdAt: -1 });
 // Geospatial compound indexes for location + time queries
 PostSchema.index({ 'content.location': '2dsphere', createdAt: -1 });
 PostSchema.index({ 'location': '2dsphere', createdAt: -1 });
 // Critical compound index for cursor-based pagination (optimizes feed queries)
-PostSchema.index({ visibility: 1, createdAt: -1, _id: 1 });
+PostSchema.index({ visibility: 1, status: 1, createdAt: -1, _id: 1 });
+// Cursor + author for author feeds
+PostSchema.index({ oxyUserId: 1, visibility: 1, status: 1, createdAt: -1, _id: 1 });
 // Index for saved posts queries
 PostSchema.index({ _id: 1, createdAt: -1 });
 
@@ -460,9 +462,9 @@ PostSchema.index(
 );
 
 // Following feed: optimizes queries for posts from followed users
-// Compound index for oxyUserId + visibility + filters + time sorting
+// Compound index for oxyUserId + visibility + status + filters + time sorting
 PostSchema.index(
-  { oxyUserId: 1, visibility: 1, parentPostId: 1, repostOf: 1, createdAt: -1 },
+  { oxyUserId: 1, visibility: 1, status: 1, parentPostId: 1, repostOf: 1, createdAt: -1 },
   { name: 'following_feed_idx' }
 );
 

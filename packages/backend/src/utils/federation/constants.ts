@@ -1,5 +1,10 @@
+import { logger } from '../logger';
+
 export const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
-export const ACTOR_DOMAIN = process.env.ACTOR_DOMAIN || 'oxy.so';
+export const ACTOR_DOMAIN = process.env.ACTOR_DOMAIN || FEDERATION_DOMAIN;
+if (ACTOR_DOMAIN !== FEDERATION_DOMAIN) {
+  logger.warn(`Federation domains differ: ACTOR_DOMAIN=${ACTOR_DOMAIN} FEDERATION_DOMAIN=${FEDERATION_DOMAIN}`);
+}
 export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 export const FEDERATION_ENABLED = process.env.FEDERATION_ENABLED !== 'false';
 export const FEDERATION_MAX_CONTENT_LENGTH = parseInt(process.env.FEDERATION_MAX_CONTENT_LENGTH || '50000', 10);

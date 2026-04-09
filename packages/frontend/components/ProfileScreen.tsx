@@ -14,7 +14,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme, BloomColorScope } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
 import type { AppColorName } from '@oxyhq/bloom/theme';
 import { vars } from 'react-native-css';
@@ -93,8 +93,8 @@ const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts']
  * Follows industry best practices with clean separation of concerns
  */
 function ProfileColorScope({ colorPreset, children }: { colorPreset?: AppColorName; children: React.ReactNode }) {
-    if (!colorPreset) return <>{children}</>;
-    return <BloomColorScope colorPreset={colorPreset}>{children}</BloomColorScope>;
+    // No Bloom ColorScope available; just render children directly for now.
+    return <>{children}</>;
 }
 
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {

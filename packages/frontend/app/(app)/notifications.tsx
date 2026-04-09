@@ -378,7 +378,11 @@ const NotificationsScreen: React.FC = () => {
                     data={listItems}
                     keyExtractor={getItemKey}
                     renderItem={renderNotification}
-                    estimatedItemSize={100}
+                    estimatedItemSize={120}
+                    getItemType={(item) => item.type}
+                    overrideItemLayout={(_, __, layout) => {
+                        layout.size = 120;
+                    }}
                     ListHeaderComponent={activeTab === 'pokes' ? (
                         <TouchableOpacity
                             style={{
@@ -436,7 +440,7 @@ const NotificationsScreen: React.FC = () => {
                         flex: 1,
                         backgroundColor: theme.colors.background,
                     }}
-                    drawDistance={500}
+                    drawDistance={400}
                     key={`notifications-${activeTab}`}
                 />
             </View>

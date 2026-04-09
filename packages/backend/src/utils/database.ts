@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { logger } from "./logger";
+import { config } from "../config";
 
 const APP_NAME = "mention";
 
@@ -55,15 +56,15 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
 
   const connectWithRetry = async (): Promise<typeof mongoose> => {
     try {
-      await mongoose.connect(mongoUri, {
+    await mongoose.connect(mongoUri, {
         dbName,
         autoIndex: process.env.NODE_ENV !== 'production',
         autoCreate: process.env.NODE_ENV !== 'production',
-        serverSelectionTimeoutMS: 20000,
-        socketTimeoutMS: 45000,
-        maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '100'),
-        minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10'),
-        maxIdleTimeMS: 60000,
+        serverSelectionTimeoutMS: config.db.serverSelectionTimeoutMS,
+        socketTimeoutMS: config.db.socketTimeoutMS,
+        maxPoolSize: config.db.maxPoolSize,
+        minPoolSize: config.db.minPoolSize,
+        maxIdleTimeMS: config.db.maxIdleTimeMS,
         // Use primary in dev (required for autoIndex/autoCreate), secondaryPreferred in prod
         readPreference: (process.env.MONGODB_READ_PREFERENCE || (process.env.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary')) as 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest',
         // Write concern for data durability
@@ -73,7 +74,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         retryWrites: true,
         retryReads: true,
         // Heartbeat configuration
-        heartbeatFrequencyMS: 10000, // Check server status every 10 seconds
+        heartbeatFrequencyMS: config.db.heartbeatFrequencyMS,
       });
 
       retryCount = 0; // Reset retry count on successful connection
@@ -157,5 +158,3 @@ export function getDatabaseStats() {
     name: mongoose.connection.name,
   };
 }
-
-

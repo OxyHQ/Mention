@@ -138,24 +138,55 @@ export async function verifyHttpSignature(
     body?: unknown;
   },
   fetchPublicKey: (keyId: string) => Promise<{ publicKeyPem: string; actorUri: string } | null>,
-): Promise<{ verified: boolean; actorUri?: string }> {
+): Promise<{ verified: boolean; actorUri?: string; reason?: string }> {
   const signatureHeader = req.headers['signature'] as string | undefined;
-  if (!signatureHeader) return { verified: false };
+  if (!signatureHeader) return { verified: false, reason: 'missing-signature' };
 
   const parsed = parseSignatureHeader(signatureHeader);
-  if (!parsed) return { verified: false };
+  if (!parsed) return { verified: false, reason: 'invalid-signature-header' };
 
   const keyData = await fetchPublicKey(parsed.keyId);
   if (!keyData) {
     logger.debug(`Failed to fetch public key for keyId: ${parsed.keyId}`);
-    return { verified: false };
+    return { verified: false, reason: 'key-fetch-failed' };
+  }
+
+  const lowerHeaders = Object.fromEntries(
+    Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), v])
+  );
+
+  // Enforce Date skew (+/- 10 minutes) if present
+  const dateHeader = lowerHeaders['date'];
+  if (dateHeader) {
+    const dateVal = Array.isArray(dateHeader) ? dateHeader[0] : dateHeader;
+    const parsedDate = Date.parse(dateVal || '');
+    if (!Number.isNaN(parsedDate)) {
+      const skew = Math.abs(Date.now() - parsedDate);
+      if (skew > 10 * 60 * 1000) {
+        return { verified: false, reason: 'date-skew' };
+      }
+    }
+  }
+
+  // If Digest header is required in signature but missing/invalid, fail early
+  if (parsed.headers.includes('digest')) {
+    const digestHeader = lowerHeaders['digest'];
+    const bodyString = typeof req.body === 'string' ? req.body : req.body ? JSON.stringify(req.body) : '';
+    if (!digestHeader) {
+      return { verified: false, reason: 'missing-digest' };
+    }
+    const expectedDigest = `SHA-256=${crypto.createHash('sha256').update(bodyString).digest('base64')}`;
+    const digestVal = Array.isArray(digestHeader) ? digestHeader[0] : digestHeader;
+    if (digestVal !== expectedDigest) {
+      return { verified: false, reason: 'digest-mismatch' };
+    }
   }
 
   const signingParts = parsed.headers.map((header) => {
     if (header === '(request-target)') {
       return `(request-target): ${req.method.toLowerCase()} ${req.path}`;
     }
-    const value = req.headers[header.toLowerCase()];
+    const value = lowerHeaders[header.toLowerCase()];
     return `${header.toLowerCase()}: ${Array.isArray(value) ? value[0] : value}`;
   });
 
@@ -166,9 +197,9 @@ export async function verifyHttpSignature(
 
   try {
     const isValid = verifier.verify(keyData.publicKeyPem, parsed.signature, 'base64');
-    return { verified: isValid, actorUri: isValid ? keyData.actorUri : undefined };
+    return { verified: isValid, actorUri: isValid ? keyData.actorUri : undefined, reason: isValid ? undefined : 'verify-failed' };
   } catch (err) {
     logger.debug('HTTP signature verification failed:', err);
-    return { verified: false };
+    return { verified: false, reason: err instanceof Error ? err.message : 'verify-exception' };
   }
 }

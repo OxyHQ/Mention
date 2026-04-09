@@ -24,9 +24,10 @@ export class FollowingFeed implements FeedAPI {
     const post = await Post.findOne({
       oxyUserId: { $in: [context.currentUserId, ...context.followingIds] },
       visibility: { $in: ['public', 'followers_only'] },
+      status: 'published',
     })
       .select(FEED_FIELDS)
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .lean();
 
     if (!post) return undefined;
@@ -48,13 +49,14 @@ export class FollowingFeed implements FeedAPI {
     const match: any = {
       oxyUserId: { $in: [currentUserId, ...followingIds] },
       visibility: { $in: ['public', 'followers_only'] },
+      status: 'published',
     };
     ChronoCursor.applyToQuery(match, cursor);
 
     const fetchLimit = Math.ceil(limit * MtnConfig.feed.sliceOverfetchMultiplier);
     const posts = await Post.find(match)
       .select(FEED_FIELDS)
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .limit(fetchLimit + 1)
       .maxTimeMS(5000)
       .lean();
@@ -79,7 +81,7 @@ export class FollowingFeed implements FeedAPI {
     let nextCursor: string | undefined;
     if (postsToProcess.length > 0 && hasMore) {
       const lastPost = postsToProcess[postsToProcess.length - 1];
-      nextCursor = ChronoCursor.build(lastPost._id.toString());
+      nextCursor = ChronoCursor.build(lastPost._id.toString(), lastPost.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
         logger.warn('[FollowingFeed] Cursor did not advance', { cursor, nextCursor });
         nextCursor = undefined;

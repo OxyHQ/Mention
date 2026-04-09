@@ -119,7 +119,10 @@ export function sanitizeHtml(html: string): string {
   
   // Remove data: URIs that could be dangerous
   html = html.replace(/data:text\/html/gi, '');
-  
+
+  // Strip iframes entirely
+  html = html.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
+
   return html;
 }
 
@@ -181,4 +184,3 @@ export function decodeHtmlEntities(text: string | null | undefined): string {
 export function validateUrlLength(url: string, maxLength: number = 2048): boolean {
   return url.length <= maxLength;
 }
-

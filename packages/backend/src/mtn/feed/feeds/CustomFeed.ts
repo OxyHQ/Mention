@@ -30,7 +30,7 @@ export class CustomFeed implements FeedAPI {
     const query = await this.buildQuery(context);
     if (!query) return undefined;
 
-    const post = await Post.findOne(query).select(FEED_FIELDS).sort({ createdAt: -1 }).lean();
+    const post = await Post.findOne(query).select(FEED_FIELDS).sort({ _id: -1 }).lean();
     if (!post) return undefined;
 
     const [hydrated] = await postHydrationService.hydratePosts([post], {
@@ -52,7 +52,7 @@ export class CustomFeed implements FeedAPI {
 
     const posts = await Post.find(query)
       .select(FEED_FIELDS)
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .limit(limit + 1)
       .maxTimeMS(5000)
       .lean();
@@ -62,7 +62,8 @@ export class CustomFeed implements FeedAPI {
 
     let nextCursor: string | undefined;
     if (postsToReturn.length > 0 && hasMore) {
-      nextCursor = ChronoCursor.build(postsToReturn[postsToReturn.length - 1]._id.toString());
+      const last = postsToReturn[postsToReturn.length - 1];
+      nextCursor = ChronoCursor.build(last._id.toString(), last.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
         logger.warn('[CustomFeed] Cursor did not advance', { cursor, nextCursor });
         nextCursor = undefined;
@@ -121,7 +122,7 @@ export class CustomFeed implements FeedAPI {
     }
 
     const conditions: any[] = [];
-    const query: any = { visibility: 'public' };
+    const query: any = { visibility: 'public', status: 'published' };
 
     if (authors.length > 0) {
       conditions.push({ oxyUserId: { $in: authors } });

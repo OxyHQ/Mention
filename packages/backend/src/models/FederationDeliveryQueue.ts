@@ -16,6 +16,7 @@ export interface IFederationDelivery extends Document {
 }
 
 const BACKOFF_INTERVALS_MS = [
+  1 * 60 * 1000,       // 1 minute
   5 * 60 * 1000,       // 5 minutes
   30 * 60 * 1000,      // 30 minutes
   2 * 60 * 60 * 1000,  // 2 hours

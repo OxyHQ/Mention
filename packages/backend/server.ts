@@ -31,6 +31,7 @@ import Notification from "./src/models/Notification";
 
 // Routers
 import postsRouter from "./src/routes/posts";
+import healthRoutes from './src/routes/health.routes';
 import notificationsRouter from "./src/routes/notifications";
 import listsRoutes from "./src/routes/lists";
 import hashtagsRoutes from "./src/routes/hashtags";
@@ -123,6 +124,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Basic liveness/readiness endpoints
+app.use(healthRoutes);
+
 // Security headers — crossOriginResourcePolicy set to cross-origin since API serves a different subdomain
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -145,6 +149,10 @@ app.use(compression({
 app.use(express.json({
   limit: '1mb',
   type: ['application/json', 'application/activity+json', 'application/ld+json'],
+  verify: (req: any, _res, buf) => {
+    // Preserve raw body for ActivityPub HTTP signature + Digest verification
+    req.rawBody = buf?.length ? buf.toString('utf8') : undefined;
+  },
 }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
