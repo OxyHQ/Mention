@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect, useContext, useRef } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useContext, useRef, type ReactNode } from 'react';
 import {
     Animated,
     ImageBackground,
@@ -92,8 +92,7 @@ const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts']
  * Profile Screen - Main orchestrator component
  * Follows industry best practices with clean separation of concerns
  */
-function ProfileColorScope({ colorPreset, children }: { colorPreset?: AppColorName; children: React.ReactNode }) {
-    // No Bloom ColorScope available; just render children directly for now.
+function ProfileColorScope({ children }: { colorPreset?: AppColorName; children: ReactNode }) {
     return <>{children}</>;
 }
 

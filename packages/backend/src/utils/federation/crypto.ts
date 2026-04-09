@@ -130,15 +130,25 @@ function parseSignatureHeader(signatureHeader: string): {
  * Verify the HTTP signature on an incoming request.
  * Returns the actor URI (key owner) if valid, null otherwise.
  */
+interface VerifyHttpRequest {
+  method: string;
+  path: string;
+  headers: Record<string, string | string[] | undefined>;
+  body?: unknown;
+}
+
+interface VerifyHttpResult {
+  verified: boolean;
+  actorUri?: string;
+  reason?: string;
+}
+
+type FetchPublicKey = (keyId: string) => Promise<{ publicKeyPem: string; actorUri: string } | null>;
+
 export async function verifyHttpSignature(
-  req: {
-    method: string;
-    path: string;
-    headers: Record<string, string | string[] | undefined>;
-    body?: unknown;
-  },
-  fetchPublicKey: (keyId: string) => Promise<{ publicKeyPem: string; actorUri: string } | null>,
-): Promise<{ verified: boolean; actorUri?: string; reason?: string }> {
+  req: VerifyHttpRequest,
+  fetchPublicKey: FetchPublicKey,
+): Promise<VerifyHttpResult> {
   const signatureHeader = req.headers['signature'] as string | undefined;
   if (!signatureHeader) return { verified: false, reason: 'missing-signature' };
 
