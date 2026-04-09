@@ -380,9 +380,6 @@ const NotificationsScreen: React.FC = () => {
                     renderItem={renderNotification}
                     estimatedItemSize={120}
                     getItemType={(item) => item.type}
-                    overrideItemLayout={(_, __, layout) => {
-                        layout.size = 120;
-                    }}
                     ListHeaderComponent={activeTab === 'pokes' ? (
                         <TouchableOpacity
                             style={{
