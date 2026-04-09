@@ -4,6 +4,8 @@ interface IBookmark extends Document {
   userId: string;
   postId: mongoose.Types.ObjectId;
   folder: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const BookmarkSchema: Schema = new Schema(

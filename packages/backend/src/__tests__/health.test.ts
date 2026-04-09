@@ -1,8 +1,7 @@
-import request from 'supertest';
 import express from 'express';
+import request from 'supertest';
+import { describe, it } from 'vitest';
 
-// Use the exported app setup by importing the server entry
-// We wrap the routes to avoid starting the HTTP server in tests.
 import healthRoutes from '../routes/health.routes';
 
 describe('health routes', () => {
