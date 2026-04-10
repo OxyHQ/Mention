@@ -20,7 +20,7 @@
     "@livekit/react-native-expo-plugin": "^1.0.1",
     "@livekit/react-native-webrtc": "^137.0.3",
     "@mention/agora-shared": "*",
-    "@oxyhq/core": "1.11.9",
+    "@oxyhq/core": "1.11.11",
     "@oxyhq/services": "6.9.42",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@tanstack/react-query": "^5.90.6",
