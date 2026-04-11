@@ -53,7 +53,7 @@ config.resolver = {
   // Enable package.json "exports" field resolution (required by @oxyhq/bloom subpath exports)
   unstable_enablePackageExports: true,
   sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
-  assetExts: config.resolver.assetExts.filter((ext) => ext !== 'svg'),
+  assetExts: [...config.resolver.assetExts.filter((ext) => ext !== 'svg'), 'wasm'],
 };
 
 config.transformer = {
