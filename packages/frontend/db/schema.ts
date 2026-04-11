@@ -174,13 +174,13 @@ export function postToRow(post: FeedItem | HydratedPost | any): PostRow {
     parent_post_id: post.parentPostId || null,
     original_post_id: post.originalPost?.id || post.original?.id || null,
     quoted_post_id: post.quotedPost?.id || post.quoted?.id || null,
-    content_json: JSON.stringify(content),
+    content_json: safeJsonStringify(content) || '{"text":""}',
     attachments_json: safeJsonStringify(post.attachments),
     link_preview_json: safeJsonStringify(post.linkPreview),
     permissions_json: safeJsonStringify(post.permissions),
     repost_json: safeJsonStringify(post.repost),
     context_json: safeJsonStringify(post.context),
-    user_json: JSON.stringify(user),
+    user_json: safeJsonStringify(user) || '{}',
     likes_count: engagement.likes ?? 0,
     downvotes_count: engagement.downvotes ?? 0,
     reposts_count: engagement.reposts ?? 0,
@@ -227,9 +227,9 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     downvotes: row.downvotes_count,
     reposts: row.reposts_count,
     replies: row.replies_count,
-    saves: row.saves_count || null,
-    views: row.views_count || null,
-    impressions: row.impressions_count || null,
+    saves: row.saves_count ?? null,
+    views: row.views_count ?? null,
+    impressions: row.impressions_count ?? null,
   };
 
   const viewerState: PostViewerState = {

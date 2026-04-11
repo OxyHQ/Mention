@@ -208,7 +208,7 @@ export function updateViewerState(
 
 /**
  * Atomic read-modify-write for a single post.
- * Reads the current row, applies the updater function, writes back.
+ * Uses BEGIN IMMEDIATE for serialized access.
  * Returns the updated FeedItem or null if post not found.
  */
 export function updatePost(
@@ -217,15 +217,48 @@ export function updatePost(
 ): FeedItem | null {
   if (!id) return null;
 
-  const current = getPostById(id);
-  if (!current) return null;
+  const db = getDb();
+  if (!db) {
+    // Fallback: non-transactional path for web
+    const current = getPostById(id);
+    if (!current) return null;
+    const updated = updater(current);
+    if (!updated) return null;
+    upsertPost(updated);
+    return updated;
+  }
 
-  const updated = updater(current);
-  if (!updated) return null;
+  try {
+    db.execSync('BEGIN IMMEDIATE');
+    const row = db.getFirstSync<PostRow>('SELECT * FROM posts WHERE id = ?', id);
+    if (!row) {
+      db.execSync('ROLLBACK');
+      return null;
+    }
+    const current = rowToFeedItem(row);
+    const updated = updater(current);
+    if (!updated) {
+      db.execSync('ROLLBACK');
+      return null;
+    }
 
-  // Write the updated post back
-  upsertPost(updated);
-  return updated;
+    const newRow = postToRow(updated);
+    db.runSync(
+      UPSERT_POST_SQL,
+      newRow.id, newRow.user_id, newRow.type, newRow.parent_post_id, newRow.original_post_id, newRow.quoted_post_id,
+      newRow.content_json, newRow.attachments_json, newRow.link_preview_json, newRow.permissions_json,
+      newRow.repost_json, newRow.context_json, newRow.user_json,
+      newRow.likes_count, newRow.downvotes_count, newRow.reposts_count, newRow.replies_count,
+      newRow.saves_count, newRow.views_count, newRow.impressions_count,
+      newRow.is_liked, newRow.is_downvoted, newRow.is_reposted, newRow.is_saved, newRow.is_owner,
+      newRow.visibility, newRow.created_at, newRow.updated_at, newRow.fetched_at, newRow.raw_json
+    );
+    db.execSync('COMMIT');
+    return updated;
+  } catch (e) {
+    try { db.execSync('ROLLBACK'); } catch {}
+    return null;
+  }
 }
 
 // ── Delete operations ────────────────────────────────────────────

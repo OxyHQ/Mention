@@ -398,6 +398,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const engagement: PostEngagementSummary = viewPost.engagement ?? {
         likes: 0,
+        downvotes: 0,
         reposts: 0,
         replies: 0,
         saves: null,

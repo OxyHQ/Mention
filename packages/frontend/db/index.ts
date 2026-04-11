@@ -5,6 +5,7 @@
  */
 
 // Core
+export type { SQLiteDb } from './database';
 export { getDb, closeDb, resetDb, isDbAvailable } from './database';
 
 // Schema types & conversions

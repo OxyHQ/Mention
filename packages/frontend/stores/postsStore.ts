@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { useMemo } from 'react';
 import {
   FeedRequest,
   CreateReplyRequest,
@@ -37,6 +38,8 @@ import {
   removeFeedItem as dbRemoveFeedItem,
   buildFeedKey,
   primeActorsFromPosts,
+  getDb,
+  rowToFeedItem,
 } from '@/db';
 import type { FeedItem, FeedMetaData } from '@/db';
 
@@ -435,13 +438,14 @@ export const usePostsStore = create<PostsStoreState>()(
 
         // Fallback: derive from SQLite saved posts
         if (!processedPosts.length) {
-          const db = await import('@/db');
-          const savedFromDb = db.getDb().getAllSync<any>(
-            'SELECT * FROM posts WHERE is_saved = 1 ORDER BY created_at DESC LIMIT 50'
-          );
-          if (savedFromDb.length) {
-            const { rowToFeedItem } = await import('@/db/schema');
-            processedPosts = savedFromDb.map(rowToFeedItem);
+          const sqliteDb = getDb();
+          if (sqliteDb) {
+            const savedFromDb = sqliteDb.getAllSync<any>(
+              'SELECT * FROM posts WHERE is_saved = 1 ORDER BY created_at DESC LIMIT 50'
+            );
+            if (savedFromDb.length) {
+              processedPosts = savedFromDb.map(rowToFeedItem);
+            }
           }
         }
 
@@ -1070,8 +1074,8 @@ export const useFeedSelector = (type: FeedType) => {
   const dataVersion = usePostsStore((s) => s.dataVersion);
   const feedKey = buildFeedKey(type);
   const ui = usePostsStore((s) => s.feedUI[feedKey]);
-  const meta = dbGetFeedMeta(feedKey);
-  const items = dbGetAllFeedItems(feedKey);
+  const meta = useMemo(() => dbGetFeedMeta(feedKey), [feedKey, dataVersion]);
+  const items = useMemo(() => dbGetAllFeedItems(feedKey), [feedKey, dataVersion]);
 
   return {
     items,
@@ -1090,8 +1094,8 @@ export const useUserFeedSelector = (userId: string, type: FeedType) => {
   const dataVersion = usePostsStore((s) => s.dataVersion);
   const feedKey = buildFeedKey(type, userId);
   const ui = usePostsStore((s) => s.feedUI[feedKey]);
-  const meta = dbGetFeedMeta(feedKey);
-  const items = dbGetAllFeedItems(feedKey);
+  const meta = useMemo(() => dbGetFeedMeta(feedKey), [feedKey, dataVersion]);
+  const items = useMemo(() => dbGetAllFeedItems(feedKey), [feedKey, dataVersion]);
 
   return {
     items,
@@ -1116,7 +1120,8 @@ export const useFeedError = (type: FeedType) => {
 };
 
 export const useFeedHasMore = (type: FeedType) => {
+  const dataVersion = usePostsStore((s) => s.dataVersion);
   const feedKey = buildFeedKey(type);
-  const meta = dbGetFeedMeta(feedKey);
+  const meta = useMemo(() => dbGetFeedMeta(feedKey), [feedKey, dataVersion]);
   return meta?.hasMore ?? false;
 };

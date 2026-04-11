@@ -2,6 +2,9 @@
  * Feed queries — CRUD for feed_items + feed_meta tables.
  * 
  * Manages the mapping between feed keys and posts, preserving ordering.
+ * 
+ * IMPORTANT: Posts and actors must be written BEFORE feed_items due to
+ * the FOREIGN KEY constraint (feed_items.post_id -> posts.id).
  */
 
 import { getDb } from './database';
@@ -12,6 +15,13 @@ import { primeActorsFromPosts } from './actorQueries';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('FeedQueries');
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
+  if (!json) return fallback;
+  try { return JSON.parse(json) as T; } catch { return fallback; }
+}
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -27,8 +37,7 @@ export interface FeedMetaData {
 
 /**
  * Replace an entire feed's items.
- * Deletes existing items for this feed key, inserts new ones.
- * Also upserts all posts and primes actors.
+ * Writes actors and posts FIRST (FK requirement), then feed_items.
  */
 export function setFeedItems(
   feedKey: string,
@@ -40,14 +49,22 @@ export function setFeedItems(
   const db = getDb();
   if (!db) return;
 
+  // Step 1: Upsert actors and posts BEFORE feed_items (FK constraint)
+  try {
+    primeActorsFromPosts(posts);
+    upsertPosts(posts);
+  } catch (e) {
+    logger.error('Failed to upsert posts/actors for feed', { error: e });
+    // Continue — feed_items will skip posts that failed to insert
+  }
+
+  // Step 2: Write feed_items and meta in a transaction
   try {
     db.execSync('BEGIN TRANSACTION');
 
     // Delete existing feed items
     db.runSync('DELETE FROM feed_items WHERE feed_key = ?', feedKey);
 
-    // Upsert all posts (this handles the posts table)
-    // We do this inside the transaction for consistency
     const now = Date.now();
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
@@ -55,7 +72,7 @@ export function setFeedItems(
       if (!postId) continue;
 
       db.runSync(
-        'INSERT OR REPLACE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)',
         feedKey, postId, i, null, now
       );
     }
@@ -76,22 +93,12 @@ export function setFeedItems(
   } catch (error) {
     db.execSync('ROLLBACK');
     logger.error(`Failed to set feed items for ${feedKey}`, { error });
-    throw error;
-  }
-
-  // Upsert posts and prime actors outside the feed transaction
-  // (these are idempotent and can fail independently)
-  try {
-    upsertPosts(posts);
-    primeActorsFromPosts(posts);
-  } catch (e) {
-    logger.error('Failed to upsert posts/actors for feed', { error: e });
   }
 }
 
 /**
  * Append items to an existing feed (pagination).
- * Deduplicates by PRIMARY KEY (feed_key, post_id).
+ * Writes actors and posts FIRST (FK requirement), then feed_items.
  */
 export function appendFeedItems(
   feedKey: string,
@@ -103,6 +110,15 @@ export function appendFeedItems(
   const db = getDb();
   if (!db) return;
 
+  // Step 1: Upsert actors and posts BEFORE feed_items (FK constraint)
+  try {
+    primeActorsFromPosts(posts);
+    upsertPosts(posts);
+  } catch (e) {
+    logger.error('Failed to upsert posts/actors for feed append', { error: e });
+  }
+
+  // Step 2: Append feed_items in a transaction
   try {
     db.execSync('BEGIN TRANSACTION');
 
@@ -119,11 +135,14 @@ export function appendFeedItems(
       const postId = post?.id || post?._id?.toString();
       if (!postId) continue;
 
-      db.runSync(
+      const result = db.runSync(
         'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)',
         feedKey, postId, position, null, now
       );
-      position++;
+      // Only advance position if the insert actually happened
+      if (result.changes > 0) {
+        position++;
+      }
     }
 
     // Update meta
@@ -149,15 +168,6 @@ export function appendFeedItems(
   } catch (error) {
     db.execSync('ROLLBACK');
     logger.error(`Failed to append feed items for ${feedKey}`, { error });
-    throw error;
-  }
-
-  // Upsert posts and prime actors
-  try {
-    upsertPosts(posts);
-    primeActorsFromPosts(posts);
-  } catch (e) {
-    logger.error('Failed to upsert posts/actors for feed append', { error: e });
   }
 }
 
@@ -242,7 +252,7 @@ export function getFeedMeta(feedKey: string): FeedMetaData | null {
     nextCursor: row.next_cursor || undefined,
     totalCount: row.total_count,
     lastUpdated: row.last_updated,
-    filters: row.filters_json ? JSON.parse(row.filters_json) : undefined,
+    filters: safeJsonParse(row.filters_json, undefined),
   };
 }
 
@@ -311,6 +321,7 @@ export function removeFeedItem(feedKey: string, postId: string): void {
 
 /**
  * Add a post at the start of a feed (for new posts).
+ * Only shifts positions and increments count if the insert succeeds (not a duplicate).
  */
 export function addFeedItemAtStart(feedKey: string, postId: string): void {
   if (!feedKey || !postId) return;
@@ -321,23 +332,31 @@ export function addFeedItemAtStart(feedKey: string, postId: string): void {
   try {
     db.execSync('BEGIN TRANSACTION');
 
-    // Shift all existing positions up by 1
-    db.runSync(
-      'UPDATE feed_items SET position = position + 1 WHERE feed_key = ?',
-      feedKey
+    // Check if post already exists in this feed
+    const existing = db.getFirstSync<{ post_id: string }>(
+      'SELECT post_id FROM feed_items WHERE feed_key = ? AND post_id = ?',
+      feedKey, postId
     );
 
-    // Insert at position 0
-    db.runSync(
-      'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, 0, NULL, ?)',
-      feedKey, postId, Date.now()
-    );
+    if (!existing) {
+      // Shift all existing positions up by 1
+      db.runSync(
+        'UPDATE feed_items SET position = position + 1 WHERE feed_key = ?',
+        feedKey
+      );
 
-    // Update total count in meta
-    db.runSync(
-      'UPDATE feed_meta SET total_count = total_count + 1 WHERE feed_key = ?',
-      feedKey
-    );
+      // Insert at position 0
+      db.runSync(
+        'INSERT INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, 0, NULL, ?)',
+        feedKey, postId, Date.now()
+      );
+
+      // Update total count in meta
+      db.runSync(
+        'UPDATE feed_meta SET total_count = total_count + 1 WHERE feed_key = ?',
+        feedKey
+      );
+    }
 
     db.execSync('COMMIT');
   } catch (error) {

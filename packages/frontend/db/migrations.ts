@@ -127,6 +127,7 @@ const migrations: Migration[] = [
       db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_saved ON posts(is_saved) WHERE is_saved = 1');
       db.execSync('CREATE INDEX IF NOT EXISTS idx_posts_fetched ON posts(fetched_at)');
       db.execSync('CREATE INDEX IF NOT EXISTS idx_feed_items_position ON feed_items(feed_key, position)');
+      db.execSync('CREATE INDEX IF NOT EXISTS idx_feed_items_post_id ON feed_items(post_id)');
       db.execSync('CREATE INDEX IF NOT EXISTS idx_link_previews_expiry ON link_previews(fetched_at)');
     },
   },

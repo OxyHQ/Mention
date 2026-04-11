@@ -16,9 +16,21 @@ const logger = createScopedLogger('Database');
 
 const DB_NAME = 'mention.db';
 
+/**
+ * Minimal type for the SQLite database interface.
+ * Avoids importing expo-sqlite at module level (would crash on web).
+ */
+export interface SQLiteDb {
+  execSync(sql: string): void;
+  runSync(sql: string, ...params: any[]): { changes: number; lastInsertRowId: number };
+  getFirstSync<T>(sql: string, ...params: any[]): T | null;
+  getAllSync<T>(sql: string, ...params: any[]): T[];
+  closeSync(): void;
+}
+
 // Lazy-loaded SQLite module — only imported on native or when web supports it
 let SQLiteModule: typeof import('expo-sqlite') | null = null;
-let db: any | null = null;
+let db: SQLiteDb | null = null;
 let initialized = false;
 let _isAvailable: boolean | null = null;
 
@@ -48,7 +60,7 @@ export function isDbAvailable(): boolean {
  * Returns null if SQLite is not available (web without COOP/COEP).
  * Initializes on first call with PRAGMA settings and migrations.
  */
-export function getDb(): any | null {
+export function getDb(): SQLiteDb | null {
   if (!isDbAvailable()) return null;
   if (db && initialized) return db;
 
