@@ -5,7 +5,7 @@
  */
 
 // Core
-export { getDb, closeDb, resetDb } from './database';
+export { getDb, closeDb, resetDb, isDbAvailable } from './database';
 
 // Schema types & conversions
 export type {

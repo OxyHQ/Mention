@@ -2,6 +2,7 @@
  * Post queries — CRUD operations for the posts table.
  * 
  * All reads are synchronous (JSI). Writes use transactions for batch ops.
+ * On web without SharedArrayBuffer, all functions gracefully no-op.
  */
 
 import { getDb } from './database';
@@ -43,6 +44,7 @@ export function upsertPost(post: FeedItem | any): void {
   if (!row.id) return;
 
   const db = getDb();
+  if (!db) return;
   db.runSync(
     UPSERT_POST_SQL,
     row.id, row.user_id, row.type, row.parent_post_id, row.original_post_id, row.quoted_post_id,
@@ -62,6 +64,7 @@ export function upsertPosts(posts: (FeedItem | any)[]): void {
   if (!posts || posts.length === 0) return;
 
   const db = getDb();
+  if (!db) return;
   try {
     db.execSync('BEGIN TRANSACTION');
     for (const post of posts) {
@@ -96,6 +99,7 @@ export function upsertPosts(posts: (FeedItem | any)[]): void {
 export function getPostById(id: string): FeedItem | null {
   if (!id) return null;
   const db = getDb();
+  if (!db) return null;
   const row = db.getFirstSync<PostRow>('SELECT * FROM posts WHERE id = ?', id);
   return row ? rowToFeedItem(row) : null;
 }
@@ -107,6 +111,7 @@ export function getPostsByIds(ids: string[]): Record<string, FeedItem> {
   if (!ids || ids.length === 0) return {};
 
   const db = getDb();
+  if (!db) return {};
   const result: Record<string, FeedItem> = {};
 
   // SQLite has a limit on the number of host parameters (default 999).
@@ -164,6 +169,7 @@ export function updateEngagement(
   params.push(id);
 
   const db = getDb();
+  if (!db) return;
   db.runSync(`UPDATE posts SET ${sets.join(', ')} WHERE id = ?`, ...params);
 }
 
@@ -196,6 +202,7 @@ export function updateViewerState(
   params.push(id);
 
   const db = getDb();
+  if (!db) return;
   db.runSync(`UPDATE posts SET ${sets.join(', ')} WHERE id = ?`, ...params);
 }
 
@@ -229,6 +236,7 @@ export function updatePost(
 export function deletePost(id: string): void {
   if (!id) return;
   const db = getDb();
+  if (!db) return;
   db.runSync('DELETE FROM posts WHERE id = ?', id);
 }
 
@@ -239,6 +247,7 @@ export function deletePost(id: string): void {
 export function pruneOldPosts(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): number {
   const cutoff = Date.now() - maxAgeMs;
   const db = getDb();
+  if (!db) return 0;
 
   const result = db.runSync(
     `DELETE FROM posts WHERE fetched_at < ? AND id NOT IN (SELECT post_id FROM feed_items)`,
@@ -267,6 +276,7 @@ export function pruneOldPosts(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): numbe
  */
 export function countPosts(): number {
   const db = getDb();
+  if (!db) return 0;
   const row = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM posts');
   return row?.count ?? 0;
 }

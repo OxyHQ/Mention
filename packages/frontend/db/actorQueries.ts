@@ -45,6 +45,7 @@ export function upsertActor(actor: UserEntity | any, isFull: boolean = false): v
   if (!row.id) return;
 
   const db = getDb();
+  if (!db) return;
   db.runSync(
     UPSERT_ACTOR_SQL,
     row.id, row.username, row.display_name, row.avatar_url, row.handle,
@@ -59,6 +60,7 @@ export function upsertManyActors(actors: (UserEntity | any)[], isFull: boolean =
   if (!actors || actors.length === 0) return;
 
   const db = getDb();
+  if (!db) return;
   try {
     db.execSync('BEGIN TRANSACTION');
     for (const actor of actors) {
@@ -110,6 +112,7 @@ export function primeActorsFromPosts(posts: any[]): void {
 export function getActorById(id: string): UserEntity | null {
   if (!id) return null;
   const db = getDb();
+  if (!db) return null;
   const row = db.getFirstSync<ActorRow>('SELECT * FROM actors WHERE id = ?', id);
   return row ? rowToUserEntity(row) : null;
 }
@@ -120,6 +123,7 @@ export function getActorById(id: string): UserEntity | null {
 export function getActorByUsername(username: string): UserEntity | null {
   if (!username) return null;
   const db = getDb();
+  if (!db) return null;
   const row = db.getFirstSync<ActorRow>(
     'SELECT * FROM actors WHERE LOWER(username) = LOWER(?) OR LOWER(handle) = LOWER(?)',
     username, username
@@ -133,6 +137,7 @@ export function getActorByUsername(username: string): UserEntity | null {
 export function isActorStale(id: string, ttlMs: number = 5 * 60 * 1000): boolean {
   if (!id) return true;
   const db = getDb();
+  if (!db) return true;
   const row = db.getFirstSync<{ fetched_at: number; is_full: number }>(
     'SELECT fetched_at, is_full FROM actors WHERE id = ?',
     id
@@ -148,6 +153,7 @@ export function isActorStale(id: string, ttlMs: number = 5 * 60 * 1000): boolean
 export function isActorFull(id: string): boolean {
   if (!id) return false;
   const db = getDb();
+  if (!db) return false;
   const row = db.getFirstSync<{ is_full: number }>(
     'SELECT is_full FROM actors WHERE id = ?',
     id
@@ -163,6 +169,7 @@ export function isActorFull(id: string): boolean {
 export function invalidateActor(id: string): void {
   if (!id) return;
   const db = getDb();
+  if (!db) return;
   db.runSync('DELETE FROM actors WHERE id = ?', id);
 }
 
@@ -171,5 +178,6 @@ export function invalidateActor(id: string): void {
  */
 export function clearAllActors(): void {
   const db = getDb();
+  if (!db) return;
   db.execSync('DELETE FROM actors');
 }

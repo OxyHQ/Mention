@@ -38,6 +38,7 @@ export function setFeedItems(
   if (!feedKey) return;
 
   const db = getDb();
+  if (!db) return;
 
   try {
     db.execSync('BEGIN TRANSACTION');
@@ -100,6 +101,7 @@ export function appendFeedItems(
   if (!feedKey || !posts || posts.length === 0) return;
 
   const db = getDb();
+  if (!db) return;
 
   try {
     db.execSync('BEGIN TRANSACTION');
@@ -173,6 +175,7 @@ export function getFeedItems(
   if (!feedKey) return [];
 
   const db = getDb();
+  if (!db) return [];
   const rows = db.getAllSync<any>(
     `SELECT p.* FROM feed_items fi
      JOIN posts p ON p.id = fi.post_id
@@ -193,6 +196,7 @@ export function getAllFeedItems(feedKey: string): FeedItem[] {
   if (!feedKey) return [];
 
   const db = getDb();
+  if (!db) return [];
   const rows = db.getAllSync<any>(
     `SELECT p.* FROM feed_items fi
      JOIN posts p ON p.id = fi.post_id
@@ -210,6 +214,7 @@ export function getAllFeedItems(feedKey: string): FeedItem[] {
 export function getFeedItemCount(feedKey: string): number {
   if (!feedKey) return 0;
   const db = getDb();
+  if (!db) return 0;
   const row = db.getFirstSync<{ count: number }>(
     'SELECT COUNT(*) as count FROM feed_items WHERE feed_key = ?',
     feedKey
@@ -224,6 +229,7 @@ export function getFeedMeta(feedKey: string): FeedMetaData | null {
   if (!feedKey) return null;
 
   const db = getDb();
+  if (!db) return null;
   const row = db.getFirstSync<FeedMetaRow>(
     'SELECT * FROM feed_meta WHERE feed_key = ?',
     feedKey
@@ -246,6 +252,7 @@ export function getFeedMeta(feedKey: string): FeedMetaData | null {
 export function hasFeedData(feedKey: string): boolean {
   if (!feedKey) return false;
   const db = getDb();
+  if (!db) return false;
   const row = db.getFirstSync<{ exists: number }>(
     'SELECT EXISTS(SELECT 1 FROM feed_items WHERE feed_key = ?) as exists',
     feedKey
@@ -258,6 +265,7 @@ export function hasFeedData(feedKey: string): boolean {
  */
 export function getFeedKeys(): string[] {
   const db = getDb();
+  if (!db) return [];
   const rows = db.getAllSync<{ feed_key: string }>(
     'SELECT DISTINCT feed_key FROM feed_meta ORDER BY last_updated DESC'
   );
@@ -273,6 +281,7 @@ export function updateFeedMeta(feedKey: string, updates: Partial<FeedMetaData>):
   if (!feedKey) return;
 
   const db = getDb();
+  if (!db) return;
   const current = db.getFirstSync<FeedMetaRow>(
     'SELECT * FROM feed_meta WHERE feed_key = ?',
     feedKey
@@ -296,6 +305,7 @@ export function updateFeedMeta(feedKey: string, updates: Partial<FeedMetaData>):
 export function removeFeedItem(feedKey: string, postId: string): void {
   if (!feedKey || !postId) return;
   const db = getDb();
+  if (!db) return;
   db.runSync('DELETE FROM feed_items WHERE feed_key = ? AND post_id = ?', feedKey, postId);
 }
 
@@ -306,6 +316,7 @@ export function addFeedItemAtStart(feedKey: string, postId: string): void {
   if (!feedKey || !postId) return;
 
   const db = getDb();
+  if (!db) return;
 
   try {
     db.execSync('BEGIN TRANSACTION');
@@ -341,6 +352,7 @@ export function addFeedItemAtStart(feedKey: string, postId: string): void {
 export function removePostFromAllFeeds(postId: string): void {
   if (!postId) return;
   const db = getDb();
+  if (!db) return;
   db.runSync('DELETE FROM feed_items WHERE post_id = ?', postId);
 }
 
@@ -352,6 +364,7 @@ export function removePostFromAllFeeds(postId: string): void {
 export function clearFeed(feedKey: string): void {
   if (!feedKey) return;
   const db = getDb();
+  if (!db) return;
   try {
     db.execSync('BEGIN TRANSACTION');
     db.runSync('DELETE FROM feed_items WHERE feed_key = ?', feedKey);
@@ -368,6 +381,7 @@ export function clearFeed(feedKey: string): void {
  */
 export function clearAllFeeds(): void {
   const db = getDb();
+  if (!db) return;
   try {
     db.execSync('BEGIN TRANSACTION');
     db.execSync('DELETE FROM feed_items');

@@ -44,6 +44,7 @@ export function upsertLink(metadata: LinkMetadata): void {
 
   const row = linkMetadataToRow({ ...metadata, url });
   const db = getDb();
+  if (!db) return;
 
   db.runSync(
     `INSERT OR REPLACE INTO link_previews (url, title, description, image, site_name, favicon, error, fetched_at, ttl_ms)
@@ -62,6 +63,7 @@ export function getLink(url: string): LinkMetadata | null {
   if (!normalized) return null;
 
   const db = getDb();
+  if (!db) return null;
   const row = db.getFirstSync<LinkPreviewRow>(
     'SELECT * FROM link_previews WHERE url = ?',
     normalized
@@ -87,6 +89,7 @@ export function isLinkCached(url: string): boolean {
   if (!normalized) return false;
 
   const db = getDb();
+  if (!db) return false;
   const row = db.getFirstSync<{ fetched_at: number; ttl_ms: number }>(
     'SELECT fetched_at, ttl_ms FROM link_previews WHERE url = ?',
     normalized
@@ -103,6 +106,7 @@ export function isLinkCached(url: string): boolean {
  */
 export function pruneExpiredLinks(): number {
   const db = getDb();
+  if (!db) return 0;
   const now = Date.now();
 
   const result = db.runSync(
@@ -122,6 +126,7 @@ export function pruneExpiredLinks(): number {
  */
 export function clearAllLinks(): void {
   const db = getDb();
+  if (!db) return;
   db.execSync('DELETE FROM link_previews');
 }
 
@@ -132,5 +137,6 @@ export function invalidateLink(url: string): void {
   const normalized = normalizeUrl(url);
   if (!normalized) return;
   const db = getDb();
+  if (!db) return;
   db.runSync('DELETE FROM link_previews WHERE url = ?', normalized);
 }
