@@ -172,8 +172,9 @@ class SocketService {
       let hasJustFinished = false;
 
       for (const feedType of VALID_FEED_TYPES) {
-        const feed = state.feeds[feedType as FeedType];
-        if (feed?.isLoading) {
+        const feedKey = feedType as string;
+        const feedUI = state.feedUI[feedKey];
+        if (feedUI?.isLoading) {
           currentlyLoading.add(feedType);
         } else if (previouslyLoading.has(feedType) && this.feedUpdateQueue.has(feedType)) {
           hasJustFinished = true;
@@ -583,9 +584,10 @@ class SocketService {
         return;
       }
 
-      const currentFeed = store.feeds[feedType as FeedType];
-      if (!currentFeed) {
-        // Feed doesn't exist, remove queue entry entirely
+      const feedKey = feedType as string;
+      const feedUI = store.feedUI[feedKey];
+      if (!feedUI) {
+        // Feed UI doesn't exist, remove queue entry entirely
         this.feedUpdateQueue.delete(feedType);
         return;
       }
@@ -593,7 +595,7 @@ class SocketService {
       // Suppress socket updates during loading to prevent race conditions with fetch requests
       // When a feed is loading, the fetch response will include the posts, so we don't need
       // socket updates to add them again (which would cause duplicates)
-      if (currentFeed.isLoading) {
+      if (feedUI.isLoading) {
         // Keep posts in queue - they'll be processed after loading completes
         // But limit queue size to prevent memory issues
         const currentQueue = this.feedUpdateQueue.get(feedType)!;
@@ -603,24 +605,14 @@ class SocketService {
         return;
       }
       
-      // Build set of existing post IDs in the feed for duplicate detection
-      const existingIds = new Set<string>();
-      currentFeed.items.forEach((item: any) => {
-        const id = this.normalizePostId(item);
-        if (id && id !== 'undefined' && id !== 'null' && id !== '') {
-          existingIds.add(id);
-        }
-      });
-
-      // Deduplicate posts in queue before adding - use proper normalization
+      // Deduplicate posts in queue before adding
       const seen = new Map<string, any>();
       const uniquePosts: any[] = [];
       for (const p of posts) {
         const id = this.normalizePostId(p);
 
         if (id && id !== 'undefined' && id !== 'null' && id !== '') {
-          // Check both queue duplicates and existing feed duplicates
-          if (!seen.has(id) && !existingIds.has(id)) {
+          if (!seen.has(id)) {
             seen.set(id, p);
             uniquePosts.push(p);
           }

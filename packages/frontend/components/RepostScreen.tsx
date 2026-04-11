@@ -40,22 +40,14 @@ const RepostScreen: React.FC = () => {
     const [originalPost, setOriginalPost] = useState<any>(null);
     const textInputRef = useRef<TextInput>(null);
 
-    const { getPostById, createRepost, feeds } = usePostsStore();
+    const { getPostById, createRepost } = usePostsStore();
 
     useEffect(() => {
         const loadOriginal = async () => {
             try {
                 if (!postId) return;
-                // Try from store feeds first
-                const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
-                let found: any = null;
-                for (const t of types) {
-                    const feed = (feeds as any)[t];
-                    if (feed?.items) {
-                        found = feed.items.find((p: any) => p.id === postId);
-                        if (found) break;
-                    }
-                }
+                // Try from SQLite cache first
+                const found = usePostsStore.getState().getPostFromDb(postId);
                 if (found) setOriginalPost(found);
                 else {
                     const fetched = await getPostById(String(postId));
@@ -66,7 +58,7 @@ const RepostScreen: React.FC = () => {
             }
         };
         loadOriginal();
-    }, [postId, getPostById, feeds]);
+    }, [postId, getPostById]);
 
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;

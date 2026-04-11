@@ -151,6 +151,7 @@ return {
                       ],
                     },
                   ],
+                "expo-sqlite",
                 "expo-image",
                 'react-native-compressor',
                 [

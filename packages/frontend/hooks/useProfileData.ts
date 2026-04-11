@@ -123,7 +123,8 @@ function useLocalProfileData(username?: string): {
 
         // Check if user is already cached — if so, we know the ID and can
         // fire profile refresh + appearance fetch in parallel.
-        const cachedId = useUsersStore.getState().idByUsername[username.toLowerCase()];
+        const cachedUser = useUsersStore.getState().getCachedByUsername(username.toLowerCase());
+        const cachedId = cachedUser?.id;
 
         if (cachedId) {
           // Only force-refresh appearance if we don't already have it cached.

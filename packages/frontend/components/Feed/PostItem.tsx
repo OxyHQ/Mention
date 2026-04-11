@@ -86,7 +86,11 @@ const PostItem: React.FC<PostItemProps> = ({
     const hasManuallyDismissed = useRef(false);
 
     const postId = (post as any)?.id;
-    const storePost = usePostsStore((state) => (postId ? state.postsById[postId] : null));
+    const dataVersion = usePostsStore((state) => state.dataVersion);
+    const storePost = useMemo(() => {
+        if (!postId) return null;
+        return usePostsStore.getState().getPostFromDb(postId);
+    }, [postId, dataVersion]);
     const viewPost = storePost ?? post;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 

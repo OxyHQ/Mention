@@ -9,7 +9,6 @@ import {
   LikeRequest,
   UnlikeRequest,
   FeedType,
-  PostContent,
   HydratedPost,
   HydratedPostSummary,
   PostAttachmentBundle,
@@ -18,146 +17,35 @@ import {
 } from '@mention/shared-types';
 import { createScopedLogger } from '@/lib/logger';
 import { feedService } from '../services/feedService';
-import { useUsersStore } from './usersStore';
 import { markLocalAction } from '../services/echoGuard';
+
+// ── Database imports ─────────────────────────────────────────────
+import {
+  upsertPost as dbUpsertPost,
+  upsertPosts as dbUpsertPosts,
+  getPostById as dbGetPostById,
+  updatePost as dbUpdatePost,
+  deletePost as dbDeletePost,
+  pruneOldPosts as dbPruneOldPosts,
+  setFeedItems as dbSetFeedItems,
+  appendFeedItems as dbAppendFeedItems,
+  getAllFeedItems as dbGetAllFeedItems,
+  getFeedMeta as dbGetFeedMeta,
+  clearFeed as dbClearFeed,
+  addFeedItemAtStart as dbAddFeedItemAtStart,
+  removePostFromAllFeeds as dbRemovePostFromAllFeeds,
+  removeFeedItem as dbRemoveFeedItem,
+  buildFeedKey,
+  primeActorsFromPosts,
+} from '@/db';
+import type { FeedItem, FeedMetaData } from '@/db';
 
 const logger = createScopedLogger('PostsStore');
 
-type FeedItem = HydratedPost & {
-  date?: string;
-  isLiked?: boolean;
-  isDownvoted?: boolean;
-  isReposted?: boolean;
-  isSaved?: boolean;
-  user: HydratedPost['user'] & {
-    name: string;
-    avatar: string;
-  };
-  media?: string[];
-  mediaIds?: string[];
-  originalMediaIds?: string[];
-  allMediaIds?: string[];
-  original?: FeedItem | null;
-  quoted?: FeedItem | null;
-  isLocalNew?: boolean;
-};
+// ── Shared helpers ───────────────────────────────────────────────
 
-interface FeedState {
-  feeds: Record<FeedType, {
-    items: FeedItem[];
-    slices?: FeedPostSlice[];
-    hasMore: boolean;
-    nextCursor?: string;
-    totalCount: number;
-    isLoading: boolean;
-    error: string | null;
-    lastUpdated: number;
-    filters?: Record<string, any>;
-  }>;
-  
-  userFeeds: Record<string, Record<FeedType, {
-    items: FeedItem[];
-    slices?: FeedPostSlice[];
-    hasMore: boolean;
-    nextCursor?: string;
-    totalCount: number;
-    isLoading: boolean;
-    error: string | null;
-    lastUpdated: number;
-  }>>;
-
-  postsById: Record<string, FeedItem>;
-  isLoading: boolean;
-  error: string | null;
-  lastRefresh: number;
-  
-  fetchFeed: (request: FeedRequest) => Promise<void>;
-  fetchUserFeed: (userId: string, request: FeedRequest) => Promise<void>;
-  fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
-  refreshFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
-  loadMoreFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
-  
-  createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
-  createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
-  createReply: (request: CreateReplyRequest) => Promise<void>;
-  createRepost: (request: CreateRepostRequest) => Promise<void>;
-  repostPost: (request: { postId: string }) => Promise<void>;
-  unrepostPost: (request: { postId: string }) => Promise<void>;
-  likePost: (request: LikeRequest) => Promise<void>;
-  unlikePost: (request: UnlikeRequest) => Promise<void>;
-  downvotePost: (request: { postId: string; type: string }) => Promise<void>;
-  savePost: (request: { postId: string }) => Promise<void>;
-  unsavePost: (request: { postId: string }) => Promise<void>;
-  getPostById: (postId: string) => Promise<any>;
-  
-  // Local state updates
-  updatePostLocally: (postId: string, updates: Partial<FeedItem>) => void;
-  updatePostEverywhere: (
-    postId: string,
-    updater: (prev: FeedItem) => FeedItem | null | undefined
-  ) => void;
-  removePostEverywhere: (postId: string) => void;
-  removePostLocally: (postId: string, feedType: FeedType) => void;
-  addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
-  addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => void;
-  
-  // Utility actions
-  clearError: () => void;
-  clearFeed: (type: FeedType) => void;
-  clearUserFeed: (userId: string, type: FeedType) => void;
-  prunePostsCache: () => void;
-}
-
-// Default feed state
-const createDefaultFeedState = () => ({
-  items: [],
-  hasMore: true,
-  nextCursor: undefined,
-  totalCount: 0,
-  isLoading: false,
-  error: null,
-  lastUpdated: 0
-});
-
-// Default feeds state
-const createDefaultFeedsState = () => ({
-  posts: createDefaultFeedState(),
-  replies: createDefaultFeedState(),
-  reposts: createDefaultFeedState(),
-  media: createDefaultFeedState(),
-  likes: createDefaultFeedState(),
-  saved: createDefaultFeedState(),
-  mixed: createDefaultFeedState(),
-  for_you: createDefaultFeedState(),
-  following: createDefaultFeedState(),
-  explore: createDefaultFeedState(), // Trending feed
-  custom: createDefaultFeedState(), // Custom feeds
-});
-
-type TransformOptions = {
-  skipRelated?: boolean;
-};
-
-const primeRelatedPosts = (cache: Record<string, FeedItem>, post: any) => {
-  if (!post) return;
-  const original = (post as any)?.original;
-  if (original?.id) {
-    cache[original.id] = original as FeedItem;
-  }
-  const quoted = (post as any)?.quoted;
-  if (quoted?.id) {
-    cache[quoted.id] = quoted as FeedItem;
-  }
-};
-
-/**
- * Normalize item ID to a consistent string format
- * Handles various ID formats: id, _id, _id_str, postId, post.id, post._id
- */
 const normalizeId = (item: any): string => {
   if (!item) return '';
-  
-  // Direct ID fields (most common)
   if (item.id != null) return String(item.id);
   if (item._id != null) {
     const _id = item._id;
@@ -165,12 +53,8 @@ const normalizeId = (item: any): string => {
       ? _id.toString()
       : String(_id);
   }
-  
-  // Alternative ID fields
   if (item._id_str != null) return String(item._id_str);
   if (item.postId != null) return String(item.postId);
-  
-  // Nested post ID fields
   if (item.post?.id != null) return String(item.post.id);
   if (item.post?._id != null) {
     const _id = item.post._id;
@@ -178,66 +62,13 @@ const normalizeId = (item: any): string => {
       ? _id.toString()
       : String(_id);
   }
-  
   return '';
 };
 
-/**
- * Check if an ID is valid (not empty or placeholder values)
- */
-const isValidId = (id: string): boolean => {
-  return id !== '' && id !== 'undefined' && id !== 'null';
-};
+const isValidId = (id: string): boolean =>
+  id !== '' && id !== 'undefined' && id !== 'null';
 
-/**
- * Deduplicate items by normalized ID
- * 
- * - Keeps first occurrence of each unique ID (preserves order)
- * - Filters out items without valid IDs
- * - Uses Map for O(1) lookup performance
- * 
- * @param items Array of items to deduplicate
- * @param source Optional source identifier for logging
- * @returns Array of unique items in original order
- */
-const deduplicateItems = <T = any>(items: T[], source?: string): T[] => {
-  if (!items || items.length === 0) return [];
-  
-  const seen = new Map<string, T>();
-  const invalidItems: T[] = [];
-  const duplicateIds: string[] = [];
-  
-  for (const item of items) {
-    const id = normalizeId(item);
-    
-    if (!isValidId(id)) {
-      invalidItems.push(item);
-      continue;
-    }
-    
-    // Only add if we haven't seen this ID before
-    if (!seen.has(id)) {
-      seen.set(id, item);
-    } else {
-      duplicateIds.push(id);
-    }
-  }
-  
-  const duplicatesRemoved = duplicateIds.length;
-  const invalidRemoved = invalidItems.length;
-  
-  // Log duplicates and invalid items in development
-  if (process.env.NODE_ENV === 'development') {
-    if (duplicatesRemoved > 0) {
-      logger.warn(`[deduplicateItems${source ? `:${source}` : ''}] Removed ${duplicatesRemoved} duplicate(s)`, { duplicateIds: duplicateIds.slice(0, 5) });
-    }
-    if (invalidRemoved > 0) {
-      logger.warn(`[deduplicateItems${source ? `:${source}` : ''}] Filtered ${invalidRemoved} items without valid IDs`);
-    }
-  }
-  
-  return Array.from(seen.values());
-};
+type TransformOptions = { skipRelated?: boolean };
 
 const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, options: TransformOptions = {}): FeedItem => {
   if (!raw) return raw;
@@ -261,22 +92,10 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   };
 
   const engagement: PostEngagementSummary = {
-    likes:
-      raw?.engagement?.likes !== undefined
-        ? raw.engagement.likes
-        : raw?.stats?.likesCount ?? 0,
-    downvotes:
-      raw?.engagement?.downvotes !== undefined
-        ? raw.engagement.downvotes
-        : raw?.stats?.downvotesCount ?? 0,
-    reposts:
-      raw?.engagement?.reposts !== undefined
-        ? raw.engagement.reposts
-        : raw?.stats?.repostsCount ?? 0,
-    replies:
-      raw?.engagement?.replies !== undefined
-        ? raw.engagement.replies
-        : raw?.stats?.commentsCount ?? 0,
+    likes: raw?.engagement?.likes !== undefined ? raw.engagement.likes : raw?.stats?.likesCount ?? 0,
+    downvotes: raw?.engagement?.downvotes !== undefined ? raw.engagement.downvotes : raw?.stats?.downvotesCount ?? 0,
+    reposts: raw?.engagement?.reposts !== undefined ? raw.engagement.reposts : raw?.stats?.repostsCount ?? 0,
+    replies: raw?.engagement?.replies !== undefined ? raw.engagement.replies : raw?.stats?.commentsCount ?? 0,
     saves: raw?.engagement?.saves ?? null,
     views: raw?.engagement?.views ?? null,
     impressions: raw?.engagement?.impressions ?? null,
@@ -298,23 +117,13 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
 
   const metadata = {
     ...raw?.metadata,
-    createdAt:
-      raw?.metadata?.createdAt ||
-      raw?.createdAt ||
-      raw?.date ||
-      new Date().toISOString(),
-    updatedAt:
-      raw?.metadata?.updatedAt ||
-      raw?.updatedAt ||
-      raw?.metadata?.createdAt ||
-      raw?.createdAt ||
-      new Date().toISOString(),
+    createdAt: raw?.metadata?.createdAt || raw?.createdAt || raw?.date || new Date().toISOString(),
+    updatedAt: raw?.metadata?.updatedAt || raw?.updatedAt || raw?.metadata?.createdAt || raw?.createdAt || new Date().toISOString(),
   };
 
-  const mediaIds =
-    attachments.media?.map((item: any) =>
-      typeof item === 'string' ? item : item?.id,
-    ).filter(Boolean) ?? [];
+  const mediaIds = attachments.media?.map((item: any) =>
+    typeof item === 'string' ? item : item?.id
+  ).filter(Boolean) ?? [];
 
   const base: FeedItem = {
     ...(raw as HydratedPost),
@@ -344,10 +153,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     isReposted: viewerState.isReposted,
     mediaIds,
     originalMediaIds: (raw as any)?.originalMediaIds ?? undefined,
-    allMediaIds:
-      (raw as any)?.allMediaIds ??
-      (raw as any)?.mediaIds ??
-      mediaIds,
+    allMediaIds: (raw as any)?.allMediaIds ?? (raw as any)?.mediaIds ?? mediaIds,
     original: null,
     quoted: null,
     repost: raw?.repost
@@ -358,14 +164,13 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
             : null,
         }
       : null,
-  };
+  } as FeedItem;
 
   if (!options.skipRelated) {
     const originalSource = raw?.originalPost ?? (raw as any)?.original;
     if (originalSource) {
       base.original = transformToUIItem(originalSource, { skipRelated: true });
     }
-
     const quotedSource = raw?.quotedPost ?? (raw as any)?.quoted;
     if (quotedSource) {
       base.quoted = transformToUIItem(quotedSource, { skipRelated: true });
@@ -375,20 +180,16 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   return base;
 };
 
-const MAX_POSTS_CACHE_SIZE = 2000;
+// ── Request tracking ─────────────────────────────────────────────
 
-// Request tracking for debouncing and race condition prevention
 const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
-
-// In-flight engagement operations to prevent race conditions
-const inFlightEngagements = new Map<string, 'like' | 'unlike' | 'downvote' | 'repost' | 'unrepost' | 'save' | 'unsave'>();
-
-// Helper to get engagement lock key
+const inFlightEngagements = new Map<string, string>();
 const getEngagementKey = (postId: string, action: string) => `${postId}:${action.replace('un', '')}`;
 
-// Sync vote state from server response into local store
+// ── Sync vote state from server ──────────────────────────────────
+
 const syncVoteStateFromServer = (
-  get: () => FeedState,
+  get: () => PostsStoreState,
   postId: string,
   responseData: unknown
 ) => {
@@ -413,793 +214,395 @@ const syncVoteStateFromServer = (
   }
 };
 
-export const usePostsStore = create<FeedState>()(
+// ── Store types ──────────────────────────────────────────────────
+
+interface FeedSliceUI {
+  isLoading: boolean;
+  error: string | null;
+  lastUpdated: number;
+  filters?: Record<string, any>;
+}
+
+interface PostsStoreState {
+  // Reactive version counter — bumped on every data mutation to trigger re-reads
+  dataVersion: number;
+
+  // UI state per feed key (loading/error only — data lives in SQLite)
+  feedUI: Record<string, FeedSliceUI>;
+
+  // Global UI state
+  isLoading: boolean;
+  error: string | null;
+  lastRefresh: number;
+
+  // Feed operations
+  fetchFeed: (request: FeedRequest) => Promise<void>;
+  fetchUserFeed: (userId: string, request: FeedRequest) => Promise<void>;
+  fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
+  refreshFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
+  loadMoreFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
+
+  // Content creation
+  createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
+  createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
+  createReply: (request: CreateReplyRequest) => Promise<void>;
+  createRepost: (request: CreateRepostRequest) => Promise<void>;
+  repostPost: (request: { postId: string }) => Promise<void>;
+  unrepostPost: (request: { postId: string }) => Promise<void>;
+
+  // Engagement
+  likePost: (request: LikeRequest) => Promise<void>;
+  unlikePost: (request: UnlikeRequest) => Promise<void>;
+  downvotePost: (request: { postId: string; type: string }) => Promise<void>;
+  savePost: (request: { postId: string }) => Promise<void>;
+  unsavePost: (request: { postId: string }) => Promise<void>;
+  getPostById: (postId: string) => Promise<any>;
+
+  // Local state updates
+  updatePostLocally: (postId: string, updates: Partial<FeedItem>) => void;
+  updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => void;
+  removePostEverywhere: (postId: string) => void;
+  removePostLocally: (postId: string, feedType: FeedType) => void;
+  addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
+  addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => void;
+
+  // Utility
+  clearError: () => void;
+  clearFeed: (type: FeedType) => void;
+  clearUserFeed: (userId: string, type: FeedType) => void;
+  prunePostsCache: () => void;
+
+  // SQLite data accessors (synchronous reads)
+  getFeedItemsFromDb: (feedKey: string) => FeedItem[];
+  getFeedMetaFromDb: (feedKey: string) => FeedMetaData | null;
+  getPostFromDb: (postId: string) => FeedItem | null;
+}
+
+// ── Helper to bump version ───────────────────────────────────────
+
+const bumpVersion = (state: PostsStoreState) => ({ dataVersion: state.dataVersion + 1 });
+
+// ── Default feed UI state ────────────────────────────────────────
+
+const defaultFeedUI = (): FeedSliceUI => ({
+  isLoading: false,
+  error: null,
+  lastUpdated: 0,
+});
+
+// ── Store ────────────────────────────────────────────────────────
+
+export const usePostsStore = create<PostsStoreState>()(
   subscribeWithSelector((set, get) => ({
-    feeds: createDefaultFeedsState(),
-    userFeeds: {},
-    postsById: {},
+    dataVersion: 0,
+    feedUI: {},
     isLoading: false,
     error: null,
     lastRefresh: Date.now(),
 
+    // ── SQLite data accessors ────────────────────────────────
+    getFeedItemsFromDb: (feedKey: string) => dbGetAllFeedItems(feedKey),
+    getFeedMetaFromDb: (feedKey: string) => dbGetFeedMeta(feedKey),
+    getPostFromDb: (postId: string) => dbGetPostById(postId),
+
+    // ── fetchFeed ────────────────────────────────────────────
     fetchFeed: async (request: FeedRequest) => {
       const { type = 'mixed' } = request;
-      const state = get();
-      const currentFeed = state.feeds[type];
-      
-      // Create request key for tracking
+      const feedKey = buildFeedKey(type);
       const requestKey = `${type}:${request.cursor || 'initial'}`;
       const now = Date.now();
-      
-      // Debounce: cancel previous request if same request made within 300ms
+
+      // Debounce
       const pending = pendingRequests.get(requestKey);
-      if (pending) {
-        if (now - pending.timestamp < 300) {
-          // Request made too soon, debounce it
-          return;
-        }
-        // Cancel previous request
-        if (pending.abortController) {
-          pending.abortController.abort();
-        }
-      }
-      
-      // Prevent concurrent requests for same feed type
-      if (currentFeed?.isLoading && !request.cursor) {
-        return;
-      }
-      
-      // Create abort controller for this request
+      if (pending && now - pending.timestamp < 300) return;
+      if (pending?.abortController) pending.abortController.abort();
+
+      // Prevent concurrent
+      const ui = get().feedUI[feedKey];
+      if (ui?.isLoading && !request.cursor) return;
+
       const abortController = new AbortController();
-
-      // Check if filters changed - if so, clear old items before fetching
-      const filtersChanged = !request.cursor && currentFeed?.items && currentFeed.items.length > 0 &&
-        JSON.stringify(request.filters || {}) !== JSON.stringify(currentFeed.filters || {});
-
-      // If filters changed, clear old items to show new filtered results
-      // Clear items immediately so UI doesn't show stale data
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          [type]: {
-            ...state.feeds[type],
-            items: filtersChanged ? [] : state.feeds[type]?.items || [], // Clear items when filters change
-            isLoading: true,
-            error: null
-          }
-        }
-      }));
-
-      // Set pending request inside try block so finally always cleans it up
       pendingRequests.set(requestKey, { timestamp: now, abortController });
+
+      set((s) => ({
+        feedUI: { ...s.feedUI, [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null } },
+      }));
 
       try {
         const response = await feedService.getFeed(request, { signal: abortController.signal });
-        
-        // Check if request was aborted
-        if (abortController.signal.aborted) {
-          return;
-        }
-        
-        set(state => {
-          // Re-check loading state - another request might have completed
-          const currentFeedState = state.feeds[type];
-          if (!currentFeedState?.isLoading && request.cursor) {
-            // Another request completed, discard this response to prevent race conditions
-            return state;
-          }
-          
-          // Verify this is still the latest request
-          const latestPending = pendingRequests.get(requestKey);
-          if (!latestPending || latestPending.timestamp !== now) {
-            // A newer request was made, discard this response but ensure
-            // isLoading is not left stuck if no newer request will reset it.
-            if (!latestPending) {
-              return {
-                ...state,
-                feeds: {
-                  ...state.feeds,
-                  [type]: {
-                    ...state.feeds[type],
-                    isLoading: false,
-                  },
-                },
-              };
-            }
-            return state;
-          }
-          
-          // Transform and deduplicate items
-          const items = response.items?.map(item => transformToUIItem(item)) || [];
-          const uniqueItems = deduplicateItems(items, `fetchFeed:${type}`);
-          
-          // DEBUG: Log response details
-          if (process.env.NODE_ENV === 'development') {
-            const responseIds = items.map(item => normalizeId(item));
-            const uniqueResponseIds = new Set(responseIds);
-            if (responseIds.length !== uniqueResponseIds.size) {
-              const duplicates = responseIds.filter((id, idx) => responseIds.indexOf(id) !== idx);
-              logger.error(`[fetchFeed:${type}] Backend returned ${duplicates.length} duplicate IDs`, { duplicateIds: [...new Set(duplicates)].slice(0, 10) });
-            }
-            logger.debug(`[fetchFeed:${type}] Response: ${items.length} items → ${uniqueItems.length} unique`, {
-              backendSent: items.length,
-              afterDedup: uniqueItems.length,
-              removed: items.length - uniqueItems.length,
-              hasMore: response.hasMore,
-              cursor: response.nextCursor ? 'present' : 'none'
-            });
-          }
-          
-          // Update cache
-          try { useUsersStore.getState().primeFromPosts(uniqueItems as any); } catch {}
-          const newCache = { ...state.postsById };
-          uniqueItems.forEach((p: FeedItem) => {
-            const id = normalizeId(p);
-            if (id) {
-              newCache[id] = p;
-              primeRelatedPosts(newCache, p);
-            }
-          });
-          
-          // fetchFeed ALWAYS replaces items completely (never merges)
-          // Merging is handled by loadMoreFeed for pagination
-          const updatedFeed = {
-            items: uniqueItems,
-            slices: response.slices || undefined,
-            hasMore: response.hasMore || false,
-            nextCursor: response.nextCursor,
-            totalCount: uniqueItems.length,
-            isLoading: false,
-            error: null,
-            lastUpdated: Date.now(),
-            filters: request.filters
-          };
-          
-          return ({
-            feeds: {
-              ...state.feeds,
-              [type]: updatedFeed
-            },
-            postsById: newCache,
-            lastRefresh: Date.now()
-          });
+        if (abortController.signal.aborted) return;
+
+        // Verify still latest request
+        const latest = pendingRequests.get(requestKey);
+        if (!latest || latest.timestamp !== now) return;
+
+        // Transform items
+        const items = response.items?.map((item) => transformToUIItem(item)) || [];
+
+        // Write to SQLite — this replaces the entire feed
+        dbSetFeedItems(feedKey, items, {
+          hasMore: response.hasMore || false,
+          nextCursor: response.nextCursor,
+          totalCount: items.length,
+          lastUpdated: Date.now(),
+          filters: request.filters as any,
         });
 
-        get().prunePostsCache();
-      } catch (error) {
-        // Don't handle aborted requests as errors
-        if (abortController.signal.aborted) {
-          return;
+        // Also persist related posts
+        for (const item of items) {
+          if (item.original?.id) dbUpsertPost(item.original);
+          if (item.quoted?.id) dbUpsertPost(item.quoted);
         }
 
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch feed';
-        
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            [type]: {
-              ...state.feeds[type],
-              isLoading: false,
-              error: errorMessage
-            }
+        // Bump version to trigger re-reads + update UI state
+        set((s) => ({
+          ...bumpVersion(s),
+          feedUI: {
+            ...s.feedUI,
+            [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now(), filters: request.filters as any },
           },
-          error: errorMessage
+          lastRefresh: Date.now(),
+        }));
+
+        // Background prune
+        dbPruneOldPosts();
+      } catch (error) {
+        if (abortController.signal.aborted) return;
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch feed';
+        set((s) => ({
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
+          error: errorMessage,
         }));
       } finally {
-        // Clean up request tracking — only if this call still owns the entry.
-        // A newer call for the same key may have overwritten pendingRequests,
-        // so we must not delete the newer entry.
         const current = pendingRequests.get(requestKey);
-        if (current && current.timestamp === now) {
-          pendingRequests.delete(requestKey);
-        }
+        if (current && current.timestamp === now) pendingRequests.delete(requestKey);
       }
     },
 
+    // ── fetchUserFeed ────────────────────────────────────────
     fetchUserFeed: async (userId: string, request: FeedRequest) => {
       const { type = 'posts' } = request;
-      
-      set(state => ({
-        userFeeds: {
-          ...state.userFeeds,
-          [userId]: {
-            ...state.userFeeds[userId],
-            [type]: {
-              ...(state.userFeeds[userId]?.[type] || createDefaultFeedState()),
-              isLoading: true,
-              error: null
-            }
-          }
-        }
+      const feedKey = buildFeedKey(type, userId);
+
+      set((s) => ({
+        feedUI: { ...s.feedUI, [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null } },
       }));
 
       try {
         const response = await feedService.getUserFeed(userId, request);
+        const items = response.items?.map((item) => transformToUIItem(item)) || [];
 
-        set(state => {
-          const prev = state.userFeeds[userId]?.[type] || createDefaultFeedState();
-          const mapped = response.items?.map(item => transformToUIItem(item)) || [];
-          
-          // Helper function to normalize ID consistently
-          const normalizeId = (p: any): string => {
-            if (p?.id) return String(p.id);
-            if ((p as any)?._id) {
-              const _id = (p as any)._id;
-              return typeof _id === 'object' && _id.toString 
-                ? _id.toString() 
-                : String(_id);
-            }
-            return '';
-          };
-          
-          // Deduplicate new batch first
-          const uniqueMapped = deduplicateItems(mapped);
-          
-          // Prime users cache from items
-          try { useUsersStore.getState().primeFromPosts(uniqueMapped as any); } catch {}
-
-          let mergedItems: FeedItem[] = uniqueMapped;
-          let addedCount = uniqueMapped.length;
-          if (request.cursor) {
-            const existingIds = new Map<string, boolean>();
-            (prev.items || []).forEach((p: FeedItem) => {
-              const id = normalizeId(p);
-              if (id && id !== 'undefined' && id !== 'null') {
-                existingIds.set(id, true);
-              }
-            });
-            
-            const uniqueNew = uniqueMapped.filter(p => {
-              const id = normalizeId(p);
-              return id && !existingIds.has(id);
-            });
-            mergedItems = (prev.items || []).concat(uniqueNew);
-            addedCount = uniqueNew.length;
-          }
-
-          const finalUniqueItems = deduplicateItems(mergedItems);
-          const newCache = { ...state.postsById };
-          finalUniqueItems.forEach((p: FeedItem) => {
-            const id = normalizeId(p);
-            if (id) {
-              newCache[id] = p;
-              primeRelatedPosts(newCache, p);
-            }
+        if (request.cursor) {
+          // Append mode
+          dbAppendFeedItems(feedKey, items, {
+            hasMore: response.hasMore || false,
+            nextCursor: response.nextCursor,
+            totalCount: items.length,
           });
-
-          const prevCursor = prev.nextCursor;
-          const nextCursor = response.nextCursor;
-          const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
-          const hasMore = Boolean(response.hasMore) || (cursorAdvanced && addedCount >= 0);
-          const safeHasMore = (addedCount > 0 || cursorAdvanced) ? hasMore : false;
-
-          return ({
-            userFeeds: {
-              ...state.userFeeds,
-              [userId]: {
-                ...state.userFeeds[userId],
-                [type]: {
-                  items: finalUniqueItems,
-                  hasMore: safeHasMore,
-                  nextCursor,
-                  totalCount: finalUniqueItems.length,
-                  isLoading: false,
-                  error: null,
-                  lastUpdated: Date.now()
-                }
-              }
-            },
-            postsById: newCache
+        } else {
+          // Replace mode
+          dbSetFeedItems(feedKey, items, {
+            hasMore: response.hasMore || false,
+            nextCursor: response.nextCursor,
+            totalCount: items.length,
+            lastUpdated: Date.now(),
           });
-        });
+        }
+
+        set((s) => ({
+          ...bumpVersion(s),
+          feedUI: { ...s.feedUI, [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now() } },
+        }));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch user feed';
-        
-        set(state => ({
-          userFeeds: {
-            ...state.userFeeds,
-            [userId]: {
-              ...state.userFeeds[userId],
-              [type]: {
-                ...(state.userFeeds[userId]?.[type] || createDefaultFeedState()),
-                isLoading: false,
-                error: errorMessage
-              }
-            }
-          }
+        set((s) => ({
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
         }));
       }
     },
 
-    fetchSavedPosts: async (request: { page?: number; limit?: number } = {}) => {
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          ['saved']: {
-            ...(state.feeds as any)['saved'],
-            isLoading: true,
-            error: null
-          }
-        }
+    // ── fetchSavedPosts ──────────────────────────────────────
+    fetchSavedPosts: async (request = {}) => {
+      const feedKey = buildFeedKey('saved');
+
+      set((s) => ({
+        feedUI: { ...s.feedUI, [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null } },
       }));
 
       try {
         const response = await feedService.getSavedPosts(request);
+        let processedPosts = (response.data as any).posts?.map((post: any) => transformToUIItem({ ...post, isSaved: true })) || [];
 
-        let processedPosts = response.data.posts?.map((post: any) => transformToUIItem({ ...post, isSaved: true })) || [];
-
-        // Fallback: if API returns empty, derive from currently loaded feeds
+        // Fallback: derive from SQLite saved posts
         if (!processedPosts.length) {
-          const state = get();
-          const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
-          const seen = new Set<string>();
-          const localSaved: FeedItem[] = [];
-          types.forEach((t) => {
-            (state.feeds as any)[t]?.items?.forEach((p: any) => {
-              if (p?.isSaved && !seen.has(p.id)) {
-                seen.add(p.id);
-                localSaved.push(p);
-              }
-            });
-          });
-          if (localSaved.length) {
-            processedPosts = localSaved;
+          const db = await import('@/db');
+          const savedFromDb = db.getDb().getAllSync<any>(
+            'SELECT * FROM posts WHERE is_saved = 1 ORDER BY created_at DESC LIMIT 50'
+          );
+          if (savedFromDb.length) {
+            const { rowToFeedItem } = await import('@/db/schema');
+            processedPosts = savedFromDb.map(rowToFeedItem);
           }
         }
 
-        set(state => {
-          const newCache = { ...state.postsById };
-          processedPosts.forEach((p: FeedItem) => {
-            newCache[p.id] = p;
-            primeRelatedPosts(newCache, p);
-          });
-
-          return ({
-            feeds: {
-              ...state.feeds,
-              ['saved']: {
-                items: processedPosts,
-                hasMore: response.data.hasMore || false,
-                nextCursor: undefined,
-                totalCount: processedPosts.length,
-                isLoading: false,
-                error: null,
-                lastUpdated: Date.now()
-              }
-            },
-            postsById: newCache,
-            lastRefresh: Date.now()
-          });
+        dbSetFeedItems(feedKey, processedPosts, {
+          hasMore: (response.data as any).hasMore || false,
+          totalCount: processedPosts.length,
+          lastUpdated: Date.now(),
         });
+
+        set((s) => ({
+          ...bumpVersion(s),
+          feedUI: { ...s.feedUI, [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now() } },
+          lastRefresh: Date.now(),
+        }));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch saved posts';
-        
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            ['saved']: {
-              ...(state.feeds as any)['saved'],
-              isLoading: false,
-              error: errorMessage
-            }
-          },
-          error: errorMessage
+        set((s) => ({
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
+          error: errorMessage,
         }));
       }
     },
 
+    // ── refreshFeed ──────────────────────────────────────────
     refreshFeed: async (type: FeedType, filters?: Record<string, any>) => {
-      const state = get();
-      const currentFeed = state.feeds[type];
-      
-      if (!currentFeed) return;
+      const feedKey = buildFeedKey(type);
+      const ui = get().feedUI[feedKey];
+      if (ui?.isLoading) return;
 
-      if (currentFeed.isLoading) {
-        return;
-      }
-
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          [type]: {
-            ...state.feeds[type],
-            isLoading: true,
-            error: null,
-            items: []
-          }
-        }
+      set((s) => ({
+        feedUI: { ...s.feedUI, [feedKey]: { ...defaultFeedUI(), ...s.feedUI[feedKey], isLoading: true, error: null } },
       }));
 
       try {
-        const response = await feedService.getFeed({
-          type,
-          limit: 20,
-          filters
-        } as any);
+        const response = await feedService.getFeed({ type, limit: 20, filters } as any);
+        const items = response.items?.map((item) => transformToUIItem(item)) || [];
 
-        set(state => {
-          // Transform and deduplicate items
-          const items = response.items?.map(item => transformToUIItem(item)) || [];
-          const uniqueItems = deduplicateItems(items, `refreshFeed:${type}`);
-          
-          // Update cache
-          try { useUsersStore.getState().primeFromPosts(uniqueItems as any); } catch {}
-          const newCache = { ...state.postsById };
-          uniqueItems.forEach((p: FeedItem) => {
-            const id = normalizeId(p);
-            if (id) {
-              newCache[id] = p;
-              primeRelatedPosts(newCache, p);
-            }
-          });
-
-          return ({
-            feeds: {
-              ...state.feeds,
-              [type]: {
-                items: uniqueItems,
-                slices: response.slices || undefined,
-                hasMore: response.hasMore || false,
-                nextCursor: response.nextCursor,
-                totalCount: uniqueItems.length,
-                isLoading: false,
-                error: null,
-                lastUpdated: Date.now()
-              }
-            },
-            postsById: newCache,
-            lastRefresh: Date.now()
-          });
+        dbSetFeedItems(feedKey, items, {
+          hasMore: response.hasMore || false,
+          nextCursor: response.nextCursor,
+          totalCount: items.length,
+          lastUpdated: Date.now(),
         });
+
+        // Persist related posts
+        for (const item of items) {
+          if (item.original?.id) dbUpsertPost(item.original);
+          if (item.quoted?.id) dbUpsertPost(item.quoted);
+        }
+
+        set((s) => ({
+          ...bumpVersion(s),
+          feedUI: { ...s.feedUI, [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now() } },
+          lastRefresh: Date.now(),
+        }));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to refresh feed';
-
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            [type]: {
-              ...state.feeds[type],
-              isLoading: false,
-              error: errorMessage
-            }
-          }
+        set((s) => ({
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
         }));
       }
     },
 
-    // Load more feed (infinite scroll)
+    // ── loadMoreFeed ─────────────────────────────────────────
     loadMoreFeed: async (type: FeedType, filters?: Record<string, any>) => {
-      const state = get();
-      const currentFeed = state.feeds[type];
-      
-      // Enhanced guard: prevent concurrent loads and ensure we have a valid cursor
-      if (!currentFeed || !currentFeed.hasMore || currentFeed.isLoading) {
-        // Silently skip - this is expected behavior for guard checks
-        return;
-      }
-      if (!currentFeed.nextCursor && currentFeed.items.length > 0) {
-        // No cursor but we have items - something is wrong, don't load more
-        // Log only in development for debugging
-        if (process.env.NODE_ENV === 'development') {
-          logger.warn(`[loadMoreFeed:${type}] Skipped - no cursor but has ${currentFeed.items.length} items`);
-        }
-        return;
-      }
+      const feedKey = buildFeedKey(type);
+      const ui = get().feedUI[feedKey];
+      const meta = dbGetFeedMeta(feedKey);
 
-      // Create request key for tracking and debouncing
-      const requestKey = `${type}:loadMore:${currentFeed.nextCursor || 'none'}`;
+      if (ui?.isLoading || !meta?.hasMore) return;
+      if (!meta?.nextCursor) return;
+
+      const requestKey = `${type}:loadMore:${meta.nextCursor}`;
       const now = Date.now();
-      
-      // Debounce: cancel previous request if same request made within 500ms
+
       const pending = pendingRequests.get(requestKey);
-      if (pending) {
-        if (now - pending.timestamp < 500) {
-          // Request made too soon, debounce it
-          return;
-        }
-        // Cancel previous request
-        if (pending.abortController) {
-          pending.abortController.abort();
-        }
-      }
-      
-      // Create abort controller for this request
+      if (pending && now - pending.timestamp < 500) return;
+      if (pending?.abortController) pending.abortController.abort();
+
       const abortController = new AbortController();
       pendingRequests.set(requestKey, { timestamp: now, abortController });
 
-      // Set loading state immediately to prevent race conditions
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          [type]: {
-            ...state.feeds[type],
-            isLoading: true
-          }
-        }
+      set((s) => ({
+        feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: true } },
       }));
 
       try {
-        // Capture the cursor before making the request to ensure consistency
-        const cursorAtRequestTime = currentFeed.nextCursor;
-        
-        const response = await feedService.getFeed({
-          type,
-          cursor: cursorAtRequestTime,
-          limit: 20,
-          filters
-        } as any, { signal: abortController.signal });
-        
-        // Check if request was aborted
-        if (abortController.signal.aborted) {
-          return;
-        }
-        
-        set(state => {
-          // Re-check state after async operation - another request might have updated it
-          const currentFeedAfterAsync = state.feeds[type];
-          
-          // Verify this is still the latest request
-          const latestPending = pendingRequests.get(requestKey);
-          if (!latestPending || latestPending.timestamp !== now) {
-            // A newer request was made, discard this response
-            return {
-              feeds: {
-                ...state.feeds,
-                [type]: {
-                  ...currentFeedAfterAsync,
-                  isLoading: false
-                }
-              }
-            };
-          }
-          
-          // Ensure we're still using the correct cursor and haven't been superseded
-          if (currentFeedAfterAsync.nextCursor !== cursorAtRequestTime && cursorAtRequestTime) {
-            // Cursor has changed, another request updated the feed - discard this response
-            return {
-              feeds: {
-                ...state.feeds,
-                [type]: {
-                  ...currentFeedAfterAsync,
-                  isLoading: false
-                }
-              }
-            };
-          }
-          
-          // OPTIMIZED: Single-pass deduplication combining all steps
-          // Step 1: Build Set of existing IDs (O(n) where n = existing items)
-          const existingItems = currentFeedAfterAsync.items || [];
-          const existingIdsSet = new Set<string>();
-          const cleanedExistingItems: FeedItem[] = [];
-          const existingItemsMap = new Map<string, FeedItem>();
-          
-          // Deduplicate and index existing items in one pass
-          for (const item of existingItems) {
-            const id = normalizeId(item);
-            if (isValidId(id) && !existingIdsSet.has(id)) {
-              existingIdsSet.add(id);
-              existingItemsMap.set(id, item);
-              cleanedExistingItems.push(item);
-            }
-          }
-          
-          // Step 2: Transform and deduplicate new items in single pass
-          const mapped = response.items?.map(item => transformToUIItem(item)) || [];
-          const newItemsMap = new Map<string, FeedItem>();
-          const seenNewIds = new Set<string>();
-          let duplicatesInResponse = 0;
-          let duplicatesAgainstExisting = 0;
-          
-          for (const item of mapped) {
-            const id = normalizeId(item);
-            if (!isValidId(id)) continue;
-            
-            // Check for duplicates within response
-            if (seenNewIds.has(id)) {
-              duplicatesInResponse++;
-              continue;
-            }
-            seenNewIds.add(id);
-            
-            // Check against existing feed
-            if (existingIdsSet.has(id)) {
-              duplicatesAgainstExisting++;
-              continue;
-            }
-            
-            // Valid new item
-            newItemsMap.set(id, item);
-          }
-          
-          // Step 3: Combine existing and new items (already deduplicated)
-          const trulyNewItems = Array.from(newItemsMap.values());
-          const finalItems = [...cleanedExistingItems, ...trulyNewItems];
-          
-          // Track duplicate rate for monitoring (only log if significant)
-          // Note: For ranked feeds (for_you), some duplicates are expected due to ranking changes
-          // The deduplication is working correctly - this is just for monitoring
-          if (process.env.NODE_ENV === 'development') {
-            const duplicateRate = mapped.length > 0 ? (duplicatesAgainstExisting / mapped.length) * 100 : 0;
-            
-            // Only log if duplicate rate is very high (>50%) and it's not a ranked feed
-            // Ranked feeds can have higher duplicate rates due to score changes
-            const isRankedFeed = type === 'for_you' || type === 'explore';
-            const threshold = isRankedFeed ? 80 : 30; // Higher threshold for ranked feeds
-            
-            if (duplicateRate > threshold) {
-              logger.warn(`[loadMoreFeed:${type}] High duplicate rate detected: ${duplicateRate.toFixed(1)}% (${duplicatesAgainstExisting}/${mapped.length})`, {
-                cursor: cursorAtRequestTime ? 'present' : 'none',
-                existingItems: cleanedExistingItems.length,
-                isRankedFeed,
-                note: isRankedFeed ? 'Ranked feeds may have duplicates due to score changes - this is expected' : 'Unexpected duplicates'
-              });
-            }
-            
-            // Log backend duplicates as error (these are actual bugs)
-            if (duplicatesInResponse > 0) {
-              logger.error(`[loadMoreFeed:${type}] Backend returned ${duplicatesInResponse} duplicate IDs in response`);
-            }
-          }
-          
-          // Update cache with new items only (use Map for efficiency)
-          try { useUsersStore.getState().primeFromPosts(trulyNewItems as any); } catch {}
-          const newCache = { ...state.postsById };
-          for (const p of trulyNewItems) {
-            const id = normalizeId(p);
-            if (id) {
-              newCache[id] = p;
-              primeRelatedPosts(newCache, p);
-            }
-          }
-          
-          // Append new slices to existing slices (if present)
-          const existingSlices = currentFeedAfterAsync.slices || [];
-          const newSlices = response.slices || [];
-          const mergedSlices = newSlices.length > 0
-            ? [...existingSlices, ...newSlices]
-            : existingSlices.length > 0 ? existingSlices : undefined;
+        const cursorAtRequestTime = meta.nextCursor;
+        const response = await feedService.getFeed(
+          { type, cursor: cursorAtRequestTime, limit: 20, filters } as any,
+          { signal: abortController.signal }
+        );
 
-          return ({
-            feeds: {
-              ...state.feeds,
-              [type]: {
-                items: finalItems,
-                slices: mergedSlices,
-                hasMore: response.hasMore || false,
-                nextCursor: response.nextCursor,
-                totalCount: finalItems.length,
-                isLoading: false,
-                lastUpdated: Date.now()
-              }
-            },
-            postsById: newCache
-          });
+        if (abortController.signal.aborted) return;
+
+        const items = response.items?.map((item) => transformToUIItem(item)) || [];
+
+        // Append to SQLite — dedup handled by PRIMARY KEY
+        dbAppendFeedItems(feedKey, items, {
+          hasMore: response.hasMore || false,
+          nextCursor: response.nextCursor,
+          totalCount: items.length,
         });
-      } catch (error) {
-        // Don't handle aborted requests as errors
-        if (abortController.signal.aborted) {
-          return;
+
+        // Persist related posts
+        for (const item of items) {
+          if (item.original?.id) dbUpsertPost(item.original);
+          if (item.quoted?.id) dbUpsertPost(item.quoted);
         }
-        
+
+        set((s) => ({
+          ...bumpVersion(s),
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, lastUpdated: Date.now() } },
+        }));
+      } catch (error) {
+        if (abortController.signal.aborted) return;
         const errorMessage = error instanceof Error ? error.message : 'Failed to load more feed';
-        
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            [type]: {
-              ...state.feeds[type],
-              isLoading: false,
-              error: errorMessage
-            }
-          }
+        set((s) => ({
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
         }));
       } finally {
-        // Clean up request tracking
         pendingRequests.delete(requestKey);
       }
     },
 
-    // Create new post
+    // ── createPost ───────────────────────────────────────────
     createPost: async (request: CreatePostRequest) => {
       set({ isLoading: true, error: null });
 
       try {
         const response = await feedService.createPost(request);
-        
-        if (response.success) {
-          const rawPost = (response as any)?.post?.post ?? response.post;
-          if (!rawPost) {
-            set({ isLoading: false });
-            return null;
-          }
+        if (!response.success) { set({ isLoading: false }); return null; }
 
-          if (rawPost.status === 'scheduled') {
-            set({ isLoading: false });
-            return rawPost;
-          }
+        const rawPost = (response as any)?.post?.post ?? response.post;
+        if (!rawPost) { set({ isLoading: false }); return null; }
+        if (rawPost.status === 'scheduled') { set({ isLoading: false }); return rawPost; }
 
-          const newPost: FeedItem = {
-            ...transformToUIItem(rawPost),
-            engagement: { replies: 0, reposts: 0, likes: 0, saves: null, views: null, impressions: null },
-            isLocalNew: true
-          };
+        const newPost: FeedItem = {
+          ...transformToUIItem(rawPost),
+          engagement: { replies: 0, reposts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
+          isLocalNew: true,
+        };
 
-          set(state => {
-            const postId = normalizeId(newPost);
+        // Write to SQLite
+        dbUpsertPost(newPost);
 
-            // Use deduplicateItems to ensure no duplicates in any feed
-            // Merge new post with existing items, then deduplicate entire array
-            const postsFeedItems = deduplicateItems([newPost, ...state.feeds.posts.items], 'createPost:posts');
-            const mixedFeedItems = deduplicateItems([newPost, ...state.feeds.mixed.items], 'createPost:mixed');
-            const forYouFeedItems = deduplicateItems([newPost, ...(state.feeds.for_you?.items || [])], 'createPost:for_you');
-            const followingFeedItems = deduplicateItems([newPost, ...(state.feeds.following?.items || [])], 'createPost:following');
-
-            // Log if post was already present (would be filtered by deduplicateItems)
-            const wasDuplicate =
-              state.feeds.posts.items.some(item => normalizeId(item) === postId) ||
-              state.feeds.mixed.items.some(item => normalizeId(item) === postId) ||
-              (state.feeds.for_you?.items || []).some(item => normalizeId(item) === postId) ||
-              (state.feeds.following?.items || []).some(item => normalizeId(item) === postId);
-
-            if (wasDuplicate) {
-              logger.debug(`[Store] createPost: Post ${postId} already exists in feeds, deduplicated`);
-            }
-
-            // Update user's own profile feed if it has been previously loaded
-            const userId = newPost.user?.id;
-            let nextUserFeeds = state.userFeeds;
-            if (userId && state.userFeeds[userId]?.posts) {
-              const userPostsFeed = state.userFeeds[userId].posts;
-              const updatedItems = deduplicateItems([newPost, ...userPostsFeed.items], 'createPost:userFeed');
-              nextUserFeeds = {
-                ...state.userFeeds,
-                [userId]: {
-                  ...state.userFeeds[userId],
-                  posts: {
-                    ...userPostsFeed,
-                    items: updatedItems,
-                    totalCount: updatedItems.length
-                  }
-                }
-              };
-            }
-
-            return {
-              feeds: {
-                ...state.feeds,
-                posts: {
-                  ...state.feeds.posts,
-                  items: postsFeedItems,
-                  totalCount: postsFeedItems.length
-                },
-                mixed: {
-                  ...state.feeds.mixed,
-                  items: mixedFeedItems,
-                  totalCount: mixedFeedItems.length
-                },
-                for_you: {
-                  ...state.feeds.for_you,
-                  items: forYouFeedItems,
-                  totalCount: forYouFeedItems.length
-                },
-                following: {
-                  ...state.feeds.following,
-                  items: followingFeedItems,
-                  totalCount: followingFeedItems.length
-                }
-              },
-              userFeeds: nextUserFeeds,
-              postsById: { ...state.postsById, [newPost.id]: newPost },
-              isLoading: false,
-              lastRefresh: Date.now()
-            };
-          });
-          try { useUsersStore.getState().upsertUser(newPost.user as any); } catch {}
-          
-          return newPost;
+        // Add to relevant feeds at position 0
+        const feedKeys = ['posts', 'mixed', 'for_you', 'following'];
+        for (const key of feedKeys) {
+          dbAddFeedItemAtStart(key, newPost.id);
         }
-        return null;
+
+        // Add to user feed if loaded
+        const userId = newPost.user?.id;
+        if (userId) {
+          const userFeedKey = buildFeedKey('posts', userId);
+          dbAddFeedItemAtStart(userFeedKey, newPost.id);
+        }
+
+        set((s) => ({ ...bumpVersion(s), isLoading: false, lastRefresh: Date.now() }));
+        return newPost;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create post';
         set({ isLoading: false, error: errorMessage });
@@ -1207,94 +610,41 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Create thread
+    // ── createThread ─────────────────────────────────────────
     createThread: async (request: CreateThreadRequest) => {
       set({ isLoading: true, error: null });
 
       try {
         const response = await feedService.createThread(request);
-        
-        if (response.success && response.posts) {
-          const newPosts: FeedItem[] = response.posts.map((post: any) => ({
-            ...transformToUIItem(post),
-            engagement: { replies: 0, reposts: 0, likes: 0, saves: null, views: null, impressions: null },
-            isLocalNew: true,
-          }));
+        if (!response.success || !response.posts) { set({ isLoading: false }); return []; }
 
-          set(state => {
-            // Use deduplicateItems to ensure no duplicates in any feed
-            // Merge new posts with existing items, then deduplicate entire array
-            const postsFeedItems = deduplicateItems([...newPosts, ...state.feeds.posts.items], 'createThread:posts');
-            const mixedFeedItems = deduplicateItems([...newPosts, ...state.feeds.mixed.items], 'createThread:mixed');
-            const forYouFeedItems = deduplicateItems([...newPosts, ...(state.feeds.for_you?.items || [])], 'createThread:for_you');
-            const followingFeedItems = deduplicateItems([...newPosts, ...(state.feeds.following?.items || [])], 'createThread:following');
+        const newPosts: FeedItem[] = response.posts.map((post: any) => ({
+          ...transformToUIItem(post),
+          engagement: { replies: 0, reposts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
+          isLocalNew: true,
+        }));
 
-            // Log if any posts were duplicates
-            const duplicateCount = newPosts.length - (
-              postsFeedItems.length - state.feeds.posts.items.length +
-              mixedFeedItems.length - state.feeds.mixed.items.length +
-              forYouFeedItems.length - (state.feeds.for_you?.items.length || 0) +
-              followingFeedItems.length - (state.feeds.following?.items.length || 0)
-            ) / 4;
+        // Write to SQLite
+        dbUpsertPosts(newPosts);
 
-            if (duplicateCount > 0) {
-              logger.debug(`[Store] createThread: ${duplicateCount} posts were duplicates, deduplicated`);
-            }
-
-            // Update user's own profile feed if it has been previously loaded
-            const userId = newPosts[0]?.user?.id;
-            let nextUserFeeds = state.userFeeds;
-            if (userId && state.userFeeds[userId]?.posts) {
-              const userPostsFeed = state.userFeeds[userId].posts;
-              const updatedItems = deduplicateItems([...newPosts, ...userPostsFeed.items], 'createThread:userFeed');
-              nextUserFeeds = {
-                ...state.userFeeds,
-                [userId]: {
-                  ...state.userFeeds[userId],
-                  posts: {
-                    ...userPostsFeed,
-                    items: updatedItems,
-                    totalCount: updatedItems.length
-                  }
-                }
-              };
-            }
-
-            return {
-              feeds: {
-                ...state.feeds,
-                posts: {
-                  ...state.feeds.posts,
-                  items: postsFeedItems,
-                  totalCount: postsFeedItems.length
-                },
-                mixed: {
-                  ...state.feeds.mixed,
-                  items: mixedFeedItems,
-                  totalCount: mixedFeedItems.length
-                },
-                for_you: {
-                  ...state.feeds.for_you,
-                  items: forYouFeedItems,
-                  totalCount: forYouFeedItems.length
-                },
-                following: {
-                  ...state.feeds.following,
-                  items: followingFeedItems,
-                  totalCount: followingFeedItems.length
-                }
-              },
-              userFeeds: nextUserFeeds,
-              postsById: newPosts.reduce((acc, p) => ({ ...acc, [p.id]: p }), state.postsById),
-              isLoading: false,
-              lastRefresh: Date.now()
-            };
-          });
-          try { useUsersStore.getState().primeFromPosts(newPosts as any); } catch {}
-          
-          return newPosts;
+        // Add to feeds
+        const feedKeys = ['posts', 'mixed', 'for_you', 'following'];
+        for (const post of newPosts) {
+          for (const key of feedKeys) {
+            dbAddFeedItemAtStart(key, post.id);
+          }
         }
-        return [];
+
+        const userId = newPosts[0]?.user?.id;
+        if (userId) {
+          const userFeedKey = buildFeedKey('posts', userId);
+          for (const post of newPosts) {
+            dbAddFeedItemAtStart(userFeedKey, post.id);
+          }
+        }
+
+        set((s) => ({ ...bumpVersion(s), isLoading: false, lastRefresh: Date.now() }));
+        return newPosts;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create thread';
         set({ isLoading: false, error: errorMessage });
@@ -1302,101 +652,79 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Create reply - optimized to use updatePostEverywhere
+    // ── createReply ──────────────────────────────────────────
     createReply: async (request: CreateReplyRequest) => {
       const postId = request.postId;
-      let previousState: FeedItem | null = null;
-      
+      let previousPost: FeedItem | null = null;
+
       set({ isLoading: true, error: null });
 
       try {
-        // Mark local action to suppress immediate echo from socket
         markLocalAction(postId, 'reply');
-        
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
+          previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 }
+            engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 },
           }));
         }
-        
+
         const response = await feedService.createReply(request);
-        
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to create reply');
         }
-        
         set({ isLoading: false });
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
         const errorMessage = error instanceof Error ? error.message : 'Failed to create reply';
         set({ isLoading: false, error: errorMessage });
         throw error;
       }
     },
 
-    // Create repost - optimized to use updatePostEverywhere
+    // ── createRepost ─────────────────────────────────────────
     createRepost: async (request: CreateRepostRequest) => {
       const postId = request.originalPostId;
-      let previousState: FeedItem | null = null;
-      
+      let previousPost: FeedItem | null = null;
+
       set({ isLoading: true, error: null });
 
       try {
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
+          previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 }
+            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 },
           }));
         }
 
         const response = await feedService.createRepost(request);
-
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to create repost');
         }
-        
         set({ isLoading: false });
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
         const errorMessage = error instanceof Error ? error.message : 'Failed to create repost';
         set({ isLoading: false, error: errorMessage });
         throw error;
       }
     },
 
-    // Repost post (simple repost without comment) - with optimistic update
+    // ── repostPost ───────────────────────────────────────────
     repostPost: async (request: { postId: string }) => {
       const postId = request.postId;
-      let previousState: FeedItem | null = null;
-      
+      let previousPost: FeedItem | null = null;
+
       try {
         markLocalAction(postId, 'repost');
-        
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
+          previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isReposted: true,
@@ -1405,42 +733,29 @@ export const usePostsStore = create<FeedState>()(
           }));
         }
 
-        const response = await feedService.createRepost({
-          originalPostId: postId,
-          mentions: [],
-          hashtags: []
-        });
-
+        const response = await feedService.createRepost({ originalPostId: postId, mentions: [], hashtags: [] });
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
-          throw new Error('Failed to repost post');
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+          throw new Error('Failed to repost');
         }
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to repost post';
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to repost';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Unrepost post - with optimistic update
+    // ── unrepostPost ─────────────────────────────────────────
     unrepostPost: async (request: { postId: string }) => {
       const postId = request.postId;
-      let previousState: FeedItem | null = null;
-      
+      let previousPost: FeedItem | null = null;
+
       try {
         markLocalAction(postId, 'unrepost');
-        
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
+          previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isReposted: false,
@@ -1450,49 +765,32 @@ export const usePostsStore = create<FeedState>()(
         }
 
         const response = await feedService.unrepostItem(request);
-
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
-          throw new Error('Failed to unrepost post');
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+          throw new Error('Failed to unrepost');
         }
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to unrepost post';
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to unrepost';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Like post - with optimistic update and race condition prevention
+    // ── likePost ─────────────────────────────────────────────
     likePost: async (request: LikeRequest) => {
       const postId = request.postId;
       const engagementKey = getEngagementKey(postId, 'like');
-      let previousState: FeedItem | null = null;
+      let previousPost: FeedItem | null = null;
 
-      // Prevent concurrent like/unlike operations on the same post
-      const currentOp = inFlightEngagements.get(engagementKey);
-      if (currentOp) {
-        // If unlike is in flight, let it complete first
-        return;
-      }
-
+      if (inFlightEngagements.has(engagementKey)) return;
       inFlightEngagements.set(engagementKey, 'like');
 
       try {
         markLocalAction(postId, 'like');
-
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
-
-          // Only update if not already liked (prevent double-like)
+          previousPost = { ...currentPost };
           if (!currentPost.isLiked) {
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
@@ -1503,23 +801,15 @@ export const usePostsStore = create<FeedState>()(
           }
         }
 
-        const response = await feedService.voteItem(request.postId, 1);
-
+        const response = await feedService.voteItem(postId, 1);
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
-          throw new Error('Failed to like post');
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+          throw new Error('Failed to like');
         }
-
         syncVoteStateFromServer(get, postId, response.data);
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to like post';
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to like';
         set({ error: errorMessage });
         throw error;
       } finally {
@@ -1527,30 +817,20 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Unlike post - with optimistic update and race condition prevention
+    // ── unlikePost ───────────────────────────────────────────
     unlikePost: async (request: UnlikeRequest) => {
       const postId = request.postId;
       const engagementKey = getEngagementKey(postId, 'unlike');
-      let previousState: FeedItem | null = null;
+      let previousPost: FeedItem | null = null;
 
-      // Prevent concurrent like/unlike operations on the same post
-      const currentOp = inFlightEngagements.get(engagementKey);
-      if (currentOp) {
-        // If like is in flight, let it complete first
-        return;
-      }
-
+      if (inFlightEngagements.has(engagementKey)) return;
       inFlightEngagements.set(engagementKey, 'unlike');
 
       try {
         markLocalAction(postId, 'unlike');
-
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
-
-          // Only update if currently liked (prevent double-unlike)
+          previousPost = { ...currentPost };
           if (currentPost.isLiked) {
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
@@ -1561,23 +841,15 @@ export const usePostsStore = create<FeedState>()(
           }
         }
 
-        const response = await feedService.removeVote(request.postId);
-
+        const response = await feedService.removeVote(postId);
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
-          throw new Error('Failed to unlike post');
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+          throw new Error('Failed to unlike');
         }
-
         syncVoteStateFromServer(get, postId, response.data);
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to unlike post';
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to unlike';
         set({ error: errorMessage });
         throw error;
       } finally {
@@ -1585,24 +857,20 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Downvote post - with optimistic update and race condition prevention
+    // ── downvotePost ─────────────────────────────────────────
     downvotePost: async (request: { postId: string; type: string }) => {
       const postId = request.postId;
       const engagementKey = getEngagementKey(postId, 'downvote');
-      let previousState: FeedItem | null = null;
+      let previousPost: FeedItem | null = null;
 
-      const currentOp = inFlightEngagements.get(engagementKey);
-      if (currentOp) return;
-
+      if (inFlightEngagements.has(engagementKey)) return;
       inFlightEngagements.set(engagementKey, 'downvote');
 
       try {
         markLocalAction(postId, 'downvote');
-
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
-
+          previousPost = { ...currentPost };
           if (!currentPost.isDownvoted) {
             const wasLiked = currentPost.isLiked;
             get().updatePostEverywhere(postId, (prev) => ({
@@ -1619,21 +887,15 @@ export const usePostsStore = create<FeedState>()(
           }
         }
 
-        const response = await feedService.voteItem(request.postId, -1);
-
+        const response = await feedService.voteItem(postId, -1);
         if (!response.success) {
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
-          throw new Error('Failed to downvote post');
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+          throw new Error('Failed to downvote');
         }
-
         syncVoteStateFromServer(get, postId, response.data);
       } catch (error) {
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to downvote post';
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to downvote';
         set({ error: errorMessage });
         throw error;
       } finally {
@@ -1641,18 +903,16 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Save post - with optimistic update
+    // ── savePost ─────────────────────────────────────────────
     savePost: async (request: { postId: string }) => {
       const postId = request.postId;
-      let previousState: FeedItem | null = null;
-      
+      let previousPost: FeedItem | null = null;
+
       try {
         markLocalAction(postId, 'save');
-        
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
+          previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isSaved: true,
@@ -1661,37 +921,28 @@ export const usePostsStore = create<FeedState>()(
         }
 
         const response = await feedService.saveItem(request);
-        
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
-          throw new Error('Failed to save post');
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+          throw new Error('Failed to save');
         }
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to save post';
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to save';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Unsave post - with optimistic update
+    // ── unsavePost ───────────────────────────────────────────
     unsavePost: async (request: { postId: string }) => {
       const postId = request.postId;
-      let previousState: FeedItem | null = null;
-      
+      let previousPost: FeedItem | null = null;
+
       try {
         markLocalAction(postId, 'unsave');
-        
-        // Optimistic update - update UI immediately
-        const currentPost = get().postsById[postId];
+        const currentPost = dbGetPostById(postId);
         if (currentPost) {
-          previousState = { ...currentPost };
+          previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isSaved: false,
@@ -1700,38 +951,32 @@ export const usePostsStore = create<FeedState>()(
         }
 
         const response = await feedService.unsaveItem(request);
-        
         if (!response.success) {
-          // Rollback on failure
-          if (previousState) {
-            get().updatePostEverywhere(postId, () => previousState!);
-          }
-          throw new Error('Failed to unsave post');
+          if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+          throw new Error('Failed to unsave');
         }
       } catch (error) {
-        // Rollback optimistic update on error
-        if (previousState) {
-          get().updatePostEverywhere(postId, () => previousState!);
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to unsave post';
+        if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to unsave';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Get post by ID
+    // ── getPostById ──────────────────────────────────────────
     getPostById: async (postId: string) => {
       try {
-        const cached = get().postsById[postId];
+        // Check SQLite first
+        const cached = dbGetPostById(postId);
         if (cached) return cached;
 
+        // Fetch from API
         const response = await feedService.getPostById(postId);
         const item = transformToUIItem(response);
-        set(state => {
-          const newCache = { ...state.postsById, [item.id]: item } as Record<string, FeedItem>;
-          primeRelatedPosts(newCache, item);
-          return { postsById: newCache };
-        });
+        dbUpsertPost(item);
+        if (item.original?.id) dbUpsertPost(item.original);
+        if (item.quoted?.id) dbUpsertPost(item.quoted);
+        set((s) => bumpVersion(s));
         return item;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
@@ -1740,327 +985,138 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Local state updates
+    // ── updatePostLocally ────────────────────────────────────
     updatePostLocally: (postId: string, updates: Partial<FeedItem>) => {
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          posts: {
-            ...state.feeds.posts,
-            items: state.feeds.posts.items.map(post => 
-              post.id === postId ? { ...post, ...updates } : post
-            )
-          },
-          mixed: {
-            ...state.feeds.mixed,
-            items: state.feeds.mixed.items.map(post => 
-              post.id === postId ? { ...post, ...updates } : post
-            )
-          }
-        }
-      }));
+      dbUpdatePost(postId, (prev) => ({ ...prev, ...updates }));
+      set((s) => bumpVersion(s));
     },
 
-    // Centralized deduped updater (only touches slices containing the postId)
+    // ── updatePostEverywhere ─────────────────────────────────
+    // Now O(1) — single SQLite UPDATE instead of scanning all feeds
     updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => {
-      // Fast shallow comparison function for posts
-      const arePostsEqual = (prev: FeedItem, next: FeedItem): boolean => {
-        if (!prev || !next) return prev === next;
-        return (
-          prev.isLiked === next.isLiked &&
-          prev.isDownvoted === next.isDownvoted &&
-          prev.isReposted === next.isReposted &&
-          prev.isSaved === next.isSaved &&
-          prev.engagement?.likes === next.engagement?.likes &&
-          prev.engagement?.downvotes === next.engagement?.downvotes &&
-          prev.engagement?.reposts === next.engagement?.reposts &&
-          prev.engagement?.replies === next.engagement?.replies
-        );
-      };
-      
-      set((state) => {
-        // Prepare updated cache item, if any
-        const cached = state.postsById[postId];
-        const updatedCached = cached ? updater(cached) : undefined;
-        const cacheChanged = updatedCached && cached && !arePostsEqual(cached, updatedCached);
-        let feedsChanged = false;
-        const nextFeeds = { ...state.feeds } as typeof state.feeds;
-        (Object.keys(state.feeds) as (keyof typeof state.feeds)[]).forEach((ft) => {
-          const slice = state.feeds[ft];
-          if (!slice?.items?.length) return;
-          const idx = slice.items.findIndex((p) => p.id === postId);
-          if (idx === -1) return;
-          const prevItem = slice.items[idx];
-          const updated = updater(prevItem);
-          if (!updated) return;
-          
-          // Fast shallow equality check - only update if data actually changed
-          if (arePostsEqual(prevItem, updated)) {
-            return;
-          }
-          
-          const newItems = slice.items.slice();
-          newItems[idx] = updated;
-          nextFeeds[ft] = { ...slice, items: newItems } as any;
-          feedsChanged = true;
-        });
-
-        // Update user feeds similarly
-        let userFeedsChanged = false;
-        const nextUserFeeds: typeof state.userFeeds = {} as any;
-        const userIds = Object.keys(state.userFeeds || {});
-        for (const uid of userIds) {
-          const userSlices = state.userFeeds[uid];
-          if (!userSlices) continue;
-          let anySliceChanged = false;
-          const nextSlices: any = {};
-          (Object.keys(userSlices || {}) as FeedType[]).forEach((ft) => {
-            const slice = userSlices[ft];
-            if (!slice?.items?.length) { if (slice) nextSlices[ft] = slice; return; }
-            const idx = slice.items.findIndex((p) => p.id === postId);
-            if (idx === -1) { nextSlices[ft] = slice; return; }
-            const prevItem = slice.items[idx];
-            const updated = updater(prevItem);
-            if (!updated) { nextSlices[ft] = slice; return; }
-            
-            // Fast shallow equality check - only update if data actually changed
-            if (arePostsEqual(prevItem, updated)) {
-              nextSlices[ft] = slice;
-              return;
-            }
-            
-            const newItems = slice.items.slice();
-            newItems[idx] = updated;
-            nextSlices[ft] = { ...slice, items: newItems };
-            anySliceChanged = true;
-          });
-          nextUserFeeds[uid] = anySliceChanged ? nextSlices : userSlices;
-          if (anySliceChanged) userFeedsChanged = true;
-        }
-
-        // Merge cache update last to keep entity cache fresh (only if changed)
-        const nextCache = (cacheChanged && updatedCached) 
-          ? { ...state.postsById, [postId]: updatedCached } 
-          : state.postsById;
-
-        // Early return if nothing changed
-        if (!feedsChanged && !userFeedsChanged && !cacheChanged) {
-          return state;
-        }
-
-        return {
-          ...state,
-          postsById: nextCache,
-          feeds: feedsChanged ? nextFeeds : state.feeds,
-          userFeeds: userFeedsChanged ? nextUserFeeds : state.userFeeds,
-        };
-      });
+      const result = dbUpdatePost(postId, updater);
+      if (result) {
+        set((s) => bumpVersion(s));
+      }
     },
 
+    // ── removePostEverywhere ─────────────────────────────────
     removePostEverywhere: (postId: string) => {
-      set((state) => {
-        // Remove from global feeds
-        const nextFeeds: any = {};
-        (Object.keys(state.feeds) as (keyof typeof state.feeds)[]).forEach((ft) => {
-          const slice = state.feeds[ft];
-          const filtered = slice.items.filter((p) => p.id !== postId);
-          if (filtered.length !== slice.items.length) {
-            nextFeeds[ft] = {
-              ...slice,
-              items: filtered,
-              totalCount: Math.max(0, (slice.totalCount || 0) - 1),
-            };
-          } else {
-            nextFeeds[ft] = slice;
-          }
-        });
-
-        // Remove from user feeds
-        const nextUserFeeds: any = {};
-        Object.keys(state.userFeeds).forEach((uid) => {
-          const slices = state.userFeeds[uid];
-          const nextSlices: any = {};
-          (Object.keys(slices) as (keyof typeof slices)[]).forEach((ft) => {
-            const slice = slices[ft];
-            const filtered = slice.items.filter((p) => p.id !== postId);
-            if (filtered.length !== slice.items.length) {
-              nextSlices[ft] = {
-                ...slice,
-                items: filtered,
-                totalCount: Math.max(0, (slice.totalCount || 0) - 1),
-              };
-            } else {
-              nextSlices[ft] = slice;
-            }
-          });
-          nextUserFeeds[uid] = nextSlices;
-        });
-
-        // Remove from cache
-        const nextCache = { ...state.postsById };
-        delete nextCache[postId];
-
-        return { ...state, feeds: nextFeeds, userFeeds: nextUserFeeds, postsById: nextCache };
-      });
+      dbRemovePostFromAllFeeds(postId);
+      dbDeletePost(postId);
+      set((s) => bumpVersion(s));
     },
 
+    // ── removePostLocally ────────────────────────────────────
     removePostLocally: (postId: string, feedType: FeedType) => {
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          [feedType]: {
-            ...state.feeds[feedType],
-            items: state.feeds[feedType].items.filter(post => post.id !== postId),
-            totalCount: Math.max(0, state.feeds[feedType].totalCount - 1)
-          }
-        }
-      }));
+      const feedKey = buildFeedKey(feedType);
+      dbRemoveFeedItem(feedKey, postId);
+      set((s) => bumpVersion(s));
     },
 
+    // ── addPostToFeed ────────────────────────────────────────
     addPostToFeed: (post: FeedItem, feedType: FeedType) => {
       get().addPostsToFeed([post], feedType);
     },
 
+    // ── addPostsToFeed ───────────────────────────────────────
     addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => {
       if (!posts || posts.length === 0) return;
-      
-      set(state => {
-        const currentFeed = state.feeds[feedType];
-        if (!currentFeed) return state;
-        
-        // Transform posts
-        const transformedPosts = posts.map(p => transformToUIItem(p));
-        
-        // Merge with existing and deduplicate entire array
-        const mergedItems = [...transformedPosts, ...currentFeed.items];
-        const finalItems = deduplicateItems(mergedItems, `addPostsToFeed:${feedType}`);
-        
-        // Update cache
-        const newCache = { ...state.postsById };
-        transformedPosts.forEach((p: FeedItem) => {
-          const id = normalizeId(p);
-          if (id) {
-            newCache[id] = p;
-            primeRelatedPosts(newCache, p);
-          }
-        });
-        
-        try { useUsersStore.getState().primeFromPosts(transformedPosts as any); } catch {}
-        
-        return {
-          ...state,
-          feeds: {
-            ...state.feeds,
-            [feedType]: {
-              ...currentFeed,
-              items: finalItems,
-              totalCount: finalItems.length,
-            }
-          },
-          postsById: newCache
-        };
-      });
 
-      get().prunePostsCache();
+      const feedKey = buildFeedKey(feedType);
+      const transformed = posts.map((p) => transformToUIItem(p));
+      dbUpsertPosts(transformed);
+
+      for (const post of transformed) {
+        dbAddFeedItemAtStart(feedKey, post.id);
+      }
+
+      primeActorsFromPosts(transformed);
+      set((s) => bumpVersion(s));
     },
 
-    // Utility actions
+    // ── Utility ──────────────────────────────────────────────
     clearError: () => set({ error: null }),
-    
+
     clearFeed: (type: FeedType) => {
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          [type]: createDefaultFeedState()
-        }
+      const feedKey = buildFeedKey(type);
+      dbClearFeed(feedKey);
+      set((s) => ({
+        ...bumpVersion(s),
+        feedUI: { ...s.feedUI, [feedKey]: defaultFeedUI() },
       }));
     },
 
     clearUserFeed: (userId: string, type: FeedType) => {
-      set(state => ({
-        userFeeds: {
-          ...state.userFeeds,
-          [userId]: {
-            ...state.userFeeds[userId],
-            [type]: createDefaultFeedState()
-          }
-        }
+      const feedKey = buildFeedKey(type, userId);
+      dbClearFeed(feedKey);
+      set((s) => ({
+        ...bumpVersion(s),
+        feedUI: { ...s.feedUI, [feedKey]: defaultFeedUI() },
       }));
     },
 
     prunePostsCache: () => {
-      const state = get();
-      const postIds = Object.keys(state.postsById);
-      if (postIds.length <= MAX_POSTS_CACHE_SIZE) return;
-
-      // Collect all post IDs referenced by active feeds
-      const referencedIds = new Set<string>();
-      Object.values(state.feeds).forEach(feed => {
-        feed.items.forEach(item => {
-          const id = normalizeId(item);
-          if (id) referencedIds.add(id);
-          if (item.original?.id) referencedIds.add(String(item.original.id));
-          if (item.quoted?.id) referencedIds.add(String(item.quoted.id));
-        });
-      });
-      Object.values(state.userFeeds).forEach(userFeedMap => {
-        Object.values(userFeedMap).forEach(feed => {
-          feed.items.forEach(item => {
-            const id = normalizeId(item);
-            if (id) referencedIds.add(id);
-          });
-        });
-      });
-
-      // Remove unreferenced posts (oldest first by Object.keys insertion order)
-      const unreferenced = postIds.filter(id => !referencedIds.has(id));
-      if (unreferenced.length === 0) return;
-
-      const toRemove = unreferenced.slice(0, postIds.length - MAX_POSTS_CACHE_SIZE);
-      if (toRemove.length === 0) return;
-
-      const newPostsById = { ...state.postsById };
-      toRemove.forEach(id => delete newPostsById[id]);
-      set({ postsById: newPostsById });
+      dbPruneOldPosts();
     },
   }))
 );
 
-// Selectors for better performance - return stable references when data hasn't meaningfully changed
+// ── Compatibility layer ──────────────────────────────────────────
+// These selectors provide backwards-compatible access that reads from SQLite.
+// Components subscribe to dataVersion changes which trigger re-reads.
+
 export const useFeedSelector = (type: FeedType) => {
-  const feed = usePostsStore(state => state.feeds[type]);
-  return feed || {
-    items: [],
-    slices: undefined,
-    hasMore: true,
-    nextCursor: undefined,
-    totalCount: 0,
-    isLoading: false,
-    error: null,
-    lastUpdated: 0,
-    filters: undefined
+  const dataVersion = usePostsStore((s) => s.dataVersion);
+  const feedKey = buildFeedKey(type);
+  const ui = usePostsStore((s) => s.feedUI[feedKey]);
+  const meta = dbGetFeedMeta(feedKey);
+  const items = dbGetAllFeedItems(feedKey);
+
+  return {
+    items,
+    slices: undefined as FeedPostSlice[] | undefined,
+    hasMore: meta?.hasMore ?? true,
+    nextCursor: meta?.nextCursor,
+    totalCount: meta?.totalCount ?? 0,
+    isLoading: ui?.isLoading ?? false,
+    error: ui?.error ?? null,
+    lastUpdated: ui?.lastUpdated ?? 0,
+    filters: ui?.filters,
   };
 };
 
 export const useUserFeedSelector = (userId: string, type: FeedType) => {
-  const feed = usePostsStore(state => state.userFeeds[userId]?.[type]);
-  return feed || {
-    items: [],
-    slices: undefined,
-    hasMore: true,
-    nextCursor: undefined,
-    totalCount: 0,
-    isLoading: false,
-    error: null,
-    lastUpdated: 0
+  const dataVersion = usePostsStore((s) => s.dataVersion);
+  const feedKey = buildFeedKey(type, userId);
+  const ui = usePostsStore((s) => s.feedUI[feedKey]);
+  const meta = dbGetFeedMeta(feedKey);
+  const items = dbGetAllFeedItems(feedKey);
+
+  return {
+    items,
+    slices: undefined as FeedPostSlice[] | undefined,
+    hasMore: meta?.hasMore ?? true,
+    nextCursor: meta?.nextCursor,
+    totalCount: meta?.totalCount ?? 0,
+    isLoading: ui?.isLoading ?? false,
+    error: ui?.error ?? null,
+    lastUpdated: ui?.lastUpdated ?? 0,
   };
 };
 
-export const useFeedLoading = (type: FeedType) => 
-  usePostsStore(state => state.feeds[type]?.isLoading || false);
+export const useFeedLoading = (type: FeedType) => {
+  const feedKey = buildFeedKey(type);
+  return usePostsStore((s) => s.feedUI[feedKey]?.isLoading ?? false);
+};
 
-export const useFeedError = (type: FeedType) => 
-  usePostsStore(state => state.feeds[type]?.error);
+export const useFeedError = (type: FeedType) => {
+  const feedKey = buildFeedKey(type);
+  return usePostsStore((s) => s.feedUI[feedKey]?.error ?? null);
+};
 
-export const useFeedHasMore = (type: FeedType) => 
-  usePostsStore(state => state.feeds[type]?.hasMore || false); 
+export const useFeedHasMore = (type: FeedType) => {
+  const feedKey = buildFeedKey(type);
+  const meta = dbGetFeedMeta(feedKey);
+  return meta?.hasMore ?? false;
+};

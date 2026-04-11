@@ -81,7 +81,7 @@ function formatFullTimestamp(dateString: string): string {
 }
 
 const EMPTY_VIEWER_STATE = { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
-const EMPTY_ENGAGEMENT: PostEngagementSummary = { likes: 0, reposts: 0, replies: 0, saves: null, views: null, impressions: null };
+const EMPTY_ENGAGEMENT: PostEngagementSummary = { likes: 0, downvotes: 0, reposts: 0, replies: 0, saves: null, views: null, impressions: null };
 
 const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) => {
     const { oxyServices } = useAuth();
@@ -98,7 +98,11 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
 
     // Derive view post from store (reactive) or prop
     const postId = post?.id;
-    const storePost = usePostsStore((state) => (postId ? state.postsById[String(postId)] : null));
+    const dataVersion = usePostsStore((state) => state.dataVersion);
+    const storePost = useMemo(() => {
+        if (!postId) return null;
+        return usePostsStore.getState().getPostFromDb(String(postId));
+    }, [postId, dataVersion]);
     const rawPost = (storePost ?? post) as PostEntity;
     // If this is a repost, display the original post as the main content
     const viewPost = (rawPost?.repost?.originalPost || rawPost?.original || rawPost) as PostEntity;

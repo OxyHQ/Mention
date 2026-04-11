@@ -29,7 +29,8 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     const { oxyServices } = useAuth();
     const router = useRouter();
     const theme = useTheme();
-    const { fetchUserFeed, postsById } = usePostsStore();
+    const { fetchUserFeed } = usePostsStore();
+    const getPostFromDb = usePostsStore((s) => s.getPostFromDb);
     const mediaFeed = useUserFeedSelector(userId || '', 'media');
     const postsFeed = useUserFeedSelector(userId || '', 'posts');
     // Non-scrollable grid inside parent ScrollView; pull-to-refresh handled by parent
@@ -174,13 +175,13 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             extractFrom(p, String(p.id));
             const origId = p?.originalPostId || p?.repostOf || p?.quoteOf;
             if (origId && (!p?.allMediaIds?.length && !p?.mediaIds?.length)) {
-                const orig = postsById?.[String(origId)];
+                const orig = getPostFromDb(String(origId));
                 if (orig) extractFrom(orig, String(p.id));
             }
         }
 
         return out.filter(Boolean) as { postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number }[];
-    }, [mediaFeed?.items, postsFeed?.items, resolveImageUri, resolveVideoUri, postsById]);
+    }, [mediaFeed?.items, postsFeed?.items, resolveImageUri, resolveVideoUri, getPostFromDb]);
 
     // Refresh handled outside by parent feed/scroll
 

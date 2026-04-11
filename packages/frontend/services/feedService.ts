@@ -41,19 +41,11 @@ interface FeedServiceOptions {
   skipCache?: boolean;
 }
 
-interface CachedFeedResponse {
-  data: FeedServiceResponse;
-  timestamp: number;
-  expiresAt: number;
-}
+// In-flight request deduplication (transient — stays in memory, not SQLite)
+const inFlightRequests = new Map<string, Promise<FeedServiceResponse>>();
 
-// Client-side cache for feed responses (L3 cache - 2-5 minutes TTL for initial loads)
-const feedCache = new Map<string, CachedFeedResponse>();
-const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes for initial loads (increased from 30s)
-const CACHE_TTL_PAGINATION_MS = 30 * 1000; // 30 seconds for pagination requests
-
-// Generate stable cache key from request (avoids JSON.stringify key-order instability)
-function getCacheKey(request: ExtendedFeedRequest): string {
+// Generate stable dedup key from request
+function getDedupeKey(request: ExtendedFeedRequest): string {
   const filters = request.filters;
   const filterKey = filters
     ? Object.keys(filters).sort().map((k) => `${k}=${(filters as any)[k] ?? ''}`).join('&')
@@ -61,48 +53,20 @@ function getCacheKey(request: ExtendedFeedRequest): string {
   return `${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
 }
 
-// Clean up expired cache entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, cached] of feedCache.entries()) {
-    if (now > cached.expiresAt) {
-      feedCache.delete(key);
-    }
-  }
-}, 60000); // Clean up every minute
-
-// In-flight request deduplication
-const inFlightRequests = new Map<string, Promise<FeedServiceResponse>>();
-
 class FeedService {
   /**
-   * Get feed data from backend using Oxy authenticated client
-   * Includes client-side caching for 30 seconds to reduce redundant requests
+   * Get feed data from backend.
+   * Caching is now handled by SQLite via postsStore — this is a pure network layer.
    */
   async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedServiceResponse> {
-      // Check cache first (only for non-cursor requests to avoid stale pagination)
-      if (!request.cursor && !options?.skipCache) {
-        const cacheKey = getCacheKey(request);
-        const cached = feedCache.get(cacheKey);
-        if (cached && Date.now() < cached.expiresAt) {
-          logger.debug('[FeedService] Cache hit', { type: request.type });
-          return cached.data;
-        }
-      }
-
       // Deduplicate in-flight requests
-      const dedupeKey = options?.skipCache ? undefined : getCacheKey(request);
-      if (dedupeKey) {
-        const inFlight = inFlightRequests.get(dedupeKey);
-        if (inFlight) {
-          return inFlight;
-        }
-      }
+      const dedupeKey = getDedupeKey(request);
+      const inFlight = inFlightRequests.get(dedupeKey);
+      if (inFlight) return inFlight;
 
       const fetchPromise = (async () => {
         try {
-
-          // Handle hashtag feed — dedicated endpoint
+          // Handle hashtag feed
           if (request.type === 'hashtag' && request.filters?.hashtag) {
             const tag = encodeURIComponent(request.filters.hashtag);
             const tagParams: any = {};
@@ -116,7 +80,7 @@ class FeedService {
             return response.data;
           }
 
-          // Handle topic feed — dedicated endpoint
+          // Handle topic feed
           if (request.type === 'topic' && request.filters?.topic) {
             const topic = encodeURIComponent(request.filters.topic);
             const topicParams: any = {};
@@ -130,31 +94,24 @@ class FeedService {
             return response.data;
           }
 
-          // Handle custom feed type - use dedicated timeline endpoint (backend-driven)
+          // Handle custom feed
           if (request.type === 'custom' && request.filters?.customFeedId) {
             const feedId = request.filters.customFeedId;
             const timelineParams: any = {};
             if (request.cursor) timelineParams.cursor = request.cursor;
             if (request.limit) timelineParams.limit = request.limit;
 
-            try {
-              const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, {
-                params: timelineParams,
-                signal: options?.signal,
-              });
-              // Backend returns posts directly in FeedResponse format
-              return response.data;
-            } catch (authError: any) {
-              // Custom feeds require authentication, so re-throw auth errors
-              throw authError;
-            }
+            const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, {
+              params: timelineParams,
+              signal: options?.signal,
+            });
+            return response.data;
           }
 
-          // Handle replies feed — dedicated endpoint with parentPostId
+          // Handle replies feed
           if (request.type === 'replies') {
             const parentId = request.filters?.parentPostId || request.filters?.postId;
             if (!parentId) {
-              // No parent post ID — can't fetch replies without a target post
               return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
             }
             const repliesParams: any = {};
@@ -169,7 +126,7 @@ class FeedService {
             return response.data;
           }
 
-          // Route all standard feed types through the MTN descriptor-based API
+          // Route standard feeds through MTN descriptor-based API
           const descriptor: FeedDescriptor = (request.type || 'for_you') as FeedDescriptor;
           return await this.getMtnFeed(descriptor, {
             cursor: request.cursor,
@@ -182,11 +139,10 @@ class FeedService {
             status: error?.response?.status,
             statusText: error?.response?.statusText,
             data: error?.response?.data,
-            type: request.type,
+            feedType: request.type,
             stack: error?.stack
           });
 
-          // Re-throw with more context
           const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to fetch feed';
           const errorToThrow = new Error(errorMessage);
           (errorToThrow as any).status = error?.response?.status;
@@ -195,16 +151,12 @@ class FeedService {
         }
       })();
 
-      if (dedupeKey) {
-        inFlightRequests.set(dedupeKey, fetchPromise);
-        try {
-          return await fetchPromise;
-        } finally {
-          inFlightRequests.delete(dedupeKey);
-        }
+      inFlightRequests.set(dedupeKey, fetchPromise);
+      try {
+        return await fetchPromise;
+      } finally {
+        inFlightRequests.delete(dedupeKey);
       }
-
-      return fetchPromise;
   }
 
   /**
@@ -244,7 +196,6 @@ class FeedService {
    * Create a new post
    */
   async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: unknown }> {
-    // Map the request to match backend expectations
     const backendRequest = {
       content: {
         ...request.content,
@@ -267,9 +218,6 @@ class FeedService {
     const response = await authenticatedClient.post('/posts', backendRequest);
     const data = response?.data;
 
-    // Invalidate feed cache so new post appears immediately
-    feedCache.clear();
-
     if (data && typeof data === 'object' && data !== null && 'post' in data) {
       return {
         success: typeof (data as Record<string, unknown>).success === 'boolean'
@@ -287,7 +235,6 @@ class FeedService {
    */
   async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: unknown[] }> {
     const response = await authenticatedClient.post('/posts/thread', request);
-    feedCache.clear();
     return { success: true, posts: response.data };
   }
 
@@ -303,8 +250,6 @@ class FeedService {
     };
 
     const response = await authenticatedClient.post('/feed/reply', backendRequest);
-    // Invalidate cache so reply appears immediately
-    feedCache.clear();
     return { success: true, reply: response.data };
   }
 
@@ -320,8 +265,6 @@ class FeedService {
     };
 
     const response = await authenticatedClient.post('/feed/repost', backendRequest);
-    // Invalidate cache so repost appears immediately
-    feedCache.clear();
     return { success: true, repost: response.data };
   }
 
@@ -365,7 +308,6 @@ class FeedService {
     return { success: true, data: response.data };
   }
 
-
   /**
    * Get saved posts for current user
    */
@@ -384,7 +326,7 @@ class FeedService {
   }
 
   /**
-   * Edit an existing post (within 30-minute edit window)
+   * Edit an existing post
    */
   async editPost(postId: string, data: { content: { text: string; media?: any[] }; hashtags?: string[]; mentions?: string[] }): Promise<any> {
     const response = await authenticatedClient.put(`/posts/${postId}`, data);
@@ -395,19 +337,18 @@ class FeedService {
    * Get post by ID
    */
   async getPostById(postId: string): Promise<any> {
-    // Prefer transformed feed item for consistent user/engagement shape
     try {
       const transformed = await authenticatedClient.get(`/feed/item/${postId}`);
       return transformed.data;
     } catch {
-      // Fallback to posts endpoint for backward compatibility
+      // Fallback to posts endpoint
     }
     const response = await authenticatedClient.get(`/posts/${postId}`);
     return response.data;
   }
 
   /**
-   * Update post settings (pin, hide counts, reply permissions, review replies)
+   * Update post settings
    */
   async updatePostSettings(postId: string, settings: {
     isPinned?: boolean;
@@ -433,7 +374,6 @@ class FeedService {
    */
   async getPostsByHashtag(hashtag: string, request: FeedRequest): Promise<FeedResponse> {
     const params: Record<string, unknown> = {};
-
     if (request.cursor) params.cursor = request.cursor;
     if (request.limit) params.limit = request.limit;
 
@@ -442,11 +382,10 @@ class FeedService {
   }
 
   /**
-   * Get posts by extracted topic or entity name
+   * Get posts by topic
    */
   async getPostsByTopic(topic: string, request: FeedRequest): Promise<FeedResponse> {
     const params: Record<string, unknown> = {};
-
     if (request.cursor) params.cursor = request.cursor;
     if (request.limit) params.limit = request.limit;
 
@@ -458,13 +397,7 @@ class FeedService {
    * Get users who liked a post
    */
   async getPostLikes(postId: string, cursor?: string, limit: number = 50): Promise<{
-    users: Array<{
-      id: string;
-      name: string;
-      handle: string;
-      avatar: string;
-      verified: boolean;
-    }>;
+    users: Array<{ id: string; name: string; handle: string; avatar: string; verified: boolean }>;
     hasMore: boolean;
     nextCursor?: string;
     totalCount: number;
@@ -480,13 +413,7 @@ class FeedService {
    * Get users who reposted a post
    */
   async getPostReposts(postId: string, cursor?: string, limit: number = 50): Promise<{
-    users: Array<{
-      id: string;
-      name: string;
-      handle: string;
-      avatar: string;
-      verified: boolean;
-    }>;
+    users: Array<{ id: string; name: string; handle: string; avatar: string; verified: boolean }>;
     hasMore: boolean;
     nextCursor?: string;
     totalCount: number;
@@ -504,7 +431,6 @@ class FeedService {
 
   /**
    * Fetch feed using MTN descriptor-based API.
-   * Single endpoint replaces all per-type endpoint routing.
    */
   async getMtnFeed(
     descriptor: FeedDescriptor,
@@ -514,14 +440,8 @@ class FeedService {
     if (options?.cursor) params.cursor = options.cursor;
     if (options?.limit) params.limit = options.limit;
 
-    // Cache check
-    const cacheKey = `mtn|${descriptor}|${options?.cursor || 'initial'}`;
-    const cached = feedCache.get(cacheKey);
-    if (cached && Date.now() < cached.expiresAt) {
-      return cached.data;
-    }
-
     // Dedup in-flight
+    const cacheKey = `mtn|${descriptor}|${options?.cursor || 'initial'}`;
     const existing = inFlightRequests.get(cacheKey);
     if (existing) return existing;
 
@@ -531,13 +451,7 @@ class FeedService {
           params,
           signal: options?.signal,
         });
-        const data = response.data?.data || response.data;
-
-        // Cache
-        const ttl = options?.cursor ? CACHE_TTL_PAGINATION_MS : CACHE_TTL_MS;
-        feedCache.set(cacheKey, { data, timestamp: Date.now(), expiresAt: Date.now() + ttl });
-
-        return data;
+        return response.data?.data || response.data;
       } catch (authError: any) {
         const status = authError?.response?.status;
         if (status === 401 || status === 403) {
@@ -560,7 +474,7 @@ class FeedService {
   }
 
   /**
-   * Peek at the latest item in a feed (for "new posts" indicators).
+   * Peek at the latest item in a feed
    */
   async peekMtnFeed(descriptor: FeedDescriptor): Promise<any | null> {
     try {
@@ -574,7 +488,7 @@ class FeedService {
   }
 
   /**
-   * Send feed interaction data (impressions, clicks, engagement).
+   * Send feed interaction data
    */
   async sendFeedInteraction(data: {
     feedDescriptor: string;
@@ -585,7 +499,7 @@ class FeedService {
     try {
       await authenticatedClient.post('/feed/mtn/interactions', data);
     } catch {
-      // Non-critical — swallow errors
+      // Non-critical
     }
   }
 
@@ -593,21 +507,15 @@ class FeedService {
   // Federation — ActivityPub follow/unfollow
   // ────────────────────────────────────────────────────────────
 
-  /**
-   * Send an ActivityPub Follow activity to a remote federated actor.
-   */
   async followFederatedActor(actorUri: string): Promise<{ success: boolean; pending: boolean }> {
     const response = await authenticatedClient.post('/federation/follow', { actorUri });
     return response.data;
   }
 
-  /**
-   * Send an ActivityPub Undo(Follow) activity to a remote federated actor.
-   */
   async unfollowFederatedActor(actorUri: string): Promise<{ success: boolean }> {
     const response = await authenticatedClient.post('/federation/unfollow', { actorUri });
     return response.data;
   }
 }
 
-export const feedService = new FeedService(); 
+export const feedService = new FeedService();

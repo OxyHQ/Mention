@@ -76,8 +76,7 @@ const PostDetailScreen: React.FC = () => {
                 setError(null);
 
                 // Check cache first for instant loading (offline support)
-                const { postsById } = usePostsStore.getState();
-                const cachedPost = postsById[id];
+                const cachedPost = usePostsStore.getState().getPostFromDb(id);
 
                 if (cachedPost) {
                     setPost(cachedPost as any);
@@ -85,7 +84,7 @@ const PostDetailScreen: React.FC = () => {
 
                     // Fetch parent post if this is a reply
                     if ((cachedPost as any).parentPostId) {
-                        const cachedParent = postsById[(cachedPost as any).parentPostId];
+                        const cachedParent = usePostsStore.getState().getPostFromDb((cachedPost as any).parentPostId);
                         if (cachedParent) {
                             setParentPost(cachedParent as any);
                         } else {

@@ -49,8 +49,15 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     const store = usePostsStore.getState();
     fetchUserFeedRef.current = store.fetchUserFeed;
     getUserSliceRef.current = (userId: string, type: FeedType) => {
-      const state = usePostsStore.getState();
-      return state.userFeeds[userId]?.[type];
+      const feedKey = `user:${userId}:${type}`;
+      const ui = usePostsStore.getState().feedUI[feedKey];
+      const { getFeedMeta } = require('@/db');
+      const meta = getFeedMeta(feedKey);
+      return {
+        hasMore: meta?.hasMore ?? true,
+        nextCursor: meta?.nextCursor,
+        isLoading: ui?.isLoading ?? false,
+      };
     };
   }, []);
 

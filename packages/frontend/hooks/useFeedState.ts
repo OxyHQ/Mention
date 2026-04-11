@@ -5,14 +5,14 @@ import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
 import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
+import { buildFeedKey, hasFeedData } from '@/db';
 
 const logger = createScopedLogger('useFeedState');
 
 // Retry configuration
 const MAX_RETRIES = 3;
-const BASE_RETRY_DELAY = 1000; // 1 second
+const BASE_RETRY_DELAY = 1000;
 
-// Exponential backoff helper
 async function withRetry<T>(
     fn: () => Promise<T>,
     options: {
@@ -27,36 +27,18 @@ async function withRetry<T>(
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            if (signal?.aborted) {
-                throw new Error('Request aborted');
-            }
+            if (signal?.aborted) throw new Error('Request aborted');
             return await fn();
         } catch (error) {
             lastError = error;
-
-            // Don't retry if aborted
-            if (signal?.aborted) {
-                throw error;
-            }
-
-            // Don't retry on last attempt
-            if (attempt === maxRetries) {
-                throw error;
-            }
-
-            // Don't retry on 4xx errors (client errors)
-            if (error instanceof Error && error.message.includes('4')) {
-                throw error;
-            }
-
+            if (signal?.aborted) throw error;
+            if (attempt === maxRetries) throw error;
+            if (error instanceof Error && error.message.includes('4')) throw error;
             onRetry?.(attempt + 1, error);
-
-            // Exponential backoff with jitter
             const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
-
     throw lastError;
 }
 
@@ -72,15 +54,12 @@ export interface UseFeedStateOptions {
 }
 
 export interface UseFeedStateReturn {
-    // Feed data
     items: HydratedPost[];
     slices?: FeedPostSlice[];
     hasMore: boolean;
     isLoading: boolean;
     error: string | null;
     nextCursor?: string;
-
-    // Actions
     fetchInitial: (forceRefresh?: boolean) => Promise<void>;
     refresh: () => Promise<void>;
     loadMore: () => Promise<void>;
@@ -88,8 +67,10 @@ export interface UseFeedStateReturn {
 }
 
 /**
- * Custom hook for managing feed state and fetching
- * Handles both scoped (local) and global feed state
+ * Custom hook for managing feed state and fetching.
+ * 
+ * Global mode reads from SQLite (instant cold start) and fetches in background.
+ * Scoped mode uses local state with direct feedService calls (unchanged).
  */
 export function useFeedState({
     type,
@@ -117,7 +98,7 @@ export function useFeedState({
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Global feed state - use exported selectors for consistency
+    // Global feed state — reads from SQLite via selectors
     const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
     const globalFeedSelector = useFeedSelector(effectiveType);
     const userFeedSelector = useUserFeedSelector(userId || '', effectiveType);
@@ -129,7 +110,6 @@ export function useFeedState({
     const abortControllerRef = useRef<AbortController | null>(null);
     const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
 
-    // Cleanup abort controller on unmount
     useEffect(() => {
         return () => {
             if (abortControllerRef.current) {
@@ -148,7 +128,6 @@ export function useFeedState({
 
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
-            // Prevent duplicate calls
             if (isFetchingRef.current) {
                 logger.debug('Already fetching, skipping');
                 return;
@@ -156,12 +135,9 @@ export function useFeedState({
 
             isFetchingRef.current = true;
 
-            // Cancel previous request if still pending
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
-
-            // Create new abort controller
             abortControllerRef.current = new AbortController();
             const signal = abortControllerRef.current.signal;
 
@@ -172,21 +148,36 @@ export function useFeedState({
             }
 
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
-            // For user profile feeds, check userFeeds state; for global feeds, check feeds state
-            const storeState = usePostsStore.getState();
-            const currentFeed = !useScoped
-                ? (userId
-                    ? storeState.userFeeds[userId]?.[feedTypeToCheck]
-                    : storeState.feeds[feedTypeToCheck])
-                : null;
-            const hasItems = currentFeed?.items && currentFeed.items.length > 0;
-            const wasFetched = currentFeed?.lastUpdated && currentFeed.lastUpdated > 0;
 
-            // Skip if feed was properly fetched (lastUpdated > 0) and has items
-            if (!useScoped && hasItems && wasFetched && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
-                logger.debug('Skipping - feed has items and not saved');
-                isFetchingRef.current = false;
-                return;
+            // Check SQLite for cached data (cold-start optimization)
+            if (!useScoped && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
+                const feedKey = userId
+                    ? buildFeedKey(feedTypeToCheck, userId)
+                    : buildFeedKey(feedTypeToCheck);
+
+                // If SQLite has items AND the UI state shows it was previously fetched
+                const ui = usePostsStore.getState().feedUI[feedKey];
+                const hasDbData = hasFeedData(feedKey);
+
+                if (hasDbData && ui?.lastUpdated && ui.lastUpdated > 0) {
+                    logger.debug('Skipping — feed has SQLite cache');
+                    isFetchingRef.current = false;
+                    return;
+                }
+
+                // SQLite has data from a previous session but no UI state yet
+                // Show cached data immediately, then fetch fresh in background
+                if (hasDbData && !ui?.lastUpdated) {
+                    logger.debug('Cold start — showing SQLite cache, fetching in background');
+                    isFetchingRef.current = false;
+                    // Trigger background refresh without blocking
+                    if (userId) {
+                        fetchUserFeed(userId, { type, limit: 20, filters });
+                    } else {
+                        fetchFeed({ type, limit: 20, filters });
+                    }
+                    return;
+                }
             }
 
             try {
@@ -240,7 +231,6 @@ export function useFeedState({
                     logger.debug('Request aborted');
                     return;
                 }
-
                 logger.error('Error fetching feed', err);
                 if (useScoped) {
                     setLocalError('Failed to load');
@@ -269,7 +259,6 @@ export function useFeedState({
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
-
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
@@ -297,7 +286,6 @@ export function useFeedState({
 
                 if (signal.aborted) return;
 
-                // Filter and deduplicate items
                 let items = resp.items || [];
                 const pid = filters?.postId || filters?.parentPostId;
                 if (pid) {
@@ -317,7 +305,6 @@ export function useFeedState({
             }
         } catch (err: unknown) {
             if (signal.aborted) return;
-
             logger.error('Error refreshing feed after retries', err);
             if (useScoped) {
                 setLocalError('Failed to refresh');
@@ -336,7 +323,6 @@ export function useFeedState({
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
-
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
@@ -364,7 +350,7 @@ export function useFeedState({
                     ),
                     {
                         signal,
-                        maxRetries: 2, // Fewer retries for load more
+                        maxRetries: 2,
                         onRetry: (attempt) => {
                             logger.debug(`Retrying load more (attempt ${attempt})`);
                         },
@@ -381,7 +367,6 @@ export function useFeedState({
                     );
                 }
 
-                // Deduplicate against existing items - O(n) with Set lookup
                 setLocalItems((prev) => {
                     const existingIds = new Set(prev.map(getItemKey));
                     const uniqueNew = deduplicateItems(items, getItemKey).filter(
@@ -390,7 +375,6 @@ export function useFeedState({
                     return prev.concat(uniqueNew);
                 });
 
-                // Append new slices
                 const newSlices = resp.slices;
                 if (newSlices && newSlices.length > 0) {
                     setLocalSlices((prev) => prev ? [...prev, ...newSlices] : newSlices);
@@ -416,13 +400,10 @@ export function useFeedState({
                 logger.debug('Load more aborted');
                 return;
             }
-
             logger.error('Error loading more', err);
             if (useScoped) {
                 let errorMessage = 'Failed to load more posts';
-                if (err instanceof Error) {
-                    errorMessage = err.message;
-                }
+                if (err instanceof Error) errorMessage = err.message;
                 setLocalError(errorMessage);
             }
         } finally {
@@ -444,7 +425,7 @@ export function useFeedState({
         fetchUserFeed,
     ]);
 
-    // Handle reloadKey changes - force refresh when user presses same tab
+    // Handle reloadKey changes
     useDeepCompareEffect(() => {
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
@@ -453,35 +434,18 @@ export function useFeedState({
         if (reloadKeyChanged) {
             fetchInitial(true);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reloadKey]); // Only depend on reloadKey to avoid unnecessary re-runs
+    }, [reloadKey]);
 
-    // Handle initial load and filter changes - skip if feed already has items
+    // Handle initial load and filter changes
     useDeepCompareEffect(() => {
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
-        if (reloadKeyChanged) return; // Let reloadKey effect handle it
-
-        if (!useScoped && !showOnlySaved) {
-            const feedTypeToCheck = type;
-            // For user profile feeds, check userFeeds state; for global feeds, check feeds state
-            const storeState = usePostsStore.getState();
-            const currentFeed = userId
-                ? storeState.userFeeds[userId]?.[feedTypeToCheck]
-                : storeState.feeds[feedTypeToCheck];
-            const hasItems = currentFeed?.items && currentFeed.items.length > 0 && currentFeed.lastUpdated > 0;
-
-            if (hasItems && !filters?.searchQuery) {
-                logger.debug('Skipping - feed has items and no search query');
-                return;
-            }
-        }
+        if (reloadKeyChanged) return;
 
         fetchInitial(false);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [type, userId, filters, useScoped, showOnlySaved]); // userId needed to re-fetch when navigating between profiles
+    }, [type, userId, filters, useScoped, showOnlySaved]);
 
-    // Return appropriate state based on scoped vs global
+    // Return appropriate state
     const items = useScoped ? localItems : globalFeed?.items || [];
     const slices = useScoped ? localSlices : globalFeed?.slices;
     const hasMore = useScoped ? localHasMore : !!globalFeed?.hasMore;
