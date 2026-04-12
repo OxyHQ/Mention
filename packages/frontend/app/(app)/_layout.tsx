@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
-import { Slot } from "expo-router";
+import { Slot, usePathname } from "expo-router";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { useAuth } from '@oxyhq/services';
@@ -64,10 +64,24 @@ const DrawerOverlay = memo(function DrawerOverlay() {
   );
 });
 
+/**
+ * Profile routes own the screen-level color scope. Any other route must render
+ * with the app-wide theme, so the layout ignores any stale screenColor value
+ * when the pathname is outside the profile subtree. This is the safety net
+ * that prevents per-profile colors from leaking into other pages.
+ */
+function isProfileRoute(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  // Expo Router represents profile routes as /@username[/sub]
+  return pathname.startsWith('/@');
+}
+
 const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = memo(({ isScreenNotMobile, isAuthenticated }) => {
   const { forwardWheelEvent } = useLayoutScroll();
   const { screenColor } = useScreenColor();
   const theme = useTheme();
+  const pathname = usePathname();
+  const onProfileRoute = isProfileRoute(pathname);
 
   const handleWheel = useCallback((event: any) => {
     forwardWheelEvent(event);
@@ -80,12 +94,14 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = mem
 
   // Apply screen-level color scoping to the middle column so layout-owned
   // elements (e.g. SignInBanner) inherit the active screen's color preset.
+  // Only honour the color when we're actually on a profile route — this guards
+  // against any child-propagated state that failed to clean up on unmount.
   const screenColorVars = useMemo(() => {
-    if (!screenColor) return undefined;
+    if (!onProfileRoute || !screenColor) return undefined;
     const preset = APP_COLOR_PRESETS[screenColor];
     if (!preset) return undefined;
     return vars(getScopedColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
-  }, [screenColor, theme.isDark]);
+  }, [onProfileRoute, screenColor, theme.isDark]);
 
   return (
     <View

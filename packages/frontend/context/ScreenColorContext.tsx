@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { AppColorName } from '@/lib/app-color-presets';
 
 interface ScreenColorContextValue {
@@ -17,11 +17,17 @@ export function ScreenColorProvider({ children }: { children: React.ReactNode })
   const [screenColor, setScreenColorState] = useState<AppColorName | undefined>(undefined);
 
   const setScreenColor = useCallback((color: AppColorName | undefined) => {
-    setScreenColorState(color);
+    setScreenColorState((prev) => (prev === color ? prev : color));
   }, []);
 
+  // Memoize the context value so consumers don't re-render unnecessarily.
+  const value = useMemo<ScreenColorContextValue>(
+    () => ({ screenColor, setScreenColor }),
+    [screenColor, setScreenColor],
+  );
+
   return (
-    <ScreenColorContext.Provider value={{ screenColor, setScreenColor }}>
+    <ScreenColorContext.Provider value={value}>
       {children}
     </ScreenColorContext.Provider>
   );

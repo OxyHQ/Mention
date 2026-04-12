@@ -16,13 +16,12 @@ import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
 import { useUsersStore } from '@/stores/usersStore';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
-import { vars } from 'react-native-css';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useAuth } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorComponent } from '@/components/Error';
 import { useProfileData } from '@/hooks/useProfileData';
+import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { logger } from '@/lib/logger';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
@@ -43,15 +42,16 @@ export default function ConnectionsScreen() {
   const theme = useTheme();
   const { data: profileData } = useProfileData(cleanUsername);
 
-  // Scoped color override for visited user's color preset
+  // Scoped color override for visited user's color preset. The shared hook
+  // resolves forced brand themes (e.g. faircoin), propagates the colour to
+  // the app layout so layout-owned elements inherit it, and cleans up on
+  // unmount so navigating away reverts to the app-wide theme.
   const isOwnProfile = user?.id === profileData?.id;
-  const profileColorVars = useMemo(() => {
-    const color = profileData?.design?.color;
-    if (isOwnProfile || !color) return undefined;
-    const preset = APP_COLOR_PRESETS[color as keyof typeof APP_COLOR_PRESETS];
-    if (!preset) return undefined;
-    return vars(getScopedColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
-  }, [isOwnProfile, profileData?.design?.color, theme.isDark]);
+  const { colorVars: profileColorVars } = useProfileScreenColor({
+    username: cleanUsername,
+    designColor: profileData?.design?.color,
+    isOwnProfile,
+  });
 
   // Determine active tab from pathname
   const getActiveTab = useCallback((): TabType => {

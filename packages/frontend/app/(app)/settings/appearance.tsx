@@ -1,13 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Image, Pressable } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useThemeStore } from '@/lib/theme-store';
-import { APP_COLOR_PRESETS } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
-import { PREMIUM_COLOR_NAMES } from '@/lib/app-color-presets';
+import { APP_COLOR_PRESETS, PREMIUM_COLOR_NAMES, type AppColorName } from '@/lib/app-color-presets';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -50,10 +49,20 @@ export default function AppearanceSettingsScreen() {
     }
   }, [mySettings]);
 
-  const isOxyUser = authUser?.username?.toLowerCase() === 'oxy';
+  const normalizedUsername = authUser?.username?.toLowerCase();
+  const isOxyUser = normalizedUsername === 'oxy';
+  const isFaircoinUser = normalizedUsername === 'faircoin';
   const authUserRecord = authUser as { premium?: { isPremium?: boolean } } | null;
   const isPremium = authUserRecord?.premium?.isPremium ?? false;
-  const extraColors = isOxyUser || isPremium ? PREMIUM_COLOR_NAMES : undefined;
+  // Premium users see every premium color. Otherwise, unlock only the color tied
+  // to the current username (e.g. @oxy unlocks "oxy", @faircoin unlocks "faircoin").
+  const unlockedPremiumColors = useMemo<AppColorName[] | undefined>(() => {
+    if (isPremium) return PREMIUM_COLOR_NAMES;
+    const unlocked: AppColorName[] = [];
+    if (isOxyUser) unlocked.push('oxy');
+    if (isFaircoinUser) unlocked.push('faircoin');
+    return unlocked.length > 0 ? unlocked : undefined;
+  }, [isPremium, isOxyUser, isFaircoinUser]);
 
   const preset = APP_COLOR_PRESETS[appColor];
 
@@ -160,7 +169,7 @@ export default function AppearanceSettingsScreen() {
             </Text>
           </View>
 
-          <ColorSwatchPicker value={appColor} onChange={onColorChange} extraColors={extraColors} />
+          <ColorSwatchPicker value={appColor} onChange={onColorChange} extraColors={unlockedPremiumColors} />
         </View>
 
         <SettingsDivider />

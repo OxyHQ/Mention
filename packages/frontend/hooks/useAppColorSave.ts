@@ -3,7 +3,7 @@ import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
 import { useThemeStore } from '@/lib/theme-store';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { APP_COLOR_PRESETS, type AppColorName } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, type AppColorName } from '@/lib/app-color-presets';
 
 /**
  * Hook that centralizes the three-step color save sequence:

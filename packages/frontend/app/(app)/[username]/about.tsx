@@ -13,9 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
+import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { useAuth } from '@oxyhq/services';
-import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
-import { vars } from 'react-native-css';
 
 export default function AccountInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -31,13 +30,15 @@ export default function AccountInfoScreen() {
   const isOwnProfile = currentUser?.id === profileData?.id;
   const design = profileData?.design;
 
-  // Scoped color override for visited user's color preset
-  const profileColorVars = useMemo(() => {
-    if (isOwnProfile || !design?.color) return undefined;
-    const preset = APP_COLOR_PRESETS[design.color as keyof typeof APP_COLOR_PRESETS];
-    if (!preset) return undefined;
-    return vars(getScopedColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
-  }, [isOwnProfile, design?.color, theme.isDark]);
+  // Scoped color override for visited user's color preset. The shared hook
+  // resolves forced brand themes (e.g. faircoin), propagates the colour to
+  // the app layout so layout-owned elements inherit it, and cleans up on
+  // unmount so navigating away reverts to the app-wide theme.
+  const { colorVars: profileColorVars } = useProfileScreenColor({
+    username: cleanUsername,
+    designColor: design?.color,
+    isOwnProfile,
+  });
 
   const avatarSource = profileData?.design?.avatar || profileData?.avatar;
 

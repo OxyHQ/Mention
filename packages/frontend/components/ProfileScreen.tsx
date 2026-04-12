@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect, useContext, useRef, type ReactNode } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useContext, useRef } from 'react';
 import {
     Animated,
     ImageBackground,
@@ -15,13 +15,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
-import type { AppColorName } from '@oxyhq/bloom/theme';
-import { vars } from 'react-native-css';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
+import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
@@ -33,7 +31,6 @@ import { logger } from '@/lib/logger';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
-import { useScreenColor } from '@/context/ScreenColorContext';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -92,10 +89,6 @@ const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts']
  * Profile Screen - Main orchestrator component
  * Follows industry best practices with clean separation of concerns
  */
-function ProfileColorScope({ children }: { colorPreset?: AppColorName; children: ReactNode }) {
-    return <>{children}</>;
-}
-
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { user: currentUser, oxyServices, showBottomSheet } = useAuth();
     const theme = useTheme();
@@ -189,33 +182,19 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
 
-    // Scoped color override: apply visited user's color preset to entire profile subtree
-    const { setScreenColor } = useScreenColor();
-    const visitedColorName = useMemo<AppColorName | undefined>(() => {
-        if (isOwnProfile || !design?.color) return undefined;
-        const name = design.color as AppColorName;
-        return APP_COLOR_PRESETS[name] ? name : undefined;
-    }, [isOwnProfile, design?.color]);
-    const visitedColorPreset = visitedColorName ? APP_COLOR_PRESETS[visitedColorName] : undefined;
-
-    // Propagate color to layout so layout-owned elements (SignInBanner, etc.) inherit it
-    useEffect(() => {
-        const colorName = !isOwnProfile && design?.color ? design.color as keyof typeof APP_COLOR_PRESETS : undefined;
-        setScreenColor(colorName && APP_COLOR_PRESETS[colorName] ? colorName : undefined);
-        return () => setScreenColor(undefined);
-    }, [isOwnProfile, design?.color, setScreenColor]);
-
-    const profileColorVars = useMemo(() => {
-        if (!visitedColorPreset) return undefined;
-        return vars(getScopedColorCSSVariables(visitedColorPreset, theme.isDark ? 'dark' : 'light'));
-    }, [visitedColorPreset, theme.isDark]);
-
-    // Compute explicit background color from the preset so NativeWind bg-background gets overridden
-    const profileBgColor = useMemo(() => {
-        if (!visitedColorPreset) return undefined;
-        const hslValues = (theme.isDark ? visitedColorPreset.dark : visitedColorPreset.light)['--background'];
-        return hslValues ? `hsl(${hslValues.replace(/ /g, ', ')})` : undefined;
-    }, [visitedColorPreset, theme.isDark]);
+    // Scoped color override: apply visited user's color preset to entire profile
+    // subtree and propagate it to the app layout so layout-owned elements
+    // (SignInBanner, middle column background) inherit the same theme. The
+    // shared hook handles cleanup on unmount so navigating away never leaks.
+    const {
+        preset: visitedColorPreset,
+        colorVars: profileColorVars,
+        backgroundColor: profileBgColor,
+    } = useProfileScreenColor({
+        username,
+        designColor: design?.color,
+        isOwnProfile,
+    });
 
     // User's profile color hex for passing to buttons
     const isPrivate = useMemo(
@@ -457,7 +436,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 image={profileImage}
                 type="profile"
             />
-            <ProfileColorScope colorPreset={visitedColorName}>
             <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileColorVars, profileBgColor ? { backgroundColor: profileBgColor } : undefined]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
@@ -641,7 +619,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     </>
                 )}
             </View>
-            </ProfileColorScope>
         </>
     );
 };
