@@ -123,4 +123,10 @@ keystore.base64.txt
 infrastructure/livekit/.env
 
 # Firebase credentials
-google-services.jsonpackages/backend/uploads/
+google-services.json
+
+# Backend uploads
+packages/backend/uploads/
+
+# AI tool worktrees
+.claude/
