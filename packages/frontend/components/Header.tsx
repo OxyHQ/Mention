@@ -78,7 +78,7 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
                 {titlePosition === "left" && (
                     <View style={[options?.headerTitleStyle, { flex: 1 }]}>
                         {options?.title && (
-                            <Text className="text-foreground" style={[styles.topRowText, options?.subtitle && { fontSize: 16 }]}>
+                            <Text className="text-foreground" style={[styles.topRowText, Boolean(options?.subtitle) && { fontSize: 16 }]}>
                                 {options.title}
                             </Text>
                         )}
@@ -98,7 +98,7 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
             {titlePosition === "center" && (
                 <View style={styles.centerContainer}>
                     {options?.title && (
-                        <Text className="text-foreground" style={[styles.topRowText, options?.subtitle && { fontSize: 14 }]}>
+                        <Text className="text-foreground" style={[styles.topRowText, Boolean(options?.subtitle) && { fontSize: 14 }]}>
                             {options.title}
                         </Text>
                     )}

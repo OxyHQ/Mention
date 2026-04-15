@@ -394,7 +394,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
               imageStyle,
             ]}
             transition={200}
-            {...(Platform.OS === 'web' ? { draggable: false } as any : {})}
+            {...(Platform.OS === 'web' ? ({ draggable: false } as Record<string, unknown>) : {})}
           />
           </Animated.View>
         </View>
@@ -460,7 +460,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                         zoomedImageAnimatedStyle,
                       ]}
                       transition={200}
-                      {...(Platform.OS === 'web' ? { draggable: false } as any : {})}
+                      {...(Platform.OS === 'web' ? ({ draggable: false } as Record<string, unknown>) : {})}
                     />
                   </Pressable>
                 </GestureDetector>
@@ -531,7 +531,6 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                         zoomedImageAnimatedStyle,
                       ]}
                       transition={200}
-                      {...(Platform.OS === 'web' ? { draggable: false } as any : {})}
                     />
                   </Animated.View>
                 </GestureDetector>

@@ -546,6 +546,6 @@ const styles = StyleSheet.create({
 });
 
 const searchInputStyle: StyleProp<TextStyle> = Platform.select({
-  web: { outlineStyle: 'none' } as TextStyle,
+  web: { outlineWidth: 0 },
   default: {},
 });

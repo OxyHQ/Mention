@@ -66,6 +66,7 @@ const RoomRow = React.memo(function RoomRow({
 export function LiveRoomsWidget() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const theme = useTheme();
   const { joinLiveRoom } = useLiveRoom();
 
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -115,7 +116,7 @@ export function LiveRoomsWidget() {
   useRoomUsers(hostIds);
 
   const handleShowMore = useCallback(() => {
-    router.push('/agora' as any);
+    router.push('/agora');
   }, [router]);
 
   if (!isAuthenticated) return null;
@@ -124,7 +125,7 @@ export function LiveRoomsWidget() {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<AgoraIcon size={16} className="text-foreground" />}
+      icon={<AgoraIcon size={16} color={theme.colors.text} />}
     >
       {isLoading ? (
         <View className="gap-2.5 py-1">

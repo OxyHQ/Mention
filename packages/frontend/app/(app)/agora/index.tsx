@@ -128,7 +128,7 @@ const AgoraScreen = () => {
             <EmptyState
               title="No rooms available"
               subtitle="Create a room to start a live audio conversation or schedule one for later"
-              customIcon={<AgoraIcon size={48} className="text-muted-foreground" />}
+              customIcon={<AgoraIcon size={48} color={theme.colors.textSecondary} />}
               action={{
                 label: t('agora.createRoom'),
                 onPress: openCreateSheet,

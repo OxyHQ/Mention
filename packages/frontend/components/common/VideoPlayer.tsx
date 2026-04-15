@@ -208,12 +208,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   return (
     <View style={[styles.container, style]}>
       <VideoView
-        ref={videoViewRef as any}
+        ref={videoViewRef}
         player={player}
         style={styles.video}
         contentFit={contentFit}
         nativeControls={false}
-        allowsFullscreen={true}
+        fullscreenOptions={{ enable: true }}
         allowsPictureInPicture={false}
       />
 

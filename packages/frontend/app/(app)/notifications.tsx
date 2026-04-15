@@ -229,16 +229,15 @@ const NotificationsScreen: React.FC = () => {
         }
     }, [handleScroll]);
 
-    const handleWheelEvent = useCallback((event: any) => {
+    const handleWheelEvent = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
         if (forwardWheelEvent) {
-            forwardWheelEvent(event);
+            forwardWheelEvent({
+                deltaY: event.deltaY,
+                preventDefault: () => event.preventDefault(),
+                target: event.target,
+            });
         }
     }, [forwardWheelEvent]);
-
-    const dataSetForWeb = useMemo(() => {
-        if (Platform.OS !== 'web') return undefined;
-        return { layoutscroll: 'true' };
-    }, []);
 
     const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
         notificationLogger.error('Error caught by boundary', { error, errorInfo });
@@ -266,7 +265,7 @@ const NotificationsScreen: React.FC = () => {
     );
 
     const emptyStateConfig = useMemo(() => {
-        const iconBg = theme.colors.surfaceSecondary ?? `${theme.colors.border}33`;
+        const iconBg = `${theme.colors.border}33`;
         const iconColor = theme.colors.textSecondary;
         switch (activeTab) {
             case 'mentions':
@@ -339,7 +338,9 @@ const NotificationsScreen: React.FC = () => {
         <Error
             title={t('notification.error.load', { defaultValue: 'Failed to load notifications' })}
             message={t('notification.error.message', { defaultValue: 'Unable to fetch your notifications. Please try again.' })}
-            onRetry={() => refetch()}
+            onRetry={() => {
+                refetch();
+            }}
             hideBackButton={true}
             style={{ flex: 1 }}
         />
@@ -368,17 +369,19 @@ const NotificationsScreen: React.FC = () => {
             return renderErrorState();
         }
 
+        const webEventProps: Record<string, unknown> = Platform.OS === 'web'
+            ? { 'data-layoutscroll': 'true', onWheel: handleWheelEvent }
+            : {};
         return (
             <View
                 style={{ flex: 1, minHeight: 0 }}
-                {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
+                {...webEventProps}
             >
                 <FlashList
                     ref={assignListRef}
                     data={listItems}
                     keyExtractor={getItemKey}
                     renderItem={renderNotification}
-                    estimatedItemSize={120}
                     getItemType={(item) => item.type}
                     ListHeaderComponent={activeTab === 'pokes' ? (
                         <TouchableOpacity
@@ -391,7 +394,7 @@ const NotificationsScreen: React.FC = () => {
                                 borderBottomColor: theme.colors.border,
                                 gap: 12,
                             }}
-                            onPress={() => router.push('/notifications/pokes' as any)}
+                            onPress={() => router.push('/notifications/pokes')}
                             activeOpacity={0.7}
                         >
                             <View
@@ -429,7 +432,6 @@ const NotificationsScreen: React.FC = () => {
                     showsVerticalScrollIndicator={false}
                     onScroll={handleScrollEvent}
                     scrollEventThrottle={scrollEventThrottle}
-                    onWheel={Platform.OS === 'web' ? handleWheelEvent : undefined}
                     contentContainerStyle={{
                         backgroundColor: theme.colors.background,
                     }}

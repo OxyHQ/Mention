@@ -246,7 +246,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                     style={{ width: '100%', height: '100%' }}
                     contentFit="cover"
                     nativeControls={false}
-                    allowsFullscreen={false}
+                    fullscreenOptions={{ enable: false }}
                 />
                 <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
                     <Ionicons name="play-circle" size={24} color="rgba(255, 255, 255, 0.9)" />

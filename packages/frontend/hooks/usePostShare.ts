@@ -4,29 +4,51 @@ import { logger } from '@/lib/logger';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useUsersStore } from '@/stores/usersStore';
 
-export function usePostShare(post: any) {
+interface SharePostUser {
+    id?: string;
+    _id?: string;
+    name?: string | { full?: string; first?: string; last?: string };
+    username?: string;
+    handle?: string;
+}
+
+interface SharePost {
+    id?: string;
+    content?: string | { text?: string };
+    text?: string;
+    user?: SharePostUser;
+}
+
+export function usePostShare(post: SharePost | null | undefined) {
     const sharePost = useCallback(async () => {
         if (!post) return;
 
         try {
-            const postUrl = `https://mention.earth/p/${post.id}`;
-            const content = typeof post.content === 'string' ? { text: post.content } : (post.content || {});
-            const contentText = content.text || '';
-            const user = post.user || {};
-            const id = String(user.id || user._id || '');
-            const name = (user?.name?.full) || 
-                (user?.name?.first ? `${user.name.first} ${user.name.last || ''}`.trim() : '') || 
-                user?.name || 
-                user?.username || 
-                user?.handle || 
-                id || 
-                'Someone';
-            
-            let handle = user?.handle || user?.username || '';
+            const postUrl = `https://mention.earth/p/${post.id ?? ''}`;
+            const content = typeof post.content === 'string' ? { text: post.content } : (post.content ?? {});
+            const contentText = content.text ?? post.text ?? '';
+            const user: SharePostUser = post.user ?? {};
+            const id = String(user.id ?? user._id ?? '');
+            const userName = user.name;
+            let resolvedName = '';
+            if (typeof userName === 'string') {
+                resolvedName = userName;
+            } else if (userName && typeof userName === 'object') {
+                if (userName.full) {
+                    resolvedName = userName.full;
+                } else if (userName.first) {
+                    resolvedName = `${userName.first} ${userName.last ?? ''}`.trim();
+                }
+            }
+            const name = resolvedName || user.username || user.handle || id || 'Someone';
+
+            let handle = user.handle || user.username || '';
             if (!handle && id) {
-                try { 
-                    handle = useUsersStore.getState().usersById[id]?.data?.username || ''; 
-                } catch { }
+                try {
+                    handle = useUsersStore.getState().getCachedById(id)?.username || '';
+                } catch (lookupError) {
+                    logger.debug('User lookup failed during share', { error: lookupError });
+                }
             }
             
             const shareMessage = contentText

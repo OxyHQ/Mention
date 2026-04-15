@@ -1,24 +1,38 @@
 import { useTranslation } from 'react-i18next';
 import { NotificationType } from '@mention/shared-types';
 
+export interface NotificationActor {
+  _id?: string;
+  username?: string;
+  name?: string | { full: string };
+  avatar?: string;
+}
+
 export interface RawNotification {
   _id: string;
-  recipientId: string;
-  actorId: any;
+  recipientId: unknown;
+  actorId: unknown;
   type: string;
-  entityId: string;
+  entityId: unknown;
   entityType: string;
   read: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: unknown;
   preview?: string;
-  post?: any;
-  actorId_populated?: {
-    _id: string;
-    username: string;
-    name: string;
-    avatar?: string;
+  post?: {
+    id?: string;
+    user?: {
+      id?: string;
+      name?: string;
+      handle?: string;
+      avatar?: string;
+      verified?: boolean;
+    };
+    content?: unknown;
+    [key: string]: unknown;
   };
+  actorId_populated?: NotificationActor;
+  [key: string]: unknown;
 }
 
 export interface TransformedNotification {
@@ -34,6 +48,16 @@ export interface TransformedNotification {
   metadata?: Record<string, any>;
 }
 
+function nameToString(name: NotificationActor['name']): string | undefined {
+  if (typeof name === 'string') return name;
+  if (name && typeof name === 'object' && 'full' in name) return name.full;
+  return undefined;
+}
+
+function isNotificationActor(value: unknown): value is NotificationActor {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
  * Transforms raw notification data from the database into user-friendly
  * notification objects with proper translations and formatting
@@ -42,12 +66,13 @@ export const transformNotification = (
   rawNotification: RawNotification,
   t: (key: string, options?: any) => string
 ): TransformedNotification => {
-  const actorFromActorId = typeof rawNotification.actorId === 'object' && rawNotification.actorId !== null
+  const actorFromActorId = isNotificationActor(rawNotification.actorId)
     ? rawNotification.actorId
     : undefined;
-  const actorName = actorFromActorId?.name ||
+  const actorName =
+    nameToString(actorFromActorId?.name) ||
     actorFromActorId?.username ||
-    rawNotification.actorId_populated?.name ||
+    nameToString(rawNotification.actorId_populated?.name) ||
     rawNotification.actorId_populated?.username ||
     'Someone';
 
@@ -55,7 +80,7 @@ export const transformNotification = (
     id: rawNotification._id,
     type: rawNotification.type as NotificationType,
     actorName,
-  actorAvatar: actorFromActorId?.avatar || rawNotification.actorId_populated?.avatar,
+    actorAvatar: actorFromActorId?.avatar || rawNotification.actorId_populated?.avatar,
     isRead: rawNotification.read,
     createdAt: rawNotification.createdAt,
     actionUrl: getActionUrl(rawNotification),
@@ -133,9 +158,9 @@ export const transformNotification = (
  */
 const getActionUrl = (notification: RawNotification): string => {
   if (notification.entityType === 'post' || notification.entityType === 'reply') {
-    return `/p/${notification.entityId}`;
+    return `/p/${String(notification.entityId ?? '')}`;
   } else if (notification.entityType === 'profile') {
-    return `/${notification.actorId}`;
+    return `/${String(notification.actorId ?? '')}`;
   }
   return '/notifications';
 };

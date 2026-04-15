@@ -4,6 +4,8 @@ import { confirmDialog } from '@/utils/alerts';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 import { ThemedText } from './ThemedText';
 import { useTranslation } from 'react-i18next';
 import { useNotificationTransformer, RawNotification } from '../utils/notificationTransformer';
@@ -137,7 +139,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         }
     }, [t, transformedNotification.actorName]);
 
-    const getNotificationIcon = (type: string): string => {
+    const getNotificationIcon = (type: string): IoniconName => {
         switch (type) {
             case 'like':
                 return 'heart';
@@ -189,15 +191,19 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
         // Navigate based on notification type and entity
         if (notification.entityType === 'post' || notification.entityType === 'reply') {
-            router.push(`/p/${notification.entityId}`);
+            router.push(`/p/${String(notification.entityId)}`);
         } else if (notification.entityType === 'profile') {
-            const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
-            let uname = '';
-            try {
-                if (id) uname = useUsersStore.getState().usersById[String(id)]?.data?.username || '';
-            } catch { }
-            const path = uname ? `/@${uname}` : `/${id}`;
-            router.push(path);
+            const rawActor = notification.actorId;
+            const id = typeof rawActor === 'string'
+                ? rawActor
+                : (rawActor && typeof rawActor === 'object' && '_id' in rawActor ? String((rawActor as { _id?: unknown })._id ?? '') : '');
+            const cachedUser = id ? useUsersStore.getState().getCachedById(id) : undefined;
+            const uname = cachedUser?.username || '';
+            if (uname) {
+                router.push(`/@${uname}`);
+            } else if (id) {
+                router.push(`/${id}`);
+            }
         }
     }, [notification, onMarkAsRead, router]);
 
@@ -233,7 +239,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             <View style={styles.avatarContainer}>
                 <Avatar source={actorAvatar} size={40} />
                 <View className="border-background" style={[styles.actionBadge, { backgroundColor: getNotificationColor(notification.type) }]}>
-                    <Ionicons name={getNotificationIcon(notification.type) as any} size={12} color="#fff" />
+                    <Ionicons name={getNotificationIcon(notification.type)} size={12} color="#fff" />
                 </View>
             </View>
 
@@ -279,7 +285,7 @@ const PostNotificationItem: React.FC<{
         const loadPost = async () => {
             try {
                 if (notification.entityId && notification.entityType === 'post') {
-                    const postData = await getPostById(notification.entityId);
+                    const postData = await getPostById(String(notification.entityId));
                     setPost(postData);
                 }
             } catch (error) {

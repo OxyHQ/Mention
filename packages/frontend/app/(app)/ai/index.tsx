@@ -12,8 +12,16 @@ export default function AiScreen() {
       welcomeGreeting={`${t("Hello")}, ${user?.username || "there"}.`}
       welcomeSubtitle={t("How can I help you today?")}
       welcomeSuggestions={[
-        { label: t("Latest news"), prompt: t("What are the latest news?") },
-        { label: t("Edit image"), prompt: t("Help me edit an image") },
+        {
+          id: "latest-news",
+          title: t("Latest news"),
+          description: t("What are the latest news?"),
+        },
+        {
+          id: "edit-image",
+          title: t("Edit image"),
+          description: t("Help me edit an image"),
+        },
       ]}
     />
   );

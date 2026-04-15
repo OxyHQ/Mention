@@ -1,7 +1,26 @@
 import React, { useCallback } from 'react';
-import { View, Text, Platform, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, Platform, Pressable, type ViewStyle, type TextStyle } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 import { cn } from '@/lib/utils';
+
+const WEB_BG_TRANSITION: ViewStyle | undefined = Platform.OS === 'web'
+    ? ({
+        transition: 'background-color 200ms cubic-bezier(0.2, 0, 0, 1)',
+        cursor: 'pointer',
+    } as ViewStyle)
+    : undefined;
+
+const WEB_COLOR_TRANSITION_VIEW: ViewStyle | undefined = Platform.OS === 'web'
+    ? ({
+        transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
+    } as ViewStyle)
+    : undefined;
+
+const WEB_COLOR_TRANSITION_TEXT: TextStyle | undefined = Platform.OS === 'web'
+    ? ({
+        transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
+    } as TextStyle)
+    : undefined;
 
 export const SideBarItem = React.memo(function SideBarItem({
     isActive,
@@ -14,7 +33,7 @@ export const SideBarItem = React.memo(function SideBarItem({
     isActive: boolean;
     icon: React.ReactNode;
     text: string;
-    href?: string;
+    href?: Href;
     isExpanded?: boolean;
     onPress?: () => void;
 }) {
@@ -41,13 +60,8 @@ export const SideBarItem = React.memo(function SideBarItem({
                 isHovered && !isActive && "bg-primary/5",
             )}
             style={({ pressed }: { pressed: boolean }) => [
-                pressed ? { backgroundColor: 'hsla(var(--primary), 0.13)' } : {},
-                Platform.select({
-                    web: {
-                        transition: 'background-color 200ms cubic-bezier(0.2, 0, 0, 1)',
-                        cursor: 'pointer',
-                    },
-                }),
+                pressed ? { backgroundColor: 'hsla(var(--primary), 0.13)' } : null,
+                WEB_BG_TRANSITION,
             ]}
         >
             <View className={cn(
@@ -59,11 +73,7 @@ export const SideBarItem = React.memo(function SideBarItem({
                         "items-center justify-center w-6 h-6",
                         isActive || isHovered ? "text-primary" : "text-foreground",
                     )}
-                    style={Platform.select({
-                        web: {
-                            transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
-                        },
-                    })}
+                    style={WEB_COLOR_TRANSITION_VIEW}
                 >
                     {icon}
                 </View>
@@ -74,11 +84,7 @@ export const SideBarItem = React.memo(function SideBarItem({
                             isActive ? "font-semibold" : "font-medium",
                             isActive || isHovered ? "text-primary" : "text-foreground",
                         )}
-                        style={Platform.select({
-                            web: {
-                                transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
-                            },
-                        })}
+                        style={WEB_COLOR_TRANSITION_TEXT}
                     >
                         {text}
                     </Text>

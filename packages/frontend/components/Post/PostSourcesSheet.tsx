@@ -40,7 +40,6 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
               size: 48,
             }}
             containerStyle={{ flex: 1 }}
-            className="bg-surface"
           />
         )}
       </View>

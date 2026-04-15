@@ -6,9 +6,14 @@ import type { ProfileData } from '@/hooks/useProfileData';
  * Centralized type definitions following industry standards
  */
 
+import type { useAuth } from '@oxyhq/services';
+
 // Tab configuration
 export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'reposts', 'feeds', 'starter_packs', 'lists'] as const;
 export type ProfileTab = typeof TAB_NAMES[number];
+
+// Bottom sheet open helper from useAuth().showBottomSheet
+export type ShowBottomSheetFn = NonNullable<ReturnType<typeof useAuth>['showBottomSheet']>;
 
 // Props for the main ProfileScreen component
 export interface ProfileScreenProps {
@@ -26,7 +31,7 @@ export type FollowButtonComponent = React.ComponentType<FollowButtonProps>;
 // Component props for UserName
 export interface UserNameProps {
   name?: string | null;
-  handle?: string;
+  handle?: string | null;
   verified?: boolean;
   isFederated?: boolean;
   isAgent?: boolean;
@@ -38,6 +43,7 @@ export interface UserNameProps {
     container?: StyleProp<ViewStyle>;
   };
   unifiedColors?: boolean;
+  onPress?: () => void;
 }
 
 export type UserNameComponent = React.ComponentType<UserNameProps>;
@@ -65,7 +71,7 @@ export interface ProfileHeaderDefaultProps extends ProfileHeaderBaseProps {
   isFollowing?: boolean;
   isFollowPending?: boolean;
   FollowButtonComponent: FollowButtonComponent;
-  showBottomSheet?: (sheet: string) => void;
+  showBottomSheet?: ShowBottomSheetFn;
 }
 
 // Profile stats props
@@ -85,7 +91,7 @@ export interface ProfileActionsProps {
   profileUsername?: string;
   profileId?: string;
   FollowButtonComponent: FollowButtonComponent;
-  showBottomSheet?: (sheet: string) => void;
+  showBottomSheet?: ShowBottomSheetFn;
 }
 
 // Profile meta props (location, links, join date)
@@ -141,7 +147,7 @@ export interface ProfileContentProps {
   followerCount: number;
   username: string;
   FollowButtonComponent: FollowButtonComponent;
-  showBottomSheet?: (sheet: string) => void;
+  showBottomSheet?: ShowBottomSheetFn;
   onPostsPress: () => void;
   onLayout?: (height: number) => void;
 }

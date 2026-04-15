@@ -23,7 +23,7 @@ class NotificationCreationService {
     try {
       await authenticatedClient.post('/notifications', data);
     } catch (error) {
-      logger.error('Error creating notification:', error);
+      logger.error('Error creating notification', { error });
       // Don't throw to avoid breaking user flow
     }
   }
@@ -119,7 +119,7 @@ class NotificationCreationService {
 
       await Promise.all(mentionPromises);
     } catch (error) {
-      logger.error('Error creating mention notifications:', error);
+      logger.error('Error creating mention notifications', { error });
     }
   }
 

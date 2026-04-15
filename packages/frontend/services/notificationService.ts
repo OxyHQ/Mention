@@ -35,7 +35,7 @@ class NotificationService {
                 limit: response.data.limit || limit,
             };
         } catch (error) {
-            logger.error('Error fetching notifications:', error);
+            logger.error('Error fetching notifications', { error });
             throw error;
         }
     }
@@ -47,7 +47,7 @@ class NotificationService {
         try {
             await authenticatedClient.patch(`/notifications/${notificationId}/read`);
         } catch (error) {
-            logger.error('Error marking notification as read:', error);
+            logger.error('Error marking notification as read', { error });
             throw error;
         }
     }
@@ -60,7 +60,7 @@ class NotificationService {
             const response = await authenticatedClient.patch('/notifications/read-all');
             return response.data || { message: 'All notifications marked as read' };
         } catch (error) {
-            logger.error('Error marking all notifications as read:', error);
+            logger.error('Error marking all notifications as read', { error });
             throw error;
         }
     }
@@ -73,7 +73,7 @@ class NotificationService {
             const response = await authenticatedClient.get('/notifications/unread-count');
             return response.data.count || 0;
         } catch (error) {
-            logger.error('Error fetching unread count:', error);
+            logger.error('Error fetching unread count', { error });
             return 0;
         }
     }
@@ -85,7 +85,7 @@ class NotificationService {
         try {
             await authenticatedClient.delete(`/notifications/${notificationId}`);
         } catch (error) {
-            logger.error('Error deleting notification:', error);
+            logger.error('Error deleting notification', { error });
             throw error;
         }
     }
@@ -97,7 +97,7 @@ class NotificationService {
         try {
             await authenticatedClient.patch(`/notifications/${notificationId}/archive`);
         } catch (error) {
-            logger.error('Error archiving notification:', error);
+            logger.error('Error archiving notification', { error });
             throw error;
         }
     }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle } from 'react-native';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -210,7 +210,7 @@ const VideoItem = memo<VideoItemProps>(({
                     style={styles.video}
                     contentFit="contain"
                     nativeControls={false}
-                    allowsFullscreen={false}
+                    fullscreenOptions={{ enable: false }}
                     allowsPictureInPicture={false}
                 />
             ) : (
@@ -312,8 +312,10 @@ const VideoItem = memo<VideoItemProps>(({
 VideoItem.displayName = 'VideoItem';
 
 // Memoized ActionButton component
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
 interface ActionButtonProps {
-    icon: string;
+    icon: IoniconName;
     count: number;
     isActive?: boolean;
     activeColor?: string;
@@ -325,7 +327,7 @@ interface ActionButtonProps {
 const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCompactNumber, hideCount = false }) => (
     <Pressable style={styles.actionButton} onPress={onPress} hitSlop={HIT_SLOP}>
         <Ionicons
-            name={icon as any}
+            name={icon}
             size={28}
             color={isActive && activeColor ? activeColor : "white"}
             style={styles.actionIcon}
@@ -765,7 +767,56 @@ export default function VideosScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const TEXT_SHADOW_STRONG: Pick<TextStyle, 'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'> = {
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+};
+
+const TEXT_SHADOW_MEDIUM: Pick<TextStyle, 'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'> = {
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+};
+
+const TEXT_SHADOW_HANDLE: Pick<TextStyle, 'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'> = {
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+};
+
+interface VideosStyles {
+    container: ViewStyle;
+    initialLoadingContainer: ViewStyle;
+    list: ViewStyle;
+    listContent: ViewStyle;
+    videoContainer: ViewStyle;
+    video: ViewStyle;
+    videoPlaceholder: ViewStyle;
+    muteButton: ViewStyle;
+    muteButtonInner: ViewStyle;
+    overlay: ViewStyle;
+    gradientOverlay: ViewStyle;
+    rightActions: ViewStyle;
+    actionButton: ViewStyle;
+    actionIcon: TextStyle;
+    actionCount: TextStyle;
+    bottomInfo: ViewStyle;
+    userInfo: ViewStyle;
+    userHeader: ViewStyle;
+    userAvatar: ViewStyle;
+    userNameContainer: ViewStyle;
+    userNameRow: ViewStyle;
+    userFullName: TextStyle;
+    userHandle: TextStyle;
+    verifiedIcon: TextStyle;
+    postText: TextStyle;
+    emptyState: ViewStyle;
+    loadingMore: ViewStyle;
+    loadingIndicator: ViewStyle;
+}
+
+const styles = StyleSheet.create<VideosStyles>({
     container: {
         flex: 1,
         width: '100%',
@@ -817,7 +868,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.2)',
-        boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.3)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
         elevation: 4,
     },
     overlay: {
@@ -856,13 +910,13 @@ const styles = StyleSheet.create({
         minWidth: 40,
     },
     actionIcon: {
-        textShadow: '0px 1px 3px rgba(0, 0, 0, 0.8)',
+        ...TEXT_SHADOW_STRONG,
     },
     actionCount: {
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: '600',
-        textShadow: '0px 1px 2px rgba(0, 0, 0, 0.8)',
+        ...TEXT_SHADOW_MEDIUM,
         marginTop: 0,
         textAlign: 'center',
     },
@@ -897,13 +951,13 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 15,
         fontWeight: '600',
-        textShadow: '0px 1px 3px rgba(0, 0, 0, 0.8)',
+        ...TEXT_SHADOW_STRONG,
     },
     userHandle: {
         color: 'rgba(255, 255, 255, 0.9)',
         fontSize: 14,
         fontWeight: '600',
-        textShadow: '0px 1px 4px rgba(0, 0, 0, 0.9)',
+        ...TEXT_SHADOW_HANDLE,
     },
     verifiedIcon: {
         marginLeft: 2,
@@ -913,7 +967,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 18,
         fontWeight: '400',
-        textShadow: '0px 1px 3px rgba(0, 0, 0, 0.8)',
+        ...TEXT_SHADOW_STRONG,
         marginTop: 4,
     },
     emptyState: {
@@ -932,7 +986,10 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
-        boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.3)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
         elevation: 4,
     },
 });

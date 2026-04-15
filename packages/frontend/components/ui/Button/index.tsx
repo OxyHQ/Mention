@@ -13,17 +13,17 @@
  */
 
 import React, { useMemo, useCallback, memo } from 'react';
-import { 
-  TouchableOpacity, 
-  Text, 
-  StyleSheet, 
-  ViewStyle, 
-  TextStyle, 
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
   Platform,
   StyleProp,
   Pressable,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -76,6 +76,7 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   style,
   textStyle,
   contentStyle,
+  className,
   href,
   as = 'button',
   icon,
@@ -125,19 +126,19 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   }, [disabled, haptic, href, as, router, onPress]);
   
   // Floating button positioning
-  const floatingStyles = useMemo(() => {
+  const floatingStyles = useMemo<ViewStyle>(() => {
     if (!floating) return {};
-    
+
     const hasCustomPosition = style && typeof style === 'object' && 'position' in (style as ViewStyle);
     if (hasCustomPosition && style) {
-      const flatStyle = flattenStyleArray([style]);
+      const flatStyle = (StyleSheet.flatten(style) ?? {}) as ViewStyle;
       return {
-        position: flatStyle.position || 'absolute',
-        bottom: flatStyle.bottom || bottomOffset,
-        right: flatStyle.right || 24,
+        position: flatStyle.position ?? 'absolute',
+        bottom: flatStyle.bottom ?? bottomOffset,
+        right: flatStyle.right ?? 24,
         left: flatStyle.left,
         top: flatStyle.top,
-        zIndex: flatStyle.zIndex || Z_INDEX.FLOATING_ACTION_BUTTON,
+        zIndex: flatStyle.zIndex ?? Z_INDEX.FLOATING_ACTION_BUTTON,
       };
     }
     
@@ -336,18 +337,20 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   // Handle link vs button rendering
   if (href && as === 'link' && !isResponsive) {
     return (
-      <Link href={href} style={finalStyle}>
-        {buttonContent}
+      <Link href={href} asChild>
+        <Pressable style={finalStyle}>{buttonContent}</Pressable>
       </Link>
     );
   }
-  
+
   // Responsive button (SideBar pattern)
   if (isResponsive) {
     if (href) {
       return (
-        <Link href={href} style={responsiveContainerStyle || finalStyle}>
-          {buttonContent}
+        <Link href={href} asChild>
+          <Pressable style={responsiveContainerStyle || finalStyle}>
+            {buttonContent}
+          </Pressable>
         </Link>
       );
     }
@@ -362,9 +365,11 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   }
   
   // Regular button
+  const iconBaseClass = effectiveVariant === 'icon' ? 'bg-background border border-border' : undefined;
+  const mergedClassName = [iconBaseClass, className].filter(Boolean).join(' ') || undefined;
   const TouchableComponent = (
     <TouchableOpacity
-      className={effectiveVariant === 'icon' ? 'bg-background border border-border' : undefined}
+      className={mergedClassName}
       style={flattenStyleArray([finalStyle, animatedWrapperStyle])}
       onPress={handlePress}
       disabled={disabled}
@@ -412,7 +417,10 @@ export const FloatingActionButton = memo((props: Omit<ButtonProps, 'variant' | '
   <Button {...props} variant="floating" floating={true} />
 ));
 
-export const LinkButton = memo((props: Omit<ButtonProps, 'variant' | 'as'> & { href: string }) => (
+type LinkButtonProps = Omit<ButtonProps, 'variant' | 'as' | 'href'> & {
+  href: Href;
+};
+export const LinkButton = memo((props: LinkButtonProps) => (
   <Button {...props} variant="link" as="link" />
 ));
 

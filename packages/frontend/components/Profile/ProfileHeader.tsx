@@ -16,6 +16,7 @@ import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
+  ShowBottomSheetFn,
   UserNameComponent,
 } from './types';
 
@@ -190,7 +191,7 @@ export const ProfileActions = memo(function ProfileActions({
   profileUsername?: string;
   profileId?: string;
   FollowButtonComponent: React.ComponentType<{ userId: string }>;
-  showBottomSheet?: (sheet: string) => void;
+  showBottomSheet?: ShowBottomSheetFn;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();

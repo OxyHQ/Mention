@@ -162,20 +162,15 @@ const PostItem: React.FC<PostItemProps> = ({
         return resolvedAvatarUrl ?? rawAvatar;
     }, [rawAvatar, resolvedAvatarUrl]);
 
-    // Preload images for better perceived performance
+    // Preload images for better perceived performance.
+    // Only the avatar URL is known up-front; media items are referenced by id
+    // and resolved inside PostAttachmentsRow, so we can't preload them here.
     const imageUrls = useMemo(() => {
-        const urls: string[] = [];
         if (avatarUri && (avatarUri.startsWith('http://') || avatarUri.startsWith('https://'))) {
-            urls.push(avatarUri);
+            return [avatarUri];
         }
-        // Filter and collect valid URLs in one pass
-        for (const item of mediaItems) {
-            if (item.src && (item.src.startsWith('http://') || item.src.startsWith('https://'))) {
-                urls.push(item.src);
-            }
-        }
-        return urls;
-    }, [avatarUri, mediaItems]);
+        return [];
+    }, [avatarUri]);
 
     useImagePreload(imageUrls, true);
 

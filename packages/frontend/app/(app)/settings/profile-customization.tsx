@@ -15,14 +15,16 @@ import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
+import { Ionicons } from '@expo/vector-icons';
 
 type ProfileStyle = 'default' | 'minimalist';
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface StyleOption {
   id: ProfileStyle;
   name: string;
   description: string;
-  icon: string;
+  icon: IoniconName;
   coverPhotoEnabled: boolean;
   minimalistMode: boolean;
 }

@@ -32,7 +32,8 @@ import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
 import { logger } from '@/lib/logger';
 
-type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
+type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
+type SearchTab = "all" | ResultTab;
 
 type LocalSearchResults = {
     posts: any[];
@@ -162,7 +163,7 @@ export default function SearchIndex() {
                         ...resultsCacheRef.current,
                         [cacheKey]: newResults,
                     };
-                    const tabKeys: SearchTab[] = ["posts", "users", "feeds", "hashtags", "lists", "saved"];
+                    const tabKeys: ResultTab[] = ["posts", "users", "feeds", "hashtags", "lists", "saved"];
                     for (const tab of tabKeys) {
                         const tabCacheKey = `${tab}-${searchQuery}`;
                         if (!updatedCache[tabCacheKey]) {

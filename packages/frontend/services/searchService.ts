@@ -118,14 +118,15 @@ class SearchService {
   }
 
   // Search saved posts
-  async searchSaved(query: string): Promise<any[]> {
+  async searchSaved(query: string): Promise<unknown[]> {
     try {
       const response = await feedService.getSavedPosts({
         page: 1,
         limit: 20,
         search: query
       });
-      return response.data.posts || [];
+      const data = response.data as { posts?: unknown[] } | undefined;
+      return data?.posts ?? [];
     } catch (error) {
       logger.warn("Failed searching saved posts", { error });
       return [];

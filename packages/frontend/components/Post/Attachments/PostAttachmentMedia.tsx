@@ -88,15 +88,23 @@ const PostAttachmentImage: React.FC<{
     ? Math.max(MEDIA_CARD_HEIGHT * aspectRatio, MIN_WIDTH)
     : MEDIA_CARD_WIDTH;
 
+  const containerStyles: ViewStyle[] = [
+    styles.itemContainer,
+    {
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.backgroundSecondary,
+      height: MEDIA_CARD_HEIGHT,
+      width: computedWidth,
+    },
+  ];
+  if (webGrabCursorStyle) {
+    containerStyles.push(webGrabCursorStyle);
+  }
+
   return (
     <LazyImage
       source={{ uri: src }}
-      containerStyle={[
-        styles.itemContainer,
-        webGrabCursorStyle,
-        { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary,
-          height: MEDIA_CARD_HEIGHT, width: computedWidth },
-      ]}
+      containerStyle={containerStyles}
       style={{ width: '100%' as unknown as number, height: '100%' as unknown as number }}
       resizeMode="cover"
       placeholder={

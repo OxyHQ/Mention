@@ -28,18 +28,28 @@ interface SettingsItemProps extends Omit<SettingsListItemProps, 'icon'> {
   icon?: IconName | React.ReactNode;
   iconColor?: string;
   subtitle?: string;
+  description?: string;
   badgeText?: string;
   showChevron?: boolean;
+  rightElement?: React.ReactNode;
 }
 
-export function SettingsItem({ icon, iconColor, subtitle, badgeText, ...rest }: SettingsItemProps) {
+export function SettingsItem({
+  icon,
+  iconColor,
+  subtitle,
+  description,
+  badgeText,
+  rightElement,
+  ...rest
+}: SettingsItemProps) {
   const { colors } = useTheme();
 
   const resolvedIcon = typeof icon === 'string'
     ? <Icon name={icon as IconName} size={20} color={iconColor ?? (rest.destructive ? colors.error : colors.text)} />
     : icon;
 
-  const value = rest.value ?? badgeText ?? subtitle;
+  const value = rest.value ?? badgeText ?? description ?? subtitle;
 
   return (
     <Pressable
@@ -49,7 +59,7 @@ export function SettingsItem({ icon, iconColor, subtitle, badgeText, ...rest }: 
       style={({ pressed }) => [
         styles.item,
         { opacity: rest.disabled ? 0.5 : 1 },
-        pressed ? { backgroundColor: colors.surfaceVariant } : null,
+        pressed ? { backgroundColor: colors.backgroundSecondary } : null,
       ]}
     >
       {resolvedIcon ? <View style={styles.icon}>{resolvedIcon}</View> : null}
@@ -58,12 +68,15 @@ export function SettingsItem({ icon, iconColor, subtitle, badgeText, ...rest }: 
           {rest.title}
         </Text>
         {value ? (
-          <Text style={[styles.value, { color: colors.textSecondary }]} numberOfLines={1}>
-            {typeof value === 'string' ? value : value}
+          <Text style={[styles.value, { color: colors.textSecondary }]} numberOfLines={2}>
+            {value}
           </Text>
         ) : null}
       </View>
-      {rest.showChevron !== false && rest.onPress ? (
+      {rightElement ? (
+        <View style={styles.rightElement}>{rightElement}</View>
+      ) : null}
+      {rest.showChevron !== false && rest.onPress && !rightElement ? (
         <Icon name="chevron-forward" size={18} color={colors.textSecondary} />
       ) : null}
     </Pressable>
@@ -137,5 +150,9 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: 16,
+  },
+  rightElement: {
+    marginLeft: 8,
+    justifyContent: 'center',
   },
 });

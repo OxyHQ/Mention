@@ -13,7 +13,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton() {
       <View className="bg-muted" style={styles.banner} />
       <View style={styles.content}>
         <View style={styles.avatarRow}>
-          <Skeleton.Circle size={90} className="border-background" style={styles.avatarSkeleton} />
+          <Skeleton.Circle size={90} style={styles.avatarSkeleton} />
           <View style={styles.spacer} />
           <Skeleton.Pill size={36} style={styles.buttonSkeleton} />
           <Skeleton.Circle size={36} />

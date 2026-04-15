@@ -249,7 +249,7 @@ export default function PokesScreen() {
                         title={t('pokes.empty.title', { defaultValue: 'No pokes yet' })}
                         subtitle={t('pokes.empty.subtitle', { defaultValue: 'When someone pokes you, it will show up here. Poke your followers to get started!' })}
                         customIcon={
-                            <View style={[styles.emptyIcon, { backgroundColor: theme.colors.surfaceSecondary ?? `${theme.colors.border}33` }]}>
+                            <View style={[styles.emptyIcon, { backgroundColor: `${theme.colors.border}33` }]}>
                                 <FontAwesome5 name="hand-point-right" size={36} color={theme.colors.textSecondary} solid />
                             </View>
                         }

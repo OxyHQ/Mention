@@ -231,7 +231,7 @@ export function useFeedState({
                     logger.debug('Request aborted');
                     return;
                 }
-                logger.error('Error fetching feed', err);
+                logger.error('Error fetching feed', { error: err });
                 if (useScoped) {
                     setLocalError('Failed to load');
                 }
@@ -305,7 +305,7 @@ export function useFeedState({
             }
         } catch (err: unknown) {
             if (signal.aborted) return;
-            logger.error('Error refreshing feed after retries', err);
+            logger.error('Error refreshing feed after retries', { error: err });
             if (useScoped) {
                 setLocalError('Failed to refresh');
             }
@@ -400,7 +400,7 @@ export function useFeedState({
                 logger.debug('Load more aborted');
                 return;
             }
-            logger.error('Error loading more', err);
+            logger.error('Error loading more', { error: err });
             if (useScoped) {
                 let errorMessage = 'Failed to load more posts';
                 if (err instanceof Error) errorMessage = err.message;

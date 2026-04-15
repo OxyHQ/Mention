@@ -2,6 +2,7 @@ import React from 'react';
 import { usePathname, useLocalSearchParams, Slot } from 'expo-router';
 import NotFoundScreen from '@/components/NotFoundScreen';
 import ProfileScreen from '@/components/ProfileScreen';
+import type { ProfileTab } from '@/components/Profile/types';
 
 const UsernameLayout = () => {
     const { username } = useLocalSearchParams<{ username: string }>();
@@ -9,7 +10,7 @@ const UsernameLayout = () => {
 
     // Determine tab from the current pathname
     // pathname will be like '/@username' or '/@username/media'
-    const getTabFromPathname = (): 'posts' | 'replies' | 'media' | 'videos' | 'likes' | 'reposts' | 'feeds' => {
+    const getTabFromPathname = (): ProfileTab => {
         if (pathname?.endsWith('/media')) return 'media';
         if (pathname?.endsWith('/videos')) return 'videos';
         if (pathname?.endsWith('/replies')) return 'replies';

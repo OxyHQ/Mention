@@ -145,7 +145,7 @@ class SocketService {
       this.setupSocketEventListeners();
       this.setupFeedLoadingWatcher();
     } catch (error) {
-      logger.error('Connection error:', error);
+      logger.error('Connection error', { error });
     }
   }
 
@@ -545,7 +545,7 @@ class SocketService {
 
     // Validate that type is a valid FeedType before casting
     if (!VALID_FEED_TYPES.includes(type)) {
-      logger.warn('Invalid feed type:', type);
+      logger.warn('Invalid feed type', { feedType: type });
       return;
     }
 
@@ -693,7 +693,7 @@ class SocketService {
         }
         await AsyncStorage.setItem(this.ENGAGEMENT_PERSIST_KEY, JSON.stringify(serializable));
       } catch (e) {
-        logger.debug('Failed to persist engagement queue:', e);
+        logger.debug('Failed to persist engagement queue', { error: e });
       }
     }, this.ENGAGEMENT_PERSIST_DEBOUNCE_MS);
   }
@@ -711,7 +711,7 @@ class SocketService {
       this.processEngagementQueue();
       await AsyncStorage.removeItem(this.ENGAGEMENT_PERSIST_KEY);
     } catch (e) {
-      logger.debug('Failed to load persisted engagement queue:', e);
+      logger.debug('Failed to load persisted engagement queue', { error: e });
     }
   }
 
@@ -1178,17 +1178,19 @@ class SocketService {
    */
   subscribeToFollowUpdates(userId: string, callback: (data: FollowEventData) => void): () => void {
     this.pruneListenerMap(this.followListeners);
-    if (!this.followListeners.has(userId)) {
-      this.followListeners.set(userId, new Set());
+    let listeners = this.followListeners.get(userId);
+    if (!listeners) {
+      listeners = new Set();
+      this.followListeners.set(userId, listeners);
     }
-    this.followListeners.get(userId)!.add(callback);
+    listeners.add(callback);
 
     // Return unsubscribe function
     return () => {
-      const listeners = this.followListeners.get(userId);
-      if (listeners) {
-        listeners.delete(callback);
-        if (listeners.size === 0) {
+      const current = this.followListeners.get(userId);
+      if (current) {
+        current.delete(callback);
+        if (current.size === 0) {
           this.followListeners.delete(userId);
         }
       }

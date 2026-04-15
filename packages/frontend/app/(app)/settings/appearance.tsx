@@ -146,13 +146,13 @@ export default function AppearanceSettingsScreen() {
             type="radio"
             value={themeMode}
             onChange={onThemeModeChange}>
-            <SegmentedControl.Item value="system" label={t('settings.theme.system', 'System')}>
+            <SegmentedControl.Item value="system">
               <SegmentedControl.ItemText>{t('settings.theme.system', 'System')}</SegmentedControl.ItemText>
             </SegmentedControl.Item>
-            <SegmentedControl.Item value="light" label={t('settings.theme.light', 'Light')}>
+            <SegmentedControl.Item value="light">
               <SegmentedControl.ItemText>{t('settings.theme.light', 'Light')}</SegmentedControl.ItemText>
             </SegmentedControl.Item>
-            <SegmentedControl.Item value="dark" label={t('settings.theme.dark', 'Dark')}>
+            <SegmentedControl.Item value="dark">
               <SegmentedControl.ItemText>{t('settings.theme.dark', 'Dark')}</SegmentedControl.ItemText>
             </SegmentedControl.Item>
           </SegmentedControl.Root>

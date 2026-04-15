@@ -19,7 +19,7 @@ export function useFollowSocket() {
       });
     } catch (error) {
       // Non-critical: real-time broadcast failure should not block the follow action
-      logger.warn('[useFollowSocket] Failed to emit follow event', followingId, error);
+      logger.warn('[useFollowSocket] Failed to emit follow event', { followingId, error });
     }
   }, []);
 
@@ -35,7 +35,7 @@ export function useFollowSocket() {
       });
     } catch (error) {
       // Non-critical: real-time broadcast failure should not block the unfollow action
-      logger.warn('[useFollowSocket] Failed to emit unfollow event', followingId, error);
+      logger.warn('[useFollowSocket] Failed to emit unfollow event', { followingId, error });
     }
   }, []);
 

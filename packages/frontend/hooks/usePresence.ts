@@ -62,7 +62,7 @@ export function usePresenceBulk(userIds: string[]): Record<string, boolean> {
  */
 export function useFollowUpdates(
   userId: string | undefined,
-  onUpdate?: (data: { followerId: string; followingId: string; followerCount: number; followingCount: number }) => void
+  onUpdate?: (data: { followerId: string; followingId: string; followerCount?: number; followingCount?: number }) => void
 ) {
   useEffect(() => {
     if (!userId || !onUpdate) return;

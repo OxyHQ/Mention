@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
+import { StyleSheet, type ViewStyle } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Fill } from '@oxyhq/bloom/fill';
 
@@ -29,27 +29,23 @@ export function MediaInsetBorder({
   const theme = useTheme();
   const isLight = theme.isLight;
 
-  return (
-    <Fill
-      style={[
-        styles.border,
-        {
-          borderWidth: Platform.select({
-            native: StyleSheet.hairlineWidth,
-            web: StyleSheet.hairlineWidth, // Could add high DPI detection if needed
-          }),
-          borderColor: opaque
-            ? theme.colors.border
-            : isLight
-            ? theme.colors.border
-            : theme.colors.borderLight,
-          opacity: opaque ? 1 : 0.6,
-        },
-        style,
-      ]}>
-      {children}
-    </Fill>
-  );
+  const fillStyle: ViewStyle[] = [
+    styles.border,
+    {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: opaque
+        ? theme.colors.border
+        : isLight
+          ? theme.colors.border
+          : theme.colors.borderLight,
+      opacity: opaque ? 1 : 0.6,
+    },
+  ];
+  if (style) {
+    fillStyle.push(style);
+  }
+
+  return <Fill style={fillStyle}>{children}</Fill>;
 }
 
 const styles = StyleSheet.create({

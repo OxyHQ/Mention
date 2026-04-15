@@ -67,14 +67,13 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     const autoGrowWeb = useCallback(() => {
         if (Platform.OS !== 'web' || !multiline || !textInputRef.current) return;
         // RNW TextInput exposes the DOM node directly or via _node
-        const rnwRef = textInputRef.current as Record<string, unknown>;
-        const node = (
-            rnwRef instanceof HTMLElement
-                ? rnwRef
-                : typeof rnwRef._node === 'object'
-                    ? rnwRef._node as HTMLElement
-                    : null
-        );
+        const rnwRef = textInputRef.current as unknown as Record<string, unknown>;
+        let node: HTMLElement | null = null;
+        if (rnwRef instanceof HTMLElement) {
+            node = rnwRef;
+        } else if (typeof rnwRef._node === 'object' && rnwRef._node instanceof HTMLElement) {
+            node = rnwRef._node;
+        }
         if (!node || !('style' in node)) return;
         const el = node as HTMLTextAreaElement;
         el.style.height = 'auto';

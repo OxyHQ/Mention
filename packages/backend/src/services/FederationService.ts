@@ -1115,9 +1115,10 @@ class FederationService {
       // Fire-and-forget: backfill the newly followed actor's recent posts
       const actor = await FederatedActor.findOne({ uri: actorUri }).lean();
       if (actor) {
-        this.syncOutboxPosts(actor, 20).catch(err =>
-          logger.warn(`Failed to sync outbox after accept from ${actorUri}: ${err}`),
-        );
+        this.syncOutboxPosts(actor, 20).catch(err => {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`Failed to sync outbox after accept from ${actorUri}: ${message}`);
+        });
       }
     }
   }

@@ -1,6 +1,6 @@
 import { View, Pressable, Platform, LayoutChangeEvent, StyleSheet } from 'react-native';
 import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, type Href } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
@@ -147,7 +147,7 @@ export const BottomBar = () => {
         backgroundColor: `${effectiveTheme.colors.primary}1A`,
     }));
 
-    const handlePress = useCallback((route: string) => {
+    const handlePress = useCallback((route: Href) => {
         haptic('Light');
         router.push(route);
     }, [haptic, router]);

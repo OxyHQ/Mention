@@ -8,7 +8,7 @@ import {
     ViewStyle,
     StyleSheet,
 } from "react-native";
-import { usePathname, useRouter } from "expo-router";
+import { usePathname, useRouter, type Href } from "expo-router";
 import { useIsScreenNotMobile, useIsSideBarExpanded } from "@/hooks/useOptimizedMediaQuery";
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
@@ -58,7 +58,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         router.replace('/');
     }, [signOut, onNavigate, router]);
 
-    const handleNavPress = useCallback((route: string) => {
+    const handleNavPress = useCallback((route: Href) => {
         onNavigate?.();
         router.push(route);
     }, [onNavigate, router]);
@@ -76,7 +76,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         signIn().catch(() => {});
     }, [onNavigate, signIn]);
 
-    const sideBarData = useMemo(() => [
+    const sideBarData = useMemo<Array<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route: Href }>>(() => [
         {
             title: t("sidebar.home"),
             icon: <Home />,
@@ -87,7 +87,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             title: t("sidebar.profile"),
             icon: <Avatar source={avatarUri} size={24} />,
             iconActive: <Avatar source={avatarUri} size={24} />,
-            route: `/@${user.username}`,
+            route: `/@${user.username}` as Href,
         }] : []),
         {
             title: t("sidebar.explore"),

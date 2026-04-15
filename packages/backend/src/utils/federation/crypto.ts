@@ -33,7 +33,8 @@ export async function getKeyPair(username: string): Promise<KeyPairData> {
     const serviceToken = await getServiceOxyClient().getServiceToken();
     headers['Authorization'] = `Bearer ${serviceToken}`;
   } catch (err) {
-    logger.debug(`[FedSync] Could not get service token for keypair fetch: ${err}`);
+    const message = err instanceof Error ? err.message : String(err);
+    logger.debug(`[FedSync] Could not get service token for keypair fetch: ${message}`);
     // Fall back to no auth (may work in dev if serviceAuthMiddleware is relaxed)
   }
 

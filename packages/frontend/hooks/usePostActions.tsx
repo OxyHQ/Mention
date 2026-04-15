@@ -1,5 +1,5 @@
 import React, { useMemo, useContext } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@oxyhq/services';
 import { createScopedLogger } from '@/lib/logger';
@@ -75,6 +75,7 @@ export function usePostActions({
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
+    const pathname = usePathname();
     const safeBack = useSafeBack();
     const bottomSheet = useContext(BottomSheetContext);
     const removePostEverywhere = usePostsStore((s) => s.removePostEverywhere);
@@ -83,7 +84,7 @@ export function usePostActions({
         const postId = viewPost?.id;
         const postUrl = `https://mention.earth/p/${postId}`;
         const isPinned = Boolean(viewPost?.metadata?.isPinned);
-        const isPostDetail = (router.pathname || '').startsWith('/p/');
+        const isPostDetail = (pathname || '').startsWith('/p/');
 
         const handleDelete = async () => {
             try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
@@ -151,7 +152,7 @@ export function usePostActions({
 
         // Edit action - only for owner, within 30-minute window
         if (isOwner) {
-            const createdAtRaw = viewPost?.metadata?.createdAt || viewPost?.createdAt;
+            const createdAtRaw = viewPost?.metadata?.createdAt;
             const createdAtMs = createdAtRaw ? new Date(createdAtRaw).getTime() : 0;
             const withinEditWindow = createdAtMs > 0 && (Date.now() - createdAtMs) < 30 * 60 * 1000;
             if (withinEditWindow) {
@@ -338,6 +339,6 @@ export function usePostActions({
             muteReportAction,
             copyLinkAction,
         };
-    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, safeBack, removePostEverywhere]);
+    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere]);
 }
 

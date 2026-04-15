@@ -1,6 +1,5 @@
 import { getRedisClient } from '../utils/redis';
-import { logger } from '../utils/logger';
-import { ensureRedisConnected, withRedisFallback } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 
 /**
  * Custom Redis store for express-rate-limit
@@ -67,32 +66,47 @@ export class RedisStore {
   /**
    * Increment a key's value
    * This is the main method used by express-rate-limit
-   * Sets TTL on first increment if key doesn't exist
+   *
+   * Atomically increments and sets TTL using a Lua script. This avoids the race
+   * condition in non-atomic implementations where a concurrent EXPIRE call could
+   * leave the key without a TTL, causing rate limit hits to accumulate forever.
+   *
+   * The script also defensively re-applies the TTL if the key has somehow lost it
+   * (e.g. if a previous version of this code created an unbounded key).
    */
   async increment(key: string): Promise<{ totalHits: number; resetTime: Date | undefined }> {
     const fullKey = `${this.prefix}${key}`;
     const fallback = { totalHits: 1, resetTime: undefined as Date | undefined };
-    
+    const ttlSeconds = Math.ceil(this.windowMs / 1000);
+
+    // Atomic INCR + EXPIRE via Lua. Returns [hits, ttlSeconds].
+    // - INCR creates the key with value 1 if it doesn't exist.
+    // - On first creation (hits === 1) OR if the key has no TTL (-1),
+    //   set the expiration. This fixes both the race condition and any
+    //   stale unbounded keys from previous buggy code paths.
+    const script = `
+      local hits = redis.call('INCR', KEYS[1])
+      local ttl = redis.call('TTL', KEYS[1])
+      if hits == 1 or ttl == -1 then
+        redis.call('EXPIRE', KEYS[1], ARGV[1])
+        ttl = tonumber(ARGV[1])
+      end
+      return {hits, ttl}
+    `;
+
     return await withRedisFallback(
       this.redis,
       async () => {
-        // Check if key exists
-        const exists = await this.redis.exists(fullKey);
-        
-        // Increment the key
-        const value = await this.redis.incr(fullKey);
-        
-        // If key didn't exist before, set TTL now
-        if (exists === 0) {
-          const ttlSeconds = Math.ceil(this.windowMs / 1000);
-          await this.redis.expire(fullKey, ttlSeconds);
-        }
-        
-        // Get current TTL to determine reset time
-        const ttl = await this.redis.ttl(fullKey);
+        const result = await this.redis.eval(script, {
+          keys: [fullKey],
+          arguments: [String(ttlSeconds)],
+        }) as [number, number];
+
+        const totalHits = result[0];
+        const ttl = result[1];
         const resetTime = ttl > 0 ? new Date(Date.now() + ttl * 1000) : undefined;
 
-        return { totalHits: value, resetTime };
+        return { totalHits, resetTime };
       },
       fallback,
       'rate limit increment'

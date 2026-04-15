@@ -48,7 +48,7 @@ export const ProfileTabs = memo(function ProfileTabs({
     feedService.getPinnedPost(profileId)
       .then((post) => { if (!cancelled) setPinnedPost(post); })
       .catch((err) => {
-        logger.warn('[ProfileTabs] Failed to load pinned post', err);
+        logger.warn('[ProfileTabs] Failed to load pinned post', { error: err });
         if (!cancelled) setPinnedPost(null);
       });
 
@@ -358,7 +358,7 @@ const ProfileLists = memo(function ProfileLists({
                     avatar: owner.avatar,
                   }
                 : undefined,
-              purpose: (l.purpose as string) || 'curatelist',
+              purpose: l.purpose === 'modlist' ? 'modlist' : 'curatelist',
               itemCount: ((l.memberOxyUserIds || []) as string[]).length,
             };
           });

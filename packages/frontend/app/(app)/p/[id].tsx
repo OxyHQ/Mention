@@ -235,13 +235,13 @@ const PostDetailScreen: React.FC = () => {
                 image={postImage}
                 type="article"
                 author={postAuthor}
-                publishedTime={(post as any)?.createdAt}
-                modifiedTime={(post as any)?.updatedAt}
+                publishedTime={post && 'metadata' in post ? post.metadata?.createdAt : undefined}
+                modifiedTime={post && 'metadata' in post ? post.metadata?.updatedAt : undefined}
             />
             <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
                 <Header
                     options={{
-                        title: post?.isThread ? 'Thread' : 'Post',
+                        title: (post && 'metadata' in post && post.metadata?.isThread) ? 'Thread' : 'Post',
                         leftComponents: [
                             <IconButton variant="icon"
                                 key="back"

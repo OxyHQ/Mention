@@ -199,7 +199,7 @@ const Feed = ((props: FeedProps) => {
         try {
             await feedRefresh();
         } catch (err) {
-            logger.error('Error refreshing feed', err);
+            logger.error('Error refreshing feed', { error: err });
         } finally {
             setRefreshing(false);
         }
@@ -346,7 +346,7 @@ const Feed = ((props: FeedProps) => {
     const renderPostItem = useCallback(({ item: row }: { item: FeedRow; index: number }) => {
         const post = row.item;
         if (!post || !post.id) {
-            logger.warn('Invalid post item', post);
+            logger.warn('Invalid post item', { post });
             return null;
         }
 
@@ -533,7 +533,7 @@ const Feed = ((props: FeedProps) => {
         try {
             await feedFetchInitial(true);
         } catch (retryError) {
-            logger.error('Retry failed', retryError);
+            logger.error('Retry failed', { error: retryError });
         }
     }, [feedClearError, feedFetchInitial]);
 

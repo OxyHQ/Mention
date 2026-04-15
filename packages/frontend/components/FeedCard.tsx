@@ -10,6 +10,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 
 export interface FeedCardData {
     id: string;
+    uri?: string;
     displayName: string;
     description?: string;
     avatar?: string | null;
@@ -20,6 +21,7 @@ export interface FeedCardData {
     };
     likeCount?: number;
     memberCount?: number;
+    subscriberCount?: number;
     topicCount?: number;
     memberAvatars?: string[];
 }

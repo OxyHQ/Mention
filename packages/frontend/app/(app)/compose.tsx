@@ -449,7 +449,7 @@ const ComposeScreen = () => {
           setMentions(post.mentions.map((m: any) => (typeof m === 'string' ? { id: m, display: m } : m)));
         }
       } catch (e) {
-        logger.error('Failed to load post for editing', e);
+        logger.error('Failed to load post for editing', { error: e });
         toast(t('Failed to load post for editing'), { type: 'error' });
       } finally {
         if (!cancelled) setEditLoading(false);
@@ -475,7 +475,7 @@ const ComposeScreen = () => {
         }
       } catch (e) {
         if (!cancelled) {
-          logger.error('Failed to load parent post', e);
+          logger.error('Failed to load parent post', { error: e });
           toast(t('Failed to load post'), { type: 'error' });
         }
       } finally {
@@ -593,7 +593,7 @@ const ComposeScreen = () => {
       safeBack();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to publish post', message);
+      logger.error('Failed to publish post', { message });
       toast(t('Failed to publish post'), { type: 'error' });
     } finally {
       setIsPosting(false);
@@ -823,8 +823,8 @@ const ComposeScreen = () => {
               roomId: createdRoom._id,
               title: createdRoom.title,
               status: createdRoom.status,
-              topic: createdRoom.topic,
-              host: createdRoom.host,
+              topic: createdRoom.topic ?? undefined,
+              host: createdRoom.host ?? undefined,
             });
           }}
         />
@@ -980,8 +980,8 @@ const ComposeScreen = () => {
               roomId: createdRoom._id,
               title: createdRoom.title,
               status: createdRoom.status,
-              topic: createdRoom.topic,
-              host: createdRoom.host,
+              topic: createdRoom.topic ?? undefined,
+              host: createdRoom.host ?? undefined,
             });
           }}
         />
@@ -1765,11 +1765,28 @@ const ComposeScreen = () => {
                   showPollCreator,
                   location,
                   sources,
-                  threadItems,
-                  mentions,
+                  threadItems: threadItems.map((item) => ({
+                    id: item.id,
+                    text: item.text,
+                    mediaIds: item.mediaIds,
+                    pollOptions: item.pollOptions,
+                    pollTitle: item.pollTitle,
+                    showPollCreator: item.showPollCreator,
+                    location: item.location,
+                    mentions: item.mentions.map((m) => ({
+                      userId: m.userId,
+                      handle: m.username,
+                      name: m.displayName,
+                    })),
+                  })),
+                  mentions: mentions.map((m) => ({
+                    userId: m.userId,
+                    handle: m.username,
+                    name: m.displayName,
+                  })),
                   postingMode,
                   attachmentOrder,
-                  scheduledAt,
+                  scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
                   article,
                 });
                 safeBack();

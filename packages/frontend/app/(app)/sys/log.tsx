@@ -46,7 +46,7 @@ const LogEntryRow = memo(function LogEntryRow({
           <Ionicons
             name="warning"
             size={16}
-            color={colors.notification}
+            color={colors.warning}
           />
         ) : (
           <Ionicons

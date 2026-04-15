@@ -146,7 +146,7 @@ export default function TrendingHistoryScreen() {
       <ThemedView className="flex-1">
         <SafeAreaView className="flex-1" edges={['top']}>
           <Header
-            options={{ title: t('screens.trending.title'), headerBackVisible: true }}
+            options={{ title: t('screens.trending.title'), showBackButton: true }}
           />
           <View className="flex-1 items-center justify-center">
             <SpinnerIcon size={28} className="text-primary" />
@@ -160,7 +160,7 @@ export default function TrendingHistoryScreen() {
     <ThemedView className="flex-1">
       <SafeAreaView className="flex-1" edges={['top']}>
         <Header
-          options={{ title: t('screens.trending.title'), headerBackVisible: true }}
+          options={{ title: t('screens.trending.title'), showBackButton: true }}
         />
         <SectionList
           sections={sections}

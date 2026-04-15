@@ -175,7 +175,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                         nativeControls={false}
-                        allowsFullscreen={false}
+                        fullscreenOptions={{ enable: false }}
                         allowsPictureInPicture={false}
                     />
                 ) : (

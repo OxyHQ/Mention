@@ -42,7 +42,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ src, style }) => {
             style={style || { width: "100%", height: "100%" }}
             contentFit="cover"
             nativeControls={false}
-            allowsFullscreen={false}
+            fullscreenOptions={{ enable: false }}
         />
     );
 };

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, ViewStyle, Platform } from 'react-native';
 import PollCard from '../PollCard';
-import { MEDIA_MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
+import { MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)

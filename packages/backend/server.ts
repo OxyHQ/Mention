@@ -76,6 +76,7 @@ import { registerAllFeeds } from './src/mtn/feed/registerFeeds';
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
+import { performanceMiddleware } from "./src/middleware/performance";
 
 import helmet from 'helmet';
 
@@ -159,6 +160,10 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Global rate limiting — must be applied early
 app.use(rateLimiter);
 app.use(bruteForceProtection);
+
+// Performance monitoring — registered before routes so it wraps res.end and
+// observes every downstream route's response time.
+app.use(performanceMiddleware);
 
 // Middleware to parse nested query parameters (e.g., filters[authors]=user1,user2)
 app.use((req, res, next) => {
@@ -861,10 +866,6 @@ app.use('/ap', federationRoutes);
 app.use("/", publicApiRouter);
 app.use("/", oxy.auth(), authenticatedApiRouter);
 
-// Performance monitoring middleware
-import { performanceMiddleware } from "./src/middleware/performance";
-app.use(performanceMiddleware);
-
 // Global error handler — must be the LAST middleware registered.
 // Catches unhandled errors from route handlers and prevents raw error leakage.
 import { globalErrorHandler } from "./src/utils/error";
@@ -887,22 +888,20 @@ db.on("error", (error: any) => {
   }
 });
 
-// Reset error flag on successful connection
+// Reset error flag and load models on successful connection.
+// Note: connectToDatabase() in src/utils/database.ts already logs the success message.
 db.once("open", () => {
   hasLoggedMongoError = false;
-});
-db.once("open", () => {
-  logger.info("Connected to MongoDB successfully");
+
   // Load models
-  require("./src/models/Post"); 
-  require("./src/models/Block"); 
+  require("./src/models/Post");
+  require("./src/models/Block");
   require("./src/models/UserBehavior"); // Load UserBehavior model
 
-  // Initialize Feed Services
+  // Initialize Feed Services (each service logs its own startup status)
   try {
     const { feedJobScheduler } = require("./src/services/FeedJobScheduler");
     feedJobScheduler.start();
-    logger.info("Feed job scheduler started");
   } catch (error) {
     logger.warn("Failed to start feed job scheduler", error);
   }
@@ -911,7 +910,6 @@ db.once("open", () => {
   try {
     const { trendingService } = require("./src/services/TrendingService");
     trendingService.initialize();
-    logger.info("Trending service initialized");
   } catch (error) {
     logger.warn("Failed to initialize trending service", error);
   }
@@ -920,7 +918,6 @@ db.once("open", () => {
   try {
     const { topicExtractionService } = require("./src/services/TopicExtractionService");
     topicExtractionService.start();
-    logger.info("Topic extraction service started");
   } catch (error) {
     logger.warn("Failed to start topic extraction service", error);
   }
@@ -929,7 +926,6 @@ db.once("open", () => {
   try {
     const { topicService } = require("./src/services/TopicService");
     topicService.start();
-    logger.info("Topic service started");
   } catch (error) {
     logger.warn("Failed to initialize topic service", error);
   }
@@ -938,7 +934,6 @@ db.once("open", () => {
   try {
     const { recordingCleanupService } = require("./src/services/RecordingCleanupService");
     recordingCleanupService.start();
-    logger.info("Recording cleanup service started");
   } catch (error) {
     logger.warn("Failed to start recording cleanup service", error);
   }
@@ -947,7 +942,6 @@ db.once("open", () => {
   try {
     const { federationJobScheduler } = require("./src/services/FederationJobScheduler");
     federationJobScheduler.start();
-    logger.info("Federation job scheduler started");
   } catch (error) {
     logger.warn("Failed to start federation job scheduler", error);
   }

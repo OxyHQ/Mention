@@ -10,7 +10,7 @@ interface ImageResolverProviderProps {
   children: ReactNode;
 }
 
-export function ImageResolverProvider({ value, children }: ImageResolverProviderProps): JSX.Element {
+export function ImageResolverProvider({ value, children }: ImageResolverProviderProps): React.JSX.Element {
   return <ImageResolverContext.Provider value={value}>{children}</ImageResolverContext.Provider>;
 }
 

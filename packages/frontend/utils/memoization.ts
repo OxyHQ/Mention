@@ -3,7 +3,7 @@
  * Helper functions for optimizing component re-renders
  */
 
-import { memo, ComponentType, useMemo, useCallback, DependencyList } from 'react';
+import { memo, ComponentType, useMemo, useCallback, DependencyList, MemoExoticComponent } from 'react';
 
 /**
  * Type for comparing props in React.memo
@@ -61,33 +61,33 @@ export function deepEqual(a: any, b: any): boolean {
 /**
  * Create a memoized component with custom comparison
  */
-export function memoWithCompare<T extends ComponentType<any>>(
-  Component: T,
-  compare?: CompareFunction<React.ComponentProps<T>>
-): T {
+export function memoWithCompare<P extends object>(
+  Component: ComponentType<P>,
+  compare?: CompareFunction<P>
+): MemoExoticComponent<ComponentType<P>> {
   if (compare) {
-    return memo(Component, compare) as T;
+    return memo(Component, compare);
   }
-  return memo(Component) as T;
+  return memo(Component);
 }
 
 /**
  * Create a memoized component with shallow comparison
  */
-export function memoShallow<T extends ComponentType<any>>(
-  Component: T
-): T {
-  return memo(Component, shallowEqual) as T;
+export function memoShallow<P extends object>(
+  Component: ComponentType<P>
+): MemoExoticComponent<ComponentType<P>> {
+  return memo(Component, shallowEqual);
 }
 
 /**
  * Create a memoized component with deep comparison
  * Use sparingly - deep comparison can be expensive
  */
-export function memoDeep<T extends ComponentType<any>>(
-  Component: T
-): T {
-  return memo(Component, deepEqual) as T;
+export function memoDeep<P extends object>(
+  Component: ComponentType<P>
+): MemoExoticComponent<ComponentType<P>> {
+  return memo(Component, deepEqual);
 }
 
 /**
@@ -174,7 +174,9 @@ export function compareById<T extends { id?: string | number }>(
 /**
  * Create a memoized component that only re-renders when ID changes
  */
-export function memoById<T extends ComponentType<any>>(Component: T): T {
-  return memo(Component, compareById) as T;
+export function memoById<P extends { id?: string | number }>(
+  Component: ComponentType<P>
+): MemoExoticComponent<ComponentType<P>> {
+  return memo(Component, compareById);
 }
 

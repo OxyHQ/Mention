@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, View, type TextStyle } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -7,25 +7,9 @@ import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
+import type { UserNameProps } from '@/components/Profile/types';
 
-interface Props {
-    name?: string | null;
-    handle?: string | null;
-    verified?: boolean;
-    isFederated?: boolean;
-    isAgent?: boolean;
-    isAutomated?: boolean;
-    unifiedColors?: boolean; // if true, use unified colors for name and icon (e.g., dark mode)
-    onPress?: () => void;
-    variant?: 'default' | 'small';
-    style?: {
-        name?: TextStyle;
-        handle?: TextStyle;
-        container?: any;
-    };
-}
-
-const UserName: React.FC<Props> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 

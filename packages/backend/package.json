@@ -22,7 +22,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1014.0",
     "@mention/shared-types": "file:../shared-types",
     "@napi-rs/image": "^1.12.0",
-    "@oxyhq/core": "1.11.11",
+    "@oxyhq/core": "1.11.12",
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/compression": "^1.8.1",
     "@types/multer": "^2.1.0",
