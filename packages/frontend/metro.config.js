@@ -53,7 +53,12 @@ config.resolver = {
   // Enable package.json "exports" field resolution (required by @oxyhq/bloom subpath exports)
   unstable_enablePackageExports: true,
   sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
-  assetExts: [...config.resolver.assetExts.filter((ext) => ext !== 'svg'), 'wasm'],
+  // Bloom 0.3.3 imports `.woff2` files directly from JS for its bundled font system
+  // (BlomusModernus, Inter Variable, Geist Mono). When Metro bundles for web
+  // (`bundler: "metro"` in app.config.js) it picks `apply-font-faces.web.js`, which
+  // has module-level `.woff2` imports. Metro does not include `.woff2` in default
+  // `assetExts`, so we register it here so those imports resolve as static assets.
+  assetExts: [...config.resolver.assetExts.filter((ext) => ext !== 'svg'), 'wasm', 'woff2', 'woff'],
 };
 
 config.transformer = {

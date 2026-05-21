@@ -10,7 +10,7 @@ import { Platform, TextStyle } from 'react-native';
  */
 export const FONT_FAMILIES = {
   /** Primary font - Inter Variable */
-  primary: 'Inter-Regular',
+  primary: 'Inter',
 } as const;
 
 /**

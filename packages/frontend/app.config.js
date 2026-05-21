@@ -142,15 +142,6 @@ return {
                         faceIDPermission: "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
                     }
                 ],
-                [
-                    'expo-font',
-                    {
-                      fonts: [
-                        './assets/fonts/inter/InterVariable.ttf',
-                        './assets/fonts/inter/InterVariable-Italic.ttf',
-                      ],
-                    },
-                  ],
                 "expo-sqlite",
                 "expo-image",
                 'react-native-compressor',

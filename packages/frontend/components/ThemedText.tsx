@@ -2,11 +2,11 @@ import { Text, type TextProps } from "react-native";
 import { cn } from "@/lib/utils";
 
 const TYPE_CLASSES: Record<string, string> = {
-  default: "text-base leading-6 font-[Inter-Regular]",
-  defaultSemiBold: "text-base leading-6 font-semibold font-[Inter-Regular]",
-  title: "text-[32px] leading-8 font-bold font-[Inter-Regular]",
-  subtitle: "text-xl font-bold font-[Inter-Regular]",
-  link: "text-base leading-[30px] font-[Inter-Regular] text-primary",
+  default: "text-base leading-6 font-[Inter]",
+  defaultSemiBold: "text-base leading-6 font-semibold font-[Inter]",
+  title: "text-[32px] leading-8 font-bold font-[Inter]",
+  subtitle: "text-xl font-bold font-[Inter]",
+  link: "text-base leading-[30px] font-[Inter] text-primary",
 };
 
 export type ThemedTextProps = TextProps & {

@@ -30,10 +30,9 @@ initLiveKit();
 
 import NetInfo from '@react-native-community/netinfo';
 import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
-import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AppState, Platform, Text, TextInput, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
+import { AppState, Platform, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { ImageResolverProvider } from '@/lib/imageResolver';
@@ -86,69 +85,13 @@ export default function RootLayout() {
   // Stable QueryClient (single instance app-wide)
   const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
 
-  // Font Loading
-  const [fontsLoaded, fontError] = useFonts(
-    useMemo(() => {
-      const fontMap: Record<string, any> = {};
-      const InterVariable = require('@/assets/fonts/inter/InterVariable.ttf');
-
-      ['Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'].forEach(weight => {
-        fontMap[`Inter-${weight}`] = InterVariable;
-      });
-
-      // Also register as "Inter" so fontFamily: 'Inter' works everywhere
-      fontMap['Inter'] = InterVariable;
-
-      return fontMap;
-    }, [])
-  );
-
-  // If font loading fails (e.g. corrupt file, 404, wrong format), log the error
-  // and treat fonts as "ready" so the app doesn't stay stuck on splash.
-  const [fontTimedOut, setFontTimedOut] = useState(false);
-  const fontsReady = fontsLoaded || !!fontError || fontTimedOut;
-
-  useEffect(() => {
-    if (fontError) {
-      logger.error('Font loading failed, proceeding without custom fonts', { error: fontError });
-    }
-  }, [fontError]);
-
-  // Safety timeout: if fonts haven't loaded after 5 seconds, proceed anyway
-  useEffect(() => {
-    if (fontsReady) return;
-    const timer = setTimeout(() => {
-      logger.warn('Font loading timed out after 5s, proceeding without custom fonts');
-      setFontTimedOut(true);
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [fontsReady]);
-
-  // Set Inter as the default font for all Text and TextInput components
-  useEffect(() => {
-    if (!fontsLoaded) return;
-    const defaultTextStyle = { fontFamily: 'Inter' };
-    const textProps = (Text as any).defaultProps || {};
-    (Text as any).defaultProps = {
-      ...textProps,
-      style: [textProps.style, defaultTextStyle],
-    };
-    const textInputProps = (TextInput as any).defaultProps || {};
-    (TextInput as any).defaultProps = {
-      ...textInputProps,
-      style: [textInputProps.style, defaultTextStyle],
-    };
-  }, [fontsLoaded]);
-
   // Callbacks
   const handleSplashFadeComplete = useCallback(() => {
     setSplashState((prev) => ({ ...prev, fadeComplete: true }));
   }, []);
 
   const initializeApp = useCallback(async () => {
-    if (!fontsReady) return;
-
-    const result = await AppInitializer.initializeApp(fontsReady, oxyServices);
+    const result = await AppInitializer.initializeApp(true, oxyServices);
 
     if (result.success) {
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
@@ -156,7 +99,7 @@ export default function RootLayout() {
       logger.error('App initialization failed', { error: result.error });
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
     }
-  }, [fontsReady]);
+  }, []);
 
   // Initialize i18n once when the app mounts
   useEffect(() => {
@@ -215,7 +158,7 @@ export default function RootLayout() {
     if (!appIsReady) {
       return (
         <AppSplashScreen
-          startFade={fontsReady && splashState.initializationComplete}
+          startFade={splashState.initializationComplete}
           onFadeComplete={handleSplashFadeComplete}
         />
       );
@@ -241,7 +184,6 @@ export default function RootLayout() {
     );
   }, [
     appIsReady,
-    fontsReady,
     splashState.initializationComplete,
     colorScheme,
     handleSplashFadeComplete,
@@ -255,6 +197,7 @@ export default function RootLayout() {
         colorPreset={appColor}
         onModeChange={setMode}
         onColorPresetChange={setAppColor}
+        onFontsLoading={<AppSplashScreen />}
       >
         <ThemedView style={[{ flex: 1 }, colorVars]}>
           {appContent}
