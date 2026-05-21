@@ -20,6 +20,7 @@ const blockPath = (dir) => {
 
 config.resolver = {
   ...config.resolver,
+  assetExts: [...(config.resolver?.assetExts ?? []), 'woff2', 'woff'],
   blockList: [
     blockPath(path.join(monorepoRoot, 'packages/backend')),
     blockPath(path.join(monorepoRoot, 'packages/frontend')),
