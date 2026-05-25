@@ -142,11 +142,26 @@ export interface PostMetadata {
   savedBy?: string[]; // Array of user IDs who saved this post
 }
 
+/**
+ * Subset of {@link PostMetadataState} that callers may set when creating a
+ * post. Server-managed fields (timestamps, visibility, etc.) live elsewhere.
+ */
+export interface CreatePostMetadata {
+  isSensitive?: boolean;
+  hideEngagementCounts?: boolean;
+  language?: string;
+}
+
 export interface CreatePostRequest {
   content: PostContent;
   visibility?: PostVisibility;
   parentPostId?: string;
   threadId?: string;
+  /**
+   * Source post for a quote. The frontend uses camelCase; the HTTP wire
+   * format snake-cases this to `quoted_post_id` (see `feedService.createPost`).
+   */
+  quotedPostId?: string;
   tags?: string[];
   mentions?: string[];
   hashtags?: string[];
@@ -155,6 +170,7 @@ export interface CreatePostRequest {
   quotesDisabled?: boolean;
   status?: 'draft' | 'published' | 'scheduled';
   scheduledFor?: string;
+  metadata?: CreatePostMetadata;
 }
 
 export interface CreateThreadRequest {

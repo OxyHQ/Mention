@@ -102,6 +102,24 @@ return {
                 msapplicationTileColor: "#4F46E5",
                 msapplicationConfig: "/browserconfig.xml"
             },
+            // Web Share Target API (PWA). Installed Mention on Android/Chrome
+            // surfaces as a share target; the OS forwards title/text/url as
+            // query params to `/intent/compose`, which the compose screen
+            // parses via `parseComposeIntent`.
+            config: {
+                manifest: {
+                    share_target: {
+                        action: "/intent/compose",
+                        method: "GET",
+                        enctype: "application/x-www-form-urlencoded",
+                        params: {
+                            title: "text",
+                            text: "text",
+                            url: "url"
+                        }
+                    }
+                }
+            },
             build: {
           babel: {
             include: ['@expo/vector-icons'],
@@ -194,6 +212,18 @@ return {
                 ]);
                 // LiveKit WebRTC plugin for audio spaces
                 base.push("@livekit/react-native-expo-plugin");
+                // Native share extension — receives text/URL from OS share sheet
+                // and routes into `/intent/compose` (see `app/_layout.tsx`).
+                base.push([
+                    "expo-share-intent",
+                    {
+                        iosActivationRules: {
+                            NSExtensionActivationSupportsText: true,
+                            NSExtensionActivationSupportsWebURLWithMaxCount: 1
+                        },
+                        androidIntentFilters: ["text/*"]
+                    }
+                ]);
             }
 
             return base;

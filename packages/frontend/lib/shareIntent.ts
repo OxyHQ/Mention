@@ -1,0 +1,20 @@
+/**
+ * Web fallback for the share-intent bridge.
+ *
+ * On web, the Web Share Target API in `app.config.js` forwards `title`, `text`,
+ * and `url` straight to `/intent/compose` as query params, so no JS bridge is
+ * needed. This hook is a no-op on web.
+ *
+ * On native, see `shareIntent.native.ts`.
+ */
+
+import type { Router } from 'expo-router';
+
+export interface UseShareIntentRouterArgs {
+  router: Router;
+  enabled?: boolean;
+}
+
+export const useShareIntentRouter = (_args: UseShareIntentRouterArgs): void => {
+  // intentionally empty on web
+};

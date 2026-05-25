@@ -115,6 +115,15 @@ import {
   isMediaAttachmentKey,
   getMediaIdFromAttachmentKey,
 } from '@/utils/composeUtils';
+import {
+  parseComposeIntent,
+  buildComposeText,
+  hasIntentContent,
+  type ComposeIntent,
+  type ComposeIntentRawParams,
+} from '@/utils/composeIntent';
+import { useQuoteManager } from '@/hooks/useQuoteManager';
+import QuoteCard from '@/components/Compose/QuoteCard';
 
 // Keep this in sync with PostItem constants
 import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
@@ -128,16 +137,28 @@ const ComposeScreen = () => {
   const theme = useTheme();
   const safeBack = useSafeBack();
   const bottomSheet = React.useContext(BottomSheetContext);
-  const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
+  const { drafts, saveDraft, deleteDraft, loadDrafts } = useDrafts();
   const discardControl = Prompt.usePromptControl();
   const clearAllControl = Prompt.usePromptControl();
+  const intentConflictControl = Prompt.usePromptControl();
   const { user, showBottomSheet, oxyServices, isAuthenticated } = useAuth();
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
   const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
   const { createPost, createThread, createReply } = usePostsStore();
   const { t } = useTranslation();
-  const { editPostId, replyToPostId } = useLocalSearchParams<{ editPostId?: string; replyToPostId?: string }>();
+  const rawParams = useLocalSearchParams() as ComposeIntentRawParams;
+  // Parse once per route entry. Re-running on every param tick would re-apply
+  // setters and clobber user edits, so we lock to the first non-empty snapshot.
+  const initialIntent = useMemo<ComposeIntent>(
+    () => parseComposeIntent(rawParams),
+    // We intentionally read params once on mount; subsequent navigations to
+    // this same screen (e.g. quick share→share) will re-mount the screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const editPostId = initialIntent.editPostId;
+  const replyToPostId = initialIntent.replyToPostId;
   const [isEditMode, setIsEditMode] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
@@ -426,6 +447,159 @@ const ComposeScreen = () => {
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
+  // Quote manager — fetches the quoted post for `?quotePostId=...` intent param.
+  const quoteManager = useQuoteManager();
+  const {
+    post: quotedPost,
+    loading: quoteLoading,
+    fallbackUrl: quoteFallbackUrl,
+    setQuotePostId: setQuoteId,
+    clearQuote,
+  } = quoteManager;
+
+  // Intent application state. Tracks whether the parsed URL intent has been
+  // applied (or the user accepted/declined a draft-conflict prompt) so the
+  // effect below runs exactly once.
+  const intentAppliedRef = useRef(false);
+  const intentPayloadRef = useRef(initialIntent);
+  const [draftConflict, setDraftConflict] = useState(false);
+
+  // Apply the parsed intent to the composer managers on first mount.
+  // Skipped when an existing draft exists — the user is then prompted to pick
+  // (see `applyIntent` / `discardIntent` below).
+  const applyIntent = useCallback(() => {
+    const intent = intentPayloadRef.current;
+    if (!intent) return;
+
+    // Assemble initial text from text + url + hashtags + via. The quote
+    // fallback URL (when fetch fails) is appended later by a separate
+    // effect — see `quoteFallbackUrl` handling below.
+    const assembledText = buildComposeText(intent);
+    if (assembledText.length > 0) {
+      setPostContent(assembledText);
+    }
+
+    if (intent.poll) {
+      setPollOptions(intent.poll.options);
+      setShowPollCreator(true);
+    }
+
+    if (intent.article) {
+      const title = intent.article.title || '';
+      const body = intent.article.body || '';
+      setArticle({ title, body });
+      setArticleDraftTitle(title);
+      setArticleDraftBody(body);
+    }
+
+    if (intent.event) {
+      const name = intent.event.name || '';
+      const date = intent.event.date || new Date().toISOString();
+      const eventLocation = intent.event.location || '';
+      const description = intent.event.description || '';
+      if (name) {
+        setEvent({ name, date, location: eventLocation || undefined, description: description || undefined });
+      }
+      setEventDraftName(name);
+      setEventDraftDate(date);
+      setEventDraftLocation(eventLocation);
+      setEventDraftDescription(description);
+    }
+
+    if (intent.location) {
+      setLocation({
+        latitude: intent.location.latitude,
+        longitude: intent.location.longitude,
+        address: intent.location.address,
+      });
+    }
+
+    if (intent.sources && intent.sources.length > 0) {
+      setSources(
+        intent.sources.map((url) => ({
+          id: generateSourceId(),
+          title: '',
+          url,
+        })),
+      );
+    }
+
+    if (intent.scheduledFor) {
+      const scheduled = new Date(intent.scheduledFor);
+      if (!Number.isNaN(scheduled.getTime())) {
+        setScheduledAt(scheduled);
+      }
+    }
+
+    if (intent.sensitive !== undefined) {
+      setIsSensitive(intent.sensitive);
+    }
+
+    if (intent.replyPermission) {
+      setReplyPermission([intent.replyPermission]);
+    }
+
+    if (intent.quotesDisabled !== undefined) {
+      setQuotesDisabled(intent.quotesDisabled);
+    }
+
+    if (intent.quotePostId) {
+      setQuoteId(intent.quotePostId);
+    }
+
+    intentAppliedRef.current = true;
+  }, [
+    generateSourceId,
+    setQuoteId,
+  ]);
+
+  const discardIntent = useCallback(() => {
+    intentAppliedRef.current = true;
+    setDraftConflict(false);
+  }, []);
+
+  const acceptIntent = useCallback(() => {
+    applyIntent();
+    setDraftConflict(false);
+  }, [applyIntent]);
+
+  // First-mount intent application. Edit / reply modes are handled by their
+  // own effects below to avoid re-fetching twice.
+  useEffect(() => {
+    if (intentAppliedRef.current) return;
+    if (initialIntent.editPostId || initialIntent.replyToPostId) {
+      // Edit/reply already handled by dedicated effects; mark intent applied
+      // so we don't double-apply text/etc on top of the loaded post.
+      intentAppliedRef.current = true;
+      return;
+    }
+    if (!hasIntentContent(initialIntent)) {
+      intentAppliedRef.current = true;
+      return;
+    }
+    if (drafts.length > 0) {
+      setDraftConflict(true);
+      intentConflictControl.open();
+      return;
+    }
+    applyIntent();
+    // We only want this on first mount. `drafts.length` may flip from 0 → N
+    // when load completes; on that flip we re-evaluate the conflict gate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drafts.length]);
+
+  // If the quoted post fails to load, append the fallback URL to the text
+  // (idempotent — only adds when not already present).
+  useEffect(() => {
+    if (!quoteFallbackUrl) return;
+    setPostContent((prev) => {
+      if (prev.includes(quoteFallbackUrl)) return prev;
+      const trimmed = prev.trim();
+      const next = trimmed.length > 0 ? `${trimmed} ${quoteFallbackUrl}` : quoteFallbackUrl;
+      return next;
+    });
+  }, [quoteFallbackUrl]);
+
   // Load existing post data when in edit mode
   useEffect(() => {
     if (!editPostId) return;
@@ -509,7 +683,10 @@ const ComposeScreen = () => {
       const allPosts = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
 
-      // Build main post
+      // Build main post. If the quote fetch succeeded we forward the id so
+      // the backend links the new post as a quote; when only the fallback URL
+      // exists, the URL is already in the body text (see `quoteFallbackUrl`
+      // effect) and we skip the quote linkage.
       const mainPost = buildMainPost({
         postContent,
         mentions,
@@ -530,6 +707,7 @@ const ComposeScreen = () => {
         quotesDisabled,
         scheduledAt: scheduledAtRef.current,
         isSensitive,
+        quotedPostId: quotedPost?.id,
       });
       allPosts.push(mainPost);
 
@@ -1520,6 +1698,17 @@ const ComposeScreen = () => {
                     />
                   )}
 
+                  {/* Quote prefill card */}
+                  {(quotedPost || quoteLoading) && (
+                    <View className="mt-3" style={bottomLeftPadWithHPadStyle}>
+                      <QuoteCard
+                        post={quotedPost}
+                        loading={quoteLoading}
+                        onDismiss={clearQuote}
+                      />
+                    </View>
+                  )}
+
                   {/* Main post interaction settings (beast mode with thread items) */}
                   {postingMode === 'beast' && threadItems.length > 0 && (
                     <View style={bottomLeftPadWithHPadStyle}>
@@ -1831,6 +2020,42 @@ const ComposeScreen = () => {
             toast(t('common.cleared'), { type: 'success' });
           }}
         />
+
+        {/* Intent-vs-draft conflict prompt (shown when /intent/compose is opened
+            while an autosaved draft already exists). */}
+        {draftConflict && (
+          <Prompt.Outer control={intentConflictControl}>
+            <Prompt.Content>
+              <Prompt.TitleText>
+                {t('compose.intent.conflictTitle', 'Use shared content?')}
+              </Prompt.TitleText>
+              <Prompt.DescriptionText>
+                {t(
+                  'compose.intent.conflictDescription',
+                  'You have a saved draft. Replace it with the shared content or keep editing your draft?',
+                )}
+              </Prompt.DescriptionText>
+            </Prompt.Content>
+            <Prompt.Actions>
+              <Prompt.Action
+                cta={t('compose.intent.useShared', 'Use shared content')}
+                onPress={() => {
+                  acceptIntent();
+                  intentConflictControl.close();
+                }}
+                color="primary"
+              />
+              <Prompt.Action
+                cta={t('compose.intent.keepDraft', 'Keep draft')}
+                onPress={() => {
+                  discardIntent();
+                  intentConflictControl.close();
+                }}
+                color="primary_subtle"
+              />
+            </Prompt.Actions>
+          </Prompt.Outer>
+        )}
       </SafeAreaView>
     </>
   );

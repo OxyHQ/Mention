@@ -30,7 +30,7 @@ initLiveKit();
 
 import NetInfo from '@react-native-community/netinfo';
 import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Platform, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
@@ -54,6 +54,7 @@ import { oxyServices } from '@/lib/oxyServices';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@/lib/logger';
+import { useShareIntentRouter } from '@/lib/shareIntent';
 
 // CSS runtime
 import { vars } from 'react-native-css';
@@ -209,6 +210,11 @@ export default function RootLayout() {
 
 function AuthRouter() {
   const { isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  // Forward OS share-sheet payloads into `/intent/compose`. No-op on web
+  // (handled by the manifest Share Target).
+  useShareIntentRouter({ router, enabled: isAuthenticated });
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

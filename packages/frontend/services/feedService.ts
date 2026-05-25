@@ -193,7 +193,10 @@ class FeedService {
   }
 
   /**
-   * Create a new post
+   * Create a new post.
+   *
+   * Maps the camelCase {@link CreatePostRequest} into the backend's
+   * snake_case wire format (e.g. `quotedPostId` → `quoted_post_id`).
    */
   async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: unknown }> {
     const backendRequest = {
@@ -209,10 +212,15 @@ class FeedService {
       threadId: request.threadId,
       ...(request.status && { status: request.status }),
       ...(request.scheduledFor && { scheduledFor: request.scheduledFor }),
-      ...((request as any).metadata && { metadata: (request as any).metadata }),
-      ...((request as any).replyPermission && { replyPermission: (request as any).replyPermission }),
-      ...((request as any).reviewReplies !== undefined && { reviewReplies: (request as any).reviewReplies }),
-      ...((request as any).quotesDisabled !== undefined && { quotesDisabled: (request as any).quotesDisabled }),
+      ...(request.metadata && { metadata: request.metadata }),
+      ...(request.replyPermission && { replyPermission: request.replyPermission }),
+      ...(request.reviewReplies !== undefined && { reviewReplies: request.reviewReplies }),
+      ...(request.quotesDisabled !== undefined && { quotesDisabled: request.quotesDisabled }),
+      // Backend expects `quoted_post_id` (snake_case) as a TOP-LEVEL field;
+      // the controller reads it from `req.body.quoted_post_id`, not from
+      // `content` or `metadata`. Keep it out of the payload when empty so
+      // we don't accidentally turn a regular post into an empty-quote.
+      ...(request.quotedPostId && { quoted_post_id: request.quotedPostId }),
     };
 
     const response = await authenticatedClient.post('/posts', backendRequest);
