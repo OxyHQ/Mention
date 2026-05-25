@@ -104,12 +104,12 @@ return {
             },
             // Web Share Target API (PWA). Installed Mention on Android/Chrome
             // surfaces as a share target; the OS forwards title/text/url as
-            // query params to `/intent/compose`, which the compose screen
-            // parses via `parseComposeIntent`.
+            // query params to `/compose`, which the compose screen parses via
+            // `parseComposeIntent`.
             config: {
                 manifest: {
                     share_target: {
-                        action: "/intent/compose",
+                        action: "/compose",
                         method: "GET",
                         enctype: "application/x-www-form-urlencoded",
                         params: {
@@ -213,7 +213,7 @@ return {
                 // LiveKit WebRTC plugin for audio spaces
                 base.push("@livekit/react-native-expo-plugin");
                 // Native share extension — receives text/URL from OS share sheet
-                // and routes into `/intent/compose` (see `app/_layout.tsx`).
+                // and routes into `/compose` (see `app/_layout.tsx`).
                 base.push([
                     "expo-share-intent",
                     {

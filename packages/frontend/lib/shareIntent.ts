@@ -2,8 +2,8 @@
  * Web fallback for the share-intent bridge.
  *
  * On web, the Web Share Target API in `app.config.js` forwards `title`, `text`,
- * and `url` straight to `/intent/compose` as query params, so no JS bridge is
- * needed. This hook is a no-op on web.
+ * and `url` straight to `/compose` as query params, so no JS bridge is needed.
+ * This hook is a no-op on web.
  *
  * On native, see `shareIntent.native.ts`.
  */

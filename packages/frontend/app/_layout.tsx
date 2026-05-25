@@ -212,7 +212,7 @@ function AuthRouter() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
 
-  // Forward OS share-sheet payloads into `/intent/compose`. No-op on web
+  // Forward OS share-sheet payloads into `/compose`. No-op on web
   // (handled by the manifest Share Target).
   useShareIntentRouter({ router, enabled: isAuthenticated });
 

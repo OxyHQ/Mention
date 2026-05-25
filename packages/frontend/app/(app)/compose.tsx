@@ -2021,7 +2021,7 @@ const ComposeScreen = () => {
           }}
         />
 
-        {/* Intent-vs-draft conflict prompt (shown when /intent/compose is opened
+        {/* Intent-vs-draft conflict prompt (shown when /compose is opened
             while an autosaved draft already exists). */}
         {draftConflict && (
           <Prompt.Outer control={intentConflictControl}>

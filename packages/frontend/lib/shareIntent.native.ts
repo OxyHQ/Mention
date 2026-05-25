@@ -4,8 +4,8 @@
  * When the user picks "Mention" from the OS share sheet (iOS/Android), the
  * `expo-share-intent` module surfaces the payload through `useShareIntent`.
  * We map text/URL into the same `?text=&url=` query string the web Share
- * Target API uses, then push `/intent/compose` — so all entry points hit the
- * same parser (`utils/composeIntent.ts`).
+ * Target API uses, then push `/compose` — so all entry points hit the same
+ * parser (`utils/composeIntent.ts`).
  */
 
 import { useEffect } from 'react';
@@ -49,7 +49,7 @@ export const useShareIntentRouter = ({
       return;
     }
 
-    router.push({ pathname: '/intent/compose', params });
+    router.push({ pathname: '/compose', params });
     resetShareIntent();
   }, [enabled, hasShareIntent, shareIntent, resetShareIntent, router]);
 };

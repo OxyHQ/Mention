@@ -2,7 +2,7 @@
  * Parser for compose intent URLs.
  *
  * Lets third-party sites and OS share sheets open the Mention composer with
- * prefilled content (e.g. `/intent/compose?text=...&hashtags=foo,bar&url=...`).
+ * prefilled content (e.g. `/compose?text=...&hashtags=foo,bar&url=...`).
  *
  * The parser is pure and side-effect free:
  *  - Unknown keys are silently dropped (logged in __DEV__).
@@ -472,7 +472,7 @@ export const buildComposeText = (intent: ComposeIntent): string => {
 /**
  * Whether the intent carries any value worth applying to the composer.
  * Used by the compose screen to skip the draft-conflict prompt when the
- * intent is empty (e.g. a user just opened `/intent/compose` directly).
+ * intent is empty (e.g. a user just opened `/compose` directly).
  */
 export const hasIntentContent = (intent: ComposeIntent): boolean => {
   return Boolean(
