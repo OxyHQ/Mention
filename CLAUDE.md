@@ -46,6 +46,20 @@ packages/
 - **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain.
 - **Auth**: Oxy integration via @oxyhq/core + @oxyhq/services
 
+## Compose Intent URL
+
+The composer accepts rich URL params for prefilling — mirrors X/Twitter `intent/tweet`:
+- Canonical: `https://mention.earth/intent/compose?text=...&url=...&hashtags=...`
+- Legacy alias: `https://mention.earth/compose?...` (same params)
+- Full param reference: `packages/frontend/docs/INTENT_URL.md`
+- Parser: `packages/frontend/utils/composeIntent.ts`
+- Wired in: `packages/frontend/app/compose.tsx` and `packages/frontend/app/intent/[...path].tsx`
+- OS share sheet: Web Share Target (PWA, via `app.config.js` manifest) + native via `expo-share-intent` (config plugin, needs `expo prebuild` after install)
+- Share intent integration point: `packages/frontend/app/_layout.tsx`
+- Platform split pattern: `shareIntent.web.ts` / `shareIntent.native.ts` (mirrors `livekit.web.ts` / `livekit.native.ts`)
+- Quote flow: `hooks/useQuoteManager.ts` + `components/Compose/QuoteCard.tsx`
+- Wire format: quote post field is snake_case `quoted_post_id` as top-level body field (NOT nested under `content`)
+
 ## Dependencies
 
 - `@oxyhq/core`, `@oxyhq/services` — Oxy platform SDK
