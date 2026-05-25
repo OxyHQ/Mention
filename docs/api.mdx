@@ -1,0 +1,250 @@
+---
+title: API
+description: The Mention backend REST + Socket.io surface — feeds, posts, follows, notifications, federation, and more.
+order: 3
+---
+
+# Mention API
+
+`@mention/backend` is an Express 5 service that powers the Mention frontend, the mobile apps, the MCP server, and the federation surface. It speaks REST over HTTPS for request/response work and Socket.io for real-time updates. Authentication is delegated to Oxy: every authenticated request carries an Oxy access token in `Authorization: Bearer <token>`, verified by `@oxyhq/core`'s `auth()` middleware.
+
+## Base URL
+
+```
+https://api.mention.earth
+```
+
+Local development defaults to `http://localhost:3000`. The federation endpoints (`/.well-known/*`, `/ap/*`) must additionally be reachable on the `FEDERATION_DOMAIN` — see [Fediverse](/developers/docs/mention/fediverse).
+
+## Authentication
+
+| Type | Header | Use case |
+|------|--------|----------|
+| Oxy user token | `Authorization: Bearer <oxy_access_token>` | First-party Mention clients (web, mobile). |
+| HTTP signature | `Signature: keyId=..., signature=...` | Inbound fediverse activities (verified against `FederatedActor` public keys). |
+
+There is no Mention-specific signup or login flow. Users authenticate against Oxy (`@oxyhq/services` in-app or the standalone Auth app on the web) and the resulting access token is sent to the Mention API. The backend pulls user metadata from Oxy as needed.
+
+Public endpoints either skip auth entirely (e.g. trending, hashtag pages) or use the `optionalAuth` middleware that attaches the user when present but does not require it. Write endpoints always require auth.
+
+## Conventions
+
+- **Errors** — every error response follows `{ error: 'CODE', message: 'human readable' }` with the appropriate HTTP status.
+- **Pagination** — list endpoints accept `cursor` (opaque) and `limit` query params; responses include `nextCursor` when more data exists. Feed endpoints expose dual cursors (`score` for ranked feeds, `chrono` for time-ordered feeds) handled by `CursorBuilder`.
+- **Rate limiting** — Redis-backed via `express-rate-limit` + `rate-limit-redis`. Brute-force protection sits on top via `express-slow-down`. Exceeded limits return `429` with `Retry-After`.
+- **Timestamps** — ISO 8601 (`2025-01-15T12:34:56.789Z`).
+- **IDs** — Mongo ObjectIDs serialized as strings.
+- **DTOs** — request and response shapes match the interfaces exported from `@mention/shared-types`.
+
+## Router mounts
+
+The server splits routers into a **public** group (no auth wall, individual routes opt in) and an **authenticated** group (every route runs behind `oxy.auth()`):
+
+| Mount | Group | Notes |
+|-------|-------|-------|
+| `/health` | public | Liveness + Mongo + Redis status. |
+| `/.well-known` | public | WebFinger. |
+| `/ap` | public | ActivityPub protocol surface (inbox, outbox, actor). |
+| `/hashtags` | public | Hashtag metadata, trending counts. |
+| `/feed` | public (optional auth) | MTN feed reads. |
+| `/profile/design` | public | Profile theming. |
+| `/articles` | public | Long-form articles. |
+| `/images` | public (rate-limited) | Image optimization proxy. |
+| `/links` | public (optional auth) | Link previews. |
+| `/trending` | public | Trending topics. |
+| `/topics` | public | Topic taxonomy. |
+| `/federation` | public (optional auth) | Frontend-facing fediverse API. Writes enforce auth internally. |
+| `/posts` | authenticated | Post CRUD, likes, saves, reposts. |
+| `/lists` | authenticated | User-curated lists of accounts. |
+| `/notifications` | authenticated | Notifications + FCM push tokens. |
+| `/analytics` | authenticated | Engagement analytics. |
+| `/statistics` | authenticated | Aggregated stats. |
+| `/search` | authenticated | Search users, posts, hashtags. |
+| `/feeds` | authenticated | User-created custom feeds. |
+| `/labelers` | authenticated | Composable moderation labels. |
+| `/polls` | authenticated | Poll creation + voting. |
+| `/profile` | authenticated | Profile settings (Mention-specific, non-Oxy). |
+| `/subscriptions` | authenticated | Post subscriptions ("notify me of new posts"). |
+| `/gifs` | authenticated | GIF picker passthrough. |
+| `/follows` | authenticated | Follow event emission. |
+| `/mute` | authenticated | Mute words + mute users. |
+| `/reports` | authenticated | Content reporting. |
+| `/rooms` | authenticated | Live audio/video rooms (LiveKit token mint). |
+| `/recordings` | authenticated | Recorded room playback. |
+| `/houses` | authenticated | Community spaces. |
+| `/series` | authenticated | Article / post series. |
+| `/pokes` | authenticated | Lightweight nudges. |
+| `/entity-follows` | authenticated | Follow non-user entities (hashtags, lists, etc.). |
+| `/starter-packs` | authenticated | Curated onboarding follow lists. |
+| `/admin` | authenticated (role-gated) | Moderation + ops console. |
+
+## Feed endpoints (MTN)
+
+`/feed/mtn` is the unified read endpoint backed by the MTN feed engine. The feed identity is encoded in the request — `descriptor`, `cursor`, `limit` — and the dispatcher looks up the right `FeedAPI` implementation from `FeedAPIRegistry`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/feed/mtn` | Fetch a feed page. Query: `descriptor`, `cursor`, `limit`. Returns `SlicedFeedResponse`. |
+| GET | `/feed/mtn/peek` | Peek the latest item without consuming a cursor — drives the "new posts" pill. |
+| POST | `/feed/mtn/interactions` | Record impressions / interactions for ranking signal. |
+| GET | `/feed/replies/:parentId` | Replies feed for a post. |
+| GET | `/feed/user/:userId` | Author feed (with public-profile caching). |
+| GET | `/feed/user/:userId/pinned` | Pinned post for a user. |
+| GET | `/feed/item/:id` | Single hydrated feed item by ID. |
+| POST | `/feed/reply` | Create a reply. |
+| POST | `/feed/repost` | Create a repost. |
+| DELETE | `/feed/:postId/repost` | Remove a repost. |
+| POST | `/feed/like` | Like a post. |
+| POST | `/feed/unlike` | Unlike a post. |
+| POST | `/feed/:postId/save` | Save a post to bookmarks. |
+| DELETE | `/feed/:postId/save` | Unsave. |
+
+Feed responses use `HydratedPost` from `@mention/shared-types`, which bundles the post content with its actor summary, attachment bundle, viewer state (`isLiked`, `isReposted`, ...), permissions, engagement counts, and feed context (`reason`, `position`).
+
+## Posts
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/posts` | List posts (filtered). |
+| GET | `/posts/hashtag/:hashtag` | Posts by hashtag. |
+| GET | `/posts/topic/:topic` | Posts by topic. |
+| GET | `/posts/nearby` | Posts near a coordinate. |
+| GET | `/posts/in-area` | Posts in a bounding box. |
+| GET | `/posts/location-stats` | Aggregated post counts per region. |
+| POST | `/posts` | Create a post. Body: `CreatePostRequest`. |
+| POST | `/posts/thread` | Create a thread. Body: `CreateThreadRequest` (`mode: 'thread' | 'beast'`). |
+| GET | `/posts/drafts` | The viewer's drafts. |
+| GET | `/posts/scheduled` | The viewer's scheduled posts. |
+| GET | `/posts/saved` | The viewer's saved posts. |
+| GET | `/posts/bookmarks/folders` | Bookmark folders. |
+| PATCH | `/posts/bookmarks/:id/folder` | Move a bookmark between folders. |
+| GET | `/posts/:id` | A single post by ID. |
+| PUT | `/posts/:id` | Update a post. Body: `UpdatePostRequest`. |
+| PATCH | `/posts/:id/settings` | Update reply permissions, sensitivity, pin state. |
+| DELETE | `/posts/:id` | Delete a post. |
+| GET | `/posts/:id/likes` | Users who liked the post. |
+| GET | `/posts/:id/reposts` | Users who reposted the post. |
+| POST | `/posts/:id/like` | Like. |
+| DELETE | `/posts/:id/like` | Unlike. |
+| POST | `/posts/:id/save` | Save. |
+| DELETE | `/posts/:id/save` | Unsave. |
+| POST | `/posts/:id/repost` | Repost. |
+
+Reply permissions are a `ReplyPermission[]` — `'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody'`. Authors can also enable `reviewReplies` so each reply needs approval before becoming public, and disable quotes entirely with `quotesDisabled: true`.
+
+## Notifications
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/notifications` | List the viewer's notifications. |
+| POST | `/notifications` | Create a notification (internal use). |
+| GET | `/notifications/unread-count` | Count unread. |
+| PUT \| PATCH | `/notifications/:id/read` | Mark a single notification as read. |
+| PUT \| PATCH | `/notifications/read-all` | Mark all as read. |
+| PATCH | `/notifications/:id/archive` | Archive a notification. |
+| DELETE | `/notifications/:id` | Delete a notification. |
+| POST | `/notifications/push-token` | Register an FCM push token. Body: `{ token, type, platform, deviceId?, locale? }`. |
+| DELETE | `/notifications/push-token` | Unregister a push token. |
+| POST | `/notifications/push-test` | Send a test push (dev only). |
+
+When a notification is persisted, the server attempts an FCM push to every registered token for the recipient. Push notifications require `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_BASE64` in the backend environment.
+
+## Federation
+
+See [Fediverse](/developers/docs/mention/fediverse) for the protocol-facing endpoints (WebFinger, inbox, outbox, actor) and the frontend-facing endpoints under `/federation/*` (follow, unfollow, search, lookup, actor posts).
+
+## Custom feeds
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/feeds` | Create a custom feed. |
+| GET | `/feeds` | The viewer's custom feeds. |
+| GET | `/feeds/marketplace` | Browse shareable feeds. |
+| GET | `/feeds/marketplace/categories` | Marketplace categories. |
+| GET | `/feeds/:id` | One feed. |
+| PUT | `/feeds/:id` | Update a feed. |
+| DELETE | `/feeds/:id` | Delete. |
+| POST | `/feeds/:id/members` | Add accounts to the feed source. |
+| DELETE | `/feeds/:id/members` | Remove accounts. |
+| GET | `/feeds/:id/timeline` | The feed's timeline. |
+
+## Real-time (Socket.io)
+
+The Socket.io server uses `@socket.io/redis-adapter` so it scales horizontally behind a Redis pub/sub channel. Clients connect with their Oxy bearer token and subscribe to rooms keyed by `oxyUserId`.
+
+Common events emitted to clients:
+
+- `notification:new` — payload is the freshly-persisted `Notification`.
+- `post:stats` — engagement count updates for posts currently in view.
+- `feed:invalidate` — instructs the client to refetch a specific feed descriptor.
+- `room:participant_joined`, `room:participant_left` — for live LiveKit rooms.
+
+Clients send `feed:subscribe` / `feed:unsubscribe` to control which feeds the server pushes invalidations for, keeping fan-out cost bounded.
+
+## Health
+
+```
+GET /health
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "uptime": 1000,
+  "mongoStatus": "connected",
+  "redisStatus": "connected"
+}
+```
+
+## Errors
+
+Common error codes the API can return:
+
+| HTTP | Code | Meaning |
+|------|------|---------|
+| 400 | `VALIDATION_FAILED` | Request body failed `express-validator` checks. Details under `errors`. |
+| 401 | `UNAUTHENTICATED` | Missing or invalid Oxy bearer token. |
+| 403 | `FORBIDDEN` | Authenticated, but not allowed (e.g. blocked, muted, or non-admin hitting `/admin`). |
+| 404 | `NOT_FOUND` | Resource not found. |
+| 409 | `CONFLICT` | State conflict (e.g. already liked). |
+| 422 | `INVALID_STATE` | Request was well-formed but the action is not legal in the current state. |
+| 429 | `RATE_LIMITED` | Rate or brute-force limit exceeded. `Retry-After` set. |
+| 500 | `INTERNAL_ERROR` | Unhandled server error. Logged with Pino + request ID. |
+
+## Environment variables
+
+Required for the backend to boot:
+
+```env
+MONGODB_URI=mongodb+srv://...
+REDIS_URL=redis://...           # optional in dev; required for rate-limit + Socket.io adapter in prod
+PORT=3000
+NODE_ENV=development
+
+# Oxy (auth)
+OXY_API_URL=https://api.oxy.so
+OXY_INTERNAL_API_KEY=...
+OXY_INTERNAL_API_SECRET=...
+
+# Media
+AWS_REGION=...
+AWS_S3_BUCKET=...
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+
+# Push
+FIREBASE_PROJECT_ID=...
+FIREBASE_SERVICE_ACCOUNT_BASE64=...
+
+# Live rooms
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+LIVEKIT_URL=wss://...
+
+# Federation
+FEDERATION_DOMAIN=mention.earth
+FEDERATION_ENABLED=true
+FEDERATION_DELIVERY_RETRIES=5
+FEDERATION_MAX_CONTENT_LENGTH=50000
+
+# AI (Alia assistant)
+OPENAI_API_KEY=...
+```

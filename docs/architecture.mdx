@@ -1,0 +1,237 @@
+---
+title: Architecture
+description: How the Mention monorepo is laid out — frontend, backend, shared types, and the data flow between them.
+order: 1
+---
+
+# Architecture
+
+Mention is a Bun-workspaces monorepo with two flagship packages — `@mention/frontend` (Expo) and `@mention/backend` (Node) — plus shared types, an MCP server, and a live-rooms app. Everything ships from one repo so type changes propagate atomically and feature work spans both sides without the friction of separate releases.
+
+## Repository layout
+
+```
+packages/
+  frontend/        @mention/frontend     Expo 55 / RN 0.84 / React 19 / Expo Router
+  backend/         @mention/backend      Express 5 / Mongoose 9 / Redis / Socket.io
+  shared-types/    @mention/shared-types Post, Feed, Federation, Notification types
+  agora/           @mention/agora        Live audio/video rooms (LiveKit) Expo app
+  agora-shared/    @mention/agora-shared Shared Agora hooks and components
+  mcp/             @mention/mcp          Model Context Protocol server for Claude
+```
+
+### Build order
+
+```
+shared-types  ->  backend
+              ->  frontend
+              ->  mcp
+```
+
+`shared-types` is built on `postinstall` so the rest of the workspace can type-check immediately after `bun install`. `bun run build` runs `shared-types` -> `backend` -> `mcp` in sequence; `bun run build:frontend` does the Expo web export separately.
+
+## Frontend (`@mention/frontend`)
+
+Expo Router app that targets iOS, Android, and the web from one source tree.
+
+### Tech stack
+
+- **Expo 55** with Expo Router for file-based routing
+- **React Native 0.84** + **React 19**
+- **NativeWind 5** on **Tailwind CSS 4.2** for styling
+- **TanStack Query 5** for server state, caching, and offline persistence
+- **Zustand** for local UI state
+- **Socket.io-client** for real-time updates
+- **LiveKit** for audio/video rooms
+- **`@oxyhq/services`** for identity, account center, and bottom-sheet flows
+- **`@oxyhq/bloom`** for shared design-system primitives
+
+### Directory layout (`packages/frontend/`)
+
+```
+app/                         Expo Router routes (file-based)
+  (app)/                     Authenticated stack — feeds, profiles, compose, settings, etc.
+    [username]/              User profile, followers, following
+    p/[id]/                  Post details, replies, quotes
+    feeds/                   Feeds index + custom feed viewer
+    hashtag/                 Hashtag pages
+    notifications/, chat.tsx, ai/, search/, settings/, ...
+  (auth)/                    Onboarding and sign-in flow
+  _layout.tsx                Root layout: OxyProvider, QueryClient, theming
+components/                  UI components (FeedCard, Compose, MentionTextInput, ...)
+hooks/                       useFeed, useNotifications, useCustomFeeds, ...
+services/                    Backend client wrappers (custom feeds, fediverse, ...)
+features/                    Feature modules (compose, notifications, ...)
+context/                     React context providers
+store/                       Zustand stores
+locales/                     i18n translations
+```
+
+### Data flow
+
+```
+UI component
+   |
+   v
+useQuery / useMutation hook (TanStack Query)
+   |
+   v
+services/<feature>.ts  ->  fetch() to @mention/backend
+   |
+   v
+On success: writes to React Query cache; UI re-renders from derived state.
+On real-time event: Socket.io invalidates affected queries.
+```
+
+There is no Redux. TanStack Query owns server state with persistence + offline mode; Zustand owns purely local UI state (compose drafts, modal stacks, etc.). `useEffect` is avoided whenever derived state, event handlers, or React Query suffices.
+
+### Identity
+
+`OxyProvider` from `@oxyhq/services` wraps the app at `app/_layout.tsx`. `useOxy()` hands components the current user, access token, and a fully-typed `OxyServices` client for direct Oxy reads. The backend bearer token is the Oxy access token.
+
+## Backend (`@mention/backend`)
+
+Express 5 + Mongoose 9 API with Socket.io, Redis, and a custom feed engine.
+
+### Tech stack
+
+- **Bun** runtime in dev (`bun --watch`) and production
+- **Express 5** with `helmet`, `compression`, `cors`, `express-rate-limit`, `express-slow-down`, `express-validator`
+- **Mongoose 9** on MongoDB
+- **Redis 5** — `rate-limit-redis`, `@socket.io/redis-adapter`
+- **Socket.io** for real-time
+- **`@oxyhq/core`** for Oxy user lookups + auth middleware
+- **AWS S3** for media via `@aws-sdk/client-s3`
+- **Firebase Admin** for FCM push notifications
+- **LiveKit Server SDK** for room credentials
+- **OpenAI / `ai` SDK** for the Alia assistant
+- **Pino** for structured logging
+
+### Directory layout (`packages/backend/src/`)
+
+```
+controllers/                 Request -> response orchestration
+middleware/                  Auth, rate-limit, validation, error handling
+models/                      Mongoose schemas (Post, Notification, FederatedActor, ...)
+routes/                      Express routers (posts, follows, notifications, federation, ...)
+mtn/                         MTN feed engine
+  feed/
+    FeedAPI.ts               Common feed interface
+    FeedAPIRegistry.ts       Registry of feed implementations
+    FeedTuner.ts             Tuner composition
+    CursorBuilder.ts         Score + chrono cursor primitives
+    RankingExplainer.ts      "Why this post" explanations
+    FeedInteractionTracker.ts
+    feeds/                   ForYou, Following, Author, Hashtag, Explore, Custom,
+                             FeedGenerator, List, Saved
+    tuners/                  deduplicate, filterByLanguage, filterHiddenPosts,
+                             filterMuteWords, filterSensitiveContent,
+                             injectBreakpoints, removeReplies, removeReposts
+  UserPrivacyManager.ts      Visibility + blocking + muting resolution
+services/                    FederationService, FederationJobScheduler, ...
+sockets/                     Socket.io event handlers
+utils/                       Notification helpers, federation crypto, ...
+scripts/                     Migration scripts
+```
+
+### Models (selection)
+
+`Post`, `Like`, `Bookmark`, `Notification`, `Follow`, `Block`, `Mute`, `MuteWord`, `Hashtag`, `Poll`, `Postgate`, `Threadgate`, `Restrict`, `Report.model`, `Trending`, `TrendBatch`, `TopicStats`, `Article`, `Series`, `Room`, `Recording`, `List`, `AccountList`, `StarterPack`, `CustomFeed`, `FeedGenerator`, `FeedInteraction`, `FeedReview`, `FeedLike`, `EntityFollow`, `PostSubscription`, `ContentLabel`, `Labeler`, `UserBehavior`, `UserSettings`, `House`, `PushToken`, `Poke`, `ActorKeyPair`, `FederatedActor`, `FederatedFollow`, `FederationDeliveryQueue`.
+
+42 models total — the schema captures the breadth of a real social network (content, social graph, moderation, ranking, federation).
+
+### Request lifecycle
+
+```
+Express request
+   |
+   v
+helmet + compression + cors + body parsing
+   |
+   v
+Rate limiters (Redis-backed)
+   |
+   v
+Auth middleware  -> verifies Oxy bearer token via @oxyhq/core
+   |                     (sets req.user with oxyUserId)
+   v
+Route handler  ->  Mongoose read/write  ->  shared-types DTO  ->  JSON
+   |
+   v
+On state change: emit Socket.io event + create Notification + (optional) federate.
+```
+
+### Federation pipeline
+
+```
+Inbox POST /ap/inbox
+   |
+   v
+Verify HTTP signature against cached FederatedActor public key
+   |
+   v
+Reject if actor has no local followers (anti-spam)
+   |
+   v
+Persist Create as a local Post with oxyUserId = actor's shadow Oxy user
+   |
+   v
+Fan out to followers via real-time + push notifications.
+
+Outbox local post created
+   |
+   v
+FederationDeliveryQueue.enqueue(activity, inboxes)
+   |
+   v
+FederationJobScheduler picks up batch, signs each request, POSTs.
+   |
+   v
+On failure, retry with exponential backoff up to FEDERATION_DELIVERY_RETRIES.
+```
+
+## Shared types (`@mention/shared-types`)
+
+Single source of truth for cross-package contracts:
+
+| File | What it covers |
+|------|----------------|
+| `post.ts` | `Post`, `PostContent`, `PostStats`, `HydratedPost`, `CreatePostRequest`, ... |
+| `feed.ts` | `FeedDescriptor`, `FeedPostSlice`, `SlicedFeedResponse`, ranking primitives |
+| `customFeed.ts` | `CustomFeed`, builder DSL |
+| `federation.ts` | ActivityPub-facing actor + activity types |
+| `notification.ts` | `Notification`, `NotificationType`, push payloads |
+| `interaction.ts` | Likes, bookmarks, reposts, reactions |
+| `list.ts` | `List`, `StarterPack` |
+| `media.ts` | Media descriptors |
+| `profile.ts` | User profile projections used by the feed |
+| `topic.ts` | Trending topics |
+| `analytics.ts` | Impression + engagement events |
+| `common.ts` | `GeoJSONPoint`, pagination cursors, error shapes |
+| `mtn/` | Internal feed-engine primitives shared with the MCP package |
+
+Frontend imports these directly. Backend uses them at the boundary (request validators, response DTOs) so the wire format stays in lockstep with the client.
+
+## Agora (`@mention/agora` + `@mention/agora-shared`)
+
+A separate Expo app for live audio and video rooms, built on LiveKit. It shares hooks and components with the main frontend via `@mention/agora-shared` so room state, participant lists, and controls behave identically across surfaces. The backend mints LiveKit JWTs through `livekit-server-sdk` and brokers room metadata.
+
+## MCP (`@mention/mcp`)
+
+A Model Context Protocol server that exposes Mention's MTN feed engine to Claude (or any MCP-compatible client). Long-running mode (`bun run dev:mcp:http`) runs over HTTP for remote clients; the default mode runs over stdio for local Claude Code integration.
+
+## Deployment
+
+- **Backend** — production runs on DigitalOcean App Platform (single deployment for the API + federation endpoints) with Cloudflare in front. Cloudflare redirect rules route `/.well-known/*` and `/ap/*` on `mention.earth` to the backend service so the federation surface stays distinct from the static web app. See `docs/DIGITALOCEAN_DEPLOYMENT.md`.
+- **Frontend (web)** — Expo web export deployed to Vercel. See `docs/VERCEL_DEPLOYMENT.md`.
+- **Frontend (native)** — EAS Build for Android (APK + Play) and iOS. Scripts: `bun run build:apk`, `bun run build:android`, `bun run build:ios`.
+- **MongoDB** — managed cluster; indexes provisioned via `bun run migrate`.
+- **Redis** — managed instance for rate-limiting and the Socket.io adapter.
+- **S3** — single bucket for user-uploaded media, fronted by signed URLs.
+
+## Local development checklist
+
+1. Copy `.env.example` to `packages/backend/.env` and fill in `MONGODB_URI`, `OXY_API_URL`, S3 keys, Firebase admin keys, and (optionally) `FEDERATION_DOMAIN`.
+2. `bun install` from the repo root.
+3. `bun run dev` to start everything, or run packages individually.
+4. For federation testing, expose the backend via Cloudflare Tunnel and point `FEDERATION_DOMAIN` at the tunnel hostname (the tunnel URL changes per session unless named).

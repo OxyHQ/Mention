@@ -1,0 +1,11 @@
+{
+  "package": "mention",
+  "displayName": "Mention",
+  "shortName": "mention",
+  "repo": "https://github.com/OxyHQ/Mention",
+  "category": "app",
+  "versions": ["main"],
+  "defaultVersion": "main",
+  "docsPath": "docs/",
+  "description": "Social media app with fediverse/ActivityPub support"
+}
