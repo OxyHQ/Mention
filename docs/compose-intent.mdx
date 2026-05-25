@@ -11,10 +11,8 @@ Third-party sites and apps can deep-link into the Mention composer with prefille
 ## Canonical URL
 
 ```
-https://mention.earth/intent/compose?text=...&url=...&hashtags=foo,bar
+https://mention.earth/compose?text=...&url=...&hashtags=foo,bar
 ```
-
-The legacy alias `https://mention.earth/compose?...` accepts the same query parameters.
 
 ## "Share with Mention" button
 
@@ -22,7 +20,7 @@ Drop this anywhere on your site to give users a one-click composer link:
 
 ```html
 <a
-  href="https://mention.earth/intent/compose?text=Check%20this%20out&url=https%3A%2F%2Fexample.com&via=mention"
+  href="https://mention.earth/compose?text=Check%20this%20out&url=https%3A%2F%2Fexample.com&via=mention"
   target="_blank"
   rel="noopener noreferrer"
 >
@@ -75,7 +73,7 @@ All parameters are optional. Unknown keys are silently dropped (logged in dev bu
 ### Tweet-style share
 
 ```
-https://mention.earth/intent/compose?text=Check%20out%20this%20podcast&url=https%3A%2F%2Fpodcast.example.com%2Fep42&hashtags=podcasts,tech&via=podcasts
+https://mention.earth/compose?text=Check%20out%20this%20podcast&url=https%3A%2F%2Fpodcast.example.com%2Fep42&hashtags=podcasts,tech&via=podcasts
 ```
 
 Composes:
@@ -87,7 +85,7 @@ Check out this podcast https://podcast.example.com/ep42 #podcasts #tech via @pod
 ### Pre-filled poll
 
 ```
-https://mention.earth/intent/compose?text=What%27s%20your%20favorite%20editor%3F&pollOptions=Vim%7CEmacs%7CVSCode%7CHelix&pollDurationDays=3
+https://mention.earth/compose?text=What%27s%20your%20favorite%20editor%3F&pollOptions=Vim%7CEmacs%7CVSCode%7CHelix&pollDurationDays=3
 ```
 
 Opens the poll creator with four options and a 3-day duration.
@@ -95,7 +93,7 @@ Opens the poll creator with four options and a 3-day duration.
 ### Quote prefill
 
 ```
-https://mention.earth/intent/compose?quotePostId=abc123&text=My%20take
+https://mention.earth/compose?quotePostId=abc123&text=My%20take
 ```
 
 Composer renders a quote card for `abc123` (or appends the share URL if the post is missing/private).
@@ -103,7 +101,7 @@ Composer renders a quote card for `abc123` (or appends the share URL if the post
 ### Event prefill
 
 ```
-https://mention.earth/intent/compose?eventName=Meetup&eventDate=2026-06-15T18%3A00%3A00Z&eventLocation=Barcelona
+https://mention.earth/compose?eventName=Meetup&eventDate=2026-06-15T18%3A00%3A00Z&eventLocation=Barcelona
 ```
 
 ## Behavior notes
@@ -119,4 +117,4 @@ https://mention.earth/intent/compose?eventName=Meetup&eventDate=2026-06-15T18%3A
 - `mediaUrl=` (remote media fetch + attach)
 - `thread[0].text=` (multi-post thread prefill)
 - POST-based Web Share Target (file uploads)
-- Server-side intent shortlinks (e.g. `mention.earth/intent/{shortcode}`)
+- Server-side intent shortlinks (e.g. `mention.earth/s/{shortcode}`)
