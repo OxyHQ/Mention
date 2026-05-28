@@ -1,9 +1,23 @@
 import React, { memo } from 'react';
-import { View, Text, Platform } from 'react-native';
+import { View, Text, Platform, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxyhq/bloom/button';
+
+/**
+ * Banner shown to signed-out users at the bottom of the middle column.
+ *
+ * Web: rendered as a normal flex child (flex-shrink: 0) so it pins to the
+ * bottom of the parent column without relying on `position: sticky` (which
+ * silently falls back to static when there is no scrolling ancestor).
+ *
+ * Native: rendered as an absolute overlay so it floats over scrollable
+ * screen content without shifting layout.
+ */
+const containerStyle: ViewStyle = Platform.OS === 'web'
+  ? { flexShrink: 0 }
+  : { position: 'absolute', bottom: 0, left: 0, right: 0 };
 
 export const SignInBanner = memo(function SignInBanner() {
   const insets = useSafeAreaInsets();
@@ -12,12 +26,9 @@ export const SignInBanner = memo(function SignInBanner() {
 
   return (
     <View
-      className="bg-primary z-[999]"
+      className="bg-primary z-[999] w-full"
       style={[
-        Platform.select({
-          web: { position: 'sticky' as any, bottom: 0 },
-          default: { position: 'absolute', bottom: 0, left: 0, right: 0 },
-        }),
+        containerStyle,
         { paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom },
       ]}
     >

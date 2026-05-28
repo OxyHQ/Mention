@@ -121,7 +121,7 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = mem
       >
         <ThemedView
           className={cn(
-            "bg-background",
+            "bg-background overflow-hidden",
             isScreenNotMobile && "border-x border-border"
           )}
           style={[
