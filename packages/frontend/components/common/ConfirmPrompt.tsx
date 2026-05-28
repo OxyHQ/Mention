@@ -1,8 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { type GestureResponderEvent } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useDialogControl } from '@oxyhq/bloom/dialog';
-import * as Prompt from '@oxyhq/bloom/prompt';
+import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
 import type { ConfirmOptions } from '@/utils/alerts';
 
 type ConfirmRequest = ConfirmOptions & {
@@ -19,7 +17,7 @@ let globalShowConfirm: ((request: ConfirmRequest) => void) | null = null;
 export function showConfirmPrompt(options: ConfirmOptions): Promise<boolean> {
   if (globalShowConfirm) {
     return new Promise<boolean>((resolve) => {
-      globalShowConfirm!({ ...options, resolve });
+      globalShowConfirm?.({ ...options, resolve });
     });
   }
 
@@ -27,19 +25,21 @@ export function showConfirmPrompt(options: ConfirmOptions): Promise<boolean> {
 }
 
 /**
- * Mount this provider once near the root of the app (inside BottomSheetModalProvider).
- * It renders a Prompt dialog when confirmDialog is called.
+ * Mount this provider once near the root of the app.
+ * It renders a Dialog when confirmDialog is called.
  */
 export function ConfirmPromptProvider() {
   const control = useDialogControl();
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
   const requestRef = useRef<ConfirmRequest | null>(null);
+  const resolvedRef = useRef(false);
 
   useEffect(() => {
     globalShowConfirm = (req) => {
       requestRef.current = req;
+      resolvedRef.current = false;
       setRequest(req);
-      // Open on next tick so the Prompt component has time to mount with the new request
+      // Open on next tick so the Dialog component has time to mount with the new request
       setTimeout(() => control.open(), 0);
     };
 
@@ -48,41 +48,48 @@ export function ConfirmPromptProvider() {
     };
   }, [control]);
 
-  const handleConfirm = useCallback((_e: GestureResponderEvent) => {
-    requestRef.current?.resolve(true);
-    requestRef.current = null;
+  const handleConfirm = useCallback(() => {
+    if (requestRef.current && !resolvedRef.current) {
+      resolvedRef.current = true;
+      requestRef.current.resolve(true);
+      requestRef.current = null;
+    }
   }, []);
 
   const handleClose = useCallback(() => {
     // If dismissed without explicit confirm, treat as cancel
-    if (requestRef.current) {
+    if (requestRef.current && !resolvedRef.current) {
+      resolvedRef.current = true;
       requestRef.current.resolve(false);
       requestRef.current = null;
     }
     setRequest(null);
   }, []);
 
+  const actions = useMemo<DialogAction[] | undefined>(() => {
+    if (!request) return undefined;
+    return [
+      {
+        label: request.okText ?? 'OK',
+        onPress: handleConfirm,
+        color: request.destructive ? 'destructive' : 'default',
+        testID: 'confirmBtn',
+      },
+      {
+        label: request.cancelText ?? 'Cancel',
+        color: 'cancel',
+      },
+    ];
+  }, [request, handleConfirm]);
+
   return (
-    <Prompt.Outer control={control} testID="confirmModal" onClose={handleClose}>
-      {request && (
-        <>
-          <Prompt.Content>
-            <Prompt.TitleText>{request.title}</Prompt.TitleText>
-            {request.message && (
-              <Prompt.DescriptionText>{request.message}</Prompt.DescriptionText>
-            )}
-          </Prompt.Content>
-          <Prompt.Actions>
-            <Prompt.Action
-              cta={request.okText}
-              onPress={handleConfirm}
-              color={request.destructive ? 'negative' : 'primary'}
-              testID="confirmBtn"
-            />
-            <Prompt.Cancel cta={request.cancelText} />
-          </Prompt.Actions>
-        </>
-      )}
-    </Prompt.Outer>
+    <Dialog
+      control={control}
+      testID="confirmModal"
+      onClose={handleClose}
+      title={request?.title}
+      description={request?.message}
+      actions={actions}
+    />
   );
 }

@@ -48,7 +48,7 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import * as Prompt from '@oxyhq/bloom/prompt';
+import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 // Lazy load sheets - only loaded when user opens them
@@ -138,9 +138,9 @@ const ComposeScreen = () => {
   const safeBack = useSafeBack();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { drafts, saveDraft, deleteDraft, loadDrafts } = useDrafts();
-  const discardControl = Prompt.usePromptControl();
-  const clearAllControl = Prompt.usePromptControl();
-  const intentConflictControl = Prompt.usePromptControl();
+  const discardControl = useDialogControl();
+  const clearAllControl = useDialogControl();
+  const intentConflictControl = useDialogControl();
   const { user, showBottomSheet, oxyServices, isAuthenticated } = useAuth();
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
@@ -1935,17 +1935,15 @@ const ComposeScreen = () => {
           onSave={saveThreadEvent}
         />
         {/* Save draft / discard prompt */}
-        <Prompt.Outer control={discardControl}>
-          <Prompt.Content>
-            <Prompt.TitleText>{t('compose.saveDraftTitle', 'Save draft?')}</Prompt.TitleText>
-            <Prompt.DescriptionText>
-              {t('compose.saveDraftDescription', 'Would you like to save this as a draft to edit later?')}
-            </Prompt.DescriptionText>
-          </Prompt.Content>
-          <Prompt.Actions>
-            <Prompt.Action
-              cta={t('compose.saveDraft', 'Save draft')}
-              onPress={() => {
+        <Dialog
+          control={discardControl}
+          title={t('compose.saveDraftTitle', 'Save draft?')}
+          description={t('compose.saveDraftDescription', 'Would you like to save this as a draft to edit later?')}
+          actions={[
+            {
+              label: t('compose.saveDraft', 'Save draft'),
+              color: 'default',
+              onPress: () => {
                 saveDraft({
                   postContent,
                   mediaIds,
@@ -1979,82 +1977,77 @@ const ComposeScreen = () => {
                   article,
                 });
                 safeBack();
-              }}
-              color="primary"
-            />
-            <Prompt.Action
-              cta={t('common.discard', 'Discard')}
-              onPress={() => safeBack()}
-              color="negative_subtle"
-            />
-            <Prompt.Action
-              cta={t('compose.keepEditing', 'Keep editing')}
-              onPress={() => discardControl.close()}
-              color="primary_subtle"
-            />
-          </Prompt.Actions>
-        </Prompt.Outer>
+              },
+            },
+            {
+              label: t('common.discard', 'Discard'),
+              color: 'destructive',
+              onPress: () => safeBack(),
+            },
+            {
+              label: t('compose.keepEditing', 'Keep editing'),
+              color: 'cancel',
+            },
+          ]}
+        />
 
         {/* Clear all confirmation prompt */}
-        <Prompt.Basic
+        <Dialog
           control={clearAllControl}
           title={t('compose.clearAllTitle', 'Clear all content?')}
           description={t('compose.clearAllDescription', 'This will remove all text, media, and attachments from your post.')}
-          confirmButtonCta={t('common.clearAll', 'Clear All')}
-          confirmButtonColor="negative_subtle"
-          onConfirm={() => {
-            setPostContent('');
-            setMediaIds([]);
-            setPollOptions([]);
-            setPollTitle('');
-            setShowPollCreator(false);
-            setLocation(null);
-            setSources([]);
-            clearArticle();
-            clearEvent();
-            clearRoom();
-            clearAllThreads();
-            clearAttachmentOrder();
-            setMentions([]);
-            clearSchedule({ silent: true });
-            toast(t('common.cleared'), { type: 'success' });
-          }}
+          actions={[
+            {
+              label: t('common.clearAll', 'Clear All'),
+              color: 'destructive',
+              onPress: () => {
+                setPostContent('');
+                setMediaIds([]);
+                setPollOptions([]);
+                setPollTitle('');
+                setShowPollCreator(false);
+                setLocation(null);
+                setSources([]);
+                clearArticle();
+                clearEvent();
+                clearRoom();
+                clearAllThreads();
+                clearAttachmentOrder();
+                setMentions([]);
+                clearSchedule({ silent: true });
+                toast(t('common.cleared'), { type: 'success' });
+              },
+            },
+            {
+              label: t('common.cancel', 'Cancel'),
+              color: 'cancel',
+            },
+          ]}
         />
 
         {/* Intent-vs-draft conflict prompt (shown when /compose is opened
             while an autosaved draft already exists). */}
         {draftConflict && (
-          <Prompt.Outer control={intentConflictControl}>
-            <Prompt.Content>
-              <Prompt.TitleText>
-                {t('compose.intent.conflictTitle', 'Use shared content?')}
-              </Prompt.TitleText>
-              <Prompt.DescriptionText>
-                {t(
-                  'compose.intent.conflictDescription',
-                  'You have a saved draft. Replace it with the shared content or keep editing your draft?',
-                )}
-              </Prompt.DescriptionText>
-            </Prompt.Content>
-            <Prompt.Actions>
-              <Prompt.Action
-                cta={t('compose.intent.useShared', 'Use shared content')}
-                onPress={() => {
-                  acceptIntent();
-                  intentConflictControl.close();
-                }}
-                color="primary"
-              />
-              <Prompt.Action
-                cta={t('compose.intent.keepDraft', 'Keep draft')}
-                onPress={() => {
-                  discardIntent();
-                  intentConflictControl.close();
-                }}
-                color="primary_subtle"
-              />
-            </Prompt.Actions>
-          </Prompt.Outer>
+          <Dialog
+            control={intentConflictControl}
+            title={t('compose.intent.conflictTitle', 'Use shared content?')}
+            description={t(
+              'compose.intent.conflictDescription',
+              'You have a saved draft. Replace it with the shared content or keep editing your draft?',
+            )}
+            actions={[
+              {
+                label: t('compose.intent.useShared', 'Use shared content'),
+                color: 'default',
+                onPress: () => acceptIntent(),
+              },
+              {
+                label: t('compose.intent.keepDraft', 'Keep draft'),
+                color: 'cancel',
+                onPress: () => discardIntent(),
+              },
+            ]}
+          />
         )}
       </SafeAreaView>
     </>

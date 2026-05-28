@@ -12,7 +12,7 @@ import {
     ScrollView,
 } from "react-native";
 import { show as toast } from '@oxyhq/bloom/toast';
-import * as Prompt from '@oxyhq/bloom/prompt';
+import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import UserName from "./UserName";
@@ -36,7 +36,7 @@ const RepostScreen: React.FC = () => {
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const discardControl = Prompt.usePromptControl();
+    const discardControl = useDialogControl();
     const [originalPost, setOriginalPost] = useState<any>(null);
     const textInputRef = useRef<TextInput>(null);
 
@@ -217,14 +217,21 @@ const RepostScreen: React.FC = () => {
                 </View>
             </ScrollView>
 
-            <Prompt.Basic
+            <Dialog
                 control={discardControl}
                 title="Discard Repost?"
                 description="Are you sure you want to discard this repost?"
-                confirmButtonCta="Discard"
-                confirmButtonColor="negative"
-                cancelButtonCta="Keep Editing"
-                onConfirm={() => safeBack()}
+                actions={[
+                    {
+                        label: 'Discard',
+                        color: 'destructive',
+                        onPress: () => safeBack(),
+                    },
+                    {
+                        label: 'Keep Editing',
+                        color: 'cancel',
+                    },
+                ]}
             />
         </KeyboardAvoidingView>
     );
