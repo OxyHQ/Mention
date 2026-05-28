@@ -327,6 +327,11 @@ const styles = StyleSheet.create({
   modalContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: Z_INDEX.MODAL,
+    // The Bloom Portal root has `pointer-events: none` so the idle
+    // portal does not intercept clicks on the underlying app. While
+    // this modal is mounted it must capture clicks (backdrop dismiss,
+    // button taps), so opt back in here. No-op on native.
+    pointerEvents: 'auto',
   },
   modalContent: {
     flex: 1,
