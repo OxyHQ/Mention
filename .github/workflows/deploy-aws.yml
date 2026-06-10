@@ -30,6 +30,18 @@ jobs:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          SHARED="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY REDIS_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET"
+          echo "$SECRETS_JSON" | jq -r 'to_entries[] | select((.key|ascii_upcase) as $k | ($k=="GITHUB_TOKEN" or ($k|startswith("ACTIONS_")))|not) | [.key,.value]|@tsv' | \
+          while IFS=$'\t' read -r k v; do
+            [ -z "$k" ] && continue
+            case " $SHARED " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
+            aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
+          done
+
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
