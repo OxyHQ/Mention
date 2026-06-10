@@ -1,0 +1,52 @@
+# Reusable AWS deploy workflow — copy to each repo as .github/workflows/deploy-aws.yml
+# and substitute mention (ecs service + ecr repo name) and packages/backend/Dockerfile (path).
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  ECR_REGISTRY: 237343248947.dkr.ecr.eu-west-1.amazonaws.com
+  APP: mention
+  CLUSTER: oxy-cluster
+  DOCKERFILE: packages/backend/Dockerfile
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push (linux/arm64)
+        run: |
+          IMG=$ECR_REGISTRY/oxy/$APP
+          docker build -f "$DOCKERFILE" -t "$IMG:${{ github.sha }}" -t "$IMG:latest" .
+          docker push "$IMG:${{ github.sha }}"
+          docker push "$IMG:latest"
+
+      - name: Deploy to ECS (rolling; skipped until the service exists)
+        run: |
+          STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
+          if [ "$STATUS" = "ACTIVE" ]; then
+            aws ecs update-service --cluster "$CLUSTER" --service "$APP" --force-new-deployment >/dev/null
+            aws ecs wait services-stable --cluster "$CLUSTER" --services "$APP"
+            echo "deployed $APP"
+          else
+            echo "ECS service $APP not created yet — image is in ECR, skipping deploy"
+          fi
