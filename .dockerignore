@@ -5,5 +5,13 @@ dist
 .github
 *.md
 infrastructure/
-packages/frontend/
-packages/agora/
+
+# Exclude the heavy frontend and agora app sources from the backend build
+# context, but keep their package.json so `bun install --frozen-lockfile`
+# can reconcile the workspace lockfile. Bun requires every workspace
+# member's manifest to be present, otherwise the frozen lockfile is
+# considered out of date and the install fails.
+packages/frontend/*
+!packages/frontend/package.json
+packages/agora/*
+!packages/agora/package.json
