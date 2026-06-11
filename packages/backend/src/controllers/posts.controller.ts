@@ -2139,7 +2139,7 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
     const nextCursor = hasMore ? reposts[Number(limit) - 1]._id.toString() : undefined;
 
     // Get unique user IDs
-    const userIds = [...new Set(repostsToReturn.map(repost => repost.oxyUserId))];
+    const userIds = [...new Set(repostsToReturn.map(repost => repost.oxyUserId).filter((id): id is string => typeof id === 'string'))];
 
     // Fetch user data from Oxy
     const users = await Promise.all(
