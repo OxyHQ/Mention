@@ -173,7 +173,7 @@ return {
                     'expo-build-properties',
                     {
                       ios: {
-                        deploymentTarget: '15.1',
+                        deploymentTarget: '16.4',
                         entitlements: {
                           'keychain-access-groups': [
                             '$(AppIdentifierPrefix)group.so.oxy.shared'

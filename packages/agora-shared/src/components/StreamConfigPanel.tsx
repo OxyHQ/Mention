@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   },
   imagePickerText: { fontSize: 13, fontWeight: '500' },
   imageOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',

@@ -389,7 +389,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
             }}
             contentFit="cover"
             style={[
-              StyleSheet.absoluteFillObject,
+              StyleSheet.absoluteFill,
               { borderRadius: size / 2 },
               imageStyle,
             ]}
@@ -406,7 +406,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
             <Portal>
               <GestureHandlerRootView style={styles.modalContainer}>
                 <Pressable
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   onPress={handleDismiss}
                   hitSlop={0}
                 >
@@ -414,11 +414,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                     intensity={80}
                     tint={theme.isDark ? 'dark' : 'light'}
                     experimentalBlurMethod="dimezisBlurView"
-                    style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
+                    style={[StyleSheet.absoluteFill, blurAnimatedStyle]}
                   >
                     <Animated.View
                       style={[
-                        StyleSheet.absoluteFillObject,
+                        StyleSheet.absoluteFill,
                         { backgroundColor: theme.colors.overlay },
                         blurAnimatedStyle,
                       ]}
@@ -430,7 +430,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                   <Pressable
                     onPress={handleDismiss}
                     style={[
-                      StyleSheet.absoluteFillObject,
+                      StyleSheet.absoluteFill,
                       styles.zoomContainer,
                       { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
                     ]}
@@ -477,7 +477,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
             >
               <GestureHandlerRootView style={styles.modalContainer}>
                 <Pressable
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   onPress={handleDismiss}
                   hitSlop={0}
                 >
@@ -485,11 +485,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                     intensity={80}
                     tint={theme.isDark ? 'dark' : 'light'}
                     experimentalBlurMethod="dimezisBlurView"
-                    style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
+                    style={[StyleSheet.absoluteFill, blurAnimatedStyle]}
                   >
                     <Animated.View
                       style={[
-                        StyleSheet.absoluteFillObject,
+                        StyleSheet.absoluteFill,
                         { backgroundColor: theme.colors.overlay },
                         blurAnimatedStyle,
                       ]}
@@ -500,7 +500,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                 <GestureDetector gesture={panGesture}>
                   <Animated.View
                     style={[
-                      StyleSheet.absoluteFillObject,
+                      StyleSheet.absoluteFill,
                       styles.zoomContainer,
                       { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
                       { pointerEvents: 'auto' },

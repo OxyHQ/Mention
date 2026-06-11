@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     zIndex: 2000,
   },
   backdropPressable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   drawer: {
     position: 'absolute',

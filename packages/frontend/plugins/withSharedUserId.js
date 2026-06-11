@@ -17,7 +17,7 @@
  * @see https://developer.android.com/guide/topics/manifest/manifest-element#uid
  */
 
-const { withAndroidManifest } = require('@expo/config-plugins');
+const { withAndroidManifest } = require('expo/config-plugins');
 
 module.exports = function withSharedUserId(config) {
   return withAndroidManifest(config, async (config) => {

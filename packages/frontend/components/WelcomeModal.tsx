@@ -196,18 +196,18 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
   const modalContent = (
     <GestureHandlerRootView style={styles.modalContainer}>
       <Pressable
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         onPress={handleBackdropPress}
       >
         <AnimatedBlurView
           intensity={80}
           tint={blurTint}
           experimentalBlurMethod="dimezisBlurView"
-          style={[StyleSheet.absoluteFillObject, backdropAnimatedStyle]}
+          style={[StyleSheet.absoluteFill, backdropAnimatedStyle]}
         >
           <Animated.View
             style={[
-              StyleSheet.absoluteFillObject,
+              StyleSheet.absoluteFill,
               { backgroundColor: overlayColor },
               backdropAnimatedStyle,
             ]}
@@ -325,7 +325,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
 const styles = StyleSheet.create({
   modalContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: Z_INDEX.MODAL,
     // The Bloom Portal root has `pointer-events: none` so the idle
     // portal does not intercept clicks on the underlying app. While

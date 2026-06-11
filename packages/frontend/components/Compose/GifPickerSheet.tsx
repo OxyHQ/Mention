@@ -130,9 +130,8 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
         // Upload via Oxy services
         logger.debug(`Uploading GIF file (web): ${filename}`);
-        const uploadResponse = await oxyServices.uploadFile(file as any, {
+        const uploadResponse = await oxyServices.uploadRawFile(file, 'public', {
           folder: 'user_content',
-          isPublic: true,
         });
 
         logger.debug('Upload response (web) received');
@@ -173,13 +172,12 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           uri: fileUri,
           type: 'image/gif',
           name: filename,
-        } as any;
+        };
 
         // Upload via Oxy services
         logger.debug(`Uploading GIF file: ${file.name}`);
-        const uploadResponse = await oxyServices.uploadFile(file, {
+        const uploadResponse = await oxyServices.uploadRawFile(file, 'public', {
           folder: 'user_content',
-          isPublic: true,
         });
 
         logger.debug('Upload response received');

@@ -8,10 +8,10 @@
  * On native, see `shareIntent.native.ts`.
  */
 
-import type { Router } from 'expo-router';
+import type { ImperativeRouter } from 'expo-router';
 
 export interface UseShareIntentRouterArgs {
-  router: Router;
+  router: ImperativeRouter;
   enabled?: boolean;
 }
 

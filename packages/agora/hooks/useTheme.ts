@@ -96,7 +96,7 @@ export function useTheme(): Theme {
   }, [isDark]);
 
   return {
-    mode: colorScheme,
+    mode: isDark ? 'dark' : 'light',
     colors,
     isDark,
     isLight: !isDark,

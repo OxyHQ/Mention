@@ -538,7 +538,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 >
                                     <Animated.View
                                         style={[
-                                            StyleSheet.absoluteFillObject,
+                                            StyleSheet.absoluteFill,
                                             {
                                                 backgroundColor: profileBgColor || theme.colors.background,
                                                 opacity: headerBackgroundOpacity,

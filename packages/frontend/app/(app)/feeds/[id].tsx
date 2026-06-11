@@ -823,7 +823,7 @@ const headerStyles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   pressHighlight: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 8,
     opacity: 0,
   },
@@ -860,7 +860,7 @@ const reviewStyles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modalSheet: {

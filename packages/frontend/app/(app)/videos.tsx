@@ -824,7 +824,7 @@ const styles = StyleSheet.create<VideosStyles>({
         backgroundColor: '#000000',
     },
     initialLoadingContainer: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1,

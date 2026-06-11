@@ -49,7 +49,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
             setLoading(true);
             try {
                 // Search for users via Oxy services
-                const searchResults = await oxyServices.searchProfiles(query, { limit: 10 });
+                const { data: searchResults } = await oxyServices.searchProfiles(query, { limit: 10 });
 
                 const mappedUsers: MentionUser[] = (searchResults || []).map((profile: any) => {
                     // Handle name object or string

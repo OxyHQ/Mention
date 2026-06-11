@@ -10,12 +10,12 @@
 
 import { useEffect } from 'react';
 import { useShareIntent } from 'expo-share-intent';
-import type { Router } from 'expo-router';
+import type { ImperativeRouter } from 'expo-router';
 
 import { logger } from '@/lib/logger';
 
 export interface UseShareIntentRouterArgs {
-  router: Router;
+  router: ImperativeRouter;
   enabled?: boolean;
 }
 

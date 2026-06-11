@@ -1,8 +1,8 @@
 import React from 'react';
 import Svg, { Path, Line } from 'react-native-svg';
-import { ViewStyle } from 'react-native';
+import { ViewStyle, type ColorValue } from 'react-native';
 
-export const Search = ({ color = '#000', size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const Search = ({ color = '#000', size = 26, style }: { color?: ColorValue; size?: number; style?: ViewStyle }) => {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
       <Path fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" />
@@ -11,7 +11,7 @@ export const Search = ({ color = '#000', size = 26, style }: { color?: string; s
   );
 };
 
-export const SearchActive = ({ color = '#000', size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const SearchActive = ({ color = '#000', size = 26, style }: { color?: ColorValue; size?: number; style?: ViewStyle }) => {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
       <Path fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M18.5 10.5a8 8 0 1 1-8-8 8 8 0 0 1 8 8Z" />

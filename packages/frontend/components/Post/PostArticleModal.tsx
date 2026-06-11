@@ -212,18 +212,18 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   const modalContent = (
     <GestureHandlerRootView style={styles.modalContainer}>
       <Pressable
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         onPress={handleBackdropPress}
       >
         <AnimatedBlurView
           intensity={80}
           tint={blurTint}
           experimentalBlurMethod="dimezisBlurView"
-          style={[StyleSheet.absoluteFillObject, backdropAnimatedStyle]}
+          style={[StyleSheet.absoluteFill, backdropAnimatedStyle]}
         >
           <Animated.View
             style={[
-              StyleSheet.absoluteFillObject,
+              StyleSheet.absoluteFill,
               { backgroundColor: overlayColor },
               backdropAnimatedStyle,
             ]}
