@@ -5,7 +5,11 @@ import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
 import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
-import { buildFeedKey, hasFeedData } from '@/db';
+import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
+import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
+
+// Re-export so callers that already imported from here keep working.
+export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
 const logger = createScopedLogger('useFeedState');
 
@@ -68,9 +72,16 @@ export interface UseFeedStateReturn {
 
 /**
  * Custom hook for managing feed state and fetching.
- * 
- * Global mode reads from SQLite (instant cold start) and fetches in background.
- * Scoped mode uses local state with direct feedService calls (unchanged).
+ *
+ * Memory mode (useMemoryFeed): activated when `useScoped` is true (filtered feeds)
+ * OR when SQLite is unavailable (e.g. web without COOP/COEP headers, where
+ * SharedArrayBuffer is undefined). In memory mode, items live in local React state
+ * and are fetched directly via feedService. Pagination and refresh work identically
+ * to the SQLite path.
+ *
+ * SQLite mode: activated when `isDbAvailable()` is true and no scoped filters are
+ * present. Items are written to SQLite by postsStore and read back via selectors.
+ * This is the native path and must remain byte-identical to the previous behavior.
  */
 export function useFeedState({
     type,
@@ -104,6 +115,14 @@ export function useFeedState({
     const userFeedSelector = useUserFeedSelector(userId || '', effectiveType);
     const globalFeed = showOnlySaved ? globalFeedSelector : (userId ? userFeedSelector : globalFeedSelector);
 
+    // useMemoryFeed is true when:
+    //   1. useScoped is set (filtered/scoped feed — always uses local state), OR
+    //   2. SQLite is unavailable (web without COOP/COEP, SharedArrayBuffer undefined)
+    // When true, all feed items live in local React state (localItems/localNextCursor/…).
+    // When false (SQLite available, no filters), items live in SQLite and are read via
+    // selectors — this is the standard native path.
+    const useMemoryFeed = resolveUseMemoryFeed(useScoped, isDbAvailable());
+
     // Refs for preventing duplicate calls
     const isFetchingRef = useRef(false);
     const isLoadingMoreRef = useRef(false);
@@ -119,12 +138,12 @@ export function useFeedState({
     }, []);
 
     const clearError = useCallback(() => {
-        if (useScoped) {
+        if (useMemoryFeed) {
             setLocalError(null);
         } else {
             clearGlobalError();
         }
-    }, [useScoped, clearGlobalError]);
+    }, [useMemoryFeed, clearGlobalError]);
 
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
@@ -149,8 +168,9 @@ export function useFeedState({
 
             const feedTypeToCheck = showOnlySaved ? 'saved' : type;
 
-            // Check SQLite for cached data (cold-start optimization)
-            if (!useScoped && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
+            // Check SQLite for cached data (cold-start optimization).
+            // Only relevant when using the SQLite path (useMemoryFeed === false).
+            if (!useMemoryFeed && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
                 const feedKey = userId
                     ? buildFeedKey(feedTypeToCheck, userId)
                     : buildFeedKey(feedTypeToCheck);
@@ -188,7 +208,7 @@ export function useFeedState({
                     return;
                 }
 
-                if (useScoped) {
+                if (useMemoryFeed) {
                     setLocalLoading(true);
                     setLocalError(null);
 
@@ -205,6 +225,8 @@ export function useFeedState({
                     if (signal.aborted) return;
 
                     let items = resp.items || [];
+                    // When scoped (filtered), narrow results to the requested post/thread.
+                    // For global-in-memory feeds (no filters), this guard is a no-op.
                     const pid = filters?.postId || filters?.parentPostId;
                     if (pid) {
                         items = items.filter(
@@ -232,11 +254,11 @@ export function useFeedState({
                     return;
                 }
                 logger.error('Error fetching feed', { error: err });
-                if (useScoped) {
+                if (useMemoryFeed) {
                     setLocalError('Failed to load');
                 }
             } finally {
-                if (useScoped) setLocalLoading(false);
+                if (useMemoryFeed) setLocalLoading(false);
                 isFetchingRef.current = false;
             }
         },
@@ -244,7 +266,7 @@ export function useFeedState({
             type,
             userId,
             showOnlySaved,
-            useScoped,
+            useMemoryFeed,
             isAuthenticated,
             currentUserId,
             filters,
@@ -270,7 +292,7 @@ export function useFeedState({
                 return;
             }
 
-            if (useScoped) {
+            if (useMemoryFeed) {
                 setLocalLoading(true);
                 setLocalError(null);
 
@@ -287,6 +309,8 @@ export function useFeedState({
                 if (signal.aborted) return;
 
                 let items = resp.items || [];
+                // When scoped (filtered), narrow results to the requested post/thread.
+                // For global-in-memory feeds (no filters), this guard is a no-op.
                 const pid = filters?.postId || filters?.parentPostId;
                 if (pid) {
                     items = items.filter(
@@ -306,13 +330,13 @@ export function useFeedState({
         } catch (err: unknown) {
             if (signal.aborted) return;
             logger.error('Error refreshing feed after retries', { error: err });
-            if (useScoped) {
+            if (useMemoryFeed) {
                 setLocalError('Failed to refresh');
             }
         } finally {
-            if (useScoped) setLocalLoading(false);
+            if (useMemoryFeed) setLocalLoading(false);
         }
-    }, [type, userId, showOnlySaved, useScoped, filters, refreshFeed, fetchUserFeed, clearError]);
+    }, [type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, clearError]);
 
     const loadMore = useCallback(async () => {
         if (isLoadingMoreRef.current) {
@@ -334,7 +358,7 @@ export function useFeedState({
                 return;
             }
 
-            if (useScoped) {
+            if (useMemoryFeed) {
                 if (!localHasMore || localLoading) {
                     isLoadingMoreRef.current = false;
                     return;
@@ -360,6 +384,8 @@ export function useFeedState({
                 if (signal.aborted) return;
 
                 let items = resp.items || [];
+                // When scoped (filtered), narrow results to the requested post/thread.
+                // For global-in-memory feeds (no filters), this guard is a no-op.
                 const pid = filters?.postId || filters?.parentPostId;
                 if (pid) {
                     items = items.filter(
@@ -401,18 +427,18 @@ export function useFeedState({
                 return;
             }
             logger.error('Error loading more', { error: err });
-            if (useScoped) {
+            if (useMemoryFeed) {
                 let errorMessage = 'Failed to load more posts';
                 if (err instanceof Error) errorMessage = err.message;
                 setLocalError(errorMessage);
             }
         } finally {
-            if (useScoped) setLocalLoading(false);
+            if (useMemoryFeed) setLocalLoading(false);
             isLoadingMoreRef.current = false;
         }
     }, [
         showOnlySaved,
-        useScoped,
+        useMemoryFeed,
         localHasMore,
         localLoading,
         localNextCursor,
@@ -443,15 +469,18 @@ export function useFeedState({
         if (reloadKeyChanged) return;
 
         fetchInitial(false);
-    }, [type, userId, filters, useScoped, showOnlySaved]);
+    }, [type, userId, filters, useMemoryFeed, showOnlySaved]);
 
-    // Return appropriate state
-    const items = useScoped ? localItems : globalFeed?.items || [];
-    const slices = useScoped ? localSlices : globalFeed?.slices;
-    const hasMore = useScoped ? localHasMore : !!globalFeed?.hasMore;
-    const isLoading = useScoped ? localLoading : !!globalFeed?.isLoading;
-    const error = useScoped ? localError : globalFeed?.error || null;
-    const nextCursor = useScoped ? localNextCursor : globalFeed?.nextCursor;
+    // Return appropriate state based on which path is active.
+    // useMemoryFeed covers both scoped (filtered) feeds and global feeds when SQLite
+    // is unavailable (web without COOP/COEP). The SQLite path is only taken when
+    // isDbAvailable() === true and no scoped filters are present.
+    const items = useMemoryFeed ? localItems : globalFeed?.items || [];
+    const slices = useMemoryFeed ? localSlices : globalFeed?.slices;
+    const hasMore = useMemoryFeed ? localHasMore : !!globalFeed?.hasMore;
+    const isLoading = useMemoryFeed ? localLoading : !!globalFeed?.isLoading;
+    const error = useMemoryFeed ? localError : globalFeed?.error || null;
+    const nextCursor = useMemoryFeed ? localNextCursor : globalFeed?.nextCursor;
 
     return {
         items,
