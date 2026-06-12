@@ -10,7 +10,9 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
-import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
+import type { IconName } from '@/lib/icons';
 import { logger } from '@/lib/logger';
 import {
     type RecommendationFilters,
@@ -21,7 +23,7 @@ import {
 import type { PrivacySettings } from '@/hooks/usePrivacySettings';
 
 const FILTER_TOGGLES: Array<{
-    icon: string;
+    icon: IconName;
     titleKey: string;
     descKey: string;
     titleDefault: string;
@@ -135,63 +137,63 @@ export default function PrivacySettingsScreen() {
                 contentContainerClassName="py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsGroup>
-                    <SettingsItem
-                        icon="lock-closed"
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="lock-closed" />}
                         title={t('settings.privacy.privateProfile')}
                         description={t('settings.privacy.privateProfileDesc', { defaultValue: 'Control who can see your profile' })}
-                        badgeText={getProfileVisibilityText()}
+                        value={getProfileVisibilityText()}
                         onPress={() => router.push('/settings/privacy/profile-visibility')}
                     />
-                    <SettingsItem
-                        icon="at"
+                    <SettingsListItem
+                        icon={<RowIcon name="at" />}
                         title={t('settings.privacy.tagsAndMentions')}
                         description={t('settings.privacy.tagsAndMentionsDesc', { defaultValue: 'Choose who can tag or mention you' })}
                         onPress={() => router.push('/settings/privacy/tags-mentions')}
                     />
-                    <SettingsItem
-                        icon="ellipse"
+                    <SettingsListItem
+                        icon={<RowIcon name="ellipse" />}
                         title={t('settings.privacy.onlineStatus')}
                         description={t('settings.privacy.onlineStatusDesc', { defaultValue: 'Show when you are active' })}
                         onPress={() => router.push('/settings/privacy/online-status')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                <SettingsGroup>
-                    <SettingsItem
-                        icon="people"
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="people" />}
                         title={t('settings.privacy.restrictedProfiles')}
                         description={t('settings.privacy.restrictedProfilesDesc', { defaultValue: 'Limit interactions from specific people' })}
                         onPress={() => router.push('/settings/privacy/restricted')}
                     />
-                    <SettingsItem
-                        icon="close-circle"
+                    <SettingsListItem
+                        icon={<RowIcon name="close-circle" />}
                         title={t('settings.privacy.blockedProfiles')}
                         description={t('settings.privacy.blockedProfilesDesc', { defaultValue: 'People you have blocked' })}
                         onPress={() => router.push('/settings/privacy/blocked')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                <SettingsGroup>
-                    <SettingsItem
-                        icon="eye-off"
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="eye-off" />}
                         title={t('settings.privacy.hiddenWords')}
                         description={t('settings.privacy.hiddenWordsDesc', { defaultValue: 'Filter posts containing specific words' })}
                         onPress={() => router.push('/settings/privacy/hidden-words')}
                     />
-                    <SettingsItem
-                        icon="heart-outline"
+                    <SettingsListItem
+                        icon={<RowIcon name="heart-outline" />}
                         title={t('settings.privacy.hideLikeShareCounts')}
                         description={t('settings.privacy.hideLikeShareCountsDesc', { defaultValue: 'Hide engagement counts on posts' })}
                         onPress={() => router.push('/settings/privacy/hide-counts')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                <SettingsGroup>
+                <SettingsListGroup>
                     {FILTER_TOGGLES.map(({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) => (
-                        <SettingsItem
+                        <SettingsListItem
                             key={filterKey}
-                            icon={icon}
+                            icon={<RowIcon name={icon} />}
                             title={t(titleKey, { defaultValue: titleDefault })}
                             description={t(descKey, { defaultValue: descDefault })}
                             showChevron={false}
@@ -203,7 +205,7 @@ export default function PrivacySettingsScreen() {
                             }
                         />
                     ))}
-                </SettingsGroup>
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

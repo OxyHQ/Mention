@@ -10,7 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { show as toast } from '@oxyhq/bloom/toast';
-import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
 
 interface NotificationPreferences {
@@ -132,9 +133,9 @@ export default function NotificationSettingsScreen() {
                 contentContainerClassName="py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsGroup title={t('settings.notifications.sections.general', { defaultValue: 'General' })}>
-                    <SettingsItem
-                        icon="notifications"
+                <SettingsListGroup title={t('settings.notifications.sections.general', { defaultValue: 'General' })}>
+                    <SettingsListItem
+                        icon={<RowIcon name="notifications" />}
                         title={t('settings.notifications.push', { defaultValue: 'Push notifications' })}
                         description={t('settings.notifications.pushDesc', { defaultValue: 'Receive push notifications on your device' })}
                         showChevron={false}
@@ -142,8 +143,8 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.pushEnabled} onValueChange={(v) => updatePreference('pushEnabled', v)} />
                         }
                     />
-                    <SettingsItem
-                        icon="mail"
+                    <SettingsListItem
+                        icon={<RowIcon name="mail" />}
                         title={t('settings.notifications.email', { defaultValue: 'Email notifications' })}
                         description={t('settings.notifications.emailDesc', { defaultValue: 'Receive email summaries of your notifications' })}
                         showChevron={false}
@@ -151,11 +152,11 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.emailEnabled} onValueChange={(v) => updatePreference('emailEnabled', v)} />
                         }
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                <SettingsGroup title={t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}>
-                    <SettingsItem
-                        icon="heart"
+                <SettingsListGroup title={t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}>
+                    <SettingsListItem
+                        icon={<RowIcon name="heart" />}
                         title={t('settings.notifications.likes', { defaultValue: 'Likes' })}
                         description={t('settings.notifications.likesDesc', { defaultValue: 'When someone likes your post' })}
                         showChevron={false}
@@ -163,8 +164,8 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.likes} onValueChange={(v) => updatePreference('likes', v)} />
                         }
                     />
-                    <SettingsItem
-                        icon="repeat"
+                    <SettingsListItem
+                        icon={<RowIcon name="repeat" />}
                         title={t('settings.notifications.reposts', { defaultValue: 'Reposts' })}
                         description={t('settings.notifications.repostsDesc', { defaultValue: 'When someone reposts your post' })}
                         showChevron={false}
@@ -172,8 +173,8 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.reposts} onValueChange={(v) => updatePreference('reposts', v)} />
                         }
                     />
-                    <SettingsItem
-                        icon="person-add"
+                    <SettingsListItem
+                        icon={<RowIcon name="person-add" />}
                         title={t('settings.notifications.follows', { defaultValue: 'New followers' })}
                         description={t('settings.notifications.followsDesc', { defaultValue: 'When someone follows you' })}
                         showChevron={false}
@@ -181,8 +182,8 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.follows} onValueChange={(v) => updatePreference('follows', v)} />
                         }
                     />
-                    <SettingsItem
-                        icon="at"
+                    <SettingsListItem
+                        icon={<RowIcon name="at" />}
                         title={t('settings.notifications.mentions', { defaultValue: 'Mentions' })}
                         description={t('settings.notifications.mentionsDesc', { defaultValue: 'When someone mentions you in a post' })}
                         showChevron={false}
@@ -190,8 +191,8 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.mentions} onValueChange={(v) => updatePreference('mentions', v)} />
                         }
                     />
-                    <SettingsItem
-                        icon="chatbubble"
+                    <SettingsListItem
+                        icon={<RowIcon name="chatbubble" />}
                         title={t('settings.notifications.replies', { defaultValue: 'Replies' })}
                         description={t('settings.notifications.repliesDesc', { defaultValue: 'When someone replies to your post' })}
                         showChevron={false}
@@ -199,8 +200,8 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.replies} onValueChange={(v) => updatePreference('replies', v)} />
                         }
                     />
-                    <SettingsItem
-                        icon="chatbox-ellipses"
+                    <SettingsListItem
+                        icon={<RowIcon name="chatbox-ellipses" />}
                         title={t('settings.notifications.quotes', { defaultValue: 'Quote posts' })}
                         description={t('settings.notifications.quotesDesc', { defaultValue: 'When someone quotes your post' })}
                         showChevron={false}
@@ -208,7 +209,7 @@ export default function NotificationSettingsScreen() {
                             <Toggle value={prefs.quotes} onValueChange={(v) => updatePreference('quotes', v)} />
                         }
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

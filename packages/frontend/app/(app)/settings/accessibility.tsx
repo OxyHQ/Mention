@@ -8,7 +8,8 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
 import { useHapticsStore } from '@/stores/hapticsStore';
-import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 
 export default function AccessibilitySettingsScreen() {
     const { t } = useTranslation();
@@ -38,9 +39,9 @@ export default function AccessibilitySettingsScreen() {
             >
                 {/* Interaction */}
                 {Platform.OS !== 'web' ? (
-                    <SettingsGroup title={t('settings.accessibility.interaction', { defaultValue: 'Interaction' })}>
-                        <SettingsItem
-                            icon="hand-left"
+                    <SettingsListGroup title={t('settings.accessibility.interaction', { defaultValue: 'Interaction' })}>
+                        <SettingsListItem
+                            icon={<RowIcon name="hand-left" />}
                             title={t('settings.accessibility.hapticFeedback', { defaultValue: 'Haptic feedback' })}
                             description={t('settings.accessibility.hapticFeedbackDesc', { defaultValue: 'Vibration feedback on interactions' })}
                             showChevron={false}
@@ -51,13 +52,13 @@ export default function AccessibilitySettingsScreen() {
                                 />
                             }
                         />
-                    </SettingsGroup>
+                    </SettingsListGroup>
                 ) : null}
 
                 {/* Media */}
-                <SettingsGroup title={t('settings.accessibility.media', { defaultValue: 'Media' })}>
-                    <SettingsItem
-                        icon="text"
+                <SettingsListGroup title={t('settings.accessibility.media', { defaultValue: 'Media' })}>
+                    <SettingsListItem
+                        icon={<RowIcon name="text" />}
                         title={t('settings.accessibility.requireAltText', { defaultValue: 'Require alt text' })}
                         description={t('settings.accessibility.requireAltTextDesc', { defaultValue: 'Require alt text before posting images' })}
                         showChevron={false}
@@ -68,7 +69,7 @@ export default function AccessibilitySettingsScreen() {
                             />
                         }
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

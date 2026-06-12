@@ -9,7 +9,7 @@ import { Toggle } from '@/components/Toggle';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { storeData } from '@/utils/storage';
-import { SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { Icon, type IconName } from '@/lib/icons';
 import { RadioIndicator } from '@oxyhq/bloom/radio-indicator';
@@ -59,7 +59,7 @@ export default function ThreadPreferencesScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Sort replies */}
-                <SettingsGroup title={t('settings.threadPreferences.sortReplies', { defaultValue: 'Sort replies' })}>
+                <SettingsListGroup title={t('settings.threadPreferences.sortReplies', { defaultValue: 'Sort replies' })}>
                     {SORT_OPTIONS.map((option) => (
                         <Pressable
                             key={option.value}
@@ -81,10 +81,10 @@ export default function ThreadPreferencesScreen() {
                             <RadioIndicator selected={sortOrder === option.value} />
                         </Pressable>
                     ))}
-                </SettingsGroup>
+                </SettingsListGroup>
 
                 {/* Like style */}
-                <SettingsGroup title={t('settings.threadPreferences.likeStyle', { defaultValue: 'Like style' })}>
+                <SettingsListGroup title={t('settings.threadPreferences.likeStyle', { defaultValue: 'Like style' })}>
                     {VOTE_STYLE_OPTIONS.map((option) => (
                         <Pressable
                             key={option.value}
@@ -106,10 +106,10 @@ export default function ThreadPreferencesScreen() {
                             <RadioIndicator selected={voteStyle === option.value} />
                         </Pressable>
                     ))}
-                </SettingsGroup>
+                </SettingsListGroup>
 
                 {/* Tree view */}
-                <SettingsGroup title={t('settings.threadPreferences.display', { defaultValue: 'Display' })}>
+                <SettingsListGroup title={t('settings.threadPreferences.display', { defaultValue: 'Display' })}>
                     <View className="px-4 py-3.5 flex-row items-center justify-between">
                         <View className="flex-row items-center gap-3 flex-1 mr-3">
                             <View className="w-7 items-center justify-center">
@@ -126,7 +126,7 @@ export default function ThreadPreferencesScreen() {
                         </View>
                         <Toggle value={treeView} onValueChange={setTreeView} />
                     </View>
-                </SettingsGroup>
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

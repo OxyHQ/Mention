@@ -8,7 +8,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
-import { SettingsDivider } from '@/components/settings/SettingsItem';
+import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
@@ -227,7 +227,7 @@ export default function ProfileCustomizationScreen() {
           </View>
         </View>
 
-        <SettingsDivider />
+        <SettingsListDivider />
 
         {/* Profile Color */}
         <View className="px-5 py-4 gap-3">
@@ -245,7 +245,7 @@ export default function ProfileCustomizationScreen() {
           </Text>
         </View>
 
-        <SettingsDivider />
+        <SettingsListDivider />
 
         {/* Info Text */}
         <View className="flex-row items-start px-5 py-4 gap-2">

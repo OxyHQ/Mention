@@ -10,7 +10,8 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog, alertDialog } from "@/utils/alerts";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLinksStore } from "@/stores/linksStore";
-import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem";
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
 
 export default function LinkSettingsScreen() {
@@ -123,17 +124,17 @@ export default function LinkSettingsScreen() {
                 contentContainerClassName="py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsGroup title={t("settings.links.cacheManagement")}>
-                    <SettingsItem
-                        icon="trash"
+                <SettingsListGroup title={t("settings.links.cacheManagement")}>
+                    <SettingsListItem
+                        icon={<RowIcon name="trash" destructive />}
                         title={t("settings.links.clearAllCache")}
                         description={t("settings.links.clearAllCacheDesc")}
                         onPress={handleClearAllCache}
                         destructive
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                <SettingsGroup title={t("settings.links.refreshLink")}>
+                <SettingsListGroup title={t("settings.links.refreshLink")}>
                     <View className="px-5 py-3">
                         <TextInput
                             className="text-base px-3 py-2.5 rounded-lg border border-border bg-secondary text-foreground"
@@ -148,13 +149,13 @@ export default function LinkSettingsScreen() {
                             editable={!isLoading}
                         />
                     </View>
-                    <SettingsItem
-                        icon="refresh"
+                    <SettingsListItem
+                        icon={<RowIcon name="refresh" />}
                         title={t("settings.links.refreshLinkButton")}
                         description={t("settings.links.refreshLinkDesc")}
                         onPress={handleRefreshLink}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

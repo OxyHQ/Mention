@@ -11,7 +11,8 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { LogoIcon } from '@/assets/logo';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
-import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { confirmDialog, alertDialog } from '@/utils/alerts';
 
 export default function AboutScreen() {
@@ -94,51 +95,51 @@ export default function AboutScreen() {
                 </View>
 
                 {/* System info */}
-                <SettingsGroup title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>
-                    <SettingsItem
-                        icon="hammer"
+                <SettingsListGroup title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>
+                    <SettingsListItem
+                        icon={<RowIcon name="hammer" />}
                         title={t('settings.aboutMention.build')}
-                        badgeText={String(runtimeVersion)}
+                        value={String(runtimeVersion)}
                         showChevron={false}
                     />
-                    <SettingsItem
-                        icon="phone-portrait"
+                    <SettingsListItem
+                        icon={<RowIcon name="phone-portrait" />}
                         title={t('settings.aboutMention.platform')}
-                        badgeText={platformName}
+                        value={platformName}
                         showChevron={false}
                     />
-                    <SettingsItem
-                        icon="code-slash"
+                    <SettingsListItem
+                        icon={<RowIcon name="code-slash" />}
                         title={t('settings.aboutMention.expoSDK')}
-                        badgeText={String(expoSdkVersion)}
+                        value={String(expoSdkVersion)}
                         showChevron={false}
                     />
-                    <SettingsItem
-                        icon="code-slash"
+                    <SettingsListItem
+                        icon={<RowIcon name="code-slash" />}
                         title={t('settings.aboutMention.oxySDK')}
-                        badgeText={String(oxySdkVersion)}
+                        value={String(oxySdkVersion)}
                         onPress={() => showBottomSheet?.('AppInfo')}
                     />
-                    <SettingsItem
-                        icon="globe"
+                    <SettingsListItem
+                        icon={<RowIcon name="globe" />}
                         title={t('settings.aboutMention.apiUrl')}
-                        badgeText={apiUrl}
+                        value={apiUrl}
                         showChevron={false}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
                 {/* Support */}
-                <SettingsGroup title={t('settings.sections.supportFeedback')}>
-                    <SettingsItem
-                        icon="help-circle"
+                <SettingsListGroup title={t('settings.sections.supportFeedback')}>
+                    <SettingsListItem
+                        icon={<RowIcon name="help-circle" />}
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => {
                             toast(t('settings.supportFeedback.helpSupportMessage'), { type: 'info' });
                         }}
                     />
-                    <SettingsItem
-                        icon="chatbubble"
+                    <SettingsListItem
+                        icon={<RowIcon name="chatbubble" />}
                         title={t('settings.supportFeedback.sendFeedback')}
                         description={t('settings.supportFeedback.sendFeedbackDesc')}
                         onPress={async () => {
@@ -153,24 +154,24 @@ export default function AboutScreen() {
                             }
                         }}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
                 {/* Debug */}
-                <SettingsGroup title={t('settings.debug', { defaultValue: 'Debug' })}>
-                    <SettingsItem
-                        icon="code-slash"
+                <SettingsListGroup title={t('settings.debug', { defaultValue: 'Debug' })}>
+                    <SettingsListItem
+                        icon={<RowIcon name="code-slash" />}
                         title={t('settings.systemLog', { defaultValue: 'System log' })}
                         description={t('settings.systemLogDesc', { defaultValue: 'View in-app diagnostic logs' })}
                         onPress={() => router.push('/sys/log')}
                     />
-                    <SettingsItem
-                        icon="trash"
+                    <SettingsListItem
+                        icon={<RowIcon name="trash" destructive />}
                         title={t('settings.data.clearCache')}
                         description={t('settings.data.clearCacheDesc')}
                         onPress={handleClearCache}
                         destructive
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

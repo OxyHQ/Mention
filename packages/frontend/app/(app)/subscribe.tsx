@@ -7,7 +7,8 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/lib/icons';
-import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { STRIPE_LINK_PLUS } from '@/config';
 
 export default function SubscribeScreen() {
@@ -54,12 +55,12 @@ export default function SubscribeScreen() {
                 </View>
 
                 {/* Features */}
-                <SettingsGroup title={t('subscribe.featuresTitle')}>
-                    <SettingsItem icon="language" title={t('subscribe.translateFeature')} showChevron={false} />
-                    <SettingsItem icon="globe" title={t('subscribe.autoTranslateFeature')} showChevron={false} />
-                    <SettingsItem icon="sparkles" title={t('subscribe.aiFeatures')} showChevron={false} />
-                    <SettingsItem icon="shield-checkmark" title={t('subscribe.verifiedBadge')} showChevron={false} />
-                </SettingsGroup>
+                <SettingsListGroup title={t('subscribe.featuresTitle')}>
+                    <SettingsListItem icon={<RowIcon name="language" />} title={t('subscribe.translateFeature')} showChevron={false} />
+                    <SettingsListItem icon={<RowIcon name="globe" />} title={t('subscribe.autoTranslateFeature')} showChevron={false} />
+                    <SettingsListItem icon={<RowIcon name="sparkles" />} title={t('subscribe.aiFeatures')} showChevron={false} />
+                    <SettingsListItem icon={<RowIcon name="shield-checkmark" />} title={t('subscribe.verifiedBadge')} showChevron={false} />
+                </SettingsListGroup>
 
                 {/* CTA */}
                 <View className="px-4 mt-2">

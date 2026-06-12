@@ -13,7 +13,8 @@ import { Slider } from '@/components/Slider';
 import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
@@ -207,20 +208,20 @@ export default function FeedSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Presets */}
-        <SettingsGroup title={t('settings.feed.presets.title')}>
+        <SettingsListGroup title={t('settings.feed.presets.title')}>
           {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
-            <SettingsItem
+            <SettingsListItem
               key={key}
               title={PRESETS[key].name}
               description={t(`settings.feed.presets.${key}Desc`)}
               onPress={() => applyPreset(key)}
             />
           ))}
-        </SettingsGroup>
+        </SettingsListGroup>
 
         {/* Diversity */}
-        <SettingsGroup title={t('settings.feed.diversity.title')}>
-          <SettingsItem
+        <SettingsListGroup title={t('settings.feed.diversity.title')}>
+          <SettingsListItem
             title={t('settings.feed.diversity.enabled')}
             description={t('settings.feed.diversity.enabledDesc')}
             showChevron={false}
@@ -233,7 +234,7 @@ export default function FeedSettingsScreen() {
               />
             }
           />
-        </SettingsGroup>
+        </SettingsListGroup>
 
         {localSettings.diversity.enabled && (
           <View className="px-5 py-3 gap-4">
@@ -273,7 +274,7 @@ export default function FeedSettingsScreen() {
         )}
 
         {/* Recency */}
-        <SettingsGroup title={t('settings.feed.recency.title')}>
+        <SettingsListGroup title={t('settings.feed.recency.title')}>
           <View className="px-5 py-3 gap-4">
             <View>
               <Slider
@@ -308,11 +309,11 @@ export default function FeedSettingsScreen() {
               </Text>
             </View>
           </View>
-        </SettingsGroup>
+        </SettingsListGroup>
 
         {/* Quality */}
-        <SettingsGroup title={t('settings.feed.quality.title')}>
-          <SettingsItem
+        <SettingsListGroup title={t('settings.feed.quality.title')}>
+          <SettingsListItem
             title={t('settings.feed.quality.boostHighQuality')}
             description={t('settings.feed.quality.boostHighQualityDesc')}
             showChevron={false}
@@ -325,17 +326,17 @@ export default function FeedSettingsScreen() {
               />
             }
           />
-        </SettingsGroup>
+        </SettingsListGroup>
 
         {/* Reset */}
-        <SettingsGroup>
-          <SettingsItem
-            icon="refresh"
+        <SettingsListGroup>
+          <SettingsListItem
+            icon={<RowIcon name="refresh" destructive />}
             title={t('settings.feed.resetToDefaults')}
             onPress={resetToDefaults}
             destructive
           />
-        </SettingsGroup>
+        </SettingsListGroup>
       </ScrollView>
     </ThemedView>
   );

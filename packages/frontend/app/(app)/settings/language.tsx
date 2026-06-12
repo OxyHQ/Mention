@@ -10,7 +10,8 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { storeData, getData } from '@/utils/storage';
-import { SettingsItem, SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { Toggle } from '@/components/Toggle';
 import { Icon } from '@/lib/icons';
 import { logger } from '@/lib/logger';
@@ -94,7 +95,7 @@ export default function LanguageSettingsScreen() {
                 contentContainerClassName="py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsGroup title={t('settings.language.selectLanguage')}>
+                <SettingsListGroup title={t('settings.language.selectLanguage')}>
                     {LANGUAGE_OPTIONS.map((option) => {
                         const isSelected = currentLanguage === option.code;
 
@@ -115,11 +116,11 @@ export default function LanguageSettingsScreen() {
                             </Pressable>
                         );
                     })}
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                <SettingsGroup title={t('settings.language.autoTranslate')}>
-                    <SettingsItem
-                        icon="language"
+                <SettingsListGroup title={t('settings.language.autoTranslate')}>
+                    <SettingsListItem
+                        icon={<RowIcon name="language" />}
                         title={t('settings.language.autoTranslate')}
                         description={isPremium ? t('settings.language.autoTranslateDesc') : t('subscribe.premiumFeature')}
                         showChevron={!isPremium}
@@ -135,7 +136,7 @@ export default function LanguageSettingsScreen() {
                             )
                         }
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

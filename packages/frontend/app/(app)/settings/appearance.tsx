@@ -13,7 +13,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import * as SegmentedControl from '@oxyhq/bloom/segmented-control';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
-import { SettingsDivider } from '@/components/settings/SettingsItem';
+import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 
@@ -156,7 +156,7 @@ export default function AppearanceSettingsScreen() {
           </SegmentedControl.Root>
         </View>
 
-        <SettingsDivider />
+        <SettingsListDivider />
 
         {/* Accent color */}
         <View className="px-5 py-4 gap-3">
@@ -170,7 +170,7 @@ export default function AppearanceSettingsScreen() {
           <ColorSwatchPicker value={appColor} onChange={onColorChange} extraColors={unlockedPremiumColors} />
         </View>
 
-        <SettingsDivider />
+        <SettingsListDivider />
 
         {/* Profile header */}
         <View className="px-5 py-4 gap-3">

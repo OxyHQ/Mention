@@ -4,7 +4,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/lib/icons';
 import { RadioIndicator } from '@oxyhq/bloom/radio-indicator';
-import { SettingsGroup } from '@/components/settings/SettingsItem';
+import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import {
     useThreadPreferencesStore,
     SORT_OPTIONS,
@@ -21,7 +21,7 @@ export default function ReplyPreferencesSheet() {
             showsVerticalScrollIndicator={false}
         >
             {/* Show replies as */}
-            <SettingsGroup title={t('replyPreferences.showRepliesAs', { defaultValue: 'Show replies as' })}>
+            <SettingsListGroup title={t('replyPreferences.showRepliesAs', { defaultValue: 'Show replies as' })}>
                 <Pressable
                     className="px-4 py-3.5 flex-row items-center justify-between"
                     onPress={() => setTreeView(false)}
@@ -50,10 +50,10 @@ export default function ReplyPreferencesSheet() {
                     </View>
                     <RadioIndicator selected={treeView} />
                 </Pressable>
-            </SettingsGroup>
+            </SettingsListGroup>
 
             {/* Reply sorting */}
-            <SettingsGroup title={t('replyPreferences.replySorting', { defaultValue: 'Reply sorting' })}>
+            <SettingsListGroup title={t('replyPreferences.replySorting', { defaultValue: 'Reply sorting' })}>
                 {SORT_OPTIONS.map((option) => (
                     <Pressable
                         key={option.value}
@@ -75,7 +75,7 @@ export default function ReplyPreferencesSheet() {
                         <RadioIndicator selected={sortOrder === option.value} />
                     </Pressable>
                 ))}
-            </SettingsGroup>
+            </SettingsListGroup>
         </ScrollView>
     );
 }
