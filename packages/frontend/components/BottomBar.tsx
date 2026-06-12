@@ -195,7 +195,7 @@ export const BottomBar = () => {
     }, [isAuthenticated, user?.username, handlePress, signIn]);
     const handleLongPressProfile = useCallback(() => {
         haptic('Heavy');
-        showBottomSheet?.('AccountCenter');
+        showBottomSheet?.('ManageAccount');
     }, [haptic, showBottomSheet]);
 
     const tabs = useMemo(() => [

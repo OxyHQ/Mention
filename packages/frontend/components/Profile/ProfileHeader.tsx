@@ -67,7 +67,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           <View className="flex-row items-center gap-3">
             <TouchableOpacity
               className="border border-border bg-background rounded-full px-6 py-2"
-              onPress={() => showBottomSheet?.('AccountSettings')}
+              onPress={() => showBottomSheet?.('ManageAccount')}
               accessibilityRole="button"
               accessibilityLabel={t('profile.editProfile')}
             >
@@ -224,7 +224,7 @@ export const ProfileActions = memo(function ProfileActions({
     <View className="flex-row items-center gap-3">
       <TouchableOpacity
         className="border border-border bg-background rounded-full px-6 py-2"
-        onPress={() => showBottomSheet?.('AccountSettings')}
+        onPress={() => showBottomSheet?.('ManageAccount')}
         accessibilityRole="button"
         accessibilityLabel={t('profile.editProfile')}
       >
