@@ -12,16 +12,9 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from "@/hooks/useProfileData";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Button } from "@/components/ui/Button";
-import { SettingsItem, SettingsGroup } from "@/components/settings/SettingsItem";
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { confirmDialog } from "@/utils/alerts";
-import { Bell } from "@/assets/icons/bell-icon";
-import { HeartIcon } from "@/assets/icons/heart-icon";
-import { LinkIcon } from "@/assets/icons/link-icon";
-import { ProfileIcon } from "@/assets/icons/profile-icon";
-import { Gear } from "@/assets/icons/gear-icon";
-import { Chat } from "@/assets/icons/chat-icon";
-import { Feeds } from "@/assets/icons/feeds-icon";
-import { HideIcon } from "@/assets/icons/hide-icon";
 
 export default function SettingsScreen() {
     const { t } = useTranslation();
@@ -130,107 +123,102 @@ export default function SettingsScreen() {
                     </View>
                 </View>
 
-                {/* Privacy */}
-                <SettingsGroup>
-                    <SettingsItem
-                        icon={<HideIcon size={20} className="text-foreground" />}
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="eye-off-outline" />}
                         title={t('settings.privacy.title')}
                         description={t('settings.privacy.description', { defaultValue: 'Profile visibility, blocked profiles, hidden words' })}
                         onPress={() => router.push('/settings/privacy')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                {/* Preferences */}
-                <SettingsGroup>
-                    <SettingsItem
-                        icon={<Bell size={20} className="text-foreground" />}
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="notifications-outline" />}
                         title={t('settings.preferences.notifications')}
                         description={t('settings.preferences.notificationsDesc', { defaultValue: 'Push notifications, email alerts' })}
                         onPress={() => router.push('/settings/notifications')}
                     />
-                    <SettingsItem
-                        icon={<Feeds size={20} className="text-foreground" />}
+                    <SettingsListItem
+                        icon={<RowIcon name="reader-outline" />}
                         title={t('settings.feed.title')}
                         description={t('settings.feed.description', { defaultValue: 'Content preferences, feed algorithm' })}
                         onPress={() => router.push('/settings/feed')}
                     />
-                    <SettingsItem
-                        icon={<Chat size={20} className="text-foreground" />}
+                    <SettingsListItem
+                        icon={<RowIcon name="chatbubbles-outline" />}
                         title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
                         description={t('settings.threadPreferences.description', { defaultValue: 'Reply sorting, thread display' })}
                         onPress={() => router.push('/settings/thread-preferences')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                {/* Personalization */}
-                <SettingsGroup>
-                    <SettingsItem
-                        icon="color-palette"
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="color-palette-outline" />}
                         title={t('settings.preferences.appearance')}
                         description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, colors, display' })}
                         onPress={() => router.push('/settings/appearance')}
                     />
-                    <SettingsItem
-                        icon="accessibility"
+                    <SettingsListItem
+                        icon={<RowIcon name="accessibility-outline" />}
                         title={t('settings.accessibility.title', { defaultValue: 'Accessibility' })}
                         description={t('settings.accessibility.description', { defaultValue: 'Haptic feedback, alt text' })}
                         onPress={() => router.push('/settings/accessibility')}
                     />
-                    <SettingsItem
-                        icon="language"
+                    <SettingsListItem
+                        icon={<RowIcon name="language-outline" />}
                         title={t('Language')}
                         description={t('settings.language.description', { defaultValue: 'App display language' })}
                         onPress={() => router.push('/settings/language')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                {/* Profile */}
-                <SettingsGroup>
-                    <SettingsItem
-                        icon={<ProfileIcon size={20} className="text-foreground" />}
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="person-outline" />}
                         title={t('settings.preferences.profileCustomization')}
                         description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, profile color' })}
                         onPress={() => router.push('/settings/profile-customization')}
                     />
-                    <SettingsItem
-                        icon={<HeartIcon size={20} className="text-foreground" />}
+                    <SettingsListItem
+                        icon={<RowIcon name="heart-outline" />}
                         title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
                         description={t('settings.preferences.interestsDesc', { defaultValue: 'Topics and categories you follow' })}
                         onPress={() => router.push('/settings/interests')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                {/* Support */}
-                <SettingsGroup>
-                    <SettingsItem
-                        icon={<LinkIcon size={20} className="text-foreground" />}
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="link-outline" />}
                         title={t('settings.data.linkManagement')}
                         description={t('settings.data.linkManagementDesc', { defaultValue: 'Link previews and cache' })}
                         onPress={() => router.push('/settings/links')}
                     />
-                    <SettingsItem
-                        icon="help-circle"
+                    <SettingsListItem
+                        icon={<RowIcon name="help-circle-outline" />}
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => router.push('/settings/about')}
                     />
-                    <SettingsItem
-                        icon={<Gear size={20} className="text-foreground" />}
+                    <SettingsListItem
+                        icon={<RowIcon name="information-circle-outline" />}
                         title={t('settings.aboutMention.title', { defaultValue: 'About' })}
                         description={t('settings.aboutMention.description', { defaultValue: 'Version, system info, debug' })}
                         onPress={() => router.push('/settings/about')}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
 
-                {/* Sign out */}
-                <SettingsGroup>
-                    <SettingsItem
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="log-out-outline" destructive />}
                         title={t("settings.signOut")}
                         onPress={handleSignOut}
                         destructive
                         showChevron={false}
                     />
-                </SettingsGroup>
+                </SettingsListGroup>
             </Animated.ScrollView>
         </ThemedView>
     );

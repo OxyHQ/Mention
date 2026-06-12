@@ -74,3 +74,12 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 
 - `@oxyhq/core`, `@oxyhq/services` — Oxy platform SDK
 - `@oxyhq/bloom` — Shared UI component library
+
+## Theming
+
+- **Bloom owns theming.** `BloomThemeProvider` (since v0.6.14) is the single source of truth for mode + color preset, with built-in persistence. Do NOT add a local theme store — pass `persistKey` + `storage` to the provider.
+- **Default preset for Mention frontend: `blue`** (not `oxy`).
+- **Default preset for Agora: `yellow`** (matches the existing `#FFC107` brand).
+- Settings UI uses Bloom's `SettingsList` (`SettingsListGroup` / `SettingsListItem` from `@oxyhq/bloom/settings-list`). Do not introduce local `SettingsItem` wrappers — they diverge from Bloom.
+- `lib/app-color-presets.ts#getScopedColorCSSVariables` is still needed for Tailwind `@theme` scoped overrides; do not remove it when cleaning up the legacy theme store.
+- Frontend `app/_layout.tsx` is the only place that wires the provider; consumers read theme via `useTheme()` / `useBloomTheme()` from `@oxyhq/bloom`.
