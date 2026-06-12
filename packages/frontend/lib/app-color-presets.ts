@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 export type AppColorName = 'teal' | 'blue' | 'green' | 'amber' | 'yellow' | 'red' | 'purple' | 'pink' | 'sky' | 'orange' | 'mint' | 'oxy' | 'faircoin';
 
 export interface AppColorPreset {
@@ -47,7 +45,7 @@ export const HEX_TO_APP_COLOR: Record<string, AppColorName> = {
 };
 
 export function hexToAppColorName(hex: string): AppColorName {
-  return HEX_TO_APP_COLOR[hex] ?? HEX_TO_APP_COLOR[hex.toLowerCase()] ?? 'teal';
+  return HEX_TO_APP_COLOR[hex] ?? HEX_TO_APP_COLOR[hex.toLowerCase()] ?? 'blue';
 }
 
 export const APP_COLOR_PRESETS: Record<AppColorName, AppColorPreset> = {
@@ -1053,29 +1051,4 @@ export function getScopedColorCSSVariables(
   return resolved;
 }
 
-/**
- * Apply the active app color preset to the web document root.
- *
- * Used during store rehydration (before <BloomThemeProvider> mounts) to avoid
- * a flash of the default palette. Once mounted, BloomThemeProvider becomes the
- * authoritative writer for the same CSS variables — both write raw HSL triples
- * (e.g. `185 100% 20%`), so they agree byte-for-byte and never race.
- *
- * No-op on native — colorVars are applied through NativeWind via the
- * `vars(...)` style returned from `getAppColorCSSVariables`.
- */
-export function applyAppColorToDocument(
-  colorName: AppColorName,
-  resolvedMode: 'light' | 'dark',
-) {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
 
-  const preset = APP_COLOR_PRESETS[colorName];
-  if (!preset) return;
-
-  const vars = getAppColorCSSVariables(preset, resolvedMode);
-  const root = document.documentElement.style;
-  for (const [key, value] of Object.entries(vars)) {
-    root.setProperty(key, value);
-  }
-}

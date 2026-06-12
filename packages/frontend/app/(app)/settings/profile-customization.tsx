@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { useThemeStore } from '@/lib/theme-store';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SettingsDivider } from '@/components/settings/SettingsItem';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
@@ -35,7 +34,7 @@ export default function ProfileCustomizationScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const appColor = useThemeStore((s) => s.appColor);
+  const { colorPreset: appColor } = useBloomTheme();
   const { colors } = useTheme();
   const { saveColor, saving: colorSaving } = useAppColorSave();
 

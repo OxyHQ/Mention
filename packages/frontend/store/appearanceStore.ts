@@ -1,30 +1,39 @@
 import { create } from 'zustand';
 import { api, publicApi, isUnauthorizedError } from '@/utils/api';
 import { Storage } from '@/utils/storage';
-import { useThemeStore } from '@/lib/theme-store';
-import { hexToAppColorName } from '@oxyhq/bloom/theme';
+import { hexToAppColorName, type AppColorName, type ThemeMode } from '@oxyhq/bloom/theme';
 
-import type { ThemeMode } from '@/lib/theme-store';
-
-export type { ThemeMode } from '@/lib/theme-store';
+export type { ThemeMode } from '@oxyhq/bloom/theme';
 
 const VALID_THEME_MODES = new Set<ThemeMode>(['light', 'dark', 'system', 'adaptive']);
 
-/** Push appearance settings into the local theme store for immediate effect. */
+/**
+ * Bridge between server-side appearance settings and Bloom's theme provider.
+ * Registered from React (see `useAppearanceThemeBridge`) so this module stays
+ * decoupled from the Bloom context.
+ */
+export interface AppearanceThemeBridge {
+  setMode: (mode: ThemeMode) => void;
+  setColorPreset: (preset: AppColorName) => void;
+}
+
+let themeBridge: AppearanceThemeBridge | null = null;
+
+export function registerAppearanceThemeBridge(bridge: AppearanceThemeBridge | null): void {
+  themeBridge = bridge;
+  if (bridge) {
+    syncToThemeStore(useAppearanceStore.getState().mySettings?.appearance);
+  }
+}
+
+/** Push appearance settings into the Bloom theme provider for immediate effect. */
 function syncToThemeStore(appearance: { themeMode?: string; primaryColor?: string } | undefined) {
-  if (!appearance) return;
-  const store = useThemeStore.getState();
+  if (!appearance || !themeBridge) return;
   if (appearance.themeMode && VALID_THEME_MODES.has(appearance.themeMode as ThemeMode)) {
-    const newMode = appearance.themeMode as ThemeMode;
-    if (store.mode !== newMode) {
-      store.setMode(newMode);
-    }
+    themeBridge.setMode(appearance.themeMode as ThemeMode);
   }
   if (appearance.primaryColor) {
-    const newColor = hexToAppColorName(appearance.primaryColor);
-    if (store.appColor !== newColor) {
-      store.setAppColor(newColor);
-    }
+    themeBridge.setColorPreset(hexToAppColorName(appearance.primaryColor));
   }
 }
 

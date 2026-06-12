@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Image, Pressable } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { useThemeStore } from '@/lib/theme-store';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -9,7 +8,7 @@ import { useAuth } from '@oxyhq/services';
 import { APP_COLOR_PRESETS, PREMIUM_COLOR_NAMES, type AppColorName } from '@/lib/app-color-presets';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import * as SegmentedControl from '@oxyhq/bloom/segmented-control';
@@ -24,8 +23,7 @@ export default function AppearanceSettingsScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const appColor = useThemeStore((s) => s.appColor);
-  const setMode = useThemeStore((s) => s.setMode);
+  const { colorPreset: appColor, setMode } = useBloomTheme();
   const { showBottomSheet, oxyServices, user: authUser } = useAuth();
   const { saveColor, saving: colorSaving } = useAppColorSave();
   const safeBack = useSafeBack();

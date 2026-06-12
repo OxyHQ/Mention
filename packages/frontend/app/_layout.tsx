@@ -34,7 +34,8 @@ import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Platform, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { BloomThemeProvider, useBloomTheme, webLocalStorage, type BloomThemeStorage } from '@oxyhq/bloom/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ImageResolverProvider } from '@/lib/imageResolver';
 
 // Components
@@ -46,8 +47,8 @@ import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom/portal';
 
 // Hooks
-import { useThemeStore } from "@/lib/theme-store";
 import { APP_COLOR_PRESETS, getAppColorCSSVariables } from "@/lib/app-color-presets";
+import { registerAppearanceThemeBridge } from '@/store/appearanceStore';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
@@ -67,6 +68,15 @@ function resolveImageSource(fileId: string): string | undefined {
   const url = getCachedFileDownloadUrlSync(oxyServices, fileId, 'thumb');
   return url && url.startsWith('http') ? url : undefined;
 }
+
+// AsyncStorage-backed adapter for Bloom theme persistence on native.
+const asyncStorageAdapter: BloomThemeStorage = {
+  getItem: (key) => AsyncStorage.getItem(key),
+  setItem: (key, value) => AsyncStorage.setItem(key, value),
+};
+
+const themeStorage: BloomThemeStorage | undefined =
+  Platform.OS === 'web' ? webLocalStorage : asyncStorageAdapter;
 
 // Types
 interface SplashState {
@@ -136,28 +146,67 @@ export default function RootLayout() {
     }
   }, [splashState.initializationComplete, splashState.fadeComplete, appIsReady]);
 
+  return (
+    <ImageResolverProvider value={resolveImageSource}>
+      <BloomThemeProvider
+        defaultMode="system"
+        defaultColorPreset="blue"
+        persistKey="mention-theme"
+        storage={themeStorage}
+        onFontsLoading={<AppSplashScreen />}
+        onHydrating={<AppSplashScreen />}
+      >
+        <ThemedRoot
+          appIsReady={appIsReady}
+          initializationComplete={splashState.initializationComplete}
+          onSplashFadeComplete={handleSplashFadeComplete}
+          queryClient={queryClient}
+        />
+      </BloomThemeProvider>
+    </ImageResolverProvider>
+  );
+}
+
+interface ThemedRootProps {
+  appIsReady: boolean;
+  initializationComplete: boolean;
+  onSplashFadeComplete: () => void;
+  queryClient: QueryClient;
+}
+
+function ThemedRoot({
+  appIsReady,
+  initializationComplete,
+  onSplashFadeComplete,
+  queryClient,
+}: ThemedRootProps) {
   const rnScheme = useRNColorScheme();
-  const mode = useThemeStore((s) => s.mode);
-  const appColor = useThemeStore((s) => s.appColor);
-  const { setMode, setAppColor } = useThemeStore.getState();
+  const { mode, colorPreset, setMode, setColorPreset } = useBloomTheme();
+
+  // Bridge server-side appearance settings into Bloom's theme provider.
+  useEffect(() => {
+    registerAppearanceThemeBridge({ setMode, setColorPreset });
+    return () => registerAppearanceThemeBridge(null);
+  }, [setMode, setColorPreset]);
+
   const colorScheme: 'light' | 'dark' =
-    (mode === 'adaptive' || mode === 'system')
-      ? (rnScheme === 'dark' ? 'dark' : 'light')
+    mode === 'adaptive' || mode === 'system'
+      ? rnScheme === 'dark' ? 'dark' : 'light'
       : mode;
 
   // Compute NativeWind CSS vars for native. On web, BloomThemeProvider is the
   // authoritative writer of these CSS variables on document.documentElement.
   const colorVars = useMemo(() => {
-    const preset = APP_COLOR_PRESETS[appColor];
+    const preset = APP_COLOR_PRESETS[colorPreset];
     return vars(getAppColorCSSVariables(preset, colorScheme));
-  }, [appColor, colorScheme]);
+  }, [colorPreset, colorScheme]);
 
   const appContent = useMemo(() => {
     if (!appIsReady) {
       return (
         <AppSplashScreen
-          startFade={splashState.initializationComplete}
-          onFadeComplete={handleSplashFadeComplete}
+          startFade={initializationComplete}
+          onFadeComplete={onSplashFadeComplete}
         />
       );
     }
@@ -171,7 +220,7 @@ export default function RootLayout() {
         {Platform.OS !== 'web' && (
           <NotificationPermissionGate
             appIsReady={appIsReady}
-            initializationComplete={splashState.initializationComplete}
+            initializationComplete={initializationComplete}
           />
         )}
         <PortalProvider>
@@ -182,26 +231,16 @@ export default function RootLayout() {
     );
   }, [
     appIsReady,
-    splashState.initializationComplete,
+    initializationComplete,
     colorScheme,
-    handleSplashFadeComplete,
+    onSplashFadeComplete,
     queryClient,
   ]);
 
   return (
-    <ImageResolverProvider value={resolveImageSource}>
-      <BloomThemeProvider
-        mode={mode}
-        colorPreset={appColor}
-        onModeChange={setMode}
-        onColorPresetChange={setAppColor}
-        onFontsLoading={<AppSplashScreen />}
-      >
-        <ThemedView style={[{ flex: 1 }, colorVars]}>
-          {appContent}
-        </ThemedView>
-      </BloomThemeProvider>
-    </ImageResolverProvider>
+    <ThemedView style={[{ flex: 1 }, colorVars]}>
+      {appContent}
+    </ThemedView>
   );
 }
 

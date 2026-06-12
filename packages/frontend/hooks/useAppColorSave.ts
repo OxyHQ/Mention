@@ -1,25 +1,25 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '@oxyhq/services';
+import { useBloomTheme } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
-import { useThemeStore } from '@/lib/theme-store';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { APP_COLOR_PRESETS, type AppColorName } from '@/lib/app-color-presets';
 
 /**
  * Hook that centralizes the three-step color save sequence:
- * 1. Update local theme store for immediate effect
+ * 1. Update Bloom theme for immediate effect
  * 2. Save color name to Oxy core (shared across ecosystem)
  * 3. Save hex to Mention backend (for backward compat / profile design)
  */
 export function useAppColorSave() {
   const { oxyServices } = useAuth();
-  const setAppColor = useThemeStore((s) => s.setAppColor);
+  const { setColorPreset } = useBloomTheme();
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const [saving, setSaving] = useState(false);
 
   const saveColor = useCallback(async (name: AppColorName) => {
     setSaving(true);
-    setAppColor(name);
+    setColorPreset(name);
     const hex = APP_COLOR_PRESETS[name].hex;
     try {
       await Promise.all([
@@ -33,7 +33,7 @@ export function useAppColorSave() {
     } finally {
       setSaving(false);
     }
-  }, [oxyServices, setAppColor, updateMySettings]);
+  }, [oxyServices, setColorPreset, updateMySettings]);
 
   return { saveColor, saving };
 }
