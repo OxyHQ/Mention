@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 
 import { useTheme } from '@/hooks/useTheme';
 
@@ -23,13 +24,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const settingsItems = [
-    { icon: 'person-outline' as const, label: 'Account', onPress: () => {} },
-    { icon: 'notifications-outline' as const, label: 'Notifications', onPress: () => {} },
-    { icon: 'color-palette-outline' as const, label: 'Appearance', onPress: () => {} },
-    { icon: 'information-circle-outline' as const, label: 'About', onPress: () => {} },
-  ];
-
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: theme.colors.border }]}>
@@ -40,27 +34,40 @@ export default function SettingsScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.content}>
-        {settingsItems.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[styles.settingsRow, { borderBottomColor: theme.colors.border }]}
-            onPress={item.onPress}
-          >
-            <Ionicons name={item.icon} size={22} color={theme.colors.text} />
-            <Text style={[styles.settingsLabel, { color: theme.colors.text }]}>{item.label}</Text>
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        ))}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <SettingsListGroup>
+          <SettingsListItem
+            icon={<Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} />}
+            title="Account"
+            onPress={() => {}}
+          />
+          <SettingsListItem
+            icon={<Ionicons name="notifications-outline" size={20} color={theme.colors.textSecondary} />}
+            title="Notifications"
+            onPress={() => {}}
+          />
+          <SettingsListItem
+            icon={<Ionicons name="color-palette-outline" size={20} color={theme.colors.textSecondary} />}
+            title="Appearance"
+            onPress={() => {}}
+          />
+          <SettingsListItem
+            icon={<Ionicons name="information-circle-outline" size={20} color={theme.colors.textSecondary} />}
+            title="About"
+            onPress={() => {}}
+          />
+        </SettingsListGroup>
 
-        <TouchableOpacity
-          style={[styles.logoutRow, { borderTopColor: theme.colors.border }]}
-          onPress={handleLogout}
-        >
-          <Ionicons name="log-out-outline" size={22} color={theme.colors.error} />
-          <Text style={[styles.logoutText, { color: theme.colors.error }]}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
+        <SettingsListGroup>
+          <SettingsListItem
+            icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.error} />}
+            title="Sign Out"
+            onPress={handleLogout}
+            destructive
+            showChevron={false}
+          />
+        </SettingsListGroup>
+      </ScrollView>
     </View>
   );
 }
@@ -76,24 +83,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 18, fontWeight: '600' },
-  content: { paddingTop: 8 },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    gap: 12,
-  },
-  settingsLabel: { flex: 1, fontSize: 16 },
-  logoutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginTop: 24,
-    borderTopWidth: 0.5,
-    gap: 12,
-  },
-  logoutText: { fontSize: 16, fontWeight: '500' },
+  content: { paddingVertical: 8 },
 });
