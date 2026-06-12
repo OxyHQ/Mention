@@ -32,7 +32,11 @@ export const useThemeStore = create<ThemeState>()(
           ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
           : effectiveMode as 'light' | 'dark';
         applyDarkClass(resolved);
-        if (state.appColor && state.appColor !== 'teal') {
+        // Apply CSS variables for the persisted preset before React mounts so
+        // the very first paint already shows the correct palette. Once
+        // BloomThemeProvider mounts it becomes the authoritative writer for the
+        // same variables (writing identical raw HSL triples).
+        if (state.appColor) {
           applyAppColorToDocument(state.appColor, resolved);
         }
       },

@@ -47,7 +47,7 @@ import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom
 
 // Hooks
 import { useThemeStore } from "@/lib/theme-store";
-import { APP_COLOR_PRESETS, getAppColorCSSVariables, applyAppColorToDocument } from "@/lib/app-color-presets";
+import { APP_COLOR_PRESETS, getAppColorCSSVariables } from "@/lib/app-color-presets";
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
@@ -145,11 +145,8 @@ export default function RootLayout() {
       ? (rnScheme === 'dark' ? 'dark' : 'light')
       : mode;
 
-  // Apply color preset to web document and compute NativeWind CSS vars for native
-  useEffect(() => {
-    applyAppColorToDocument(appColor, colorScheme);
-  }, [appColor, colorScheme]);
-
+  // Compute NativeWind CSS vars for native. On web, BloomThemeProvider is the
+  // authoritative writer of these CSS variables on document.documentElement.
   const colorVars = useMemo(() => {
     const preset = APP_COLOR_PRESETS[appColor];
     return vars(getAppColorCSSVariables(preset, colorScheme));

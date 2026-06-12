@@ -1001,8 +1001,6 @@ export const APP_COLOR_PRESETS: Record<AppColorName, AppColorPreset> = {
   },
 };
 
-const ALL_CSS_VAR_NAMES = Object.keys(APP_COLOR_PRESETS.teal.light);
-
 export function getAppColorCSSVariables(
   preset: AppColorPreset,
   mode: 'light' | 'dark',
@@ -1055,27 +1053,29 @@ export function getScopedColorCSSVariables(
   return resolved;
 }
 
-let _lastApplied: { color: AppColorName; mode: 'light' | 'dark' } | null = null;
-
+/**
+ * Apply the active app color preset to the web document root.
+ *
+ * Used during store rehydration (before <BloomThemeProvider> mounts) to avoid
+ * a flash of the default palette. Once mounted, BloomThemeProvider becomes the
+ * authoritative writer for the same CSS variables — both write raw HSL triples
+ * (e.g. `185 100% 20%`), so they agree byte-for-byte and never race.
+ *
+ * No-op on native — colorVars are applied through NativeWind via the
+ * `vars(...)` style returned from `getAppColorCSSVariables`.
+ */
 export function applyAppColorToDocument(
   colorName: AppColorName,
   resolvedMode: 'light' | 'dark',
 ) {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-  if (_lastApplied?.color === colorName && _lastApplied?.mode === resolvedMode) return;
-  _lastApplied = { color: colorName, mode: resolvedMode };
-
-  if (colorName === 'teal') {
-    // Teal is the default in global.css — remove any overrides
-    ALL_CSS_VAR_NAMES.forEach((v) =>
-      document.documentElement.style.removeProperty(v),
-    );
-    return;
-  }
 
   const preset = APP_COLOR_PRESETS[colorName];
+  if (!preset) return;
+
   const vars = getAppColorCSSVariables(preset, resolvedMode);
-  Object.entries(vars).forEach(([key, value]) => {
-    document.documentElement.style.setProperty(key, value);
-  });
+  const root = document.documentElement.style;
+  for (const [key, value] of Object.entries(vars)) {
+    root.setProperty(key, value);
+  }
 }
