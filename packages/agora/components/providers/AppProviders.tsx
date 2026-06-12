@@ -8,10 +8,24 @@ import { OxyProvider, useOxy } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
+import {
+  BloomThemeProvider,
+  webLocalStorage,
+  type BloomThemeStorage,
+} from '@oxyhq/bloom';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { agoraConfig } from '@/lib/agoraConfig';
 import { roomQueryKeys } from '@/hooks/useRoomsQuery';
 import { setOxyServicesRef, setActiveSessionIdRef } from '@/utils/api';
+
+const asyncStorageAdapter: BloomThemeStorage = {
+  getItem: (key) => AsyncStorage.getItem(key),
+  setItem: (key, value) => AsyncStorage.setItem(key, value),
+};
+
+const themeStorage: BloomThemeStorage | undefined =
+  Platform.OS === 'web' ? webLocalStorage : asyncStorageAdapter;
 
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 try {
@@ -54,27 +68,35 @@ export const AppProviders = memo(function AppProviders({
   oxyServices,
 }: AppProvidersProps) {
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <KeyboardProvider>
-          <QueryClientProvider client={queryClient}>
-            <OxyProvider
-              oxyServices={oxyServices}
-              storageKeyPrefix="agora"
-            >
-              <OxyServicesSync>
-                <AgoraProviderWithInvalidation>
-                  <LiveRoomProvider>
-                    {children}
-                    <StatusBar style="auto" />
-                    <ToastOutlet />
-                  </LiveRoomProvider>
-                </AgoraProviderWithInvalidation>
-              </OxyServicesSync>
-            </OxyProvider>
-          </QueryClientProvider>
-        </KeyboardProvider>
-      </GestureHandlerRootView>
-    </SafeAreaProvider>
+    <BloomThemeProvider
+      defaultMode="system"
+      defaultColorPreset="yellow"
+      persistKey="agora-theme"
+      storage={themeStorage}
+      fonts={false}
+    >
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <KeyboardProvider>
+            <QueryClientProvider client={queryClient}>
+              <OxyProvider
+                oxyServices={oxyServices}
+                storageKeyPrefix="agora"
+              >
+                <OxyServicesSync>
+                  <AgoraProviderWithInvalidation>
+                    <LiveRoomProvider>
+                      {children}
+                      <StatusBar style="auto" />
+                      <ToastOutlet />
+                    </LiveRoomProvider>
+                  </AgoraProviderWithInvalidation>
+                </OxyServicesSync>
+              </OxyProvider>
+            </QueryClientProvider>
+          </KeyboardProvider>
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
+    </BloomThemeProvider>
   );
 });
