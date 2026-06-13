@@ -1,9 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '@oxyhq/services';
-import { useBloomTheme } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 import { useAppearanceStore } from '@/store/appearanceStore';
-import { APP_COLOR_PRESETS, type AppColorName } from '@/lib/app-color-presets';
 
 /**
  * Hook that centralizes the three-step color save sequence:

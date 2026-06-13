@@ -22,9 +22,7 @@ import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
 import { ScreenColorProvider, useScreenColor } from '@/context/ScreenColorContext';
-import { APP_COLOR_PRESETS, getScopedColorCSSVariables } from '@/lib/app-color-presets';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { vars } from 'react-native-css';
+import { APP_COLOR_PRESETS, BloomColorScope, type AppColorName } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
@@ -79,7 +77,6 @@ function isProfileRoute(pathname: string | null | undefined): boolean {
 const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = memo(({ isScreenNotMobile, isAuthenticated }) => {
   const { forwardWheelEvent } = useLayoutScroll();
   const { screenColor } = useScreenColor();
-  const theme = useTheme();
   const pathname = usePathname();
   const onProfileRoute = isProfileRoute(pathname);
 
@@ -92,16 +89,8 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = mem
     [handleWheel]
   );
 
-  // Apply screen-level color scoping to the middle column so layout-owned
-  // elements (e.g. SignInBanner) inherit the active screen's color preset.
-  // Only honour the color when we're actually on a profile route — this guards
-  // against any child-propagated state that failed to clean up on unmount.
-  const screenColorVars = useMemo(() => {
-    if (!onProfileRoute || !screenColor) return undefined;
-    const preset = APP_COLOR_PRESETS[screenColor];
-    if (!preset) return undefined;
-    return vars(getScopedColorCSSVariables(preset, theme.isDark ? 'dark' : 'light'));
-  }, [onProfileRoute, screenColor, theme.isDark]);
+  const activeScreenColor: AppColorName | undefined =
+    onProfileRoute && screenColor && APP_COLOR_PRESETS[screenColor] ? screenColor : undefined;
 
   return (
     <View
@@ -119,19 +108,18 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = mem
         )}
         style={isScreenNotMobile ? { maxWidth: 950, flexShrink: 1 } : undefined}
       >
-        <ThemedView
-          className={cn(
-            "bg-background overflow-hidden",
-            isScreenNotMobile && "border-x border-border"
-          )}
-          style={[
-            { flex: isScreenNotMobile ? 2.2 : 1 },
-            screenColorVars,
-          ]}
-        >
-          <Slot />
-          {!isAuthenticated && <SignInBanner />}
-        </ThemedView>
+        <BloomColorScope colorPreset={activeScreenColor} asChild>
+          <ThemedView
+            className={cn(
+              "bg-background overflow-hidden",
+              isScreenNotMobile && "border-x border-border"
+            )}
+            style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
+          >
+            <Slot />
+            {!isAuthenticated && <SignInBanner />}
+          </ThemedView>
+        </BloomColorScope>
         <RightBar />
       </View>
     </View>

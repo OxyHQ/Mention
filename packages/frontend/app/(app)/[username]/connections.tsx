@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorComponent } from '@/components/Error';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
+import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
@@ -42,12 +43,8 @@ export default function ConnectionsScreen() {
   const theme = useTheme();
   const { data: profileData } = useProfileData(cleanUsername);
 
-  // Scoped color override for visited user's color preset. The shared hook
-  // resolves forced brand themes (e.g. faircoin), propagates the colour to
-  // the app layout so layout-owned elements inherit it, and cleans up on
-  // unmount so navigating away reverts to the app-wide theme.
   const isOwnProfile = user?.id === profileData?.id;
-  const { colorVars: profileColorVars } = useProfileScreenColor({
+  const { colorName: profileColorName } = useProfileScreenColor({
     username: cleanUsername,
     designColor: profileData?.design?.color,
     isOwnProfile,
@@ -423,7 +420,8 @@ export default function ConnectionsScreen() {
   };
 
   return (
-    <ThemedView className="flex-1" style={[{ paddingTop: insets.top }, profileColorVars]}>
+    <BloomColorScope colorPreset={profileColorName} asChild>
+    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
       <Header
         options={{
           title: getTitle(),
@@ -450,6 +448,7 @@ export default function ConnectionsScreen() {
 
       {renderContent()}
     </ThemedView>
+    </BloomColorScope>
   );
 }
 

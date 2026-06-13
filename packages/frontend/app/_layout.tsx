@@ -32,21 +32,19 @@ import NetInfo from '@react-native-community/netinfo';
 import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
 import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AppState, Platform, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
+import { AppState, Platform, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
-import { BloomThemeProvider, useBloomTheme } from '@oxyhq/bloom/theme';
+import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { ImageResolverProvider } from '@/lib/imageResolver';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
-import { ThemedView } from "@/components/ThemedView";
 import { AppProviders } from '@/components/providers/AppProviders';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom/portal';
 
 // Hooks
-import { APP_COLOR_PRESETS, getAppColorCSSVariables } from "@/lib/app-color-presets";
 import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
 
 // Services & Utils
@@ -55,9 +53,6 @@ import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@/lib/logger';
 import { useShareIntentRouter } from '@/lib/shareIntent';
-
-// CSS runtime
-import { vars } from 'react-native-css';
 
 // Styles
 import '../global.css';
@@ -142,85 +137,27 @@ export default function RootLayout() {
         defaultColorPreset="blue"
         onFontsLoading={<AppSplashScreen />}
       >
-        <ThemedRoot
-          appIsReady={appIsReady}
-          initializationComplete={splashState.initializationComplete}
-          onSplashFadeComplete={handleSplashFadeComplete}
-          queryClient={queryClient}
-        />
-      </BloomThemeProvider>
-    </ImageResolverProvider>
-  );
-}
-
-interface ThemedRootProps {
-  appIsReady: boolean;
-  initializationComplete: boolean;
-  onSplashFadeComplete: () => void;
-  queryClient: QueryClient;
-}
-
-function ThemedRoot({
-  appIsReady,
-  initializationComplete,
-  onSplashFadeComplete,
-  queryClient,
-}: ThemedRootProps) {
-  const rnScheme = useRNColorScheme();
-  const { mode, colorPreset } = useBloomTheme();
-
-  const colorScheme: 'light' | 'dark' =
-    mode === 'adaptive' || mode === 'system'
-      ? rnScheme === 'dark' ? 'dark' : 'light'
-      : mode;
-
-  // Compute NativeWind CSS vars for native. On web, BloomThemeProvider is the
-  // authoritative writer of these CSS variables on document.documentElement.
-  const colorVars = useMemo(() => {
-    const preset = APP_COLOR_PRESETS[colorPreset];
-    return vars(getAppColorCSSVariables(preset, colorScheme));
-  }, [colorPreset, colorScheme]);
-
-  const appContent = useMemo(() => {
-    if (!appIsReady) {
-      return (
-        <AppSplashScreen
-          startFade={initializationComplete}
-          onFadeComplete={onSplashFadeComplete}
-        />
-      );
-    }
-
-    return (
-      <AppProviders
-        oxyServices={oxyServices}
-        colorScheme={colorScheme}
-        queryClient={queryClient}
-      >
-        {Platform.OS !== 'web' && (
-          <NotificationPermissionGate
-            appIsReady={appIsReady}
-            initializationComplete={initializationComplete}
+        {appIsReady ? (
+          <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
+            {Platform.OS !== 'web' && (
+              <NotificationPermissionGate
+                appIsReady={appIsReady}
+                initializationComplete={splashState.initializationComplete}
+              />
+            )}
+            <PortalProvider>
+              <AuthRouter />
+              <PortalOutlet />
+            </PortalProvider>
+          </AppProviders>
+        ) : (
+          <AppSplashScreen
+            startFade={splashState.initializationComplete}
+            onFadeComplete={handleSplashFadeComplete}
           />
         )}
-        <PortalProvider>
-          <AuthRouter />
-          <PortalOutlet />
-        </PortalProvider>
-      </AppProviders>
-    );
-  }, [
-    appIsReady,
-    initializationComplete,
-    colorScheme,
-    onSplashFadeComplete,
-    queryClient,
-  ]);
-
-  return (
-    <ThemedView style={[{ flex: 1 }, colorVars]}>
-      {appContent}
-    </ThemedView>
+      </BloomThemeProvider>
+    </ImageResolverProvider>
   );
 }
 

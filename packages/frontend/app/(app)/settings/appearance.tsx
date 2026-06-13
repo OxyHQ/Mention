@@ -5,10 +5,15 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
-import { APP_COLOR_PRESETS, PREMIUM_COLOR_NAMES, type AppColorName } from '@/lib/app-color-presets';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
+import {
+  APP_COLOR_PRESETS,
+  PREMIUM_COLOR_NAMES,
+  useTheme,
+  useBloomTheme,
+  type AppColorName,
+} from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import * as SegmentedControl from '@oxyhq/bloom/segmented-control';
@@ -49,7 +54,7 @@ export default function AppearanceSettingsScreen() {
   const isPremium = authUserRecord?.premium?.isPremium ?? false;
   // Premium users see every premium color. Otherwise, unlock only the color tied
   // to the current username (e.g. @oxy unlocks "oxy", @faircoin unlocks "faircoin").
-  const unlockedPremiumColors = useMemo<AppColorName[] | undefined>(() => {
+  const unlockedPremiumColors = useMemo<readonly AppColorName[] | undefined>(() => {
     if (isPremium) return PREMIUM_COLOR_NAMES;
     const unlocked: AppColorName[] = [];
     if (isOxyUser) unlocked.push('oxy');

@@ -14,6 +14,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
+import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services';
 
 export default function AccountInfoScreen() {
@@ -30,11 +31,7 @@ export default function AccountInfoScreen() {
   const isOwnProfile = currentUser?.id === profileData?.id;
   const design = profileData?.design;
 
-  // Scoped color override for visited user's color preset. The shared hook
-  // resolves forced brand themes (e.g. faircoin), propagates the colour to
-  // the app layout so layout-owned elements inherit it, and cleans up on
-  // unmount so navigating away reverts to the app-wide theme.
-  const { colorVars: profileColorVars } = useProfileScreenColor({
+  const { colorName: profileColorName } = useProfileScreenColor({
     username: cleanUsername,
     designColor: design?.color,
     isOwnProfile,
@@ -70,7 +67,8 @@ export default function AccountInfoScreen() {
   ), [profileData, cleanUsername]);
 
   return (
-    <ThemedView className="flex-1" style={[{ paddingTop: insets.top }, profileColorVars]}>
+    <BloomColorScope colorPreset={profileColorName} asChild>
+    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
       <Header
         options={{
           title: t('About', { defaultValue: 'About' }),
@@ -209,6 +207,7 @@ export default function AccountInfoScreen() {
         </View>
       </ScrollView>
     </ThemedView>
+    </BloomColorScope>
   );
 }
 

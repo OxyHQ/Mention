@@ -30,19 +30,12 @@ const logger = createScopedLogger('AppProviders');
 interface AppProvidersProps {
   children: React.ReactNode;
   oxyServices: OxyServices;
-  colorScheme: 'light' | 'dark' | null | undefined;
   queryClient: QueryClient;
 }
 
-/**
- * Wraps the app with all necessary providers
- * Separated from _layout.tsx for better testability
- * Memoized to prevent re-renders when props don't change
- */
 export const AppProviders = memo(function AppProviders({
   children,
   oxyServices,
-  colorScheme,
   queryClient,
 }: AppProvidersProps) {
   const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {

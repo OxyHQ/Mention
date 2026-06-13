@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import type { AppColorName } from '@/lib/app-color-presets';
+import type { AppColorName } from '@oxyhq/bloom/theme';
 
 interface ScreenColorContextValue {
   /** The current screen's color preset name (e.g. from a visited profile) */

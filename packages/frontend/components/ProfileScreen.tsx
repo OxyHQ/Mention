@@ -20,6 +20,7 @@ import { useAuth, useFollow } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
+import { APP_COLOR_PRESETS, BloomColorScope } from '@oxyhq/bloom/theme';
 import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
@@ -182,19 +183,16 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
 
-    // Scoped color override: apply visited user's color preset to entire profile
-    // subtree and propagate it to the app layout so layout-owned elements
-    // (SignInBanner, middle column background) inherit the same theme. The
-    // shared hook handles cleanup on unmount so navigating away never leaks.
     const {
-        preset: visitedColorPreset,
-        colorVars: profileColorVars,
+        colorName: profileColorName,
         backgroundColor: profileBgColor,
     } = useProfileScreenColor({
         username,
         designColor: design?.color,
         isOwnProfile,
     });
+
+    const profileFabBg = profileColorName ? APP_COLOR_PRESETS[profileColorName].hex : undefined;
 
     // User's profile color hex for passing to buttons
     const isPrivate = useMemo(
@@ -436,7 +434,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 image={profileImage}
                 type="profile"
             />
-            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileColorVars, profileBgColor ? { backgroundColor: profileBgColor } : undefined]}>
+            <BloomColorScope colorPreset={profileColorName} asChild>
+            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileBgColor ? { backgroundColor: profileBgColor } : undefined]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
                 {loading ? (
@@ -613,12 +612,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         <FAB
                             onPress={() => router.push('/compose')}
                             customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
-                            style={visitedColorPreset ? { backgroundColor: visitedColorPreset.hex } : undefined}
+                            style={profileFabBg ? { backgroundColor: profileFabBg } : undefined}
                         />
 
                     </>
                 )}
             </View>
+            </BloomColorScope>
         </>
     );
 };

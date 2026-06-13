@@ -1,4 +1,4 @@
-import { APP_COLOR_PRESETS, type AppColorName } from '@/lib/app-color-presets';
+import { APP_COLOR_PRESETS, type AppColorName } from '@oxyhq/bloom/theme';
 
 /**
  * Returns the hex color for a user's profile color, to be used as

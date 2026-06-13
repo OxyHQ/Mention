@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@/lib/app-color-presets';
+import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 
 interface ColorSwatchPickerProps {
   value: AppColorName;
   onChange: (name: AppColorName) => void;
-  extraColors?: AppColorName[];
+  extraColors?: readonly AppColorName[];
 }
 
 export function ColorSwatchPicker({ value, onChange, extraColors }: ColorSwatchPickerProps) {
