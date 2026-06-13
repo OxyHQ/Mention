@@ -6,6 +6,12 @@ import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationD
 import { Post } from '../models/Post';
 import { federationService } from './FederationService';
 
+/** Staleness threshold after which an actor profile is re-fetched. */
+const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Max number of stale actors refreshed per scheduled run. */
+const ACTOR_REFRESH_BATCH_SIZE = 50;
+
 class FederationJobScheduler {
   private actorRefreshInterval: ReturnType<typeof setInterval> | null = null;
   private deliveryRetryInterval: ReturnType<typeof setInterval> | null = null;
@@ -87,39 +93,61 @@ class FederationJobScheduler {
   }
 
   /**
-   * Refresh actor profiles that are stale (>24h) and have active follows.
+   * Refresh stale (>24h) actor profiles so their avatar/banner/display name stay
+   * current. Covers BOTH followed actors AND any federated actor that has been
+   * resolved/viewed locally (i.e. has an oxyUserId, meaning a Mention user can
+   * land on its profile). The avatar refresh is FORCED so Oxy re-downloads and
+   * replaces the federated avatar, and the banner is re-synced as part of the
+   * full fetch.
    */
   private async refreshStaleActors(): Promise<void> {
-    const staleThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const staleThreshold = new Date(Date.now() - ACTOR_STALE_MS);
 
-    // Get actor URIs that have active follows
-    const activeFollows = await FederatedFollow.distinct('remoteActorUri', {
+    // Actors that have active follows (followed in either direction).
+    const followedUris = await FederatedFollow.distinct('remoteActorUri', {
       status: 'accepted',
     });
 
-    if (activeFollows.length === 0) return;
-
+    // Refresh anything that is stale AND either followed or has been resolved
+    // locally (oxyUserId set ⇒ a Mention user can view this profile). This keeps
+    // viewed-but-not-followed profiles fresh too.
     const staleActors = await FederatedActor.find({
-      uri: { $in: activeFollows },
-      $or: [
-        { lastFetchedAt: { $lt: staleThreshold } },
-        { lastFetchedAt: null },
+      $and: [
+        {
+          $or: [
+            { lastFetchedAt: { $lt: staleThreshold } },
+            { lastFetchedAt: null },
+          ],
+        },
+        {
+          $or: [
+            ...(followedUris.length > 0 ? [{ uri: { $in: followedUris } }] : []),
+            { oxyUserId: { $ne: null } },
+          ],
+        },
       ],
     })
       .select('uri')
-      .limit(50) // Process in batches
+      .limit(ACTOR_REFRESH_BATCH_SIZE) // Process in batches to avoid fan-out storms
       .lean();
 
     if (staleActors.length === 0) return;
 
-    logger.debug(`Refreshing ${staleActors.length} stale actor profiles`);
+    logger.info(`[FedSync] Refreshing ${staleActors.length} stale actor profiles (forcing avatar refresh)`);
 
-    for (const actor of staleActors) {
-      try {
-        await federationService.fetchRemoteActor(actor.uri);
-      } catch (err) {
-        logger.debug(`Failed to refresh actor ${actor.uri}:`, err);
-      }
+    // Bounded concurrency to avoid overwhelming remote servers.
+    const CONCURRENCY = 3;
+    for (let i = 0; i < staleActors.length; i += CONCURRENCY) {
+      const batch = staleActors.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        batch.map((actor) =>
+          // forceAvatarRefresh=true → Oxy re-downloads/replaces the avatar.
+          federationService.fetchRemoteActor(actor.uri, true).catch((err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.debug(`[FedSync] Failed to refresh actor ${actor.uri}: ${message}`);
+          })
+        )
+      );
     }
   }
 

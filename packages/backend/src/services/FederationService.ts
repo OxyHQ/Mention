@@ -24,6 +24,18 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
 
 /**
+ * Minimum interval between background actor refreshes for the same actor.
+ * Prevents refresh storms when a profile is viewed repeatedly in a short window.
+ */
+const ACTOR_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/**
+ * Staleness threshold after which a cached actor is considered out of date and
+ * eligible for a (background) re-fetch.
+ */
+const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
  * Sign a GET request using the instance actor key pair (managed by Oxy).
  * Required by servers that enforce authorized fetch (e.g., Threads).
  */
@@ -58,6 +70,14 @@ async function signedFetch(url: string, accept: string): Promise<Response> {
 }
 
 class FederationService {
+  /**
+   * Actor URIs with an in-flight background refresh. Guards against launching
+   * multiple concurrent `fetchRemoteActor` calls for the same actor (refresh
+   * storms) when a profile is viewed repeatedly while the first fetch is still
+   * running.
+   */
+  private readonly inFlightActorRefreshes = new Set<string>();
+
   /**
    * Extract candidate top-level notes from outbox items into the candidates array.
    */
@@ -137,8 +157,14 @@ class FederationService {
 
   /**
    * Fetch and store/update a remote ActivityPub actor by URI.
+   *
+   * @param actorUri - the remote actor URI to fetch.
+   * @param forceAvatarRefresh - when true, tells Oxy's `PUT /users/resolve` to
+   *   re-download and replace the federated avatar even if it already has a
+   *   stored file ID. Pass `true` from refresh paths (scheduled job, viewed
+   *   profile refresh) and `false` for first-time creation.
    */
-  async fetchRemoteActor(actorUri: string): Promise<IFederatedActor | null> {
+  async fetchRemoteActor(actorUri: string, forceAvatarRefresh = false): Promise<IFederatedActor | null> {
     try {
       // Normalize: strip www. prefix for known AP domains (e.g., www.threads.net → threads.net)
       actorUri = actorUri.replace(/^(https?:\/\/)www\./i, '$1');
@@ -268,6 +294,11 @@ class FederationService {
             displayName: decodeEntities(actor.name || username),
             avatar: actor.icon?.url || actor.icon?.href,
             bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
+            // On refresh, tell Oxy to re-download and replace the avatar even if
+            // it already stored a file ID. Coordinated with oxy-api's
+            // `refresh` / `forceAvatarRefresh` flag on PUT /users/resolve.
+            refresh: forceAvatarRefresh,
+            forceAvatarRefresh,
           });
           const oxyId = String(oxyUser?._id || oxyUser?.id || '');
           if (oxyId && fedActor.oxyUserId !== oxyId) {
@@ -565,15 +596,68 @@ class FederationService {
 
   /**
    * Get a cached actor or fetch if missing/stale (>24h).
+   *
+   * Never blocks on remote network I/O when a cached actor already exists: a
+   * stale cached actor is returned immediately and a background refresh is
+   * enqueued. Only a completely missing actor triggers a blocking fetch (the
+   * caller has nothing else to return).
    */
   async getOrFetchActor(actorUri: string): Promise<IFederatedActor | null> {
     const existing = await FederatedActor.findOne({ uri: actorUri }).lean<IFederatedActor>();
     if (existing) {
-      const staleMs = 24 * 60 * 60 * 1000;
-      const isStale = !existing.lastFetchedAt || Date.now() - existing.lastFetchedAt.getTime() > staleMs;
-      if (!isStale) return existing;
+      const isStale = !existing.lastFetchedAt || Date.now() - existing.lastFetchedAt.getTime() > ACTOR_STALE_MS;
+      if (isStale) {
+        // Refresh in the background — never block the caller on remote I/O.
+        this.refreshActorInBackground(actorUri, existing);
+      }
+      return existing;
     }
     return this.fetchRemoteActor(actorUri);
+  }
+
+  /**
+   * Enqueue a fire-and-forget full-actor refresh. Safe to call on a client
+   * request path: it returns synchronously and the fetch runs detached.
+   *
+   * Guards against refresh storms:
+   *  - an in-flight refresh for the same URI short-circuits;
+   *  - a recently-fetched actor (within ACTOR_REFRESH_MIN_INTERVAL_MS) is
+   *    skipped unless it is missing essential profile fields.
+   *
+   * The avatar refresh is forced only when refreshing an actor that already
+   * exists (so Oxy re-downloads/replaces it); first-time creation does not
+   * force, matching the upstream guard.
+   */
+  refreshActorInBackground(actorUri: string, existing?: IFederatedActor): void {
+    if (!FEDERATION_ENABLED) return;
+    if (this.inFlightActorRefreshes.has(actorUri)) return;
+
+    const missingProfile = !existing
+      || !existing.avatarUrl
+      || !existing.headerUrl
+      || !existing.displayName;
+    const lastFetchedMs = existing?.lastFetchedAt?.getTime();
+    const refreshedRecently = typeof lastFetchedMs === 'number'
+      && Date.now() - lastFetchedMs < ACTOR_REFRESH_MIN_INTERVAL_MS;
+
+    // Skip if we refreshed recently AND the cached profile is already complete.
+    if (refreshedRecently && !missingProfile) return;
+
+    // Force avatar re-download only when the actor already exists (refresh),
+    // not on first-time creation.
+    const forceAvatarRefresh = Boolean(existing);
+
+    this.inFlightActorRefreshes.add(actorUri);
+    void (async () => {
+      try {
+        await this.fetchRemoteActor(actorUri, forceAvatarRefresh);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`[FedSync] background actor refresh failed for ${actorUri}: ${message}`);
+      } finally {
+        this.inFlightActorRefreshes.delete(actorUri);
+      }
+    })();
   }
 
   // ============================================================
@@ -750,12 +834,23 @@ class FederationService {
   ): Promise<{ success: boolean; pending: boolean }> {
     if (!FEDERATION_ENABLED) return { success: false, pending: false };
 
-    const actor = await this.getOrFetchActor(remoteActorUri);
-    if (!actor) return { success: false, pending: false };
+    // Never block the follow request on a remote actor fetch. Use whatever is
+    // cached; if the actor is unknown locally we still record the follow and
+    // queue the Follow activity, then refresh the actor in the background.
+    const cached = await FederatedActor.findOne({ uri: remoteActorUri }).lean<IFederatedActor>();
 
-    const canonicalUri = actor.uri; // Use canonical URI from fetched actor
+    // Always refresh the actor in the background so its inbox/profile stay
+    // current (and so a missing actor gets resolved for delivery shortly).
+    this.refreshActorInBackground(remoteActorUri, cached ?? undefined);
+
+    const canonicalUri = cached?.uri ?? remoteActorUri;
     const localActorUri = actorUrl(localUsername);
-    const activityId = `${localActorUri}/follows/${actor._id}`;
+    // Use the actor _id when known, otherwise a stable hash of the URI so the
+    // activity ID is deterministic across retries before the actor is cached.
+    const activityIdSuffix = cached?._id
+      ? String(cached._id)
+      : encodeURIComponent(canonicalUri);
+    const activityId = `${localActorUri}/follows/${activityIdSuffix}`;
 
     // Create or update the follow record
     await FederatedFollow.findOneAndUpdate(
@@ -772,12 +867,56 @@ class FederationService {
       object: canonicalUri,
     };
 
-    const delivered = await this.deliverActivity(activity, actor.inboxUrl, localOxyUserId, localUsername);
-    if (!delivered) {
-      await this.queueDelivery(activity, actor.inboxUrl, localOxyUserId);
+    // If we know the inbox, attempt delivery in the background; otherwise queue
+    // for the delivery worker, which resolves the inbox once the actor lands.
+    const targetInbox = cached?.sharedInboxUrl ?? cached?.inboxUrl;
+    if (targetInbox) {
+      void this.deliverActivity(activity, targetInbox, localOxyUserId, localUsername)
+        .then((delivered) => {
+          if (!delivered) return this.queueDelivery(activity, targetInbox, localOxyUserId);
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`[FedSync] background follow delivery failed for ${canonicalUri}: ${message}`);
+        });
+    } else {
+      // No cached inbox yet — resolve the actor's inbox in the background and
+      // queue the Follow for delivery once known. Reports success optimistically;
+      // the delivery worker retries the queued delivery. Never blocks the caller.
+      this.queueFollowOnceActorKnown(activity, canonicalUri, localOxyUserId, remoteActorUri);
     }
 
-    return { success: true, pending: actor.manuallyApprovesFollowers };
+    return { success: true, pending: cached?.manuallyApprovesFollowers ?? false };
+  }
+
+  /**
+   * Resolve the target actor's inbox in the background and queue the Follow
+   * activity for delivery once known. Fire-and-forget: returns synchronously and
+   * never blocks the caller on remote I/O.
+   */
+  private queueFollowOnceActorKnown(
+    activity: Record<string, unknown>,
+    canonicalUri: string,
+    localOxyUserId: string,
+    remoteActorUri: string,
+  ): void {
+    void (async () => {
+      try {
+        let actor = await FederatedActor.findOne({ uri: canonicalUri }).lean<IFederatedActor>();
+        if (!actor?.inboxUrl) {
+          actor = await this.fetchRemoteActor(remoteActorUri) as IFederatedActor | null;
+        }
+        const inbox = actor?.sharedInboxUrl ?? actor?.inboxUrl;
+        if (inbox) {
+          await this.queueDelivery(activity, inbox, localOxyUserId);
+        } else {
+          logger.warn(`[FedSync] could not resolve inbox to deliver Follow to ${remoteActorUri}`);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`[FedSync] deferred follow delivery setup failed for ${remoteActorUri}: ${message}`);
+      }
+    })();
   }
 
   /**
@@ -815,12 +954,21 @@ class FederationService {
       },
     };
 
-    const delivered = await this.deliverActivity(activity, actor.inboxUrl, localOxyUserId, localUsername);
-    if (!delivered) {
-      await this.queueDelivery(activity, actor.inboxUrl, localOxyUserId);
-    }
-
+    // Remove the local follow immediately so the unfollow reflects in the UI,
+    // then deliver the Undo in the background — never block the request on the
+    // remote POST.
     await FederatedFollow.deleteOne({ _id: follow._id });
+
+    const targetInbox = actor.sharedInboxUrl ?? actor.inboxUrl;
+    void this.deliverActivity(activity, targetInbox, localOxyUserId, localUsername)
+      .then((delivered) => {
+        if (!delivered) return this.queueDelivery(activity, targetInbox, localOxyUserId);
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`[FedSync] background undo-follow delivery failed for ${remoteActorUri}: ${message}`);
+      });
+
     return true;
   }
 

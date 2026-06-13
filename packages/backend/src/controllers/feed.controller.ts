@@ -69,14 +69,9 @@ class FeedController {
   private readonly SLOW_QUERY_THRESHOLD_MS = config.feed.slowQueryThresholdMs;
 
   /**
-   * Max time a user-facing profile-feed request waits for a federated user's
-   * outbox sync to populate posts before responding. Covers the common
-   * fast-sync case without blocking the request on slow remote federation I/O.
-   * If the sync is still running after this window the response is returned
-   * immediately with `pending: true` and the sync continues in the background,
-   * populating posts for the next fetch (Bluesky-style).
+   * Max number of recent outbox posts to pull per background federated sync.
    */
-  private readonly FED_SYNC_INLINE_WAIT_MS = 2500;
+  private readonly FED_OUTBOX_SYNC_LIMIT = 20;
 
   /**
    * Replace [mention:userId] placeholders in text with [@displayName](username) format
@@ -787,113 +782,38 @@ class FeedController {
         .lean();
 
       // If no posts found on the first page, check if this is a federated user
-      // and sync their ActivityPub outbox. The sync is a TRUE background task: it
-      // runs to completion regardless of this request's lifecycle. We wait only a
-      // short bounded window (FED_SYNC_INLINE_WAIT_MS) for the fast-sync common
-      // case, then re-query. If posts are still empty after that window, we return
-      // immediately with `pending: true` while the background sync keeps populating
-      // posts for the next fetch (Bluesky-style). This prevents blocking a
-      // user-facing request on slow remote federation I/O.
+      // and sync their ActivityPub outbox. ALL federation network I/O (Oxy user
+      // lookup, actor fetch, outbox sync, image downloads) runs as a TRUE
+      // background task — the request NEVER blocks on remote federation I/O.
+      // When there are no local posts yet for a (potentially) federated user we
+      // return immediately with `pending: true` so the client shows a loading
+      // state and refetches shortly; the background task keeps populating posts
+      // (and the actor profile/avatar/banner) for the next fetch.
+      //
+      // The only request-path work is a single cheap indexed DB lookup
+      // (`FederatedActor.findOne`) to decide whether to mark the feed pending.
       let fedSyncPending = false;
       if (posts.length === 0 && !cursor && FEDERATION_ENABLED) {
         const syncUserId = userId;
-        const syncLimit = limit;
+        const cachedActor = await FederatedActor.findOne({ oxyUserId: syncUserId })
+          .lean<IFederatedActor>();
 
-        // Sentinels resolved by the race so we can tell, after the bounded
-        // wait, whether the sync finished or is still in flight.
-        const SYNC_DONE = 'fed-sync-done' as const;
-        const TIMED_OUT = 'fed-sync-timeout' as const;
-        type SyncRaceResult = typeof SYNC_DONE | typeof TIMED_OUT;
-
-        const syncPromise: Promise<typeof SYNC_DONE> = (async () => {
-          try {
-            let actor = await FederatedActor.findOne({ oxyUserId: syncUserId }).lean() as IFederatedActor | null;
-            logger.info(`[FedSync] userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
-
-            if (!actor) {
-              // Federated profile lookup is public — use the service client so it
-              // works for unauthenticated viewers and avoids per-request token setup.
-              const oxyLookupClient = getServiceOxyClient();
-              const oxyUser: User = await oxyLookupClient.getUserById(syncUserId);
-              const actorUri = typeof oxyUser.federation?.actorUri === 'string'
-                ? oxyUser.federation.actorUri
-                : undefined;
-              logger.info(`[FedSync] oxyUser.type=${oxyUser.type} federation.actorUri=${actorUri ?? 'missing'}`);
-              if (actorUri) {
-                // Quick path: create a minimal FederatedActor with just the outbox URL
-                // instead of doing a full fetchRemoteActor (which fetches collection counts).
-                // The full actor refresh will happen via the scheduled job later.
-                const domain = new URL(actorUri).hostname;
-                const username = (oxyUser.username || '').split('@')[0] || 'unknown';
-                const acct = `${username}@${domain}`;
-                const outboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
-                logger.info(`[FedSync] creating minimal FederatedActor: acct=${acct} outboxUrl=${outboxUrl}`);
-                const created = await FederatedActor.findOneAndUpdate(
-                  { uri: actorUri },
-                  {
-                    $set: {
-                      uri: actorUri,
-                      username,
-                      domain,
-                      acct,
-                      inboxUrl: `${actorUri}${actorUri.endsWith('/') ? '' : '/'}inbox`,
-                      outboxUrl,
-                      oxyUserId: syncUserId,
-                      lastFetchedAt: new Date(0), // Mark as stale so scheduled job refreshes it
-                    },
-                    $setOnInsert: { type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, fields: [], followersCount: 0, followingCount: 0, postsCount: 0 },
-                  },
-                  { upsert: true, returnDocument: 'after', lean: true },
-                ) as IFederatedActor | null;
-                actor = created;
-              }
-            }
-
-            if (actor?.outboxUrl) {
-              // Ensure the actor has oxyUserId before syncing so posts get the right author
-              if (!actor.oxyUserId) {
-                await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
-                actor.oxyUserId = syncUserId;
-              }
-              const syncedCount = await federationService.syncOutboxPosts(actor, syncLimit);
-              logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
-              // Backfill oxyUserId on any posts that were stored without it
-              if (syncedCount > 0) {
-                await Post.updateMany(
-                  { 'federation.activityId': { $regex: `^${actor.uri}` }, oxyUserId: null },
-                  { $set: { oxyUserId: syncUserId } },
-                );
-              }
-            }
-          } catch (err) {
-            logger.warn('[FedSync] Background outbox sync failed:', err);
-          }
-          return SYNC_DONE;
-        })();
-
-        // Wait only a short bounded window for the fast-sync common case, then
-        // re-query. The sync promise is NOT abandoned — it keeps running in the
-        // background after this request responds. We attach a no-op catch so an
-        // eventual rejection after the response is sent never becomes an
-        // unhandled rejection.
-        syncPromise.catch(() => { /* background errors already logged above */ });
-
-        const raceResult = await Promise.race<SyncRaceResult>([
-          syncPromise,
-          new Promise<typeof TIMED_OUT>(resolve => setTimeout(() => resolve(TIMED_OUT), this.FED_SYNC_INLINE_WAIT_MS)),
-        ]);
-
-        posts = await Post.find(query)
-          .select(this.FEED_FIELDS)
-          .sort({ createdAt: -1 })
-          .limit(limit + 1)
-          .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-          .lean();
-        logger.info(`[FedSync] re-query found ${posts.length} posts for userId=${syncUserId} (raceResult=${raceResult === SYNC_DONE ? 'done' : 'timeout'})`);
-
-        // Still nothing AND the sync hasn't finished → tell the client the feed is
-        // being populated so it can show a loading state and refetch shortly.
-        fedSyncPending = posts.length === 0 && raceResult === TIMED_OUT;
+        if (cachedActor) {
+          // Known federated user with no local posts yet → kick off background
+          // outbox sync + actor refresh and tell the client the feed is being
+          // populated so it polls. No network I/O on the request path.
+          fedSyncPending = true;
+          this.runFederatedProfileSyncInBackground(syncUserId, cachedActor);
+        } else {
+          // No cached actor row. This is either a local user with a genuinely
+          // empty feed (most common — must stay unchanged: NOT pending) or a
+          // federated user we've never resolved. Resolve identity in the
+          // background (single Oxy lookup off the request path); if federated,
+          // the background task creates the actor row + syncs, and the next
+          // fetch will see `pending`/posts. We do NOT mark pending here to
+          // avoid making local empty profiles poll.
+          this.runFederatedProfileSyncInBackground(syncUserId, undefined);
+        }
       }
 
       // Validate result size
@@ -935,11 +855,104 @@ class FeedController {
       res.json(response);
     } catch (error) {
       logger.error('Error fetching user profile feed', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to fetch user profile feed',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
+  }
+
+  /**
+   * Fire-and-forget background sync for a (potentially) federated profile.
+   *
+   * Performs ALL federation network I/O off the client request path:
+   *  1. Resolves the Oxy user to find its `federation.actorUri` (only when we
+   *     don't already have a cached actor row).
+   *  2. Upserts a minimal FederatedActor (outbox URL) so the outbox sync can run
+   *     immediately without waiting on a full actor fetch.
+   *  3. Syncs the actor's outbox into local posts.
+   *  4. Enqueues a full background actor refresh so avatar/banner/displayName
+   *     populate (and refresh over time) for viewed profiles — followed or not.
+   *
+   * Never throws; all errors are logged. Returns void synchronously to the
+   * caller (the work runs detached).
+   */
+  private runFederatedProfileSyncInBackground(syncUserId: string, cachedActor?: IFederatedActor): void {
+    if (!FEDERATION_ENABLED) return;
+
+    void (async () => {
+      try {
+        let actor: IFederatedActor | null = cachedActor ?? null;
+        logger.info(`[FedSync] background sync userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
+
+        if (!actor) {
+          // Federated profile lookup is public — use the service client so it
+          // works for unauthenticated viewers and avoids per-request token setup.
+          const oxyLookupClient = getServiceOxyClient();
+          const oxyUser: User = await oxyLookupClient.getUserById(syncUserId);
+          const actorUri = typeof oxyUser.federation?.actorUri === 'string'
+            ? oxyUser.federation.actorUri
+            : undefined;
+          logger.info(`[FedSync] oxyUser.type=${oxyUser.type} federation.actorUri=${actorUri ?? 'missing'}`);
+          if (!actorUri) {
+            // Local user with an empty feed — nothing to sync.
+            return;
+          }
+
+          // Quick path: create a minimal FederatedActor with just the outbox URL
+          // instead of doing a full fetchRemoteActor (which fetches collection
+          // counts). The full actor refresh is enqueued below.
+          const domain = new URL(actorUri).hostname;
+          const username = (oxyUser.username || '').split('@')[0] || 'unknown';
+          const acct = `${username}@${domain}`;
+          const minimalOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
+          logger.info(`[FedSync] creating minimal FederatedActor: acct=${acct} outboxUrl=${minimalOutboxUrl}`);
+          actor = await FederatedActor.findOneAndUpdate(
+            { uri: actorUri },
+            {
+              $set: {
+                uri: actorUri,
+                username,
+                domain,
+                acct,
+                inboxUrl: `${actorUri}${actorUri.endsWith('/') ? '' : '/'}inbox`,
+                outboxUrl: minimalOutboxUrl,
+                oxyUserId: syncUserId,
+                lastFetchedAt: new Date(0), // Mark stale so the refresh below runs
+              },
+              $setOnInsert: { type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, fields: [], followersCount: 0, followingCount: 0, postsCount: 0 },
+            },
+            { upsert: true, returnDocument: 'after', lean: true },
+          ) as IFederatedActor | null;
+        }
+
+        if (!actor) return;
+
+        // Enqueue a full actor refresh (avatar/banner/displayName) for the viewed
+        // profile. Guarded against refresh storms inside FederationService.
+        federationService.refreshActorInBackground(actor.uri, actor);
+
+        if (actor.outboxUrl) {
+          // Ensure the actor has oxyUserId before syncing so posts get the right author
+          if (!actor.oxyUserId) {
+            await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
+            actor.oxyUserId = syncUserId;
+          }
+          const syncedCount = await federationService.syncOutboxPosts(actor, this.FED_OUTBOX_SYNC_LIMIT);
+          logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
+          // Backfill oxyUserId on any posts that were stored without it
+          if (syncedCount > 0) {
+            await Post.updateMany(
+              { 'federation.activityId': { $regex: `^${actor.uri}` }, oxyUserId: null },
+              { $set: { oxyUserId: syncUserId } },
+            );
+          }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`[FedSync] background profile sync failed for userId=${syncUserId}: ${message}`);
+      }
+    })();
   }
 
   /**
