@@ -20,7 +20,7 @@ export interface SearchFilters {
   dateTo?: string;
   author?: string;
   minLikes?: number;
-  minReposts?: number;
+  minBoosts?: number;
   mediaType?: 'image' | 'video' | 'gif';
   hasMedia?: boolean;
   language?: string;
@@ -41,7 +41,7 @@ export const SEARCH_OPERATORS = [
   { operator: 'has:media', description: 'Posts with media' },
   { operator: 'has:links', description: 'Posts with links' },
   { operator: 'min_likes:N', description: 'Minimum likes' },
-  { operator: 'min_reposts:N', description: 'Minimum reposts' },
+  { operator: 'min_boosts:N', description: 'Minimum boosts' },
 ] as const;
 
 class SearchService {

@@ -24,9 +24,9 @@ interface User {
 interface PostHeaderProps {
   user: User;
   date?: string;
-  showRepost?: boolean;
+  showBoost?: boolean;
   showReply?: boolean;
-  repostedBy?: { name: string; handle: string; verified?: boolean; date?: string };
+  boostedBy?: { name: string; handle: string; verified?: boolean; date?: string };
   paddingHorizontal?: number;
   children?: React.ReactNode;
   avatarUri?: string;
@@ -41,9 +41,9 @@ interface PostHeaderProps {
 const PostHeader: React.FC<PostHeaderProps> = ({
   user,
   date,
-  showRepost,
+  showBoost,
   showReply,
-  repostedBy,
+  boostedBy,
   paddingHorizontal = HPAD,
   children,
   avatarUri,
@@ -57,8 +57,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const theme = useTheme();
 
   const timeLabel = useMemo(() => formatRelativeTimeCompact(date || ''), [date]);
-  const repostLabel = useMemo(() => repostedBy ? `${repostedBy.name} reposted` : undefined, [repostedBy]);
-  const repostTime = useMemo(() => repostedBy?.date ? formatRelativeTimeCompact(repostedBy.date) : undefined, [repostedBy?.date]);
+  const boostLabel = useMemo(() => boostedBy ? `${boostedBy.name} boosted` : undefined, [boostedBy]);
+  const boostTime = useMemo(() => boostedBy?.date ? formatRelativeTimeCompact(boostedBy.date) : undefined, [boostedBy?.date]);
 
   return (
     <View style={{ paddingHorizontal }}>
@@ -84,11 +84,11 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               <FediverseIcon size={13} className="text-muted-foreground" />
             ) : null}
             {!!timeLabel && <Text className="text-muted-foreground text-[15px]">{'\u00B7'} {timeLabel}</Text>}
-            {(repostLabel || showRepost) && (
+            {(boostLabel || showBoost) && (
               <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
                 <Ionicons name="repeat" size={12} color={theme.colors.textSecondary} />
                 <Text className="text-muted-foreground text-xs">
-                  {repostLabel || 'Reposted'}{repostTime ? ` \u00B7 ${repostTime}` : ''}
+                  {boostLabel || 'Boosted'}{boostTime ? ` \u00B7 ${boostTime}` : ''}
                 </Text>
               </View>
             )}

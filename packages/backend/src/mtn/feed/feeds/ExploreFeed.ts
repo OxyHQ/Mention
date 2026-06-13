@@ -26,7 +26,7 @@ export class ExploreFeed implements FeedAPI {
       createdAt: { $gte: trendingCutoff } as any,
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] },
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ],
     })
       .select(FEED_FIELDS)
@@ -58,7 +58,7 @@ export class ExploreFeed implements FeedAPI {
       createdAt: { $gte: trendingCutoff },
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] },
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ],
     };
 
@@ -84,7 +84,7 @@ export class ExploreFeed implements FeedAPI {
       {
         $project: {
           _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
-          parentPostId: 1, repostOf: 1, quoteOf: 1, threadId: 1,
+          parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
           content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
         },
       },
@@ -93,7 +93,7 @@ export class ExploreFeed implements FeedAPI {
           engagementScore: {
             $add: [
               { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, cfg.likeWeight] },
-              { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, cfg.repostWeight] },
+              { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, cfg.boostWeight] },
               { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, cfg.commentWeight] },
             ],
           },

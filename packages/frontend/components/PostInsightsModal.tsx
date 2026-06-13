@@ -108,9 +108,9 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             <View className="bg-surface items-center p-4 rounded-xl mb-3" style={styles.statCardLast}>
                                 <Ionicons name="repeat-outline" size={24} color="#10B981" />
                                 <Text className="text-foreground text-2xl font-bold mt-2">
-                                    {formatCompactNumber(insights.stats.reposts)}
+                                    {formatCompactNumber(insights.stats.boosts)}
                                 </Text>
-                                <Text className="text-muted-foreground text-xs font-medium mt-2">{t('insights.post.reposts')}</Text>
+                                <Text className="text-muted-foreground text-xs font-medium mt-2">{t('insights.post.boosts')}</Text>
                             </View>
                         </View>
 

@@ -14,20 +14,20 @@ export interface Reply extends HydratedPost {
   postId?: string;
 }
 
-export interface FeedRepost extends HydratedPost {
+export interface FeedBoost extends HydratedPost {
   originalPostId?: string;
 }
 
 // Feed types and actions
-export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'custom' | 'hashtag' | 'topic';
+export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'boosts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'custom' | 'hashtag' | 'topic';
 
-export type PostAction = 'reply' | 'repost' | 'like' | 'share';
+export type PostAction = 'reply' | 'boost' | 'like' | 'share';
 
 // Feed data structures
 export interface FeedItem {
   id: string;
-  type: 'post' | 'reply' | 'repost';
-  data: HydratedPost | Reply | FeedRepost;
+  type: 'post' | 'reply' | 'boost';
+  data: HydratedPost | Reply | FeedBoost;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,7 +56,7 @@ export interface FeedRequest {
 
 export interface FeedFilters {
   includeReplies?: boolean;
-  includeReposts?: boolean;
+  includeBoosts?: boolean;
   includeMedia?: boolean;
   includeSensitive?: boolean;
   language?: string;
@@ -67,7 +67,7 @@ export interface FeedFilters {
 export interface FeedStats {
   totalPosts: number;
   totalReplies: number;
-  totalReposts: number;
+  totalBoosts: number;
   totalLikes: number;
   averageEngagement: number;
 }
@@ -81,7 +81,7 @@ export interface CreateReplyRequest {
   hashtags?: string[];
 }
 
-export interface CreateRepostRequest {
+export interface CreateBoostRequest {
   originalPostId: string;
   content?: PostContent;
   visibility?: PostVisibility;
@@ -91,17 +91,17 @@ export interface CreateRepostRequest {
 
 export interface LikeRequest {
   postId: string;
-  type: 'post' | 'reply' | 'repost';
+  type: 'post' | 'reply' | 'boost';
 }
 
 export interface UnlikeRequest {
   postId: string;
-  type: 'post' | 'reply' | 'repost';
+  type: 'post' | 'reply' | 'boost';
 }
 
 export interface ShareRequest {
   postId: string;
-  type: 'post' | 'reply' | 'repost';
+  type: 'post' | 'reply' | 'boost';
   platform?: 'twitter' | 'facebook' | 'linkedin' | 'copy';
 }
 
@@ -115,7 +115,7 @@ export interface FeedSliceItem {
 }
 
 export type FeedSliceReason =
-  | { type: 'repost'; actor: PostActorSummary }
+  | { type: 'boost'; actor: PostActorSummary }
   | { type: 'replyContext'; parentAuthor: PostActorSummary }
   | { type: 'selfThread' };
 

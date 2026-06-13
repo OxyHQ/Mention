@@ -26,7 +26,7 @@ The core ranking service that calculates post scores based on multiple factors:
 
 ### Ranking Factors
 
-1. **Engagement Score** - Likes (1.0x), Reposts (2.5x), Comments (2.0x), Saves (1.5x), Views (0.1x)
+1. **Engagement Score** - Likes (1.0x), Boosts (2.5x), Comments (2.0x), Saves (1.5x), Views (0.1x)
 2. **Recency Score** - Exponential decay with 24-hour half-life
 3. **Author Relationship** - Follow boost (1.8x), Strong relation (1.5x), Weak relation (1.2x)
 4. **Personalization** - Topic matches (1.4x), Post type matches (1.3x), Language matches (1.2x)

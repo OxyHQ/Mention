@@ -5,7 +5,7 @@ import { extractPublicProfileData } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
-import { PostVisibility } from '@mention/shared-types';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -19,6 +19,8 @@ const router = Router();
 interface PublicProfileDesignResponse {
   oxyUserId: string;
   postsCount?: number;
+  boostsCount?: number;
+  repliesCount?: number;
   followsYou?: boolean;
   appearance?: {
     primaryColor?: string;
@@ -83,16 +85,34 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // User has access - return full profile design data with privacy info
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
     
-    // Calculate posts count
-    // Count only top-level posts (not replies) that are public
-    // Match the same query pattern used in getUserProfileFeed
-    const postsCount = await Post.countDocuments({
-      oxyUserId: userId,
-      visibility: PostVisibility.PUBLIC,
-      parentPostId: null // In MongoDB, this matches null OR field doesn't exist
-    });
-    
+    // Calculate post-related counts in parallel. All three are scoped to the
+    // user's public content and leverage existing indexes (oxyUserId, type,
+    // parentPostId, boostOf), so there is no N+1.
+    // - postsCount: top-level posts (not replies) — matches getUserProfileFeed.
+    //   `parentPostId: null` matches null OR a missing field in MongoDB.
+    // - boostsCount: documents authored as boosts (type=boost, boostOf set).
+    // - repliesCount: the inverse of postsCount — posts that ARE replies.
+    const [postsCount, boostsCount, repliesCount] = await Promise.all([
+      Post.countDocuments({
+        oxyUserId: userId,
+        visibility: PostVisibility.PUBLIC,
+        parentPostId: null,
+      }),
+      Post.countDocuments({
+        oxyUserId: userId,
+        visibility: PostVisibility.PUBLIC,
+        type: PostType.BOOST,
+      }),
+      Post.countDocuments({
+        oxyUserId: userId,
+        visibility: PostVisibility.PUBLIC,
+        parentPostId: { $ne: null },
+      }),
+    ]);
+
     response.postsCount = postsCount;
+    response.boostsCount = boostsCount;
+    response.repliesCount = repliesCount;
 
     // Check if profile user follows the viewer (for "Follows you" badge)
     if (currentUserId && currentUserId !== userId) {

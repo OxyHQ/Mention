@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
-import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
+import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -23,7 +23,7 @@ const AVATAR_OVERLAP = -4;
 
 interface Engagement {
   replies: number | null;
-  reposts: number | null;
+  boosts: number | null;
   likes: number | null;
   downvotes?: number | null;
   saves?: number | null;
@@ -35,16 +35,16 @@ interface Props {
   engagement: Engagement;
   isLiked?: boolean;
   isDownvoted?: boolean;
-  isReposted?: boolean;
+  isBoosted?: boolean;
   isSaved?: boolean;
   onReply: () => void;
-  onRepost: () => void;
+  onBoost: () => void;
   onLike: () => void;
   onDownvote?: () => void;
   onSave: () => void;
   onShare: () => void;
   onLikesPress?: () => void;
-  onRepostsPress?: () => void;
+  onBoostsPress?: () => void;
   onInsightsPress?: () => void;
   onTranslate?: () => void;
   isTranslated?: boolean;
@@ -57,14 +57,14 @@ const PostActions: React.FC<Props> = ({
   engagement,
   isLiked,
   isDownvoted,
-  isReposted,
+  isBoosted,
   onReply,
-  onRepost,
+  onBoost,
   onLike,
   onDownvote,
   onShare,
   onLikesPress,
-  onRepostsPress,
+  onBoostsPress,
   onInsightsPress,
   onTranslate,
   isTranslated,
@@ -142,15 +142,15 @@ const PostActions: React.FC<Props> = ({
           style={styles.iconButton}
           onPress={() => {
             haptic('Medium');
-            onRepost();
+            onBoost();
           }}
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel={isReposted ? 'Undo repost' : 'Repost'}
+          accessibilityLabel={isBoosted ? 'Undo boost' : 'Boost'}
         >
-          {isReposted ? (
-            <RepostIconActive size={ICON_SIZE} color={theme.colors.success} />
+          {isBoosted ? (
+            <BoostIconActive size={ICON_SIZE} color={theme.colors.success} />
           ) : (
-            <RepostIcon size={ICON_SIZE} className="text-muted-foreground" />
+            <BoostIcon size={ICON_SIZE} className="text-muted-foreground" />
           )}
         </PressableScale>
 
@@ -220,7 +220,7 @@ const PostActions: React.FC<Props> = ({
           className="flex-row items-center mt-2"
           style={{ gap: 6 }}
           onPress={likes > 0 ? (onLikesPress ?? undefined) : undefined}
-          disabled={!onLikesPress && !onRepostsPress}
+          disabled={!onLikesPress && !onBoostsPress}
         >
           {replierAvatars.length > 0 && (
             <View className="flex-row items-center">

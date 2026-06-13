@@ -13,7 +13,7 @@ export const TIMING = {
   IMAGE_INTERSECTION_THRESHOLD: 200,
   /** Fade-in animation duration */
   ANIMATION_FADE_IN: 100,
-  /** Cooldown after user actions (like, repost) to prevent duplicates */
+  /** Cooldown after user actions (like, boost) to prevent duplicates */
   ACTION_COOLDOWN: 300,
   /** Feed refresh debounce */
   FEED_REFRESH_DEBOUNCE: 500,

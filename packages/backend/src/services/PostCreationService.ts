@@ -15,7 +15,7 @@ export interface CreatePostParams {
   parentPostId?: string | null;
   threadId?: string | null;
   quoteOf?: string | null;
-  repostOf?: string | null;
+  boostOf?: string | null;
   hashtags?: string[];
   mentions?: string[];
   language?: string;
@@ -45,7 +45,7 @@ export interface CreatePostParams {
 }
 
 function derivePostType(params: CreatePostParams): PostType {
-  if (params.repostOf) return PostType.REPOST;
+  if (params.boostOf) return PostType.BOOST;
   if (params.quoteOf) return PostType.QUOTE;
   const media = params.content.media;
   if (Array.isArray(media) && media.length > 0) {
@@ -58,7 +58,7 @@ function derivePostType(params: CreatePostParams): PostType {
 class PostCreationService {
   /**
    * Create a Post document and run the standard side-effect pipeline:
-   * mention notifications, reply/quote/repost notifications, subscriber
+   * mention notifications, reply/quote/boost notifications, subscriber
    * notifications, socket emission, and federation delivery.
    *
    * Pass `skipNotifications`, `skipSocketEmit`, or `skipFederationDelivery`
@@ -74,7 +74,7 @@ class PostCreationService {
       hashtags: params.hashtags ?? [],
       mentions: params.mentions ?? [],
       quoteOf: params.quoteOf ?? null,
-      repostOf: params.repostOf ?? null,
+      boostOf: params.boostOf ?? null,
       parentPostId: params.parentPostId ?? null,
       threadId: params.threadId ?? null,
       replyPermission: params.replyPermission ?? ['anyone'],
@@ -84,7 +84,7 @@ class PostCreationService {
       metadata: params.metadata ?? {},
       stats: {
         likesCount: 0,
-        repostsCount: 0,
+        boostsCount: 0,
         commentsCount: 0,
         viewsCount: 0,
         sharesCount: 0,
@@ -137,11 +137,11 @@ class PostCreationService {
           );
         }
       })(),
-      // Reply / quote / repost notifications
+      // Reply / quote / boost notifications
       (async () => {
         if (!oxyUserId) return;
         const replyParentId = params.parentPostId ?? null;
-        const idsToFetch = [replyParentId, params.quoteOf, params.repostOf].filter(
+        const idsToFetch = [replyParentId, params.quoteOf, params.boostOf].filter(
           (id): id is string => Boolean(id),
         );
         if (idsToFetch.length === 0) return;
@@ -179,15 +179,15 @@ class PostCreationService {
           }
         }
 
-        if (params.repostOf) {
-          const original = postsMap.get(params.repostOf);
+        if (params.boostOf) {
+          const original = postsMap.get(params.boostOf);
           const recipientId = original?.oxyUserId?.toString() ?? null;
           if (recipientId && recipientId !== oxyUserId) {
             await createNotification({
               recipientId,
               actorId: oxyUserId,
-              type: 'repost',
-              entityId: String(original!._id),
+              type: 'boost',
+              entityId: String(original?._id),
               entityType: 'post',
             });
           }

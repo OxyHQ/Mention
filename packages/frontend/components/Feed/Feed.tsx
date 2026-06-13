@@ -10,11 +10,11 @@ import {
     type ScrollViewProps,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { FeedType, HydratedPost, Reply, FeedRepost as Repost, FeedPostSlice, FeedSliceReason } from '@mention/shared-types';
+import { FeedType, HydratedPost, Reply, FeedBoost as Boost, FeedPostSlice, FeedSliceReason } from '@mention/shared-types';
 import PostItem from './PostItem';
 
 // Type alias for feed items (what PostItem expects)
-type FeedItem = HydratedPost | Reply | Repost;
+type FeedItem = HydratedPost | Reply | Boost;
 
 // Row type for FlashList with thread state
 interface FeedRow {
@@ -421,7 +421,7 @@ const Feed = ((props: FeedProps) => {
         if (row.isThreadParent) return 'threadParent';
         if (row.isThreadChild) return 'threadChild';
         const item = row.item;
-        if ((item as any)?.original || (item as any)?.repostOf) return 'repost';
+        if ((item as any)?.original || (item as any)?.boostOf) return 'boost';
         if ((item as any)?.quoted || (item as any)?.quoteOf) return 'quote';
         if ((item as any)?.parentPostId || (item as any)?.replyTo) return 'reply';
         return 'post';

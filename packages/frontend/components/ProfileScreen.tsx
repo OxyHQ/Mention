@@ -84,7 +84,11 @@ const tabToIndex = (tabName: string): number => {
 };
 
 // Feed types for clearing cache
-const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts'];
+const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts'];
+
+// Tab indices within TAB_NAMES used by the profile stats navigation
+const REPLIES_TAB_INDEX = 1;
+const BOOSTS_TAB_INDEX = 5;
 
 /**
  * Profile Screen - Main orchestrator component
@@ -208,7 +212,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             t('profile.tabs.media'),
             t('profile.tabs.videos'),
             t('profile.tabs.likes'),
-            t('profile.tabs.reposts'),
+            t('profile.tabs.boosts'),
             t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
             t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
             t('profile.tabs.lists', { defaultValue: 'Lists' }),
@@ -244,6 +248,22 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             scrollToContent(profileContentHeight);
         } else {
             onTabPress(0);
+        }
+    }, [activeTab, profileContentHeight, onTabPress, scrollToContent]);
+
+    const handleBoostsPress = useCallback(() => {
+        if (activeTab === BOOSTS_TAB_INDEX) {
+            scrollToContent(profileContentHeight);
+        } else {
+            onTabPress(BOOSTS_TAB_INDEX);
+        }
+    }, [activeTab, profileContentHeight, onTabPress, scrollToContent]);
+
+    const handleRepliesPress = useCallback(() => {
+        if (activeTab === REPLIES_TAB_INDEX) {
+            scrollToContent(profileContentHeight);
+        } else {
+            onTabPress(REPLIES_TAB_INDEX);
         }
     }, [activeTab, profileContentHeight, onTabPress, scrollToContent]);
 
@@ -577,6 +597,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         FollowButtonComponent={FollowButtonComponent}
                                         showBottomSheet={showBottomSheet}
                                         onPostsPress={handlePostsPress}
+                                        onBoostsPress={handleBoostsPress}
+                                        onRepliesPress={handleRepliesPress}
                                         onLayout={setProfileContentHeight}
                                     />
                                 )}

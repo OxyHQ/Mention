@@ -24,6 +24,7 @@ import compression from "compression";
 import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import { logger } from "./src/utils/logger";
+import { runMigrations } from "./src/migrations/runner";
 
 // Models
 import { Post } from "./src/models/Post";
@@ -951,12 +952,22 @@ db.once("open", () => {
 const PORT = Number(process.env.PORT) || 3000;
 const bootServer = async () => {
   // Try to connect to database, but don't crash if it fails
+  let databaseConnected = false;
   try {
     await connectToDatabase();
+    databaseConnected = true;
   } catch (error: unknown) {
     // Database connection failed, but allow server to start anyway
     // Operations will fail gracefully when database is unavailable
     logger.warn("MongoDB connection unavailable - server will start but database operations will fail");
+  }
+
+  // Run pending data migrations before accepting traffic. Only when the
+  // database is connected — otherwise migrations are deferred to a boot with a
+  // live connection. A migration failure must abort boot rather than serve
+  // traffic against half-migrated data.
+  if (databaseConnected) {
+    await runMigrations();
   }
 
   // Setup Redis adapter before accepting connections to ensure

@@ -9,7 +9,7 @@ export enum PostType {
   IMAGE = 'image',
   VIDEO = 'video',
   POLL = 'poll',
-  REPOST = 'repost',
+  BOOST = 'boost',
   QUOTE = 'quote'
 }
 
@@ -101,7 +101,7 @@ export interface Post {
   tags?: string[];
   mentions?: string[]; // oxyUserIds
   hashtags?: string[];
-  repostOf?: string; // original post id
+  boostOf?: string; // original post id
   quoteOf?: string; // quoted post id
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
@@ -120,7 +120,7 @@ export interface Post {
 export interface PostStats {
   likesCount: number;
   downvotesCount: number;
-  repostsCount: number;
+  boostsCount: number;
   commentsCount: number;
   viewsCount: number;
   sharesCount: number;
@@ -131,7 +131,7 @@ export interface PostMetadata {
   isPinned?: boolean;
   isBookmarked?: boolean;
   isLiked?: boolean;
-  isReposted?: boolean;
+  isBoosted?: boolean;
   isCommented?: boolean;
   isFollowingAuthor?: boolean;
   authorBlocked?: boolean;
@@ -235,7 +235,7 @@ export interface PostViewerState {
   isOwner: boolean;
   isLiked: boolean;
   isDownvoted: boolean;
-  isReposted: boolean;
+  isBoosted: boolean;
   isSaved: boolean;
 }
 
@@ -250,7 +250,7 @@ export interface PostPermissions {
 export interface PostEngagementSummary {
   likes: number | null;
   downvotes: number | null;
-  reposts: number | null;
+  boosts: number | null;
   replies: number | null;
   saves?: number | null;
   views?: number | null;
@@ -316,7 +316,7 @@ export interface HydratedPostSummary {
   parentPostId?: string;
 }
 
-export interface HydratedRepostContext {
+export interface HydratedBoostContext {
   originalPost: HydratedPostSummary;
   actor: PostActorSummary;
   reason?: string;
@@ -325,6 +325,6 @@ export interface HydratedRepostContext {
 export interface HydratedPost extends HydratedPostSummary {
   originalPost?: HydratedPostSummary | null;
   quotedPost?: HydratedPostSummary | null;
-  repost?: HydratedRepostContext | null;
+  boost?: HydratedBoostContext | null;
   context?: PostFeedContext;
 }

@@ -6,7 +6,7 @@ import { Timestamps } from './common';
 
 export enum NotificationType {
   LIKE = 'like',
-  REPOST = 'repost',
+  BOOST = 'boost',
   COMMENT = 'comment',
   REPLY = 'reply',
   FOLLOW = 'follow',
@@ -69,8 +69,8 @@ export interface LikeNotification extends Notification {
   };
 }
 
-export interface RepostNotification extends Notification {
-  type: NotificationType.REPOST;
+export interface BoostNotification extends Notification {
+  type: NotificationType.BOOST;
   data: NotificationData & {
     actorOxyUserId: string;
     targetId: string;

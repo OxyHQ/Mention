@@ -13,7 +13,7 @@ export interface ICustomFeed extends Document {
   keywords?: string[];
   topicIds?: string[];
   includeReplies?: boolean;
-  includeReposts?: boolean;
+  includeBoosts?: boolean;
   includeMedia?: boolean;
   language?: string;
   category?: FeedCategory;
@@ -36,7 +36,7 @@ const CustomFeedSchema = new Schema<ICustomFeed>({
   keywords: { type: [String], default: [] },
   topicIds: { type: [{ type: Schema.Types.ObjectId, ref: 'Topic' }], default: [] },
   includeReplies: { type: Boolean, default: true },
-  includeReposts: { type: Boolean, default: true },
+  includeBoosts: { type: Boolean, default: true },
   includeMedia: { type: Boolean, default: true },
   language: { type: String },
   category: { type: String, enum: FEED_CATEGORIES },

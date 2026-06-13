@@ -16,7 +16,7 @@ export enum AnalyticsPeriod {
 export enum AnalyticsMetric {
   POSTS = 'posts',
   LIKES = 'likes',
-  REPOSTS = 'reposts',
+  BOOSTS = 'boosts',
   COMMENTS = 'comments',
   VIEWS = 'views',
   FOLLOWERS = 'followers',
@@ -45,7 +45,7 @@ export interface UserAnalytics {
   metrics: {
     posts: number;
     likes: number;
-    reposts: number;
+    boosts: number;
     comments: number;
     views: number;
     followers: number;
@@ -64,7 +64,7 @@ export interface PostAnalytics {
   postId: string;
   views: number;
   likes: number;
-  reposts: number;
+  boosts: number;
   comments: number;
   shares: number;
   engagement: number;

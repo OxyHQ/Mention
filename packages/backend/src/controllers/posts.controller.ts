@@ -39,7 +39,7 @@ const DEFAULT_NEARBY_RADIUS_METERS = config.posts.defaultNearbyRadiusMeters;
 const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
 const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
-const DEFAULT_REPOSTS_LIMIT = 50;
+const DEFAULT_BOOSTS_LIMIT = 50;
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
 
 /**
@@ -358,7 +358,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor } = req.body;
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -606,7 +606,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       hashtags: uniqueTags,
       mentions: mentions || [],
       quoteOf: quoted_post_id || null,
-      repostOf: repost_of || null,
+      boostOf: boost_of || null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: PostVisibility.PUBLIC,
@@ -819,7 +819,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         quotesDisabled: quotesDisabled || false,
         stats: {
           likesCount: 0,
-          repostsCount: 0,
+          boostsCount: 0,
           commentsCount: 0,
           viewsCount: 0,
           sharesCount: 0
@@ -1570,59 +1570,59 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Repost
-export const repostPost = async (req: AuthRequest, res: Response) => {
+// Boost
+export const boostPost = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-  const repostId = req.params.id as string;
-    const originalPost = await Post.findById(repostId);
+  const boostId = req.params.id as string;
+    const originalPost = await Post.findById(boostId);
     if (!originalPost) {
       return res.status(404).json({ message: 'Original post not found' });
     }
 
-    const repost = new Post({
+    const boost = new Post({
       text: req.body.comment || '',
       userID: new mongoose.Types.ObjectId(userId),
-      repost_of: new mongoose.Types.ObjectId(repostId)
+      boost_of: new mongoose.Types.ObjectId(boostId)
     });
 
-    await repost.save();
-    await repost.populate('userID', 'username name avatar verified');
+    await boost.save();
+    await boost.populate('userID', 'username name avatar verified');
 
     // Record interaction for user preference learning
     try {
-      await userPreferenceService.recordInteraction(userId, repostId, 'repost');
-      logger.debug('Successfully recorded repost interaction');
+      await userPreferenceService.recordInteraction(userId, boostId, 'boost');
+      logger.debug('Successfully recorded boost interaction');
       // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
-      logger.warn('Failed to record repost interaction', error);
+      logger.warn('Failed to record boost interaction', error);
     }
 
-    // Notify original author about repost
+    // Notify original author about boost
     try {
       const recipientId = originalPost?.oxyUserId?.toString?.() || null;
       if (recipientId && recipientId !== userId) {
         await createNotification({
           recipientId,
           actorId: userId,
-          type: 'repost',
+          type: 'boost',
           entityId: String(originalPost._id),
           entityType: 'post'
         });
       }
     } catch (e) {
-      logger.error('Failed to create repost notification', e);
+      logger.error('Failed to create boost notification', e);
     }
 
-    res.status(201).json(repost);
+    res.status(201).json(boost);
   } catch (error) {
-    logger.error('Error creating repost', error);
-    res.status(500).json({ message: 'Error creating repost' });
+    logger.error('Error creating boost', error);
+    res.status(500).json({ message: 'Error creating boost' });
   }
 };
 
@@ -2113,8 +2113,8 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get users who reposted a post
-export const getPostReposts = async (req: AuthRequest, res: Response) => {
+// Get users who boosted a post
+export const getPostBoosts = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as Record<string, string | undefined>;
@@ -2123,23 +2123,23 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    const query: Record<string, unknown> = { repostOf: id, visibility: PostVisibility.PUBLIC };
+    const query: Record<string, unknown> = { boostOf: id, visibility: PostVisibility.PUBLIC };
     if (cursor) {
       query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
 
-    const reposts = await Post.find(query)
+    const boosts = await Post.find(query)
       .sort({ _id: -1 })
       .limit(Number(limit) + 1)
       .select('oxyUserId createdAt')
       .lean();
 
-    const hasMore = reposts.length > Number(limit);
-    const repostsToReturn = hasMore ? reposts.slice(0, Number(limit)) : reposts;
-    const nextCursor = hasMore ? reposts[Number(limit) - 1]._id.toString() : undefined;
+    const hasMore = boosts.length > Number(limit);
+    const boostsToReturn = hasMore ? boosts.slice(0, Number(limit)) : boosts;
+    const nextCursor = hasMore ? boosts[Number(limit) - 1]._id.toString() : undefined;
 
     // Get unique user IDs
-    const userIds = [...new Set(repostsToReturn.map(repost => repost.oxyUserId).filter((id): id is string => typeof id === 'string'))];
+    const userIds = [...new Set(boostsToReturn.map(boost => boost.oxyUserId).filter((id): id is string => typeof id === 'string'))];
 
     // Fetch user data from Oxy
     const users = await Promise.all(
@@ -2170,11 +2170,11 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
       users,
       hasMore,
       nextCursor,
-      totalCount: repostsToReturn.length
+      totalCount: boostsToReturn.length
     });
   } catch (error) {
-    logger.error('Error fetching post reposts', error);
-    res.status(500).json({ message: 'Error fetching post reposts' });
+    logger.error('Error fetching post boosts', error);
+    res.status(500).json({ message: 'Error fetching post boosts' });
   }
 };
 

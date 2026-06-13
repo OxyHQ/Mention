@@ -132,8 +132,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return t('notification.mention', { actorName: display });
             case 'follow':
                 return t('notification.follow', { actorName: display });
-            case 'repost':
-                return t('notification.repost', { actorName: display });
+            case 'boost':
+                return t('notification.boost', { actorName: display });
             case 'quote':
                 return t('notification.quote', { actorName: display });
             case 'post':
@@ -158,7 +158,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return 'chatbubble-ellipses';
             case 'follow':
                 return 'person-add';
-            case 'repost':
+            case 'boost':
                 return 'repeat';
             case 'quote':
                 return 'chatbox-ellipses';

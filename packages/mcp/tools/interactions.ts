@@ -72,17 +72,17 @@ export function registerInteractionsTools(server: McpServer): void {
     },
   );
 
-  // ── repost ───────────────────────────────────────────────────
+  // ── boost ────────────────────────────────────────────────────
   server.tool(
-    "repost",
-    "Repost (share) someone else's post to your followers.",
+    "boost",
+    "Boost (share) someone else's post to your followers.",
     {
-      id: z.string().describe("The post ID to repost"),
+      id: z.string().describe("The post ID to boost"),
     },
     async ({ id }) => {
       try {
-        const result = await api.post(`/posts/${encodeURIComponent(id)}/repost`);
-        return { content: [{ type: "text" as const, text: `Post ${id} reposted.\n\n${formatPost(result as Record<string, unknown>)}` }] };
+        const result = await api.post(`/posts/${encodeURIComponent(id)}/boost`);
+        return { content: [{ type: "text" as const, text: `Post ${id} boosted.\n\n${formatPost(result as Record<string, unknown>)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }

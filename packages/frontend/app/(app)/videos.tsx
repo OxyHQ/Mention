@@ -52,12 +52,12 @@ interface VideoPost {
     videoUrl?: string;
     stats: {
         likesCount: number;
-        repostsCount: number;
+        boostsCount: number;
         commentsCount: number;
         viewsCount: number;
     };
     isLiked?: boolean;
-    isReposted?: boolean;
+    isBoosted?: boolean;
     isSaved?: boolean;
     createdAt: string;
 }
@@ -69,7 +69,7 @@ interface VideoItemProps {
     theme: ReturnType<typeof useTheme>;
     onLike: (postId: string, isLiked: boolean) => void;
     onComment: (postId: string) => void;
-    onRepost: (postId: string, isReposted: boolean) => void;
+    onBoost: (postId: string, isBoosted: boolean) => void;
     onShare: (post: VideoPost) => void;
     formatCompactNumber: (count: number) => string;
     globalMuted: boolean;
@@ -87,7 +87,7 @@ const VideoItem = memo<VideoItemProps>(({
     theme,
     onLike,
     onComment,
-    onRepost,
+    onBoost,
     onShare,
     formatCompactNumber,
     globalMuted,
@@ -290,11 +290,11 @@ const VideoItem = memo<VideoItemProps>(({
                         formatCompactNumber={formatCompactNumber}
                     />
                     <ActionButton
-                        icon={item.isReposted ? "repeat" : "repeat-outline"}
-                        count={item.stats?.repostsCount || 0}
-                        isActive={item.isReposted}
+                        icon={item.isBoosted ? "repeat" : "repeat-outline"}
+                        count={item.stats?.boostsCount || 0}
+                        isActive={item.isBoosted}
                         activeColor="#10B981"
-                        onPress={() => onRepost(item.id, item.isReposted || false)}
+                        onPress={() => onBoost(item.id, item.isBoosted || false)}
                         formatCompactNumber={formatCompactNumber}
                     />
                     <ActionButton
@@ -361,7 +361,7 @@ export default function VideosScreen() {
     const router = useRouter();
     const params = useLocalSearchParams<{ postId?: string }>();
     const { oxyServices } = useAuth();
-    const { likePost, unlikePost, repostPost, unrepostPost, getPostById } = usePostsStore();
+    const { likePost, unlikePost, boostPost, unboostPost, getPostById } = usePostsStore();
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -585,22 +585,22 @@ export default function VideosScreen() {
         router.push(`/compose?replyToPostId=${postId}`);
     }, [router]);
 
-    const handleRepost = useCallback(async (postId: string, isReposted: boolean) => {
+    const handleBoost = useCallback(async (postId: string, isBoosted: boolean) => {
         try {
-            if (isReposted) {
-                await unrepostPost({ postId });
+            if (isBoosted) {
+                await unboostPost({ postId });
             } else {
-                await repostPost({ postId });
+                await boostPost({ postId });
             }
             setPosts(prev => prev.map(p =>
                 p.id === postId
-                    ? { ...p, isReposted: !isReposted, stats: { ...p.stats, repostsCount: isReposted ? p.stats.repostsCount - 1 : p.stats.repostsCount + 1 } }
+                    ? { ...p, isBoosted: !isBoosted, stats: { ...p.stats, boostsCount: isBoosted ? p.stats.boostsCount - 1 : p.stats.boostsCount + 1 } }
                     : p
             ));
         } catch (error) {
             toast(t('common.error'), { type: 'error' });
         }
-    }, [repostPost, unrepostPost, t]);
+    }, [boostPost, unboostPost, t]);
 
     const handleShare = useCallback(async (post: VideoPost) => {
         try {
@@ -665,7 +665,7 @@ export default function VideosScreen() {
             theme={theme}
             onLike={handleLike}
             onComment={handleComment}
-            onRepost={handleRepost}
+            onBoost={handleBoost}
             onShare={handleShare}
             formatCompactNumber={formatCompactNumber}
             globalMuted={globalMuted}
@@ -674,7 +674,7 @@ export default function VideosScreen() {
             t={t}
             windowHeight={WINDOW_HEIGHT}
         />
-    ), [currentVisibleIndex, theme, handleLike, handleComment, handleRepost, handleShare, formatCompactNumber, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
+    ), [currentVisibleIndex, theme, handleLike, handleComment, handleBoost, handleShare, formatCompactNumber, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 

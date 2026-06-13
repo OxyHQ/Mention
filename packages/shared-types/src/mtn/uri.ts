@@ -70,8 +70,8 @@ export function createLikeUri(oxyUserId: string, likeId: string): string {
   return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.like', rkey: likeId }).toString();
 }
 
-export function createRepostUri(oxyUserId: string, repostId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.repost', rkey: repostId }).toString();
+export function createBoostUri(oxyUserId: string, boostId: string): string {
+  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.boost', rkey: boostId }).toString();
 }
 
 export function createFollowUri(oxyUserId: string, followId: string): string {

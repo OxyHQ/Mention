@@ -11,7 +11,7 @@ import {
   unlikePost,
   savePost,
   unsavePost,
-  repostPost,
+  boostPost,
   quotePost,
   getPostsByHashtag,
   getPostsByTopic,
@@ -25,7 +25,7 @@ import {
   getNearbyPostsBothLocations,
   getLocationStats,
   getPostLikes,
-  getPostReposts,
+  getPostBoosts,
   translatePost
 } from '../controllers/posts.controller';
 import { Threadgate } from '../models/Threadgate';
@@ -55,7 +55,7 @@ router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 
 // Routes with specific paths (must be before parameterized routes)
 router.get('/:id/likes', getPostLikes);
-router.get('/:id/reposts', getPostReposts);
+router.get('/:id/boosts', getPostBoosts);
 
 // Public routes with parameters (must be after specific routes)
 router.get('/:id', getPostById);
@@ -68,7 +68,7 @@ router.post('/:id/like', likePost);
 router.delete('/:id/like', unlikePost);
 router.post('/:id/save', savePost);
 router.delete('/:id/save', unsavePost);
-router.post('/:id/repost', repostPost);
+router.post('/:id/boost', boostPost);
 router.post('/:id/quote', quotePost);
 router.post('/:id/translate', translatePost);
 

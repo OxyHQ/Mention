@@ -43,7 +43,7 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
   const getNotificationIcon = (type: string): string => {
     switch (type) {
       case 'like': return 'heart';
-      case 'repost': return 'repeat';
+      case 'boost': return 'repeat';
       case 'follow': return 'person-add';
       case 'quote': return 'chatbox-ellipses';
       default: return 'notifications';
@@ -54,7 +54,7 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
     switch (type) {
       case 'like': return '#22c55e';
       case 'follow': return '#005c67';
-      case 'repost': return '#005c67';
+      case 'boost': return '#005c67';
       case 'quote': return '#005c67';
       default: return '#005c67';
     }
@@ -92,10 +92,10 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
           actors: actorString,
           defaultValue: `${actorString} liked your post`,
         });
-      case 'repost':
-        return t('notification.group.reposted', {
+      case 'boost':
+        return t('notification.group.boosted', {
           actors: actorString,
-          defaultValue: `${actorString} reposted your post`,
+          defaultValue: `${actorString} boosted your post`,
         });
       case 'follow':
         return t('notification.group.followed', {

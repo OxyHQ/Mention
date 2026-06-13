@@ -70,7 +70,7 @@ export function formatCompactNumber(num: number): string {
 }
 
 /**
- * Format engagement numbers (likes, reposts, followers, etc.)
+ * Format engagement numbers (likes, boosts, followers, etc.)
  * Alias for formatCompactNumber - optimized for social media display
  */
 export function formatEngagement(num: number): string {

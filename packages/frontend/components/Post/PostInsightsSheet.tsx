@@ -169,7 +169,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
 
                 <StatRow icon="heart" iconColor="#FF3040" label={t('insights.post.likes')} value={insights.stats.likes} percentage={pct(insights.stats.likes)} />
                 <StatRow icon="chatbubble" iconColor={theme.colors.primary} label={t('insights.post.replies')} value={insights.stats.replies} percentage={pct(insights.stats.replies)} />
-                <StatRow icon="repeat" iconColor={theme.colors.primary} label={t('insights.post.reposts')} value={insights.stats.reposts} percentage={pct(insights.stats.reposts)} />
+                <StatRow icon="repeat" iconColor={theme.colors.primary} label={t('insights.post.boosts')} value={insights.stats.boosts} percentage={pct(insights.stats.boosts)} />
                 {insights.stats.shares > 0 && (
                     <StatRow icon="share-social" iconColor={theme.colors.primary} label={t('insights.post.shares')} value={insights.stats.shares} percentage={pct(insights.stats.shares)} />
                 )}

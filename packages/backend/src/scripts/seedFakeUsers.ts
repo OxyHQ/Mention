@@ -1,6 +1,6 @@
 /**
  * Seed script to create fake users with real linked engagement data.
- * Creates actual like documents, repost posts, reply posts — not just stat numbers.
+ * Creates actual like documents, boost posts, reply posts — not just stat numbers.
  *
  * Usage:
  *   cd packages/backend && bun src/scripts/seedFakeUsers.ts
@@ -115,7 +115,7 @@ function makePostDoc(userId: string, text: string, type: string, createdAt: Date
     stats: {
       likesCount: 0,
       downvotesCount: 0,
-      repostsCount: 0,
+      boostsCount: 0,
       commentsCount: 0,
       viewsCount: rand(20, 800),
       sharesCount: 0,
@@ -125,7 +125,7 @@ function makePostDoc(userId: string, text: string, type: string, createdAt: Date
       isPinned: false,
       isSaved: false,
       isLiked: false,
-      isReposted: false,
+      isBoosted: false,
       isCommented: false,
       isFollowingAuthor: false,
       authorBlocked: false,
@@ -323,30 +323,30 @@ async function main() {
   }
   console.log(`  ${replyDocs.length} replies`);
 
-  // ── Create real reposts (posts with repostOf) ───────────────
-  console.log('Creating reposts...');
-  const repostDocs: any[] = [];
+  // ── Create real boosts (posts with boostOf) ─────────────────
+  console.log('Creating boosts...');
+  const boostDocs: any[] = [];
   for (const post of allPosts) {
-    // ~30% of posts get reposted
+    // ~30% of posts get boosted
     if (Math.random() > 0.3) continue;
-    const repostCount = rand(1, 3);
-    const reposters = pickRandom(allUserIds.filter(id => id !== post.oxyUserId), repostCount);
-    for (const reposterId of reposters) {
-      const repostDate = new Date(post.createdAt.getTime() + rand(1, 72) * 3600000);
-      repostDocs.push(makePostDoc(
-        reposterId,
+    const boostCount = rand(1, 3);
+    const boosters = pickRandom(allUserIds.filter(id => id !== post.oxyUserId), boostCount);
+    for (const boosterId of boosters) {
+      const boostDate = new Date(post.createdAt.getTime() + rand(1, 72) * 3600000);
+      boostDocs.push(makePostDoc(
+        boosterId,
         '',
-        'repost',
-        repostDate,
-        { repostOf: post._id.toString() },
+        'boost',
+        boostDate,
+        { boostOf: post._id.toString() },
       ));
     }
-    post.stats.repostsCount = reposters.length;
+    post.stats.boostsCount = boosters.length;
   }
-  if (repostDocs.length > 0) {
-    await postsCol.insertMany(repostDocs);
+  if (boostDocs.length > 0) {
+    await postsCol.insertMany(boostDocs);
   }
-  console.log(`  ${repostDocs.length} reposts`);
+  console.log(`  ${boostDocs.length} boosts`);
 
   // ── Create real bookmarks ───────────────────────────────────
   console.log('Creating bookmarks...');
@@ -391,7 +391,7 @@ async function main() {
         $set: {
           'stats.likesCount': post.stats.likesCount,
           'stats.commentsCount': post.stats.commentsCount,
-          'stats.repostsCount': post.stats.repostsCount,
+          'stats.boostsCount': post.stats.boostsCount,
           'metadata.likedBy': post.metadata.likedBy,
         },
       },
@@ -408,7 +408,7 @@ async function main() {
   console.log(`Users created: ${FAKE_USERS.length}`);
   console.log(`Root posts: ${allPosts.length}`);
   console.log(`Replies: ${replyDocs.length}`);
-  console.log(`Reposts: ${repostDocs.length}`);
+  console.log(`Boosts: ${boostDocs.length}`);
   console.log(`Total posts in DB: ${totalPosts}`);
   console.log(`Likes: ${totalLikes}`);
   console.log(`Bookmarks: ${totalBookmarks}`);

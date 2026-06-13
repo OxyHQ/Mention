@@ -18,7 +18,7 @@ async function fixPostStats() {
       $or: [
         { stats: { $exists: false } },
         { 'stats.likesCount': { $exists: false } },
-        { 'stats.repostsCount': { $exists: false } },
+        { 'stats.boostsCount': { $exists: false } },
         { 'stats.commentsCount': { $exists: false } }
       ]
     });
@@ -30,19 +30,19 @@ async function fixPostStats() {
       const stats: any = post.stats || {};
       const updates: any = {
         'stats.likesCount': typeof stats.likesCount === 'number' ? stats.likesCount : 0,
-        'stats.repostsCount': typeof stats.repostsCount === 'number' ? stats.repostsCount : 0,
+        'stats.boostsCount': typeof stats.boostsCount === 'number' ? stats.boostsCount : 0,
         'stats.commentsCount': typeof stats.commentsCount === 'number' ? stats.commentsCount : 0,
         'stats.viewsCount': typeof stats.viewsCount === 'number' ? stats.viewsCount : 0,
         'stats.sharesCount': typeof stats.sharesCount === 'number' ? stats.sharesCount : 0
       };
 
-      // Count actual likes/reposts/comments from metadata if stats are missing
+      // Count actual likes/boosts/comments from metadata if stats are missing
       if (updates['stats.likesCount'] === 0 && post.metadata?.likedBy && Array.isArray(post.metadata.likedBy)) {
         updates['stats.likesCount'] = post.metadata.likedBy.length;
       }
-      // Reposts and comments could be counted from database, but for now just ensure they're at least 0
-      if (typeof stats.repostsCount !== 'number') {
-        updates['stats.repostsCount'] = 0;
+      // Boosts and comments could be counted from database, but for now just ensure they're at least 0
+      if (typeof stats.boostsCount !== 'number') {
+        updates['stats.boostsCount'] = 0;
       }
       if (typeof stats.commentsCount !== 'number') {
         updates['stats.commentsCount'] = 0;

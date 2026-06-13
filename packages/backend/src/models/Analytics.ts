@@ -10,7 +10,7 @@ export interface IAnalytics extends Document {
     engagement: {
       likes: number;
       replies: number;
-      reposts: number;
+      boosts: number;
       quotes: number;
       saved: number;
     };
@@ -39,7 +39,7 @@ const AnalyticsSchema = new Schema({
     engagement: {
       likes: { type: Number, default: 0 },
       replies: { type: Number, default: 0 },
-      reposts: { type: Number, default: 0 },
+      boosts: { type: Number, default: 0 },
       quotes: { type: Number, default: 0 },
       saved: { type: Number, default: 0 }
     },

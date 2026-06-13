@@ -47,7 +47,7 @@ const CreateFeedScreen: React.FC = () => {
   // Advanced options
   const [keywords, setKeywords] = useState('');
   const [includeReplies, setIncludeReplies] = useState(true);
-  const [includeReposts, setIncludeReposts] = useState(true);
+  const [includeBoosts, setIncludeBoosts] = useState(true);
   const [includeMedia, setIncludeMedia] = useState(true);
   const [myLists, setMyLists] = useState<any[]>([]);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
@@ -106,7 +106,7 @@ const CreateFeedScreen: React.FC = () => {
           .map((s) => s.trim())
           .filter(Boolean),
         includeReplies,
-        includeReposts,
+        includeBoosts,
         includeMedia,
         sourceListIds: selectedListIds,
       });
@@ -125,7 +125,7 @@ const CreateFeedScreen: React.FC = () => {
     members,
     keywords,
     includeReplies,
-    includeReposts,
+    includeBoosts,
     includeMedia,
     selectedListIds,
   ]);
@@ -369,9 +369,9 @@ const CreateFeedScreen: React.FC = () => {
 
             <View className="flex-row items-center justify-between gap-4 py-1">
               <Text className="text-[15px] font-semibold text-foreground flex-1">
-                {t('feeds.create.includeReposts', { defaultValue: 'Include reposts' })}
+                {t('feeds.create.includeBoosts', { defaultValue: 'Include boosts' })}
               </Text>
-              <Toggle value={includeReposts} onValueChange={setIncludeReposts} />
+              <Toggle value={includeBoosts} onValueChange={setIncludeBoosts} />
             </View>
 
             <View style={styles.separator} className="bg-border" />

@@ -32,6 +32,8 @@ export const ProfileContent = memo(function ProfileContent({
   FollowButtonComponent,
   showBottomSheet,
   onPostsPress,
+  onBoostsPress,
+  onRepliesPress,
   onLayout,
 }: ProfileContentProps) {
   const { t } = useTranslation();
@@ -177,9 +179,13 @@ export const ProfileContent = memo(function ProfileContent({
           followingCount={followingCount}
           followerCount={followerCount}
           postsCount={profileData.postsCount ?? 0}
+          boostsCount={profileData.boostsCount ?? 0}
+          repliesCount={profileData.repliesCount ?? 0}
           profileUsername={profileData.username}
           username={username}
           onPostsPress={onPostsPress}
+          onBoostsPress={onBoostsPress}
+          onRepliesPress={onRepliesPress}
         />
       )}
 

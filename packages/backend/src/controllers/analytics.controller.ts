@@ -22,7 +22,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
         _id: null,
         totalPosts: { $sum: 1 },
         totalLikes: { $sum: "$_count.likes" },
-        totalReposts: { $sum: "$_count.reposts" },
+        totalBoosts: { $sum: "$_count.boosts" },
         totalQuotes: { $sum: "$_count.quotes" },
         totalSaved: { $sum: "$_count.saved" },
         totalReplies: { $sum: "$_count.replies" }
@@ -94,7 +94,7 @@ export const getHashtagStats = async (req: Request, res: Response) => {
           _id: null,
           totalPosts: { $sum: 1 },
           totalLikes: { $sum: "$_count.likes" },
-          totalReposts: { $sum: "$_count.reposts" },
+          totalBoosts: { $sum: "$_count.boosts" },
           totalQuotes: { $sum: "$_count.quotes" },
           totalSaved: { $sum: "$_count.saved" },
           totalReplies: { $sum: "$_count.replies" }
@@ -105,7 +105,7 @@ export const getHashtagStats = async (req: Request, res: Response) => {
     res.json(stats[0] || {
       totalPosts: 0,
       totalLikes: 0,
-      totalReposts: 0,
+      totalBoosts: 0,
       totalQuotes: 0,
       totalSaved: 0,
       totalReplies: 0
@@ -198,7 +198,7 @@ export const getTopPosts = async (req: Request, res: Response) => {
         engagement: {
           $add: [
             { $ifNull: ["$_count.likes", 0] },
-            { $ifNull: ["$_count.reposts", 0] },
+            { $ifNull: ["$_count.boosts", 0] },
             { $ifNull: ["$_count.quotes", 0] },
             { $ifNull: ["$_count.replies", 0] },
             { $ifNull: ["$_count.saved", 0] }

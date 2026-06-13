@@ -3,7 +3,7 @@ import {
   FeedResponse,
   SlicedFeedResponse,
   CreateReplyRequest,
-  CreateRepostRequest,
+  CreateBoostRequest,
   CreatePostRequest,
   CreateThreadRequest,
   LikeRequest,
@@ -262,9 +262,9 @@ class FeedService {
   }
 
   /**
-   * Create a repost
+   * Create a boost
    */
-  async createRepost(request: CreateRepostRequest): Promise<{ success: boolean; repost: unknown }> {
+  async createBoost(request: CreateBoostRequest): Promise<{ success: boolean; boost: unknown }> {
     const backendRequest = {
       originalPostId: request.originalPostId,
       content: request.content?.text || '',
@@ -272,8 +272,8 @@ class FeedService {
       hashtags: request.hashtags || []
     };
 
-    const response = await authenticatedClient.post('/feed/repost', backendRequest);
-    return { success: true, repost: response.data };
+    const response = await authenticatedClient.post('/feed/boost', backendRequest);
+    return { success: true, boost: response.data };
   }
 
   /**
@@ -309,10 +309,10 @@ class FeedService {
   }
 
   /**
-   * Unrepost a post
+   * Unboost a post
    */
-  async unrepostItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
-    const response = await authenticatedClient.delete(`/feed/${request.postId}/repost`);
+  async unboostItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.delete(`/feed/${request.postId}/boost`);
     return { success: true, data: response.data };
   }
 
@@ -418,9 +418,9 @@ class FeedService {
   }
 
   /**
-   * Get users who reposted a post
+   * Get users who boosted a post
    */
-  async getPostReposts(postId: string, cursor?: string, limit: number = 50): Promise<{
+  async getPostBoosts(postId: string, cursor?: string, limit: number = 50): Promise<{
     users: Array<{ id: string; name: string; handle: string; avatar: string; verified: boolean }>;
     hasMore: boolean;
     nextCursor?: string;
@@ -429,7 +429,7 @@ class FeedService {
     const params: Record<string, unknown> = { limit };
     if (cursor) params.cursor = cursor;
 
-    const response = await authenticatedClient.get(`/posts/${postId}/reposts`, { params });
+    const response = await authenticatedClient.get(`/posts/${postId}/boosts`, { params });
     return response.data;
   }
 
@@ -501,7 +501,7 @@ class FeedService {
   async sendFeedInteraction(data: {
     feedDescriptor: string;
     postUri: string;
-    event: 'impression' | 'click' | 'like' | 'reply' | 'repost' | 'save';
+    event: 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
     durationMs?: number;
   }): Promise<void> {
     try {

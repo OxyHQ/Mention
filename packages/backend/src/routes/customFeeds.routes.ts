@@ -55,7 +55,7 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { title, description, isPublic = false, memberOxyUserIds = [], keywords = [], includeReplies = true, includeReposts = true, includeMedia = true, language, category, tags = [], coverImage } = req.body || {};
+    const { title, description, isPublic = false, memberOxyUserIds = [], keywords = [], includeReplies = true, includeBoosts = true, includeMedia = true, language, category, tags = [], coverImage } = req.body || {};
     if (!title || typeof title !== 'string') {
       return res.status(400).json({ error: 'Title is required' });
     }
@@ -68,7 +68,7 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
       memberOxyUserIds: Array.isArray(memberOxyUserIds) ? memberOxyUserIds : [],
       keywords: Array.isArray(keywords) ? keywords : String(keywords || '').split(',').map((s: string) => s.trim()).filter(Boolean),
       includeReplies: !!includeReplies,
-      includeReposts: !!includeReposts,
+      includeBoosts: !!includeBoosts,
       includeMedia: !!includeMedia,
       language: language || undefined,
       category: category || undefined,
@@ -386,14 +386,14 @@ router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
     if (feed.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
-    const { title, description, isPublic, memberOxyUserIds, keywords, includeReplies, includeReposts, includeMedia, language, category, tags, coverImage } = req.body || {};
+    const { title, description, isPublic, memberOxyUserIds, keywords, includeReplies, includeBoosts, includeMedia, language, category, tags, coverImage } = req.body || {};
     if (title !== undefined) feed.title = String(title);
     if (description !== undefined) feed.description = String(description);
     if (isPublic !== undefined) feed.isPublic = !!isPublic;
     if (memberOxyUserIds !== undefined && Array.isArray(memberOxyUserIds)) feed.memberOxyUserIds = memberOxyUserIds;
     if (keywords !== undefined) feed.keywords = Array.isArray(keywords) ? keywords : String(keywords).split(',').map((s: string) => s.trim()).filter(Boolean);
     if (includeReplies !== undefined) feed.includeReplies = !!includeReplies;
-    if (includeReposts !== undefined) feed.includeReposts = !!includeReposts;
+    if (includeBoosts !== undefined) feed.includeBoosts = !!includeBoosts;
     if (includeMedia !== undefined) feed.includeMedia = !!includeMedia;
     if (language !== undefined) feed.language = language;
     if (category !== undefined) feed.category = category || undefined;
@@ -565,8 +565,8 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
       conditions.push({ $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] });
     }
     
-    if (feed.includeReposts === false) {
-      conditions.push({ $or: [{ repostOf: null }, { repostOf: { $exists: false } }] });
+    if (feed.includeBoosts === false) {
+      conditions.push({ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] });
     }
     
     if (feed.includeMedia === false) {

@@ -37,8 +37,8 @@ router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 // Action routes (protected)
 // ────────────────────────────────────────────────────────────
 router.post('/reply', feedController.createReply.bind(feedController));
-router.post('/repost', feedController.createRepost.bind(feedController));
-router.delete('/:postId/repost', feedController.unrepostItem.bind(feedController));
+router.post('/boost', feedController.createBoost.bind(feedController));
+router.delete('/:postId/boost', feedController.unboostItem.bind(feedController));
 router.post('/like', feedController.likeItem.bind(feedController));
 router.post('/unlike', feedController.unlikeItem.bind(feedController));
 router.post('/:postId/save', feedController.saveItem.bind(feedController));

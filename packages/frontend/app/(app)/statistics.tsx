@@ -201,12 +201,12 @@ const InsightsScreen: React.FC = () => {
                                 </View>
                                 <View style={styles.interactionContent}>
                                     <Text className="text-foreground" style={styles.interactionValue}>
-                                        {formatCompactNumber(stats.interactions.reposts)}
+                                        {formatCompactNumber(stats.interactions.boosts)}
                                     </Text>
-                                    <Text className="text-muted-foreground" style={styles.interactionLabel}>{t('insights.post.reposts')}</Text>
-                                    {stats.interactions.reposts > 0 && stats.overview.totalInteractions > 0 && (
+                                    <Text className="text-muted-foreground" style={styles.interactionLabel}>{t('insights.post.boosts')}</Text>
+                                    {stats.interactions.boosts > 0 && stats.overview.totalInteractions > 0 && (
                                         <Text className="text-muted-foreground" style={styles.interactionPercent}>
-                                            {((stats.interactions.reposts / stats.overview.totalInteractions) * 100).toFixed(1)}%
+                                            {((stats.interactions.boosts / stats.overview.totalInteractions) * 100).toFixed(1)}%
                                         </Text>
                                     )}
                                 </View>
@@ -371,10 +371,10 @@ const InsightsScreen: React.FC = () => {
                         <View className="bg-secondary" style={styles.ratioCard}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="repeat" size={18} color="#10B981" />
-                                <Text className="text-muted-foreground" style={[styles.ratioLabel, { marginLeft: 8 }]}>{t('insights.repostRate')}</Text>
+                                <Text className="text-muted-foreground" style={[styles.ratioLabel, { marginLeft: 8 }]}>{t('insights.boostRate')}</Text>
                             </View>
                             <Text className="text-foreground" style={styles.ratioValue}>
-                                {engagementRatios.ratios.repostRate.toFixed(2)}%
+                                {engagementRatios.ratios.boostRate.toFixed(2)}%
                             </Text>
                         </View>
 

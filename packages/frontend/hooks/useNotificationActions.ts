@@ -19,9 +19,9 @@ export const useNotificationActions = () => {
     await notificationCreationService.notifyReply(postId, postAuthorId, user.id, replyId);
   }, [user?.id]);
 
-  const notifyRepost = useCallback(async (postId: string, postAuthorId: string) => {
+  const notifyBoost = useCallback(async (postId: string, postAuthorId: string) => {
     if (!user?.id) return;
-    await notificationCreationService.notifyRepost(postId, postAuthorId, user.id);
+    await notificationCreationService.notifyBoost(postId, postAuthorId, user.id);
   }, [user?.id]);
 
   const notifyFollow = useCallback(async (followedUserId: string) => {
@@ -42,7 +42,7 @@ export const useNotificationActions = () => {
   return {
     notifyLike,
     notifyReply,
-    notifyRepost,
+    notifyBoost,
     notifyFollow,
     notifyMentions,
     notifyQuote,

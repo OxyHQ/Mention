@@ -22,7 +22,7 @@ interface BehaviorSets {
  * Similar to Twitter/X and Facebook's feed algorithms
  * 
  * Ranking factors:
- * 1. Engagement Score - likes, reposts, comments, views (with weights)
+ * 1. Engagement Score - likes, boosts, comments, views (with weights)
  * 2. Recency Score - time decay function
  * 3. Author Relationship - follow status, interaction history, relationship strength
  * 4. Personalization - user preferences, topic interests, post type preferences
@@ -230,7 +230,7 @@ export class FeedRankingService {
     // Calculate raw engagement score
     const rawScore = (
       (stats.likesCount || 0) * this.R.engagement.likeWeight +
-      (stats.repostsCount || 0) * this.R.engagement.repostWeight +
+      (stats.boostsCount || 0) * this.R.engagement.boostWeight +
       (stats.commentsCount || 0) * this.R.engagement.commentWeight +
       savesCount * this.R.engagement.saveWeight +
       (stats.viewsCount || 0) * this.R.engagement.viewWeight +
@@ -407,12 +407,12 @@ export class FeedRankingService {
     // Calculate raw engagement (before log scaling for rate calculation)
     const rawEngagement = (
       (stats.likesCount || 0) * this.R.engagement.likeWeight +
-      (stats.repostsCount || 0) * this.R.engagement.repostWeight +
+      (stats.boostsCount || 0) * this.R.engagement.boostWeight +
       (stats.commentsCount || 0) * this.R.engagement.commentWeight +
       (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.R.engagement.saveWeight +
       (stats.sharesCount || 0) * this.SHARE_WEIGHT
     );
-    
+
     // Calculate engagement rate (engagement per view)
     const engagementRate = rawEngagement / viewsCount;
     
@@ -457,7 +457,7 @@ export class FeedRankingService {
     // Calculate engagement density (engagement per hour)
     const rawEngagement = (
       (stats.likesCount || 0) * this.R.engagement.likeWeight +
-      (stats.repostsCount || 0) * this.R.engagement.repostWeight +
+      (stats.boostsCount || 0) * this.R.engagement.boostWeight +
       (stats.commentsCount || 0) * this.R.engagement.commentWeight +
       (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.R.engagement.saveWeight +
       (stats.sharesCount || 0) * this.SHARE_WEIGHT

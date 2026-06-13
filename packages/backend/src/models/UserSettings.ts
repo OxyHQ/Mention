@@ -48,7 +48,7 @@ export interface NotificationPreferences {
   pushEnabled: boolean;
   emailEnabled: boolean;
   likes: boolean;
-  reposts: boolean;
+  boosts: boolean;
   follows: boolean;
   mentions: boolean;
   replies: boolean;
@@ -131,7 +131,7 @@ const NotificationPreferencesSchema = new Schema<NotificationPreferences>({
   pushEnabled: { type: Boolean, default: true },
   emailEnabled: { type: Boolean, default: false },
   likes: { type: Boolean, default: true },
-  reposts: { type: Boolean, default: true },
+  boosts: { type: Boolean, default: true },
   follows: { type: Boolean, default: true },
   mentions: { type: Boolean, default: true },
   replies: { type: Boolean, default: true },

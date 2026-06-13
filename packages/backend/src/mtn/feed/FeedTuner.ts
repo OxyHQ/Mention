@@ -11,7 +11,7 @@ export interface TunerContext {
   viewerId?: string;
   preferences: {
     languages?: string[];
-    hideReposts?: boolean;
+    hideBoosts?: boolean;
     hideReplies?: boolean;
     hideSensitive?: boolean;
     muteWords?: Array<{ value: string; targets: ('content' | 'tag')[] }>;
@@ -43,7 +43,7 @@ export class FeedTuner {
   /** Create a new FeedTuner with the default tuner pipeline. */
   static default(): FeedTuner {
     // Lazy import to avoid circular deps
-    const { removeReposts } = require('./tuners/removeReposts');
+    const { removeBoosts } = require('./tuners/removeBoosts');
     const { removeReplies } = require('./tuners/removeReplies');
     const { deduplicateSlices } = require('./tuners/deduplicateSlices');
     const { filterByLanguage } = require('./tuners/filterByLanguage');
@@ -55,7 +55,7 @@ export class FeedTuner {
       .tune(filterHiddenPosts)
       .tune(filterMuteWords)
       .tune(filterSensitiveContent)
-      .tune(removeReposts)
+      .tune(removeBoosts)
       .tune(removeReplies)
       .tune(filterByLanguage)
       .tune(deduplicateSlices);

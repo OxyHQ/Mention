@@ -31,7 +31,7 @@ import { useImagePreload } from '@/hooks/useImagePreload';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostVote } from '@/hooks/usePostVote';
 import { usePostSave } from '@/hooks/usePostSave';
-import { usePostRepost } from '@/hooks/usePostRepost';
+import { usePostBoost } from '@/hooks/usePostBoost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
@@ -95,7 +95,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
     const viewerState =
-        viewPost?.viewerState ?? { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
+        viewPost?.viewerState ?? { isOwner: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false };
 
     const metadata = viewPost?.metadata ?? {};
     const content: PostContent = viewPost?.content ?? {};
@@ -106,7 +106,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const isOwner = viewerState.isOwner ?? false;
     const isLiked = viewerState.isLiked ?? false;
     const isDownvoted = viewerState.isDownvoted ?? false;
-    const isReposted = viewerState.isReposted ?? false;
+    const isBoosted = viewerState.isBoosted ?? false;
     const isSaved = viewerState.isSaved ?? false;
 
     const sourcesList = attachmentsBundle.sources ?? [];
@@ -130,7 +130,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const nestedPost = useMemo(() => {
         if (!viewPost) return null;
-        if (viewPost.repost?.originalPost) return viewPost.repost.originalPost;
+        if (viewPost.boost?.originalPost) return viewPost.boost.originalPost;
         if ((viewPost as any).original) return (viewPost as any).original;
         if (viewPost.originalPost) return viewPost.originalPost;
         if ((viewPost as any).quoted) return (viewPost as any).quoted;
@@ -198,7 +198,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
     const handleSave = usePostSave(viewPostId, isSaved);
-    const handleRepost = usePostRepost(viewPostId, isReposted);
+    const handleBoost = usePostBoost(viewPostId, isBoosted);
     const handleShare = usePostShare(viewPost);
 
     const handleReply = useCallback(() => {
@@ -394,7 +394,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const engagement: PostEngagementSummary = viewPost.engagement ?? {
         likes: 0,
         downvotes: 0,
-        reposts: 0,
+        boosts: 0,
         replies: 0,
         saves: null,
         views: null,
@@ -413,11 +413,11 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const Container: any = isPostDetail ? View : Pressable;
 
-    const repostedBy = viewPost.repost?.actor
+    const boostedBy = viewPost.boost?.actor
         ? {
-            name: viewPost.repost.actor.displayName || viewPost.repost.actor.name || '',
-            handle: viewPost.repost.actor.handle || '',
-            verified: viewPost.repost.actor.isVerified,
+            name: viewPost.boost.actor.displayName || viewPost.boost.actor.name || '',
+            handle: viewPost.boost.actor.handle || '',
+            verified: viewPost.boost.actor.isVerified,
             date: metadata.createdAt,
         }
         : undefined;
@@ -510,8 +510,8 @@ const PostItem: React.FC<PostItemProps> = ({
                         instance: viewPost.user.instance,
                     }}
                     date={metadata.createdAt}
-                    showRepost={Boolean(viewPost.repost) && !isNested}
-                    repostedBy={repostedBy}
+                    showBoost={Boolean(viewPost.boost) && !isNested}
+                    boostedBy={boostedBy}
                     showReply={false}
                     avatarUri={avatarUri}
                     onPressUser={goToUser}
@@ -633,7 +633,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         <PostActions
                             engagement={{
                                 replies: engagement.replies ?? 0,
-                                reposts: engagement.reposts ?? 0,
+                                boosts: engagement.boosts ?? 0,
                                 likes: engagement.likes ?? 0,
                                 downvotes: engagement.downvotes ?? 0,
                                 saves: engagement.saves ?? null,
@@ -642,10 +642,10 @@ const PostItem: React.FC<PostItemProps> = ({
                             }}
                             isLiked={isLiked}
                             isDownvoted={isDownvoted}
-                            isReposted={isReposted}
+                            isBoosted={isBoosted}
                             isSaved={isSaved}
                             onReply={handleReply}
-                            onRepost={handleRepost}
+                            onBoost={handleBoost}
                             onLike={handleLike}
                             onDownvote={handleDownvote}
                             onSave={handleSave}
@@ -724,11 +724,11 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prev?.id === next?.id &&
         prev?.viewerState?.isLiked === next?.viewerState?.isLiked &&
         prev?.viewerState?.isDownvoted === next?.viewerState?.isDownvoted &&
-        prev?.viewerState?.isReposted === next?.viewerState?.isReposted &&
+        prev?.viewerState?.isBoosted === next?.viewerState?.isBoosted &&
         prev?.viewerState?.isSaved === next?.viewerState?.isSaved &&
         prev?.engagement?.likes === next?.engagement?.likes &&
         prev?.engagement?.downvotes === next?.engagement?.downvotes &&
-        prev?.engagement?.reposts === next?.engagement?.reposts &&
+        prev?.engagement?.boosts === next?.engagement?.boosts &&
         prev?.engagement?.replies === next?.engagement?.replies &&
         prev?.metadata?.updatedAt === next?.metadata?.updatedAt &&
         prevProps.isNested === nextProps.isNested &&

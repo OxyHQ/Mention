@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import {
   FeedRequest,
   CreateReplyRequest,
-  CreateRepostRequest,
+  CreateBoostRequest,
   CreatePostRequest,
   CreateThreadRequest,
   LikeRequest,
@@ -82,7 +82,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     isOwner: raw?.viewerState?.isOwner ?? false,
     isLiked: raw?.viewerState?.isLiked ?? raw?.isLiked ?? false,
     isDownvoted: raw?.viewerState?.isDownvoted ?? raw?.isDownvoted ?? false,
-    isReposted: raw?.viewerState?.isReposted ?? raw?.isReposted ?? false,
+    isBoosted: raw?.viewerState?.isBoosted ?? raw?.isBoosted ?? false,
     isSaved: raw?.viewerState?.isSaved ?? raw?.isSaved ?? false,
   };
 
@@ -97,7 +97,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   const engagement: PostEngagementSummary = {
     likes: raw?.engagement?.likes !== undefined ? raw.engagement.likes : raw?.stats?.likesCount ?? 0,
     downvotes: raw?.engagement?.downvotes !== undefined ? raw.engagement.downvotes : raw?.stats?.downvotesCount ?? 0,
-    reposts: raw?.engagement?.reposts !== undefined ? raw.engagement.reposts : raw?.stats?.repostsCount ?? 0,
+    boosts: raw?.engagement?.boosts !== undefined ? raw.engagement.boosts : raw?.stats?.boostsCount ?? 0,
     replies: raw?.engagement?.replies !== undefined ? raw.engagement.replies : raw?.stats?.commentsCount ?? 0,
     saves: raw?.engagement?.saves ?? null,
     views: raw?.engagement?.views ?? null,
@@ -153,17 +153,17 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     isLiked: viewerState.isLiked,
     isDownvoted: viewerState.isDownvoted,
     isSaved: viewerState.isSaved,
-    isReposted: viewerState.isReposted,
+    isBoosted: viewerState.isBoosted,
     mediaIds,
     originalMediaIds: (raw as any)?.originalMediaIds ?? undefined,
     allMediaIds: (raw as any)?.allMediaIds ?? (raw as any)?.mediaIds ?? mediaIds,
     original: null,
     quoted: null,
-    repost: raw?.repost
+    boost: raw?.boost
       ? {
-          ...raw.repost,
-          originalPost: raw.repost.originalPost
-            ? transformToUIItem(raw.repost.originalPost, { skipRelated: true })
+          ...raw.boost,
+          originalPost: raw.boost.originalPost
+            ? transformToUIItem(raw.boost.originalPost, { skipRelated: true })
             : null,
         }
       : null,
@@ -249,9 +249,9 @@ interface PostsStoreState {
   createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<void>;
-  createRepost: (request: CreateRepostRequest) => Promise<void>;
-  repostPost: (request: { postId: string }) => Promise<void>;
-  unrepostPost: (request: { postId: string }) => Promise<void>;
+  createBoost: (request: CreateBoostRequest) => Promise<void>;
+  boostPost: (request: { postId: string }) => Promise<void>;
+  unboostPost: (request: { postId: string }) => Promise<void>;
 
   // Engagement
   likePost: (request: LikeRequest) => Promise<void>;
@@ -605,7 +605,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         const newPost: FeedItem = {
           ...transformToUIItem(rawPost),
-          engagement: { replies: 0, reposts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
+          engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
           isLocalNew: true,
         };
 
@@ -644,7 +644,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         const newPosts: FeedItem[] = response.posts.map((post: any) => ({
           ...transformToUIItem(post),
-          engagement: { replies: 0, reposts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
+          engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
           isLocalNew: true,
         }));
 
@@ -708,8 +708,8 @@ export const usePostsStore = create<PostsStoreState>()(
       }
     },
 
-    // ── createRepost ─────────────────────────────────────────
-    createRepost: async (request: CreateRepostRequest) => {
+    // ── createBoost ──────────────────────────────────────────
+    createBoost: async (request: CreateBoostRequest) => {
       const postId = request.originalPostId;
       let previousPost: FeedItem | null = null;
 
@@ -721,81 +721,81 @@ export const usePostsStore = create<PostsStoreState>()(
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 },
+            engagement: { ...prev.engagement, boosts: (prev.engagement.boosts || 0) + 1 },
           }));
         }
 
-        const response = await feedService.createRepost(request);
+        const response = await feedService.createBoost(request);
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to create repost');
+          throw new Error('Failed to create boost');
         }
         set({ isLoading: false });
       } catch (error) {
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to create repost';
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create boost';
         set({ isLoading: false, error: errorMessage });
         throw error;
       }
     },
 
-    // ── repostPost ───────────────────────────────────────────
-    repostPost: async (request: { postId: string }) => {
+    // ── boostPost ────────────────────────────────────────────
+    boostPost: async (request: { postId: string }) => {
       const postId = request.postId;
       let previousPost: FeedItem | null = null;
 
       try {
-        markLocalAction(postId, 'repost');
+        markLocalAction(postId, 'boost');
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            isReposted: true,
-            viewerState: { ...prev.viewerState, isReposted: true },
-            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts ?? 0) + 1 },
+            isBoosted: true,
+            viewerState: { ...prev.viewerState, isBoosted: true },
+            engagement: { ...prev.engagement, boosts: (prev.engagement.boosts ?? 0) + 1 },
           }));
         }
 
-        const response = await feedService.createRepost({ originalPostId: postId, mentions: [], hashtags: [] });
+        const response = await feedService.createBoost({ originalPostId: postId, mentions: [], hashtags: [] });
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to repost');
+          throw new Error('Failed to boost');
         }
       } catch (error) {
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to repost';
+        const errorMessage = error instanceof Error ? error.message : 'Failed to boost';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // ── unrepostPost ─────────────────────────────────────────
-    unrepostPost: async (request: { postId: string }) => {
+    // ── unboostPost ──────────────────────────────────────────
+    unboostPost: async (request: { postId: string }) => {
       const postId = request.postId;
       let previousPost: FeedItem | null = null;
 
       try {
-        markLocalAction(postId, 'unrepost');
+        markLocalAction(postId, 'unboost');
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            isReposted: false,
-            viewerState: { ...prev.viewerState, isReposted: false },
-            engagement: { ...prev.engagement, reposts: Math.max(0, (prev.engagement.reposts ?? 0) - 1) },
+            isBoosted: false,
+            viewerState: { ...prev.viewerState, isBoosted: false },
+            engagement: { ...prev.engagement, boosts: Math.max(0, (prev.engagement.boosts ?? 0) - 1) },
           }));
         }
 
-        const response = await feedService.unrepostItem(request);
+        const response = await feedService.unboostItem(request);
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-          throw new Error('Failed to unrepost');
+          throw new Error('Failed to unboost');
         }
       } catch (error) {
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to unrepost';
+        const errorMessage = error instanceof Error ? error.message : 'Failed to unboost';
         set({ error: errorMessage });
         throw error;
       }

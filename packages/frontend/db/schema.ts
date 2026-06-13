@@ -14,7 +14,7 @@ import type {
   PostEngagementSummary,
   PostViewerState,
   PostMetadataState,
-  HydratedRepostContext,
+  HydratedBoostContext,
   PostFeedContext,
   FeedPostSlice,
 } from '@mention/shared-types';
@@ -42,19 +42,19 @@ export interface PostRow {
   attachments_json: string | null;
   link_preview_json: string | null;
   permissions_json: string | null;
-  repost_json: string | null;
+  boost_json: string | null;
   context_json: string | null;
   user_json: string;
   likes_count: number;
   downvotes_count: number;
-  reposts_count: number;
+  boosts_count: number;
   replies_count: number;
   saves_count: number;
   views_count: number;
   impressions_count: number;
   is_liked: number;
   is_downvoted: number;
-  is_reposted: number;
+  is_boosted: number;
   is_saved: number;
   is_owner: number;
   visibility: string;
@@ -99,7 +99,7 @@ export type FeedItem = HydratedPost & {
   date?: string;
   isLiked?: boolean;
   isDownvoted?: boolean;
-  isReposted?: boolean;
+  isBoosted?: boolean;
   isSaved?: boolean;
   user: HydratedPost['user'] & {
     name: string;
@@ -159,19 +159,19 @@ export function postToRow(post: FeedItem | HydratedPost | any): PostRow {
     attachments_json: safeJsonStringify(post.attachments),
     link_preview_json: safeJsonStringify(post.linkPreview),
     permissions_json: safeJsonStringify(post.permissions),
-    repost_json: safeJsonStringify(post.repost),
+    boost_json: safeJsonStringify(post.boost),
     context_json: safeJsonStringify(post.context),
     user_json: safeJsonStringify(user) || '{}',
     likes_count: engagement.likes ?? 0,
     downvotes_count: engagement.downvotes ?? 0,
-    reposts_count: engagement.reposts ?? 0,
+    boosts_count: engagement.boosts ?? 0,
     replies_count: engagement.replies ?? 0,
     saves_count: engagement.saves ?? 0,
     views_count: engagement.views ?? 0,
     impressions_count: engagement.impressions ?? 0,
     is_liked: viewerState.isLiked ? 1 : 0,
     is_downvoted: viewerState.isDownvoted ? 1 : 0,
-    is_reposted: viewerState.isReposted ? 1 : 0,
+    is_boosted: viewerState.isBoosted ? 1 : 0,
     is_saved: viewerState.isSaved ? 1 : 0,
     is_owner: viewerState.isOwner ? 1 : 0,
     visibility: metadata.visibility || post.visibility || 'public',
@@ -196,7 +196,7 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     canPin: false,
     canViewSources: false,
   });
-  const repost = safeJsonParse<HydratedRepostContext | null>(row.repost_json, null);
+  const boost = safeJsonParse<HydratedBoostContext | null>(row.boost_json, null);
   const context = safeJsonParse<PostFeedContext | null>(row.context_json, null);
   const user = safeJsonParse<any>(row.user_json, {});
 
@@ -206,7 +206,7 @@ export function rowToFeedItem(row: PostRow): FeedItem {
   const engagement: PostEngagementSummary = {
     likes: row.likes_count,
     downvotes: row.downvotes_count,
-    reposts: row.reposts_count,
+    boosts: row.boosts_count,
     replies: row.replies_count,
     saves: row.saves_count ?? null,
     views: row.views_count ?? null,
@@ -217,7 +217,7 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     isOwner: Boolean(row.is_owner),
     isLiked: Boolean(row.is_liked),
     isDownvoted: Boolean(row.is_downvoted),
-    isReposted: Boolean(row.is_reposted),
+    isBoosted: Boolean(row.is_boosted),
     isSaved: Boolean(row.is_saved),
   };
 
@@ -261,12 +261,12 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     permissions,
     metadata,
     parentPostId: row.parent_post_id || undefined,
-    repost,
+    boost,
     context,
     date: row.created_at,
     isLiked: Boolean(row.is_liked),
     isDownvoted: Boolean(row.is_downvoted),
-    isReposted: Boolean(row.is_reposted),
+    isBoosted: Boolean(row.is_boosted),
     isSaved: Boolean(row.is_saved),
     mediaIds,
     allMediaIds: mediaIds,

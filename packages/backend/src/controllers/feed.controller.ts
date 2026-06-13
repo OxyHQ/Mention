@@ -7,7 +7,7 @@ import Block from '../models/Block';
 import Mute from '../models/Mute';
 import {
   CreateReplyRequest,
-  CreateRepostRequest,
+  CreateBoostRequest,
   LikeRequest,
   UnlikeRequest,
   FeedType,
@@ -63,7 +63,7 @@ class FeedController {
   // ============================================================================
   
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language';
 
   /** Slow query threshold in milliseconds (logs warnings for queries exceeding this) */
   private readonly SLOW_QUERY_THRESHOLD_MS = config.feed.slowQueryThresholdMs;
@@ -268,7 +268,7 @@ class FeedController {
       const { type = 'mixed', cursor, sort } = req.query as { type?: FeedType; cursor?: string; sort?: string };
 
       // Validate feed type (prevent injection and invalid types)
-      const validFeedTypes: FeedType[] = ['mixed', 'posts', 'media', 'replies', 'reposts', 'saved', 'for_you', 'following', 'explore'];
+      const validFeedTypes: FeedType[] = ['mixed', 'posts', 'media', 'replies', 'boosts', 'saved', 'for_you', 'following', 'explore'];
       const feedType: FeedType = validFeedTypes.includes(type as FeedType) ? (type as FeedType) : 'mixed';
 
       // Validate sort parameter
@@ -331,7 +331,7 @@ class FeedController {
               authors: authors.length > 0 ? authors.join(',') : undefined,
               keywords: feed.keywords && feed.keywords.length > 0 ? feed.keywords.join(',') : undefined,
               includeReplies: feed.includeReplies,
-              includeReposts: feed.includeReposts,
+              includeBoosts: feed.includeBoosts,
               includeMedia: feed.includeMedia,
               language: feed.language,
               excludeOwner: !ownerIsInMembers // Exclude owner if not in members
@@ -479,7 +479,7 @@ class FeedController {
               visibility: 1,
               type: 1,
               parentPostId: 1,
-              repostOf: 1,
+              boostOf: 1,
               quoteOf: 1,
               threadId: 1,
               content: 1,
@@ -495,7 +495,7 @@ class FeedController {
               engagementScore: {
                 $add: [
                   { $ifNull: ['$stats.likesCount', 0] },
-                  { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                  { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, 2] },
                   { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
                 ]
               }
@@ -534,7 +534,7 @@ class FeedController {
             .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
             .lean();
         } else if (feedSort === 'best' && feedType === 'replies') {
-          // Sort replies by engagement (likes + reposts) for "best" sort
+          // Sort replies by engagement (likes + boosts) for "best" sort
           posts = await Post.aggregate([
             { $match: query },
             {
@@ -545,7 +545,7 @@ class FeedController {
                 visibility: 1,
                 type: 1,
                 parentPostId: 1,
-                repostOf: 1,
+                boostOf: 1,
                 quoteOf: 1,
                 threadId: 1,
                 content: 1,
@@ -561,7 +561,7 @@ class FeedController {
                 engagementScore: {
                   $add: [
                     { $ifNull: ['$stats.likesCount', 0] },
-                    { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                    { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, 2] },
                     { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
                   ]
                 }
@@ -1058,7 +1058,7 @@ class FeedController {
         mentions: mentions || [],
         stats: {
           likesCount: 0,
-          repostsCount: 0,
+          boostsCount: 0,
           commentsCount: 0,
           viewsCount: 0,
           sharesCount: 0
@@ -1093,11 +1093,11 @@ class FeedController {
   }
 
   /**
-   * Create a repost
+   * Create a boost
    */
-  async createRepost(req: AuthRequest, res: Response) {
+  async createBoost(req: AuthRequest, res: Response) {
     try {
-      const { originalPostId, content, mentions, hashtags } = req.body as CreateRepostRequest;
+      const { originalPostId, content, mentions, hashtags } = req.body as CreateBoostRequest;
       const currentUserId = req.user?.id;
 
       if (!currentUserId) {
@@ -1108,49 +1108,49 @@ class FeedController {
         return res.status(400).json({ error: 'Original post ID is required' });
       }
 
-      // Check if user already reposted this
-      const existingRepost = await Post.findOne({
+      // Check if user already boosted this
+      const existingBoost = await Post.findOne({
         oxyUserId: currentUserId,
-        repostOf: originalPostId
+        boostOf: originalPostId
       })
         .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
 
-      if (existingRepost) {
-        return res.status(400).json({ error: 'You have already reposted this content' });
+      if (existingBoost) {
+        return res.status(400).json({ error: 'You have already boosted this content' });
       }
 
-      // Create repost
+      // Create boost
       const mergedTags = mergeHashtags(content?.text || '', hashtags);
 
-      const repost = new Post({
+      const boost = new Post({
         oxyUserId: currentUserId,
-        type: PostType.REPOST,
+        type: PostType.BOOST,
         content: content || { text: '' },
         visibility: PostVisibility.PUBLIC,
-        repostOf: originalPostId,
+        boostOf: originalPostId,
         hashtags: mergedTags,
         mentions: mentions || [],
         stats: {
           likesCount: 0,
-          repostsCount: 0,
+          boostsCount: 0,
           commentsCount: 0,
           viewsCount: 0,
           sharesCount: 0
         }
       });
 
-      await repost.save();
+      await boost.save();
 
-      // Update original post repost count and get the updated count
+      // Update original post boost count and get the updated count
       const updatedPost = await Post.findByIdAndUpdate(
         originalPostId,
-        { $inc: { 'stats.repostsCount': 1 } },
+        { $inc: { 'stats.boostsCount': 1 } },
         { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
       // Record interaction for user preference learning
       try {
-        await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'repost');
+        await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'boost');
         // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
@@ -1158,31 +1158,31 @@ class FeedController {
       }
 
       // Emit real-time update to post room only (not all clients)
-      io.to(`post:${originalPostId}`).emit('post:reposted', {
+      io.to(`post:${originalPostId}`).emit('post:boosted', {
         originalPostId,
         postId: originalPostId,
-        repost: repost.toObject(),
-        repostsCount: updatedPost?.stats?.repostsCount,
+        boost: boost.toObject(),
+        boostsCount: updatedPost?.stats?.boostsCount,
         userId: currentUserId,
         actorId: currentUserId,
         timestamp: new Date().toISOString()
       });
 
-      res.status(201).json({ 
-        success: true, 
-        repost: repost.toObject() 
+      res.status(201).json({
+        success: true,
+        boost: boost.toObject()
       });
     } catch (error) {
-      logger.error('Error creating repost', error);
-      res.status(500).json({ 
-        error: 'Failed to create repost',
+      logger.error('Error creating boost', error);
+      res.status(500).json({
+        error: 'Failed to create boost',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }
 
   /**
-   * Like a post/reply/repost
+   * Like a post/reply/boost
    */
   async likeItem(req: AuthRequest, res: Response) {
     try {
@@ -1279,7 +1279,7 @@ class FeedController {
   }
 
   /**
-   * Unlike a post/reply/repost
+   * Unlike a post/reply/boost
    */
   async unlikeItem(req: AuthRequest, res: Response) {
     try {
@@ -1359,14 +1359,14 @@ class FeedController {
   }
 
   /**
-   * Unrepost a post
+   * Unboost a post
    */
-  async unrepostItem(req: AuthRequest, res: Response) {
+  async unboostItem(req: AuthRequest, res: Response) {
     try {
       const postId = req.params.postId as string;
       const currentUserId = req.user?.id;
 
-      logger.debug('🔄 Unrepost request', { postId, currentUserId });
+      logger.debug('🔄 Unboost request', { postId, currentUserId });
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -1376,31 +1376,31 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Interpret :postId as the ORIGINAL post ID for unrepost operations.
-      // Find and delete the repost document created by the current user that points to this original.
-      const repost = await Post.findOneAndDelete({
+      // Interpret :postId as the ORIGINAL post ID for unboost operations.
+      // Find and delete the boost document created by the current user that points to this original.
+      const boost = await Post.findOneAndDelete({
         oxyUserId: currentUserId,
-        repostOf: postId
+        boostOf: postId
       }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
-      if (!repost) {
-        return res.status(404).json({ error: 'Repost not found' });
+      if (!boost) {
+        return res.status(404).json({ error: 'Boost not found' });
       }
 
-      // Update original post repost count and get the updated count
+      // Update original post boost count and get the updated count
       const updatedPost = await Post.findByIdAndUpdate(
-        repost.repostOf,
-        { $inc: { 'stats.repostsCount': -1 } },
+        boost.boostOf,
+        { $inc: { 'stats.boostsCount': -1 } },
         { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
       // Emit real-time update to post room only (not all clients)
-      const repostOriginalId = repost.repostOf ? String(repost.repostOf) : '';
-      io.to(`post:${repostOriginalId}`).emit('post:unreposted', {
-        originalPostId: repost.repostOf,
-        postId: repost.repostOf,
-        repostId: repost._id,
-        repostsCount: updatedPost?.stats?.repostsCount,
+      const boostOriginalId = boost.boostOf ? String(boost.boostOf) : '';
+      io.to(`post:${boostOriginalId}`).emit('post:unboosted', {
+        originalPostId: boost.boostOf,
+        postId: boost.boostOf,
+        boostId: boost._id,
+        boostsCount: updatedPost?.stats?.boostsCount,
         userId: currentUserId,
         actorId: currentUserId,
         timestamp: new Date().toISOString()
@@ -1408,12 +1408,12 @@ class FeedController {
 
       res.json({
         success: true,
-        message: 'Repost removed successfully'
+        message: 'Boost removed successfully'
       });
     } catch (error) {
-      logger.error('Error unreposting', error);
+      logger.error('Error unboosting', error);
       res.status(500).json({
-        error: 'Failed to unrepost',
+        error: 'Failed to unboost',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
@@ -1617,7 +1617,7 @@ class FeedController {
               engagementScore: {
                 $add: [
                   { $ifNull: ['$stats.likesCount', 0] },
-                  { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                  { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, 2] },
                   { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] },
                 ],
               },

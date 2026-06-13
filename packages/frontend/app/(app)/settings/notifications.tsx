@@ -19,7 +19,7 @@ interface NotificationPreferences {
     pushEnabled: boolean;
     emailEnabled: boolean;
     likes: boolean;
-    reposts: boolean;
+    boosts: boolean;
     follows: boolean;
     mentions: boolean;
     replies: boolean;
@@ -30,7 +30,7 @@ const DEFAULT_PREFS: NotificationPreferences = {
     pushEnabled: true,
     emailEnabled: false,
     likes: true,
-    reposts: true,
+    boosts: true,
     follows: true,
     mentions: true,
     replies: true,
@@ -195,11 +195,11 @@ export default function NotificationSettingsScreen() {
                     />
                     <SettingsListItem
                         icon={<RowIcon name="repeat" />}
-                        title={t('settings.notifications.reposts', { defaultValue: 'Reposts' })}
-                        description={t('settings.notifications.repostsDesc', { defaultValue: 'When someone reposts your post' })}
+                        title={t('settings.notifications.boosts', { defaultValue: 'Boosts' })}
+                        description={t('settings.notifications.boostsDesc', { defaultValue: 'When someone boosts your post' })}
                         showChevron={false}
                         rightElement={
-                            <Toggle value={prefs.reposts} onValueChange={(v) => updatePreference('reposts', v)} />
+                            <Toggle value={prefs.boosts} onValueChange={(v) => updatePreference('boosts', v)} />
                         }
                     />
                     <SettingsListItem

@@ -90,7 +90,7 @@ async function seedInsightsData() {
       const viewsBase = isHighPerformer ? rand(500, 5000) : rand(20, 800);
       const likesBase = isHighPerformer ? rand(30, 300) : rand(1, 50);
       const repliesBase = isHighPerformer ? rand(10, 80) : rand(0, 15);
-      const repostsBase = isHighPerformer ? rand(5, 50) : rand(0, 10);
+      const boostsBase = isHighPerformer ? rand(5, 50) : rand(0, 10);
       const sharesBase = rand(0, 8);
 
       const types = ['text', 'text', 'text', 'image', 'image', 'video', 'poll'] as const;
@@ -108,7 +108,7 @@ async function seedInsightsData() {
         stats: {
           viewsCount: viewsBase,
           likesCount: likesBase,
-          repostsCount: repostsBase,
+          boostsCount: boostsBase,
           commentsCount: repliesBase,
           sharesCount: sharesBase,
           downvotesCount: 0,
@@ -126,12 +126,12 @@ async function seedInsightsData() {
     const totalViews = posts.reduce((s, p) => s + p.stats.viewsCount, 0);
     const totalLikes = posts.reduce((s, p) => s + p.stats.likesCount, 0);
     const totalReplies = posts.reduce((s, p) => s + p.stats.commentsCount, 0);
-    const totalReposts = posts.reduce((s, p) => s + p.stats.repostsCount, 0);
+    const totalBoosts = posts.reduce((s, p) => s + p.stats.boostsCount, 0);
     console.log(`\nStats summary:`);
     console.log(`  Views: ${totalViews}`);
     console.log(`  Likes: ${totalLikes}`);
     console.log(`  Replies: ${totalReplies}`);
-    console.log(`  Reposts: ${totalReposts}`);
+    console.log(`  Boosts: ${totalBoosts}`);
     const typeCounts = posts.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + 1; return acc; }, {} as Record<string, number>);
     console.log(`  Post types: ${JSON.stringify(typeCounts)}`);
 

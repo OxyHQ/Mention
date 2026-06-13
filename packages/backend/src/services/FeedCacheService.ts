@@ -413,12 +413,12 @@ export class FeedCacheService {
       logger.warn('Failed to load following list:', error);
     }
 
-    // Get candidate posts (public posts, not replies/reposts initially)
+    // Get candidate posts (public posts, not replies/boosts initially)
     const candidatePosts = await Post.find({
       visibility: 'public',
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     })
       .sort({ createdAt: -1 })
@@ -461,7 +461,7 @@ export class FeedCacheService {
       visibility: 'public',
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     })
       .sort({ createdAt: -1 })
@@ -483,7 +483,7 @@ export class FeedCacheService {
       visibility: 'public',
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     })
       .sort({ createdAt: -1 })

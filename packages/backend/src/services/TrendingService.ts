@@ -195,7 +195,7 @@ class TrendingService {
           'extracted.extractedAt': { $gte: oneDayAgo },
           'extracted.topics': { $exists: true, $ne: [] },
           status: 'published',
-          repostOf: { $exists: false },
+          boostOf: { $exists: false },
         },
       },
       { $unwind: '$extracted.topics' },

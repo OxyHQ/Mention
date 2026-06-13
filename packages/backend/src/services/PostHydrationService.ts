@@ -1,4 +1,4 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedRepostContext, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
@@ -27,11 +27,11 @@ interface RawPost {
   stats?: {
     likesCount?: number;
     downvotesCount?: number;
-    repostsCount?: number;
+    boostsCount?: number;
     commentsCount?: number;
     viewsCount?: number;
   };
-  repostOf?: unknown;
+  boostOf?: unknown;
   quoteOf?: unknown;
   originalPostId?: unknown;
   parentPostId?: unknown;
@@ -81,7 +81,7 @@ interface ViewerContext {
   likedPosts: Set<string>;
   downvotedPosts: Set<string>;
   savedPosts: Set<string>;
-  repostedPosts: Set<string>;
+  boostedPosts: Set<string>;
   /** Author IDs with private or followers_only profile visibility */
   privateProfileIds: Set<string>;
 }
@@ -273,7 +273,7 @@ export class PostHydrationService {
       likedPosts: new Set<string>(),
       downvotedPosts: new Set<string>(),
       savedPosts: new Set<string>(),
-      repostedPosts: new Set<string>(),
+      boostedPosts: new Set<string>(),
       privateProfileIds: new Set<string>(),
       includeFullArticleBody: options?.includeFullArticleBody ?? true,
       includeFullMetadata: options?.includeFullMetadata ?? true,
@@ -465,7 +465,7 @@ export class PostHydrationService {
       }
     };
 
-    maybePush(post.repostOf);
+    maybePush(post.boostOf);
     maybePush(post.quoteOf);
     if (post.originalPostId) {
       maybePush(post.originalPostId);
@@ -487,10 +487,10 @@ export class PostHydrationService {
     }
 
     try {
-      const [likes, bookmarks, reposts] = await Promise.all([
+      const [likes, bookmarks, boosts] = await Promise.all([
         Like.find({ userId: viewerId, postId: { $in: postIds } }).select('postId value').lean(),
         Bookmark.find({ userId: viewerId, postId: { $in: postIds } }).select('postId').lean(),
-        Post.find({ oxyUserId: viewerId, repostOf: { $in: postIds } }).select('repostOf').lean(),
+        Post.find({ oxyUserId: viewerId, boostOf: { $in: postIds } }).select('boostOf').lean(),
       ]);
 
       likes.forEach((like) => {
@@ -509,9 +509,9 @@ export class PostHydrationService {
         if (id) viewerContext.savedPosts.add(id);
       });
 
-      reposts.forEach((repost) => {
-        const id = repost?.repostOf ? String(repost.repostOf) : undefined;
-        if (id) viewerContext.repostedPosts.add(id);
+      boosts.forEach((boost) => {
+        const id = boost?.boostOf ? String(boost.boostOf) : undefined;
+        if (id) viewerContext.boostedPosts.add(id);
       });
     } catch (error) {
       logger.error('[PostHydration] Failed to populate viewer interactions:', error);
@@ -647,7 +647,7 @@ export class PostHydrationService {
     const urlToPosts = new Map<string, string[]>(); // url -> [postId]
 
     // Only process top-level posts (depth 0) for link previews in feed
-    // Nested posts (reposts/quotes) don't need link previews
+    // Nested posts (boosts/quotes) don't need link previews
     for (const { post } of nodes) {
       const postId = this.resolveId(post);
       if (!postId) continue;
@@ -1122,7 +1122,7 @@ export class PostHydrationService {
       isOwner,
       isLiked: viewerContext.likedPosts.has(postId),
       isDownvoted: viewerContext.downvotedPosts.has(postId),
-      isReposted: viewerContext.repostedPosts.has(postId),
+      isBoosted: viewerContext.boostedPosts.has(postId),
       isSaved: viewerContext.savedPosts.has(postId),
     };
   }
@@ -1180,7 +1180,7 @@ export class PostHydrationService {
 
     const likesCount = typeof stats.likesCount === 'number' ? stats.likesCount : 0;
     const downvotesCount = typeof stats.downvotesCount === 'number' ? stats.downvotesCount : 0;
-    const repostsCount = typeof stats.repostsCount === 'number' ? stats.repostsCount : 0;
+    const boostsCount = typeof stats.boostsCount === 'number' ? stats.boostsCount : 0;
     const repliesCount = typeof stats.commentsCount === 'number' ? stats.commentsCount : 0;
     const savesCount = Array.isArray(metadata.savedBy) ? metadata.savedBy.length : undefined;
 
@@ -1189,7 +1189,7 @@ export class PostHydrationService {
     return {
       likes: authorPrivacy.hideLikeCounts ? null : likesCount,
       downvotes: authorPrivacy.hideLikeCounts ? null : downvotesCount,
-      reposts: authorPrivacy.hideShareCounts ? null : repostsCount,
+      boosts: authorPrivacy.hideShareCounts ? null : boostsCount,
       replies: authorPrivacy.hideReplyCounts ? null : repliesCount,
       saves: authorPrivacy.hideSaveCounts ? null : savesCount ?? null,
       views: viewsCount > 0 ? viewsCount : null,
@@ -1205,21 +1205,21 @@ export class PostHydrationService {
     viewerContext: ViewerContext,
   ): HydratedPost | null {
     const postId = summary.id;
-    const repostOf = post?.repostOf ? String(post.repostOf) : undefined;
+    const boostOf = post?.boostOf ? String(post.boostOf) : undefined;
     const quoteOf = post?.quoteOf ? String(post.quoteOf) : undefined;
 
     let originalPost: HydratedPostSummary | null = null;
-    if (repostOf) {
-      originalPost = summaryMap.get(repostOf) ?? null;
+    if (boostOf) {
+      originalPost = summaryMap.get(boostOf) ?? null;
     } else if (quoteOf) {
       originalPost = summaryMap.get(quoteOf) ?? null;
     }
 
     const quotedPost = quoteOf ? summaryMap.get(quoteOf) ?? null : null;
-    const repostOriginal = repostOf ? summaryMap.get(repostOf) ?? null : null;
-    const repostContext: HydratedRepostContext | null = repostOf && repostOriginal
+    const boostOriginal = boostOf ? summaryMap.get(boostOf) ?? null : null;
+    const boostContext: HydratedBoostContext | null = boostOf && boostOriginal
       ? {
-          originalPost: repostOriginal,
+          originalPost: boostOriginal,
           actor: summary.user,
         }
       : null;
@@ -1230,7 +1230,7 @@ export class PostHydrationService {
       ...summary,
       originalPost,
       quotedPost,
-      repost: repostContext,
+      boost: boostContext,
       context,
     };
   }

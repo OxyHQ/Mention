@@ -99,8 +99,8 @@ function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
             return 'No media posts found';
         case 'replies':
             return 'No replies yet. Be the first to reply!';
-        case 'reposts':
-            return 'No reposts yet';
+        case 'boosts':
+            return 'No boosts yet';
         case 'explore':
             return 'No trending posts right now. Check back later!';
         case 'following':

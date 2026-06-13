@@ -10,7 +10,7 @@ import { wasRecent, type EchoAction } from './echoGuard';
 const logger = createScopedLogger('SocketService');
 
 // Valid feed types for validation
-const VALID_FEED_TYPES: string[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following', 'saved', 'explore', 'custom'];
+const VALID_FEED_TYPES: string[] = ['posts', 'media', 'replies', 'likes', 'boosts', 'mixed', 'for_you', 'following', 'saved', 'explore', 'custom'];
 
 // TypeScript interfaces for socket events
 interface EngagementEventData {
@@ -19,7 +19,7 @@ interface EngagementEventData {
   userId?: string;
   actorId?: string;
   likesCount?: number;
-  repostsCount?: number;
+  boostsCount?: number;
 }
 
 interface FeedUpdateData {
@@ -41,7 +41,7 @@ interface FollowEventData {
 }
 
 interface EngagementUpdate {
-  type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply';
+  type: 'like' | 'unlike' | 'boost' | 'unboost' | 'save' | 'unsave' | 'reply';
   data: EngagementEventData;
   timestamp: number;
 }
@@ -295,8 +295,8 @@ class SocketService {
     this.socket.off('post:liked');
     this.socket.off('post:unliked');
     this.socket.off('post:replied');
-    this.socket.off('post:reposted');
-    this.socket.off('post:unreposted');
+    this.socket.off('post:boosted');
+    this.socket.off('post:unboosted');
     this.socket.off('post:saved');
     this.socket.off('post:unsaved');
     this.socket.off('user:presence');
@@ -382,12 +382,12 @@ class SocketService {
       this.handlePostReplied(data);
     });
 
-    this.socket.on('post:reposted', (data) => {
-      this.handlePostReposted(data);
+    this.socket.on('post:boosted', (data) => {
+      this.handlePostBoosted(data);
     });
 
-    this.socket.on('post:unreposted', (data) => {
-      this.handlePostUnreposted(data);
+    this.socket.on('post:unboosted', (data) => {
+      this.handlePostUnboosted(data);
     });
 
     this.socket.on('post:saved', (data) => {
@@ -655,7 +655,7 @@ class SocketService {
   /**
    * Queue engagement update for batching
    */
-  private queueEngagementUpdate(postId: string, type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply', data: EngagementEventData) {
+  private queueEngagementUpdate(postId: string, type: 'like' | 'unlike' | 'boost' | 'unboost' | 'save' | 'unsave' | 'reply', data: EngagementEventData) {
     if (!this.engagementUpdateQueue.has(postId)) {
       this.engagementUpdateQueue.set(postId, []);
     }
@@ -812,70 +812,70 @@ class SocketService {
             });
             break;
             
-          case 'repost':
+          case 'boost':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
               const isOurAction = actorId === this.currentUserId;
 
               // Use server count if available, otherwise increment
-              const currentReposts = prev.engagement?.reposts ?? 0;
-              const newCount = data.repostsCount ?? (currentReposts + 1);
+              const currentBoosts = prev.engagement?.boosts ?? 0;
+              const newCount = data.boostsCount ?? (currentBoosts + 1);
 
               // If it's our action, echo guard should have suppressed it
               // But if it got through, don't override optimistic update
               if (isOurAction) {
                 // Only update count if different (socket might have server-accurate count)
-                if (currentReposts !== newCount) {
+                if (currentBoosts !== newCount) {
                   return {
                     ...prev,
-                    // Keep our optimistic isReposted state
-                    engagement: { ...prev.engagement, reposts: newCount },
+                    // Keep our optimistic isBoosted state
+                    engagement: { ...prev.engagement, boosts: newCount },
                   };
                 }
                 return prev; // No change needed
               }
 
-              // Other user's action - only update count, NOT isReposted state
+              // Other user's action - only update count, NOT isBoosted state
               // Don't update if count is already correct or higher
-              if (currentReposts >= newCount) return prev;
+              if (currentBoosts >= newCount) return prev;
 
               return {
                 ...prev,
-                // Keep current isReposted state (it's about OUR state, not theirs)
-                engagement: { ...prev.engagement, reposts: newCount },
+                // Keep current isBoosted state (it's about OUR state, not theirs)
+                engagement: { ...prev.engagement, boosts: newCount },
               };
             });
             break;
 
-          case 'unrepost':
+          case 'unboost':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
               const isOurAction = actorId === this.currentUserId;
 
-              const currentReposts = prev.engagement?.reposts ?? 0;
-              const newCount = data.repostsCount ?? Math.max(0, currentReposts - 1);
+              const currentBoosts = prev.engagement?.boosts ?? 0;
+              const newCount = data.boostsCount ?? Math.max(0, currentBoosts - 1);
 
               // If it's our action, echo guard should have suppressed it
               if (isOurAction) {
                 // Only update count if different
-                if (currentReposts !== newCount) {
+                if (currentBoosts !== newCount) {
                   return {
                     ...prev,
-                    // Keep our optimistic isReposted state
-                    engagement: { ...prev.engagement, reposts: newCount },
+                    // Keep our optimistic isBoosted state
+                    engagement: { ...prev.engagement, boosts: newCount },
                   };
                 }
                 return prev; // No change needed
               }
 
-              // Other user's action - only update count, NOT isReposted state
+              // Other user's action - only update count, NOT isBoosted state
               // Don't update if count is already correct or lower
-              if (currentReposts <= newCount) return prev;
+              if (currentBoosts <= newCount) return prev;
 
               return {
                 ...prev,
-                // Keep current isReposted state (it's about OUR state, not theirs)
-                engagement: { ...prev.engagement, reposts: newCount },
+                // Keep current isBoosted state (it's about OUR state, not theirs)
+                engagement: { ...prev.engagement, boosts: newCount },
               };
             });
             break;
@@ -943,35 +943,35 @@ class SocketService {
   }
 
   /**
-   * Handle post reposted event - with batching
+   * Handle post boosted event - with batching
    */
-  private handlePostReposted(data: EngagementEventData) {
-    const { originalPostId, postId, repostsCount } = data || {};
+  private handlePostBoosted(data: EngagementEventData) {
+    const { originalPostId, postId, boostsCount } = data || {};
     const targetId = originalPostId || postId;
     if (!targetId) return;
     const actualActorId = this.getActorId(data);
-    if (this.shouldIgnoreEcho(targetId, 'repost', actualActorId)) return;
+    if (this.shouldIgnoreEcho(targetId, 'boost', actualActorId)) return;
 
-    this.queueEngagementUpdate(targetId, 'repost', {
+    this.queueEngagementUpdate(targetId, 'boost', {
       postId: targetId,
-      repostsCount,
+      boostsCount,
       userId: actualActorId
     });
   }
 
   /**
-   * Handle post unreposted event - with batching
+   * Handle post unboosted event - with batching
    */
-  private handlePostUnreposted(data: EngagementEventData) {
-    const { originalPostId, postId, repostsCount } = data || {};
+  private handlePostUnboosted(data: EngagementEventData) {
+    const { originalPostId, postId, boostsCount } = data || {};
     const targetId = originalPostId || postId;
     if (!targetId) return;
     const actualActorId = this.getActorId(data);
-    if (this.shouldIgnoreEcho(targetId, 'unrepost', actualActorId)) return;
+    if (this.shouldIgnoreEcho(targetId, 'unboost', actualActorId)) return;
 
-    this.queueEngagementUpdate(targetId, 'unrepost', {
+    this.queueEngagementUpdate(targetId, 'unboost', {
       postId: targetId,
-      repostsCount,
+      boostsCount,
       userId: actualActorId
     });
   }

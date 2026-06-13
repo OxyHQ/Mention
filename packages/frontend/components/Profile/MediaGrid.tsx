@@ -173,7 +173,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
         for (const p of (items || []) as any[]) {
             extractFrom(p, String(p.id));
-            const origId = p?.originalPostId || p?.repostOf || p?.quoteOf;
+            const origId = p?.originalPostId || p?.boostOf || p?.quoteOf;
             if (origId && (!p?.allMediaIds?.length && !p?.mediaIds?.length)) {
                 const orig = getPostFromDb(String(origId));
                 if (orig) extractFrom(orig, String(p.id));

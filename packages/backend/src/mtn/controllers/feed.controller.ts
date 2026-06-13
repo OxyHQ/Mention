@@ -129,7 +129,7 @@ class MtnFeedController {
           viewerId: currentUserId,
           preferences: {
             // TODO: Load from user settings
-            hideReposts: false,
+            hideBoosts: false,
             hideReplies: false,
             hideSensitive: false,
           },
@@ -224,7 +224,7 @@ class MtnFeedController {
         return;
       }
 
-      const validEvents = ['impression', 'click', 'like', 'reply', 'repost', 'save'];
+      const validEvents = ['impression', 'click', 'like', 'reply', 'boost', 'save'];
       if (!validEvents.includes(event)) {
         res.status(400).json({ success: false, error: `Invalid event: ${event}` });
         return;

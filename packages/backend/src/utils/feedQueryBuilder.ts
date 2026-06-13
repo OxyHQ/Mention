@@ -56,7 +56,7 @@ export class FeedQueryBuilder {
       case 'posts':
         query.type = { $in: [PostType.TEXT, PostType.IMAGE, PostType.VIDEO, PostType.POLL] };
         query.parentPostId = null;
-        query.repostOf = null;
+        query.boostOf = null;
         break;
       case 'media': {
         query.$and = [
@@ -69,15 +69,15 @@ export class FeedQueryBuilder {
             { 'media.0': { $exists: true } }
           ] },
           { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+          { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
         ];
         break;
       }
       case 'replies':
         query.parentPostId = { $ne: null };
         break;
-      case 'reposts':
-        query.repostOf = { $ne: null };
+      case 'boosts':
+        query.boostOf = { $ne: null };
         break;
       case 'mixed':
       default:
@@ -181,8 +181,8 @@ export class FeedQueryBuilder {
     if (filters.includeReplies === false) {
       query.parentPostId = { $exists: false };
     }
-    if (filters.includeReposts === false) {
-      query.repostOf = { $exists: false };
+    if (filters.includeBoosts === false) {
+      query.boostOf = { $exists: false };
     }
     if (filters.includeMedia === false) {
       query.type = { $nin: [PostType.IMAGE, PostType.VIDEO] };
@@ -286,7 +286,7 @@ export class FeedQueryBuilder {
       status: 'published',
       // No parentPostId filter — replies flow through for thread slicing
       $and: [
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     };
 
@@ -332,9 +332,9 @@ export class FeedQueryBuilder {
       oxyUserId: { $in: followingIds },
       visibility: PostVisibility.PUBLIC,
       // No parentPostId filter — replies flow through for thread slicing
-      // Exclude reposts (they are shown differently)
+      // Exclude boosts (they are shown differently)
       $and: [
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ],
     };
 
@@ -354,7 +354,7 @@ export class FeedQueryBuilder {
       visibility: PostVisibility.PUBLIC,
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     };
 
@@ -382,7 +382,7 @@ export class FeedQueryBuilder {
           { 'media.0': { $exists: true } }
         ] },
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     };
 
@@ -423,10 +423,10 @@ export class FeedQueryBuilder {
           { 'media.0': { $exists: true } }
         ] },
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ];
-    } else if (type === 'reposts') {
-      query.repostOf = { $ne: null };
+    } else if (type === 'boosts') {
+      query.boostOf = { $ne: null };
     }
 
     const cursorId = parseFeedCursor(cursor);

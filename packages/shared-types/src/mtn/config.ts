@@ -10,7 +10,7 @@ export const MtnConfig = {
   ranking: {
     engagement: {
       likeWeight: 1.0,
-      repostWeight: 2.5,
+      boostWeight: 2.5,
       commentWeight: 2.0,
       saveWeight: 1.5,
       viewWeight: 0.1,
@@ -81,7 +81,7 @@ export const MtnConfig = {
   preferences: {
     weights: {
       like: 1.0,
-      repost: 2.0,
+      boost: 2.0,
       comment: 2.5,
       save: 1.5,
       share: 1.8,

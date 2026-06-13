@@ -31,7 +31,7 @@ import SEO from '@/components/SEO';
 import { logger } from '@/lib/logger';
 import { HeartIcon } from '@/assets/icons/heart-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
-import { RepostIcon } from '@/assets/icons/repost-icon';
+import { BoostIcon } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
@@ -246,7 +246,7 @@ const InsightsScreen: React.FC = () => {
 
                 <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.post.likes')} value={stats.interactions.likes} sub={perPost(stats.interactions.likes)} theme={theme} />
                 <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.post.replies')} value={stats.interactions.replies} sub={perPost(stats.interactions.replies)} theme={theme} />
-                <StatRow icon={<RepostIcon size={18} className="text-foreground" />} label={t('insights.post.reposts')} value={stats.interactions.reposts} sub={perPost(stats.interactions.reposts)} theme={theme} />
+                <StatRow icon={<BoostIcon size={18} className="text-foreground" />} label={t('insights.post.boosts')} value={stats.interactions.boosts} sub={perPost(stats.interactions.boosts)} theme={theme} />
                 <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.post.shares')} value={stats.interactions.shares} sub={perPost(stats.interactions.shares)} showDivider={false} theme={theme} />
 
                 {/* Posts by Type */}
@@ -352,7 +352,7 @@ const InsightsScreen: React.FC = () => {
 
                 <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.likeRate')} value={`${engagementRatios.ratios.likeRate.toFixed(2)}%`} theme={theme} />
                 <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.replyRate')} value={`${engagementRatios.ratios.replyRate.toFixed(2)}%`} theme={theme} />
-                <StatRow icon={<RepostIcon size={18} className="text-foreground" />} label={t('insights.repostRate')} value={`${engagementRatios.ratios.repostRate.toFixed(2)}%`} theme={theme} />
+                <StatRow icon={<BoostIcon size={18} className="text-foreground" />} label={t('insights.boostRate')} value={`${engagementRatios.ratios.boostRate.toFixed(2)}%`} theme={theme} />
                 <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.shareRate')} value={`${engagementRatios.ratios.shareRate.toFixed(2)}%`} showDivider={false} theme={theme} />
 
                 {/* Averages */}

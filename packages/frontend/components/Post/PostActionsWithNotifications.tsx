@@ -5,19 +5,19 @@ import { logger } from '@/lib/logger';
 
 interface Engagement {
     replies: number;
-    reposts: number;
+    boosts: number;
     likes: number;
 }
 
 interface Props {
     engagement: Engagement;
     isLiked?: boolean;
-    isReposted?: boolean;
+    isBoosted?: boolean;
     isSaved?: boolean;
     postId: string;
     postAuthorId: string;
     onReply: () => void;
-    onRepost: () => void;
+    onBoost: () => void;
     onLike: () => void;
     onSave: () => void;
     onShare: () => void;
@@ -26,17 +26,17 @@ interface Props {
 const PostActionsWithNotifications: React.FC<Props> = ({
     engagement,
     isLiked,
-    isReposted,
+    isBoosted,
     isSaved,
     postId,
     postAuthorId,
     onReply,
-    onRepost,
+    onBoost,
     onLike,
     onSave,
     onShare,
 }) => {
-    const { notifyLike, notifyRepost } = useNotificationActions();
+    const { notifyLike, notifyBoost } = useNotificationActions();
 
     const handleLike = async () => {
         onLike();
@@ -49,14 +49,14 @@ const PostActionsWithNotifications: React.FC<Props> = ({
         }
     };
 
-    const handleRepost = async () => {
-        onRepost();
+    const handleBoost = async () => {
+        onBoost();
         try {
-            if (!isReposted) {
-                await notifyRepost(postId, postAuthorId);
+            if (!isBoosted) {
+                await notifyBoost(postId, postAuthorId);
             }
         } catch (error) {
-            logger.error('Error sending repost notification');
+            logger.error('Error sending boost notification');
         }
     };
 
@@ -64,10 +64,10 @@ const PostActionsWithNotifications: React.FC<Props> = ({
         <PostActions
             engagement={engagement}
             isLiked={isLiked}
-            isReposted={isReposted}
+            isBoosted={isBoosted}
             isSaved={isSaved}
             onReply={onReply}
-            onRepost={handleRepost}
+            onBoost={handleBoost}
             onLike={handleLike}
             onSave={onSave}
             onShare={onShare}

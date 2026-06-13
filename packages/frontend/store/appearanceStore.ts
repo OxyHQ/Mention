@@ -26,6 +26,8 @@ export interface AppearanceSettings {
 export interface UserAppearance {
   oxyUserId: string;
   postsCount?: number;
+  boostsCount?: number;
+  repliesCount?: number;
   appearance: AppearanceSettings;
   profileHeaderImage?: string;
   profileCustomization?: {

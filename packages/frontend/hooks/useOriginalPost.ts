@@ -56,7 +56,7 @@ export function useOriginalPost({ post, isNested, nestingDepth }: UseOriginalPos
             return;
         }
 
-        const targetId = post?.originalPostId || post?.repostOf || post?.quoteOf;
+        const targetId = post?.originalPostId || post?.boostOf || post?.quoteOf;
         if (!targetId || isNested) {
             return;
         }
@@ -93,7 +93,7 @@ export function useOriginalPost({ post, isNested, nestingDepth }: UseOriginalPos
         return () => {
             cancelled = true;
         };
-    }, [postId, embeddedPost, post?.originalPostId, post?.repostOf, post?.quoteOf, isNested, nestingDepth, getPostById, post?.user]);
+    }, [postId, embeddedPost, post?.originalPostId, post?.boostOf, post?.quoteOf, isNested, nestingDepth, getPostById, post?.user]);
 
     // Prefer embedded data from props; fall back to async-fetched data
     return embeddedPost ?? fetchedPost;

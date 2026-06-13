@@ -16,7 +16,7 @@ export interface UserStatistics {
   interactions: {
     likes: number;
     replies: number;
-    reposts: number;
+    boosts: number;
     shares: number;
   };
   dailyBreakdown: Array<{
@@ -24,7 +24,7 @@ export interface UserStatistics {
     views: number;
     likes: number;
     replies: number;
-    reposts: number;
+    boosts: number;
     interactions: number;
   }>;
   topPosts: Array<{
@@ -32,7 +32,7 @@ export interface UserStatistics {
     views: number;
     likes: number;
     replies: number;
-    reposts: number;
+    boosts: number;
     engagement: number;
     createdAt: string;
   }>;
@@ -46,7 +46,7 @@ export interface PostInsights {
     views: number;
     likes: number;
     replies: number;
-    reposts: number;
+    boosts: number;
     quotes: number;
     shares: number;
   };
@@ -59,7 +59,7 @@ export interface PostInsights {
   breakdown: {
     likedBy: number;
     hasReplies: boolean;
-    hasReposts: boolean;
+    hasBoosts: boolean;
     hasQuotes: boolean;
   };
 }
@@ -74,7 +74,7 @@ export interface EngagementRatios {
     engagementRate: number;
     likeRate: number;
     replyRate: number;
-    repostRate: number;
+    boostRate: number;
     shareRate: number;
   };
   averages: {
@@ -87,7 +87,7 @@ export interface EngagementRatios {
     interactions: number;
     likes: number;
     replies: number;
-    reposts: number;
+    boosts: number;
     shares: number;
   };
 }

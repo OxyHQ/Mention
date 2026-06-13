@@ -19,7 +19,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
 import { FeedType } from '@mention/shared-types';
-import { HydratedPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
+import { HydratedPost, Reply, FeedBoost as Boost } from '@mention/shared-types';
 import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -41,8 +41,8 @@ const PostDetailScreen: React.FC = () => {
     const { treeView, sortOrder } = useThreadPreferences();
     const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
 
-    const [post, setPost] = useState<HydratedPost | Reply | Repost | null>(null);
-    const [parentPost, setParentPost] = useState<HydratedPost | Reply | Repost | null>(null);
+    const [post, setPost] = useState<HydratedPost | Reply | Boost | null>(null);
+    const [parentPost, setParentPost] = useState<HydratedPost | Reply | Boost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);

@@ -4,7 +4,7 @@ import { TRawNotification } from '../types/validation';
  * Types that should be grouped when they share the same target entity.
  * Mentions and replies are kept individual since they carry unique content.
  */
-const GROUPABLE_TYPES = new Set(['like', 'repost', 'follow', 'quote']);
+const GROUPABLE_TYPES = new Set(['like', 'boost', 'follow', 'quote']);
 
 /**
  * Time window (in ms) within which notifications of the same type+entity
@@ -44,7 +44,7 @@ export interface GroupedNotification {
 /**
  * Groups an array of validated notifications.
  *
- * Groupable types (like, repost, follow, quote) that share the same
+ * Groupable types (like, boost, follow, quote) that share the same
  * (type + entityId) and fall within the time window are merged.
  *
  * Non-groupable types (mention, reply, post, welcome, poke) remain individual.

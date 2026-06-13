@@ -23,7 +23,7 @@ interface User {
 
 interface EngagementListSheetProps {
   postId: string;
-  type: 'likes' | 'reposts';
+  type: 'likes' | 'boosts';
   onClose: () => void;
 }
 
@@ -44,7 +44,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 
       const result = type === 'likes'
         ? await feedService.getPostLikes(postId, cursor)
-        : await feedService.getPostReposts(postId, cursor);
+        : await feedService.getPostBoosts(postId, cursor);
 
       if (cursor) {
         setUsers(prev => [...prev, ...result.users]);
@@ -108,7 +108,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
       <View className="flex-1 bg-background">
         <Header
           options={{
-            title: type === 'likes' ? 'Likes' : 'Reposts',
+            title: type === 'likes' ? 'Likes' : 'Boosts',
             rightComponents: [
               <IconButton variant="icon"
                 key="close"
@@ -132,7 +132,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
     <View className="flex-1 bg-background">
       <Header
         options={{
-          title: type === 'likes' ? 'Likes' : 'Reposts',
+          title: type === 'likes' ? 'Likes' : 'Boosts',
           rightComponents: [
             <IconButton variant="icon"
               key="close"
@@ -148,7 +148,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 
       {users.length === 0 ? (
         <EmptyState
-          title={`No ${type === 'likes' ? 'likes' : 'reposts'} yet`}
+          title={`No ${type === 'likes' ? 'likes' : 'boosts'} yet`}
           icon={{
             name: type === 'likes' ? 'heart-outline' : 'repeat-outline',
             size: 48,

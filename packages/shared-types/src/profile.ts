@@ -38,7 +38,7 @@ export interface ProfileNotificationSettings {
   mentionNotifications?: boolean;
   followNotifications?: boolean;
   likeNotifications?: boolean;
-  repostNotifications?: boolean;
+  boostNotifications?: boolean;
 }
 
 export interface PrivacySettings {
@@ -61,7 +61,8 @@ export interface ProfileStats {
   followersCount: number;
   followingCount: number;
   likesCount: number;
-  repostsCount: number;
+  boostsCount: number;
+  repliesCount: number;
 }
 
 export interface Profile {

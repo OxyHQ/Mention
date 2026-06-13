@@ -25,23 +25,23 @@ interface PostData {
   visibility?: string;
   stats?: {
     likesCount?: number;
-    repostsCount?: number;
+    boostsCount?: number;
     commentsCount?: number;
     viewsCount?: number;
   };
   engagement?: {
     likes?: number;
-    reposts?: number;
+    boosts?: number;
     replies?: number;
   };
   hashtags?: string[];
   date?: string;
   createdAt?: string;
   isLiked?: boolean;
-  isReposted?: boolean;
+  isBoosted?: boolean;
   isSaved?: boolean;
   parentPostId?: string;
-  repostOf?: string;
+  boostOf?: string;
   quoteOf?: string;
 }
 
@@ -56,13 +56,13 @@ export function formatPost(post: PostData): string {
 
   const rawStats = (post.stats || post.engagement || {}) as Record<string, number | undefined>;
   const likesCount = rawStats.likesCount ?? rawStats.likes ?? 0;
-  const repostsCount = rawStats.repostsCount ?? rawStats.reposts ?? 0;
+  const boostsCount = rawStats.boostsCount ?? rawStats.boosts ?? 0;
   const commentsCount = rawStats.commentsCount ?? rawStats.replies ?? 0;
 
   const parts: string[] = [
     `[${id}] ${author}`,
     text,
-    `♥ ${likesCount}  ↻ ${repostsCount}  💬 ${commentsCount}`,
+    `♥ ${likesCount}  ↻ ${boostsCount}  💬 ${commentsCount}`,
   ];
 
   if (post.hashtags && post.hashtags.length > 0) {
@@ -78,7 +78,7 @@ export function formatPost(post: PostData): string {
   }
 
   if (post.parentPostId) parts.push(`Reply to: ${post.parentPostId}`);
-  if (post.repostOf) parts.push(`Repost of: ${post.repostOf}`);
+  if (post.boostOf) parts.push(`Boost of: ${post.boostOf}`);
   if (post.quoteOf) parts.push(`Quote of: ${post.quoteOf}`);
 
   if (date) parts.push(`Date: ${date}`);
@@ -86,7 +86,7 @@ export function formatPost(post: PostData): string {
 
   const flags: string[] = [];
   if (post.isLiked) flags.push("liked");
-  if (post.isReposted) flags.push("reposted");
+  if (post.isBoosted) flags.push("boosted");
   if (post.isSaved) flags.push("saved");
   if (flags.length > 0) parts.push(`You: ${flags.join(", ")}`);
 

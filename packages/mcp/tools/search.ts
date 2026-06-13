@@ -13,7 +13,7 @@ export function registerSearchTools(server: McpServer): void {
   has:media — posts with images/video
   has:links — posts with URLs
   min_likes:N — minimum likes
-  min_reposts:N — minimum reposts
+  min_boosts:N — minimum boosts
 
 Example: "climate from:scienceguy since:2025-01-01 has:media"`,
     {

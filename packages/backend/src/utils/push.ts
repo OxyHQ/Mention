@@ -112,7 +112,7 @@ export async function formatPushForNotification(n: any) {
     like: { title: 'New like', body: `${actorName} liked your post` },
     reply: { title: 'New reply', body: `${actorName} replied to your post` },
     mention: { title: 'You were mentioned', body: `${actorName} mentioned you` },
-    repost: { title: 'Post reposted', body: `${actorName} reposted your post` },
+    boost: { title: 'Post boosted', body: `${actorName} boosted your post` },
     quote: { title: 'Post quoted', body: `${actorName} quoted your post` },
     follow: { title: 'New follower', body: `${actorName} followed you` },
     poke: { title: 'Poke!', body: `${actorName} poked you` },

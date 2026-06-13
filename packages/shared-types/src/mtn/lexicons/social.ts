@@ -238,10 +238,10 @@ export const LikeLexicon: LexiconDoc = {
   },
 };
 
-export const RepostLexicon: LexiconDoc = {
+export const BoostLexicon: LexiconDoc = {
   lexicon: 1,
-  id: 'mtn.social.repost',
-  description: 'A repost of an existing post.',
+  id: 'mtn.social.boost',
+  description: 'A boost of an existing post.',
   defs: {
     main: {
       type: 'record',
@@ -250,7 +250,7 @@ export const RepostLexicon: LexiconDoc = {
         type: 'object',
         required: ['subject', 'createdAt'],
         properties: {
-          subject: { type: 'mtn-uri', description: 'URI of the reposted record' },
+          subject: { type: 'mtn-uri', description: 'URI of the boosted record' },
           createdAt: { type: 'datetime' },
         },
       },
@@ -567,7 +567,7 @@ export const StarterPackLexicon: LexiconDoc = {
 export const SocialLexicons: LexiconDoc[] = [
   PostLexicon,
   LikeLexicon,
-  RepostLexicon,
+  BoostLexicon,
   FollowLexicon,
   BlockLexicon,
   ProfileLexicon,

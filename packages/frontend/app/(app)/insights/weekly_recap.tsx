@@ -155,7 +155,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 interactions: {
                     likes: currentWeekBreakdown.reduce((sum, day) => sum + day.likes, 0),
                     replies: currentWeekBreakdown.reduce((sum, day) => sum + day.replies, 0),
-                    reposts: currentWeekBreakdown.reduce((sum, day) => sum + day.reposts, 0),
+                    boosts: currentWeekBreakdown.reduce((sum, day) => sum + day.boosts, 0),
                     shares: combinedStats.interactions.shares, // Shares might not be in daily breakdown
                 },
             };
@@ -175,7 +175,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 interactions: {
                     likes: previousWeekBreakdown.reduce((sum, day) => sum + day.likes, 0),
                     replies: previousWeekBreakdown.reduce((sum, day) => sum + day.replies, 0),
-                    reposts: previousWeekBreakdown.reduce((sum, day) => sum + day.reposts, 0),
+                    boosts: previousWeekBreakdown.reduce((sum, day) => sum + day.boosts, 0),
                     shares: combinedStats.interactions.shares, // Shares might not be in daily breakdown
                 },
             };

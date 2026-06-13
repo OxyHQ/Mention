@@ -20,14 +20,14 @@ interface PostWithActors {
   user?: CacheableUser;
   original?: { user?: CacheableUser } | null;
   quoted?: { user?: CacheableUser } | null;
-  repostedBy?: CacheableUser;
-  repost?: { actor?: CacheableUser } | null;
+  boostedBy?: CacheableUser;
+  boost?: { actor?: CacheableUser } | null;
 }
 
 /**
  * Extract every embedded actor from a batch of posts and prime React Query.
  * Mirrors the original SQLite priming surface: post author, original/quoted
- * authors, reposter, and repost actor.
+ * authors, booster, and boost actor.
  */
 export function precacheActorsFromPosts(
   posts: readonly unknown[] | null | undefined,
@@ -41,8 +41,8 @@ export function precacheActorsFromPosts(
     if (p.user && (p.user.id || p.user._id)) users.push(p.user);
     if (p.original?.user) users.push(p.original.user);
     if (p.quoted?.user) users.push(p.quoted.user);
-    if (p.repostedBy) users.push(p.repostedBy);
-    if (p.repost?.actor) users.push(p.repost.actor);
+    if (p.boostedBy) users.push(p.boostedBy);
+    if (p.boost?.actor) users.push(p.boost.actor);
   }
 
   if (users.length > 0) {

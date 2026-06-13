@@ -720,11 +720,11 @@ export default function CustomFeedTimelineScreen() {
     authors: authorsCsv,
     keywords: keywords.join(','),
     includeReplies: feed?.includeReplies,
-    includeReposts: feed?.includeReposts,
+    includeBoosts: feed?.includeBoosts,
     includeMedia: feed?.includeMedia,
     language: feed?.language,
     excludeOwner: true,
-  }), [authorsCsv, keywords, feed?.includeReplies, feed?.includeReposts, feed?.includeMedia, feed?.language]);
+  }), [authorsCsv, keywords, feed?.includeReplies, feed?.includeBoosts, feed?.includeMedia, feed?.language]);
 
   const tabBar = useMemo(() => (
     <AnimatedTabBar

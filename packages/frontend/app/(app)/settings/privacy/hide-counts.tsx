@@ -129,7 +129,7 @@ export default function HideCountsScreen() {
                 />
                 <OxyAuthPrompt
                     label={t('settings.privacy.hideCounts.signInRequired', { defaultValue: 'Sign in to hide engagement counts' })}
-                    description={t('settings.privacy.hideCounts.signInRequiredDesc', { defaultValue: 'Hide likes, reposts, replies, and saves on your posts.' })}
+                    description={t('settings.privacy.hideCounts.signInRequiredDesc', { defaultValue: 'Hide likes, boosts, replies, and saves on your posts.' })}
                 />
             </ThemedView>
         );

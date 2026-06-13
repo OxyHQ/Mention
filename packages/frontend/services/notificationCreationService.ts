@@ -6,7 +6,7 @@ const logger = createScopedLogger('NotificationCreationService');
 export interface CreateNotificationRequest {
   recipientId: string;
   actorId: string;
-  type: 'like' | 'reply' | 'mention' | 'follow' | 'repost' | 'quote' | 'welcome' | 'poke';
+  type: 'like' | 'reply' | 'mention' | 'follow' | 'boost' | 'quote' | 'welcome' | 'poke';
   entityId: string;
   entityType: 'post' | 'reply' | 'profile';
 }
@@ -59,15 +59,15 @@ class NotificationCreationService {
   }
 
   /**
-   * Create a repost notification
+   * Create a boost notification
    */
-  async notifyRepost(postId: string, postAuthorId: string, reposterId: string): Promise<void> {
-    if (postAuthorId === reposterId) return; // Don't notify self
+  async notifyBoost(postId: string, postAuthorId: string, boosterId: string): Promise<void> {
+    if (postAuthorId === boosterId) return; // Don't notify self
 
     await this.createNotification({
       recipientId: postAuthorId,
-      actorId: reposterId,
-      type: 'repost',
+      actorId: boosterId,
+      type: 'boost',
       entityId: postId,
       entityType: 'post',
     });

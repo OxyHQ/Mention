@@ -19,14 +19,14 @@ import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@oxyhq/services";
 import { usePostsStore } from "../stores/postsStore";
-import { CreateRepostRequest } from "@mention/shared-types";
+import { CreateBoostRequest } from "@mention/shared-types";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 
 const MAX_CHARACTERS = 280;
 
-const RepostScreen: React.FC = () => {
+const BoostScreen: React.FC = () => {
     const { user, oxyServices } = useAuth();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
@@ -40,7 +40,7 @@ const RepostScreen: React.FC = () => {
     const [originalPost, setOriginalPost] = useState<any>(null);
     const textInputRef = useRef<TextInput>(null);
 
-    const { getPostById, createRepost } = usePostsStore();
+    const { getPostById, createBoost } = usePostsStore();
 
     useEffect(() => {
         const loadOriginal = async () => {
@@ -54,7 +54,7 @@ const RepostScreen: React.FC = () => {
                     setOriginalPost(fetched);
                 }
             } catch (e) {
-                logger.error('Failed to load original post for repost');
+                logger.error('Failed to load original post for boost');
             }
         };
         loadOriginal();
@@ -62,21 +62,21 @@ const RepostScreen: React.FC = () => {
 
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;
-    const canRepost = !isOverLimit && !isSubmitting;
+    const canBoost = !isOverLimit && !isSubmitting;
 
-    const handleRepost = async () => {
-        if (!canRepost || !user || !originalPost) return;
+    const handleBoost = async () => {
+        if (!canBoost || !user || !originalPost) return;
 
         setIsSubmitting(true);
 
         try {
-            // Create new repost data
+            // Create new boost data
             const avatarUrl = typeof (user as any).avatar === 'string'
                 ? (user as any).avatar
                 : ((user as any).avatar || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg');
 
-            // Create repost request
-            const repostRequest: CreateRepostRequest = {
+            // Create boost request
+            const boostRequest: CreateBoostRequest = {
                 originalPostId: postId!,
                 content: content.trim() ? { text: content.trim() } : undefined,
                 mentions: [],
@@ -84,16 +84,16 @@ const RepostScreen: React.FC = () => {
             };
 
             // Add to backend and store using posts store
-            await createRepost(repostRequest);
+            await createBoost(boostRequest);
 
             // Navigate back
             safeBack();
 
             // Show success feedback
-            toast('Post reposted successfully!', { type: 'success' });
+            toast('Post boosted successfully!', { type: 'success' });
         } catch (error) {
-            logger.error('Error reposting');
-            toast('Failed to repost. Please try again.', { type: 'error' });
+            logger.error('Error boosting');
+            toast('Failed to boost. Please try again.', { type: 'error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -132,22 +132,22 @@ const RepostScreen: React.FC = () => {
                 <View className="flex-row items-center">
                     <TouchableOpacity
                         className="rounded-full px-5 py-2"
-                        style={[!canRepost && { opacity: 0.5 }]}
-                        onPress={handleRepost}
-                        disabled={!canRepost}
+                        style={[!canBoost && { opacity: 0.5 }]}
+                        onPress={handleBoost}
+                        disabled={!canBoost}
                     >
-                        <Text className="text-base font-bold" style={[!canRepost && { opacity: 0.7 }]}>
-                            {isSubmitting ? 'Reposting...' : 'Repost'}
+                        <Text className="text-base font-bold" style={[!canBoost && { opacity: 0.7 }]}>
+                            {isSubmitting ? 'Boosting...' : 'Boost'}
                         </Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
             <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                {/* Repost Header */}
+                {/* Boost Header */}
                 <View className="flex-row items-center py-3 border-b border-border mb-4">
                     <Ionicons name="repeat" size={20} color={theme.colors.primary} />
-                    <Text className="text-primary text-base font-semibold ml-2">Repost</Text>
+                    <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
                 </View>
 
                 {/* Original Post */}
@@ -168,7 +168,7 @@ const RepostScreen: React.FC = () => {
                     <Text className="text-foreground text-[15px]" style={{ lineHeight: 20 }}>{originalPost.content}</Text>
                 </View>
 
-                {/* Repost Input */}
+                {/* Boost Input */}
                 <View className="flex-1">
                     <View className="flex-row mb-3">
                         <Avatar
@@ -219,8 +219,8 @@ const RepostScreen: React.FC = () => {
 
             <Dialog
                 control={discardControl}
-                title="Discard Repost?"
-                description="Are you sure you want to discard this repost?"
+                title="Discard Boost?"
+                description="Are you sure you want to discard this boost?"
                 actions={[
                     {
                         label: 'Discard',
@@ -237,4 +237,4 @@ const RepostScreen: React.FC = () => {
     );
 };
 
-export default RepostScreen;
+export default BoostScreen;

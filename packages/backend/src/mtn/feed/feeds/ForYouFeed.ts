@@ -25,7 +25,7 @@ export class ForYouFeed implements FeedAPI {
   async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
     const post = await Post.findOne({
       visibility: 'public',
-      $and: [{ $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }],
+      $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     })
       .select(FEED_FIELDS)
       .sort({ createdAt: -1 })
@@ -175,7 +175,7 @@ export class ForYouFeed implements FeedAPI {
   private async fetchPopular(cursor: string | undefined, limit: number, context: FeedContext): Promise<FeedAPIResponse> {
     const match: any = {
       visibility: 'public',
-      $and: [{ $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }],
+      $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };
 
     if (cursor && mongoose.Types.ObjectId.isValid(cursor)) {
@@ -188,7 +188,7 @@ export class ForYouFeed implements FeedAPI {
       {
         $project: {
           _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
-          parentPostId: 1, repostOf: 1, quoteOf: 1, threadId: 1,
+          parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
           content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
         },
       },
@@ -197,7 +197,7 @@ export class ForYouFeed implements FeedAPI {
           engagementScore: {
             $add: [
               { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, cfg.likeWeight] },
-              { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, cfg.repostWeight] },
+              { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, cfg.boostWeight] },
               { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, cfg.commentWeight] },
             ],
           },

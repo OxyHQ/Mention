@@ -44,11 +44,11 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
     const totalViews = posts.reduce((sum, post) => sum + (post.stats?.viewsCount || 0), 0);
     const totalLikes = posts.reduce((sum, post) => sum + (post.stats?.likesCount || 0), 0);
     const totalReplies = posts.reduce((sum, post) => sum + (post.stats?.commentsCount || 0), 0);
-    const totalReposts = posts.reduce((sum, post) => sum + (post.stats?.repostsCount || 0), 0);
+    const totalBoosts = posts.reduce((sum, post) => sum + (post.stats?.boostsCount || 0), 0);
     const totalShares = posts.reduce((sum, post) => sum + (post.stats?.sharesCount || 0), 0);
 
     // Calculate engagement
-    const totalInteractions = totalLikes + totalReplies + totalReposts + totalShares;
+    const totalInteractions = totalLikes + totalReplies + totalBoosts + totalShares;
     const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
     const averageEngagementPerPost = totalPosts > 0 ? totalInteractions / totalPosts : 0;
 
@@ -58,7 +58,7 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
       views: number;
       likes: number;
       replies: number;
-      reposts: number;
+      boosts: number;
       interactions: number;
     }>();
 
@@ -69,17 +69,17 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
         views: 0,
         likes: 0,
         replies: 0,
-        reposts: 0,
+        boosts: 0,
         interactions: 0
       };
 
       existing.views += post.stats?.viewsCount || 0;
       existing.likes += post.stats?.likesCount || 0;
       existing.replies += post.stats?.commentsCount || 0;
-      existing.reposts += post.stats?.repostsCount || 0;
-      existing.interactions += (post.stats?.likesCount || 0) + 
-                                (post.stats?.commentsCount || 0) + 
-                                (post.stats?.repostsCount || 0);
+      existing.boosts += post.stats?.boostsCount || 0;
+      existing.interactions += (post.stats?.likesCount || 0) +
+                                (post.stats?.commentsCount || 0) +
+                                (post.stats?.boostsCount || 0);
 
       dailyStats.set(date, existing);
     });
@@ -95,10 +95,10 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
         views: post.stats?.viewsCount || 0,
         likes: post.stats?.likesCount || 0,
         replies: post.stats?.commentsCount || 0,
-        reposts: post.stats?.repostsCount || 0,
-        engagement: (post.stats?.likesCount || 0) + 
-                   (post.stats?.commentsCount || 0) + 
-                   (post.stats?.repostsCount || 0),
+        boosts: post.stats?.boostsCount || 0,
+        engagement: (post.stats?.likesCount || 0) +
+                   (post.stats?.commentsCount || 0) +
+                   (post.stats?.boostsCount || 0),
         createdAt: post.createdAt
       }))
       .sort((a, b) => b.engagement - a.engagement)
@@ -127,7 +127,7 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
       interactions: {
         likes: totalLikes,
         replies: totalReplies,
-        reposts: totalReposts,
+        boosts: totalBoosts,
         shares: totalShares
       },
       dailyBreakdown,
@@ -168,19 +168,19 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
 
     const stats = post.stats || {
       likesCount: 0,
-      repostsCount: 0,
+      boostsCount: 0,
       commentsCount: 0,
       viewsCount: 0,
       sharesCount: 0
     };
 
     // Calculate engagement metrics
-    const totalInteractions = stats.likesCount + stats.commentsCount + stats.repostsCount + stats.sharesCount;
+    const totalInteractions = stats.likesCount + stats.commentsCount + stats.boostsCount + stats.sharesCount;
     const engagementRate = stats.viewsCount > 0 
       ? (totalInteractions / stats.viewsCount) * 100 
       : 0;
 
-    // Get unique viewers (approximate - users who liked/commented/reposted)
+    // Get unique viewers (approximate - users who liked/commented/boosted)
     const likedBy = Array.isArray(post.metadata?.likedBy) ? post.metadata.likedBy : [];
     const uniqueViewers = stats.viewsCount; // We don't track unique viewers separately yet
 
@@ -188,16 +188,16 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
     const replies = await Post.find({ parentPostId: postId }).lean();
     const replyCount = replies.length;
 
-    // Get reposts
-    const reposts = await Post.find({ repostOf: postId }).lean();
-    const repostCount = reposts.length;
+    // Get boosts
+    const boosts = await Post.find({ boostOf: postId }).lean();
+    const boostCount = boosts.length;
 
     // Get quote posts (posts that quote this one)
     const quotes = await Post.find({ quoteOf: postId }).lean();
     const quoteCount = quotes.length;
 
-    // Calculate reach (approximate - views + reposts reach)
-    const reach = stats.viewsCount + (repostCount * 10); // Estimate repost reach
+    // Calculate reach (approximate - views + boosts reach)
+    const reach = stats.viewsCount + (boostCount * 10); // Estimate boost reach
 
     res.json({
       postId: post._id.toString(),
@@ -206,7 +206,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
         views: stats.viewsCount,
         likes: stats.likesCount,
         replies: replyCount,
-        reposts: repostCount,
+        boosts: boostCount,
         quotes: quoteCount,
         shares: stats.sharesCount
       },
@@ -219,7 +219,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
       breakdown: {
         likedBy: likedBy.length,
         hasReplies: replyCount > 0,
-        hasReposts: repostCount > 0,
+        hasBoosts: boostCount > 0,
         hasQuotes: quoteCount > 0
       }
     });
@@ -301,9 +301,9 @@ export const getFollowerChanges = async (req: AuthRequest, res: Response) => {
 
     // Estimate follower engagement based on interactions
     const totalInteractions = posts.reduce((sum, post) => {
-      return sum + (post.stats?.likesCount || 0) + 
-                   (post.stats?.commentsCount || 0) + 
-                   (post.stats?.repostsCount || 0);
+      return sum + (post.stats?.likesCount || 0) +
+                   (post.stats?.commentsCount || 0) +
+                   (post.stats?.boostsCount || 0);
     }, 0);
 
     res.json({
@@ -350,24 +350,24 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
     let totalViews = 0;
     let totalLikes = 0;
     let totalReplies = 0;
-    let totalReposts = 0;
+    let totalBoosts = 0;
     let totalShares = 0;
 
     posts.forEach(post => {
       totalViews += post.stats?.viewsCount || 0;
       totalLikes += post.stats?.likesCount || 0;
       totalReplies += post.stats?.commentsCount || 0;
-      totalReposts += post.stats?.repostsCount || 0;
+      totalBoosts += post.stats?.boostsCount || 0;
       totalShares += post.stats?.sharesCount || 0;
     });
 
-    const totalInteractions = totalLikes + totalReplies + totalReposts + totalShares;
+    const totalInteractions = totalLikes + totalReplies + totalBoosts + totalShares;
 
     // Calculate various engagement ratios
     const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
     const likeRate = totalViews > 0 ? (totalLikes / totalViews) * 100 : 0;
     const replyRate = totalViews > 0 ? (totalReplies / totalViews) * 100 : 0;
-    const repostRate = totalViews > 0 ? (totalReposts / totalViews) * 100 : 0;
+    const boostRate = totalViews > 0 ? (totalBoosts / totalViews) * 100 : 0;
     const shareRate = totalViews > 0 ? (totalShares / totalViews) * 100 : 0;
 
     // Calculate average per post
@@ -384,7 +384,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
         engagementRate: parseFloat(engagementRate.toFixed(2)),
         likeRate: parseFloat(likeRate.toFixed(2)),
         replyRate: parseFloat(replyRate.toFixed(2)),
-        repostRate: parseFloat(repostRate.toFixed(2)),
+        boostRate: parseFloat(boostRate.toFixed(2)),
         shareRate: parseFloat(shareRate.toFixed(2))
       },
       averages: {
@@ -397,7 +397,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
         interactions: totalInteractions,
         likes: totalLikes,
         replies: totalReplies,
-        reposts: totalReposts,
+        boosts: totalBoosts,
         shares: totalShares
       }
     });
@@ -457,10 +457,10 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       const totalViews = postList.reduce((sum, p) => sum + (p.stats?.viewsCount || 0), 0);
       const likes = postList.reduce((sum, p) => sum + (p.stats?.likesCount || 0), 0);
       const replies = postList.reduce((sum, p) => sum + (p.stats?.commentsCount || 0), 0);
-      const reposts = postList.reduce((sum, p) => sum + (p.stats?.repostsCount || 0), 0);
-      const totalInteractions = likes + replies + reposts;
+      const boosts = postList.reduce((sum, p) => sum + (p.stats?.boostsCount || 0), 0);
+      const totalInteractions = likes + replies + boosts;
       const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
-      return { totalPosts, totalViews, totalInteractions, engagementRate, likes, replies, reposts };
+      return { totalPosts, totalViews, totalInteractions, engagementRate, likes, replies, boosts };
     };
 
     const current = computeStats(currentWeekPosts);
@@ -489,7 +489,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     const interactionRanking = [
       { type: 'likes', count: current.likes },
       { type: 'replies', count: current.replies },
-      { type: 'reposts', count: current.reposts },
+      { type: 'boosts', count: current.boosts },
     ].sort((a, b) => b.count - a.count);
     const strongestInteraction = interactionRanking[0];
     const weakestInteraction = interactionRanking[interactionRanking.length - 1];
@@ -502,8 +502,8 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
 
     const lines = [
       `Period: ${dateRange}.`,
-      `This week: ${current.totalPosts} posts, ${current.totalViews} views, ${current.totalInteractions} interactions (${current.likes} likes, ${current.replies} replies, ${current.reposts} reposts), ${current.engagementRate.toFixed(1)}% engagement.`,
-      `Previous week: ${previous.totalPosts} posts, ${previous.totalViews} views, ${previous.totalInteractions} interactions (${previous.likes} likes, ${previous.replies} replies, ${previous.reposts} reposts), ${previous.engagementRate.toFixed(1)}% engagement.`,
+      `This week: ${current.totalPosts} posts, ${current.totalViews} views, ${current.totalInteractions} interactions (${current.likes} likes, ${current.replies} replies, ${current.boosts} boosts), ${current.engagementRate.toFixed(1)}% engagement.`,
+      `Previous week: ${previous.totalPosts} posts, ${previous.totalViews} views, ${previous.totalInteractions} interactions (${previous.likes} likes, ${previous.replies} replies, ${previous.boosts} boosts), ${previous.engagementRate.toFixed(1)}% engagement.`,
       `Week-over-week: views ${delta(current.totalViews, previous.totalViews)}%, interactions ${delta(current.totalInteractions, previous.totalInteractions)}%, posts ${delta(current.totalPosts, previous.totalPosts)}%.`,
     ];
     if (topPostType) {
@@ -516,7 +516,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     // Find the best-performing post this week by total engagement
     const bestPost = currentWeekPosts
       .map(p => ({
-        engagement: (p.stats?.likesCount || 0) + (p.stats?.commentsCount || 0) + (p.stats?.repostsCount || 0),
+        engagement: (p.stats?.likesCount || 0) + (p.stats?.commentsCount || 0) + (p.stats?.boostsCount || 0),
         views: p.stats?.viewsCount || 0,
         type: p.type || 'text',
         contentSnippet: (p.content?.text || '').slice(0, 80),
@@ -552,11 +552,11 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
               'First sentence: a concrete observation about their week — reference actual numbers and what changed.',
               'Second sentence: one specific, actionable growth tip based on what the data shows.',
               'Your growth tips should be based on how social media algorithms work:',
-              '- Posts that get early replies and reposts get boosted by the algorithm, so encourage conversation-starting content.',
+              '- Posts that get early replies and boosts get boosted by the algorithm, so encourage conversation-starting content.',
               '- Posting consistently (even 1 post/day) signals activity and improves reach over time.',
               '- Engagement rate matters more than raw views — a smaller audience that interacts is better than passive viewers.',
               '- If replies are low, suggest ending posts with questions or hot takes to spark discussion.',
-              '- If reposts are low, suggest sharing insights, tips, or relatable content that people want to share.',
+              '- If boosts are low, suggest sharing insights, tips, or relatable content that people want to share.',
               '- If views are high but interactions are low, the content reaches people but does not resonate — suggest trying different formats or more personal/opinionated posts.',
               '- Mixing post types (text, images, polls) keeps the audience engaged.',
               'Pick the ONE most relevant tip for this user based on their specific data. Do not list multiple tips.',

@@ -30,7 +30,7 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
   const [dateTo, setDateTo] = useState(filters.dateTo || "");
   const [author, setAuthor] = useState(filters.author || "");
   const [minLikes, setMinLikes] = useState(filters.minLikes?.toString() || "");
-  const [minReposts, setMinReposts] = useState(filters.minReposts?.toString() || "");
+  const [minBoosts, setMinBoosts] = useState(filters.minBoosts?.toString() || "");
   const [mediaType, setMediaType] = useState<MediaTypeOption>(
     filters.mediaType || (filters.hasMedia ? 'all' : 'all')
   );
@@ -43,7 +43,7 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
     if (dateTo) newFilters.dateTo = dateTo;
     if (author) newFilters.author = author;
     if (minLikes) newFilters.minLikes = parseInt(minLikes, 10);
-    if (minReposts) newFilters.minReposts = parseInt(minReposts, 10);
+    if (minBoosts) newFilters.minBoosts = parseInt(minBoosts, 10);
     if (mediaType !== 'all') {
       newFilters.mediaType = mediaType as 'image' | 'video' | 'gif';
       newFilters.hasMedia = true;
@@ -51,14 +51,14 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
     if (language) newFilters.language = language;
 
     onApply(newFilters);
-  }, [dateFrom, dateTo, author, minLikes, minReposts, mediaType, language, onApply]);
+  }, [dateFrom, dateTo, author, minLikes, minBoosts, mediaType, language, onApply]);
 
   const handleClearLocal = useCallback(() => {
     setDateFrom("");
     setDateTo("");
     setAuthor("");
     setMinLikes("");
-    setMinReposts("");
+    setMinBoosts("");
     setMediaType('all');
     setLanguage("");
     onClear();
@@ -224,14 +224,14 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
                 className="text-muted-foreground"
                 style={{ fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs }}
               >
-                Min Reposts
+                Min Boosts
               </Text>
               <TextInput
                 style={inputStyle}
                 placeholder="0"
                 placeholderTextColor={theme.colors.textSecondary}
-                value={minReposts}
-                onChangeText={setMinReposts}
+                value={minBoosts}
+                onChangeText={setMinBoosts}
                 keyboardType="number-pad"
               />
             </View>

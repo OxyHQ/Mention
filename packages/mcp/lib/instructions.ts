@@ -8,15 +8,15 @@ export const SERVER_INSTRUCTIONS = `# Mention MCP Server
 Mention (mention.earth) is a social platform for sharing posts, following users, and engaging with content. Think of it as a modern social network with features like:
 - **Posts** with text, media, polls, articles, events, and location
 - **Feeds**: For You (personalized), Explore (trending), Following, and user profiles
-- **Interactions**: Like, repost, quote, save/bookmark
+- **Interactions**: Like, boost, quote, save/bookmark
 - **Lists**: Curate groups of users and view their combined timeline
-- **Notifications**: Real-time updates on likes, reposts, replies, and follows
+- **Notifications**: Real-time updates on likes, boosts, replies, and follows
 - **Search**: Full-text search with advanced operators
 - **Polls**: Create polls with multiple options and vote
 
 ## Authentication
 Provide your Oxy access token as a Bearer token in MCP requests. The token is forwarded to the Mention API for authentication.
-- **Required** for write operations: creating posts, liking, reposting, following, voting on polls
+- **Required** for write operations: creating posts, liking, boosting, following, voting on polls
 - **Optional** for read operations: feeds, search, trending, and hashtags work without auth
 - **Personalized** when authenticated: For You feed and notifications require a token
 
@@ -48,7 +48,7 @@ The \`search\` tool supports advanced operators in the query string:
 - \`has:media\` — posts with images/video
 - \`has:links\` — posts containing URLs
 - \`min_likes:N\` — minimum like count
-- \`min_reposts:N\` — minimum repost count
+- \`min_boosts:N\` — minimum boost count
 
 Example: \`"climate change from:scienceguy since:2025-01-01 has:media min_likes:10"\`
 

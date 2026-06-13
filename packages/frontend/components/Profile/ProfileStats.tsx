@@ -1,21 +1,26 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useCallback } from 'react';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
 
 /**
  * Profile statistics component
- * Displays following, followers, and posts counts with navigation
+ * Displays following, followers, posts, boosts, and replies counts with navigation
  */
 export const ProfileStats = memo(function ProfileStats({
   followingCount,
   followerCount,
   postsCount,
+  boostsCount,
+  repliesCount,
   profileUsername,
   username,
   onPostsPress,
+  onBoostsPress,
+  onRepliesPress,
 }: ProfileStatsProps) {
   const { t } = useTranslation();
   const displayUsername = profileUsername || username;
@@ -65,6 +70,30 @@ export const ProfileStats = memo(function ProfileStats({
           {t('profile.tabs.posts')}
         </Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.statItem}
+        onPress={onBoostsPress}
+      >
+        <Text className="text-foreground" style={styles.statNumber}>
+          {formatCompactNumber(boostsCount ?? 0)}
+        </Text>
+        <Text className="text-muted-foreground" style={styles.statLabel}>
+          {t('profile.stats.boosts')}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.statItem}
+        onPress={onRepliesPress}
+      >
+        <Text className="text-foreground" style={styles.statNumber}>
+          {formatCompactNumber(repliesCount ?? 0)}
+        </Text>
+        <Text className="text-muted-foreground" style={styles.statLabel}>
+          {t('profile.stats.replies')}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 });
@@ -72,6 +101,7 @@ export const ProfileStats = memo(function ProfileStats({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginBottom: 12,
   },
   statItem: {
@@ -88,5 +118,3 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
-
-

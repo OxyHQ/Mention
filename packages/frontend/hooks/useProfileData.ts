@@ -24,6 +24,8 @@ export interface ProfileData {
   verified?: boolean;
   avatar?: string;
   postsCount?: number;
+  boostsCount?: number;
+  repliesCount?: number;
   followsYou?: boolean;
   isFederated?: boolean;
   instance?: string;
@@ -135,6 +137,8 @@ export function useProfileData(username?: string): {
       id: profile.id || '',
       username: profile.username || '',
       postsCount: appearance?.postsCount,
+      boostsCount: appearance?.boostsCount,
+      repliesCount: appearance?.repliesCount,
       followsYou: appearance?.followsYou,
       isFederated: profile.isFederated || profile.type === 'federated',
       actorUri:

@@ -45,4 +45,4 @@ export interface FeedAPI {
 }
 
 /** Standard fields to select from Post collection */
-export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language';

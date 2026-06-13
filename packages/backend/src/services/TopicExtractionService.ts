@@ -121,7 +121,7 @@ class TopicExtractionService {
         createdAt: { $lt: staleThreshold },
         'content.text': { $exists: true, $ne: '' },
         status: 'published',
-        repostOf: { $exists: false },
+        boostOf: { $exists: false },
       } as any,
       EMPTY_EXTRACTION(now),
     );
@@ -160,7 +160,7 @@ class TopicExtractionService {
       ...UNPROCESSED_FILTER,
       'content.text': { $exists: true, $ne: '' },
       status: 'published',
-      repostOf: { $exists: false },
+      boostOf: { $exists: false },
     })
       .select({ 'content.text': 1, createdAt: 1 })
       .sort({ createdAt: 1 })

@@ -148,7 +148,7 @@ export class AuthorFeed implements FeedAPI {
             ],
           },
           { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] },
+          { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
         ];
         break;
       case 'likes':

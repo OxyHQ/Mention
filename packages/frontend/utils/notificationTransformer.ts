@@ -117,10 +117,10 @@ export const transformNotification = (
         message: t('notification.follow_request', { actorName }),
       };
 
-    case 'repost':
+    case 'boost':
       return {
         ...baseNotification,
-        title: t('notification.repost', { actorName }),
+        title: t('notification.boost', { actorName }),
         message: getEntityDescription(rawNotification, t),
       };
 

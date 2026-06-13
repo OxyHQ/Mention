@@ -32,12 +32,12 @@ export const ZEmbeddedPost = z.object({
   engagement: z
     .object({
       replies: z.number().optional(),
-      reposts: z.number().optional(),
+      boosts: z.number().optional(),
       likes: z.number().optional(),
     })
     .optional(),
   isLiked: z.boolean().optional(),
-  isReposted: z.boolean().optional(),
+  isBoosted: z.boolean().optional(),
   isSaved: z.boolean().optional(),
   isThread: z.boolean().optional(),
 });

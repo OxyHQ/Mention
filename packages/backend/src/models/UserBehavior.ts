@@ -13,7 +13,7 @@ export interface IUserBehavior extends Document {
     lastInteractionAt: Date;
     interactionTypes: {
       likes: number;
-      reposts: number;
+      boosts: number;
       comments: number;
       saves: number;
       shares: number;
@@ -58,7 +58,7 @@ const AuthorPreferenceSchema = new Schema({
   lastInteractionAt: { type: Date, default: Date.now },
   interactionTypes: {
     likes: { type: Number, default: 0 },
-    reposts: { type: Number, default: 0 },
+    boosts: { type: Number, default: 0 },
     comments: { type: Number, default: 0 },
     saves: { type: Number, default: 0 },
     shares: { type: Number, default: 0 }

@@ -23,7 +23,7 @@ const escapeRegex = (str: string): string => {
  *   has:media        - posts with media attachments
  *   has:links        - posts with links
  *   min_likes:N      - minimum likes count
- *   min_reposts:N    - minimum reposts count
+ *   min_boosts:N     - minimum boosts count
  *
  * Returns the remaining text query and the extracted operators.
  */
@@ -35,14 +35,14 @@ interface ParsedOperators {
   hasMedia?: boolean;
   hasLinks?: boolean;
   minLikes?: number;
-  minReposts?: number;
+  minBoosts?: number;
 }
 
 function parseSearchOperators(raw: string): ParsedOperators {
   const result: ParsedOperators = { textQuery: '' };
 
   // Match operator:value patterns (value can be quoted or unquoted)
-  const operatorRegex = /\b(from|since|until|has|min_likes|min_reposts):("[^"]*"|[^\s]+)/gi;
+  const operatorRegex = /\b(from|since|until|has|min_likes|min_boosts):("[^"]*"|[^\s]+)/gi;
   let remaining = raw;
 
   let match: RegExpExecArray | null;
@@ -74,9 +74,9 @@ function parseSearchOperators(raw: string): ParsedOperators {
         if (!isNaN(n) && n >= 0) result.minLikes = n;
         break;
       }
-      case 'min_reposts': {
+      case 'min_boosts': {
         const n = parseInt(value, 10);
-        if (!isNaN(n) && n >= 0) result.minReposts = n;
+        if (!isNaN(n) && n >= 0) result.minBoosts = n;
         break;
       }
     }
@@ -98,7 +98,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       dateTo,
       author,
       minLikes,
-      minReposts,
+      minBoosts,
       mediaType,
       hasMedia,
       language,
@@ -203,9 +203,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         filter['stats.likesCount'] = { $gte: effectiveMinLikes };
       }
 
-      const effectiveMinReposts = operators.minReposts ?? (typeof minReposts === 'string' ? parseInt(minReposts, 10) : undefined);
-      if (effectiveMinReposts !== undefined && !isNaN(effectiveMinReposts) && effectiveMinReposts >= 0) {
-        filter['stats.repostsCount'] = { $gte: effectiveMinReposts };
+      const effectiveMinBoosts = operators.minBoosts ?? (typeof minBoosts === 'string' ? parseInt(minBoosts, 10) : undefined);
+      if (effectiveMinBoosts !== undefined && !isNaN(effectiveMinBoosts) && effectiveMinBoosts >= 0) {
+        filter['stats.boostsCount'] = { $gte: effectiveMinBoosts };
       }
 
       // Media filters - operators take precedence

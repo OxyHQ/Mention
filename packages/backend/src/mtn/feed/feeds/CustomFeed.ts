@@ -145,8 +145,8 @@ export class CustomFeed implements FeedAPI {
     if (feed.includeReplies === false) {
       conditions.push({ $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] });
     }
-    if (feed.includeReposts === false) {
-      conditions.push({ $or: [{ repostOf: null }, { repostOf: { $exists: false } }] });
+    if (feed.includeBoosts === false) {
+      conditions.push({ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] });
     }
     if (feed.language) {
       conditions.push({ language: feed.language });

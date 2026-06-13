@@ -7,7 +7,7 @@
 
 import { logger } from '../../utils/logger';
 
-export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'repost' | 'save';
+export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
 
 export interface FeedInteractionData {
   userId: string;

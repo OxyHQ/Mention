@@ -10,7 +10,7 @@ import { logger } from '../utils/logger';
  * Similar to how Twitter/Facebook infers user interests
  *
  * Updates user behavior model based on:
- * - Likes, reposts, comments, saves
+ * - Likes, boosts, comments, saves
  * - Time spent viewing posts
  * - Post types interacted with
  * - Topics/hashtags engaged with
@@ -20,7 +20,7 @@ export class UserPreferenceService {
   // Learning weights (how much each interaction affects preferences)
   private readonly LEARNING_WEIGHTS = {
     like: 1.0,
-    repost: 2.0,
+    boost: 2.0,
     comment: 2.5,
     save: 1.5,
     share: 1.8,
@@ -41,7 +41,7 @@ export class UserPreferenceService {
   async recordInteraction(
     userId: string, // Oxy user ID
     postId: string,
-    interactionType: 'like' | 'repost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block'
+    interactionType: 'like' | 'boost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block'
   ): Promise<void> {
     try {
       logger.debug(`[UserPreference] Recording ${interactionType} interaction for user ${userId}, post ${postId}`);
@@ -170,7 +170,7 @@ export class UserPreferenceService {
         lastInteractionAt: new Date(),
         interactionTypes: {
           likes: 0,
-          reposts: 0,
+          boosts: 0,
           comments: 0,
           saves: 0,
           shares: 0
@@ -188,8 +188,8 @@ export class UserPreferenceService {
     if (interactionType === 'like') {
       authorPref.interactionTypes.likes += 1;
     }
-    if (interactionType === 'repost') {
-      authorPref.interactionTypes.reposts += 1;
+    if (interactionType === 'boost') {
+      authorPref.interactionTypes.boosts += 1;
     }
     if (interactionType === 'comment') {
       authorPref.interactionTypes.comments += 1;
@@ -205,7 +205,7 @@ export class UserPreferenceService {
     // Based on interaction count and recency
     const totalInteractions =
       authorPref.interactionTypes.likes +
-      authorPref.interactionTypes.reposts * 2 +
+      authorPref.interactionTypes.boosts * 2 +
       authorPref.interactionTypes.comments * 2 +
       authorPref.interactionTypes.saves * 1.5 +
       authorPref.interactionTypes.shares * 2;

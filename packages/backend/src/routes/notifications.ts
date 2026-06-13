@@ -64,11 +64,11 @@ const emitNotification = async (req: Request, notification: any) => {
             date: post.createdAt,
             engagement: {
               replies: post?.stats?.commentsCount || 0,
-              reposts: post?.stats?.repostsCount || 0,
+              boosts: post?.stats?.boostsCount || 0,
               likes: post?.stats?.likesCount || 0,
             },
             isLiked: false,
-            isReposted: false,
+            isBoosted: false,
             isSaved: false,
             isThread: false,
           };
@@ -232,11 +232,11 @@ router.get("/", async (req: AuthRequest, res: Response) => {
             date: p.createdAt,
             engagement: {
               replies: p?.stats?.commentsCount || 0,
-              reposts: p?.stats?.repostsCount || 0,
+              boosts: p?.stats?.boostsCount || 0,
               likes: p?.stats?.likesCount || 0,
             },
             isLiked: false,
-            isReposted: false,
+            isBoosted: false,
             isSaved: false,
             isThread: false,
           };

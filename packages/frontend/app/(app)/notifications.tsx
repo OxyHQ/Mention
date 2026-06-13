@@ -169,7 +169,7 @@ const NotificationsScreen: React.FC = () => {
             case 'follows':
                 return validatedNotifications.filter((n: any) => n.type === 'follow');
             case 'likes':
-                return validatedNotifications.filter((n: any) => n.type === 'like' || n.type === 'repost' || n.type === 'quote');
+                return validatedNotifications.filter((n: any) => n.type === 'like' || n.type === 'boost' || n.type === 'quote');
             case 'posts':
                 return validatedNotifications.filter((n: any) => n.type === 'post');
             case 'pokes':
@@ -285,7 +285,7 @@ const NotificationsScreen: React.FC = () => {
             case 'likes':
                 return {
                     title: t('notification.empty.likes.title', { defaultValue: 'No likes yet' }),
-                    subtitle: t('notification.empty.likes.subtitle', { defaultValue: 'When someone likes or reposts your content, it will appear here.' }),
+                    subtitle: t('notification.empty.likes.subtitle', { defaultValue: 'When someone likes or boosts your content, it will appear here.' }),
                     icon: <Ionicons name="heart-outline" size={36} color={iconColor} />,
                     iconBg,
                 };

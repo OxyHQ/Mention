@@ -502,7 +502,7 @@ class FederationService {
           status: 'published',
           stats: {
             likesCount: typeof note.likes === 'object' ? (note.likes?.totalItems ?? 0) : 0,
-            repostsCount: typeof note.shares === 'object' ? (note.shares?.totalItems ?? 0) : 0,
+            boostsCount: typeof note.shares === 'object' ? (note.shares?.totalItems ?? 0) : 0,
             commentsCount: typeof note.replies === 'object' ? (note.replies?.totalItems ?? 0) : 0,
             viewsCount: 0,
             sharesCount: 0,
@@ -1110,8 +1110,8 @@ class FederationService {
       const announcedId = typeof object.object === 'string' ? object.object : object.object?.id;
       if (announcedId) {
         await Post.updateOne(
-          { 'federation.activityId': announcedId, 'stats.repostsCount': { $gt: 0 } },
-          { $inc: { 'stats.repostsCount': -1 } },
+          { 'federation.activityId': announcedId, 'stats.boostsCount': { $gt: 0 } },
+          { $inc: { 'stats.boostsCount': -1 } },
         );
         logger.debug(`Undo announce from ${actorUri} on ${announcedId}`);
       }
@@ -1211,10 +1211,10 @@ class FederationService {
     const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     if (!objectId) return;
 
-    // Increment repost count on the original post
+    // Increment boost count on the original post
     await Post.updateOne(
       { 'federation.activityId': objectId },
-      { $inc: { 'stats.repostsCount': 1 } },
+      { $inc: { 'stats.boostsCount': 1 } },
     );
   }
 

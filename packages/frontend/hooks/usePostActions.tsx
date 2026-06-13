@@ -109,7 +109,7 @@ export function usePostActions({
                     removePostEverywhere(postId);
                 } else {
                     const store = usePostsStore.getState();
-                    const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'];
+                    const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'boosts', 'likes', 'saved', 'for_you', 'following'];
                     types.forEach((feedType) => {
                         try { store.removePostLocally(postId, feedType); } catch (e) { logger.warn(`Failed to remove post from ${feedType} feed`); }
                     });

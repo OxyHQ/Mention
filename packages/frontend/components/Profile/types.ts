@@ -9,7 +9,7 @@ import type { ProfileData } from '@/hooks/useProfileData';
 import type { useAuth } from '@oxyhq/services';
 
 // Tab configuration
-export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'reposts', 'feeds', 'starter_packs', 'lists'] as const;
+export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'feeds', 'starter_packs', 'lists'] as const;
 export type ProfileTab = typeof TAB_NAMES[number];
 
 // Bottom sheet open helper from useAuth().showBottomSheet
@@ -79,9 +79,13 @@ export interface ProfileStatsProps {
   followingCount: number;
   followerCount: number;
   postsCount: number;
+  boostsCount: number;
+  repliesCount: number;
   profileUsername?: string;
   username: string;
   onPostsPress: () => void;
+  onBoostsPress: () => void;
+  onRepliesPress: () => void;
 }
 
 // Profile actions props
@@ -149,6 +153,8 @@ export interface ProfileContentProps {
   FollowButtonComponent: FollowButtonComponent;
   showBottomSheet?: ShowBottomSheetFn;
   onPostsPress: () => void;
+  onBoostsPress: () => void;
+  onRepliesPress: () => void;
   onLayout?: (height: number) => void;
 }
 

@@ -197,7 +197,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         'pushEnabled',
         'emailEnabled',
         'likes',
-        'reposts',
+        'boosts',
         'follows',
         'mentions',
         'replies',

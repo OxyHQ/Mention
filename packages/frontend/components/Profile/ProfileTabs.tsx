@@ -132,7 +132,7 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Unified feed for posts, replies, likes, reposts — works for both native and federated
+  // Unified feed for posts, replies, likes, boosts — works for both native and federated
   return (
     <View>
       {/* Pinned post - only show on posts tab */}

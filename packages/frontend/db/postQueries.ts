@@ -17,10 +17,10 @@ const UPSERT_POST_SQL = `
   INSERT OR REPLACE INTO posts (
     id, user_id, type, parent_post_id, original_post_id, quoted_post_id,
     content_json, attachments_json, link_preview_json, permissions_json,
-    repost_json, context_json, user_json,
-    likes_count, downvotes_count, reposts_count, replies_count,
+    boost_json, context_json, user_json,
+    likes_count, downvotes_count, boosts_count, replies_count,
     saves_count, views_count, impressions_count,
-    is_liked, is_downvoted, is_reposted, is_saved, is_owner,
+    is_liked, is_downvoted, is_boosted, is_saved, is_owner,
     visibility, created_at, updated_at, fetched_at, raw_json
   ) VALUES (
     ?, ?, ?, ?, ?, ?,
@@ -49,10 +49,10 @@ export function upsertPost(post: FeedItem | any): void {
     UPSERT_POST_SQL,
     row.id, row.user_id, row.type, row.parent_post_id, row.original_post_id, row.quoted_post_id,
     row.content_json, row.attachments_json, row.link_preview_json, row.permissions_json,
-    row.repost_json, row.context_json, row.user_json,
-    row.likes_count, row.downvotes_count, row.reposts_count, row.replies_count,
+    row.boost_json, row.context_json, row.user_json,
+    row.likes_count, row.downvotes_count, row.boosts_count, row.replies_count,
     row.saves_count, row.views_count, row.impressions_count,
-    row.is_liked, row.is_downvoted, row.is_reposted, row.is_saved, row.is_owner,
+    row.is_liked, row.is_downvoted, row.is_boosted, row.is_saved, row.is_owner,
     row.visibility, row.created_at, row.updated_at, row.fetched_at, row.raw_json
   );
 }
@@ -76,10 +76,10 @@ export function upsertPosts(posts: (FeedItem | any)[]): void {
         UPSERT_POST_SQL,
         row.id, row.user_id, row.type, row.parent_post_id, row.original_post_id, row.quoted_post_id,
         row.content_json, row.attachments_json, row.link_preview_json, row.permissions_json,
-        row.repost_json, row.context_json, row.user_json,
-        row.likes_count, row.downvotes_count, row.reposts_count, row.replies_count,
+        row.boost_json, row.context_json, row.user_json,
+        row.likes_count, row.downvotes_count, row.boosts_count, row.replies_count,
         row.saves_count, row.views_count, row.impressions_count,
-        row.is_liked, row.is_downvoted, row.is_reposted, row.is_saved, row.is_owner,
+        row.is_liked, row.is_downvoted, row.is_boosted, row.is_saved, row.is_owner,
         row.visibility, row.created_at, row.updated_at, row.fetched_at, row.raw_json
       );
     }
@@ -142,7 +142,7 @@ export function updateEngagement(
   engagement: {
     likes?: number;
     downvotes?: number;
-    reposts?: number;
+    boosts?: number;
     replies?: number;
     saves?: number;
     views?: number;
@@ -156,7 +156,7 @@ export function updateEngagement(
 
   if (engagement.likes !== undefined) { sets.push('likes_count = ?'); params.push(engagement.likes); }
   if (engagement.downvotes !== undefined) { sets.push('downvotes_count = ?'); params.push(engagement.downvotes); }
-  if (engagement.reposts !== undefined) { sets.push('reposts_count = ?'); params.push(engagement.reposts); }
+  if (engagement.boosts !== undefined) { sets.push('boosts_count = ?'); params.push(engagement.boosts); }
   if (engagement.replies !== undefined) { sets.push('replies_count = ?'); params.push(engagement.replies); }
   if (engagement.saves !== undefined) { sets.push('saves_count = ?'); params.push(engagement.saves); }
   if (engagement.views !== undefined) { sets.push('views_count = ?'); params.push(engagement.views); }
@@ -181,7 +181,7 @@ export function updateViewerState(
   state: {
     isLiked?: boolean;
     isDownvoted?: boolean;
-    isReposted?: boolean;
+    isBoosted?: boolean;
     isSaved?: boolean;
     isOwner?: boolean;
   }
@@ -193,7 +193,7 @@ export function updateViewerState(
 
   if (state.isLiked !== undefined) { sets.push('is_liked = ?'); params.push(state.isLiked ? 1 : 0); }
   if (state.isDownvoted !== undefined) { sets.push('is_downvoted = ?'); params.push(state.isDownvoted ? 1 : 0); }
-  if (state.isReposted !== undefined) { sets.push('is_reposted = ?'); params.push(state.isReposted ? 1 : 0); }
+  if (state.isBoosted !== undefined) { sets.push('is_boosted = ?'); params.push(state.isBoosted ? 1 : 0); }
   if (state.isSaved !== undefined) { sets.push('is_saved = ?'); params.push(state.isSaved ? 1 : 0); }
   if (state.isOwner !== undefined) { sets.push('is_owner = ?'); params.push(state.isOwner ? 1 : 0); }
 
@@ -247,10 +247,10 @@ export function updatePost(
       UPSERT_POST_SQL,
       newRow.id, newRow.user_id, newRow.type, newRow.parent_post_id, newRow.original_post_id, newRow.quoted_post_id,
       newRow.content_json, newRow.attachments_json, newRow.link_preview_json, newRow.permissions_json,
-      newRow.repost_json, newRow.context_json, newRow.user_json,
-      newRow.likes_count, newRow.downvotes_count, newRow.reposts_count, newRow.replies_count,
+      newRow.boost_json, newRow.context_json, newRow.user_json,
+      newRow.likes_count, newRow.downvotes_count, newRow.boosts_count, newRow.replies_count,
       newRow.saves_count, newRow.views_count, newRow.impressions_count,
-      newRow.is_liked, newRow.is_downvoted, newRow.is_reposted, newRow.is_saved, newRow.is_owner,
+      newRow.is_liked, newRow.is_downvoted, newRow.is_boosted, newRow.is_saved, newRow.is_owner,
       newRow.visibility, newRow.created_at, newRow.updated_at, newRow.fetched_at, newRow.raw_json
     );
     db.execSync('COMMIT');

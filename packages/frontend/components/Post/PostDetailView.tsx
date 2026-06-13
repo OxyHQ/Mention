@@ -28,14 +28,14 @@ import { useImageUrl } from '@/hooks/useImageUrl';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostVote } from '@/hooks/usePostVote';
 import { usePostSave } from '@/hooks/usePostSave';
-import { usePostRepost } from '@/hooks/usePostRepost';
+import { usePostBoost } from '@/hooks/usePostBoost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
-import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
+import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { PressableScale } from '@/lib/animations/PressableScale';
@@ -80,8 +80,8 @@ function formatFullTimestamp(dateString: string): string {
     return `${displayHours}:${displayMinutes} ${ampm} \u00B7 ${month} ${day}, ${year}`;
 }
 
-const EMPTY_VIEWER_STATE = { isOwner: false, isLiked: false, isDownvoted: false, isReposted: false, isSaved: false };
-const EMPTY_ENGAGEMENT: PostEngagementSummary = { likes: 0, downvotes: 0, reposts: 0, replies: 0, saves: null, views: null, impressions: null };
+const EMPTY_VIEWER_STATE = { isOwner: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false };
+const EMPTY_ENGAGEMENT: PostEngagementSummary = { likes: 0, downvotes: 0, boosts: 0, replies: 0, saves: null, views: null, impressions: null };
 
 const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) => {
     const { oxyServices } = useAuth();
@@ -104,8 +104,8 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
         return usePostsStore.getState().getPostFromDb(String(postId));
     }, [postId, dataVersion]);
     const rawPost = (storePost ?? post) as PostEntity;
-    // If this is a repost, display the original post as the main content
-    const viewPost = (rawPost?.repost?.originalPost || rawPost?.original || rawPost) as PostEntity;
+    // If this is a boost, display the original post as the main content
+    const viewPost = (rawPost?.boost?.originalPost || rawPost?.original || rawPost) as PostEntity;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
     // Extract all data with safe defaults (hooks must not be conditional)
@@ -119,7 +119,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     const isOwner = viewerState.isOwner ?? false;
     const isLiked = viewerState.isLiked ?? false;
     const isDownvoted = viewerState.isDownvoted ?? false;
-    const isReposted = viewerState.isReposted ?? false;
+    const isBoosted = viewerState.isBoosted ?? false;
     const isSaved = viewerState.isSaved ?? false;
 
     const sourcesList = attachmentsBundle.sources ?? [];
@@ -147,7 +147,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
 
     const nestedPost = useMemo(() => {
         if (!viewPost) return null;
-        if (viewPost.repost?.originalPost) return viewPost.repost.originalPost;
+        if (viewPost.boost?.originalPost) return viewPost.boost.originalPost;
         if (viewPost.original) return viewPost.original;
         if (viewPost.originalPost) return viewPost.originalPost;
         if (viewPost.quoted) return viewPost.quoted;
@@ -187,7 +187,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
     const handleSave = usePostSave(viewPostId, isSaved);
-    const handleRepost = usePostRepost(viewPostId, isReposted);
+    const handleBoost = usePostBoost(viewPostId, isBoosted);
     const handleShare = usePostShare(viewPost);
 
     const closeSourcesSheet = useCallback(() => {
@@ -285,7 +285,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, postActions]);
 
-    const openEngagementList = useCallback((type: 'likes' | 'reposts') => {
+    const openEngagementList = useCallback((type: 'likes' | 'boosts') => {
         if (!viewPostId) return;
         bottomSheet.setBottomSheetContent(
             <EngagementListSheet
@@ -316,14 +316,14 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     }
 
     const replies = engagement.replies ?? 0;
-    const reposts = engagement.reposts ?? 0;
+    const boosts = engagement.boosts ?? 0;
     const likes = engagement.likes ?? 0;
     const downvotes = engagement.downvotes ?? 0;
     const saves = engagement.saves ?? 0;
 
     // Build stats entries for the engagement row
     const statsEntries: { label: string; count: number; onPress?: () => void }[] = [];
-    if (reposts > 0) statsEntries.push({ label: reposts === 1 ? 'repost' : 'reposts', count: reposts, onPress: () => openEngagementList('reposts') });
+    if (boosts > 0) statsEntries.push({ label: boosts === 1 ? 'boost' : 'boosts', count: boosts, onPress: () => openEngagementList('boosts') });
     if (likes > 0) statsEntries.push({ label: likes === 1 ? 'like' : 'likes', count: likes, onPress: () => openEngagementList('likes') });
     if (saves > 0) statsEntries.push({ label: saves === 1 ? 'save' : 'saves', count: saves });
 
@@ -588,28 +588,28 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                         )}
                     </PressableScale>
 
-                    {/* Repost */}
+                    {/* Boost */}
                     <PressableScale
                         className="flex-row items-center"
                         style={{ gap: 6 }}
                         onPress={() => {
                             haptic('Medium');
-                            handleRepost();
+                            handleBoost();
                         }}
                         hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-                        accessibilityLabel={isReposted ? 'Undo repost' : 'Repost'}
+                        accessibilityLabel={isBoosted ? 'Undo boost' : 'Boost'}
                     >
-                        {isReposted ? (
-                            <RepostIconActive size={ICON_SIZE} color={theme.colors.success} />
+                        {isBoosted ? (
+                            <BoostIconActive size={ICON_SIZE} color={theme.colors.success} />
                         ) : (
-                            <RepostIcon size={ICON_SIZE} className="text-muted-foreground" />
+                            <BoostIcon size={ICON_SIZE} className="text-muted-foreground" />
                         )}
-                        {reposts > 0 && (
+                        {boosts > 0 && (
                             <Text
-                                className={isReposted ? "text-[13px]" : "text-[13px] text-muted-foreground"}
-                                style={isReposted ? { color: theme.colors.success } : undefined}
+                                className={isBoosted ? "text-[13px]" : "text-[13px] text-muted-foreground"}
+                                style={isBoosted ? { color: theme.colors.success } : undefined}
                             >
-                                {formatCompactNumber(reposts)}
+                                {formatCompactNumber(boosts)}
                             </Text>
                         )}
                     </PressableScale>

@@ -23,7 +23,7 @@ export interface IPost extends Document {
   tags?: string[];
   mentions?: string[]; // oxyUserIds
   hashtags?: string[];
-  repostOf?: string; // original post id
+  boostOf?: string; // original post id
   quoteOf?: string; // quoted post id
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
@@ -240,7 +240,7 @@ const PostContentSchema = new Schema({
 const PostStatsSchema = new Schema({
   likesCount: { type: Number, default: 0 },
   downvotesCount: { type: Number, default: 0 },
-  repostsCount: { type: Number, default: 0 },
+  boostsCount: { type: Number, default: 0 },
   commentsCount: { type: Number, default: 0 },
   viewsCount: { type: Number, default: 0 },
   sharesCount: { type: Number, default: 0 }
@@ -250,7 +250,7 @@ const PostStatsSchema = new Schema({
 PostStatsSchema.pre('save', function() {
   if (!this.likesCount && this.likesCount !== 0) this.likesCount = 0;
   if (!this.downvotesCount && this.downvotesCount !== 0) this.downvotesCount = 0;
-  if (!this.repostsCount && this.repostsCount !== 0) this.repostsCount = 0;
+  if (!this.boostsCount && this.boostsCount !== 0) this.boostsCount = 0;
   if (!this.commentsCount && this.commentsCount !== 0) this.commentsCount = 0;
   if (!this.viewsCount && this.viewsCount !== 0) this.viewsCount = 0;
   if (!this.sharesCount && this.sharesCount !== 0) this.sharesCount = 0;
@@ -261,7 +261,7 @@ const PostMetadataSchema = new Schema({
   isPinned: { type: Boolean, default: false },
   isSaved: { type: Boolean, default: false },
   isLiked: { type: Boolean, default: false },
-  isReposted: { type: Boolean, default: false },
+  isBoosted: { type: Boolean, default: false },
   isCommented: { type: Boolean, default: false },
   isFollowingAuthor: { type: Boolean, default: false },
   authorBlocked: { type: Boolean, default: false },
@@ -294,7 +294,7 @@ const PostSchema = new Schema<IPost>({
   tags: [{ type: String }],
   mentions: [{ type: String, index: true }],
   hashtags: [{ type: String, index: true }],
-  repostOf: { type: String, index: true },
+  boostOf: { type: String, index: true },
   quoteOf: { type: String, index: true },
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
@@ -317,7 +317,7 @@ const PostSchema = new Schema<IPost>({
     default: () => ({
       likesCount: 0,
       downvotesCount: 0,
-      repostsCount: 0,
+      boostsCount: 0,
       commentsCount: 0,
       viewsCount: 0,
       sharesCount: 0
@@ -411,7 +411,7 @@ PostSchema.index({ hashtags: 1, createdAt: -1 });
 PostSchema.index({ mentions: 1, createdAt: -1 });
 PostSchema.index({ parentPostId: 1, createdAt: -1 });
 PostSchema.index({ threadId: 1, createdAt: -1 });
-PostSchema.index({ repostOf: 1, createdAt: -1 });
+PostSchema.index({ boostOf: 1, createdAt: -1 });
 PostSchema.index({ quoteOf: 1, createdAt: -1 });
 PostSchema.index({ 'content.media': 1, createdAt: -1 });
 PostSchema.index({ createdAt: -1 }); // Default sort order
@@ -439,10 +439,10 @@ PostSchema.index({ oxyUserId: 1, visibility: 1, status: 1, createdAt: -1, _id: 1
 PostSchema.index({ _id: 1, createdAt: -1 });
 
 // Enterprise-grade compound indexes for feed queries
-// For You feed: optimizes queries with visibility + parentPostId + repostOf filters
+// For You feed: optimizes queries with visibility + parentPostId + boostOf filters
 // Note: MongoDB can use this index efficiently even with $or null checks
 PostSchema.index(
-  { visibility: 1, parentPostId: 1, repostOf: 1, createdAt: -1 },
+  { visibility: 1, parentPostId: 1, boostOf: 1, createdAt: -1 },
   { name: 'for_you_feed_idx' }
 );
 
@@ -464,7 +464,7 @@ PostSchema.index(
 // Following feed: optimizes queries for posts from followed users
 // Compound index for oxyUserId + visibility + status + filters + time sorting
 PostSchema.index(
-  { oxyUserId: 1, visibility: 1, status: 1, parentPostId: 1, repostOf: 1, createdAt: -1 },
+  { oxyUserId: 1, visibility: 1, status: 1, parentPostId: 1, boostOf: 1, createdAt: -1 },
   { name: 'following_feed_idx' }
 );
 

@@ -6,7 +6,7 @@ import { Timestamps } from './common';
 
 export enum InteractionType {
   LIKE = 'like',
-  REPOST = 'repost',
+  BOOST = 'boost',
   COMMENT = 'comment',
   SHARE = 'share',
   SAVE = 'save',
@@ -42,12 +42,12 @@ export interface Like {
   createdAt: string;
 }
 
-export interface Repost {
+export interface Boost {
   id: string;
   oxyUserId: string;
   originalPostId: string;
-  comment?: string; // optional comment with repost
-  isQuote: boolean; // true if it's a quote post, false if it's a repost
+  comment?: string; // optional comment with boost
+  isQuote: boolean; // true if it's a quote post, false if it's a boost
   createdAt: string;
 }
 
@@ -71,7 +71,7 @@ export interface Comment {
 export interface CommentStats {
   likesCount: number;
   repliesCount: number;
-  repostsCount: number;
+  boostsCount: number;
 }
 
 export interface CommentMetadata {
@@ -184,7 +184,7 @@ export interface InteractionFilters {
 
 export interface InteractionStats {
   totalLikes: number;
-  totalReposts: number;
+  totalBoosts: number;
   totalComments: number;
   totalShares: number;
   totalSaved: number;

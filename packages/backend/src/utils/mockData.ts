@@ -46,7 +46,7 @@ export interface MockPost {
   hashtags: string[];
   mentions: string[];
   likes: Types.ObjectId[];
-  reposts: Types.ObjectId[];
+  boosts: Types.ObjectId[];
   replies: Types.ObjectId[];
   saved: Types.ObjectId[];
   location?: {
@@ -281,12 +281,12 @@ export function generateMockPost(users: MockUser[]): MockPost {
   
   // Generate engagement
   const likeCount = randomInt(0, 500);
-  const repostCount = randomInt(0, 100);
+  const boostCount = randomInt(0, 100);
   const replyCount = randomInt(0, 50);
   const savedCount = randomInt(0, 200);
-  
+
   const likes = Array.from({ length: likeCount }, () => new Types.ObjectId());
-  const reposts = Array.from({ length: repostCount }, () => new Types.ObjectId());
+  const boosts = Array.from({ length: boostCount }, () => new Types.ObjectId());
   const replies = Array.from({ length: replyCount }, () => new Types.ObjectId());
   const saved = Array.from({ length: savedCount }, () => new Types.ObjectId());
   
@@ -298,7 +298,7 @@ export function generateMockPost(users: MockUser[]): MockPost {
     hashtags,
     mentions,
     likes,
-    reposts,
+    boosts,
     replies,
     saved,
     location: randomBool(0.2) ? {
