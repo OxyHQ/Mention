@@ -35,7 +35,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
-import { ImageResolverProvider } from '@/lib/imageResolver';
+import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
