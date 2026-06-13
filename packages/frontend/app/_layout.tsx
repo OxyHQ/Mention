@@ -34,8 +34,7 @@ import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Platform, useColorScheme as useRNColorScheme, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
-import { BloomThemeProvider, useBloomTheme, webLocalStorage, type BloomThemeStorage } from '@oxyhq/bloom/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BloomThemeProvider, useBloomTheme } from '@oxyhq/bloom/theme';
 import { ImageResolverProvider } from '@/lib/imageResolver';
 
 // Components
@@ -69,16 +68,6 @@ function resolveImageSource(fileId: string): string | undefined {
   return url && url.startsWith('http') ? url : undefined;
 }
 
-// AsyncStorage-backed adapter for Bloom theme persistence on native.
-const asyncStorageAdapter: BloomThemeStorage = {
-  getItem: (key) => AsyncStorage.getItem(key),
-  setItem: (key, value) => AsyncStorage.setItem(key, value),
-};
-
-const themeStorage: BloomThemeStorage | undefined =
-  Platform.OS === 'web' ? webLocalStorage : asyncStorageAdapter;
-
-// Types
 interface SplashState {
   initializationComplete: boolean;
   fadeComplete: boolean;
@@ -151,10 +140,7 @@ export default function RootLayout() {
       <BloomThemeProvider
         defaultMode="system"
         defaultColorPreset="blue"
-        persistKey="mention-theme"
-        storage={themeStorage}
         onFontsLoading={<AppSplashScreen />}
-        onHydrating={<AppSplashScreen />}
       >
         <ThemedRoot
           appIsReady={appIsReady}
