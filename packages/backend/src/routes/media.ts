@@ -1,11 +1,16 @@
 import express, { Request, Response } from 'express';
-import http, { IncomingMessage, IncomingHttpHeaders } from 'node:http';
-import https from 'node:https';
-import { URL } from 'node:url';
+import { IncomingMessage } from 'node:http';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { assertSafePublicUrl } from '../utils/ssrfGuard';
+import {
+  SsrfRejection,
+  UpstreamResult,
+  contentTypeFamily,
+  fetchUpstreamFollowingRedirects,
+} from '../utils/safeUpstreamFetch';
+import { extractPosterFrame } from '../utils/videoPoster';
 
 const router = express.Router();
 
@@ -16,8 +21,6 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 /** Max proxy requests per IP per window. Media-heavy feeds need a high budget. */
 const RATE_LIMIT_MAX = 240;
 
-/** Time to wait for the upstream to send response headers before aborting. */
-const UPSTREAM_HEADERS_TIMEOUT_MS = 10_000;
 /** Idle socket timeout while streaming the body. */
 const UPSTREAM_SOCKET_TIMEOUT_MS = 30_000;
 /**
@@ -29,9 +32,6 @@ const UPSTREAM_SOCKET_TIMEOUT_MS = 30_000;
  */
 const MAX_REQUEST_DURATION_MS = 60_000;
 
-/** Maximum number of HTTP redirects to follow; each hop is re-validated. */
-const MAX_REDIRECTS = 3;
-
 /**
  * Hard cap on a single proxied response body. Applies to the streamed bytes:
  * if an upstream sends more than this we abort the stream. Generous enough for
@@ -42,8 +42,37 @@ const MAX_CONTENT_BYTES = 256 * 1024 * 1024; // 256 MiB
 /** Browser/CDN cache directive for successfully proxied media. */
 const MEDIA_CACHE_CONTROL = 'public, max-age=86400, immutable';
 
-/** User-Agent presented to upstream fediverse CDNs. */
-const PROXY_USER_AGENT = 'MentionMediaProxy/1.0 (+https://mention.earth)';
+// --- Poster endpoint tunables -----------------------------------------------
+
+/**
+ * Max requests per IP per window for the poster endpoint. Lower than the proxy
+ * budget because each request spawns ffmpeg (CPU) and buffers up to
+ * POSTER_MAX_FETCH_BYTES — far more expensive than a passthrough stream.
+ */
+const POSTER_RATE_LIMIT_MAX = 60;
+
+/**
+ * Hard cap on the remote-video PREFIX we download for frame extraction. We only
+ * need enough bytes for ffmpeg to find a keyframe near the start (faststart MP4,
+ * WebM, etc.); we never download the whole video. Bounds memory + bandwidth per
+ * poster request.
+ */
+const POSTER_MAX_FETCH_BYTES = 24 * 1024 * 1024; // 24 MiB
+
+/**
+ * Absolute wall-clock ceiling for a single poster request (fetch + decode). The
+ * upstream-fetch deadline; ffmpeg has its own internal timeout in videoPoster.
+ */
+const POSTER_MAX_REQUEST_DURATION_MS = 20_000;
+
+/** Strong cache directive for a successfully extracted poster frame. */
+const POSTER_CACHE_CONTROL = 'public, max-age=604800, immutable';
+
+/** Content type of the extracted poster frame. */
+const POSTER_CONTENT_TYPE = 'image/jpeg';
+
+/** Upstream content-type family the poster endpoint will accept (video only). */
+const POSTER_REQUIRED_TYPE_PREFIX = 'video/';
 
 /** Media content-type families this proxy is willing to relay. */
 const ALLOWED_CONTENT_TYPE_PREFIXES = ['image/', 'video/', 'audio/'] as const;
@@ -61,9 +90,6 @@ const REJECTED_CONTENT_TYPES: ReadonlySet<string> = new Set(['image/svg+xml']);
  * defense-in-depth alongside the SVG rejection and `X-Content-Type-Options`.
  */
 const MEDIA_CONTENT_DISPOSITION = 'inline';
-
-/** HTTP status codes that indicate a redirect we should follow. */
-const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 const HTTP_STATUS = {
   OK: 200,
@@ -97,139 +123,26 @@ const mediaProxyRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Dedicated store + limiter for the poster endpoint. A distinct Redis prefix is
+// REQUIRED so the poster and proxy limiters don't increment the same key and
+// halve each other's budget (rate-limit-redis double-count). Lower max because
+// each poster request spawns ffmpeg.
+const mediaPosterStore = new RedisStore({
+  prefix: 'rl:media-poster:',
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
+const mediaPosterRateLimiter = rateLimit({
+  store: mediaPosterStore,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: POSTER_RATE_LIMIT_MAX,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip || req.socket.remoteAddress || 'unknown'),
+  message: { error: 'Too many media poster requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // --- Helpers ----------------------------------------------------------------
-
-interface UpstreamResult {
-  response: IncomingMessage;
-  finalUrl: string;
-}
-
-/**
- * Build the request options for a single hop, pinning the TCP connection to the
- * already-validated IP via a custom `lookup`. This closes the DNS-rebind TOCTOU
- * window: the address we validated is exactly the address Node connects to.
- */
-function buildRequestOptions(
-  target: URL,
-  pinnedIp: string,
-  pinnedFamily: 4 | 6,
-  clientRange: string | undefined,
-  conditional: { ifNoneMatch?: string; ifModifiedSince?: string },
-  signal: AbortSignal,
-): https.RequestOptions {
-  const headers: Record<string, string> = {
-    'User-Agent': PROXY_USER_AGENT,
-    Accept: 'image/*,video/*,audio/*,*/*;q=0.8',
-    'Accept-Encoding': 'identity',
-  };
-  if (clientRange) headers.Range = clientRange;
-  if (conditional.ifNoneMatch) headers['If-None-Match'] = conditional.ifNoneMatch;
-  if (conditional.ifModifiedSince) headers['If-Modified-Since'] = conditional.ifModifiedSince;
-
-  return {
-    protocol: target.protocol,
-    hostname: target.hostname,
-    port: target.port || (target.protocol === 'https:' ? 443 : 80),
-    path: `${target.pathname}${target.search}`,
-    method: 'GET',
-    headers,
-    // Aborts the in-flight request when the absolute request deadline fires.
-    signal,
-    // Pin the connection to the validated IP — DNS is NOT re-resolved here.
-    lookup: (
-      _hostname: string,
-      _options: unknown,
-      callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
-    ): void => {
-      callback(null, pinnedIp, pinnedFamily);
-    },
-  };
-}
-
-/** Perform a single upstream GET (no auto-redirect). */
-function fetchOnce(options: https.RequestOptions, isHttps: boolean): Promise<IncomingMessage> {
-  return new Promise<IncomingMessage>((resolve, reject) => {
-    const transport = isHttps ? https : http;
-    const req = transport.request(options, (res) => resolve(res));
-
-    req.setTimeout(UPSTREAM_HEADERS_TIMEOUT_MS, () => {
-      req.destroy(new Error('upstream headers timeout'));
-    });
-    req.on('error', (err) => reject(err));
-    req.end();
-  });
-}
-
-/**
- * Fetch the upstream media, following up to MAX_REDIRECTS redirects and
- * re-running the SSRF check (DNS + IP-range validation) on every hop. Returns
- * the first non-redirect response. Drains and discards redirect-response bodies.
- */
-async function fetchUpstreamFollowingRedirects(
-  initialUrl: string,
-  clientRange: string | undefined,
-  conditional: { ifNoneMatch?: string; ifModifiedSince?: string },
-  signal: AbortSignal,
-): Promise<UpstreamResult> {
-  let currentUrl = initialUrl;
-
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const guard = await assertSafePublicUrl(currentUrl);
-    if (!guard.ok) {
-      throw new SsrfRejection(guard.reason);
-    }
-
-    const target = new URL(currentUrl);
-    const options = buildRequestOptions(target, guard.ip, guard.family, clientRange, conditional, signal);
-    const response = await fetchOnce(options, target.protocol === 'https:');
-
-    const status = response.statusCode ?? 0;
-    if (REDIRECT_STATUS_CODES.has(status)) {
-      const location = response.headers.location;
-      // We only need the Location header. Destroy immediately rather than
-      // draining (resume()) the redirect body, which could be unbounded.
-      response.destroy();
-
-      if (hop === MAX_REDIRECTS) {
-        throw new UpstreamError('too many redirects');
-      }
-      if (!location || typeof location !== 'string') {
-        throw new UpstreamError('redirect without location');
-      }
-      // Resolve relative redirects against the current URL.
-      currentUrl = new URL(location, currentUrl).toString();
-      continue;
-    }
-
-    return { response, finalUrl: currentUrl };
-  }
-
-  // Unreachable: the loop either returns a response or throws.
-  throw new UpstreamError('redirect loop exhausted');
-}
-
-/** Marker error for a blocked SSRF target (maps to 403). */
-class SsrfRejection extends Error {
-  constructor(reason: string) {
-    super(reason);
-    this.name = 'SsrfRejection';
-  }
-}
-
-/** Marker error for a generic upstream failure (maps to 502). */
-class UpstreamError extends Error {
-  constructor(reason: string) {
-    super(reason);
-    this.name = 'UpstreamError';
-  }
-}
-
-/** Extract the bare media type family (strips parameters and casing). */
-function contentTypeFamily(headers: IncomingHttpHeaders): string {
-  const raw = headers['content-type'];
-  if (typeof raw !== 'string') return '';
-  return raw.split(';')[0]?.trim().toLowerCase() ?? '';
-}
 
 function isAllowedMediaType(contentType: string): boolean {
   if (REJECTED_CONTENT_TYPES.has(contentType)) return false;
@@ -264,6 +177,55 @@ function setPublicMediaCors(res: Response): void {
   res.removeHeader('Expires');
 }
 
+/**
+ * Read at most `maxBytes` from an upstream response into a single Buffer. Once
+ * the cap is hit the upstream socket is destroyed (we have enough of the prefix)
+ * — this is intentional for the poster path, where a keyframe lives near the
+ * start of a faststart container and the full video is never needed.
+ *
+ * Rejects on socket idle timeout or stream error. The returned buffer may be
+ * shorter than `maxBytes` (the whole resource was smaller) — that is fine.
+ */
+function readBoundedPrefix(response: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let settled = false;
+
+    const finish = (buf: Buffer): void => {
+      if (settled) return;
+      settled = true;
+      resolve(buf);
+    };
+    const fail = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      if (!response.destroyed) response.destroy();
+      reject(error);
+    };
+
+    response.setTimeout(UPSTREAM_SOCKET_TIMEOUT_MS, () => {
+      fail(new Error('upstream socket idle timeout'));
+    });
+
+    response.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+      total += chunk.length;
+      if (total >= maxBytes) {
+        // Enough of the prefix captured; stop pulling bytes.
+        if (!response.destroyed) response.destroy();
+        finish(Buffer.concat(chunks, Math.min(total, maxBytes)));
+      }
+    });
+    response.on('end', () => finish(Buffer.concat(chunks, total)));
+    response.on('error', (error: Error) => {
+      // A destroy() triggered by hitting the cap surfaces here as an error after
+      // we've already resolved; `settled` guards against rejecting in that case.
+      fail(error);
+    });
+  });
+}
+
 // --- Route ------------------------------------------------------------------
 
 /**
@@ -291,8 +253,8 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     return;
   }
 
-  const clientRange = typeof req.headers.range === 'string' ? req.headers.range : undefined;
-  const conditional = {
+  const extras = {
+    range: typeof req.headers.range === 'string' ? req.headers.range : undefined,
     ifNoneMatch: typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined,
     ifModifiedSince:
       typeof req.headers['if-modified-since'] === 'string' ? req.headers['if-modified-since'] : undefined,
@@ -324,7 +286,7 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
 
   let upstream: UpstreamResult;
   try {
-    upstream = await fetchUpstreamFollowingRedirects(rawUrl, clientRange, conditional, abortController.signal);
+    upstream = await fetchUpstreamFollowingRedirects(rawUrl, extras, abortController.signal);
   } catch (error) {
     // The deadline timer may already have responded (it aborts the in-flight
     // request, which surfaces here as an AbortError); don't double-send.
@@ -438,6 +400,144 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
   });
 
   response.pipe(res);
+});
+
+/**
+ * GET /media/poster?url=<url-encoded absolute http(s) video URL>
+ *
+ * Public, unauthenticated. Returns a single `image/jpeg` frame extracted near
+ * the start of a remote (federated) video so the frontend can show a thumbnail
+ * instead of a black box until the first frame decodes.
+ *
+ * SECURITY: ffmpeg NEVER touches the network. We (1) SSRF-validate the URL and
+ * every redirect hop via `assertSafePublicUrl` with the connection pinned to the
+ * validated IP, (2) download a bounded prefix (POSTER_MAX_FETCH_BYTES) to a temp
+ * file, then (3) run ffmpeg ONLY on that local file with `-protocol_whitelist
+ * file` — so even a crafted container cannot make ffmpeg fetch a URL or read an
+ * arbitrary local path. On any failure (non-video, no decodable frame in the
+ * prefix, ffmpeg error/timeout) we respond 404 so the frontend falls back to a
+ * placeholder.
+ */
+router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response): Promise<void> => {
+  const rawUrl = req.query.url;
+  if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
+    return;
+  }
+
+  // Pre-validate before opening any socket so obviously bad input fails fast.
+  const preCheck = await assertSafePublicUrl(rawUrl);
+  if (!preCheck.ok) {
+    logger.warn('[MediaPoster] Rejected target', { reason: preCheck.reason });
+    res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
+    return;
+  }
+
+  // Absolute request deadline (fetch + decode). Aborts the in-flight upstream
+  // request via the signal; cleared on the single terminal `res` 'close'.
+  const abortController = new AbortController();
+  let activeResponse: IncomingMessage | null = null;
+  const deadlineTimer = setTimeout(() => {
+    logger.warn('[MediaPoster] Aborting request past absolute deadline', {
+      maxMs: POSTER_MAX_REQUEST_DURATION_MS,
+    });
+    abortController.abort();
+    if (activeResponse && !activeResponse.destroyed) activeResponse.destroy();
+    if (!res.headersSent) {
+      res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+    } else if (!res.writableEnded) {
+      res.destroy();
+    }
+  }, POSTER_MAX_REQUEST_DURATION_MS);
+  res.once('close', () => {
+    clearTimeout(deadlineTimer);
+  });
+
+  // --- Fetch the SSRF-validated upstream (redirects re-validated per hop) ---
+  let upstream: UpstreamResult;
+  try {
+    upstream = await fetchUpstreamFollowingRedirects(rawUrl, {}, abortController.signal);
+  } catch (error) {
+    if (res.headersSent || res.writableEnded) {
+      return;
+    }
+    if (error instanceof SsrfRejection) {
+      logger.warn('[MediaPoster] Rejected redirect target', { reason: error.message });
+      res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
+      return;
+    }
+    logger.warn('[MediaPoster] Upstream fetch failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+    return;
+  }
+
+  const { response } = upstream;
+  activeResponse = response;
+  const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
+
+  // Only a 200 with a full body lets us extract a leading frame.
+  if (upstreamStatus !== HTTP_STATUS.OK) {
+    response.resume();
+    logger.warn('[MediaPoster] Upstream returned non-OK status', { status: upstreamStatus });
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+    return;
+  }
+
+  // Require an actual video content type. ffmpeg never sees this URL, but
+  // rejecting non-video up front avoids buffering/decoding unrelated bytes.
+  const family = contentTypeFamily(response.headers);
+  if (!family.startsWith(POSTER_REQUIRED_TYPE_PREFIX)) {
+    response.destroy();
+    logger.warn('[MediaPoster] Upstream is not a video', { contentType: family || 'unknown' });
+    res.status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE).json({ error: 'Upstream is not a video' });
+    return;
+  }
+
+  // --- Buffer a bounded prefix of the video ---
+  let prefix: Buffer;
+  try {
+    prefix = await readBoundedPrefix(response, POSTER_MAX_FETCH_BYTES);
+  } catch (error) {
+    if (res.headersSent || res.writableEnded) {
+      return;
+    }
+    logger.warn('[MediaPoster] Failed to read upstream prefix', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+    return;
+  }
+
+  if (prefix.length === 0) {
+    if (!res.headersSent) res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+    return;
+  }
+
+  // --- Extract one frame with network-sandboxed ffmpeg (local temp file) ---
+  const poster = await extractPosterFrame(prefix);
+
+  if (res.headersSent || res.writableEnded) {
+    // The deadline timer already responded (or the client disconnected).
+    return;
+  }
+
+  if (!poster.ok) {
+    // No decodable frame in the prefix (e.g. non-faststart MP4 with moov at the
+    // end), or ffmpeg failed/timed out — the frontend falls back to a placeholder.
+    logger.warn('[MediaPoster] Frame extraction failed', { reason: poster.reason });
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+    return;
+  }
+
+  res.setHeader('Content-Type', POSTER_CONTENT_TYPE);
+  res.setHeader('Cache-Control', POSTER_CACHE_CONTROL);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
+  res.setHeader('Content-Length', poster.jpeg.length);
+  setPublicMediaCors(res);
+  res.status(HTTP_STATUS.OK).end(poster.jpeg);
 });
 
 export default router;

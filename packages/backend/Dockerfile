@@ -34,6 +34,11 @@ RUN cd packages/backend && bun run build
 FROM oven/bun:1.3.14-alpine AS runtime
 WORKDIR /app
 
+# ffmpeg powers the /media/poster endpoint (extracts a JPEG frame from remote
+# videos). It is run ONLY against a local temp file with networking disabled
+# (-protocol_whitelist file); see src/utils/videoPoster.ts.
+RUN apk add --no-cache ffmpeg
+
 RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S appuser -G appgroup
 
 COPY --from=builder /app/package.json /app/bun.lock ./
