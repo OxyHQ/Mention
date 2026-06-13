@@ -20,7 +20,7 @@ COPY packages/agora/package.json packages/agora/
 # (notably the root postinstall that compiles shared-types) because the
 # source has not been copied yet; shared-types and backend are built
 # explicitly below once their sources are present.
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN bun install --ignore-scripts
 
 # Copy source
 COPY packages/shared-types/ packages/shared-types/
