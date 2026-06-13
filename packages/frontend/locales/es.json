@@ -940,5 +940,8 @@
   "subscribe.aiFeatures": "Funciones avanzadas con inteligencia artificial",
   "subscribe.verifiedBadge": "Insignia de verificación en tu perfil",
   "subscribe.cta": "Suscríbete ahora",
-  "subscribe.premiumFeature": "Función premium — toca para mejorar"
+  "subscribe.premiumFeature": "Función premium — toca para mejorar",
+  "profile.media.empty.title": "Aún no hay contenido multimedia",
+  "profile.media.empty.subtitle": "Las fotos y vídeos que compartas aparecerán aquí.",
+  "profile.videos.empty.title": "Aún no hay vídeos"
 }

@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle } from 'react-native';
+import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -14,6 +15,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import SEO from '@/components/SEO';
@@ -21,12 +23,19 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
-// Constants
+// ── Tuning constants ─────────────────────────────────────────────
+// One-screen vertical pager: keep the live-player window tight so only the
+// active video and its neighbours hold a decoder.
+const FEED_PAGE_LIMIT = 20;
+// Players are live only for the active index ± this radius.
+const ACTIVE_WINDOW_RADIUS = 1;
+// FlatList must keep the window rows mounted (poster) so they can promote to a
+// live player without a remount; WINDOW_SIZE is in screens (one screen = one row).
 const FLATLIST_CONFIG = {
     INITIAL_NUM_TO_RENDER: 2,
     MAX_TO_RENDER_PER_BATCH: 2,
     WINDOW_SIZE: 3,
-    END_REACHED_THRESHOLD: 0.3,
+    END_REACHED_THRESHOLD: 0.4,
 } as const;
 
 const VIEWABILITY_CONFIG = {
@@ -35,7 +44,41 @@ const VIEWABILITY_CONFIG = {
     minimumViewTime: 100,
 } as const;
 
-// Types
+// When a `videos` page yields zero NEW posts but more pages exist, walk forward
+// up to this many extra pages so the reel never dead-ends prematurely.
+const MAX_AUTO_CONTINUE_PAGES = 3;
+
+const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+
+const GRADIENT_COLORS = ['transparent', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)', '#000000'] as const;
+const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
+const LIKE_ACTIVE_COLOR = '#FF3040';
+const BOOST_ACTIVE_COLOR = '#10B981';
+const VERIFIED_COLOR = '#1DA1F2';
+
+// ── Types ────────────────────────────────────────────────────────
+// Runtime media reference. The shared `MediaItem` only declares `id` + `type`,
+// but hydrated/federated posts also carry an absolute `url`, so we type the
+// superset we actually read here.
+interface MediaRef {
+    id?: string;
+    url?: string;
+    type?: 'image' | 'video' | 'gif';
+}
+
+interface RawPost {
+    id?: string;
+    _id?: string;
+    user?: VideoPost['user'];
+    content?: { text?: string; media?: MediaRef[] };
+    videoUrl?: string;
+    stats?: VideoPost['stats'];
+    isLiked?: boolean;
+    isBoosted?: boolean;
+    isSaved?: boolean;
+    createdAt?: string;
+}
+
 interface VideoPost {
     id: string;
     user: {
@@ -47,9 +90,10 @@ interface VideoPost {
     };
     content: {
         text?: string;
-        media?: { id: string; type: 'image' | 'video' }[];
+        media?: MediaRef[];
     };
-    videoUrl?: string;
+    videoUrl: string;
+    posterUrl?: string;
     stats: {
         likesCount: number;
         boostsCount: number;
@@ -62,10 +106,15 @@ interface VideoPost {
     createdAt: string;
 }
 
+interface ViewableItem {
+    index: number | null;
+    isViewable: boolean;
+}
+
 interface VideoItemProps {
     item: VideoPost;
-    index: number;
-    isVisible: boolean;
+    isActive: boolean;
+    isNear: boolean;
     theme: ReturnType<typeof useTheme>;
     onLike: (postId: string, isLiked: boolean) => void;
     onComment: (postId: string) => void;
@@ -79,11 +128,140 @@ interface VideoItemProps {
     windowHeight: number;
 }
 
-// Memoized VideoItem component for performance
+// ── Active player surface ────────────────────────────────────────
+// Mounted ONLY when the row is inside the live-player window. Holds the single
+// `useVideoPlayer` instance (auto-released on unmount), so leaving the window
+// tears the decoder down. A poster sits behind the surface until `readyToPlay`.
+interface ActiveVideoSurfaceProps {
+    videoUrl: string;
+    posterUrl?: string;
+    isActive: boolean;
+    globalMuted: boolean;
+    isMuted: boolean;
+    onMutedChange: (muted: boolean) => void;
+    onError: () => void;
+    t: (key: string) => string;
+    theme: ReturnType<typeof useTheme>;
+}
+
+const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
+    videoUrl,
+    posterUrl,
+    isActive,
+    globalMuted,
+    isMuted,
+    onMutedChange,
+    onError,
+    t,
+    theme,
+}) => {
+    // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
+    // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
+    const [hasRendered, setHasRendered] = useState(false);
+    const [hasError, setHasError] = useState(false);
+
+    const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
+        p.loop = true;
+        // Single source of truth for the initial mute: the global store value
+        // captured at mount. Subsequent changes flow through the sync effect below.
+        p.muted = globalMuted;
+    });
+
+    // Surface readiness + errors so the poster can stay up until first frame and
+    // a hard failure can fall back to the placeholder.
+    useEffect(() => {
+        const sub = player.addListener('statusChange', ({ status: next }) => {
+            if (next === 'readyToPlay') {
+                setHasRendered(true);
+            } else if (next === 'error') {
+                setHasError(true);
+                onError();
+            }
+        });
+        return () => sub.remove();
+    }, [player, onError]);
+
+    // Single place that syncs the live player's mute with the store.
+    useEffect(() => {
+        if (player.muted !== isMuted) {
+            player.muted = isMuted;
+        }
+    }, [player, isMuted]);
+
+    // Play only when this is the active index; otherwise the neighbour is
+    // preloaded but paused. Restarts from the top each time it becomes active.
+    useEffect(() => {
+        if (isActive) {
+            player.currentTime = 0;
+            player.play();
+        } else {
+            player.pause();
+        }
+    }, [player, isActive]);
+
+    const toggleMute = useCallback(() => {
+        const next = !isMuted;
+        onMutedChange(next);
+        player.muted = next;
+        if (!next && isActive) {
+            player.play();
+        }
+    }, [isMuted, isActive, onMutedChange, player]);
+
+    const showPoster = !hasRendered;
+
+    return (
+        <>
+            <VideoView
+                player={player}
+                style={styles.video}
+                contentFit="contain"
+                nativeControls={false}
+                fullscreenOptions={{ enable: false }}
+                allowsPictureInPicture={false}
+            />
+
+            {showPoster && (
+                <View style={styles.posterLayer} className="bg-secondary" pointerEvents="none">
+                    {posterUrl ? (
+                        <Image
+                            source={{ uri: posterUrl }}
+                            style={styles.poster}
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
+                            transition={150}
+                        />
+                    ) : (
+                        <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
+                    )}
+                </View>
+            )}
+
+            <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={HIT_SLOP}>
+                <View style={styles.muteButtonInner}>
+                    <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={22} color="white" />
+                </View>
+            </Pressable>
+
+            {hasError && (
+                <View style={styles.errorBadge} pointerEvents="none">
+                    <Text className="text-xs text-white">{t('videos.unavailable')}</Text>
+                </View>
+            )}
+        </>
+    );
+});
+
+ActiveVideoSurface.displayName = 'ActiveVideoSurface';
+
+// ── Row ──────────────────────────────────────────────────────────
+// Always mounted while inside the FlatList window. The decoder-bearing
+// ActiveVideoSurface is mounted only when `isNear`; otherwise we render the
+// static poster so the row keeps its slot without holding a player.
 const VideoItem = memo<VideoItemProps>(({
     item,
-    index,
-    isVisible,
+    isActive,
+    isNear,
     theme,
     onLike,
     onComment,
@@ -96,127 +274,50 @@ const VideoItem = memo<VideoItemProps>(({
     t,
     windowHeight,
 }) => {
-    const { oxyServices } = useAuth();
     const router = useRouter();
-    const [isMuted, setIsMuted] = useState(globalMuted);
     const [videoError, setVideoError] = useState(false);
 
-    // Create player instance with proper configuration
-    const player = useVideoPlayer(item.videoUrl || '', (player) => {
-        if (player) {
-            player.loop = true;
-            player.muted = globalMuted; // Use global muted state (platform-specific default)
-        }
-    });
+    const handleError = useCallback(() => setVideoError(true), []);
 
-    // Sync with global muted state
-    useEffect(() => {
-        if (player && player.muted !== globalMuted) {
-            player.muted = globalMuted;
-            setIsMuted(globalMuted);
-        }
-    }, [globalMuted, player]);
-
-    // Toggle mute/unmute handler
-    const toggleMute = useCallback(() => {
-        if (!player) return;
-
-        try {
-            const newMutedState = !isMuted;
-            onMuteChange(newMutedState);
-            player.muted = newMutedState;
-            setIsMuted(newMutedState);
-
-            if (!newMutedState && isVisible) {
-                try {
-                    const playResult = player.play() as Promise<void> | void;
-                    if (playResult instanceof Promise) {
-                        playResult.catch(() => {
-                            onMuteChange(true);
-                            player.muted = true;
-                            setIsMuted(true);
-                        });
-                    }
-                } catch (error) {
-                    // Silently handle play errors
-                }
-            }
-        } catch (error) {
-            // Silently handle mute toggle errors
-        }
-    }, [player, isMuted, isVisible, onMuteChange]);
-
-    // Handle play/pause based on visibility
-    useEffect(() => {
-        if (!player || !item.videoUrl) return;
-
-        if (typeof player.play !== 'function' || typeof player.pause !== 'function') {
-            return;
-        }
-
-        const timeoutId = setTimeout(() => {
-            try {
-                if (player.muted !== globalMuted) {
-                    player.muted = globalMuted;
-                    setIsMuted(globalMuted);
-                }
-
-                if (isVisible) {
-                    // Reset video to start when it becomes visible
-                    try {
-                        if (typeof player.currentTime !== 'undefined') {
-                            player.currentTime = 0;
-                        }
-                    } catch (error) {
-                        // Silently handle currentTime reset errors
-                    }
-
-                    const playResult = player.play() as Promise<void> | void;
-                    if (playResult instanceof Promise) {
-                        playResult.catch(() => {
-                            // Autoplay blocked - expected without user interaction
-                        });
-                    }
-                } else {
-                    player.pause();
-                }
-            } catch (error) {
-                // Silently handle play/pause errors
-            }
-        }, isVisible ? 50 : 0);
-
-        return () => clearTimeout(timeoutId);
-    }, [isVisible, player, item.videoUrl, globalMuted]);
-
-    const avatarSource = item.user?.avatar;
-
-    // Memoized user name
     const userName = useMemo(() => item.user?.name || '', [item.user?.name]);
     const userHandle = useMemo(() => item.user?.handle || t('common.unknown'), [item.user?.handle, t]);
     const postText = useMemo(() => item.content?.text?.trim() || '', [item.content?.text]);
 
-    // Navigate to profile with videos tab
     const handleProfilePress = useCallback(() => {
         if (item.user?.handle) {
             router.push(`/@${item.user.handle}/videos`);
         }
     }, [item.user?.handle, router]);
 
+    const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
+
     return (
         <View style={[styles.videoContainer, { height: windowHeight }]}>
-            {item.videoUrl && player && !videoError ? (
-                <VideoView
-                    key={`video-${item.id}-${index}`}
-                    player={player}
-                    style={styles.video}
-                    contentFit="contain"
-                    nativeControls={false}
-                    fullscreenOptions={{ enable: false }}
-                    allowsPictureInPicture={false}
+            {canRenderPlayer ? (
+                <ActiveVideoSurface
+                    videoUrl={item.videoUrl}
+                    posterUrl={item.posterUrl}
+                    isActive={isActive}
+                    globalMuted={globalMuted}
+                    isMuted={globalMuted}
+                    onMutedChange={onMuteChange}
+                    onError={handleError}
+                    t={t}
+                    theme={theme}
                 />
             ) : (
+                // Outside the live window (or errored): no decoder, just a poster.
                 <View style={[styles.video, styles.videoPlaceholder]} className="bg-secondary">
-                    <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
+                    {item.posterUrl ? (
+                        <Image
+                            source={{ uri: item.posterUrl }}
+                            style={styles.poster}
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
+                        />
+                    ) : (
+                        <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
+                    )}
                     {videoError && (
                         <Text className="mt-2 text-xs text-muted-foreground">
                             {t('videos.unavailable')}
@@ -225,24 +326,10 @@ const VideoItem = memo<VideoItemProps>(({
                 </View>
             )}
 
-            <Pressable
-                style={styles.muteButton}
-                onPress={toggleMute}
-                hitSlop={HIT_SLOP}
-            >
-                <View style={styles.muteButtonInner}>
-                    <Ionicons
-                        name={isMuted ? "volume-mute" : "volume-high"}
-                        size={22}
-                        color="white"
-                    />
-                </View>
-            </Pressable>
-
             <View style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]}>
                 <LinearGradient
-                    colors={['transparent', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)', '#000000']}
-                    locations={[0, 0.4, 0.7, 1]}
+                    colors={GRADIENT_COLORS}
+                    locations={GRADIENT_LOCATIONS}
                     style={styles.gradientOverlay}
                 />
 
@@ -250,7 +337,7 @@ const VideoItem = memo<VideoItemProps>(({
                     <View style={styles.userInfo}>
                         <Pressable onPress={handleProfilePress} style={styles.userHeader}>
                             <Avatar
-                                source={avatarSource}
+                                source={item.user?.avatar}
                                 size={40}
                                 verified={item.user?.verified || false}
                                 style={styles.userAvatar}
@@ -261,9 +348,12 @@ const VideoItem = memo<VideoItemProps>(({
                                         {userName}
                                     </Text>
                                     {item.user?.verified && (
-                                        <Ionicons name="checkmark-circle" size={14} color="#1DA1F2" style={styles.verifiedIcon} />
+                                        <Ionicons name="checkmark-circle" size={14} color={VERIFIED_COLOR} style={styles.verifiedIcon} />
                                     )}
                                 </View>
+                                <Text style={styles.userHandle} numberOfLines={1}>
+                                    @{userHandle}
+                                </Text>
                             </View>
                         </Pressable>
                         {postText ? (
@@ -276,10 +366,10 @@ const VideoItem = memo<VideoItemProps>(({
 
                 <View style={styles.rightActions}>
                     <ActionButton
-                        icon={item.isLiked ? "heart" : "heart-outline"}
+                        icon={item.isLiked ? 'heart' : 'heart-outline'}
                         count={item.stats?.likesCount || 0}
                         isActive={item.isLiked}
-                        activeColor="#FF3040"
+                        activeColor={LIKE_ACTIVE_COLOR}
                         onPress={() => onLike(item.id, item.isLiked || false)}
                         formatCompactNumber={formatCompactNumber}
                     />
@@ -290,10 +380,10 @@ const VideoItem = memo<VideoItemProps>(({
                         formatCompactNumber={formatCompactNumber}
                     />
                     <ActionButton
-                        icon={item.isBoosted ? "repeat" : "repeat-outline"}
+                        icon={item.isBoosted ? 'repeat' : 'repeat-outline'}
                         count={item.stats?.boostsCount || 0}
                         isActive={item.isBoosted}
-                        activeColor="#10B981"
+                        activeColor={BOOST_ACTIVE_COLOR}
                         onPress={() => onBoost(item.id, item.isBoosted || false)}
                         formatCompactNumber={formatCompactNumber}
                     />
@@ -312,7 +402,7 @@ const VideoItem = memo<VideoItemProps>(({
 
 VideoItem.displayName = 'VideoItem';
 
-// Memoized ActionButton component
+// ── Action button ────────────────────────────────────────────────
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface ActionButtonProps {
@@ -330,11 +420,11 @@ const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeCol
         <Ionicons
             name={icon}
             size={28}
-            color={isActive && activeColor ? activeColor : "white"}
+            color={isActive && activeColor ? activeColor : 'white'}
             style={styles.actionIcon}
         />
         {!hideCount && (
-            <Text style={[styles.actionCount, isActive && activeColor && { color: activeColor }]}>
+            <Text style={[styles.actionCount, isActive && activeColor ? { color: activeColor } : null]}>
                 {formatCompactNumber(count)}
             </Text>
         )}
@@ -343,23 +433,14 @@ const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeCol
 
 ActionButton.displayName = 'ActionButton';
 
-// Helper function
-const hexToRgb = (hex: string): string => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result
-        ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
-        : '255, 48, 64';
-};
-
-const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
-
+// ── Screen ───────────────────────────────────────────────────────
 export default function VideosScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { height: WINDOW_HEIGHT } = useWindowDimensions();
     const router = useRouter();
-    const params = useLocalSearchParams<{ postId?: string }>();
+    const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
     const { oxyServices } = useAuth();
     const { likePost, unlikePost, boostPost, unboostPost, getPostById } = usePostsStore();
 
@@ -369,108 +450,169 @@ export default function VideosScreen() {
     const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
-    const { isMuted: globalMuted, toggleMuted, loadMutedState } = useVideoMuteStore();
+    const { isMuted: globalMuted, loadMutedState } = useVideoMuteStore();
     const [targetPostId] = useState<string | undefined>(params.postId);
+    const [targetMediaIndex] = useState<number | undefined>(() => {
+        const parsed = Number(params.mediaIndex);
+        return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+    });
 
     const flatListRef = useRef<FlatList<VideoPost>>(null);
 
-    // Memoized bottom bar height
     const bottomBarHeight = useMemo(
         () => Platform.OS === 'web' ? 60 : 60 + insets.bottom,
         [insets.bottom]
     );
 
-    // Memoized filter function
-    const filterVideoPosts = useCallback((allPosts: any[]): VideoPost[] => {
-        return allPosts
-            .filter((post: any) => {
-                const media = post?.content?.media || [];
-                const videoCount = media.filter((m: any) => m?.type === 'video').length;
-                return media.length === 1 && videoCount === 1;
-            })
-            .map((post: any) => {
-                const media = post?.content?.media || [];
-                const videoMedia = media.find((m: any) => m?.type === 'video');
-                let videoUrl: string = videoMedia?.url || videoMedia?.id || '';
-
-                // Absolute (federated) URLs need no resolution; only Oxy file ids do.
-                // If a non-http id can't be resolved (no oxyServices), drop it via the final filter.
-                if (videoUrl && !videoUrl.startsWith('http')) {
-                    videoUrl = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(videoUrl) : '';
-                }
-
-                return { ...post, videoUrl } as VideoPost;
-            })
-            .filter((post: VideoPost) => post.videoUrl && post.videoUrl.trim().length > 0);
+    // Resolve an Oxy/federated reference to a playable absolute URL.
+    const resolveVideoUrl = useCallback((ref: MediaRef): string => {
+        const raw = ref?.url || ref?.id || '';
+        if (!raw) return '';
+        if (raw.startsWith('http')) return raw;
+        return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
     }, [oxyServices]);
 
-    // Fetch specific post by ID
+    // Resolve a static poster (Oxy `thumb` variant) for an Oxy asset id. Federated
+    // absolute URLs have no thumb variant → undefined → neutral placeholder.
+    const resolvePosterUrl = useCallback((ref: MediaRef): string | undefined => {
+        const raw = ref?.id || ref?.url || '';
+        if (!raw || raw.startsWith('http')) return undefined;
+        const resolved = getCachedFileDownloadUrlSync(oxyServices, raw, 'thumb');
+        return resolved && resolved !== raw ? resolved : undefined;
+    }, [oxyServices]);
+
+    // Build a VideoPost from a raw post, selecting the requested video. Posts
+    // that merely CONTAIN a video qualify (multi-video, or a video among images).
+    const toVideoPost = useCallback((post: RawPost, preferredMediaIndex?: number): VideoPost | null => {
+        const media = post?.content?.media || [];
+        if (media.length === 0) return null;
+
+        let selected: MediaRef | undefined;
+        if (
+            preferredMediaIndex !== undefined &&
+            media[preferredMediaIndex]?.type === 'video'
+        ) {
+            selected = media[preferredMediaIndex];
+        } else {
+            selected = media.find((m) => m?.type === 'video');
+        }
+        if (!selected) return null;
+
+        const videoUrl = resolveVideoUrl(selected);
+        if (!videoUrl) return null;
+
+        const id = post?.id || post?._id;
+        if (!id) return null;
+
+        return {
+            ...post,
+            id: String(id),
+            user: post.user as VideoPost['user'],
+            content: post.content || {},
+            stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
+            createdAt: post.createdAt || '',
+            videoUrl,
+            posterUrl: resolvePosterUrl(selected),
+        };
+    }, [resolveVideoUrl, resolvePosterUrl]);
+
+    const filterVideoPosts = useCallback((allPosts: RawPost[]): VideoPost[] => {
+        const out: VideoPost[] = [];
+        for (const post of allPosts) {
+            const vp = toVideoPost(post);
+            if (vp) out.push(vp);
+        }
+        return out;
+    }, [toVideoPost]);
+
+    // Target post — fetched independently of the ranked chain and shown first.
     const fetchPostById = useCallback(async (postId: string): Promise<VideoPost | null> => {
         try {
             const post = await getPostById(postId);
             if (!post) return null;
-            const videoPosts = filterVideoPosts([post]);
-            return videoPosts[0] || null;
+            return toVideoPost(post, targetMediaIndex);
         } catch {
             return null;
         }
-    }, [getPostById, filterVideoPosts]);
+    }, [getPostById, toVideoPost, targetMediaIndex]);
 
-    // Fetch the infinite-scroll feed. Uses the valid `for_you` MTN descriptor
-    // (the old `media` descriptor is not a valid global feed and returns HTTP 400).
-    // The tapped/target post is loaded separately in the initial-load effect, so
-    // this call only narrows for_you down to single-video posts and merges them
-    // in, de-duplicating against whatever is already shown (including the target).
-    const fetchVideos = useCallback(async (cursor?: string): Promise<VideoPost[]> => {
+    // Stable snapshot of currently-shown ids for StrictMode-safe de-dup counting
+    // (the setPosts updater can run twice in dev; we must count deterministically).
+    const shownIdsRef = useRef<Set<string>>(new Set());
+
+    // Infinite-scroll source: the ranked `videos` MTN feed (native + federated,
+    // single AND multi-video). De-dupes against everything already shown and
+    // returns how many NEW posts were appended.
+    const fetchVideos = useCallback(async (cursor?: string): Promise<number> => {
         try {
             const response = await feedService.getFeed({
-                type: 'for_you',
+                type: 'videos',
                 cursor,
-                limit: 20,
+                limit: FEED_PAGE_LIMIT,
             });
 
-            const videoPosts = filterVideoPosts(response.items || []);
+            const videoPosts = filterVideoPosts((response.items || []) as unknown as RawPost[]);
+            const newPosts = videoPosts.filter(p => !shownIdsRef.current.has(p.id));
 
-            setPosts(prev => {
-                const existingIds = new Set(prev.map(p => p.id));
-                const newPosts = videoPosts.filter(p => !existingIds.has(p.id));
-                if (newPosts.length === 0) return prev;
-                return [...prev, ...newPosts];
-            });
+            if (newPosts.length > 0) {
+                newPosts.forEach(p => shownIdsRef.current.add(p.id));
+                setPosts(prev => {
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const toAdd = newPosts.filter(p => !existingIds.has(p.id));
+                    return toAdd.length === 0 ? prev : [...prev, ...toAdd];
+                });
+            }
 
             setHasMore(response.hasMore || false);
             setNextCursor(response.nextCursor);
 
-            return videoPosts;
+            return newPosts.length;
         } catch {
             // A failing feed must never clear the target post; degrade gracefully.
             setHasMore(false);
-            return [];
+            return 0;
         }
     }, [filterVideoPosts]);
 
-    // Initial load. The target post (when present) is fetched independently and
-    // shown FIRST as index 0, so the tapped video always renders even if the
-    // for_you scroll feed fails or contains no single-video posts. The feed then
-    // loads in its own path and merges in, de-duplicating against the target.
+    // Mirror the latest pagination state into a ref so the auto-continue loop
+    // reads fresh values without re-creating the callback each render.
+    const feedCursorRef = useRef<{ hasMore: boolean; nextCursor?: string }>({ hasMore: true, nextCursor: undefined });
+    feedCursorRef.current = { hasMore, nextCursor };
+
+    // Walk forward through `videos` pages until at least one NEW post is added or
+    // the feed is exhausted, so a page of pure duplicates doesn't dead-end the reel.
+    const fetchVideosUntilProgress = useCallback(async (startCursor?: string): Promise<void> => {
+        let cursor = startCursor;
+        let attempts = 0;
+        // The first call always runs; up to MAX_AUTO_CONTINUE_PAGES extra follow-ups.
+        while (attempts <= MAX_AUTO_CONTINUE_PAGES) {
+            const added = await fetchVideos(cursor);
+            if (added > 0) return;
+            const state = feedCursorRef.current;
+            if (!state.hasMore || !state.nextCursor) return;
+            cursor = state.nextCursor;
+            attempts += 1;
+        }
+    }, [fetchVideos]);
+
+    // Initial load. Target first (own try/catch), then the ranked chain.
     useEffect(() => {
         let isMounted = true;
 
         const load = async () => {
             setIsLoading(true);
 
-            // 1. Target post — own try/catch (inside fetchPostById), independent of the feed.
             if (targetPostId) {
                 const targetPost = await fetchPostById(targetPostId);
                 if (!isMounted) return;
                 if (targetPost) {
+                    shownIdsRef.current.add(targetPost.id);
                     setPosts(prev => (prev.some(p => p.id === targetPost.id) ? prev : [targetPost, ...prev]));
                     setCurrentVisibleIndex(0);
                 }
             }
 
-            // 2. Infinite-scroll feed — separate path; a failure here cannot clear the target.
-            await fetchVideos(undefined);
+            await fetchVideosUntilProgress(undefined);
 
             if (!isMounted) return;
             setIsLoading(false);
@@ -481,37 +623,34 @@ export default function VideosScreen() {
         return () => {
             isMounted = false;
         };
-    }, [targetPostId, fetchPostById, fetchVideos]);
+    }, [targetPostId, fetchPostById, fetchVideosUntilProgress]);
 
-    // Load more handler
     const handleLoadMore = useCallback(async () => {
         if (loadingMore || !hasMore || !nextCursor) return;
         setLoadingMore(true);
         try {
-            await fetchVideos(nextCursor);
+            await fetchVideosUntilProgress(nextCursor);
         } finally {
             setLoadingMore(false);
         }
-    }, [fetchVideos, hasMore, nextCursor, loadingMore]);
+    }, [fetchVideosUntilProgress, hasMore, nextCursor, loadingMore]);
 
-    // Viewable items changed handler
-    const handleViewableItemsChangedRef = useRef(({ viewableItems }: any) => {
+    const handleViewableItemsChangedRef = useRef(({ viewableItems }: { viewableItems: ViewableItem[] }) => {
         if (viewableItems?.length > 0) {
-            const mostVisibleItem = viewableItems.find((item: any) => item.isViewable) || viewableItems[0];
+            const mostVisibleItem = viewableItems.find((vi) => vi.isViewable) || viewableItems[0];
             const index = mostVisibleItem?.index;
-            if (index != null && index !== undefined) {
+            if (index != null) {
                 setCurrentVisibleIndex(index);
             }
-        } else if (viewableItems?.length === 0) {
+        } else {
             setCurrentVisibleIndex(-1);
         }
     });
 
-    const handleViewableItemsChanged = useCallback((info: any) => {
+    const handleViewableItemsChanged = useCallback((info: { viewableItems: ViewableItem[] }) => {
         handleViewableItemsChangedRef.current(info);
     }, []);
 
-    // Handlers
     const handleLike = useCallback(async (postId: string, isLiked: boolean) => {
         try {
             if (isLiked) {
@@ -524,7 +663,7 @@ export default function VideosScreen() {
                     ? { ...p, isLiked: !isLiked, stats: { ...p.stats, likesCount: isLiked ? p.stats.likesCount - 1 : p.stats.likesCount + 1 } }
                     : p
             ));
-        } catch (error) {
+        } catch {
             toast(t('common.error'), { type: 'error' });
         }
     }, [likePost, unlikePost, t]);
@@ -545,7 +684,7 @@ export default function VideosScreen() {
                     ? { ...p, isBoosted: !isBoosted, stats: { ...p.stats, boostsCount: isBoosted ? p.stats.boostsCount - 1 : p.stats.boostsCount + 1 } }
                     : p
             ));
-        } catch (error) {
+        } catch {
             toast(t('common.error'), { type: 'error' });
         }
     }, [boostPost, unboostPost, t]);
@@ -554,8 +693,8 @@ export default function VideosScreen() {
         try {
             const postUrl = `https://mention.earth/p/${post.id}`;
             const contentText = post?.content?.text || '';
-            const user = post?.user || {};
-            const name = typeof user.name === 'string' ? user.name : user.name || user.handle || t('common.someone');
+            const user = post?.user || ({} as VideoPost['user']);
+            const name = user.name || user.handle || t('common.someone');
             const handle = user.handle || '';
             const shareMessage = contentText
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
@@ -565,11 +704,7 @@ export default function VideosScreen() {
 
             if (Platform.OS === 'web') {
                 if (navigator.share) {
-                    await navigator.share({
-                        title: shareTitle,
-                        text: shareMessage,
-                        url: postUrl,
-                    });
+                    await navigator.share({ title: shareTitle, text: shareMessage, url: postUrl });
                 } else if (navigator.clipboard) {
                     await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
                     toast(t('videos.link_copied'), { type: 'success' });
@@ -577,39 +712,31 @@ export default function VideosScreen() {
                     toast(t('videos.sharing_not_available'), { type: 'error' });
                 }
             } else {
-                await Share.share({
-                    message: `${shareMessage}\n\n${postUrl}`,
-                    url: postUrl,
-                    title: shareTitle,
-                });
+                await Share.share({ message: `${shareMessage}\n\n${postUrl}`, url: postUrl, title: shareTitle });
             }
-        } catch (error: any) {
-            if (error?.message !== 'User did not share' && error?.code !== 'ERR_SHARE_CANCELLED') {
+        } catch (error) {
+            const err = error as { message?: string; code?: string };
+            if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
                 toast(t('videos.share_failed'), { type: 'error' });
             }
         }
     }, [t]);
 
-
     const handleMuteChange = useCallback((muted: boolean) => {
         useVideoMuteStore.getState().setMuted(muted);
     }, []);
 
-    // Back affordance: pop the stack if there's history, otherwise fall back to the
-    // feed so the user is never stranded (e.g. opened via a direct/shared link on web).
     const handleBack = useSafeBack();
 
-    // Load muted state on mount
     useEffect(() => {
         loadMutedState();
     }, [loadMutedState]);
 
-    // Memoized render item
     const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => (
         <VideoItem
             item={item}
-            index={index}
-            isVisible={index === currentVisibleIndex}
+            isActive={index === currentVisibleIndex}
+            isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS}
             theme={theme}
             onLike={handleLike}
             onComment={handleComment}
@@ -622,40 +749,15 @@ export default function VideosScreen() {
             t={t}
             windowHeight={WINDOW_HEIGHT}
         />
-    ), [currentVisibleIndex, theme, handleLike, handleComment, handleBoost, handleShare, formatCompactNumber, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
+    ), [currentVisibleIndex, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
-    // Memoized getItemLayout
-    const getItemLayout = useCallback((_: any, index: number) => ({
+    const getItemLayout = useCallback((_: ArrayLike<VideoPost> | null | undefined, index: number) => ({
         length: WINDOW_HEIGHT,
         offset: WINDOW_HEIGHT * index,
         index,
     }), [WINDOW_HEIGHT]);
-
-    // Memoized onMomentumScrollEnd
-    const onMomentumScrollEnd = useCallback((event: any) => {
-        const offsetY = event.nativeEvent.contentOffset.y;
-        const index = Math.round(offsetY / WINDOW_HEIGHT);
-        if (flatListRef.current && index >= 0 && index < posts.length) {
-            try {
-                flatListRef.current.scrollToIndex({
-                    index,
-                    animated: true,
-                    viewPosition: 0,
-                });
-            } catch {
-                try {
-                    flatListRef.current.scrollToOffset({
-                        offset: index * WINDOW_HEIGHT,
-                        animated: true,
-                    });
-                } catch {
-                    // Ignore scroll errors
-                }
-            }
-        }
-    }, [posts.length, WINDOW_HEIGHT]);
 
     return (
         <>
@@ -682,52 +784,51 @@ export default function VideosScreen() {
                     </View>
                 )}
 
-            {posts.length > 0 && (
-                <FlatList
-                    ref={flatListRef}
-                    data={posts}
-                    renderItem={renderVideoItem}
-                    keyExtractor={keyExtractor}
-                    pagingEnabled
-                    snapToInterval={WINDOW_HEIGHT}
-                    snapToAlignment="start"
-                    decelerationRate={0.85}
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
-                    onViewableItemsChanged={handleViewableItemsChanged}
-                    viewabilityConfig={VIEWABILITY_CONFIG}
-                    showsVerticalScrollIndicator={false}
-                    removeClippedSubviews
-                    maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
-                    windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
-                    initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
-                    style={styles.list}
-                    contentContainerStyle={styles.listContent}
-                    contentInsetAdjustmentBehavior="never"
-                    getItemLayout={getItemLayout}
-                    onMomentumScrollEnd={onMomentumScrollEnd}
-                />
-            )}
+                {posts.length > 0 && (
+                    <FlatList
+                        ref={flatListRef}
+                        data={posts}
+                        renderItem={renderVideoItem}
+                        keyExtractor={keyExtractor}
+                        pagingEnabled
+                        snapToInterval={WINDOW_HEIGHT}
+                        snapToAlignment="start"
+                        decelerationRate="fast"
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
+                        onViewableItemsChanged={handleViewableItemsChanged}
+                        viewabilityConfig={VIEWABILITY_CONFIG}
+                        showsVerticalScrollIndicator={false}
+                        removeClippedSubviews
+                        maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
+                        windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
+                        initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
+                        style={styles.list}
+                        contentContainerStyle={styles.listContent}
+                        contentInsetAdjustmentBehavior="never"
+                        getItemLayout={getItemLayout}
+                    />
+                )}
 
-            {!isLoading && posts.length === 0 && (
-                <EmptyState
-                    title={t('videos.no_video_posts_yet')}
-                    subtitle={t('videos.no_posts_found')}
-                    customIcon={<Video size={48} className="text-muted-foreground" />}
-                    containerStyle={styles.emptyState}
-                />
-            )}
+                {!isLoading && posts.length === 0 && (
+                    <EmptyState
+                        title={t('videos.no_video_posts_yet')}
+                        subtitle={t('videos.no_posts_found')}
+                        customIcon={<Video size={48} className="text-muted-foreground" />}
+                        containerStyle={styles.emptyState}
+                    />
+                )}
 
-            {loadingMore && (
-                <View style={styles.loadingMore}>
-                    <View style={styles.loadingIndicator}>
-                        <Text className="text-sm font-semibold text-muted-foreground">
-                            {t('videos.loading')}
-                        </Text>
+                {loadingMore && (
+                    <View style={styles.loadingMore}>
+                        <View style={styles.loadingIndicator}>
+                            <Text className="text-sm font-semibold text-muted-foreground">
+                                {t('videos.loading')}
+                            </Text>
+                        </View>
                     </View>
-                </View>
-            )}
-        </ThemedView>
+                )}
+            </ThemedView>
         </>
     );
 }
@@ -758,6 +859,9 @@ interface VideosStyles {
     videoContainer: ViewStyle;
     video: ViewStyle;
     videoPlaceholder: ViewStyle;
+    posterLayer: ViewStyle;
+    poster: ImageStyle;
+    errorBadge: ViewStyle;
     backButton: ViewStyle;
     backButtonInner: ViewStyle;
     muteButton: ViewStyle;
@@ -819,6 +923,26 @@ const styles = StyleSheet.create<VideosStyles>({
     videoPlaceholder: {
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    posterLayer: {
+        ...StyleSheet.absoluteFill,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+    },
+    poster: {
+        width: '100%',
+        height: '100%',
+    },
+    errorBadge: {
+        position: 'absolute',
+        top: 60,
+        alignSelf: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        zIndex: 11,
     },
     backButton: {
         position: 'absolute',

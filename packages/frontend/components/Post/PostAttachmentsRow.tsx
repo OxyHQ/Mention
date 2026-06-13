@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
-import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, ViewStyle, StyleProp } from 'react-native';
+import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, ViewStyle } from 'react-native';
 import { useAuth } from '@oxyhq/services';
 import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
@@ -231,16 +231,18 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     items.filter((item): item is Extract<Item, { type: 'image' | 'video' }> => item.type === 'image' || item.type === 'video'),
     [items]);
 
-  const videoItems = useMemo(() => mediaItems.filter(item => item.type === 'video'), [mediaItems]);
-  const hasSingleVideo = videoItems.length === 1 && mediaItems.length === 1;
   const hasMultipleMedia = mediaItems.length > 1;
   const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested');
 
-  const handleVideoPress = useCallback(() => {
-    if (postId && hasSingleVideo) {
-      router.push(`/videos?postId=${postId}`);
-    }
-  }, [postId, hasSingleVideo, router]);
+  // Open the fullscreen reels viewer seeded at the tapped video. The reels route
+  // selects the correct media item via the `mediaIndex` query param, so a post
+  // containing several videos (or a video among images) opens at the right one.
+  const handleVideoPress = useCallback((mediaId: string) => {
+    if (!postId) return;
+    const mediaIndex = mediaArray.findIndex(m => String(m?.id) === String(mediaId));
+    const query = mediaIndex >= 0 ? `?postId=${postId}&mediaIndex=${mediaIndex}` : `?postId=${postId}`;
+    router.push(`/videos${query}`);
+  }, [postId, mediaArray, router]);
 
   const screenWidth = Dimensions.get('window').width;
   const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
@@ -409,7 +411,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               src={item.src}
               mediaId={item.mediaId}
               postId={postId}
-              onPress={item.type === 'video' && hasSingleVideo ? handleVideoPress : undefined}
+              onPress={item.type === 'video' ? () => handleVideoPress(item.mediaId) : undefined}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
             />

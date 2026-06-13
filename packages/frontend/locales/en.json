@@ -916,5 +916,8 @@
     "subscribe.aiFeatures": "Advanced AI-powered features",
     "subscribe.verifiedBadge": "Verified badge on your profile",
     "subscribe.cta": "Subscribe Now",
-    "subscribe.premiumFeature": "Premium feature — tap to upgrade"
+    "subscribe.premiumFeature": "Premium feature — tap to upgrade",
+    "profile.media.empty.title": "No media posts yet",
+    "profile.media.empty.subtitle": "Photos and videos you share will appear here.",
+    "profile.videos.empty.title": "No videos yet"
 }
