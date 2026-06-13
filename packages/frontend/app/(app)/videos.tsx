@@ -371,7 +371,6 @@ export default function VideosScreen() {
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
     const { isMuted: globalMuted, toggleMuted, loadMutedState } = useVideoMuteStore();
     const [targetPostId] = useState<string | undefined>(params.postId);
-    const [hasScrolledToTarget, setHasScrolledToTarget] = useState(false);
 
     const flatListRef = useRef<FlatList<VideoPost>>(null);
 
@@ -417,114 +416,63 @@ export default function VideosScreen() {
         }
     }, [getPostById, filterVideoPosts]);
 
-    // Fetch videos
-    const fetchVideos = useCallback(async (cursor?: string, prependTarget?: boolean) => {
+    // Fetch the infinite-scroll feed. Uses the valid `for_you` MTN descriptor
+    // (the old `media` descriptor is not a valid global feed and returns HTTP 400).
+    // The tapped/target post is loaded separately in the initial-load effect, so
+    // this call only narrows for_you down to single-video posts and merges them
+    // in, de-duplicating against whatever is already shown (including the target).
+    const fetchVideos = useCallback(async (cursor?: string): Promise<VideoPost[]> => {
         try {
             const response = await feedService.getFeed({
-                type: 'media',
+                type: 'for_you',
                 cursor,
                 limit: 20,
             });
 
             const videoPosts = filterVideoPosts(response.items || []);
 
-            if (cursor) {
-                setPosts(prev => {
-                    const existingIds = new Set(prev.map(p => p.id));
-                    const newPosts = videoPosts.filter(p => !existingIds.has(p.id));
-                    return [...prev, ...newPosts];
-                });
-            } else {
-                let postsToSet = videoPosts;
-
-                if (targetPostId && !hasScrolledToTarget && prependTarget) {
-                    const targetPost = await fetchPostById(targetPostId);
-                    if (targetPost && !videoPosts.some(p => p.id === targetPostId)) {
-                        postsToSet = [targetPost, ...videoPosts];
-                    }
-                }
-
-                setPosts(postsToSet);
-            }
+            setPosts(prev => {
+                const existingIds = new Set(prev.map(p => p.id));
+                const newPosts = videoPosts.filter(p => !existingIds.has(p.id));
+                if (newPosts.length === 0) return prev;
+                return [...prev, ...newPosts];
+            });
 
             setHasMore(response.hasMore || false);
             setNextCursor(response.nextCursor);
 
             return videoPosts;
         } catch {
+            // A failing feed must never clear the target post; degrade gracefully.
+            setHasMore(false);
             return [];
         }
-    }, [filterVideoPosts, targetPostId, hasScrolledToTarget, fetchPostById]);
+    }, [filterVideoPosts]);
 
-    // Initial load
+    // Initial load. The target post (when present) is fetched independently and
+    // shown FIRST as index 0, so the tapped video always renders even if the
+    // for_you scroll feed fails or contains no single-video posts. The feed then
+    // loads in its own path and merges in, de-duplicating against the target.
     useEffect(() => {
         let isMounted = true;
 
         const load = async () => {
             setIsLoading(true);
-            const videoPosts = await fetchVideos(undefined, !!targetPostId);
 
-            if (!isMounted) return;
-
-            if (targetPostId && !hasScrolledToTarget && videoPosts.length > 0) {
-                setTimeout(() => {
-                    if (!isMounted) return;
-                    setPosts(currentPosts => {
-                        const targetIndex = currentPosts.findIndex(p => p.id === targetPostId);
-
-                        if (targetIndex >= 0 && flatListRef.current) {
-                            setTimeout(() => {
-                                try {
-                                    flatListRef.current?.scrollToIndex({
-                                        index: targetIndex,
-                                        animated: false,
-                                        viewPosition: 0,
-                                    });
-                                    setCurrentVisibleIndex(targetIndex);
-                                    setHasScrolledToTarget(true);
-                                } catch {
-                                    try {
-                                        flatListRef.current?.scrollToOffset({
-                                            offset: targetIndex * WINDOW_HEIGHT,
-                                            animated: false,
-                                        });
-                                        setCurrentVisibleIndex(targetIndex);
-                                        setHasScrolledToTarget(true);
-                                    } catch {
-                                        // Failed to scroll
-                                    }
-                                }
-                            }, 200);
-                        } else if (targetIndex < 0) {
-                            fetchPostById(targetPostId).then(targetPost => {
-                                if (!isMounted || !targetPost) return;
-                                setPosts(prev => {
-                                    if (prev.some(p => p.id === targetPostId)) return prev;
-                                    const newPosts = [targetPost, ...prev];
-                                    setTimeout(() => {
-                                        try {
-                                            flatListRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
-                                            setCurrentVisibleIndex(0);
-                                            setHasScrolledToTarget(true);
-                                        } catch {
-                                            try {
-                                                flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-                                                setCurrentVisibleIndex(0);
-                                                setHasScrolledToTarget(true);
-                                            } catch {
-                                                // Failed to scroll
-                                            }
-                                        }
-                                    }, 200);
-                                    return newPosts;
-                                });
-                            });
-                        }
-                        return currentPosts;
-                    });
-                }, 100);
+            // 1. Target post — own try/catch (inside fetchPostById), independent of the feed.
+            if (targetPostId) {
+                const targetPost = await fetchPostById(targetPostId);
+                if (!isMounted) return;
+                if (targetPost) {
+                    setPosts(prev => (prev.some(p => p.id === targetPost.id) ? prev : [targetPost, ...prev]));
+                    setCurrentVisibleIndex(0);
+                }
             }
 
+            // 2. Infinite-scroll feed — separate path; a failure here cannot clear the target.
+            await fetchVideos(undefined);
+
+            if (!isMounted) return;
             setIsLoading(false);
         };
 
@@ -533,14 +481,14 @@ export default function VideosScreen() {
         return () => {
             isMounted = false;
         };
-    }, [targetPostId, hasScrolledToTarget, fetchPostById, fetchVideos, WINDOW_HEIGHT]);
+    }, [targetPostId, fetchPostById, fetchVideos]);
 
     // Load more handler
     const handleLoadMore = useCallback(async () => {
         if (loadingMore || !hasMore || !nextCursor) return;
         setLoadingMore(true);
         try {
-            await fetchVideos(nextCursor, false);
+            await fetchVideos(nextCursor);
         } finally {
             setLoadingMore(false);
         }
