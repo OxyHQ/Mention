@@ -7,7 +7,9 @@ import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
-import { useUsersStore, useUserById } from '@/stores/usersStore';
+import { useUserById } from '@/hooks/useCachedUser';
+import { queryClient } from '@/lib/queryClient';
+import { precacheProfileViews } from '@/lib/precacheProfiles';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { useTheme } from '@oxyhq/bloom/theme';
 import LegendList from '@/components/LegendList';
@@ -103,11 +105,9 @@ export function WhoToFollowTab() {
       const users = Array.isArray(response) ? response : [];
       setRecommendations(users);
       if (users.length > 0) {
-        try {
-          useUsersStore.getState().upsertMany(users as any);
-        } catch { }
+        precacheProfileViews(queryClient, users);
         // Fire-and-forget: avatars fill in reactively via useUserById
-        void enrichMissingAvatars(users, (id) => oxyServices.getUserById(id));
+        void enrichMissingAvatars(users, (id) => oxyServices.getUserById(id), queryClient);
       }
     } catch (err: unknown) {
       let errorMessage = 'Failed to fetch recommendations';

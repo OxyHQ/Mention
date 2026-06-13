@@ -1,8 +1,10 @@
 import { useCallback } from 'react';
 import { Share, Platform } from 'react-native';
+import { queryKeys } from '@oxyhq/services';
+import type { User } from '@oxyhq/core';
 import { logger } from '@/lib/logger';
 import { show as toast } from '@oxyhq/bloom/toast';
-import { useUsersStore } from '@/stores/usersStore';
+import { queryClient } from '@/lib/queryClient';
 
 interface SharePostUser {
     id?: string;
@@ -45,7 +47,8 @@ export function usePostShare(post: SharePost | null | undefined) {
             let handle = user.handle || user.username || '';
             if (!handle && id) {
                 try {
-                    handle = useUsersStore.getState().getCachedById(id)?.username || '';
+                    const cached = queryClient.getQueryData<User>(queryKeys.users.detail(id));
+                    handle = cached?.username || '';
                 } catch (lookupError) {
                     logger.debug('User lookup failed during share', { error: lookupError });
                 }

@@ -14,7 +14,8 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
-import { useUsersStore } from '@/stores/usersStore';
+import { queryClient } from '@/lib/queryClient';
+import { precacheProfileViews } from '@/lib/precacheProfiles';
 import { useTheme } from '@oxyhq/bloom/theme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useAuth } from '@oxyhq/services';
@@ -83,7 +84,7 @@ export default function ConnectionsScreen() {
           ? followersList
           : [];
       setFollowers(list);
-      try { useUsersStore.getState().upsertMany(list as any); } catch {}
+      precacheProfileViews(queryClient, list);
     } catch (err) {
       const message = err instanceof globalThis.Error ? err.message : 'Failed to load followers';
       setError(message);
@@ -104,7 +105,7 @@ export default function ConnectionsScreen() {
           ? followingList
           : [];
       setFollowing(list);
-      try { useUsersStore.getState().upsertMany(list as any); } catch {}
+      precacheProfileViews(queryClient, list);
     } catch (err) {
       const message = err instanceof globalThis.Error ? err.message : 'Failed to load following';
       setError(message);
@@ -119,11 +120,7 @@ export default function ConnectionsScreen() {
       const response = await oxyServices.getProfileRecommendations();
       const recommendationsList = Array.isArray(response) ? response : [];
       setRecommendations(recommendationsList);
-      try {
-        if (recommendationsList.length) {
-          useUsersStore.getState().upsertMany(recommendationsList as any);
-        }
-      } catch {}
+      precacheProfileViews(queryClient, recommendationsList);
     } catch (err) {
       const message = err instanceof globalThis.Error ? err.message : 'Failed to load recommendations';
       setError(message);
@@ -149,7 +146,7 @@ export default function ConnectionsScreen() {
 
   // Depend on profileData?.id (primitive) instead of profileData (object reference)
   // to avoid re-fetching when the profile object is re-created with identical content
-  // (e.g. after upsertMany updates the users store with the same data).
+  // (e.g. after the actor cache is primed with the same data).
   const profileId = profileData?.id;
   useEffect(() => {
     if (profileId || activeTab === 'who-may-know') {

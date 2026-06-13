@@ -13,8 +13,9 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
 import { useFocusEffect } from 'expo-router';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
-import type { UserEntity } from '@/stores/usersStore';
+import { useAuth, OxyAuthPrompt, queryKeys } from '@oxyhq/services';
+import type { User } from '@oxyhq/core';
+import { queryClient } from '@/lib/queryClient';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
@@ -33,10 +34,10 @@ interface RestrictedUser {
 }
 
 interface OxyProfileService {
-    getProfileById?: (id: string) => Promise<UserEntity | null | undefined>;
-    getProfile?: (id: string) => Promise<UserEntity | null | undefined>;
-    getUserById?: (id: string) => Promise<UserEntity | null | undefined>;
-    getUser?: (id: string) => Promise<UserEntity | null | undefined>;
+    getProfileById?: (id: string) => Promise<User | null | undefined>;
+    getProfile?: (id: string) => Promise<User | null | undefined>;
+    getUserById?: (id: string) => Promise<User | null | undefined>;
+    getUser?: (id: string) => Promise<User | null | undefined>;
 }
 
 const getUserId = (user: RestrictedUser): string | undefined => user.id || user._id;
@@ -104,11 +105,8 @@ export default function RestrictedUsersScreen() {
                     try {
                         restrictedLogger.debug(`Fetching user details for: ${userId}`);
 
-                        const { useUsersStore } = await import('@/stores/usersStore');
-                        const usersState = useUsersStore.getState();
-
                         const svc = oxyServices as unknown as OxyProfileService;
-                        const loader = async (id: string): Promise<UserEntity | null | undefined> => {
+                        const loader = async (id: string): Promise<User | null | undefined> => {
                             if (typeof svc.getProfileById === 'function') {
                                 try {
                                     return await svc.getProfileById(id);
@@ -140,7 +138,11 @@ export default function RestrictedUsersScreen() {
                             return null;
                         };
 
-                        const user = await usersState.ensureById(String(userId), loader);
+                        const user = await queryClient.fetchQuery<User | null | undefined>({
+                            queryKey: queryKeys.users.detail(String(userId)),
+                            queryFn: () => loader(String(userId)),
+                            staleTime: 5 * 60 * 1000,
+                        });
                         restrictedLogger.debug(`Found user for ${userId}: ${user ? 'yes' : 'no'}`);
 
                         if (!user) {

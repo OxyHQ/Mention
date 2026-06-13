@@ -29,9 +29,9 @@ import { initLiveKit } from '@/lib/livekit';
 initLiveKit();
 
 import NetInfo from '@react-native-community/netinfo';
-import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
+import { focusManager, onlineManager } from '@tanstack/react-query';
 import { Stack, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
@@ -41,7 +41,6 @@ import { ImageResolverProvider } from '@/lib/imageResolver';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
 import { AppProviders } from '@/components/providers/AppProviders';
-import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom/portal';
 
 // Hooks
@@ -49,6 +48,7 @@ import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
+import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@/lib/logger';
@@ -75,10 +75,6 @@ export default function RootLayout() {
     initializationComplete: false,
     fadeComplete: false,
   });
-
-  // Memoized instances
-  // Stable QueryClient (single instance app-wide)
-  const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
 
   // Callbacks
   const handleSplashFadeComplete = useCallback(() => {

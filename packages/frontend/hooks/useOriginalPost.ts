@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
 import { logger } from '@/lib/logger';
 import { getPostFromStore } from '@/utils/postSelectors';
-import { useUsersStore } from '@/stores/usersStore';
+import { queryClient } from '@/lib/queryClient';
+import { precacheProfileViews, type CacheableUser } from '@/lib/precacheProfiles';
 
 interface UseOriginalPostParams {
     post: any;
@@ -11,26 +12,15 @@ interface UseOriginalPostParams {
 }
 
 /**
- * Prime the users cache from embedded user objects on a post.
+ * Prime the React Query actor cache from embedded user objects on a post.
  * Called imperatively when data arrives rather than in a reactive effect.
  */
-function primeUsersCache(postUser: any, originalUser: any): void {
-    try {
-        const state: any = useUsersStore.getState();
-        const candidates: any[] = [];
-
-        if (postUser) candidates.push(postUser);
-        if (originalUser) candidates.push(originalUser);
-
-        if (candidates.length) {
-            if (typeof state?.upsertMany === 'function') {
-                state.upsertMany(candidates);
-            } else if (typeof state?.upsertUser === 'function') {
-                candidates.forEach((usr) => state.upsertUser(usr));
-            }
-        }
-    } catch {
-        // Silently fail
+function primeUsersCache(postUser: CacheableUser | undefined, originalUser: CacheableUser | undefined): void {
+    const candidates: CacheableUser[] = [];
+    if (postUser) candidates.push(postUser);
+    if (originalUser) candidates.push(originalUser);
+    if (candidates.length) {
+        precacheProfileViews(queryClient, candidates);
     }
 }
 

@@ -7,8 +7,6 @@
 
 import type {
   HydratedPost,
-  HydratedPostSummary,
-  PostActorSummary,
   PostContent,
   PostAttachmentBundle,
   PostLinkPreview,
@@ -20,18 +18,15 @@ import type {
   PostFeedContext,
   FeedPostSlice,
 } from '@mention/shared-types';
-import type { UserEntity } from '@/stores/usersStore';
 import type { LinkMetadata } from '@/stores/linksStore';
 
 // ── Table names ──────────────────────────────────────────────────
 
 export const TABLE = {
   POSTS: 'posts',
-  ACTORS: 'actors',
   FEED_ITEMS: 'feed_items',
   FEED_META: 'feed_meta',
   LINK_PREVIEWS: 'link_previews',
-  SCHEMA_VERSION: 'schema_version',
 } as const;
 
 // ── Row types (match SQLite columns) ─────────────────────────────
@@ -67,20 +62,6 @@ export interface PostRow {
   updated_at: string | null;
   fetched_at: number;
   raw_json: string | null;
-}
-
-export interface ActorRow {
-  id: string;
-  username: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  handle: string | null;
-  is_verified: number;
-  bio: string | null;
-  badges_json: string | null;
-  is_full: number;
-  extra_json: string | null;
-  fetched_at: number;
 }
 
 export interface FeedItemRow {
@@ -294,62 +275,6 @@ export function rowToFeedItem(row: PostRow): FeedItem {
   } as FeedItem;
 
   return feedItem;
-}
-
-// ── Actor conversions ────────────────────────────────────────────
-
-/**
- * Convert a UserEntity or PostActorSummary to an ActorRow.
- */
-export function actorToRow(actor: UserEntity | PostActorSummary | any, isFull: boolean = false): ActorRow {
-  const id = String(actor.id || actor._id || '');
-  const username = actor.username || actor.handle || null;
-  const name = typeof actor.name === 'string'
-    ? actor.name
-    : actor.name?.full || actor.displayName || null;
-  const avatarUrl = actor.avatarUrl || actor.avatar || null;
-
-  // Extract known fields, put the rest in extra_json
-  const { id: _id, _id: __id, username: _u, handle: _h, name: _n, displayName: _dn,
-    avatar: _a, avatarUrl: _au, verified: _v, isVerified: _iv, bio: _b,
-    badges: _badges, createdAt: _ca, ...extra } = actor;
-
-  return {
-    id,
-    username,
-    display_name: name,
-    avatar_url: avatarUrl,
-    handle: actor.handle || username || null,
-    is_verified: (actor.verified || actor.isVerified) ? 1 : 0,
-    bio: actor.bio || null,
-    badges_json: safeJsonStringify(actor.badges),
-    is_full: isFull ? 1 : 0,
-    extra_json: Object.keys(extra).length > 0 ? safeJsonStringify(extra) : null,
-    fetched_at: Date.now(),
-  };
-}
-
-/**
- * Reconstruct a UserEntity from an ActorRow.
- */
-export function rowToUserEntity(row: ActorRow): UserEntity {
-  const extra = safeJsonParse<Record<string, any>>(row.extra_json, {});
-  const badges = safeJsonParse<any[]>(row.badges_json, []);
-
-  return {
-    id: row.id,
-    username: row.username || undefined,
-    name: row.display_name || undefined,
-    handle: row.handle || row.username || undefined,
-    avatar: row.avatar_url || undefined,
-    verified: Boolean(row.is_verified),
-    bio: row.bio || undefined,
-    badges,
-    displayName: row.display_name || undefined,
-    avatarUrl: row.avatar_url || undefined,
-    isVerified: Boolean(row.is_verified),
-    ...extra,
-  };
 }
 
 // ── Link preview conversions ─────────────────────────────────────

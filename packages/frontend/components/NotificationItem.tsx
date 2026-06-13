@@ -15,7 +15,10 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
-import { useUsersStore } from '@/stores/usersStore';
+import { queryKeys } from '@oxyhq/services';
+import type { User } from '@oxyhq/core';
+import { queryClient } from '@/lib/queryClient';
+import { precacheProfileView } from '@/lib/precacheProfiles';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
@@ -43,8 +46,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             const populated = (notification as any)?.actorId_populated;
             const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
             if (populated && (id || populated.id || populated._id)) {
-                const merged = { id: String(id || populated.id || populated._id), ...(populated as any) };
-                useUsersStore.getState().upsertUser(merged);
+                const merged = { ...(populated as Partial<User>), id: String(id || populated.id || populated._id) };
+                precacheProfileView(queryClient, merged);
             }
         } catch { }
     }, [notification]);
@@ -73,12 +76,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
         // Try the shared users cache first for immediate value
         try {
-            const cachedUser = useUsersStore.getState().getCachedById(String(id));
+            const cachedUser = queryClient.getQueryData<User>(queryKeys.users.detail(String(id)));
             if (cachedUser?.name || cachedUser?.username) {
-                const displayName = (cachedUser as any)?.name?.full || (cachedUser as any)?.name || cachedUser.username || String(id);
+                const cachedName = typeof cachedUser.name === 'string' ? cachedUser.name : cachedUser.name?.full;
+                const displayName = cachedName || cachedUser.username || String(id);
                 setActorName(String(displayName));
-                setActorAvatar((cachedUser as any)?.avatar);
-                actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: (cachedUser as any)?.avatar });
+                setActorAvatar(cachedUser.avatar);
+                actorCacheRef.current.set(String(id), { name: String(displayName), avatar: cachedUser.avatar });
                 return;
             }
         } catch { }
@@ -95,11 +99,16 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     if (typeof svc.getUser === 'function') return svc.getUser(actorId);
                     return Promise.resolve(null);
                 };
-                const ensured = await useUsersStore.getState().ensureById(String(id), loader);
-                const profile: any = ensured || null;
-                const displayName = profile?.name?.full || profile?.name || profile?.username || String(id);
+                const ensured = await queryClient.fetchQuery<User | null>({
+                    queryKey: queryKeys.users.detail(String(id)),
+                    queryFn: () => loader(String(id)),
+                    staleTime: 5 * 60 * 1000,
+                });
+                const profile = ensured || null;
+                const profileName = typeof profile?.name === 'string' ? profile.name : profile?.name?.full;
+                const displayName = profileName || profile?.username || String(id);
                 if (!cancelled && displayName) {
-                    actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: profile?.avatar });
+                    actorCacheRef.current.set(String(id), { name: String(displayName), avatar: profile?.avatar });
                     setActorName(String(displayName));
                     setActorAvatar(profile?.avatar);
                 }
@@ -197,7 +206,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             const id = typeof rawActor === 'string'
                 ? rawActor
                 : (rawActor && typeof rawActor === 'object' && '_id' in rawActor ? String((rawActor as { _id?: unknown })._id ?? '') : '');
-            const cachedUser = id ? useUsersStore.getState().getCachedById(id) : undefined;
+            const cachedUser = id ? queryClient.getQueryData<User>(queryKeys.users.detail(id)) : undefined;
             const uname = cachedUser?.username || '';
             if (uname) {
                 router.push(`/@${uname}`);

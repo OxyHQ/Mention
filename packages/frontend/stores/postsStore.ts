@@ -37,11 +37,11 @@ import {
   removePostFromAllFeeds as dbRemovePostFromAllFeeds,
   removeFeedItem as dbRemoveFeedItem,
   buildFeedKey,
-  primeActorsFromPosts,
   getDb,
   rowToFeedItem,
 } from '@/db';
 import type { FeedItem, FeedMetaData } from '@/db';
+import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 
 const logger = createScopedLogger('PostsStore');
 
@@ -342,6 +342,9 @@ export const usePostsStore = create<PostsStoreState>()(
         // Transform items
         const items = response.items?.map((item) => transformToUIItem(item)) || [];
 
+        // Prime the React Query actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items);
+
         // Write to SQLite — this replaces the entire feed
         dbSetFeedItems(feedKey, items, {
           hasMore: response.hasMore || false,
@@ -394,6 +397,9 @@ export const usePostsStore = create<PostsStoreState>()(
       try {
         const response = await feedService.getUserFeed(userId, request);
         const items = response.items?.map((item) => transformToUIItem(item)) || [];
+
+        // Prime the React Query actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items);
 
         if (request.cursor) {
           // Append mode
@@ -449,6 +455,9 @@ export const usePostsStore = create<PostsStoreState>()(
           }
         }
 
+        // Prime the React Query actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(processedPosts);
+
         dbSetFeedItems(feedKey, processedPosts, {
           hasMore: (response.data as any).hasMore || false,
           totalCount: processedPosts.length,
@@ -482,6 +491,9 @@ export const usePostsStore = create<PostsStoreState>()(
       try {
         const response = await feedService.getFeed({ type, limit: 20, filters } as any);
         const items = response.items?.map((item) => transformToUIItem(item)) || [];
+
+        // Prime the React Query actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items);
 
         dbSetFeedItems(feedKey, items, {
           hasMore: response.hasMore || false,
@@ -542,6 +554,9 @@ export const usePostsStore = create<PostsStoreState>()(
         if (abortController.signal.aborted) return;
 
         const items = response.items?.map((item) => transformToUIItem(item)) || [];
+
+        // Prime the React Query actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items);
 
         // Append to SQLite — dedup handled by PRIMARY KEY
         dbAppendFeedItems(feedKey, items, {
@@ -1035,7 +1050,7 @@ export const usePostsStore = create<PostsStoreState>()(
         dbAddFeedItemAtStart(feedKey, post.id);
       }
 
-      primeActorsFromPosts(transformed);
+      precacheActorsFromPosts(transformed);
       set((s) => bumpVersion(s));
     },
 

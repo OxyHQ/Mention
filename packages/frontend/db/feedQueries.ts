@@ -2,16 +2,15 @@
  * Feed queries — CRUD for feed_items + feed_meta tables.
  * 
  * Manages the mapping between feed keys and posts, preserving ordering.
- * 
- * IMPORTANT: Posts and actors must be written BEFORE feed_items due to
- * the FOREIGN KEY constraint (feed_items.post_id -> posts.id).
+ *
+ * IMPORTANT: Posts must be written BEFORE feed_items due to the FOREIGN KEY
+ * constraint (feed_items.post_id -> posts.id).
  */
 
 import { getDb } from './database';
 import type { FeedItemRow, FeedMetaRow, FeedItem } from './schema';
 import { rowToFeedItem, buildFeedKey } from './schema';
 import { upsertPosts } from './postQueries';
-import { primeActorsFromPosts } from './actorQueries';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('FeedQueries');
@@ -37,7 +36,7 @@ export interface FeedMetaData {
 
 /**
  * Replace an entire feed's items.
- * Writes actors and posts FIRST (FK requirement), then feed_items.
+ * Writes posts FIRST, then feed_items.
  */
 export function setFeedItems(
   feedKey: string,
@@ -49,12 +48,11 @@ export function setFeedItems(
   const db = getDb();
   if (!db) return;
 
-  // Step 1: Upsert actors and posts BEFORE feed_items (FK constraint)
+  // Step 1: Upsert posts BEFORE feed_items (FK constraint on post_id)
   try {
-    primeActorsFromPosts(posts);
     upsertPosts(posts);
   } catch (e) {
-    logger.error('Failed to upsert posts/actors for feed', { error: e });
+    logger.error('Failed to upsert posts for feed', { error: e });
     // Continue — feed_items will skip posts that failed to insert
   }
 
@@ -98,7 +96,7 @@ export function setFeedItems(
 
 /**
  * Append items to an existing feed (pagination).
- * Writes actors and posts FIRST (FK requirement), then feed_items.
+ * Writes posts FIRST, then feed_items.
  */
 export function appendFeedItems(
   feedKey: string,
@@ -110,12 +108,11 @@ export function appendFeedItems(
   const db = getDb();
   if (!db) return;
 
-  // Step 1: Upsert actors and posts BEFORE feed_items (FK constraint)
+  // Step 1: Upsert posts BEFORE feed_items (FK constraint on post_id)
   try {
-    primeActorsFromPosts(posts);
     upsertPosts(posts);
   } catch (e) {
-    logger.error('Failed to upsert posts/actors for feed append', { error: e });
+    logger.error('Failed to upsert posts for feed append', { error: e });
   }
 
   // Step 2: Append feed_items in a transaction

@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '@oxyhq/services';
-import { logger } from '@/lib/logger';
-import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth, useUserByUsername, queryKeys } from '@oxyhq/services';
+import type { User } from '@oxyhq/core';
+import { useAppearanceStore, type UserAppearance } from '@/store/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
+
+const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
+const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
 export interface ProfileDesign {
   displayName: string;
@@ -30,157 +33,126 @@ export interface ProfileData {
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
   };
+  // ProfileData spreads the full Oxy `User` plus arbitrary backend fields that
+  // many consumers read positionally (links, joined date, communities, etc.).
+  // Keep this permissive to preserve those existing call sites unchanged.
   [key: string]: any;
 }
 
 /**
- * Computes profile design values from Oxy profile + backend customization settings
+ * Computes profile design values from the Oxy profile + backend customization.
  */
 function computeDesign(
-  oxyProfile: any,
-  appearance: any
+  profile: User,
+  appearance: UserAppearance | null | undefined,
 ): ProfileDesign {
-  if (!oxyProfile) {
-    return {
-      displayName: '',
-      coverPhotoEnabled: true,
-      minimalistMode: false,
-    };
-  }
-
   const customization = appearance?.profileCustomization;
-  const nameValue = typeof oxyProfile?.name === 'string' 
-    ? oxyProfile.name 
-    : oxyProfile?.name?.full;
+  const nameValue =
+    typeof profile.name === 'string' ? profile.name : profile.name?.full;
+
+  const presetColor =
+    typeof profile.color === 'string' && profile.color in APP_COLOR_PRESETS
+      ? profile.color
+      : undefined;
 
   return {
-    displayName: customization?.displayName || nameValue || oxyProfile?.username || '',
+    displayName: customization?.displayName || nameValue || profile.username || '',
     coverImage: customization?.coverImage || appearance?.profileHeaderImage,
-    avatar: oxyProfile?.avatar,
+    avatar: profile.avatar,
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
-    color: (oxyProfile?.color in APP_COLOR_PRESETS ? oxyProfile.color : undefined)
-      || HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor]
-      || 'blue',
+    color:
+      presetColor ||
+      HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor ?? ''] ||
+      'blue',
   };
 }
 
 /**
- * Unified hook for profile data that combines:
- * - Oxy profile data (from usersStore)
- * - Appearance/customization settings (from appearanceStore, which includes privacy)
- * - Federation data (for federated handles)
+ * Unified hook for profile data. Combines:
+ * - The Oxy profile (React Query — the single in-memory actor cache).
+ * - Appearance/customization settings (HTTP-backed appearance store, works web + native).
+ * - Federation data (federated handles resolved server-side via WebFinger).
  *
- * Parallelizes profile + appearance fetches when user is cached.
- * Uses proper Zustand selectors to avoid unnecessary re-renders.
+ * Local handles (`username`) resolve via the SDK's `useUserByUsername`.
+ * Federated handles (`user@domain`) resolve via `oxyServices.resolveProfile`,
+ * which performs WebFinger discovery and returns `User | null` (never throws).
  */
 export function useProfileData(username?: string): {
   data: ProfileData | null;
   loading: boolean;
   error: boolean;
 } {
-  // All profiles (local and federated) use the same code path.
-  // The OxyHQ API resolves federated handles (user@domain) transparently
-  // via WebFinger when they're not yet in the local DB.
-  return useLocalProfileData(username);
-}
-
-/**
- * Hook for profile data — handles both local and federated users via the
- * unified Oxy flow (federated handles are resolved server-side via WebFinger).
- */
-function useLocalProfileData(username?: string): {
-  data: ProfileData | null;
-  loading: boolean;
-  error: boolean;
-} {
   const { oxyServices } = useAuth();
 
-  // Use existing hooks for store access
-  const ensureByUsername = useUsersStore((state) => state.ensureByUsername);
-  const loadForUser = useAppearanceStore((state) => state.loadForUser);
+  const handle = username ?? '';
+  const isFederated = handle.includes('@');
 
-  // Get user from store using existing hook
-  const oxyProfile = useUserByUsername(username);
+  // Local profiles — SDK hook, shares the singleton React Query cache.
+  const localQuery = useUserByUsername(isFederated ? null : handle || null);
 
-  // Subscribe to appearance settings for this user
-  const appearance = useAppearanceStore((state) => {
-    const id = oxyProfile?.id;
-    return id ? state.byUserId[id] : undefined;
+  // Federated profiles — server-side WebFinger resolution.
+  const federatedQuery = useQuery<User | null>({
+    queryKey: [...queryKeys.users.details(), 'resolve', handle],
+    queryFn: () => oxyServices.resolveProfile(handle),
+    enabled: isFederated && handle.length > 0,
+    staleTime: PROFILE_STALE_TIME,
+    gcTime: PROFILE_GC_TIME,
   });
 
-  // Fetch profile and appearance data when username changes.
-  // Parallelizes requests when user is already cached (common — primed from post feeds).
-  // Skips the appearance network call if data was fetched recently.
-  useEffect(() => {
-    if (!username) return;
+  const profile = (isFederated ? federatedQuery.data : localQuery.data) ?? null;
+  const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
+  const isError = isFederated ? federatedQuery.isError : localQuery.isError;
 
-    let cancelled = false;
+  // Appearance/customization (privacy, cover image, post count, color overrides).
+  // Driven by React Query so it dedupes and avoids a manual effect. The
+  // appearance store caches the result for synchronous reads elsewhere.
+  const userId = profile?.id ?? '';
+  const loadForUser = useAppearanceStore((state) => state.loadForUser);
+  const appearanceQuery = useQuery<UserAppearance | null>({
+    queryKey: ['appearance', 'user', userId],
+    queryFn: () => loadForUser(userId, true),
+    enabled: userId.length > 0,
+    staleTime: PROFILE_STALE_TIME,
+    gcTime: PROFILE_GC_TIME,
+  });
+  const appearance = appearanceQuery.data ?? null;
 
-    const fetchProfile = async () => {
-      try {
-        const profileLoader = (u: string) => oxyServices.getProfileByUsername(u);
+  const profileData = useMemo<ProfileData | null>(() => {
+    if (!profile) return null;
 
-        // Check if user is already cached — if so, we know the ID and can
-        // fire profile refresh + appearance fetch in parallel.
-        const cachedUser = useUsersStore.getState().getCachedByUsername(username.toLowerCase());
-        const cachedId = cachedUser?.id;
-
-        if (cachedId) {
-          // Only force-refresh appearance if we don't already have it cached.
-          // loadForUser with forceRefresh=false returns cached data immediately
-          // without a network call, while forceRefresh=true always hits the API.
-          const hasAppearance = Boolean(useAppearanceStore.getState().byUserId[cachedId]);
-          await Promise.all([
-            ensureByUsername(username, profileLoader),
-            loadForUser(cachedId, hasAppearance ? false : true),
-          ]);
-        } else {
-          // Cold cache — must fetch profile first to get the ID,
-          // then fire appearance as fire-and-forget (zustand selector picks it up).
-          const data = await ensureByUsername(username, profileLoader);
-          if (!cancelled && data?.id) {
-            loadForUser(data.id, true);
-          }
-        }
-      } catch (err) {
-        logger.debug('Profile fetch error', { error: err });
-      }
-    };
-
-    fetchProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [username, ensureByUsername, loadForUser, oxyServices]);
-
-  // Compute unified profile data
-  const profileData = useMemo((): ProfileData | null => {
-    if (!oxyProfile) return null;
-
-    const design = computeDesign(oxyProfile, appearance);
-
-    const federation = oxyProfile.federation as { actorUri?: string; domain?: string } | undefined;
+    const design = computeDesign(profile, appearance);
+    const federation = profile.federation;
+    const followersCount =
+      profile._count?.followers ??
+      (typeof profile.followersCount === 'number' ? profile.followersCount : 0);
+    const followingCount =
+      profile._count?.following ??
+      (typeof profile.followingCount === 'number' ? profile.followingCount : 0);
 
     return {
-      ...oxyProfile,
-      id: oxyProfile.id || '',
-      username: oxyProfile.username || '',
+      ...profile,
+      id: profile.id || '',
+      username: profile.username || '',
       postsCount: appearance?.postsCount,
       followsYou: appearance?.followsYou,
-      isFederated: oxyProfile.isFederated || oxyProfile.type === 'federated',
-      actorUri: oxyProfile.actorUri || federation?.actorUri,
-      instance: oxyProfile.instance || federation?.domain,
-      followersCount: oxyProfile._count?.followers ?? oxyProfile.followersCount ?? 0,
-      followingCount: oxyProfile._count?.following ?? oxyProfile.followingCount ?? 0,
+      isFederated: profile.isFederated || profile.type === 'federated',
+      actorUri:
+        (typeof profile.actorUri === 'string' ? profile.actorUri : undefined) ??
+        federation?.actorUri,
+      instance: profile.instance ?? federation?.domain,
+      followersCount,
+      followingCount,
       design,
       privacy: appearance?.privacy,
     };
-  }, [oxyProfile, appearance]);
+  }, [profile, appearance]);
 
-  // Loading state: true if username provided but no profile data yet
-  const loading = Boolean(username && !oxyProfile);
+  // Loading while the query has not yet produced a value. Not-found
+  // (resolved with no data) surfaces as an error so the UI can show its
+  // empty state instead of an indefinite skeleton.
+  const loading = Boolean(handle) && isPending;
+  const error = isError || (Boolean(handle) && !isPending && !profile);
 
-  return { data: profileData, loading, error: false };
+  return { data: profileData, loading, error };
 }

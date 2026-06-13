@@ -9,7 +9,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';
 import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
-import { useUserById } from '@/stores/usersStore';
+import { useUserById } from '@/hooks/useCachedUser';
 import { Agora as AgoraIcon } from '@mention/agora-shared';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 

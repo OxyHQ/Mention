@@ -25,7 +25,7 @@ import SEO from '@/components/SEO';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
-import { useUserById } from '@/stores/usersStore';
+import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/services/roomsService';
 import { useAuth } from '@oxyhq/services';

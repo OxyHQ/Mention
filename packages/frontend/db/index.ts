@@ -11,7 +11,6 @@ export { getDb, closeDb, resetDb, isDbAvailable } from './database';
 // Schema types & conversions
 export type {
   PostRow,
-  ActorRow,
   FeedItemRow,
   FeedMetaRow,
   LinkPreviewRow,
@@ -21,8 +20,6 @@ export {
   TABLE,
   postToRow,
   rowToFeedItem,
-  actorToRow,
-  rowToUserEntity,
   linkMetadataToRow,
   rowToLinkMetadata,
   buildFeedKey,
@@ -41,19 +38,6 @@ export {
   pruneOldPosts,
   countPosts,
 } from './postQueries';
-
-// Actor queries
-export {
-  upsertActor,
-  upsertManyActors,
-  primeActorsFromPosts,
-  getActorById,
-  getActorByUsername,
-  isActorStale,
-  isActorFull,
-  invalidateActor,
-  clearAllActors,
-} from './actorQueries';
 
 // Feed queries
 export type { FeedMetaData } from './feedQueries';

@@ -7,6 +7,7 @@ import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
+import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -235,6 +236,9 @@ export function useFeedState({
                     }
 
                     const uniqueItems = deduplicateItems(items, getItemKey);
+                    // Prime the React Query actor cache so avatars/names render
+                    // on web (no SQLite). This is the web feed's only actor source.
+                    precacheActorsFromPosts(uniqueItems);
                     setLocalItems(uniqueItems);
                     setLocalSlices(resp.slices || undefined);
                     setLocalHasMore(!!resp.hasMore);
@@ -318,7 +322,10 @@ export function useFeedState({
                     );
                 }
 
-                setLocalItems(deduplicateItems(items, getItemKey));
+                const uniqueItems = deduplicateItems(items, getItemKey);
+                // Prime the React Query actor cache (web feed's only actor source)
+                precacheActorsFromPosts(uniqueItems);
+                setLocalItems(uniqueItems);
                 setLocalSlices(resp.slices || undefined);
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
@@ -393,6 +400,8 @@ export function useFeedState({
                     );
                 }
 
+                // Prime the React Query actor cache (web feed's only actor source)
+                precacheActorsFromPosts(items);
                 setLocalItems((prev) => {
                     const existingIds = new Set(prev.map(getItemKey));
                     const uniqueNew = deduplicateItems(items, getItemKey).filter(

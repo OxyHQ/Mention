@@ -7,7 +7,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useUserById } from '@/stores/usersStore';
+import { useUserById } from '@/hooks/useCachedUser';
 import UserName from '@/components/UserName';
 
 interface SuggestedUserData {

@@ -3,7 +3,8 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
-import { useUsersStore } from '@/stores/usersStore';
+import { queryClient } from '@/lib/queryClient';
+import { precacheProfileViews } from '@/lib/precacheProfiles';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
@@ -61,16 +62,13 @@ export const SuggestedUsers = memo(function SuggestedUsers({
         setRecommendations(users);
 
         if (users.length > 0) {
-          try {
-            useUsersStore.getState().upsertMany(users);
-          } catch (e) {
-            logger.warn('SuggestedUsers: failed to cache users');
-          }
+          precacheProfileViews(queryClient, users);
 
           // Fire-and-forget: avatars fill in reactively via useUserById
           void enrichMissingAvatars(
             users.slice(0, maxCards),
             (id) => oxyServices.getUserById(id),
+            queryClient,
           );
         }
       } catch (err) {

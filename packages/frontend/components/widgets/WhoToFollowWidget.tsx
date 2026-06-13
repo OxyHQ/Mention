@@ -8,7 +8,9 @@ import * as OxyServicesNS from "@oxyhq/services";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
-import { useUsersStore, useUserById } from "@/stores/usersStore";
+import { useUserById } from "@/hooks/useCachedUser";
+import { queryClient } from "@/lib/queryClient";
+import { precacheProfileViews } from "@/lib/precacheProfiles";
 import { enrichMissingAvatars } from "@/utils/userEnrichment";
 import { getUserPlaceholderColor } from "@/utils/userPlaceholderColor";
 import UserName from '@/components/UserName';
@@ -69,16 +71,13 @@ export function WhoToFollowWidget() {
         setRecommendations(users);
 
         if (users.length > 0) {
-          try {
-            useUsersStore.getState().upsertMany(users);
-          } catch (e) {
-            logger.warn("Failed to cache users");
-          }
+          precacheProfileViews(queryClient, users);
 
           // Fire-and-forget: avatars fill in reactively via useUserById
           void enrichMissingAvatars(
             users.slice(0, MAX_DISPLAY_USERS),
             (id) => oxyServices.getUserById(id),
+            queryClient,
           );
         }
       } catch (err) {
