@@ -5,8 +5,16 @@
  * On web without SharedArrayBuffer, all functions gracefully no-op.
  */
 
-import { getDb } from './database';
+import { getDb, isDbAvailable } from './database';
 import { PostRow, FeedItem, postToRow, rowToFeedItem } from './schema';
+import {
+  memUpsertPost,
+  memUpsertPosts,
+  memGetPostById,
+  memGetPostsByIds,
+  memUpdatePost,
+  memDeletePost,
+} from './memoryStore';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('PostQueries');
@@ -40,6 +48,12 @@ const UPSERT_POST_SQL = `
  */
 export function upsertPost(post: FeedItem | any): void {
   if (!post?.id && !post?._id) return;
+
+  if (!isDbAvailable()) {
+    memUpsertPost(post as FeedItem);
+    return;
+  }
+
   const row = postToRow(post);
   if (!row.id) return;
 
@@ -62,6 +76,11 @@ export function upsertPost(post: FeedItem | any): void {
  */
 export function upsertPosts(posts: (FeedItem | any)[]): void {
   if (!posts || posts.length === 0) return;
+
+  if (!isDbAvailable()) {
+    memUpsertPosts(posts as FeedItem[]);
+    return;
+  }
 
   const db = getDb();
   if (!db) return;
@@ -98,6 +117,11 @@ export function upsertPosts(posts: (FeedItem | any)[]): void {
  */
 export function getPostById(id: string): FeedItem | null {
   if (!id) return null;
+
+  if (!isDbAvailable()) {
+    return memGetPostById(id);
+  }
+
   const db = getDb();
   if (!db) return null;
   const row = db.getFirstSync<PostRow>('SELECT * FROM posts WHERE id = ?', id);
@@ -109,6 +133,10 @@ export function getPostById(id: string): FeedItem | null {
  */
 export function getPostsByIds(ids: string[]): Record<string, FeedItem> {
   if (!ids || ids.length === 0) return {};
+
+  if (!isDbAvailable()) {
+    return memGetPostsByIds(ids);
+  }
 
   const db = getDb();
   if (!db) return {};
@@ -217,6 +245,10 @@ export function updatePost(
 ): FeedItem | null {
   if (!id) return null;
 
+  if (!isDbAvailable()) {
+    return memUpdatePost(id, updater);
+  }
+
   const db = getDb();
   if (!db) {
     // Fallback: non-transactional path for web
@@ -268,6 +300,12 @@ export function updatePost(
  */
 export function deletePost(id: string): void {
   if (!id) return;
+
+  if (!isDbAvailable()) {
+    memDeletePost(id);
+    return;
+  }
+
   const db = getDb();
   if (!db) return;
   db.runSync('DELETE FROM posts WHERE id = ?', id);

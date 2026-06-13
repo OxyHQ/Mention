@@ -149,16 +149,29 @@ export function useFeedState({
     // selectors — this is the standard native path.
     const useMemoryFeed = resolveUseMemoryFeed(useScoped, isDbAvailable());
 
-    // Refs for preventing duplicate calls
+    // Refs for preventing duplicate calls.
+    //
+    // Separate AbortControllers per operation class so concurrent operations
+    // never cancel each other:
+    //   - primaryAbortRef: initial load (fetchInitial) AND refresh. These are
+    //     mutually exclusive "load the first page" operations, so they share a
+    //     controller (a new refresh should supersede an in-flight initial load).
+    //   - loadMoreAbortRef: pagination (loadMore). A pull-to-refresh during a
+    //     loadMore (or vice versa) now aborts only its own prior request, never
+    //     the other operation's in-flight fetch.
     const isFetchingRef = useRef(false);
     const isLoadingMoreRef = useRef(false);
-    const abortControllerRef = useRef<AbortController | null>(null);
+    const primaryAbortRef = useRef<AbortController | null>(null);
+    const loadMoreAbortRef = useRef<AbortController | null>(null);
     const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
 
     useEffect(() => {
         return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
+            if (primaryAbortRef.current) {
+                primaryAbortRef.current.abort();
+            }
+            if (loadMoreAbortRef.current) {
+                loadMoreAbortRef.current.abort();
             }
             clearPendingPoll();
         };
@@ -208,11 +221,16 @@ export function useFeedState({
 
             isFetchingRef.current = true;
 
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
+            if (primaryAbortRef.current) {
+                primaryAbortRef.current.abort();
             }
-            abortControllerRef.current = new AbortController();
-            const signal = abortControllerRef.current.signal;
+            const controller = new AbortController();
+            primaryAbortRef.current = controller;
+            const signal = controller.signal;
+            // Only the operation that still owns the primary controller may toggle
+            // the shared memory-mode loading flag, so a superseded request can't
+            // clear the spinner of the request that replaced it.
+            const ownsPrimary = () => primaryAbortRef.current === controller;
 
             if (isAuthenticated && !currentUserId) {
                 logger.debug('Not authenticated, skipping');
@@ -279,7 +297,7 @@ export function useFeedState({
                         }
                     );
 
-                    if (signal.aborted) return;
+                    if (signal.aborted || !ownsPrimary()) return;
 
                     let items = resp.items || [];
                     // When scoped (filtered), narrow results to the requested post/thread.
@@ -323,11 +341,14 @@ export function useFeedState({
                     return;
                 }
                 logger.error('Error fetching feed', { error: err });
-                if (useMemoryFeed) {
+                if (useMemoryFeed && ownsPrimary()) {
                     setLocalError('Failed to load');
                 }
             } finally {
-                if (useMemoryFeed) setLocalLoading(false);
+                // Only clear the spinner if this request still owns the primary
+                // controller; otherwise a newer request has taken over and is
+                // responsible for its own loading state.
+                if (useMemoryFeed && ownsPrimary()) setLocalLoading(false);
                 isFetchingRef.current = false;
             }
         },
@@ -351,11 +372,15 @@ export function useFeedState({
     fetchInitialRef.current = fetchInitial;
 
     const refresh = useCallback(async () => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
+        if (primaryAbortRef.current) {
+            primaryAbortRef.current.abort();
         }
-        abortControllerRef.current = new AbortController();
-        const signal = abortControllerRef.current.signal;
+        const controller = new AbortController();
+        primaryAbortRef.current = controller;
+        const signal = controller.signal;
+        // See fetchInitial: only the operation still owning the primary
+        // controller may toggle the shared memory-mode loading flag.
+        const ownsPrimary = () => primaryAbortRef.current === controller;
 
         try {
             clearError();
@@ -382,7 +407,7 @@ export function useFeedState({
                     }
                 );
 
-                if (signal.aborted) return;
+                if (signal.aborted || !ownsPrimary()) return;
 
                 let items = resp.items || [];
                 // When scoped (filtered), narrow results to the requested post/thread.
@@ -409,11 +434,11 @@ export function useFeedState({
         } catch (err: unknown) {
             if (signal.aborted) return;
             logger.error('Error refreshing feed after retries', { error: err });
-            if (useMemoryFeed) {
+            if (useMemoryFeed && ownsPrimary()) {
                 setLocalError('Failed to refresh');
             }
         } finally {
-            if (useMemoryFeed) setLocalLoading(false);
+            if (useMemoryFeed && ownsPrimary()) setLocalLoading(false);
         }
     }, [type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, clearError]);
 
@@ -423,11 +448,16 @@ export function useFeedState({
             return;
         }
 
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
+        if (loadMoreAbortRef.current) {
+            loadMoreAbortRef.current.abort();
         }
-        abortControllerRef.current = new AbortController();
-        const signal = abortControllerRef.current.signal;
+        const controller = new AbortController();
+        loadMoreAbortRef.current = controller;
+        const signal = controller.signal;
+        // Only the operation still owning the loadMore controller may toggle the
+        // shared memory-mode loading flag, so a superseded loadMore can't clear
+        // the spinner of the loadMore that replaced it.
+        const ownsLoadMore = () => loadMoreAbortRef.current === controller;
 
         isLoadingMoreRef.current = true;
 
@@ -460,7 +490,7 @@ export function useFeedState({
                     }
                 );
 
-                if (signal.aborted) return;
+                if (signal.aborted || !ownsLoadMore()) return;
 
                 let items = resp.items || [];
                 // When scoped (filtered), narrow results to the requested post/thread.
@@ -508,13 +538,14 @@ export function useFeedState({
                 return;
             }
             logger.error('Error loading more', { error: err });
-            if (useMemoryFeed) {
+            if (useMemoryFeed && ownsLoadMore()) {
                 let errorMessage = 'Failed to load more posts';
                 if (err instanceof Error) errorMessage = err.message;
                 setLocalError(errorMessage);
             }
         } finally {
-            if (useMemoryFeed) setLocalLoading(false);
+            // Only clear the spinner if this loadMore still owns its controller.
+            if (useMemoryFeed && ownsLoadMore()) setLocalLoading(false);
             isLoadingMoreRef.current = false;
         }
     }, [

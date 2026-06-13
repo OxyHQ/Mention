@@ -7,10 +7,21 @@
  * constraint (feed_items.post_id -> posts.id).
  */
 
-import { getDb } from './database';
+import { getDb, isDbAvailable } from './database';
 import type { FeedItemRow, FeedMetaRow, FeedItem } from './schema';
 import { rowToFeedItem, buildFeedKey } from './schema';
 import { upsertPosts } from './postQueries';
+import {
+  memSetFeedItems,
+  memAppendFeedItems,
+  memGetAllFeedItems,
+  memGetFeedMeta,
+  memHasFeedData,
+  memRemoveFeedItem,
+  memAddFeedItemAtStart,
+  memRemovePostFromAllFeeds,
+  memClearFeed,
+} from './memoryStore';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('FeedQueries');
@@ -44,6 +55,11 @@ export function setFeedItems(
   meta: FeedMetaData
 ): void {
   if (!feedKey) return;
+
+  if (!isDbAvailable()) {
+    memSetFeedItems(feedKey, posts as FeedItem[], meta);
+    return;
+  }
 
   const db = getDb();
   if (!db) return;
@@ -104,6 +120,11 @@ export function appendFeedItems(
   meta: Partial<FeedMetaData>
 ): void {
   if (!feedKey || !posts || posts.length === 0) return;
+
+  if (!isDbAvailable()) {
+    memAppendFeedItems(feedKey, posts as FeedItem[], meta);
+    return;
+  }
 
   const db = getDb();
   if (!db) return;
@@ -181,6 +202,10 @@ export function getFeedItems(
 ): FeedItem[] {
   if (!feedKey) return [];
 
+  if (!isDbAvailable()) {
+    return memGetAllFeedItems(feedKey).slice(offset, offset + limit);
+  }
+
   const db = getDb();
   if (!db) return [];
   const rows = db.getAllSync<any>(
@@ -202,6 +227,10 @@ export function getFeedItems(
 export function getAllFeedItems(feedKey: string): FeedItem[] {
   if (!feedKey) return [];
 
+  if (!isDbAvailable()) {
+    return memGetAllFeedItems(feedKey);
+  }
+
   const db = getDb();
   if (!db) return [];
   const rows = db.getAllSync<any>(
@@ -220,6 +249,11 @@ export function getAllFeedItems(feedKey: string): FeedItem[] {
  */
 export function getFeedItemCount(feedKey: string): number {
   if (!feedKey) return 0;
+
+  if (!isDbAvailable()) {
+    return memGetAllFeedItems(feedKey).length;
+  }
+
   const db = getDb();
   if (!db) return 0;
   const row = db.getFirstSync<{ count: number }>(
@@ -234,6 +268,10 @@ export function getFeedItemCount(feedKey: string): number {
  */
 export function getFeedMeta(feedKey: string): FeedMetaData | null {
   if (!feedKey) return null;
+
+  if (!isDbAvailable()) {
+    return memGetFeedMeta(feedKey);
+  }
 
   const db = getDb();
   if (!db) return null;
@@ -258,6 +296,11 @@ export function getFeedMeta(feedKey: string): FeedMetaData | null {
  */
 export function hasFeedData(feedKey: string): boolean {
   if (!feedKey) return false;
+
+  if (!isDbAvailable()) {
+    return memHasFeedData(feedKey);
+  }
+
   const db = getDb();
   if (!db) return false;
   const row = db.getFirstSync<{ exists: number }>(
@@ -311,6 +354,12 @@ export function updateFeedMeta(feedKey: string, updates: Partial<FeedMetaData>):
  */
 export function removeFeedItem(feedKey: string, postId: string): void {
   if (!feedKey || !postId) return;
+
+  if (!isDbAvailable()) {
+    memRemoveFeedItem(feedKey, postId);
+    return;
+  }
+
   const db = getDb();
   if (!db) return;
   db.runSync('DELETE FROM feed_items WHERE feed_key = ? AND post_id = ?', feedKey, postId);
@@ -322,6 +371,11 @@ export function removeFeedItem(feedKey: string, postId: string): void {
  */
 export function addFeedItemAtStart(feedKey: string, postId: string): void {
   if (!feedKey || !postId) return;
+
+  if (!isDbAvailable()) {
+    memAddFeedItemAtStart(feedKey, postId);
+    return;
+  }
 
   const db = getDb();
   if (!db) return;
@@ -367,6 +421,12 @@ export function addFeedItemAtStart(feedKey: string, postId: string): void {
  */
 export function removePostFromAllFeeds(postId: string): void {
   if (!postId) return;
+
+  if (!isDbAvailable()) {
+    memRemovePostFromAllFeeds(postId);
+    return;
+  }
+
   const db = getDb();
   if (!db) return;
   db.runSync('DELETE FROM feed_items WHERE post_id = ?', postId);
@@ -379,6 +439,12 @@ export function removePostFromAllFeeds(postId: string): void {
  */
 export function clearFeed(feedKey: string): void {
   if (!feedKey) return;
+
+  if (!isDbAvailable()) {
+    memClearFeed(feedKey);
+    return;
+  }
+
   const db = getDb();
   if (!db) return;
   try {
