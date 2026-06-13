@@ -37,6 +37,12 @@ export interface FeedResponse {
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;
+  /**
+   * Set to `true` when the feed is still being populated asynchronously
+   * (e.g. a federated user's ActivityPub outbox is syncing in the background).
+   * Clients should show a brief loading state and refetch shortly after.
+   */
+  pending?: boolean;
 }
 
 // Feed request and filtering
@@ -126,4 +132,10 @@ export interface SlicedFeedResponse {
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;
+  /**
+   * Set to `true` when the feed is still being populated asynchronously
+   * (e.g. a federated user's ActivityPub outbox is syncing in the background).
+   * Clients should show a brief loading state and refetch shortly after.
+   */
+  pending?: boolean;
 }

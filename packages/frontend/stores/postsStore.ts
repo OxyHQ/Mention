@@ -240,7 +240,7 @@ interface PostsStoreState {
 
   // Feed operations
   fetchFeed: (request: FeedRequest) => Promise<void>;
-  fetchUserFeed: (userId: string, request: FeedRequest) => Promise<void>;
+  fetchUserFeed: (userId: string, request: FeedRequest) => Promise<{ pending: boolean }>;
   fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
   refreshFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
   loadMoreFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
@@ -386,6 +386,8 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── fetchUserFeed ────────────────────────────────────────
+    // Returns `{ pending }` so callers can drive a bounded refetch while a
+    // federated user's outbox is still syncing in the background.
     fetchUserFeed: async (userId: string, request: FeedRequest) => {
       const { type = 'posts' } = request;
       const feedKey = buildFeedKey(type, userId);
@@ -422,11 +424,14 @@ export const usePostsStore = create<PostsStoreState>()(
           ...bumpVersion(s),
           feedUI: { ...s.feedUI, [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now() } },
         }));
+
+        return { pending: response.pending === true && items.length === 0 };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch user feed';
         set((s) => ({
           feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
         }));
+        return { pending: false };
       }
     },
 

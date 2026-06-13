@@ -18,6 +18,12 @@ const logger = createScopedLogger('useFeedState');
 const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY = 1000;
 
+// Federated outbox-sync polling: when a profile feed responds with `pending`
+// (its ActivityPub outbox is still syncing in the background), we refetch a few
+// times until posts arrive, then stop. Bounded so we never poll indefinitely.
+const FED_PENDING_POLL_INTERVAL_MS = 2500;
+const FED_PENDING_MAX_POLLS = 3;
+
 async function withRetry<T>(
     fn: () => Promise<T>,
     options: {
@@ -65,6 +71,11 @@ export interface UseFeedStateReturn {
     isLoading: boolean;
     error: string | null;
     nextCursor?: string;
+    /**
+     * True while a federated profile feed is still populating in the background
+     * (the hook is auto-refetching). Consumers can show a brief loading state.
+     */
+    pending: boolean;
     fetchInitial: (forceRefresh?: boolean) => Promise<void>;
     refresh: () => Promise<void>;
     loadMore: () => Promise<void>;
@@ -110,6 +121,20 @@ export function useFeedState({
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
+    // Federated outbox-sync polling state. `pending` is surfaced to consumers so
+    // the UI can show a "loading posts…" state; the scheduler refetches a bounded
+    // number of times until posts arrive (or the budget is exhausted).
+    const [pending, setPending] = useState<boolean>(false);
+    const pendingPollCountRef = useRef<number>(0);
+    const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const clearPendingPoll = useCallback(() => {
+        if (pendingTimerRef.current) {
+            clearTimeout(pendingTimerRef.current);
+            pendingTimerRef.current = null;
+        }
+    }, []);
+
     // Global feed state — reads from SQLite via selectors
     const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
     const globalFeedSelector = useFeedSelector(effectiveType);
@@ -135,8 +160,9 @@ export function useFeedState({
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
+            clearPendingPoll();
         };
-    }, []);
+    }, [clearPendingPoll]);
 
     const clearError = useCallback(() => {
         if (useMemoryFeed) {
@@ -145,6 +171,33 @@ export function useFeedState({
             clearGlobalError();
         }
     }, [useMemoryFeed, clearGlobalError]);
+
+    // Holds the latest `fetchInitial` so the pending-poll scheduler can re-invoke
+    // it without creating a circular callback dependency.
+    const fetchInitialRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null);
+
+    // Apply a federated-pending result: surface the flag and, if posts are still
+    // empty and we have polls left in our budget, schedule a bounded refetch.
+    // Stops as soon as posts arrive or the budget is exhausted.
+    const applyPendingResult = useCallback((isPending: boolean, hasItems: boolean) => {
+        if (isPending && !hasItems) {
+            setPending(true);
+            if (pendingPollCountRef.current < FED_PENDING_MAX_POLLS) {
+                clearPendingPoll();
+                pendingTimerRef.current = setTimeout(() => {
+                    pendingPollCountRef.current += 1;
+                    fetchInitialRef.current?.(true);
+                }, FED_PENDING_POLL_INTERVAL_MS);
+            } else {
+                logger.debug('Pending poll budget exhausted, showing empty state');
+            }
+        } else {
+            // Posts arrived (or no longer pending) — stop polling and reset.
+            clearPendingPoll();
+            pendingPollCountRef.current = 0;
+            setPending(false);
+        }
+    }, [clearPendingPoll]);
 
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
@@ -246,8 +299,17 @@ export function useFeedState({
                     setLocalSlices(resp.slices || undefined);
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
+
+                    // Federated profile feed still syncing → schedule a bounded refetch.
+                    if (userId) {
+                        applyPendingResult(resp.pending === true, uniqueItems.length > 0);
+                    }
                 } else if (userId) {
-                    await fetchUserFeed(userId, { type, limit: 20, filters });
+                    const { pending: isPending } = await fetchUserFeed(userId, { type, limit: 20, filters });
+                    if (signal.aborted) return;
+                    // Federated profile feed still syncing → schedule a bounded refetch.
+                    // `fetchUserFeed` already reports `pending` only when items are empty.
+                    applyPendingResult(isPending, !isPending);
                 } else {
                     if (forceRefresh) {
                         await refreshFeed(type, filters);
@@ -281,8 +343,12 @@ export function useFeedState({
             fetchUserFeed,
             refreshFeed,
             clearError,
+            applyPendingResult,
         ]
     );
+
+    // Keep the ref pointing at the latest fetchInitial for the pending-poll scheduler.
+    fetchInitialRef.current = fetchInitial;
 
     const refresh = useCallback(async () => {
         if (abortControllerRef.current) {
@@ -477,11 +543,16 @@ export function useFeedState({
         }
     }, [reloadKey]);
 
-    // Handle initial load and filter changes
+    // Handle initial load and filter changes. Switching feed identity also resets
+    // the federated pending-poll budget so a new profile starts polling fresh.
     useDeepCompareEffect(() => {
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) return;
+
+        clearPendingPoll();
+        pendingPollCountRef.current = 0;
+        setPending(false);
 
         fetchInitial(false);
     }, [type, userId, filters, useMemoryFeed, showOnlySaved]);
@@ -504,6 +575,7 @@ export function useFeedState({
         isLoading,
         error,
         nextCursor,
+        pending,
         fetchInitial,
         refresh,
         loadMore,

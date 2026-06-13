@@ -546,9 +546,10 @@ const Feed = ((props: FeedProps) => {
                 type={type}
                 showOnlySaved={showOnlySaved}
                 onRetry={handleRetry}
+                pending={feedState.pending}
             />
         ),
-        [feedState.isLoading, feedState.error, type, showOnlySaved, handleRetry]
+        [feedState.isLoading, feedState.error, feedState.pending, type, showOnlySaved, handleRetry]
     );
 
     // Track if we're loading more (loading while we already have items)

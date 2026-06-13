@@ -37,7 +37,7 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
   const fetchUserFeedRef = useRef<((
     userId: string,
     request: { type: FeedType; cursor?: string; limit: number }
-  ) => Promise<void>) | null>(null);
+  ) => Promise<{ pending: boolean }>) | null>(null);
 
   const getUserSliceRef = useRef<((
     userId: string,

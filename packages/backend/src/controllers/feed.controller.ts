@@ -38,6 +38,7 @@ import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import type { User } from '@oxyhq/core';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import { federationService } from '../services/FederationService';
@@ -66,6 +67,16 @@ class FeedController {
 
   /** Slow query threshold in milliseconds (logs warnings for queries exceeding this) */
   private readonly SLOW_QUERY_THRESHOLD_MS = config.feed.slowQueryThresholdMs;
+
+  /**
+   * Max time a user-facing profile-feed request waits for a federated user's
+   * outbox sync to populate posts before responding. Covers the common
+   * fast-sync case without blocking the request on slow remote federation I/O.
+   * If the sync is still running after this window the response is returned
+   * immediately with `pending: true` and the sync continues in the background,
+   * populating posts for the next fetch (Bluesky-style).
+   */
+  private readonly FED_SYNC_INLINE_WAIT_MS = 2500;
 
   /**
    * Replace [mention:userId] placeholders in text with [@displayName](username) format
@@ -776,30 +787,44 @@ class FeedController {
         .lean();
 
       // If no posts found on the first page, check if this is a federated user
-      // and sync their outbox. Uses a 10s timeout — if sync completes in time,
-      // posts are returned immediately. Otherwise returns empty and syncs in background.
+      // and sync their ActivityPub outbox. The sync is a TRUE background task: it
+      // runs to completion regardless of this request's lifecycle. We wait only a
+      // short bounded window (FED_SYNC_INLINE_WAIT_MS) for the fast-sync common
+      // case, then re-query. If posts are still empty after that window, we return
+      // immediately with `pending: true` while the background sync keeps populating
+      // posts for the next fetch (Bluesky-style). This prevents blocking a
+      // user-facing request on slow remote federation I/O.
+      let fedSyncPending = false;
       if (posts.length === 0 && !cursor && FEDERATION_ENABLED) {
         const syncUserId = userId;
         const syncLimit = limit;
 
-        const syncPromise = (async () => {
+        // Sentinels resolved by the race so we can tell, after the bounded
+        // wait, whether the sync finished or is still in flight.
+        const SYNC_DONE = 'fed-sync-done' as const;
+        const TIMED_OUT = 'fed-sync-timeout' as const;
+        type SyncRaceResult = typeof SYNC_DONE | typeof TIMED_OUT;
+
+        const syncPromise: Promise<typeof SYNC_DONE> = (async () => {
           try {
             let actor = await FederatedActor.findOne({ oxyUserId: syncUserId }).lean() as IFederatedActor | null;
             logger.info(`[FedSync] userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
 
             if (!actor) {
-              const scopedClient = createScopedOxyClient(req);
-              const oxyLookupClient = scopedClient || getServiceOxyClient();
-              const oxyUser = await (oxyLookupClient as any).getUserById(syncUserId) as Record<string, unknown>;
-              const federation = oxyUser?.federation as Record<string, unknown> | undefined;
-              const actorUri = typeof federation?.actorUri === 'string' ? federation.actorUri : undefined;
-              logger.info(`[FedSync] oxyUser.type=${oxyUser?.type} federation.actorUri=${actorUri ?? 'missing'}`);
+              // Federated profile lookup is public — use the service client so it
+              // works for unauthenticated viewers and avoids per-request token setup.
+              const oxyLookupClient = getServiceOxyClient();
+              const oxyUser: User = await oxyLookupClient.getUserById(syncUserId);
+              const actorUri = typeof oxyUser.federation?.actorUri === 'string'
+                ? oxyUser.federation.actorUri
+                : undefined;
+              logger.info(`[FedSync] oxyUser.type=${oxyUser.type} federation.actorUri=${actorUri ?? 'missing'}`);
               if (actorUri) {
                 // Quick path: create a minimal FederatedActor with just the outbox URL
                 // instead of doing a full fetchRemoteActor (which fetches collection counts).
                 // The full actor refresh will happen via the scheduled job later.
                 const domain = new URL(actorUri).hostname;
-                const username = (oxyUser?.username as string || '').split('@')[0] || 'unknown';
+                const username = (oxyUser.username || '').split('@')[0] || 'unknown';
                 const acct = `${username}@${domain}`;
                 const outboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
                 logger.info(`[FedSync] creating minimal FederatedActor: acct=${acct} outboxUrl=${outboxUrl}`);
@@ -828,7 +853,7 @@ class FeedController {
               // Ensure the actor has oxyUserId before syncing so posts get the right author
               if (!actor.oxyUserId) {
                 await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
-                (actor as any).oxyUserId = syncUserId;
+                actor.oxyUserId = syncUserId;
               }
               const syncedCount = await federationService.syncOutboxPosts(actor, syncLimit);
               logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
@@ -843,24 +868,32 @@ class FeedController {
           } catch (err) {
             logger.warn('[FedSync] Background outbox sync failed:', err);
           }
+          return SYNC_DONE;
         })();
 
-        // Wait up to 10s for sync to complete, then re-query
-        try {
-          await Promise.race([
-            syncPromise,
-            new Promise(resolve => setTimeout(resolve, 25000)),
-          ]);
-          posts = await Post.find(query)
-            .select(this.FEED_FIELDS)
-            .sort({ createdAt: -1 })
-            .limit(limit + 1)
-            .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-            .lean();
-          logger.info(`[FedSync] re-query found ${posts.length} posts for userId=${syncUserId}`);
-        } catch (err) {
-          logger.warn('[FedSync] Sync wait/re-query failed:', err);
-        }
+        // Wait only a short bounded window for the fast-sync common case, then
+        // re-query. The sync promise is NOT abandoned — it keeps running in the
+        // background after this request responds. We attach a no-op catch so an
+        // eventual rejection after the response is sent never becomes an
+        // unhandled rejection.
+        syncPromise.catch(() => { /* background errors already logged above */ });
+
+        const raceResult = await Promise.race<SyncRaceResult>([
+          syncPromise,
+          new Promise<typeof TIMED_OUT>(resolve => setTimeout(() => resolve(TIMED_OUT), this.FED_SYNC_INLINE_WAIT_MS)),
+        ]);
+
+        posts = await Post.find(query)
+          .select(this.FEED_FIELDS)
+          .sort({ createdAt: -1 })
+          .limit(limit + 1)
+          .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+          .lean();
+        logger.info(`[FedSync] re-query found ${posts.length} posts for userId=${syncUserId} (raceResult=${raceResult === SYNC_DONE ? 'done' : 'timeout'})`);
+
+        // Still nothing AND the sync hasn't finished → tell the client the feed is
+        // being populated so it can show a loading state and refetch shortly.
+        fedSyncPending = posts.length === 0 && raceResult === TIMED_OUT;
       }
 
       // Validate result size
@@ -892,6 +925,12 @@ class FeedController {
         previousCursor: cursor,
         hasMore,
       });
+
+      // Signal that a federated outbox sync is still populating posts in the
+      // background so the client can show a loading state and refetch shortly.
+      if (fedSyncPending) {
+        response.pending = true;
+      }
 
       res.json(response);
     } catch (error) {

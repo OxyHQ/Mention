@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View } from 'react-native';
+import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FeedType } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -15,6 +15,11 @@ interface FeedEmptyStateProps {
     type: FeedType;
     showOnlySaved?: boolean;
     onRetry?: () => Promise<void>;
+    /**
+     * True while a federated profile feed is still populating in the background
+     * (auto-refetching). Shows a loading state instead of the empty placeholder.
+     */
+    pending?: boolean;
 }
 
 /**
@@ -22,11 +27,16 @@ interface FeedEmptyStateProps {
  * Handles loading, error, and empty states
  */
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
-    ({ isLoading, error, hasItems, type, showOnlySaved, onRetry }) => {
+    ({ isLoading, error, hasItems, type, showOnlySaved, onRetry, pending }) => {
         const { t } = useTranslation();
-        if (isLoading) return (
-            <View className="items-center justify-center py-12">
+        if (isLoading || pending) return (
+            <View className="items-center justify-center py-12 gap-3">
                 <Spinner />
+                {pending && (
+                    <Text className="text-muted-foreground text-sm">
+                        {t('feed.loadingPosts', { defaultValue: 'Loading posts…' })}
+                    </Text>
+                )}
             </View>
         );
 
