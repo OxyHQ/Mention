@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, Vi
 import { useAuth } from '@oxyhq/services';
 import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import {
   PostAttachmentArticle,
   PostAttachmentLink,
@@ -44,7 +44,7 @@ type AttachmentItem =
   | { type: 'event' }
   | { type: 'room' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
-  | { type: 'video'; mediaId: string; src: string }
+  | { type: 'video'; mediaId: string; src: string; poster?: string }
   | { type: 'image'; mediaId: string; src: string; mediaType: 'image' | 'gif' };
 
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
@@ -109,7 +109,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       const src = resolveMediaSrc(id, variant);
       if (!src) return;
       if (resolvedType === 'video') {
-        results.push({ type: 'video', mediaId: id, src });
+        // Poster comes from the RAW media id (federated URL or Oxy id), BEFORE
+        // proxy wrapping: Oxy ids → `thumb`, federated URLs → `/media/poster`.
+        results.push({ type: 'video', mediaId: id, src, poster: videoPosterUrl(id, oxyServices) });
       } else {
         const kind = resolvedType === 'gif' ? 'gif' : 'image';
         results.push({ type: 'image', mediaId: id, src, mediaType: kind });
@@ -206,7 +208,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
 
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasLink, linkMetadata, resolveMediaSrc]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasLink, linkMetadata, resolveMediaSrc, oxyServices]);
 
   type Item =
     | { type: 'nested' }
@@ -410,6 +412,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               type={item.type}
               src={item.src}
               mediaId={item.mediaId}
+              poster={item.type === 'video' ? item.poster : undefined}
               postId={postId}
               onPress={item.type === 'video' ? () => handleVideoPress(item.mediaId) : undefined}
               hasSingleMedia={hasSingleMedia}

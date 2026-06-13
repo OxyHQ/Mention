@@ -15,7 +15,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
-import { getCachedFileDownloadUrlSync, proxyExternalUrl } from '@/utils/imageUrlCache';
+import { proxyExternalUrl, videoPosterUrl } from '@/utils/imageUrlCache';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import SEO from '@/components/SEO';
@@ -159,6 +159,15 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
     const [hasRendered, setHasRendered] = useState(false);
     const [hasError, setHasError] = useState(false);
+    // Poster frame can 404 (no extractable frame) or fail to load → fall back to
+    // the neutral icon instead of a blank/broken image. Reset when the source changes.
+    const [posterFailed, setPosterFailed] = useState(false);
+
+    useEffect(() => {
+        setPosterFailed(false);
+    }, [posterUrl]);
+
+    const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
     const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
         p.loop = true;
@@ -223,13 +232,14 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
 
             {showPoster && (
                 <View style={styles.posterLayer} className="bg-secondary" pointerEvents="none">
-                    {posterUrl ? (
+                    {posterUrl && !posterFailed ? (
                         <Image
                             source={{ uri: posterUrl }}
                             style={styles.poster}
                             contentFit="contain"
                             cachePolicy="memory-disk"
                             transition={150}
+                            onError={handlePosterError}
                         />
                     ) : (
                         <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
@@ -276,8 +286,11 @@ const VideoItem = memo<VideoItemProps>(({
 }) => {
     const router = useRouter();
     const [videoError, setVideoError] = useState(false);
+    // Out-of-window poster can 404/fail → fall back to the neutral icon.
+    const [posterFailed, setPosterFailed] = useState(false);
 
     const handleError = useCallback(() => setVideoError(true), []);
+    const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
     const userName = useMemo(() => item.user?.name || '', [item.user?.name]);
     const userHandle = useMemo(() => item.user?.handle || t('common.unknown'), [item.user?.handle, t]);
@@ -308,12 +321,13 @@ const VideoItem = memo<VideoItemProps>(({
             ) : (
                 // Outside the live window (or errored): no decoder, just a poster.
                 <View style={[styles.video, styles.videoPlaceholder]} className="bg-secondary">
-                    {item.posterUrl ? (
+                    {item.posterUrl && !posterFailed ? (
                         <Image
                             source={{ uri: item.posterUrl }}
                             style={styles.poster}
                             contentFit="contain"
                             cachePolicy="memory-disk"
+                            onError={handlePosterError}
                         />
                     ) : (
                         <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
@@ -475,13 +489,15 @@ export default function VideosScreen() {
         return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
     }, [oxyServices]);
 
-    // Resolve a static poster (Oxy `thumb` variant) for an Oxy asset id. Federated
-    // absolute URLs have no thumb variant → undefined → neutral placeholder.
+    // Resolve a static poster for a video reference from its RAW media id/url
+    // (BEFORE proxy wrapping). Oxy asset ids resolve to the generated `thumb`
+    // variant; federated absolute URLs resolve to the backend `/media/poster`
+    // frame extractor. Returns undefined when nothing sensible → neutral
+    // placeholder. The poster endpoint may 404 → the Image layer's own error
+    // handling falls back to the placeholder, so this never yields a broken image.
     const resolvePosterUrl = useCallback((ref: MediaRef): string | undefined => {
         const raw = ref?.id || ref?.url || '';
-        if (!raw || raw.startsWith('http')) return undefined;
-        const resolved = getCachedFileDownloadUrlSync(oxyServices, raw, 'thumb');
-        return resolved && resolved !== raw ? resolved : undefined;
+        return videoPosterUrl(raw, oxyServices);
     }, [oxyServices]);
 
     // Build a VideoPost from a raw post, selecting the requested video. Posts

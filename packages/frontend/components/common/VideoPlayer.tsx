@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -10,6 +11,13 @@ interface VideoPlayerProps {
   contentFit?: 'contain' | 'cover' | 'fill';
   autoPlay?: boolean;
   loop?: boolean;
+  /**
+   * Poster (thumbnail) image shown over the video surface until the first frame
+   * plays. Lets federated/remote videos render a frame instead of a black box
+   * before playback starts. May 404/fail to load → silently hidden (no broken
+   * image). Resolve via `videoPosterUrl` from the RAW media reference.
+   */
+  poster?: string;
   /**
    * When provided, the player renders in feed-preview mode (Instagram Reels style):
    * the whole surface taps through to `onPress` (e.g. open the immersive viewer),
@@ -34,6 +42,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   contentFit = 'contain',
   autoPlay = true,
   loop = false,
+  poster,
   onPress,
 }) => {
   const isPreviewMode = onPress !== undefined;
@@ -43,6 +52,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+  // First-frame latch: once the video has rendered a frame we drop the poster
+  // and never bring it back (a mid-playback re-buffer must not re-flash it).
+  const [hasRenderedFrame, setHasRenderedFrame] = useState(false);
+  // Poster 404/load failure → hide it (no broken image), revealing the surface.
+  const [posterFailed, setPosterFailed] = useState(false);
+
+  useEffect(() => {
+    setHasRenderedFrame(false);
+    setPosterFailed(false);
+  }, [src]);
+
+  const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
   const videoViewRef = useRef<InstanceType<typeof VideoView>>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,8 +102,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     });
 
     const statusSub = player.addListener('statusChange', ({ status }) => {
-      if (status === 'readyToPlay' && player.duration > 0) {
-        setDuration(player.duration);
+      if (status === 'readyToPlay') {
+        setHasRenderedFrame(true);
+        if (player.duration > 0) {
+          setDuration(player.duration);
+        }
       }
     });
 
@@ -230,6 +254,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         allowsPictureInPicture={false}
       />
 
+      {poster && !hasRenderedFrame && !posterFailed && (
+        <Image
+          source={{ uri: poster }}
+          style={styles.posterLayer}
+          contentFit={contentFit}
+          cachePolicy="memory-disk"
+          transition={150}
+          pointerEvents="none"
+          onError={handlePosterError}
+        />
+      )}
+
       {isPreviewMode ? (
         <>
           {/* Whole-surface tap opens the immersive viewer (Instagram Reels style) */}
@@ -343,6 +379,10 @@ const styles = StyleSheet.create({
   video: {
     width: '100%',
     height: '100%',
+  },
+  posterLayer: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 1,
   },
   tapArea: {
     ...StyleSheet.absoluteFill,

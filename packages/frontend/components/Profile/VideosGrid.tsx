@@ -15,7 +15,7 @@ import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { videoPosterUrl } from '@/utils/imageUrlCache';
 
 interface VideosGridProps {
     userId?: string;
@@ -25,7 +25,12 @@ interface VideosGridProps {
 
 interface VideoGridEntry {
     postId: string;
-    /** Static poster URL (Oxy `thumb` variant) when resolvable; undefined for federated/unknown sources. */
+    /**
+     * Static poster URL: Oxy `thumb` variant for native assets, or the backend
+     * `/media/poster` frame for federated videos. Undefined only when no sensible
+     * poster exists; the cell falls back to a video-icon placeholder on
+     * 404/load error too.
+     */
     posterUri?: string;
     mediaIndex: number;
 }
@@ -52,16 +57,26 @@ const VideoGridCell = React.memo<{ posterUri?: string; size: number; placeholder
             () => ({ width: size, height: size, overflow: 'hidden' as const }),
             [size]
         );
+        // Poster (esp. the federated `/media/poster` frame) can 404/fail to load →
+        // fall back to the video-icon placeholder, never a broken image.
+        const [posterFailed, setPosterFailed] = useState(false);
+
+        useEffect(() => {
+            setPosterFailed(false);
+        }, [posterUri]);
+
+        const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
         return (
             <View className="bg-secondary" style={containerStyle}>
-                {posterUri ? (
+                {posterUri && !posterFailed ? (
                     <Image
                         source={{ uri: posterUri }}
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                         transition={150}
                         cachePolicy="memory-disk"
+                        onError={handlePosterError}
                     />
                 ) : (
                     <View className="w-full h-full items-center justify-center bg-secondary">
@@ -118,18 +133,14 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
     }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
     /**
-     * Resolve a static poster URL for a video media reference. For an Oxy asset
-     * id we request the `thumb` variant (a generated image poster — zero live
-     * decoders). For federated/absolute http URLs there is no thumb variant, so
-     * we return undefined and fall back to the icon placeholder.
+     * Resolve a static poster URL for a video media reference. Oxy asset ids
+     * resolve to the generated `thumb` variant (zero live decoders); federated /
+     * absolute http URLs resolve to the backend `/media/poster` frame extractor.
+     * Undefined → icon placeholder. A 404/error from the poster endpoint is
+     * handled by the cell's own image-error fallback.
      */
     const resolvePosterUri = useCallback(
-        (path?: string): string | undefined => {
-            if (!path) return undefined;
-            if (/^https?:\/\//i.test(path)) return undefined;
-            const resolved = getCachedFileDownloadUrlSync(oxyServices, path, 'thumb');
-            return resolved && resolved !== path ? resolved : undefined;
-        },
+        (path?: string): string | undefined => videoPosterUrl(path ?? '', oxyServices),
         [oxyServices]
     );
 

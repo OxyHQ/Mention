@@ -14,7 +14,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { isDbAvailable } from '@/db';
 
 interface MediaGridProps {
@@ -54,16 +54,26 @@ const VideoGridCell = React.memo<{ posterUri?: string; size: number; placeholder
             () => ({ width: size, height: size, overflow: 'hidden' as const }),
             [size]
         );
+        // Poster (esp. the federated `/media/poster` frame) can 404/fail to load →
+        // fall back to the video-icon placeholder, never a broken image.
+        const [posterFailed, setPosterFailed] = useState(false);
+
+        useEffect(() => {
+            setPosterFailed(false);
+        }, [posterUri]);
+
+        const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
         return (
             <View className="bg-secondary" style={containerStyle}>
-                {posterUri ? (
+                {posterUri && !posterFailed ? (
                     <Image
                         source={{ uri: posterUri }}
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                         transition={150}
                         cachePolicy="memory-disk"
+                        onError={handlePosterError}
                     />
                 ) : (
                     <View className="w-full h-full items-center justify-center bg-secondary">
@@ -126,14 +136,12 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         [oxyServices]
     );
 
+    // Oxy asset ids resolve to the generated `thumb` poster; federated/absolute
+    // http videos resolve to the backend `/media/poster` frame extractor. Undefined
+    // → icon placeholder; a 404/error from the endpoint is handled by the cell's
+    // own image-error fallback.
     const resolveVideoPosterUri = useCallback(
-        (path?: string): string | undefined => {
-            if (!path) return undefined;
-            // Federated video: no generated thumb variant — fall back to placeholder.
-            if (/^https?:\/\//i.test(path)) return undefined;
-            const resolved = getCachedFileDownloadUrlSync(oxyServices, path, 'thumb');
-            return resolved && resolved !== path ? resolved : undefined;
-        },
+        (path?: string): string | undefined => videoPosterUrl(path ?? '', oxyServices),
         [oxyServices]
     );
 

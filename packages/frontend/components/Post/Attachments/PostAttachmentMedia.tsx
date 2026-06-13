@@ -18,6 +18,8 @@ interface PostAttachmentMediaProps {
   src: string;
   mediaId?: string;
   postId?: string;
+  /** Poster (thumbnail) shown over the video until the first frame plays. */
+  poster?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
@@ -25,10 +27,11 @@ interface PostAttachmentMediaProps {
 
 const PostAttachmentVideo: React.FC<{
   src: string;
+  poster?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, onPress, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src, poster, onPress, hasSingleMedia, hasMultipleMedia }) => {
   return (
     <View
       className="border border-border bg-secondary rounded-[15px] overflow-hidden"
@@ -40,6 +43,7 @@ const PostAttachmentVideo: React.FC<{
     >
       <VideoPlayer
         src={src}
+        poster={poster}
         style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
         contentFit="contain"
         autoPlay={true}
@@ -121,6 +125,7 @@ const PostAttachmentImage: React.FC<{
 const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   type,
   src,
+  poster,
   onPress,
   hasSingleMedia,
   hasMultipleMedia,
@@ -129,6 +134,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     return (
       <PostAttachmentVideo
         src={src}
+        poster={poster}
         onPress={onPress}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}

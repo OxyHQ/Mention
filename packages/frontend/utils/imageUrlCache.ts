@@ -11,6 +11,16 @@ import { API_URL, OXY_BASE_URL } from '@/config';
 // survives expiring upstream links. See backend `GET /media/proxy?url=<encoded>`.
 const MEDIA_PROXY_PATH = '/media/proxy';
 
+// Backend poster endpoint: extracts a single JPEG frame from a remote/federated
+// video so we can show a thumbnail before the decoder mounts (or for static
+// grids that never mount one). See backend `GET /media/poster?url=<encoded>`.
+// May 404 when no frame can be extracted — callers must fall back to a
+// placeholder and never surface a broken image.
+const MEDIA_POSTER_PATH = '/media/poster';
+
+// Oxy generated still-frame variant for native (non-federated) video assets.
+const OXY_THUMB_VARIANT = 'thumb';
+
 /**
  * Origins we own — absolute URLs on these hosts must NOT be routed through the
  * proxy (they already resolve to our own backend/CDN and proxying them would be
@@ -64,6 +74,84 @@ export function proxyExternalUrl(url: string): string {
     // Not a parseable absolute URL — return it as-is rather than throwing in a
     // render path. The non-http callers never reach here.
     return url;
+  }
+}
+
+/**
+ * Minimal shape we rely on from the Oxy services client for resolving native
+ * (non-federated) video posters. Kept local so this util has no hard dependency
+ * on the full SDK surface and stays trivially mockable in tests.
+ */
+interface OxyFileUrlResolver {
+  getFileDownloadUrl?: (fileId: string, variant?: string, expiresIn?: number) => string | undefined;
+  getFileDownloadUrlAsync?: (fileId: string, variant?: string, expiresIn?: number) => Promise<string>;
+}
+
+/**
+ * Given the RAW video reference for a post (an Oxy file id OR an absolute
+ * http(s) URL — possibly already wrapped by our `/media/proxy`), return a poster
+ * (thumbnail) image URL, or `undefined` when no sensible poster exists.
+ *
+ * Resolution rules:
+ *  - Absolute http(s) URL that is NOT one of our own origins (federated/remote
+ *    video): route it through the backend poster endpoint
+ *    (`${API_URL}/media/poster?url=<encoded original>`), which extracts a frame.
+ *  - Already a `/media/proxy?url=…` URL (we proxy federated video, so the raw
+ *    reference may arrive pre-wrapped): unwrap the original `url` param and build
+ *    the poster from that ORIGINAL remote URL, not the proxy hop.
+ *  - Any other own-origin http(s) URL (e.g. a direct link to our CDN): skip —
+ *    these resolve to assets that already carry server-side posters; return
+ *    `undefined` so the caller can use the Oxy thumb path or a placeholder.
+ *  - Non-http reference (an Oxy file id): return the Oxy `thumb` variant via the
+ *    SDK resolver. Requires `oxyServices`; without it we cannot resolve and
+ *    return `undefined`.
+ *
+ * Never throws: any parse failure degrades to `undefined` so it is safe to call
+ * directly in a render path. The poster endpoint may 404 — the caller must fall
+ * back to a placeholder on image error and never show a broken image.
+ */
+export function videoPosterUrl(
+  videoUrl: string,
+  oxyServices?: OxyFileUrlResolver | null,
+): string | undefined {
+  if (!videoUrl) return undefined;
+
+  const isHttp = videoUrl.startsWith('http://') || videoUrl.startsWith('https://');
+
+  // Non-http reference → Oxy file id. Native Oxy videos get a generated server
+  // thumbnail via the `thumb` variant.
+  if (!isHttp) {
+    const cached = imageUrlCache.get(videoUrl, OXY_THUMB_VARIANT);
+    if (cached) return cached;
+    const resolved = oxyServices?.getFileDownloadUrl?.(videoUrl, OXY_THUMB_VARIANT);
+    if (!resolved || !resolved.startsWith('http')) return undefined;
+    imageUrlCache.set(videoUrl, resolved, OXY_THUMB_VARIANT);
+    return resolved;
+  }
+
+  try {
+    const parsed = new URL(videoUrl);
+
+    // If the reference already points at our own proxy, the real remote URL is
+    // carried in its `url` query param. Derive the poster from THAT original so
+    // the backend can fetch + frame-grab the upstream video directly.
+    if (ownOrigins.has(parsed.origin) && parsed.pathname === MEDIA_PROXY_PATH) {
+      const original = parsed.searchParams.get('url');
+      if (!original) return undefined;
+      return `${API_URL}${MEDIA_POSTER_PATH}?url=${encodeURIComponent(original)}`;
+    }
+
+    // Any other own-origin URL: not a federated video we need to frame-grab.
+    // Skip — server-side posters (if any) come from the Oxy id path elsewhere.
+    if (ownOrigins.has(parsed.origin)) {
+      return undefined;
+    }
+
+    // Federated / remote absolute URL → poster from the backend frame extractor.
+    return `${API_URL}${MEDIA_POSTER_PATH}?url=${encodeURIComponent(videoUrl)}`;
+  } catch {
+    // Not a parseable absolute URL — no sensible poster.
+    return undefined;
   }
 }
 
