@@ -65,6 +65,7 @@ import housesRoutes from './src/routes/houses.routes';
 import seriesRoutes from './src/routes/series.routes';
 import entityFollowRoutes from './src/routes/entity-follow.routes';
 import adminRoutes from './src/routes/admin';
+import mediaRoutes from './src/routes/media';
 
 // Federation (ActivityPub)
 import webfingerRoutes from './src/routes/webfinger.routes';
@@ -139,6 +140,12 @@ app.use(compression({
   filter: (req, res) => {
     // Don't compress if client doesn't support it
     if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Never compress the media proxy: it relays already-encoded media (some of
+    // which is compressible, e.g. image/svg+xml or audio/wav) and re-gzipping
+    // breaks the relayed Content-Length / byte-range seeking and wastes CPU.
+    if (req.path === '/media/proxy') {
       return false;
     }
     // Use compression filter function
@@ -862,6 +869,12 @@ app.get('/nodeinfo/2.0', async (req, res) => {
 });
 
 app.use('/ap', federationRoutes);
+
+// --- Media proxy (PUBLIC, no auth) ---
+// Streams remote fediverse media through our origin (CORS-safe, cacheable,
+// range-seekable). Mounted directly on `app` before the auth router so the
+// public path is exactly `/media/proxy`. SSRF-guarded internally.
+app.use('/media', mediaRoutes);
 
 // Mount public and authenticated API routers
 app.use("/", publicApiRouter);
