@@ -14,3 +14,11 @@ export const MIGRATIONS_COLLECTION = 'migrations';
  * See {@link ./0001-repost-to-boost} for the exact operations performed.
  */
 export const MIGRATION_REPOST_TO_BOOST = '0001-repost-to-boost';
+
+/**
+ * One-shot backfill that lowercases (and de-duplicates) every element of each
+ * post's `hashtags` array so stored tags are canonical lowercase, matching the
+ * case-insensitive read paths. See {@link ./0002-lowercase-hashtags} for the
+ * exact operations performed.
+ */
+export const MIGRATION_LOWERCASE_HASHTAGS = '0002-lowercase-hashtags';

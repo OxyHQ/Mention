@@ -1130,7 +1130,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
     post.markModified('content.attachments');
 
-    if (hashtags !== undefined) post.hashtags = hashtags || [];
+    if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
     if (mentions !== undefined) post.mentions = mentions || [];
 
     await post.save();

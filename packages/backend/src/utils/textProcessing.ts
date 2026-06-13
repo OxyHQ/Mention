@@ -18,11 +18,22 @@ export function extractHashtags(text: string): string[] {
 
 /**
  * Merge extracted hashtags with user-provided hashtags.
- * Returns deduplicated array.
+ *
+ * Hashtags are stored canonically lowercased so that case-insensitive read
+ * paths (`getPostsByHashtag`, the MTN `HashtagFeed`, the `$toLower` trending
+ * aggregations) always match. `extractHashtags` already lowercases tags pulled
+ * from the text; user-provided tags are normalized here (trimmed + lowercased)
+ * before deduplication so a mixed-case `userProvided` entry can never be stored
+ * verbatim. Empty entries are dropped.
+ *
+ * Returns a deduplicated array of lowercase tag names.
  */
 export function mergeHashtags(text: string, userProvided?: string[]): string[] {
   const extracted = extractHashtags(text);
-  return [...new Set([...(userProvided || []), ...extracted])];
+  const normalizedUserProvided = (userProvided || [])
+    .map((tag) => tag.trim().toLowerCase())
+    .filter((tag) => tag.length > 0);
+  return [...new Set([...normalizedUserProvided, ...extracted])];
 }
 
 /**

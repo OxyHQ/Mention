@@ -572,6 +572,11 @@ class FederationService {
 
   /**
    * Extract hashtags from an AP Note's tag array.
+   *
+   * Tags are stored canonically lowercased (and trimmed) so federated content
+   * matches the case-insensitive read paths used by the hashtag screen, MTN
+   * `HashtagFeed`, and the trending aggregations. Entries that are empty after
+   * stripping the leading `#` are skipped.
    */
   private extractApHashtags(note: Record<string, any>): string[] {
     const hashtags: string[] = [];
@@ -579,7 +584,10 @@ class FederationService {
 
     for (const tag of note.tag) {
       if (tag?.type === 'Hashtag' && tag.name) {
-        hashtags.push(tag.name.replace(/^#/, ''));
+        const normalized = tag.name.replace(/^#/, '').trim().toLowerCase();
+        if (normalized.length > 0) {
+          hashtags.push(normalized);
+        }
       }
     }
     return hashtags;
