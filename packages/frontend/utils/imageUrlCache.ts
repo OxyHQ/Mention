@@ -1,9 +1,71 @@
 /**
  * Image URL Cache Utility
- * 
+ *
  * Caches generated image URLs to prevent redundant API calls.
  * URLs are cached with TTL matching signed URL expiration (default 1 hour).
  */
+
+import { API_URL, OXY_BASE_URL } from '@/config';
+
+// Backend media proxy: streams remote media with CORS + cache + HTTP Range, and
+// survives expiring upstream links. See backend `GET /media/proxy?url=<encoded>`.
+const MEDIA_PROXY_PATH = '/media/proxy';
+
+/**
+ * Origins we own — absolute URLs on these hosts must NOT be routed through the
+ * proxy (they already resolve to our own backend/CDN and proxying them would be
+ * a wasteful double-hop). Derived from configured bases, never hardcoded hosts.
+ */
+const ownOrigins = (() => {
+  const origins = new Set<string>();
+  for (const base of [API_URL, OXY_BASE_URL]) {
+    if (!base) continue;
+    try {
+      origins.add(new URL(base).origin);
+    } catch {
+      // A malformed base in config is non-fatal here: we simply can't treat it
+      // as an "own" origin, so URLs on that host would be proxied. Skip it.
+    }
+  }
+  return origins;
+})();
+
+/**
+ * Route an absolute http(s) URL through the backend media proxy so external /
+ * federated media loads reliably on web (CORS), survives expiring upstream
+ * links, and gets cached. URLs that are already ours — our backend/CDN origins
+ * or an existing `/media/proxy` URL — are returned unchanged to avoid a wasteful
+ * double-proxy. Never throws: on any parse failure it returns the input URL so
+ * it is safe to call directly in a render path.
+ */
+export function proxyExternalUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+
+    // Only http(s) is proxyable. Anything else (data:, blob:, relative, …)
+    // passes through untouched.
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return url;
+    }
+
+    // Already ours → no proxy.
+    if (ownOrigins.has(parsed.origin)) {
+      return url;
+    }
+
+    // Already a proxy URL (defensive against double-proxying if a proxied URL
+    // is fed back in from a host we don't recognise as ours).
+    if (parsed.pathname === MEDIA_PROXY_PATH) {
+      return url;
+    }
+
+    return `${API_URL}${MEDIA_PROXY_PATH}?url=${encodeURIComponent(url)}`;
+  } catch {
+    // Not a parseable absolute URL — return it as-is rather than throwing in a
+    // render path. The non-http callers never reach here.
+    return url;
+  }
+}
 
 interface CachedUrl {
   url: string;
@@ -122,9 +184,18 @@ export async function getCachedFileDownloadUrl(
   variant?: string,
   expiresIn?: number
 ): Promise<string> {
-  // Federated media: proxy URLs are already complete HTTP URLs — return directly
+  // External/federated media: the id is already an absolute HTTP URL. Route it
+  // through the backend media proxy (CORS + cache + Range, survives expiring
+  // upstream links). Cache the result keyed by fileId+variant so the proxied URL
+  // identity is stable across renders (prevents image flicker).
   if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
-    return fileId;
+    const cachedProxy = imageUrlCache.get(fileId, variant);
+    if (cachedProxy) {
+      return cachedProxy;
+    }
+    const proxied = proxyExternalUrl(fileId);
+    imageUrlCache.set(fileId, proxied, variant);
+    return proxied;
   }
 
   // Check cache first
@@ -166,9 +237,18 @@ export function getCachedFileDownloadUrlSync(
   variant?: string,
   expiresIn?: number
 ): string {
-  // Federated media: proxy URLs are already complete HTTP URLs — return directly
+  // External/federated media: the id is already an absolute HTTP URL. Route it
+  // through the backend media proxy (CORS + cache + Range, survives expiring
+  // upstream links). Cache the result keyed by fileId+variant so the proxied URL
+  // identity is stable across renders (prevents image flicker).
   if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
-    return fileId;
+    const cachedProxy = imageUrlCache.get(fileId, variant);
+    if (cachedProxy) {
+      return cachedProxy;
+    }
+    const proxied = proxyExternalUrl(fileId);
+    imageUrlCache.set(fileId, proxied, variant);
+    return proxied;
   }
 
   // Check cache first

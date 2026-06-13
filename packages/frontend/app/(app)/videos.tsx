@@ -15,7 +15,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { getCachedFileDownloadUrlSync, proxyExternalUrl } from '@/utils/imageUrlCache';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import SEO from '@/components/SEO';
@@ -464,11 +464,14 @@ export default function VideosScreen() {
         [insets.bottom]
     );
 
-    // Resolve an Oxy/federated reference to a playable absolute URL.
+    // Resolve an Oxy/federated reference to a playable absolute URL. Federated /
+    // external absolute URLs stream through the backend media proxy (CORS + HTTP
+    // Range seeking + caching, survives expiring upstream links); Oxy file ids
+    // resolve to our own URLs and are returned as-is.
     const resolveVideoUrl = useCallback((ref: MediaRef): string => {
         const raw = ref?.url || ref?.id || '';
         if (!raw) return '';
-        if (raw.startsWith('http')) return raw;
+        if (raw.startsWith('http')) return proxyExternalUrl(raw);
         return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
     }, [oxyServices]);
 
