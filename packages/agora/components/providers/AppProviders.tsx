@@ -1,5 +1,4 @@
 import React, { memo, useEffect, useMemo, useCallback } from 'react';
-import { Platform } from 'react-native';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -8,24 +7,11 @@ import { OxyProvider, useOxy } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
-import {
-  BloomThemeProvider,
-  webLocalStorage,
-  type BloomThemeStorage,
-} from '@oxyhq/bloom';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BloomThemeProvider } from '@oxyhq/bloom';
 
 import { agoraConfig } from '@/lib/agoraConfig';
 import { roomQueryKeys } from '@/hooks/useRoomsQuery';
 import { setOxyServicesRef, setActiveSessionIdRef } from '@/utils/api';
-
-const asyncStorageAdapter: BloomThemeStorage = {
-  getItem: (key) => AsyncStorage.getItem(key),
-  setItem: (key, value) => AsyncStorage.setItem(key, value),
-};
-
-const themeStorage: BloomThemeStorage | undefined =
-  Platform.OS === 'web' ? webLocalStorage : asyncStorageAdapter;
 
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 try {
@@ -71,8 +57,6 @@ export const AppProviders = memo(function AppProviders({
     <BloomThemeProvider
       defaultMode="system"
       defaultColorPreset="yellow"
-      persistKey="agora-theme"
-      storage={themeStorage}
       fonts={false}
     >
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
