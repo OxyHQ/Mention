@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -9,18 +9,26 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 
 export default function TagsMentionsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
+    const { isAuthenticated } = useAuth();
     const [allowTags, setAllowTags] = useState(true);
     const [allowMentions, setAllowMentions] = useState(true);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
         loadSettings();
-    }, []);
+    }, [isAuthenticated]);
 
     const loadSettings = async () => {
         try {
@@ -37,7 +45,6 @@ export default function TagsMentionsScreen() {
 
     const updateSetting = async (field: 'allowTags' | 'allowMentions', value: boolean) => {
         try {
-            // Load current settings first to preserve other privacy settings
             let currentPrivacy = {};
             try {
                 const currentResponse = await authenticatedClient.get('/profile/settings/me');
@@ -55,11 +62,33 @@ export default function TagsMentionsScreen() {
             });
         } catch (error) {
             logger.error('Error updating setting', { error });
-            // Revert on failure
             if (field === 'allowTags') setAllowTags(!value);
             if (field === 'allowMentions') setAllowMentions(!value);
         }
     };
+
+    if (!isAuthenticated) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.tagsAndMentions'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <OxyAuthPrompt
+                    label={t('settings.privacy.tagsMentions.signInRequired', { defaultValue: 'Sign in to manage tags and mentions' })}
+                    description={t('settings.privacy.tagsMentions.signInRequiredDesc', { defaultValue: 'Control who can tag or mention you in posts.' })}
+                />
+            </ThemedView>
+        );
+    }
 
     if (loading) {
         return (
@@ -68,16 +97,13 @@ export default function TagsMentionsScreen() {
                     options={{
                         title: t('settings.privacy.tagsAndMentions'),
                         leftComponents: [
-                            <IconButton variant="icon"
-                                key="back"
-                                onPress={() => safeBack()}
-                            >
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                                 <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
                     }}
-                    hideBottomBorder={true}
-                    disableSticky={true}
+                    hideBottomBorder
+                    disableSticky
                 />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
@@ -92,66 +118,52 @@ export default function TagsMentionsScreen() {
                 options={{
                     title: t('settings.privacy.tagsAndMentions'),
                     leftComponents: [
-                        <IconButton variant="icon"
-                            key="back"
-                            onPress={() => safeBack()}
-                        >
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],
                 }}
-                hideBottomBorder={true}
-                disableSticky={true}
+                hideBottomBorder
+                disableSticky
             />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="px-4 pt-5 pb-6"
+                contentContainerClassName="py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <View className="rounded-2xl border border-border bg-card overflow-hidden">
-                    <View className="flex-row items-center justify-between px-4 pt-[18px] py-4">
-                        <View className="flex-1">
-                            <View>
-                                <Text className="text-base font-medium mb-1 text-foreground">
-                                    {t('settings.privacy.allowTags')}
-                                </Text>
-                                <Text className="text-sm leading-5 text-muted-foreground">
-                                    {t('settings.privacy.allowTagsDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <Toggle
-                            value={allowTags}
-                            onValueChange={(value) => {
-                                setAllowTags(value);
-                                updateSetting('allowTags', value);
-                            }}
-                        />
-                    </View>
-
-                    <View className="h-px mx-4 bg-border" />
-
-                    <View className="flex-row items-center justify-between px-4 py-4 pb-[18px]">
-                        <View className="flex-1">
-                            <View>
-                                <Text className="text-base font-medium mb-1 text-foreground">
-                                    {t('settings.privacy.allowMentions')}
-                                </Text>
-                                <Text className="text-sm leading-5 text-muted-foreground">
-                                    {t('settings.privacy.allowMentionsDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <Toggle
-                            value={allowMentions}
-                            onValueChange={(value) => {
-                                setAllowMentions(value);
-                                updateSetting('allowMentions', value);
-                            }}
-                        />
-                    </View>
-                </View>
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="pricetag-outline" />}
+                        title={t('settings.privacy.allowTags')}
+                        description={t('settings.privacy.allowTagsDesc')}
+                        showChevron={false}
+                        rightElement={
+                            <Toggle
+                                value={allowTags}
+                                onValueChange={(value) => {
+                                    setAllowTags(value);
+                                    updateSetting('allowTags', value);
+                                }}
+                            />
+                        }
+                    />
+                    <SettingsListItem
+                        icon={<RowIcon name="at-outline" />}
+                        title={t('settings.privacy.allowMentions')}
+                        description={t('settings.privacy.allowMentionsDesc')}
+                        showChevron={false}
+                        rightElement={
+                            <Toggle
+                                value={allowMentions}
+                                onValueChange={(value) => {
+                                    setAllowMentions(value);
+                                    updateSetting('allowMentions', value);
+                                }}
+                            />
+                        }
+                    />
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

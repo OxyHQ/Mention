@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -9,17 +9,25 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 
 export default function OnlineStatusScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
+    const { isAuthenticated } = useAuth();
     const [showOnlineStatus, setShowOnlineStatus] = useState(true);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
         loadSettings();
-    }, []);
+    }, [isAuthenticated]);
 
     const loadSettings = async () => {
         try {
@@ -35,7 +43,6 @@ export default function OnlineStatusScreen() {
 
     const updateSetting = async (value: boolean) => {
         try {
-            // Load current settings first to preserve other privacy settings
             let currentPrivacy = {};
             try {
                 const currentResponse = await authenticatedClient.get('/profile/settings/me');
@@ -53,10 +60,32 @@ export default function OnlineStatusScreen() {
             });
         } catch (error) {
             logger.error('Error updating setting', { error });
-            // Revert on failure
             setShowOnlineStatus(!value);
         }
     };
+
+    if (!isAuthenticated) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.onlineStatus'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <OxyAuthPrompt
+                    label={t('settings.privacy.onlineStatus.signInRequired', { defaultValue: 'Sign in to manage your online status' })}
+                    description={t('settings.privacy.onlineStatus.signInRequiredDesc', { defaultValue: 'Decide whether others see when you are online.' })}
+                />
+            </ThemedView>
+        );
+    }
 
     if (loading) {
         return (
@@ -65,16 +94,13 @@ export default function OnlineStatusScreen() {
                     options={{
                         title: t('settings.privacy.onlineStatus'),
                         leftComponents: [
-                            <IconButton variant="icon"
-                                key="back"
-                                onPress={() => safeBack()}
-                            >
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                                 <BackArrowIcon size={20} className="text-foreground" />
                             </IconButton>,
                         ],
                     }}
-                    hideBottomBorder={true}
-                    disableSticky={true}
+                    hideBottomBorder
+                    disableSticky
                 />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
@@ -89,44 +115,37 @@ export default function OnlineStatusScreen() {
                 options={{
                     title: t('settings.privacy.onlineStatus'),
                     leftComponents: [
-                        <IconButton variant="icon"
-                            key="back"
-                            onPress={() => safeBack()}
-                        >
+                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
                             <BackArrowIcon size={20} className="text-foreground" />
                         </IconButton>,
                     ],
                 }}
-                hideBottomBorder={true}
-                disableSticky={true}
+                hideBottomBorder
+                disableSticky
             />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="px-4 pt-5 pb-6"
+                contentContainerClassName="py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <View className="rounded-2xl border border-border bg-card overflow-hidden">
-                    <View className="flex-row items-center justify-between px-4 pt-[18px] pb-[18px]">
-                        <View className="flex-1">
-                            <View>
-                                <Text className="text-base font-medium mb-1 text-foreground">
-                                    {t('settings.privacy.showOnlineStatus')}
-                                </Text>
-                                <Text className="text-sm leading-5 text-muted-foreground">
-                                    {t('settings.privacy.showOnlineStatusDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <Toggle
-                            value={showOnlineStatus}
-                            onValueChange={(value) => {
-                                setShowOnlineStatus(value);
-                                updateSetting(value);
-                            }}
-                        />
-                    </View>
-                </View>
+                <SettingsListGroup>
+                    <SettingsListItem
+                        icon={<RowIcon name="ellipse" />}
+                        title={t('settings.privacy.showOnlineStatus')}
+                        description={t('settings.privacy.showOnlineStatusDesc')}
+                        showChevron={false}
+                        rightElement={
+                            <Toggle
+                                value={showOnlineStatus}
+                                onValueChange={(value) => {
+                                    setShowOnlineStatus(value);
+                                    updateSetting(value);
+                                }}
+                            />
+                        }
+                    />
+                </SettingsListGroup>
             </ScrollView>
         </ThemedView>
     );

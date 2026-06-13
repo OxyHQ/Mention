@@ -15,6 +15,7 @@ import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 
 type ProfileStyle = 'default' | 'minimalist';
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -31,8 +32,8 @@ interface StyleOption {
 export default function ProfileCustomizationScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
+  const { isAuthenticated } = useAuth();
   const mySettings = useAppearanceStore((state) => state.mySettings);
-  const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const { colorPreset: appColor } = useBloomTheme();
   const { colors } = useTheme();
@@ -71,10 +72,6 @@ export default function ProfileCustomizationScreen() {
   }, [minimalistMode, coverPhotoEnabled]);
 
   useEffect(() => {
-    loadMySettings();
-  }, [loadMySettings]);
-
-  useEffect(() => {
     if (mySettings) {
       setCoverPhotoEnabled(mySettings.profileCustomization?.coverPhotoEnabled ?? true);
       setMinimalistMode(mySettings.profileCustomization?.minimalistMode ?? false);
@@ -92,7 +89,7 @@ export default function ProfileCustomizationScreen() {
           coverPhotoEnabled: style.coverPhotoEnabled,
           minimalistMode: style.minimalistMode,
         },
-      } as Record<string, unknown>);
+      });
     } catch (error) {
       logger.error('Error updating profile customization', { error });
       setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
@@ -101,6 +98,29 @@ export default function ProfileCustomizationScreen() {
       setStyleSaving(false);
     }
   }, [updateMySettings, mySettings]);
+
+  if (!isAuthenticated) {
+    return (
+      <ThemedView className="flex-1">
+        <Header
+          options={{
+            title: t('settings.profileCustomization.title'),
+            leftComponents: [
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                <BackArrowIcon size={20} className="text-foreground" />
+              </IconButton>,
+            ],
+          }}
+          hideBottomBorder
+          disableSticky
+        />
+        <OxyAuthPrompt
+          label={t('settings.profileCustomization.signInRequired', { defaultValue: 'Sign in to customize your profile' })}
+          description={t('settings.profileCustomization.signInRequiredDesc', { defaultValue: 'Choose your profile layout and accent color.' })}
+        />
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView className="flex-1">

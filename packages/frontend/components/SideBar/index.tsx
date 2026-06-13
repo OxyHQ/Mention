@@ -26,8 +26,9 @@ import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
+import { useAppearanceStore } from '@/store/appearanceStore';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
@@ -46,17 +47,19 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const router = useRouter();
     const { user, signIn, signOut } = useAuth();
     const theme = useTheme();
+    const { resetTheme } = useBloomTheme();
+    const resetAppearance = useAppearanceStore((state) => state.reset);
     const avatarUri = user?.avatar;
 
     const handleSignOut = useCallback(async () => {
         try {
             await signOut();
-        } catch {
-            // Server may reject if session already expired; navigate anyway
-        }
+        } catch {}
+        resetAppearance();
+        resetTheme();
         onNavigate?.();
         router.replace('/');
-    }, [signOut, onNavigate, router]);
+    }, [signOut, onNavigate, router, resetAppearance, resetTheme]);
 
     const handleNavPress = useCallback((route: Href) => {
         onNavigate?.();

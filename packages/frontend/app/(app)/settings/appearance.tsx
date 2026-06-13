@@ -21,31 +21,26 @@ type ThemeMode = 'system' | 'light' | 'dark';
 
 export default function AppearanceSettingsScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
-  const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const { colorPreset: appColor, setMode } = useBloomTheme();
+  const { colorPreset: appColor, mode: bloomMode, setMode } = useBloomTheme();
   const { showBottomSheet, oxyServices, user: authUser } = useAuth();
   const { saveColor, saving: colorSaving } = useAppColorSave();
   const safeBack = useSafeBack();
   const { colors } = useTheme();
   const { t } = useTranslation();
 
-  const [themeMode, setThemeMode] = useState<ThemeMode>('system');
-  const [headerImageId, setHeaderImageId] = useState<string>('');
+  const themeMode: ThemeMode = bloomMode === 'adaptive' || bloomMode === 'system'
+    ? 'system'
+    : bloomMode;
+  const [headerImageId, setHeaderImageId] = useState<string>(mySettings?.profileHeaderImage ?? '');
   const [settingsSaving, setSettingsSaving] = useState(false);
   const saving = settingsSaving || colorSaving;
 
   useEffect(() => {
-    loadMySettings();
-  }, [loadMySettings]);
-
-  useEffect(() => {
-    if (mySettings) {
-      const mode = mySettings.appearance?.themeMode || 'system';
-      setThemeMode(mode === 'adaptive' ? 'system' : mode);
+    if (mySettings?.profileHeaderImage !== undefined) {
       setHeaderImageId(mySettings.profileHeaderImage || '');
     }
-  }, [mySettings]);
+  }, [mySettings?.profileHeaderImage]);
 
   const normalizedUsername = authUser?.username?.toLowerCase();
   const isOxyUser = normalizedUsername === 'oxy';
@@ -72,14 +67,13 @@ export default function AppearanceSettingsScreen() {
     await updateMySettings({
       appearance: { themeMode: mode, primaryColor: color || undefined },
       profileHeaderImage: header || undefined,
-    } as Record<string, unknown>);
+    });
     setSettingsSaving(false);
   }, [themeMode, preset.hex, headerImageId, updateMySettings]);
 
-  const onThemeModeChange = useCallback(async (mode: ThemeMode) => {
-    setThemeMode(mode);
+  const onThemeModeChange = useCallback((mode: ThemeMode) => {
     setMode(mode);
-    await saveSettings({ themeMode: mode });
+    void saveSettings({ themeMode: mode });
   }, [saveSettings, setMode]);
 
   const onColorChange = saveColor;

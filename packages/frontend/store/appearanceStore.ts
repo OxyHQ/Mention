@@ -1,43 +1,6 @@
 import { create } from 'zustand';
 import { api, publicApi, isUnauthorizedError } from '@/utils/api';
-import { Storage } from '@/utils/storage';
-import { hexToAppColorName, type AppColorName, type ThemeMode } from '@oxyhq/bloom/theme';
-
-export type { ThemeMode } from '@oxyhq/bloom/theme';
-
-const VALID_THEME_MODES = new Set<ThemeMode>(['light', 'dark', 'system', 'adaptive']);
-
-/**
- * Bridge between server-side appearance settings and Bloom's theme provider.
- * Registered from React (see `useAppearanceThemeBridge`) so this module stays
- * decoupled from the Bloom context.
- */
-export interface AppearanceThemeBridge {
-  setMode: (mode: ThemeMode) => void;
-  setColorPreset: (preset: AppColorName) => void;
-}
-
-let themeBridge: AppearanceThemeBridge | null = null;
-
-export function registerAppearanceThemeBridge(bridge: AppearanceThemeBridge | null): void {
-  themeBridge = bridge;
-  if (bridge) {
-    syncToThemeStore(useAppearanceStore.getState().mySettings?.appearance);
-  }
-}
-
-/** Push appearance settings into the Bloom theme provider for immediate effect. */
-function syncToThemeStore(appearance: { themeMode?: string; primaryColor?: string } | undefined) {
-  if (!appearance || !themeBridge) return;
-  if (appearance.themeMode && VALID_THEME_MODES.has(appearance.themeMode as ThemeMode)) {
-    themeBridge.setMode(appearance.themeMode as ThemeMode);
-  }
-  if (appearance.primaryColor) {
-    themeBridge.setColorPreset(hexToAppColorName(appearance.primaryColor));
-  }
-}
-
-const APPEARANCE_CACHE_KEY = 'oxy_appearance_settings';
+import type { ThemeMode } from '@oxyhq/bloom/theme';
 
 function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
   if (value === null || value === undefined) {
@@ -45,7 +8,7 @@ function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
   }
 
   if (typeof value === 'object' && value !== null) {
-    const recordValue = value as Record<string, any>;
+    const recordValue = value as Record<string, unknown>;
     if ('data' in recordValue) {
       const inner = recordValue.data as T | null | undefined;
       return inner ?? null;
@@ -82,99 +45,87 @@ export interface UserAppearance {
   updatedAt?: string;
 }
 
+export interface UserAppearanceUpdate {
+  appearance?: Partial<AppearanceSettings>;
+  profileHeaderImage?: string;
+  profileCustomization?: UserAppearance['profileCustomization'];
+  interests?: UserAppearance['interests'];
+}
+
 interface AppearanceStore {
   mySettings: UserAppearance | null;
   byUserId: Record<string, UserAppearance>;
   loading: boolean;
   error: string | null;
-  loadMySettings: (isAuthenticated?: boolean) => Promise<void>;
+  loadMySettings: (isAuthenticated: boolean) => Promise<void>;
   loadForUser: (userId: string, forceRefresh?: boolean) => Promise<UserAppearance | null>;
-  updateMySettings: (partial: Partial<UserAppearance>) => Promise<UserAppearance | null>;
+  updateMySettings: (partial: UserAppearanceUpdate) => Promise<UserAppearance | null>;
+  reset: () => void;
 }
 
-/**
- * Appearance store with optimized selectors to prevent unnecessary re-renders.
- * Always use selectors when subscribing: useAppearanceStore(state => state.mySettings)
- */
 export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
   mySettings: null,
   byUserId: {},
   loading: false,
   error: null,
 
-  async loadMySettings(isAuthenticated?: boolean) {
+  async loadMySettings(isAuthenticated: boolean) {
+    if (!isAuthenticated) {
+      return;
+    }
+
     try {
       set({ loading: true, error: null });
-      
-      // Load from cache first for instant theme application
-      const cachedRaw = await Storage.get<UserAppearance | { data: UserAppearance }>(APPEARANCE_CACHE_KEY);
-      const cached = unwrapApiData<UserAppearance>(cachedRaw);
-      if (cached) {
-        set({ mySettings: cached });
-        syncToThemeStore(cached.appearance);
-      }
 
-      // Only fetch from API if user is authenticated
-      // If isAuthenticated is undefined, we'll try the API call and handle 401 gracefully
-      if (isAuthenticated === false) {
-        set({ loading: false });
-        return;
-      }
-
-      // Fetch fresh data from API
       const res = await api.get<UserAppearance>('profile/settings/me');
       const doc = unwrapApiData<UserAppearance>(res.data);
-      
-      // Cache the settings
-      if (doc) {
-        await Storage.set(APPEARANCE_CACHE_KEY, doc);
 
+      if (doc) {
         set((state) => ({
           mySettings: doc,
           byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
           loading: false,
         }));
-        syncToThemeStore(doc.appearance);
       } else {
         set({ loading: false });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isUnauthorizedError(e)) {
         set({ loading: false, error: null });
         return;
       }
-      set({ loading: false, error: e?.message || 'Failed to load settings' });
+      const message = e instanceof Error ? e.message : 'Failed to load settings';
+      set({ loading: false, error: message });
     }
   },
 
   async loadForUser(userId: string, forceRefresh: boolean = false) {
     if (!userId) return null;
-    
+
     try {
       const cached = get().byUserId[userId];
       if (cached && !forceRefresh) return cached;
-      
+
       const res = await publicApi.get<UserAppearance>(`profile/design/${userId}`);
       const doc = unwrapApiData<UserAppearance>(res.data);
-      
+
       if (doc) {
         set((state) => ({
           byUserId: { ...state.byUserId, [userId]: doc },
         }));
       }
-      
+
       return doc ?? null;
-    } catch (e) {
+    } catch {
       return null;
     }
   },
 
-  async updateMySettings(partial: Partial<UserAppearance>) {
+  async updateMySettings(partial: UserAppearanceUpdate) {
     try {
       set({ loading: true, error: null });
-      
-      // Build payload with only allowed fields
-      const payload: Partial<UserAppearance> = {
+
+      const payload: UserAppearanceUpdate = {
         ...(partial.appearance && { appearance: partial.appearance }),
         ...(Object.prototype.hasOwnProperty.call(partial, 'profileHeaderImage') && {
           profileHeaderImage: partial.profileHeaderImage,
@@ -186,29 +137,30 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
           interests: partial.interests,
         }),
       };
-      
+
       const res = await api.put<UserAppearance>('profile/settings', payload);
       const doc = unwrapApiData<UserAppearance>(res.data);
 
       if (doc) {
-        // Update cache
-        await Storage.set(APPEARANCE_CACHE_KEY, doc);
-
         set((state) => ({
           mySettings: doc,
           byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
           loading: false,
         }));
-        syncToThemeStore(doc.appearance);
 
         return doc;
       }
 
       set({ loading: false });
       return null;
-    } catch (e: any) {
-      set({ loading: false, error: e?.message || 'Failed to update settings' });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to update settings';
+      set({ loading: false, error: message });
       return null;
     }
+  },
+
+  reset() {
+    set({ mySettings: null, byUserId: {}, loading: false, error: null });
   },
 }));

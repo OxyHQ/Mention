@@ -21,6 +21,7 @@ import {
     saveRecommendationFilters,
 } from '@/lib/recommendationFilters';
 import type { PrivacySettings } from '@/hooks/usePrivacySettings';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 
 const FILTER_TOGGLES: Array<{
     icon: IconName;
@@ -59,15 +60,20 @@ const FILTER_TOGGLES: Array<{
 export default function PrivacySettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
+    const { isAuthenticated } = useAuth();
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
     const [recFilters, setRecFilters] = useState<RecommendationFilters>(DEFAULT_RECOMMENDATION_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
         loadPrivacySettings();
         getRecommendationFilters().then(setRecFilters);
-    }, []);
+    }, [isAuthenticated]);
 
     const loadPrivacySettings = async () => {
         try {
@@ -94,6 +100,29 @@ export default function PrivacySettingsScreen() {
         if (visibility === 'followers_only') return t('settings.privacy.followersOnly');
         return t('settings.privacy.public');
     };
+
+    if (!isAuthenticated) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.title'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <OxyAuthPrompt
+                    label={t('settings.privacy.signInRequired', { defaultValue: 'Sign in to manage your privacy settings' })}
+                    description={t('settings.privacy.signInRequiredDesc', { defaultValue: 'Control who can see your profile, mention you, and more.' })}
+                />
+            </ThemedView>
+        );
+    }
 
     if (loading) {
         return (

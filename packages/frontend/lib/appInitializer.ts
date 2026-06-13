@@ -8,7 +8,6 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { OxyServices } from '@oxyhq/core';
 
-import { useAppearanceStore } from '@/store/appearanceStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import {
   hasNotificationPermission,
@@ -28,7 +27,6 @@ export interface AppInitializationState {
   i18nInitialized: boolean;
   notificationsSetup: boolean;
   authReady: boolean;
-  appearanceLoaded: boolean;
   videoMuteLoaded: boolean;
 }
 
@@ -60,27 +58,6 @@ async function setupNotificationsIfNeeded(): Promise<void> {
     await hasNotificationPermission();
   } catch (error) {
     logger.warn('Failed to setup notifications', { error });
-  }
-}
-
-/**
- * Loads user appearance settings
- */
-async function loadAppearanceSettings(services?: OxyServices, isAuthenticated?: boolean): Promise<void> {
-  try {
-    // Check auth state if services provided
-    let authState = isAuthenticated;
-    if (services && authState === undefined) {
-      try {
-        // Quick check if auth is ready (with short timeout)
-        authState = await services.waitForAuth(100);
-      } catch {
-        authState = false;
-      }
-    }
-    await useAppearanceStore.getState().loadMySettings(authState);
-  } catch (error) {
-    logger.warn('Failed to load appearance settings', { error });
   }
 }
 
@@ -151,7 +128,6 @@ export class AppInitializer {
 
       const results = await Promise.allSettled([
         setupNotificationsIfNeeded().then(() => logger.debug('Notifications done')),
-        loadAppearanceSettings(services).then(() => logger.debug('Appearance done')),
         loadVideoMuteState().then(() => logger.debug('VideoMute done')),
         // Fetch current user once auth resolves
         authPromise.then((authReady) => {

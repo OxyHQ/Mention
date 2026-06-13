@@ -26,7 +26,7 @@ export function useAppColorSave() {
         oxyServices.updateProfile({ color: name }),
         updateMySettings({
           appearance: { primaryColor: hex },
-        } as Record<string, unknown>),
+        }),
       ]);
     } catch (error) {
       logger.error('Error updating color', { error });

@@ -4,7 +4,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
-import { useAuth } from "@oxyhq/services";
+import { useAuth, OxySignInButton } from "@oxyhq/services";
 import { useTranslation } from "react-i18next";
 import { useLayoutScroll } from "@/context/LayoutScrollContext";
 import { useRouter } from "expo-router";
@@ -15,12 +15,16 @@ import { Button } from "@/components/ui/Button";
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { confirmDialog } from "@/utils/alerts";
+import { useBloomTheme } from '@oxyhq/bloom/theme';
+import { useAppearanceStore } from '@/store/appearanceStore';
 
 export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const safeBack = useSafeBack();
-    const { user, showBottomSheet, signOut } = useAuth();
+    const { user, isAuthenticated, showBottomSheet, signOut } = useAuth();
+    const { resetTheme } = useBloomTheme();
+    const resetAppearance = useAppearanceStore((state) => state.reset);
     const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
@@ -63,9 +67,9 @@ export default function SettingsScreen() {
         if (!confirmed) return;
         try {
             await signOut();
-        } catch {
-            // Sign-out may fail if session is already invalid; navigate anyway
-        }
+        } catch {}
+        resetAppearance();
+        resetTheme();
         router.replace('/');
     };
 
@@ -100,58 +104,69 @@ export default function SettingsScreen() {
                 scrollEventThrottle={scrollEventThrottle}
                 {...(Platform.OS === 'web' ? { dataSet: { layoutscroll: 'true' } } : {}) as Record<string, unknown>}
             >
-                {/* Centered profile preview */}
-                <View className="items-center py-4 gap-1">
-                    <Avatar
-                        source={currentUserProfile?.avatar || user?.avatar}
-                        size={80}
-                    />
-                    <Text className="text-2xl font-bold text-foreground mt-2" numberOfLines={1}>
-                        {displayName}
-                    </Text>
-                    <Text className="text-base text-muted-foreground" numberOfLines={1}>
-                        @{user?.username || 'username'}
-                    </Text>
-                    <View className="mt-3">
-                        <Button
-                            variant="secondary"
-                            size="small"
-                            onPress={() => showBottomSheet?.('AccountSettings')}
-                        >
-                            {t('settings.account.manageAccount', { defaultValue: 'Manage account' })}
-                        </Button>
+                {isAuthenticated ? (
+                    <View className="items-center py-4 gap-1">
+                        <Avatar
+                            source={currentUserProfile?.avatar || user?.avatar}
+                            size={80}
+                        />
+                        <Text className="text-2xl font-bold text-foreground mt-2" numberOfLines={1}>
+                            {displayName}
+                        </Text>
+                        <Text className="text-base text-muted-foreground" numberOfLines={1}>
+                            @{user?.username || 'username'}
+                        </Text>
+                        <View className="mt-3">
+                            <Button
+                                variant="secondary"
+                                size="small"
+                                onPress={() => showBottomSheet?.('AccountSettings')}
+                            >
+                                {t('settings.account.manageAccount', { defaultValue: 'Manage account' })}
+                            </Button>
+                        </View>
                     </View>
-                </View>
+                ) : (
+                    <View className="items-center px-6 py-6 gap-3">
+                        <Text className="text-2xl font-bold text-foreground text-center">
+                            {t('settings.account.signedOutTitle', { defaultValue: 'Sign in to Mention' })}
+                        </Text>
+                        <Text className="text-base text-muted-foreground text-center max-w-[320px]">
+                            {t('settings.account.signedOutSubtitle', { defaultValue: 'Sign in to access your privacy, notifications, feed, and personalization settings.' })}
+                        </Text>
+                        <View className="mt-2 w-full max-w-[320px]">
+                            <OxySignInButton variant="contained" />
+                        </View>
+                    </View>
+                )}
 
-                <SettingsListGroup>
-                    <SettingsListItem
-                        icon={<RowIcon name="eye-off-outline" />}
-                        title={t('settings.privacy.title')}
-                        description={t('settings.privacy.description', { defaultValue: 'Profile visibility, blocked profiles, hidden words' })}
-                        onPress={() => router.push('/settings/privacy')}
-                    />
-                </SettingsListGroup>
+                {isAuthenticated && (
+                    <SettingsListGroup>
+                        <SettingsListItem
+                            icon={<RowIcon name="eye-off-outline" />}
+                            title={t('settings.privacy.title')}
+                            description={t('settings.privacy.description', { defaultValue: 'Profile visibility, blocked profiles, hidden words' })}
+                            onPress={() => router.push('/settings/privacy')}
+                        />
+                    </SettingsListGroup>
+                )}
 
-                <SettingsListGroup>
-                    <SettingsListItem
-                        icon={<RowIcon name="notifications-outline" />}
-                        title={t('settings.preferences.notifications')}
-                        description={t('settings.preferences.notificationsDesc', { defaultValue: 'Push notifications, email alerts' })}
-                        onPress={() => router.push('/settings/notifications')}
-                    />
-                    <SettingsListItem
-                        icon={<RowIcon name="reader-outline" />}
-                        title={t('settings.feed.title')}
-                        description={t('settings.feed.description', { defaultValue: 'Content preferences, feed algorithm' })}
-                        onPress={() => router.push('/settings/feed')}
-                    />
-                    <SettingsListItem
-                        icon={<RowIcon name="chatbubbles-outline" />}
-                        title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
-                        description={t('settings.threadPreferences.description', { defaultValue: 'Reply sorting, thread display' })}
-                        onPress={() => router.push('/settings/thread-preferences')}
-                    />
-                </SettingsListGroup>
+                {isAuthenticated && (
+                    <SettingsListGroup>
+                        <SettingsListItem
+                            icon={<RowIcon name="notifications-outline" />}
+                            title={t('settings.preferences.notifications')}
+                            description={t('settings.preferences.notificationsDesc', { defaultValue: 'Push notifications, email alerts' })}
+                            onPress={() => router.push('/settings/notifications')}
+                        />
+                        <SettingsListItem
+                            icon={<RowIcon name="reader-outline" />}
+                            title={t('settings.feed.title')}
+                            description={t('settings.feed.description', { defaultValue: 'Content preferences, feed algorithm' })}
+                            onPress={() => router.push('/settings/feed')}
+                        />
+                    </SettingsListGroup>
+                )}
 
                 <SettingsListGroup>
                     <SettingsListItem
@@ -167,6 +182,12 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/settings/accessibility')}
                     />
                     <SettingsListItem
+                        icon={<RowIcon name="chatbubbles-outline" />}
+                        title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
+                        description={t('settings.threadPreferences.description', { defaultValue: 'Reply sorting, thread display' })}
+                        onPress={() => router.push('/settings/thread-preferences')}
+                    />
+                    <SettingsListItem
                         icon={<RowIcon name="language-outline" />}
                         title={t('Language')}
                         description={t('settings.language.description', { defaultValue: 'App display language' })}
@@ -174,20 +195,22 @@ export default function SettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup>
-                    <SettingsListItem
-                        icon={<RowIcon name="person-outline" />}
-                        title={t('settings.preferences.profileCustomization')}
-                        description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, profile color' })}
-                        onPress={() => router.push('/settings/profile-customization')}
-                    />
-                    <SettingsListItem
-                        icon={<RowIcon name="heart-outline" />}
-                        title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
-                        description={t('settings.preferences.interestsDesc', { defaultValue: 'Topics and categories you follow' })}
-                        onPress={() => router.push('/settings/interests')}
-                    />
-                </SettingsListGroup>
+                {isAuthenticated && (
+                    <SettingsListGroup>
+                        <SettingsListItem
+                            icon={<RowIcon name="person-outline" />}
+                            title={t('settings.preferences.profileCustomization')}
+                            description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, profile color' })}
+                            onPress={() => router.push('/settings/profile-customization')}
+                        />
+                        <SettingsListItem
+                            icon={<RowIcon name="heart-outline" />}
+                            title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
+                            description={t('settings.preferences.interestsDesc', { defaultValue: 'Topics and categories you follow' })}
+                            onPress={() => router.push('/settings/interests')}
+                        />
+                    </SettingsListGroup>
+                )}
 
                 <SettingsListGroup>
                     <SettingsListItem
@@ -210,15 +233,17 @@ export default function SettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup>
-                    <SettingsListItem
-                        icon={<RowIcon name="log-out-outline" destructive />}
-                        title={t("settings.signOut")}
-                        onPress={handleSignOut}
-                        destructive
-                        showChevron={false}
-                    />
-                </SettingsListGroup>
+                {isAuthenticated && (
+                    <SettingsListGroup>
+                        <SettingsListItem
+                            icon={<RowIcon name="log-out-outline" destructive />}
+                            title={t("settings.signOut")}
+                            onPress={handleSignOut}
+                            destructive
+                            showChevron={false}
+                        />
+                    </SettingsListGroup>
+                )}
             </Animated.ScrollView>
         </ThemedView>
     );

@@ -48,7 +48,7 @@ import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom
 
 // Hooks
 import { APP_COLOR_PRESETS, getAppColorCSSVariables } from "@/lib/app-color-presets";
-import { registerAppearanceThemeBridge } from '@/store/appearanceStore';
+import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
@@ -181,13 +181,7 @@ function ThemedRoot({
   queryClient,
 }: ThemedRootProps) {
   const rnScheme = useRNColorScheme();
-  const { mode, colorPreset, setMode, setColorPreset } = useBloomTheme();
-
-  // Bridge server-side appearance settings into Bloom's theme provider.
-  useEffect(() => {
-    registerAppearanceThemeBridge({ setMode, setColorPreset });
-    return () => registerAppearanceThemeBridge(null);
-  }, [setMode, setColorPreset]);
+  const { mode, colorPreset } = useBloomTheme();
 
   const colorScheme: 'light' | 'dark' =
     mode === 'adaptive' || mode === 'system'
@@ -247,6 +241,8 @@ function ThemedRoot({
 function AuthRouter() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+
+  useServerAppearanceSync();
 
   // Forward OS share-sheet payloads into `/compose`. No-op on web
   // (handled by the manifest Share Target).

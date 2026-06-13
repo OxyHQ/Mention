@@ -13,6 +13,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 
 interface NotificationPreferences {
     pushEnabled: boolean;
@@ -39,14 +40,19 @@ const DEFAULT_PREFS: NotificationPreferences = {
 export default function NotificationSettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
+    const { isAuthenticated } = useAuth();
 
     const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
         loadPreferences();
-    }, []);
+    }, [isAuthenticated]);
 
     const loadPreferences = async () => {
         try {
@@ -85,6 +91,29 @@ export default function NotificationSettingsScreen() {
             setSaving(false);
         }
     }, [prefs, t]);
+
+    if (!isAuthenticated) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <OxyAuthPrompt
+                    label={t('settings.notifications.signInRequired', { defaultValue: 'Sign in to manage notifications' })}
+                    description={t('settings.notifications.signInRequiredDesc', { defaultValue: 'Choose what alerts you receive and how.' })}
+                />
+            </ThemedView>
+        );
+    }
 
     if (loading) {
         return (

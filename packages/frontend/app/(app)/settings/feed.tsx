@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
@@ -54,6 +55,7 @@ export default function FeedSettingsScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { colors } = useTheme();
+  const { isAuthenticated } = useAuth();
   const { settings, loading, updateSettings } = useFeedSettings();
 
   const [localSettings, setLocalSettings] = useState<FeedSettings>(settings);
@@ -153,6 +155,29 @@ export default function FeedSettingsScreen() {
       saveSettings(DEFAULT_FEED_SETTINGS);
     }
   }, [saveSettings, t]);
+
+  if (!isAuthenticated) {
+    return (
+      <ThemedView className="flex-1">
+        <Header
+          options={{
+            title: t('settings.feed.title'),
+            leftComponents: [
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                <BackArrowIcon size={20} className="text-foreground" />
+              </IconButton>,
+            ],
+          }}
+          hideBottomBorder
+          disableSticky
+        />
+        <OxyAuthPrompt
+          label={t('settings.feed.signInRequired', { defaultValue: 'Sign in to customize your feed' })}
+          description={t('settings.feed.signInRequiredDesc', { defaultValue: 'Tune the algorithm, diversity, and recency to your taste.' })}
+        />
+      </ThemedView>
+    );
+  }
 
   if (loading) {
     return (
