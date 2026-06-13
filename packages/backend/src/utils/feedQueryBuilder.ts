@@ -322,6 +322,51 @@ export class FeedQueryBuilder {
   }
   
   /**
+   * Build query for the Videos (Reels) feed.
+   *
+   * Matches public, published posts that contain at least one video — either a
+   * post typed as VIDEO or a post whose content.media array contains a video
+   * item. Both native and federated posts are included (no federation
+   * exclusion). Boosts are excluded (the underlying original is surfaced
+   * instead). Replies flow through so multi-post threads can still be sliced.
+   */
+  static buildVideosQuery(
+    seenPostIds: string[],
+    cursor?: string,
+  ): Record<string, unknown> {
+    const videoMatch = {
+      $or: [
+        { type: PostType.VIDEO },
+        { 'content.media': { $elemMatch: { type: 'video' } } },
+      ],
+    };
+
+    const match: Record<string, unknown> = {
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      $and: [
+        videoMatch,
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
+      ],
+    };
+
+    // Exclude already-seen posts (de-prioritize seen content for discovery)
+    const seenObjectIds = seenPostIds
+      .filter(id => mongoose.Types.ObjectId.isValid(id))
+      .map(id => new mongoose.Types.ObjectId(id));
+    if (seenObjectIds.length > 0) {
+      (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
+    }
+
+    const cursorId = parseFeedCursor(cursor);
+    if (cursorId) {
+      (match.$and as unknown[]).push({ _id: { $lt: cursorId } });
+    }
+
+    return match;
+  }
+
+  /**
    * Build query for Following feed
    */
   static buildFollowingQuery(

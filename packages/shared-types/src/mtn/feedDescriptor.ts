@@ -11,6 +11,7 @@ export type FeedDescriptor =
   | 'following'
   | 'for_you'
   | 'explore'
+  | 'videos'
   | 'saved'
   | `author|${string}`
   | `author|${string}|${AuthorFeedFilter}`
@@ -24,6 +25,7 @@ export type FeedDescriptorSource =
   | 'following'
   | 'for_you'
   | 'explore'
+  | 'videos'
   | 'saved'
   | 'author'
   | 'custom'
@@ -62,7 +64,7 @@ export function buildFeedDescriptor(source: FeedDescriptorSource, ...params: str
  */
 export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
   const validSources: FeedDescriptorSource[] = [
-    'following', 'for_you', 'explore', 'saved',
+    'following', 'for_you', 'explore', 'videos', 'saved',
     'author', 'custom', 'hashtag', 'topic', 'list', 'feedgen',
   ];
   const source = value.split('|')[0];

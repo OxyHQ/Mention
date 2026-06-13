@@ -45,6 +45,14 @@ import { federationService } from '../services/FederationService';
 import { FEDERATION_ENABLED } from '../utils/federation/constants';
 
 /**
+ * Minimum interval between background outbox re-syncs for the same federated
+ * actor. Profile views trigger a background outbox sync; without a cooldown
+ * every view re-fetches and re-dedupes the entire outbox. Mirrors the
+ * ACTOR_REFRESH_MIN_INTERVAL_MS guard used for full-actor refreshes.
+ */
+const OUTBOX_SYNC_MIN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
  * Feed Controller
  * 
  * Handles all feed-related endpoints with enterprise-grade optimizations:
@@ -933,6 +941,17 @@ class FeedController {
         federationService.refreshActorInBackground(actor.uri, actor);
 
         if (actor.outboxUrl) {
+          // Cooldown: skip the (expensive) outbox re-fetch+dedupe if we synced
+          // this actor's outbox within the cooldown window. Profile views are
+          // frequent; the outbox rarely changes between back-to-back views.
+          const lastSyncMs = actor.lastOutboxSyncAt?.getTime();
+          const syncedRecently = typeof lastSyncMs === 'number'
+            && Date.now() - lastSyncMs < OUTBOX_SYNC_MIN_INTERVAL_MS;
+          if (syncedRecently) {
+            logger.info(`[FedSync] outbox sync skipped (cooldown) for ${actor.acct}`);
+            return;
+          }
+
           // Ensure the actor has oxyUserId before syncing so posts get the right author
           if (!actor.oxyUserId) {
             await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
@@ -940,6 +959,11 @@ class FeedController {
           }
           const syncedCount = await federationService.syncOutboxPosts(actor, this.FED_OUTBOX_SYNC_LIMIT);
           logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
+          // Stamp the sync time so subsequent views honour the cooldown.
+          await FederatedActor.updateOne(
+            { _id: actor._id },
+            { $set: { lastOutboxSyncAt: new Date() } },
+          );
           // Backfill oxyUserId on any posts that were stored without it
           if (syncedCount > 0) {
             await Post.updateMany(
