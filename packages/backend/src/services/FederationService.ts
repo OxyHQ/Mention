@@ -19,6 +19,7 @@ import {
 } from '../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
+import { extractApMediaFromNote, type ApMediaType } from '../utils/federation/apMedia';
 import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
@@ -557,26 +558,16 @@ class FederationService {
   /**
    * Extract media attachments from an AP Note object.
    * Returns media items and attachment descriptors for the Post model.
+   *
+   * Delegates to `extractApMediaFromNote`, which normalizes the many fediverse
+   * attachment shapes (Mastodon string `url`, Pleroma `Link` object, PeerTube/Lemmy
+   * array of `Link` objects) and picks the most broadly-playable video variant.
    */
-  private extractApMedia(note: Record<string, any>): { media: any[]; attachments: any[] } {
-    const media: any[] = [];
-    const attachments: any[] = [];
-
-    if (!Array.isArray(note.attachment)) return { media, attachments };
-
-    for (const att of note.attachment) {
-      if (!att?.url) continue;
-      const mimeType = att.mediaType || '';
-      if (mimeType.startsWith('image/')) {
-        media.push({ id: att.url, type: 'image' });
-        attachments.push({ type: 'media', id: att.url, mediaType: 'image' });
-      } else if (mimeType.startsWith('video/')) {
-        media.push({ id: att.url, type: 'video' });
-        attachments.push({ type: 'media', id: att.url, mediaType: 'video' });
-      }
-    }
-
-    return { media, attachments };
+  private extractApMedia(note: Record<string, any>): {
+    media: Array<{ id: string; type: ApMediaType }>;
+    attachments: Array<{ type: 'media'; id: string; mediaType: ApMediaType }>;
+  } {
+    return extractApMediaFromNote(note);
   }
 
   /**
