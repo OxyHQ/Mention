@@ -383,8 +383,6 @@ export default function VideosScreen() {
 
     // Memoized filter function
     const filterVideoPosts = useCallback((allPosts: any[]): VideoPost[] => {
-        if (!oxyServices?.getFileDownloadUrl) return [];
-
         return allPosts
             .filter((post: any) => {
                 const media = post?.content?.media || [];
@@ -394,10 +392,12 @@ export default function VideosScreen() {
             .map((post: any) => {
                 const media = post?.content?.media || [];
                 const videoMedia = media.find((m: any) => m?.type === 'video');
-                let videoUrl = videoMedia?.url || videoMedia?.id;
+                let videoUrl: string = videoMedia?.url || videoMedia?.id || '';
 
-                if (videoUrl && !videoUrl.startsWith('http') && oxyServices?.getFileDownloadUrl) {
-                    videoUrl = oxyServices.getFileDownloadUrl(videoUrl);
+                // Absolute (federated) URLs need no resolution; only Oxy file ids do.
+                // If a non-http id can't be resolved (no oxyServices), drop it via the final filter.
+                if (videoUrl && !videoUrl.startsWith('http')) {
+                    videoUrl = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(videoUrl) : '';
                 }
 
                 return { ...post, videoUrl } as VideoPost;
