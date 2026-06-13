@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FeedType, FeedPostSlice, HydratedPost } from '@mention/shared-types';
+import { FeedType, FeedPostSlice, FeedRequest, HydratedPost } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
@@ -213,8 +213,11 @@ export function useFeedState({
                     setLocalLoading(true);
                     setLocalError(null);
 
+                    const feedReq: FeedRequest = { type, limit: 20, filters };
                     const resp = await withRetry(
-                        () => feedService.getFeed({ type, limit: 20, filters } as any, { signal, skipCache: forceRefresh }),
+                        () => userId
+                            ? feedService.getUserFeed(userId, feedReq)
+                            : feedService.getFeed({ type, limit: 20, filters }, { signal, skipCache: forceRefresh }),
                         {
                             signal,
                             onRetry: (attempt) => {
@@ -300,8 +303,11 @@ export function useFeedState({
                 setLocalLoading(true);
                 setLocalError(null);
 
+                const feedReq: FeedRequest = { type, limit: 20, filters };
                 const resp = await withRetry(
-                    () => feedService.getFeed({ type, limit: 20, filters } as any, { signal, skipCache: true }),
+                    () => userId
+                        ? feedService.getUserFeed(userId, feedReq)
+                        : feedService.getFeed({ type, limit: 20, filters }, { signal, skipCache: true }),
                     {
                         signal,
                         onRetry: (attempt) => {
@@ -374,11 +380,11 @@ export function useFeedState({
                 setLocalLoading(true);
                 setLocalError(null);
 
+                const feedReq: FeedRequest = { type, limit: 20, cursor: localNextCursor, filters };
                 const resp = await withRetry(
-                    () => feedService.getFeed(
-                        { type, limit: 20, cursor: localNextCursor, filters } as any,
-                        { signal }
-                    ),
+                    () => userId
+                        ? feedService.getUserFeed(userId, feedReq)
+                        : feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters }, { signal }),
                     {
                         signal,
                         maxRetries: 2,
