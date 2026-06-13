@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FeedType, FeedPostSlice, HydratedPost } from '@mention/shared-types';
+import { FeedType, FeedPostSlice, HydratedPost, FeedRequest } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
@@ -213,8 +213,15 @@ export function useFeedState({
                     setLocalLoading(true);
                     setLocalError(null);
 
+                    // When a userId is present this is a profile tab feed
+                    // (posts/replies/media/likes/reposts) — route through the
+                    // public /feed/user/:userId endpoint, matching the SQLite
+                    // path. Without a userId it's a global/scoped feed.
+                    const request: FeedRequest = { type, limit: 20, filters };
                     const resp = await withRetry(
-                        () => feedService.getFeed({ type, limit: 20, filters } as any, { signal, skipCache: forceRefresh }),
+                        () => userId
+                            ? feedService.getUserFeed(userId, request)
+                            : feedService.getFeed(request, { signal, skipCache: forceRefresh }),
                         {
                             signal,
                             onRetry: (attempt) => {
@@ -300,8 +307,12 @@ export function useFeedState({
                 setLocalLoading(true);
                 setLocalError(null);
 
+                // userId present → profile tab feed via /feed/user/:userId.
+                const request: FeedRequest = { type, limit: 20, filters };
                 const resp = await withRetry(
-                    () => feedService.getFeed({ type, limit: 20, filters } as any, { signal, skipCache: true }),
+                    () => userId
+                        ? feedService.getUserFeed(userId, request)
+                        : feedService.getFeed(request, { signal, skipCache: true }),
                     {
                         signal,
                         onRetry: (attempt) => {
@@ -374,11 +385,12 @@ export function useFeedState({
                 setLocalLoading(true);
                 setLocalError(null);
 
+                // userId present → next page of the profile tab feed.
+                const request: FeedRequest = { type, limit: 20, cursor: localNextCursor, filters };
                 const resp = await withRetry(
-                    () => feedService.getFeed(
-                        { type, limit: 20, cursor: localNextCursor, filters } as any,
-                        { signal }
-                    ),
+                    () => userId
+                        ? feedService.getUserFeed(userId, request)
+                        : feedService.getFeed(request, { signal }),
                     {
                         signal,
                         maxRetries: 2,
