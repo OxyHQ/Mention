@@ -1,5 +1,5 @@
 # Stage 1: Build (tsc for type checking and shared-types compilation)
-FROM oven/bun:1-alpine AS builder
+FROM oven/bun:1.3.14-alpine AS builder
 WORKDIR /app
 
 # Copy workspace root files
@@ -31,7 +31,7 @@ RUN cd packages/shared-types && bun run build
 RUN cd packages/backend && bun run build
 
 # Stage 2: Runtime
-FROM oven/bun:1-alpine AS runtime
+FROM oven/bun:1.3.14-alpine AS runtime
 WORKDIR /app
 
 RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S appuser -G appgroup
