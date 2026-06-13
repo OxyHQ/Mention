@@ -10,6 +10,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '@/hooks/useSafeBack';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -646,6 +647,10 @@ export default function VideosScreen() {
         useVideoMuteStore.getState().setMuted(muted);
     }, []);
 
+    // Back affordance: pop the stack if there's history, otherwise fall back to the
+    // feed so the user is never stranded (e.g. opened via a direct/shared link on web).
+    const handleBack = useSafeBack();
+
     // Load muted state on mount
     useEffect(() => {
         loadMutedState();
@@ -711,6 +716,18 @@ export default function VideosScreen() {
                 description={t('seo.videos.description')}
             />
             <ThemedView style={styles.container}>
+                <Pressable
+                    onPress={handleBack}
+                    hitSlop={HIT_SLOP}
+                    style={[styles.backButton, { top: insets.top + 8 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.back')}
+                >
+                    <View style={styles.backButtonInner}>
+                        <Ionicons name="arrow-back" size={24} color="white" />
+                    </View>
+                </Pressable>
+
                 {isLoading && posts.length === 0 && (
                     <View style={styles.initialLoadingContainer}>
                         <SpinnerIcon size={44} className="text-primary-foreground" />
@@ -793,6 +810,8 @@ interface VideosStyles {
     videoContainer: ViewStyle;
     video: ViewStyle;
     videoPlaceholder: ViewStyle;
+    backButton: ViewStyle;
+    backButtonInner: ViewStyle;
     muteButton: ViewStyle;
     muteButtonInner: ViewStyle;
     overlay: ViewStyle;
@@ -852,6 +871,26 @@ const styles = StyleSheet.create<VideosStyles>({
     videoPlaceholder: {
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    backButton: {
+        position: 'absolute',
+        left: 12,
+        zIndex: 20,
+    },
+    backButtonInner: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 4,
     },
     muteButton: {
         position: 'absolute',

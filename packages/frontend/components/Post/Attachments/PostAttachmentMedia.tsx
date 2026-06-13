@@ -25,11 +25,10 @@ interface PostAttachmentMediaProps {
 
 const PostAttachmentVideo: React.FC<{
   src: string;
-  postId?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, postId, onPress, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src, onPress, hasSingleMedia, hasMultipleMedia }) => {
   return (
     <View
       className="border border-border bg-secondary rounded-[15px] overflow-hidden"
@@ -45,6 +44,7 @@ const PostAttachmentVideo: React.FC<{
         contentFit="contain"
         autoPlay={true}
         loop={true}
+        onPress={onPress}
       />
     </View>
   );
@@ -121,7 +121,6 @@ const PostAttachmentImage: React.FC<{
 const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   type,
   src,
-  postId,
   onPress,
   hasSingleMedia,
   hasMultipleMedia,
@@ -130,7 +129,6 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     return (
       <PostAttachmentVideo
         src={src}
-        postId={postId}
         onPress={onPress}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}

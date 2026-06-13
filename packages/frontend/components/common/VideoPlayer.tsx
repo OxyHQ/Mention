@@ -1,15 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Pressable, StyleSheet, Text, Platform } from 'react-native';
+import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 
 interface VideoPlayerProps {
   src: string;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
   contentFit?: 'contain' | 'cover' | 'fill';
   autoPlay?: boolean;
   loop?: boolean;
+  /**
+   * When provided, the player renders in feed-preview mode (Instagram Reels style):
+   * the whole surface taps through to `onPress` (e.g. open the immersive viewer),
+   * the inline controls overlay is suppressed, and only a mute/unmute toggle remains.
+   */
+  onPress?: () => void;
 }
 
 function formatTime(seconds: number): string {
@@ -28,7 +34,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   contentFit = 'contain',
   autoPlay = true,
   loop = false,
+  onPress,
 }) => {
+  const isPreviewMode = onPress !== undefined;
   const { isMuted, toggleMuted } = useVideoMuteStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -166,6 +174,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     scheduleHideControls();
   }, [toggleMuted, scheduleHideControls]);
 
+  // Preview-mode mute toggle: flips mute without revealing the full controls overlay.
+  const handlePreviewMuteToggle = useCallback(() => {
+    toggleMuted();
+  }, [toggleMuted]);
+
   const handleFullscreen = useCallback(() => {
     if (videoViewRef.current) {
       try {
@@ -213,11 +226,32 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         style={styles.video}
         contentFit={contentFit}
         nativeControls={false}
-        fullscreenOptions={{ enable: true }}
+        fullscreenOptions={{ enable: !isPreviewMode }}
         allowsPictureInPicture={false}
       />
 
-      {/* Tap area to toggle controls */}
+      {isPreviewMode ? (
+        <>
+          {/* Whole-surface tap opens the immersive viewer (Instagram Reels style) */}
+          <Pressable style={styles.tapArea} onPress={onPress} />
+
+          {/* Mute/unmute stays available without leaving the feed; sits above the tap surface */}
+          <Pressable
+            onPress={handlePreviewMuteToggle}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.previewMuteButton}
+          >
+            <View style={styles.previewMuteButtonInner}>
+              <Ionicons
+                name={isMuted ? 'volume-mute' : 'volume-high'}
+                size={18}
+                color="white"
+              />
+            </View>
+          </Pressable>
+        </>
+      ) : (
+      /* Tap area to toggle controls */
       <Pressable style={styles.tapArea} onPress={handleTap}>
         {showControls && (
           <View style={styles.controlsOverlay}>
@@ -296,6 +330,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </View>
         )}
       </Pressable>
+      )}
     </View>
   );
 };
@@ -312,6 +347,22 @@ const styles = StyleSheet.create({
   tapArea: {
     ...StyleSheet.absoluteFill,
     zIndex: 1,
+  },
+  previewMuteButton: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    zIndex: 2,
+  },
+  previewMuteButtonInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   controlsOverlay: {
     ...StyleSheet.absoluteFill,

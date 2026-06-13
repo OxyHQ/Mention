@@ -399,7 +399,8 @@
   },
   "common": {
     "unknown": "sconosciuto",
-    "someone": "Qualcuno"
+    "someone": "Qualcuno",
+    "back": "Indietro"
   },
   "insights": {
     "posts": "Post",

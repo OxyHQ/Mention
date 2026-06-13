@@ -474,7 +474,8 @@
     },
     "common": {
         "unknown": "unknown",
-        "someone": "Someone"
+        "someone": "Someone",
+        "back": "Back"
     },
     "insights": {
         "posts": "Posts",

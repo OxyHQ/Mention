@@ -405,7 +405,8 @@
   },
   "common": {
     "unknown": "desconocido",
-    "someone": "Alguien"
+    "someone": "Alguien",
+    "back": "Atrás"
   },
   "insights": {
     "posts": "Publicaciones",
