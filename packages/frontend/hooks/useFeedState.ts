@@ -68,6 +68,16 @@ export interface UseFeedStateOptions {
     reloadKey?: string | number;
     isAuthenticated?: boolean;
     currentUserId?: string;
+    /**
+     * Whether the initial cold-boot auth determination has concluded
+     * (`isAuthResolved` from `useAuth()`). When explicitly `false`, the
+     * undetermined window is active: `isAuthenticated` is NOT yet a reliable
+     * answer, so we must NOT fire the anonymous fetch (it would waste a request
+     * and flash anon content before the session restores). `undefined` means
+     * the caller does not gate on resolution (e.g. profile feeds) and is treated
+     * as "resolved" so those callers are unaffected.
+     */
+    isAuthResolved?: boolean;
 }
 
 export interface UseFeedStateReturn {
@@ -110,7 +120,11 @@ export function useFeedState({
     reloadKey,
     isAuthenticated,
     currentUserId,
+    isAuthResolved,
 }: UseFeedStateOptions): UseFeedStateReturn {
+    // Only an explicit `false` means "auth still resolving"; `undefined` callers
+    // (profile feeds, etc.) are not gated and behave as before.
+    const authUndetermined = isAuthResolved === false;
     const {
         fetchFeed,
         fetchUserFeed,
@@ -262,6 +276,17 @@ export function useFeedState({
 
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
+            // Cold-boot guard: while auth is UNDETERMINED, do not issue any fetch.
+            // Firing now would load the anonymous feed and flash it before the
+            // session restores. The initial-fetch effect is keyed on
+            // `isAuthResolved`, so once it flips true this re-runs against the
+            // correct (authed or anon) identity. The feed shows its loading
+            // spinner in the meantime (see `isLoading` derivation below).
+            if (authUndetermined) {
+                logger.debug('Auth undetermined, deferring fetch until resolved');
+                return;
+            }
+
             if (isFetchingRef.current) {
                 logger.debug('Already fetching, skipping');
                 return;
@@ -434,6 +459,7 @@ export function useFeedState({
             useMemoryFeed,
             isAuthenticated,
             currentUserId,
+            authUndetermined,
             filters,
             fetchFeed,
             fetchUserFeed,
@@ -687,12 +713,24 @@ export function useFeedState({
     // anon→authed after mount — the initial fetch re-runs against the now-ready
     // token instead of being stranded on the anonymous (or empty) result.
     //
+    // It is ALSO keyed on `authUndetermined` so that the very first real fetch is
+    // deferred until the cold-boot auth determination concludes: while
+    // undetermined we bail out without recording an identity or firing a fetch
+    // (which would load the anon feed and flash it). Once resolved, the effect
+    // re-runs and loads the correct (authed or anon) feed.
+    //
     // Switching feed identity also resets the federated pending-poll budget so a
     // new profile starts polling fresh.
     useDeepCompareEffect(() => {
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) return;
+
+        // While auth is undetermined, do not record an identity or fetch. The feed
+        // shows its loading spinner until resolution (see `isLoading` below), at
+        // which point this effect re-runs (deps include `authUndetermined`) and
+        // performs the real load against the correct viewer.
+        if (authUndetermined) return;
 
         // The auth identity this run represents: the authenticated user id when
         // signed in, the literal 'anon' otherwise. Saved feeds never key on the
@@ -729,7 +767,7 @@ export function useFeedState({
         setPending(false);
 
         fetchInitial(false);
-    }, [type, userId, filters, useMemoryFeed, showOnlySaved, isAuthenticated, currentUserId]);
+    }, [type, userId, filters, useMemoryFeed, showOnlySaved, isAuthenticated, currentUserId, authUndetermined]);
 
     // Return appropriate state based on which path is active.
     // useMemoryFeed covers both scoped (filtered) feeds and global feeds when SQLite
@@ -738,7 +776,12 @@ export function useFeedState({
     const items = useMemoryFeed ? localItems : globalFeed?.items || [];
     const slices = useMemoryFeed ? localSlices : globalFeed?.slices;
     const hasMore = useMemoryFeed ? localHasMore : !!globalFeed?.hasMore;
-    const isLoading = useMemoryFeed ? localLoading : !!globalFeed?.isLoading;
+    const baseLoading = useMemoryFeed ? localLoading : !!globalFeed?.isLoading;
+    // While auth is undetermined we deliberately suppress the fetch, so surface a
+    // loading state (rather than an empty "No posts yet" placeholder) until the
+    // determination concludes and the real fetch runs. A genuinely-anonymous
+    // visitor resolves quickly, so this window is brief for them.
+    const isLoading = authUndetermined || baseLoading;
     const error = useMemoryFeed ? localError : globalFeed?.error || null;
     const nextCursor = useMemoryFeed ? localNextCursor : globalFeed?.nextCursor;
 

@@ -40,7 +40,7 @@ const FAB_ICON_SIZE = 22;
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
-    const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated, isAuthResolved, user } = useAuth();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { open: openDrawer } = useDrawer();
@@ -135,10 +135,13 @@ const HomeScreen: React.FC = () => {
     );
 
     useEffect(() => {
-        if (!isAuthenticated && (activeTab === 'following' || activeTab.startsWith('custom:'))) {
+        // Only force-reset auth-only tabs once auth is RESOLVED. During the
+        // undetermined cold-boot window `isAuthenticated` is false but not a real
+        // logout, so resetting here would fight a session that is about to restore.
+        if (isAuthResolved && !isAuthenticated && (activeTab === 'following' || activeTab.startsWith('custom:'))) {
             setActiveTab('for_you');
         }
-    }, [isAuthenticated, activeTab]);
+    }, [isAuthResolved, isAuthenticated, activeTab]);
 
     useEffect(() => {
         const handleRefresh = () => {
@@ -218,7 +221,23 @@ const HomeScreen: React.FC = () => {
         // the same element across the anon→authed transition and the feed stays stuck
         // on anonymous (or empty) content. This is the belt-and-suspenders guarantee
         // alongside the auth-keyed initial-fetch effect inside useFeedState.
-        const feedIdentity = isAuthenticated && user?.id ? user.id : 'anon';
+        //
+        // While auth is UNDETERMINED, the identity is a neutral 'pending' sentinel —
+        // distinct from both 'anon' and any user id — so the feed mounts and shows
+        // its spinner (the Feed defers its fetch on `isAuthResolved`) WITHOUT
+        // committing to the anonymous variant. When auth resolves, the key flips to
+        // the real identity ('anon' or the user id), remounting the feed for the
+        // correct fetch. This prevents the anon-feed flash on cold boot.
+        const feedIdentity = !isAuthResolved
+            ? 'pending'
+            : (isAuthenticated && user?.id ? user.id : 'anon');
+
+        // During the undetermined window, render the base For You feed (which exists
+        // in both anon and authed states) so static nav stays alive and the Feed's
+        // own spinner shows — without rendering any auth-specific affordance.
+        if (!isAuthResolved) {
+            return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} />;
+        }
 
         if (isAuthenticated && activeTab.startsWith('custom:')) {
             const feedId = activeTab.replace('custom:', '');

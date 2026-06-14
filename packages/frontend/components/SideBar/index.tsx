@@ -45,7 +45,7 @@ interface SideBarProps {
 export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const { t } = useTranslation();
     const router = useRouter();
-    const { user, signIn, signOut } = useAuth();
+    const { user, signIn, signOut, isAuthResolved } = useAuth();
     const theme = useTheme();
     const { resetTheme } = useBloomTheme();
     const resetAppearance = useAppearanceStore((state) => state.reset);
@@ -213,12 +213,27 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     styles.footer,
                     { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
-                    {/* Gate the footer on the SAME reactive condition as the profile
-                        row above (truthy `user`) so the two never disagree. A session
-                        restore can briefly commit a `user` before `user.id` lands;
-                        gating the footer on `user.id` left "Sign In" showing while the
-                        profile row had already flipped to the avatar. */}
-                    {user ? (
+                    {/* Auth-sensitive footer. Three states:
+                        1. UNDETERMINED (`!isAuthResolved`): cold-boot session restore
+                           has not concluded, so `user`/`isAuthenticated` are not yet a
+                           reliable answer. Render a neutral skeleton of the same
+                           footprint as a SideBarItem so the column does not shift and
+                           we never flash the "Sign In" item before snapping to authed.
+                        2. AUTHED (`user`): show Sign Out.
+                        3. ANON (resolved, no user): show Sign In.
+                        Gating on the SAME reactive condition as the profile row above
+                        (truthy `user`) keeps the two in agreement. */}
+                    {!isAuthResolved ? (
+                        <View
+                            className={showExpanded ? 'w-full self-stretch px-4' : 'self-center px-3'}
+                            style={styles.footerSkeleton}
+                        >
+                            <View className="bg-muted rounded-full w-6 h-6" />
+                            {showExpanded && (
+                                <View className="bg-muted rounded-full h-3.5 flex-1 ml-3 mr-6" />
+                            )}
+                        </View>
+                    ) : user ? (
                         <SideBarItem
                             isActive={false}
                             icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.text} />}
@@ -303,5 +318,14 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         width: '100%',
         marginTop: 'auto',
+    },
+    // Neutral placeholder for the auth-resolving window. Mirrors SideBarItem's
+    // footprint (icon row: py-2.5 = 10px vertical + 24px icon, mb-1.5 = 6px)
+    // so swapping to the real Sign-in/Sign-out item causes no layout shift.
+    footerSkeleton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        marginBottom: 6,
     },
 });

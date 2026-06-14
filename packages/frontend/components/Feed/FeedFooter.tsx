@@ -20,14 +20,16 @@ interface FeedFooterProps {
 export const FeedFooter = memo<FeedFooterProps>(
     ({ showOnlySaved, hasMore, isLoadingMore, hasItems }) => {
         const theme = useTheme();
-        const { isAuthenticated, signIn } = useAuth();
+        const { isAuthenticated, isAuthResolved, signIn } = useAuth();
 
         const handleSignIn = useCallback(() => {
             signIn().catch(() => {});
         }, [signIn]);
 
-        // Show sign-in prompt for unauthenticated users at the end of the feed
-        if (!isAuthenticated && hasItems && !showOnlySaved) {
+        // Show sign-in prompt for unauthenticated users at the end of the feed.
+        // Gate on isAuthResolved so the prompt never appears during the cold-boot
+        // restore window (when `isAuthenticated: false` is still UNDETERMINED).
+        if (isAuthResolved && !isAuthenticated && hasItems && !showOnlySaved) {
             return (
                 <TouchableOpacity
                     className="flex-row items-center justify-center py-4 px-5 border-border"

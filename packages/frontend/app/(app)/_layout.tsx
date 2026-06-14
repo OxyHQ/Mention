@@ -74,7 +74,7 @@ function isProfileRoute(pathname: string | null | undefined): boolean {
   return pathname.startsWith('/@');
 }
 
-const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = memo(({ isScreenNotMobile, isAuthenticated }) => {
+const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthResolved: boolean }> = memo(({ isScreenNotMobile, isAuthenticated, isAuthResolved }) => {
   const { forwardWheelEvent } = useLayoutScroll();
   const { screenColor } = useScreenColor();
   const pathname = usePathname();
@@ -117,7 +117,11 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean }> = mem
             style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
           >
             <Slot />
-            {!isAuthenticated && <SignInBanner />}
+            {/* Only show the anon CTA once auth is definitively resolved. During the
+                cold-boot restore window `isAuthenticated` is UNDETERMINED — showing
+                the banner then would flash it to a user whose session is about to
+                restore. */}
+            {isAuthResolved && !isAuthenticated && <SignInBanner />}
           </ThemedView>
         </BloomColorScope>
         <RightBar />
@@ -131,7 +135,7 @@ MainLayout.displayName = 'MainLayout';
 export default function AppLayout() {
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthResolved } = useAuth();
   const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
   const handleCloseHelpModal = useCallback(() => setShowHelpModal(false), [setShowHelpModal]);
 
@@ -140,7 +144,7 @@ export default function AppLayout() {
     <DrawerProvider>
       <ConnectionStatus />
       <RealtimePostsBridge />
-      <MainLayout isScreenNotMobile={isScreenNotMobile} isAuthenticated={isAuthenticated} />
+      <MainLayout isScreenNotMobile={isScreenNotMobile} isAuthenticated={isAuthenticated} isAuthResolved={isAuthResolved} />
       <RegisterPush />
       {isAuthenticated && !isScreenNotMobile && !keyboardVisible && <BottomBar />}
       {!isScreenNotMobile && <DrawerOverlay />}
