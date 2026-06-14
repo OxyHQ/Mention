@@ -65,7 +65,7 @@ interface LayoutScrollProviderProps {
     scrollEventThrottle?: number;
 }
 
-function extractOffsetY(event: ScrollEvent): number {
+export function extractOffsetY(event: ScrollEvent): number {
     const nativeEvent = event?.nativeEvent ?? event;
     if (!nativeEvent) return 0;
 

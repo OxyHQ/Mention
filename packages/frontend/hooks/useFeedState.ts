@@ -1,13 +1,18 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { FeedType, FeedPostSlice, FeedRequest, HydratedPost } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
+import { FeedFilters, getItemKey, deduplicateItems, buildFeedScrollKey } from '@/utils/feedUtils';
 import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
+import {
+    getFeedMemoryCache,
+    setFeedMemoryCache,
+    type FeedMemoryCacheEntry,
+} from '@/stores/feedScrollStore';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -113,11 +118,44 @@ export function useFeedState({
         clearError: clearGlobalError,
     } = usePostsStore();
 
+    // useMemoryFeed is true when:
+    //   1. useScoped is set (filtered/scoped feed — always uses local state), OR
+    //   2. SQLite is unavailable (web without COOP/COEP, SharedArrayBuffer undefined)
+    // When true, all feed items live in local React state (localItems/localNextCursor/…).
+    // When false (SQLite available, no filters), items live in SQLite and are read via
+    // selectors — this is the standard native path.
+    const useMemoryFeed = resolveUseMemoryFeed(useScoped, isDbAvailable());
+
+    // Stable identity for this feed. Used to retain memory-mode items across an
+    // unmount→remount (e.g. navigating to `/videos` and back) so the saved
+    // scroll offset lands on the same items. Recomputed only when identity
+    // inputs change.
+    const feedScrollKey = useMemo(
+        () => buildFeedScrollKey({ type, userId, showOnlySaved, filters }),
+        [type, userId, showOnlySaved, filters]
+    );
+
+    // Warm-start seed: in memory mode, if we retained this feed's slice from a
+    // previous mount, hydrate local state from it synchronously so the list
+    // renders the full previously-loaded set immediately (no flash of page 1,
+    // no refetch-from-scratch that would invalidate the restored offset).
+    // Read once at mount via lazy initializers — not reactive by design.
+    const seededCacheRef = useRef<FeedMemoryCacheEntry | undefined>(
+        (() => {
+            if (!useMemoryFeed) return undefined;
+            const cached = getFeedMemoryCache(feedScrollKey);
+            // Only treat a non-empty slice as a warm start. An empty cached set
+            // would otherwise suppress the cold fetch and strand an empty feed.
+            return cached && cached.items.length > 0 ? cached : undefined;
+        })()
+    );
+    const seed = seededCacheRef.current;
+
     // Local state for scoped feeds
-    const [localItems, setLocalItems] = useState<HydratedPost[]>([]);
-    const [localSlices, setLocalSlices] = useState<FeedPostSlice[] | undefined>(undefined);
-    const [localHasMore, setLocalHasMore] = useState<boolean>(true);
-    const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(undefined);
+    const [localItems, setLocalItems] = useState<HydratedPost[]>(() => seed?.items ?? []);
+    const [localSlices, setLocalSlices] = useState<FeedPostSlice[] | undefined>(() => seed?.slices);
+    const [localHasMore, setLocalHasMore] = useState<boolean>(() => seed ? seed.hasMore : true);
+    const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(() => seed?.nextCursor);
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
@@ -140,14 +178,6 @@ export function useFeedState({
     const globalFeedSelector = useFeedSelector(effectiveType);
     const userFeedSelector = useUserFeedSelector(userId || '', effectiveType);
     const globalFeed = showOnlySaved ? globalFeedSelector : (userId ? userFeedSelector : globalFeedSelector);
-
-    // useMemoryFeed is true when:
-    //   1. useScoped is set (filtered/scoped feed — always uses local state), OR
-    //   2. SQLite is unavailable (web without COOP/COEP, SharedArrayBuffer undefined)
-    // When true, all feed items live in local React state (localItems/localNextCursor/…).
-    // When false (SQLite available, no filters), items live in SQLite and are read via
-    // selectors — this is the standard native path.
-    const useMemoryFeed = resolveUseMemoryFeed(useScoped, isDbAvailable());
 
     // Refs for preventing duplicate calls.
     //
@@ -212,6 +242,17 @@ export function useFeedState({
         }
     }, [clearPendingPoll]);
 
+    // Retain the current memory-mode slice under this feed's identity so a
+    // remount can warm-start from it. No-op outside memory mode (SQLite retains
+    // its own data). Called after every successful memory-mode state update.
+    const retainMemoryCache = useCallback(
+        (entry: FeedMemoryCacheEntry) => {
+            if (!useMemoryFeed) return;
+            setFeedMemoryCache(feedScrollKey, entry);
+        },
+        [useMemoryFeed, feedScrollKey]
+    );
+
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
             if (isFetchingRef.current) {
@@ -272,6 +313,18 @@ export function useFeedState({
                 }
             }
 
+            // Memory-mode warm start: if this mount was seeded from a retained
+            // slice and this isn't a forced refresh, skip the cold fetch. A
+            // from-scratch fetch here would replace the cached items (including
+            // pages > 1) with just page 1, losing the user's scroll context.
+            // The seed is consumed once so a later forceRefresh still refetches.
+            if (useMemoryFeed && !forceRefresh && seededCacheRef.current) {
+                logger.debug('Skipping — memory feed warm-started from cache');
+                seededCacheRef.current = undefined;
+                isFetchingRef.current = false;
+                return;
+            }
+
             try {
                 clearError();
 
@@ -313,10 +366,20 @@ export function useFeedState({
                     // Prime the React Query actor cache so avatars/names render
                     // on web (no SQLite). This is the web feed's only actor source.
                     precacheActorsFromPosts(uniqueItems);
+                    const initialSlices = resp.slices || undefined;
+                    const initialHasMore = !!resp.hasMore;
                     setLocalItems(uniqueItems);
-                    setLocalSlices(resp.slices || undefined);
-                    setLocalHasMore(!!resp.hasMore);
+                    setLocalSlices(initialSlices);
+                    setLocalHasMore(initialHasMore);
                     setLocalNextCursor(resp.nextCursor);
+                    // A fresh fetch overwrites any retained slice so the cache
+                    // never drifts from what is on screen.
+                    retainMemoryCache({
+                        items: uniqueItems,
+                        slices: initialSlices,
+                        hasMore: initialHasMore,
+                        nextCursor: resp.nextCursor,
+                    });
 
                     // Federated profile feed still syncing → schedule a bounded refetch.
                     if (userId) {
@@ -365,6 +428,7 @@ export function useFeedState({
             refreshFeed,
             clearError,
             applyPendingResult,
+            retainMemoryCache,
         ]
     );
 
@@ -422,10 +486,20 @@ export function useFeedState({
                 const uniqueItems = deduplicateItems(items, getItemKey);
                 // Prime the React Query actor cache (web feed's only actor source)
                 precacheActorsFromPosts(uniqueItems);
+                const refreshedSlices = resp.slices || undefined;
+                const refreshedHasMore = !!resp.hasMore;
                 setLocalItems(uniqueItems);
-                setLocalSlices(resp.slices || undefined);
-                setLocalHasMore(!!resp.hasMore);
+                setLocalSlices(refreshedSlices);
+                setLocalHasMore(refreshedHasMore);
                 setLocalNextCursor(resp.nextCursor);
+                // A refresh rebuilds the feed from page 1, so overwrite the
+                // retained slice with the fresh set.
+                retainMemoryCache({
+                    items: uniqueItems,
+                    slices: refreshedSlices,
+                    hasMore: refreshedHasMore,
+                    nextCursor: resp.nextCursor,
+                });
             } else if (userId) {
                 await fetchUserFeed(userId, { type, limit: 20, filters });
             } else {
@@ -440,7 +514,7 @@ export function useFeedState({
         } finally {
             if (useMemoryFeed && ownsPrimary()) setLocalLoading(false);
         }
-    }, [type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, clearError]);
+    }, [type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, clearError, retainMemoryCache]);
 
     const loadMore = useCallback(async () => {
         if (isLoadingMoreRef.current) {
@@ -504,24 +578,42 @@ export function useFeedState({
 
                 // Prime the React Query actor cache (web feed's only actor source)
                 precacheActorsFromPosts(items);
-                setLocalItems((prev) => {
-                    const existingIds = new Set(prev.map(getItemKey));
-                    const uniqueNew = deduplicateItems(items, getItemKey).filter(
-                        (p) => !existingIds.has(getItemKey(p))
-                    );
-                    return prev.concat(uniqueNew);
-                });
-
-                const newSlices = resp.slices;
-                if (newSlices && newSlices.length > 0) {
-                    setLocalSlices((prev) => prev ? [...prev, ...newSlices] : newSlices);
-                }
 
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
                 const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
-                setLocalHasMore(!!resp.hasMore && cursorAdvanced);
+                const mergedHasMore = !!resp.hasMore && cursorAdvanced;
+                const newSlices = resp.slices;
+
+                // Compute the merged set up-front against the current state
+                // (closure values), so both the React state update and the cache
+                // write use the exact same result — independent of when React
+                // commits the functional updaters. `localItems`/`localSlices`
+                // are in this callback's dependency list, so the closure is fresh.
+                const existingIds = new Set(localItems.map(getItemKey));
+                const uniqueNew = deduplicateItems(items, getItemKey).filter(
+                    (p) => !existingIds.has(getItemKey(p))
+                );
+                const mergedItems = localItems.concat(uniqueNew);
+                const mergedSlices = newSlices && newSlices.length > 0
+                    ? (localSlices ? [...localSlices, ...newSlices] : newSlices)
+                    : localSlices;
+
+                setLocalItems(mergedItems);
+                if (mergedSlices !== localSlices) {
+                    setLocalSlices(mergedSlices);
+                }
+                setLocalHasMore(mergedHasMore);
                 setLocalNextCursor(nextCursor);
+
+                // Retain the paginated set so a remount restores the full list
+                // (pages > 1 included) and the saved offset lands correctly.
+                retainMemoryCache({
+                    items: mergedItems,
+                    slices: mergedSlices,
+                    hasMore: mergedHasMore,
+                    nextCursor,
+                });
             } else if (userId) {
                 await fetchUserFeed(userId, {
                     type: effectiveType,
@@ -554,6 +646,8 @@ export function useFeedState({
         localHasMore,
         localLoading,
         localNextCursor,
+        localItems,
+        localSlices,
         type,
         effectiveType,
         userId,
@@ -561,6 +655,7 @@ export function useFeedState({
         globalFeed?.nextCursor,
         loadMoreFeed,
         fetchUserFeed,
+        retainMemoryCache,
     ]);
 
     // Handle reloadKey changes

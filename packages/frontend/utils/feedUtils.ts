@@ -56,6 +56,49 @@ export function getItemKey(item: any): string {
 }
 
 /**
+ * Parameters that uniquely identify a feed instance.
+ * Two feeds with the same identity render the same items in the same order,
+ * so a saved scroll offset (or a cached item slice) is only valid within a
+ * single identity.
+ */
+export interface FeedIdentityParams {
+    type: FeedType;
+    userId?: string;
+    showOnlySaved?: boolean;
+    filters?: FeedFilters;
+}
+
+/**
+ * Deterministically serialize feed filters into a stable string.
+ * Keys are sorted so reference-equal-but-reordered objects produce the same
+ * output. Mirrors the dedupe-key strategy in `services/feedService.ts` but is
+ * defined locally to avoid a service ↔ utils dependency.
+ */
+function serializeFeedFilters(filters?: FeedFilters): string {
+    if (!filters) return '';
+    return Object.keys(filters)
+        .sort()
+        .map((key) => `${key}=${filters[key] ?? ''}`)
+        .join('&');
+}
+
+/**
+ * Build a stable identity key for a feed instance.
+ *
+ * The same inputs always produce the same key (so scroll offset / cached items
+ * restore correctly across an unmount→remount), while distinct feeds (different
+ * type, user, saved view, or filters) produce distinct keys so they never share
+ * state. `showOnlySaved` collapses to the `'saved'` effective type, matching the
+ * effective-type logic in `useFeedState`.
+ */
+export function buildFeedScrollKey(params: FeedIdentityParams): string {
+    const effectiveType = params.showOnlySaved ? 'saved' : params.type;
+    const userId = params.userId ?? '';
+    const filterKey = serializeFeedFilters(params.filters);
+    return `${effectiveType}|${userId}|${filterKey}`;
+}
+
+/**
  * Deep equality check for objects/arrays
  * Uses JSON.stringify for simple comparison - optimized for filters
  */

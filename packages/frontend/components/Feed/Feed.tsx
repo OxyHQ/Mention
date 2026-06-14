@@ -12,6 +12,26 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { FeedType, HydratedPost, Reply, FeedBoost as Boost, FeedPostSlice, FeedSliceReason } from '@mention/shared-types';
 import PostItem from './PostItem';
+import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
+import { PostErrorBoundary } from './PostErrorBoundary';
+import { useAuth } from '@oxyhq/services';
+import { useTheme } from '@oxyhq/bloom/theme';
+import { useLayoutScroll, extractOffsetY } from '@/context/LayoutScrollContext';
+import { flattenStyleArray } from '@/utils/theme';
+import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { createScopedLogger } from '@/lib/logger';
+import { useFeedState } from '@/hooks/useFeedState';
+import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
+import { FeedFilters, getItemKey, deduplicateItems, deepEqual, buildReplyTree, ReplyNode, buildFeedScrollKey } from '@/utils/feedUtils';
+import { getFeedScroll, setFeedScroll } from '@/stores/feedScrollStore';
+import type { FlashListRef } from '@shopify/flash-list';
+import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
+import { FeedHeader } from './FeedHeader';
+import { FeedFooter } from './FeedFooter';
+import { FeedEmptyState } from './FeedEmptyState';
+import { usePrivacyControls } from '@/hooks/usePrivacyControls';
+import { extractAuthorId } from '@/utils/postUtils';
 
 // Type alias for feed items (what PostItem expects)
 type FeedItem = HydratedPost | Reply | Boost;
@@ -30,24 +50,6 @@ interface FeedRow {
 }
 
 const MAX_THREAD_NESTING_DEPTH = 3;
-import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
-import { PostErrorBoundary } from './PostErrorBoundary';
-import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { flattenStyleArray } from '@/utils/theme';
-import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import { createScopedLogger } from '@/lib/logger';
-import { useFeedState } from '@/hooks/useFeedState';
-import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, getItemKey, deduplicateItems, deepEqual, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
-import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
-import { FeedHeader } from './FeedHeader';
-import { FeedFooter } from './FeedFooter';
-import { FeedEmptyState } from './FeedEmptyState';
-import { usePrivacyControls } from '@/hooks/usePrivacyControls';
-import { extractAuthorId } from '@/utils/postUtils';
 
 const logger = createScopedLogger('Feed');
 
@@ -168,11 +170,23 @@ const Feed = ((props: FeedProps) => {
     const router = useRouter();
     const flatListRef = useRef<any>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
+    // Guards the one-shot scroll restore so it runs at most once per mount
+    // (FlashList may fire onLoad more than once across re-layouts).
+    const hasRestoredScrollRef = useRef(false);
     const [refreshing, setRefreshing] = useState(false);
     const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
 
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
+
+    // Stable identity for this feed instance — keys both the saved scroll offset
+    // and (in memory mode) the retained items, so each feed restores independently
+    // when its screen unmounts and remounts (e.g. open a video, then go back).
+    // Mirrors the same key built inside useFeedState (pure function of the props).
+    const feedScrollKey = useDeepCompareMemo(
+        () => buildFeedScrollKey({ type, userId, showOnlySaved, filters }),
+        [type, userId, showOnlySaved, filters]
+    );
 
     const { user: currentUser, isAuthenticated, signIn } = useAuth();
     const { blockedSet } = usePrivacyControls();
@@ -468,12 +482,39 @@ const Feed = ((props: FeedProps) => {
         clearScrollableRegistration();
     }, [clearScrollableRegistration]);
 
-    // Handle scroll events
+    // Handle scroll events. Drives the header-hide shared value (handleScroll)
+    // and persists the current offset under this feed's identity so a later
+    // remount can restore it. Embedded feeds (scrollEnabled === false) don't
+    // own scrolling, so we skip both.
     const handleScrollEvent = useCallback((event: any) => {
-        if (scrollEnabled !== false && handleScroll) {
+        if (scrollEnabled === false) return;
+        if (handleScroll) {
             handleScroll(event);
         }
-    }, [handleScroll, scrollEnabled]);
+        const offset = extractOffsetY(event);
+        setFeedScroll(feedScrollKey, offset);
+    }, [handleScroll, scrollEnabled, feedScrollKey]);
+
+    // Restore the saved scroll offset once the list has measured/drawn its rows.
+    // FlashList v2 lays items out after first render, so onLoad is the correct
+    // timing hook. Guarded so it runs at most once per mount, only when there's
+    // a meaningful saved offset and data is present, and never for embedded feeds
+    // (which don't own scrolling — the parent ScrollView does).
+    const handleListLoad = useCallback(() => {
+        if (hasRestoredScrollRef.current) return;
+        // Embedded feeds don't own scrolling — nothing to restore.
+        if (scrollEnabled === false) return;
+        // Wait until rows exist; restoring against an empty list would land on
+        // a position past the end. onLoad only fires after first layout, so in
+        // practice data is already present here in both SQLite and memory mode.
+        if (feedRows.length === 0) return;
+        // Consume the one-shot only once we actually have rows to restore against.
+        hasRestoredScrollRef.current = true;
+        const savedOffset = getFeedScroll(feedScrollKey);
+        if (!savedOffset || savedOffset <= 0) return;
+        const list = flatListRef.current as FlashListRef<FeedRow> | null;
+        list?.scrollToOffset({ offset: savedOffset, animated: false });
+    }, [feedScrollKey, scrollEnabled, feedRows.length]);
 
     // Handle wheel events
     const handleWheelEvent = useCallback((event: any) => {
@@ -592,6 +633,7 @@ const Feed = ((props: FeedProps) => {
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemType={getItemType}
+                    onLoad={handleListLoad}
                     {...({
                         estimatedItemSize: 250,
                         extraData: dataHash,
