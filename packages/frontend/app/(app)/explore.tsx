@@ -21,7 +21,7 @@ import { TrendsWidget } from '@/components/widgets/TrendsWidget';
 import { TrendingList } from '@/components/trending/TrendingList';
 import { useTrendsStore } from '@/store/trendsStore';
 
-type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people' | 'starter-packs';
+type ExploreTab = 'all' | 'media' | 'trending' | 'people' | 'starter-packs';
 
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -71,8 +71,6 @@ const ExploreScreen: React.FC = () => {
             refreshing={trendingRefreshing}
           />
         );
-      case 'custom':
-        return <Feed type="posts" listHeaderComponent={trendsHeader} />;
       case 'people':
         return <WhoToFollowTab />;
       case 'starter-packs':
@@ -178,7 +176,6 @@ const ExploreScreen: React.FC = () => {
                 { id: 'all', label: t('All') },
                 { id: 'media', label: t('Media') },
                 { id: 'trending', label: t('Trending') },
-                { id: 'custom', label: t('Custom') },
                 { id: 'people', label: t('Who to follow') },
                 { id: 'starter-packs', label: t('Starter Packs') },
               ]}

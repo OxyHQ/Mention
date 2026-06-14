@@ -3,8 +3,7 @@ import { Platform, StyleSheet, TouchableOpacity, View, Share } from 'react-nativ
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxyhq/services';
-import * as OxyServicesNS from '@oxyhq/services';
+import { useAuth, FollowButton } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { useUserById } from '@/hooks/useCachedUser';
@@ -18,15 +17,60 @@ import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { logger } from '@/lib/logger';
 
+const APP_URL = 'https://mention.earth';
+
+/**
+ * A single recommended profile.
+ *
+ * Derived from the SDK's `getProfileRecommendations` return type so it stays in
+ * lockstep with the source of truth, intersected with the extra fields the API's
+ * `formatProfileResult` actually returns (`avatar`) and the looser `_id`/`bio`
+ * variants that may appear when items come from other actor sources.
+ */
+type RecommendedUser = Awaited<
+  ReturnType<ReturnType<typeof useAuth>['oxyServices']['getProfileRecommendations']>
+>[number] & {
+  _id?: string;
+  avatar?: string;
+  bio?: string;
+};
+
+/**
+ * The `/profiles/recommendations` endpoint returns the standardized
+ * `sendSuccess` envelope (`{ data: [...] }`), which the SDK's HttpService
+ * unwraps to a bare array before it reaches us. We still normalize defensively
+ * so the tab is correct regardless of whether the value arrives unwrapped, as a
+ * `{ data }` envelope, or as a `{ recommendations }` envelope.
+ */
+function extractRecommendations(response: unknown): RecommendedUser[] {
+  if (Array.isArray(response)) {
+    return response as RecommendedUser[];
+  }
+  if (response && typeof response === 'object') {
+    const record = response as Record<string, unknown>;
+    if (Array.isArray(record.data)) {
+      return record.data as RecommendedUser[];
+    }
+    if (Array.isArray(record.recommendations)) {
+      return record.recommendations as RecommendedUser[];
+    }
+  }
+  return [];
+}
+
+/** Resolve a user's id from either the canonical `id` or Mongo `_id`. */
+function getUserId(user: Pick<RecommendedUser, 'id' | '_id'>): string {
+  return String(user.id ?? user._id ?? '');
+}
+
 export function WhoToFollowTab() {
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
-  const router = useRouter();
   const theme = useTheme();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendedUser[]>([]);
 
   const getInviteMessage = useCallback(() => {
     const userName = user
@@ -35,62 +79,48 @@ export function WhoToFollowTab() {
         : user.name?.full || user.name?.first || user.username
       : 'Someone';
     const userHandle = user?.username || '';
-    const appUrl = 'https://mention.earth';
-    
-    // Use a more engaging invite message with proper translation
+
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
         name: userName,
         handle: userHandle,
-        url: appUrl,
-      });
-    } else {
-      return t('settings.inviteContacts.shareMessage', {
-        name: userName,
-        url: appUrl,
+        url: APP_URL,
       });
     }
+    return t('settings.inviteContacts.shareMessage', {
+      name: userName,
+      url: APP_URL,
+    });
   }, [user, t]);
 
   const handleInviteFriends = useCallback(async () => {
     const inviteMessage = getInviteMessage();
-    const appUrl = 'https://mention.earth';
 
     if (Platform.OS === 'web') {
-      // On web, use Share API or copy to clipboard
-      if (navigator.share) {
+      if (typeof navigator !== 'undefined' && navigator.share) {
         try {
           await navigator.share({
             title: t('settings.inviteContacts.inviteTitle'),
             text: inviteMessage,
-            url: appUrl,
+            url: APP_URL,
           });
-        } catch (e) {
-          // User cancelled or error
+        } catch (e: unknown) {
+          // AbortError = user dismissed the native share sheet; not an error.
+          if (e instanceof Error && e.name !== 'AbortError') {
+            logger.error('Error inviting friends');
+          }
         }
-      } else if (navigator.clipboard) {
+      } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(inviteMessage);
-        // Could show a toast here
       }
       return;
     }
 
     try {
-      // Use Share API - ensure message is always included
-      // The message already contains the URL, so we don't need to add it separately
-      const shareOptions: any = {
-        message: inviteMessage, // Full message with URL already included
-      };
-      
-      // On iOS, we can optionally add title, but message should be primary
-      if (Platform.OS === 'ios') {
-        // Don't set title as it might override the message in some apps
-        // Just use message which contains everything
-      }
-      
-      await Share.share(shareOptions);
-    } catch (error: unknown) {
-      const err = error as { message?: string; code?: string };
+      // The message already contains the URL, so it carries everything needed.
+      await Share.share({ message: inviteMessage });
+    } catch (e: unknown) {
+      const err = e as { message?: string; code?: string };
       if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
         logger.error('Error inviting friends');
       }
@@ -102,18 +132,19 @@ export function WhoToFollowTab() {
       setLoading(true);
       setError(null);
       const response = await oxyServices.getProfileRecommendations();
-      const users = Array.isArray(response) ? response : [];
+      const users = extractRecommendations(response).filter((u) => getUserId(u).length > 0);
       setRecommendations(users);
       if (users.length > 0) {
         precacheProfileViews(queryClient, users);
-        // Fire-and-forget: avatars fill in reactively via useUserById
-        void enrichMissingAvatars(users, (id) => oxyServices.getUserById(id), queryClient);
+        // Fire-and-forget: missing avatars fill in reactively via useUserById.
+        void enrichMissingAvatars(
+          users.map((u) => ({ ...u, id: getUserId(u) })),
+          (id) => oxyServices.getUserById(id),
+          queryClient,
+        );
       }
     } catch (err: unknown) {
-      let errorMessage = 'Failed to fetch recommendations';
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      }
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch recommendations';
       setError(errorMessage);
       logger.error('Error fetching recommendations');
     } finally {
@@ -125,9 +156,10 @@ export function WhoToFollowTab() {
     fetchAndEnrich();
   }, [fetchAndEnrich]);
 
-  const renderUser = useCallback(({ item }: { item: any }) => {
-    if (!item?.id) return null;
-    return <FollowRow item={item} />;
+  const renderUser = useCallback(({ item }: { item: RecommendedUser }) => {
+    const id = getUserId(item);
+    if (!id) return null;
+    return <FollowRow item={item} userId={id} />;
   }, []);
 
   if (loading && recommendations.length === 0) {
@@ -148,7 +180,7 @@ export function WhoToFollowTab() {
         message={error}
         onRetry={fetchAndEnrich}
         hideBackButton={true}
-        style={{ flex: 1, paddingVertical: 40 }}
+        style={styles.errorContainer}
       />
     );
   }
@@ -179,7 +211,7 @@ export function WhoToFollowTab() {
     <LegendList
       data={recommendations}
       renderItem={renderUser}
-      keyExtractor={(item: any) => String(item.id || item._id || item.username)}
+      keyExtractor={(item: RecommendedUser) => getUserId(item) || item.username}
       ListHeaderComponent={renderInviteBanner}
       ListEmptyComponent={
         <View style={styles.emptyContainer}>
@@ -201,11 +233,9 @@ export function WhoToFollowTab() {
   );
 }
 
-const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
-
-const FollowRow = React.memo(({ item }: { item: any }) => {
+const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId: string }) => {
   const router = useRouter();
-  const cachedUser = useUserById(item.id);
+  const cachedUser = useUserById(userId);
 
   const displayName = useMemo(() => {
     if (item.name?.full) return item.name.full;
@@ -216,7 +246,7 @@ const FollowRow = React.memo(({ item }: { item: any }) => {
   }, [item.name, item.username]);
 
   const avatarUri = item.avatar || cachedUser?.avatar;
-  const username = item.username || item.id;
+  const username = item.username || userId;
 
   const handlePress = useCallback(() => {
     router.push(`/@${username}`);
@@ -237,14 +267,14 @@ const FollowRow = React.memo(({ item }: { item: any }) => {
           <ThemedText className="text-muted-foreground" style={styles.rowSub}>
             @{username}
           </ThemedText>
-          {item.bio && (
+          {item.bio ? (
             <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={2}>
               {item.bio}
             </ThemedText>
-          )}
+          ) : null}
         </View>
       </TouchableOpacity>
-      <FollowButton userId={item.id} size="small" />
+      <FollowButton userId={userId} size="small" />
     </View>
   );
 });
@@ -260,6 +290,10 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    paddingVertical: 40,
   },
   emptyContainer: {
     padding: 40,
@@ -330,4 +364,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
