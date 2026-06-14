@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { mkdtemp, open, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, open, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -32,19 +32,6 @@ import {
   uploadCachedMedia,
 } from './oxyMediaStore';
 
-/**
- * Convert a Node `Buffer` into a `Uint8Array` backed by a freshly-allocated,
- * non-shared `ArrayBuffer` so it satisfies the DOM `BlobPart` type (a Node
- * Buffer may be backed by a `SharedArrayBuffer`, which `Blob` rejects in the
- * lib types). Copies once — acceptable for the bounded payloads we cache.
- */
-function toBlobPart(buffer: Buffer): Uint8Array<ArrayBuffer> {
-  const backing = new ArrayBuffer(buffer.byteLength);
-  const copy = new Uint8Array(backing);
-  copy.set(buffer);
-  return copy;
-}
-
 /** Random bytes for temp filenames (collision resistance). */
 const TEMP_NAME_RANDOM_BYTES = 16;
 /** Per-download temp directory prefix under the OS tmpdir. */
@@ -53,6 +40,10 @@ const TEMP_DIR_PREFIX = 'mention-media-cache-';
 const DOWNLOAD_SOCKET_TIMEOUT_MS = 30_000;
 /** HTTP status that carries a full body we can cache. */
 const HTTP_OK = 200;
+/** MIME type for the extracted video poster image uploaded to Oxy. */
+const POSTER_CONTENT_TYPE = 'image/jpeg';
+/** Derived filename for the extracted video poster image. */
+const POSTER_FILENAME = 'poster.jpg';
 
 interface DownloadResult {
   filePath: string;
@@ -198,14 +189,17 @@ async function processEntry(remoteUrl: string): Promise<void> {
     }
 
     const { filePath, contentType, sizeBytes } = outcome.download;
-    const mediaBytes = await readFile(filePath);
-    const mediaBlob = new Blob([toBlobPart(mediaBytes)], { type: contentType });
-    const media = await uploadCachedMedia(mediaBlob, deriveFilename(remoteUrl, contentType), contentType);
+    const media = await uploadCachedMedia({
+      filePath,
+      contentType,
+      originalName: deriveFilename(remoteUrl, contentType),
+      sizeBytes,
+    });
     uploadedMediaFileId = media.oxyFileId;
 
     let posterFileId: string | undefined;
     if (isVideoType(contentType)) {
-      posterFileId = await extractAndUploadPoster(filePath);
+      posterFileId = await extractAndUploadPoster(filePath, dir);
     }
 
     await FederatedMediaCache.updateOne(
@@ -255,8 +249,12 @@ async function processEntry(remoteUrl: string): Promise<void> {
   }
 }
 
-/** Extract a poster frame from the local video file and upload it to Oxy. */
-async function extractAndUploadPoster(filePath: string): Promise<string | undefined> {
+/**
+ * Extract a poster frame from the local video file and upload it to Oxy. The
+ * (small, bounded) JPEG is written to a temp file inside the worker's `dir` and
+ * streamed to Oxy, keeping the upload boundary uniformly file-stream based.
+ */
+async function extractAndUploadPoster(filePath: string, dir: string): Promise<string | undefined> {
   const prefix = await readFilePrefix(filePath, MEDIA_CACHE_POSTER_PREFIX_BYTES);
   if (prefix.length === 0) return undefined;
 
@@ -266,8 +264,14 @@ async function extractAndUploadPoster(filePath: string): Promise<string | undefi
     return undefined;
   }
 
-  const posterBlob = new Blob([toBlobPart(poster.jpeg)], { type: 'image/jpeg' });
-  const uploaded = await uploadCachedMedia(posterBlob, 'poster.jpg', 'image/jpeg');
+  const posterPath = join(dir, `${randomBytes(TEMP_NAME_RANDOM_BYTES).toString('hex')}.jpg`);
+  await writeFile(posterPath, poster.jpeg);
+  const uploaded = await uploadCachedMedia({
+    filePath: posterPath,
+    contentType: POSTER_CONTENT_TYPE,
+    originalName: POSTER_FILENAME,
+    sizeBytes: poster.jpeg.byteLength,
+  });
   return uploaded.oxyFileId;
 }
 
