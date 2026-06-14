@@ -6,6 +6,7 @@ import { Server } from 'socket.io';
 import { oxy } from '../../server';
 import PushToken from '../models/PushToken';
 import { sendPushToUser } from '../utils/push';
+import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 
 // Extend Request type to include user property
@@ -57,7 +58,7 @@ const emitNotification = async (req: Request, notification: any) => {
               id: profile?.id || post.oxyUserId,
               name: profile?.name?.full || profile?.name || profile?.username || 'User',
               handle: profile?.username || 'user',
-              avatar: profile?.avatar || '',
+              avatar: resolveAvatarUrl(typeof profile?.avatar === 'string' ? profile.avatar : undefined) ?? '',
               verified: !!profile?.verified,
             },
             content: post.content || { text: '' },
@@ -88,7 +89,7 @@ const emitNotification = async (req: Request, notification: any) => {
       _id: actor.id || actor._id || notification.actorId,
       username: actor.username || notification.actorId,
       name: actor.name?.full || actor.name || actor.username || notification.actorId,
-      avatar: actor.avatar
+      avatar: resolveAvatarUrl(typeof actor.avatar === 'string' ? actor.avatar : undefined)
     } : undefined
   };
   notificationsNamespace.to(`user:${notification.recipientId}`).emit('notification', payload);
@@ -225,7 +226,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
               id: profile.id || p.oxyUserId,
               name: profile?.name?.full || profile?.name || profile?.username || 'User',
               handle: profile?.username || 'user',
-              avatar: profile?.avatar || '',
+              avatar: resolveAvatarUrl(typeof profile?.avatar === 'string' ? profile.avatar : undefined) ?? '',
               verified: !!profile?.verified,
             },
             content: p.content || { text: '' },
@@ -264,7 +265,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           _id: actor.id || actor._id || n.actorId,
           username: actor.username || n.actorId,
           name: actor.name?.full || actor.name || actor.username || n.actorId,
-          avatar: actor.avatar
+          avatar: resolveAvatarUrl(typeof actor.avatar === 'string' ? actor.avatar : undefined)
         } : undefined
       };
     });
@@ -319,7 +320,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
         _id: actor.id || actor._id || notification.actorId,
         username: actor.username || notification.actorId,
         name: actor.name?.full || actor.name || actor.username || notification.actorId,
-        avatar: actor.avatar
+        avatar: resolveAvatarUrl(typeof actor.avatar === 'string' ? actor.avatar : undefined)
       } : undefined
     };
     res.status(201).json(payload);

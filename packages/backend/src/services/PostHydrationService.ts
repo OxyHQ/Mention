@@ -8,6 +8,7 @@ import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { linkMetadataService } from './linkMetadataService';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
+import { resolveAvatarUrl, resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import type { User as OxyUser } from '@oxyhq/core';
 import { assignThreadState } from './ThreadSlicingService';
@@ -598,11 +599,12 @@ export class PostHydrationService {
             const userData: OxyUser = await defaultOxyClient.getUserById(userId);
             const username: string = String(userData?.username || userData?.handle || userId);
             const displayName: string = String(userData?.name?.full || userData?.displayName || username || userId);
-            const avatarValue: string | undefined = typeof userData?.avatar === 'string'
+            const rawAvatar: string | undefined = typeof userData?.avatar === 'string'
               ? userData.avatar
               : typeof (userData as Record<string, unknown>)?.profileImage === 'string'
                 ? (userData as Record<string, unknown>).profileImage as string
                 : undefined;
+            const avatarValue = resolveAvatarUrl(rawAvatar);
 
             const isFederated = Boolean((userData as Record<string, unknown>)?.isFederated);
             const federation = (userData as Record<string, unknown>)?.federation as { domain?: string } | undefined;
@@ -984,29 +986,41 @@ export class PostHydrationService {
     };
   }
 
+  /**
+   * Normalize a raw `content.media` array (strings or objects from lean docs)
+   * into typed {@link MediaItem}s carrying only `id`/`type`. URL resolution is
+   * applied separately via {@link resolveMediaItems}.
+   */
+  private normalizeMediaItems(rawMedia: unknown): import('@mention/shared-types').MediaItem[] | undefined {
+    if (!Array.isArray(rawMedia)) {
+      return undefined;
+    }
+    const items = rawMedia
+      .map((item: unknown): import('@mention/shared-types').MediaItem | undefined => {
+        if (!item) return undefined;
+        if (typeof item === 'string') {
+          return { id: item, type: 'image' };
+        }
+        if (typeof item === 'object') {
+          const obj = item as Record<string, unknown>;
+          if (obj.id) {
+            return {
+              id: String(obj.id),
+              type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image',
+            };
+          }
+        }
+        return undefined;
+      })
+      .filter((x): x is import('@mention/shared-types').MediaItem => x !== undefined);
+    return items;
+  }
+
   private buildContent(post: RawPost, pollMap: Map<string, Record<string, unknown>>, viewerContext?: ViewerContext): Record<string, unknown> {
     const baseContent = post?.content ?? {};
 
-    const media = Array.isArray(baseContent.media)
-      ? baseContent.media
-          .map((item: unknown) => {
-            if (!item) return undefined;
-            if (typeof item === 'string') {
-              return { id: item, type: 'image' };
-            }
-            if (typeof item === 'object') {
-              const obj = item as Record<string, unknown>;
-              if (obj.id) {
-                return {
-                  id: String(obj.id),
-                  type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image' as const,
-                };
-              }
-            }
-            return undefined;
-          })
-          .filter(Boolean)
-      : undefined;
+    const normalizedMedia = this.normalizeMediaItems(baseContent.media);
+    const media = normalizedMedia ? resolveMediaItems(normalizedMedia) : undefined;
 
     const pollId = baseContent.pollId;
     const poll = pollId ? pollMap.get(String(pollId)) : undefined;
@@ -1040,25 +1054,9 @@ export class PostHydrationService {
     const content = post?.content ?? {};
     const attachments: PostAttachmentBundle = {};
 
-    if (Array.isArray(content.media) && content.media.length > 0) {
-      attachments.media = content.media
-        .map((item: unknown) => {
-          if (!item) return undefined;
-          if (typeof item === 'string') {
-            return { id: String(item), type: 'image' as const };
-          }
-          if (typeof item === 'object') {
-            const obj = item as Record<string, unknown>;
-            if (obj.id) {
-              return {
-                id: String(obj.id),
-                type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image' as const,
-              };
-            }
-          }
-          return undefined;
-        })
-        .filter((x: { id: string; type: string } | undefined): x is import('@mention/shared-types').MediaItem => x !== undefined) as import('@mention/shared-types').MediaItem[];
+    const normalizedMedia = this.normalizeMediaItems(content.media);
+    if (normalizedMedia && normalizedMedia.length > 0) {
+      attachments.media = resolveMediaItems(normalizedMedia);
     }
 
     const pollId = content.pollId;
@@ -1293,9 +1291,10 @@ export class PostHydrationService {
             fullName = username;
           }
 
-          const avatarValue = typeof userData.avatar === 'string'
+          const rawAvatar = typeof userData.avatar === 'string'
             ? userData.avatar
             : (userData as Record<string, unknown>).profileImage as string | undefined ?? undefined;
+          const avatarValue = resolveAvatarUrl(rawAvatar);
 
           mentionCache.set(mentionId, {
             id: userData.id || mentionId,

@@ -5,6 +5,18 @@ import { logger } from '../utils/logger';
  * All magic numbers and timeouts are defined here.
  */
 export const config = {
+  /**
+   * The backend's own public origin (no trailing slash). Used to build FINAL,
+   * self-hosted media URLs (e.g. `/media/proxy`, `/media/poster`) that the
+   * frontend renders directly.
+   *
+   * No existing config points at the backend's public origin: `FEDERATION_DOMAIN`
+   * is the FRONTEND apex (`mention.earth`) and `OXY_API_URL` is the Oxy API
+   * origin — so this is a dedicated variable. MUST be set to
+   * `https://api.mention.earth` on the ECS task; otherwise prod would emit
+   * localhost proxy URLs.
+   */
+  publicApiUrl: (process.env.MENTION_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, ''),
   cache: {
     userTTL: parseInt(process.env.CACHE_USER_TTL || '300', 10),        // 5 min
     postTTL: parseInt(process.env.CACHE_POST_TTL || '120', 10),        // 2 min

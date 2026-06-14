@@ -19,6 +19,7 @@ import { postHydrationService } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { aliaChat } from '../utils/alia';
 
 // Constants from centralized config
@@ -651,7 +652,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         id: userId,
         name: userData?.name?.full || 'Unknown User',
         handle: userData?.username || 'unknown',
-        avatar: typeof userData?.avatar === 'string' ? userData.avatar : '',
+        avatar: resolveAvatarUrl(typeof userData?.avatar === 'string' ? userData.avatar : undefined) ?? '',
         verified: (userData as Record<string, unknown>)?.verified === true,
       },
       status: post.status,
@@ -878,7 +879,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           id: userId,
           name: userData?.name?.full || 'Unknown User',
           handle: userData?.username || 'unknown',
-          avatar: typeof userData?.avatar === 'string' ? userData.avatar : '',
+          avatar: resolveAvatarUrl(typeof userData?.avatar === 'string' ? userData.avatar : undefined) ?? '',
           verified: (userData as Record<string, unknown>)?.verified === true,
         },
         oxyUserId: undefined,
@@ -2085,7 +2086,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
             id: userData.id,
             name: userData.name?.full || userData.username,
             handle: userData.username,
-            avatar: typeof userData.avatar === 'string' ? userData.avatar : '',
+            avatar: resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined) ?? '',
             verified: userData.verified || false
           };
         } catch (error) {
@@ -2150,7 +2151,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
             id: userData.id,
             name: userData.name?.full || userData.username,
             handle: userData.username,
-            avatar: typeof userData.avatar === 'string' ? userData.avatar : '',
+            avatar: resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined) ?? '',
             verified: userData.verified || false
           };
         } catch (error) {
@@ -2243,13 +2244,16 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
     // Transform posts to match frontend expectations
     const transformedPosts = posts.map((post) => {
       const userData = post.oxyUserId as unknown;
+      const rawAvatar = typeof userData === 'object' && userData !== null
+        ? (userData as Record<string, unknown>)?.avatar
+        : undefined;
       return {
         ...post,
         user: {
           id: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)._id : userData,
           name: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.name : 'Unknown User',
           handle: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.username : 'unknown',
-          avatar: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.avatar : '',
+          avatar: resolveAvatarUrl(typeof rawAvatar === 'string' ? rawAvatar : undefined) ?? '',
           verified: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.verified : false
         },
         isLiked: likedPostIds.includes(post._id.toString()),

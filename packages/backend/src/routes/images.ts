@@ -32,6 +32,13 @@ const MAX_QUALITY = 100;
 
 /**
  * GET /api/images/optimize
+ *
+ * @deprecated Superseded by server-authoritative media URLs: API responses now
+ * emit FINAL, ready-to-render URLs via the shared media resolver
+ * (`utils/mediaResolver.ts`), so clients no longer need to optimize images
+ * themselves. Retained only for older clients that still call this endpoint;
+ * do not add new callers.
+ *
  * Optimize and cache an external image with custom dimensions.
  * Query params:
  *   url (required) - The image URL to optimize

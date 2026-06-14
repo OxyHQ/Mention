@@ -22,6 +22,19 @@ export enum PostVisibility {
 export interface MediaItem {
   id: string;
   type: 'image' | 'video' | 'gif';
+  /**
+   * Final, ready-to-render media URL resolved server-side (CDN or our media
+   * proxy). Optional for backward compatibility: v1 clients keep reading `id`.
+   * v2+ backends populate this so the frontend never computes URLs.
+   */
+  url?: string;
+  /** Final, ready-to-render thumbnail URL (smaller variant) when available. */
+  thumbUrl?: string;
+  /**
+   * Final, ready-to-render poster/still-frame URL for videos. For images this
+   * mirrors `thumbUrl`.
+   */
+  posterUrl?: string;
 }
 
 export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'space';
@@ -221,7 +234,17 @@ export interface PostActorSummary {
   handle: string;
   displayName: string;
   name?: string;
+  /**
+   * Final, ready-to-render avatar URL. v2+ backends populate this (and the
+   * `avatar` alias) with a FINAL URL resolved server-side — NOT a raw Oxy file
+   * id or relative path. v1 clients that performed their own URL resolution
+   * remain compatible because the value is already an absolute URL.
+   */
   avatarUrl?: string;
+  /**
+   * Alias of {@link PostActorSummary.avatarUrl}. v2+ backends populate this with
+   * the same FINAL URL (not a raw id) so legacy readers of `avatar` keep working.
+   */
   avatar?: string;
   badges?: string[];
   isVerified?: boolean;
