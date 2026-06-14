@@ -4,6 +4,13 @@ import { FeedType } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
+import { useTrendsStore } from '@/store/trendsStore';
+import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
+import {
+  SOCKET_EVENT_TRENDS_UPDATED,
+  SOCKET_EVENT_ROOMS_LIVE_UPDATED,
+  ROOMS_LIVE_REFETCH_DEBOUNCE_MS,
+} from '@/constants/realtimeEvents';
 import { createScopedLogger } from '@/lib/logger';
 import { wasRecent, type EchoAction } from './echoGuard';
 
@@ -77,6 +84,8 @@ class SocketService {
   private engagementPersistTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly ENGAGEMENT_PERSIST_KEY = 'mention-engagement-queue';
   private readonly ENGAGEMENT_PERSIST_DEBOUNCE_MS = 500;
+  // Debounce timer for coalescing live-rooms update signals (participant churn)
+  private liveRoomsRefetchTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.setupEventListeners();
@@ -227,6 +236,11 @@ class SocketService {
       clearTimeout(this.engagementPersistTimer);
       this.engagementPersistTimer = null;
     }
+    // Clear pending live-rooms refetch debounce
+    if (this.liveRoomsRefetchTimer) {
+      clearTimeout(this.liveRoomsRefetchTimer);
+      this.liveRoomsRefetchTimer = null;
+    }
     // Clean up feed loading watcher
     if (this.feedLoadingUnsubscribe) {
       this.feedLoadingUnsubscribe();
@@ -303,6 +317,8 @@ class SocketService {
     this.socket.off('user:presenceBulk');
     this.socket.off('user:followed');
     this.socket.off('user:unfollowed');
+    this.socket.off(SOCKET_EVENT_TRENDS_UPDATED);
+    this.socket.off(SOCKET_EVENT_ROOMS_LIVE_UPDATED);
   }
 
   /**
@@ -415,6 +431,37 @@ class SocketService {
     this.socket.on('user:unfollowed', (data) => {
       this.handleUserUnfollowed(data);
     });
+
+    // Trends recalculated server-side → silently refetch the trends list
+    this.socket.on(SOCKET_EVENT_TRENDS_UPDATED, () => {
+      this.handleTrendsUpdated();
+    });
+
+    // Live-rooms set changed → debounced silent refetch (coalesces participant churn)
+    this.socket.on(SOCKET_EVENT_ROOMS_LIVE_UPDATED, () => {
+      this.handleLiveRoomsUpdated();
+    });
+  }
+
+  /**
+   * Trends recalculated server-side. Payload is a signal only — refetch silently.
+   */
+  private handleTrendsUpdated(): void {
+    void useTrendsStore.getState().fetchTrends({ silent: true });
+  }
+
+  /**
+   * Live-rooms set changed. Coalesce bursts (participant churn) into a single
+   * silent refetch.
+   */
+  private handleLiveRoomsUpdated(): void {
+    if (this.liveRoomsRefetchTimer) {
+      clearTimeout(this.liveRoomsRefetchTimer);
+    }
+    this.liveRoomsRefetchTimer = setTimeout(() => {
+      this.liveRoomsRefetchTimer = null;
+      void useLiveRoomsStore.getState().fetchLiveRooms({ silent: true });
+    }, ROOMS_LIVE_REFETCH_DEBOUNCE_MS);
   }
 
   /**

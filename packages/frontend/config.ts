@@ -27,6 +27,10 @@ export const OXY_AUTH_URL =
   process.env.EXPO_PUBLIC_OXY_AUTH_URL ||
   (process.env.NODE_ENV === 'production' ? 'https://auth.oxy.so' : 'http://localhost:3002');
 
+// Public web origin used to build shareable deep links (posts, trends, rooms).
+export const WEB_BASE_URL =
+  process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
+
 // Stripe Payment Links (open in browser)
 export const STRIPE_LINK_PLUS = process.env.EXPO_PUBLIC_STRIPE_LINK_PLUS || '';
 export const STRIPE_LINK_FILE = process.env.EXPO_PUBLIC_STRIPE_LINK_FILE || '';

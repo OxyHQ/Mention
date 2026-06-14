@@ -4,6 +4,7 @@ import { TopicType } from '@mention/shared-types';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
+import { emitTrendsUpdated } from '../utils/socket';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { topicService } from './TopicService';
 
@@ -124,6 +125,10 @@ class TrendingService {
       );
 
       await this.invalidateCache();
+
+      // Broadcast a lightweight signal so connected clients refetch trends.
+      emitTrendsUpdated(calculatedAt.toISOString());
+
       await this.cleanupOldTrends();
     } catch (error) {
       logger.error('[Trending] Error calculating trending:', error);

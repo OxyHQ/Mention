@@ -18,6 +18,7 @@ import {
 import Recording, { IRecording, RecordingStatus, RecordingAccess } from '../models/Recording';
 import { getRecordingObjectKey, uploadObject, deleteObject, getAgoraRoomImageKey } from '../utils/spaces';
 import { processImage } from '../utils/imageProcessor';
+import { emitLiveRoomsUpdated } from '../utils/socket';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const uploadMiddleware = multer({
@@ -516,6 +517,9 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Signal the live-rooms widget: a room just went live.
+    emitLiveRoomsUpdated('created');
+
     res.json({
       message: 'Room started successfully',
       room,
@@ -605,6 +609,9 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Signal the live-rooms widget: a room left the live set.
+    emitLiveRoomsUpdated('ended');
+
     res.json({
       message: 'Room ended successfully',
       room,
@@ -693,6 +700,9 @@ router.post('/:id/stop', async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Signal the live-rooms widget: the room left the live set (back to scheduled).
+    emitLiveRoomsUpdated('ended');
+
     res.json({
       message: 'Live session stopped',
       room,
@@ -772,6 +782,9 @@ router.post('/:id/join', async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Signal the live-rooms widget: participant count changed.
+    emitLiveRoomsUpdated('participants');
+
     res.json({
       message: 'Joined room successfully',
       room,
@@ -826,6 +839,11 @@ router.post('/:id/leave', async (req: AuthRequest, res: Response) => {
         participantCount: room.participants.length,
         timestamp: new Date().toISOString(),
       });
+    }
+
+    // Signal the live-rooms widget only when a live room's count changed.
+    if (room.status === RoomStatus.LIVE) {
+      emitLiveRoomsUpdated('participants');
     }
 
     res.json({

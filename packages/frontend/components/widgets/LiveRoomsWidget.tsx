@@ -1,29 +1,41 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
+import { show as toast } from '@oxyhq/bloom/toast';
+import { useTranslation } from 'react-i18next';
 
 import { BaseWidget } from './BaseWidget';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import { roomsService, type Room } from '@/services/roomsService';
+import { type Room } from '@/services/roomsService';
+import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
+import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
+import { shareLink } from '@/utils/shareLink';
+import { WEB_BASE_URL } from '@/config';
 import { Agora as AgoraIcon } from '@mention/agora-shared';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 
 const MAX_ROOMS_DISPLAYED = 3;
-const REFRESH_INTERVAL_MS = 120_000;
+const AGORA_ROUTE = '/agora';
+
+function buildRoomUrl(roomId: string): string {
+  return `${WEB_BASE_URL}/agora/${roomId}`;
+}
 
 const RoomRow = React.memo(function RoomRow({
   room,
   isLast,
   onPress,
+  onMenuPress,
 }: {
   room: Room;
   isLast: boolean;
   onPress: () => void;
+  onMenuPress: (room: Room) => void;
 }) {
   const theme = useTheme();
   const hostProfile = useUserById(room.host);
@@ -59,54 +71,44 @@ const RoomRow = React.memo(function RoomRow({
           </View>
         </View>
       </View>
+      <TouchableOpacity
+        className="p-1"
+        style={styles.webCursor}
+        onPress={() => onMenuPress(room)}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityLabel="More options"
+        accessibilityRole="button"
+      >
+        <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.textSecondary} />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 });
 
 export function LiveRoomsWidget() {
   const { isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
   const { joinLiveRoom } = useLiveRoom();
+  const openWidgetMenu = useWidgetItemMenu();
 
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { rooms, isLoading, hasFetched, error, hiddenRoomIds, startPolling, hideRoom } =
+    useLiveRoomsStore();
 
   useEffect(() => {
-    let mounted = true;
+    if (!isAuthenticated) return;
+    startPolling();
+  }, [isAuthenticated, startPolling]);
 
-    const fetch = async (silent = false) => {
-      if (!isAuthenticated) return;
-      if (!silent) {
-        setIsLoading(true);
-        setError(null);
-      }
-      try {
-        const liveRooms = await roomsService.getRooms('live');
-        if (mounted) {
-          setRooms(liveRooms);
-          if (!silent) setIsLoading(false);
-        }
-      } catch (err: any) {
-        if (mounted && !silent) {
-          setError(err?.message || 'Failed to load live rooms');
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetch();
-    const id = setInterval(() => fetch(true), REFRESH_INTERVAL_MS);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
-  }, [isAuthenticated]);
+  const visibleRooms = useMemo(
+    () => rooms.filter((room) => !hiddenRoomIds.includes(room._id)),
+    [rooms, hiddenRoomIds],
+  );
 
   const displayedRooms = useMemo(
-    () => rooms.slice(0, MAX_ROOMS_DISPLAYED),
-    [rooms],
+    () => visibleRooms.slice(0, MAX_ROOMS_DISPLAYED),
+    [visibleRooms],
   );
 
   const hostIds = useMemo(
@@ -116,18 +118,39 @@ export function LiveRoomsWidget() {
   useRoomUsers(hostIds);
 
   const handleShowMore = useCallback(() => {
-    router.push('/agora');
+    router.push(AGORA_ROUTE);
   }, [router]);
 
+  const handleMenuPress = useCallback(
+    (room: Room) => {
+      openWidgetMenu({
+        title: room.title,
+        onNotInterested: () => {
+          hideRoom(room._id);
+          toast(t('widgetMenu.roomHidden'), { type: 'success' });
+        },
+        onShare: () => {
+          void shareLink({
+            title: room.title,
+            url: buildRoomUrl(room._id),
+            copiedToast: t('widgetMenu.linkCopied'),
+            errorToast: t('widgetMenu.shareFailed'),
+          });
+        },
+      });
+    },
+    [openWidgetMenu, hideRoom, t],
+  );
+
   if (!isAuthenticated) return null;
-  if (!isLoading && !error && rooms.length === 0) return null;
+  if (hasFetched && !error && visibleRooms.length === 0) return null;
 
   return (
     <BaseWidget
       title="Live Rooms"
       icon={<AgoraIcon size={16} color={theme.colors.text} />}
     >
-      {isLoading ? (
+      {isLoading && !hasFetched ? (
         <View className="gap-2.5 py-1">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 8 }}>
@@ -150,6 +173,7 @@ export function LiveRoomsWidget() {
                 room={room}
                 isLast={index === displayedRooms.length - 1}
                 onPress={() => joinLiveRoom(room._id)}
+                onMenuPress={handleMenuPress}
               />
             ))}
           </View>

@@ -919,5 +919,13 @@
     "subscribe.premiumFeature": "Premium feature — tap to upgrade",
     "profile.media.empty.title": "No media posts yet",
     "profile.media.empty.subtitle": "Photos and videos you share will appear here.",
-    "profile.videos.empty.title": "No videos yet"
+    "profile.videos.empty.title": "No videos yet",
+    "widgetMenu": {
+        "notInterested": "Not interested",
+        "share": "Share",
+        "trendHidden": "Trend hidden",
+        "roomHidden": "Room hidden",
+        "linkCopied": "Link copied to clipboard",
+        "shareFailed": "Couldn't share. Please try again."
+    }
 }

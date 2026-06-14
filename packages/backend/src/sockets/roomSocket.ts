@@ -4,6 +4,7 @@ import Room, { RoomStatus, RoomType, SpeakerPermission } from '../models/Room';
 import { checkFollowAccess } from '../utils/privacyHelpers';
 import { getRedisClient } from '../utils/redis';
 import { updateRoomParticipantPermissions } from '../utils/livekit';
+import { emitLiveRoomsUpdated } from '../utils/socket';
 
 interface AuthenticatedSocket extends Socket {
   user?: { id: string; [key: string]: any };
@@ -266,6 +267,9 @@ export function initializeRoomSocket(io: Server): Namespace {
         // Broadcast updated participant list
         await broadcastParticipants(roomsNamespace, roomId);
 
+        // Signal the live-rooms widget on the main namespace.
+        emitLiveRoomsUpdated('participants');
+
         // Return current state to the joining client
         const participants = await redisGetAllParticipants(roomId);
         callback?.({
@@ -321,6 +325,9 @@ export function initializeRoomSocket(io: Server): Namespace {
 
         // Broadcast updated participant list
         await broadcastParticipants(roomsNamespace, roomId);
+
+        // Signal the live-rooms widget on the main namespace.
+        emitLiveRoomsUpdated('participants');
 
         // Clean up room if empty
         await cleanupRoomIfEmpty(roomId);
@@ -570,6 +577,10 @@ export function initializeRoomSocket(io: Server): Namespace {
         });
 
         await broadcastParticipants(roomsNamespace, roomId);
+
+        // Signal the live-rooms widget on the main namespace.
+        emitLiveRoomsUpdated('participants');
+
         await cleanupRoomIfEmpty(roomId);
 
         // Update DB

@@ -943,5 +943,13 @@
   "subscribe.premiumFeature": "Función premium — toca para mejorar",
   "profile.media.empty.title": "Aún no hay contenido multimedia",
   "profile.media.empty.subtitle": "Las fotos y vídeos que compartas aparecerán aquí.",
-  "profile.videos.empty.title": "Aún no hay vídeos"
+  "profile.videos.empty.title": "Aún no hay vídeos",
+  "widgetMenu": {
+    "notInterested": "No me interesa",
+    "share": "Compartir",
+    "trendHidden": "Tendencia ocultada",
+    "roomHidden": "Sala ocultada",
+    "linkCopied": "Enlace copiado al portapapeles",
+    "shareFailed": "No se pudo compartir. Inténtalo de nuevo."
+  }
 }

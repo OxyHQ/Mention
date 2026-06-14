@@ -1,16 +1,19 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { BaseWidget } from './BaseWidget';
 import { useTrendsStore } from '@/store/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
-import { useTrendNavigation } from '@/hooks/useTrendNavigation';
-import { logger } from '@/lib/logger';
+import { useTrendNavigation, buildTrendUrl } from '@/hooks/useTrendNavigation';
+import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
+import { shareLink } from '@/utils/shareLink';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 
 const MAX_TRENDS_DISPLAYED = 5;
+const TRENDING_ROUTE = '/trending';
 
 interface TrendsWidgetProps {
   variant?: 'card' | 'inline';
@@ -18,8 +21,10 @@ interface TrendsWidgetProps {
 
 export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
   const { t } = useTranslation();
-  const { trends, summary, isLoading, hasFetched, error, startPolling } = useTrendsStore();
+  const { trends, summary, isLoading, hasFetched, error, hiddenTrendIds, startPolling, hideTrend } =
+    useTrendsStore();
   const router = useRouter();
+  const openWidgetMenu = useWidgetItemMenu();
 
   useEffect(() => {
     startPolling();
@@ -27,15 +32,38 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
 
   const { navigateToTrend } = useTrendNavigation();
 
+  const visibleTrends = useMemo(
+    () => (trends || []).filter((trend) => !hiddenTrendIds.includes(trend.id)),
+    [trends, hiddenTrendIds],
+  );
+
   const handleMorePress = useCallback(() => {
-    router.push('/trending' as any);
+    router.push(TRENDING_ROUTE);
   }, [router]);
 
-  const handleMenuPress = useCallback((trend: Trend) => {
-    logger.debug(`Menu pressed for trend: ${trend.text}`);
-  }, []);
+  const handleMenuPress = useCallback(
+    (trend: Trend) => {
+      const trendName = trend.type === 'hashtag' ? `#${(trend.hashtag || trend.text).replace(/^#/, '')}` : trend.text;
+      openWidgetMenu({
+        title: trendName,
+        onNotInterested: () => {
+          hideTrend(trend.id);
+          toast(t('widgetMenu.trendHidden'), { type: 'success' });
+        },
+        onShare: () => {
+          void shareLink({
+            title: trendName,
+            url: buildTrendUrl(trend),
+            copiedToast: t('widgetMenu.linkCopied'),
+            errorToast: t('widgetMenu.shareFailed'),
+          });
+        },
+      });
+    },
+    [openWidgetMenu, hideTrend, t],
+  );
 
-  if (hasFetched && !error && (!trends || trends.length === 0)) {
+  if (hasFetched && !error && visibleTrends.length === 0) {
     return null;
   }
 
@@ -61,8 +89,8 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
             {summary}
           </Text>
         ) : null}
-        {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
-          const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
+        {visibleTrends.slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
+          const isLast = index === Math.min(visibleTrends.length, MAX_TRENDS_DISPLAYED) - 1;
           return (
             <TrendItemRow
               key={trend.id}
