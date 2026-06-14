@@ -19,6 +19,13 @@ export interface MeasuredRect {
   height: number;
 }
 
+/**
+ * Registers (or clears, on unmount) the measurable host node of an image
+ * thumbnail so the parent row can `measureInWindow` ANY thumbnail by index for
+ * the close fly-back. Called with the host `View` on mount and `null` on unmount.
+ */
+export type RegisterThumbHost = (node: View | null) => void;
+
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
   : null;
@@ -40,6 +47,11 @@ interface PostAttachmentMediaProps {
   onPress?: (rect?: MeasuredRect) => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
+  /**
+   * Image only: registers the thumbnail's measurable host node with the parent
+   * row's per-index registry so the gallery can fly back to it on dismiss.
+   */
+  registerHost?: RegisterThumbHost;
 }
 
 const PostAttachmentVideo: React.FC<{
@@ -76,12 +88,21 @@ const FULL_DIMENSION = '100%' as const;
 const PostAttachmentImage: React.FC<{
   src: string;
   onPress?: (rect?: MeasuredRect) => void;
-}> = ({ src, onPress }) => {
+  registerHost?: RegisterThumbHost;
+}> = ({ src, onPress, registerHost }) => {
   const theme = useTheme();
-  const wrapperRef = useRef<View>(null);
+  const wrapperRef = useRef<View | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(
     () => getAspectRatio(src)
   );
+
+  // Callback ref: keep the local ref (for open-press measurement) AND mirror the
+  // host into the parent's index registry (for the close fly-back). Registers on
+  // mount, clears on unmount — no effect needed.
+  const setHostRef = useCallback((node: View | null) => {
+    wrapperRef.current = node;
+    registerHost?.(node);
+  }, [registerHost]);
 
   useEffect(() => {
     if (hasAspectRatio(src)) {
@@ -160,7 +181,7 @@ const PostAttachmentImage: React.FC<{
 
   return (
     <Pressable
-      ref={wrapperRef}
+      ref={setHostRef}
       onPress={handlePress}
       accessibilityRole="imagebutton"
       accessibilityLabel="Open image"
@@ -178,6 +199,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   onPress,
   hasSingleMedia,
   hasMultipleMedia,
+  registerHost,
 }) => {
   if (type === 'video') {
     return (
@@ -191,7 +213,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     );
   }
 
-  return <PostAttachmentImage src={src} onPress={onPress} />;
+  return <PostAttachmentImage src={src} onPress={onPress} registerHost={registerHost} />;
 };
 
 const styles = StyleSheet.create({

@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
-import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, View, ViewStyle } from 'react-native';
 import { useAuth } from '@oxyhq/services';
 import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
@@ -9,7 +9,8 @@ import {
   type ZoomableImageGalleryHandle,
   type GalleryImage,
 } from '@/components/ZoomableImageGallery';
-import type { MeasuredRect } from '@/components/Post/Attachments/PostAttachmentMedia';
+import type { MeasuredRect, RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
+import type { MeasureThumb } from '@/components/ZoomableImageGallery';
 import {
   PostAttachmentArticle,
   PostAttachmentLink,
@@ -293,6 +294,50 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
 
+  // Registry of thumbnail host nodes keyed by the images-only subset index — the
+  // SAME index space the gallery opens/pages/indicator/close use. Populated via
+  // callback refs from each image thumbnail (set on mount, cleared on unmount).
+  const thumbHostsRef = useRef<Map<number, View>>(new Map());
+
+  // Stable per-index callback refs: the same index always returns the same
+  // function identity so the host ref is not detached/reattached every render.
+  const registerCallbacksRef = useRef<Map<number, RegisterThumbHost>>(new Map());
+
+  const registerThumbHost = useCallback((index: number): RegisterThumbHost => {
+    const cache = registerCallbacksRef.current;
+    const existing = cache.get(index);
+    if (existing) return existing;
+    const callback: RegisterThumbHost = (node: View | null) => {
+      if (node) {
+        thumbHostsRef.current.set(index, node);
+      } else {
+        thumbHostsRef.current.delete(index);
+      }
+    };
+    cache.set(index, callback);
+    return callback;
+  }, []);
+
+  // Measure ANY thumbnail by its images-only subset index for the close
+  // fly-back. Resolves null when the host is missing (unmounted/virtualized) so
+  // the gallery can fall back to a center fade-out.
+  const measureThumb = useCallback<MeasureThumb>((index) => {
+    return new Promise<MeasuredRect | null>((resolve) => {
+      const node = thumbHostsRef.current.get(index);
+      if (!node) {
+        resolve(null);
+        return;
+      }
+      node.measureInWindow((x, y, width, height) => {
+        if (width > 0 && height > 0) {
+          resolve({ x, y, width, height });
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  }, []);
+
   // Open the zoom gallery seeded at the tapped image's index within the
   // images-only subset, animating from the measured thumbnail rect.
   const handleImagePress = useCallback((mediaId: string, rect?: MeasuredRect) => {
@@ -463,6 +508,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         }
         if (item.type === 'video' || item.type === 'image') {
           const mediaId = item.mediaId;
+          // Images register their host node at their images-only subset index so
+          // the gallery's close fly-back can target the currently-viewed thumb.
+          const imageIndex = item.type === 'image' ? imageIndexByMediaId.get(mediaId) : undefined;
           return (
             <PostAttachmentMedia
               key={`${item.type}-${mediaId ?? idx}`}
@@ -476,6 +524,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
                   ? () => handleVideoPress(mediaId)
                   : (rect?: MeasuredRect) => handleImagePress(mediaId, rect)
               }
+              registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
             />
@@ -484,7 +533,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         return null;
       })}
     </ScrollView>
-    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} />}
+    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} />}
     </>
   );
 }, (prevProps, nextProps) => {

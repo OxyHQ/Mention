@@ -82,6 +82,20 @@ export interface ZoomableImageGalleryHandle {
   open: (images: GalleryImage[], index: number, rect?: MeasuredRect) => void;
 }
 
+/**
+ * Resolve the on-screen rect of the thumbnail at `index` within the SAME
+ * images-only subset the gallery opens/pages in, so the close animation can fly
+ * back to the image currently being viewed. Resolves `null` when the thumbnail
+ * ref is missing (unmounted/virtualized), in which case the gallery falls back
+ * to a plain center fade-out.
+ */
+export type MeasureThumb = (index: number) => Promise<MeasuredRect | null>;
+
+interface ZoomableImageGalleryProps {
+  /** Measures any thumbnail by its images-only subset index, used on dismiss. */
+  measureThumb?: MeasureThumb;
+}
+
 interface FittedSize {
   width: number;
   height: number;
@@ -102,7 +116,7 @@ interface FittedSize {
  *   `Gesture.Pan` (`activeOffsetY` + `failOffsetX`) owns drag-to-dismiss, so the
  *   two never fight.
  */
-const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((_, ref) => {
+const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, ZoomableImageGalleryProps>(({ measureThumb }, ref) => {
   const theme = useTheme();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
 
@@ -137,6 +151,17 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
   const pagerRef = useRef<ScrollView>(null);
   // Latch the index the pager must land on once it has mounted + laid out.
   const pendingIndexRef = useRef(0);
+  // Mirror of `activeIndex` readable synchronously from callbacks/worklets
+  // (`handleDismiss` runs via `runOnJS` and from `Pressable.onPress`, where the
+  // state closure can be stale). Kept in lockstep by `setActiveIndexBoth`.
+  const activeIndexRef = useRef(0);
+
+  // Single writer for the current index: updates state (drives indicator + open
+  // image) and the synchronous mirror together, and only when it changes.
+  const setActiveIndexBoth = useCallback((next: number) => {
+    activeIndexRef.current = next;
+    setActiveIndex((prev) => (prev === next ? prev : next));
+  }, []);
 
   // Box the fitted image must fit inside.
   const fitBox = useMemo<FittedSize>(
@@ -157,7 +182,12 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
     return { width, height };
   }, [fitBox]);
 
-  const openFit = useMemo(() => fitForRatio(openRatio), [fitForRatio, openRatio]);
+  // Fitted size of the single open-image for the CURRENT page. On open this is
+  // the opened image's fit (active index == opened index, ratio == `openRatio`);
+  // after swiping it tracks the viewed image so the collapse-on-dismiss renders
+  // and flies back the image actually on screen.
+  const activeRatio = pageRatios[activeIndex] ?? openRatio;
+  const activeFit = useMemo(() => fitForRatio(activeRatio), [fitForRatio, activeRatio]);
 
   const ensureRatio = useCallback((index: number, uri: string) => {
     const cached = getAspectRatio(uri);
@@ -170,38 +200,95 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
     });
   }, []);
 
-  const handleDismiss = useCallback(() => {
-    // Always animate the (possibly already-revealed) pager back through the
-    // single open-image, which shrinks to the thumbnail footprint at `startScale`.
-    setPagerReady(false);
+  // Unmount + reset all animation values to their neutral baseline. Shared by
+  // every dismiss path (fly-back and fade-out fallback).
+  const finalizeDismiss = useCallback(() => {
+    setIsOpen(false);
+    scale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    opacity.value = 0;
+  }, [opacity, scale, translateX, translateY]);
+
+  // Fly the (possibly dragged) image back toward `target` — the rect of the
+  // thumbnail currently being viewed — shrinking to its footprint. Uses the
+  // EXACT same close spring (native) / timing (web) as the avatar transition.
+  const flyBackTo = useCallback(
+    (target: { x: number; y: number; scale: number }) => {
+      if (Platform.OS === 'web') {
+        const duration = CLOSE_DURATION_WEB;
+        const easing = Easing.in(Easing.cubic);
+        scale.value = withTiming(target.scale, { duration, easing });
+        translateX.value = withTiming(target.x, { duration, easing });
+        translateY.value = withTiming(target.y, { duration, easing });
+        opacity.value = withTiming(0, { duration, easing });
+        setTimeout(finalizeDismiss, duration + 20);
+      } else {
+        scale.value = withSpring(target.scale, CLOSE_SPRING);
+        translateX.value = withSpring(target.x, CLOSE_SPRING);
+        translateY.value = withSpring(target.y, CLOSE_SPRING);
+        opacity.value = withTiming(0, { duration: OPACITY_DURATION });
+        setTimeout(finalizeDismiss, CLOSE_DURATION_WEB);
+      }
+    },
+    [finalizeDismiss, opacity, scale, translateX, translateY]
+  );
+
+  // Fallback when the current thumbnail cannot be measured (ref missing /
+  // unmounted / virtualized): a plain center fade-out with a slight scale-down,
+  // then unmount. Keeps the same web timing / native spring feel.
+  const fadeOutCenter = useCallback(() => {
     if (Platform.OS === 'web') {
       const duration = CLOSE_DURATION_WEB;
       const easing = Easing.in(Easing.cubic);
-      scale.value = withTiming(originScale.value, { duration, easing });
-      translateX.value = withTiming(originX.value, { duration, easing });
-      translateY.value = withTiming(originY.value, { duration, easing });
+      scale.value = withTiming(MIN_DRAG_SCALE, { duration, easing });
       opacity.value = withTiming(0, { duration, easing });
-      setTimeout(() => {
-        setIsOpen(false);
-        scale.value = 1;
-        translateX.value = 0;
-        translateY.value = 0;
-        opacity.value = 0;
-      }, duration + 20);
+      setTimeout(finalizeDismiss, duration + 20);
     } else {
-      scale.value = withSpring(originScale.value, CLOSE_SPRING);
-      translateX.value = withSpring(originX.value, CLOSE_SPRING);
-      translateY.value = withSpring(originY.value, CLOSE_SPRING);
+      scale.value = withSpring(MIN_DRAG_SCALE, CLOSE_SPRING);
       opacity.value = withTiming(0, { duration: OPACITY_DURATION });
-      setTimeout(() => {
-        setIsOpen(false);
-        scale.value = 1;
-        translateX.value = 0;
-        translateY.value = 0;
-        opacity.value = 0;
-      }, CLOSE_DURATION_WEB);
+      setTimeout(finalizeDismiss, CLOSE_DURATION_WEB);
     }
-  }, [opacity, originScale, originX, originY, scale, translateX, translateY]);
+  }, [finalizeDismiss, opacity, scale]);
+
+  const handleDismiss = useCallback(() => {
+    // Collapse the pager back to the single open-image so the fly-back animates
+    // one image (the current one) rather than the whole scrolled strip.
+    setPagerReady(false);
+
+    const index = activeIndexRef.current;
+    const current = images[index];
+    // Recompute the fly-back target from the CURRENT image: the live rect of its
+    // thumbnail + the same fitted box (`activeFit`) the open-image is rendered
+    // at, using the same screen-center math as `open`. Falls back to a center
+    // fade-out when the thumbnail can't be measured.
+    if (measureThumb && current) {
+      const centerX = SCREEN_WIDTH / 2;
+      const centerY = SCREEN_HEIGHT / 2;
+      void measureThumb(index).then((rect) => {
+        if (rect && rect.width > 0 && activeFit.width > 0) {
+          flyBackTo({
+            x: rect.x + rect.width / 2 - centerX,
+            y: rect.y + rect.height / 2 - centerY,
+            scale: rect.width / activeFit.width,
+          });
+        } else {
+          fadeOutCenter();
+        }
+      });
+      return;
+    }
+
+    fadeOutCenter();
+  }, [
+    activeFit,
+    fadeOutCenter,
+    flyBackTo,
+    images,
+    measureThumb,
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
+  ]);
 
   // Reveal the swipeable pager once the open animation has settled. The index it
   // lands on is held in `pendingIndexRef` (set synchronously in `open`) and
@@ -218,7 +305,7 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
       const ratio = getAspectRatio(target.uri) ?? DEFAULT_ASPECT_RATIO;
 
       setImages(nextImages);
-      setActiveIndex(safeIndex);
+      setActiveIndexBoth(safeIndex);
       setOpenRatio(ratio);
       setPageRatios({ [safeIndex]: ratio });
       pendingIndexRef.current = safeIndex;
@@ -285,6 +372,7 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
       originY,
       revealPager,
       scale,
+      setActiveIndexBoth,
       translateX,
       translateY,
     ]
@@ -352,17 +440,28 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
     ],
   }));
 
-  const onPagerScrollEnd = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const offsetX = event.nativeEvent.contentOffset.x;
-      const next = Math.round(offsetX / SCREEN_WIDTH);
-      if (next !== activeIndex && next >= 0 && next < images.length) {
-        setActiveIndex(next);
-        const img = images[next];
-        if (img) ensureRatio(next, img.uri);
-      }
+  // Derive the current page from the scroll offset, clamp into range, and update
+  // `activeIndex` only when it actually changes (drives the live indicator + the
+  // close fly-back target). Shared by `onMomentumScrollEnd` (native) and `onScroll`
+  // (web, where paging may not fire a reliable momentum-end).
+  const updateIndexFromOffset = useCallback(
+    (offsetX: number) => {
+      const lastIndex = images.length - 1;
+      if (lastIndex < 0) return;
+      const next = Math.min(Math.max(Math.round(offsetX / SCREEN_WIDTH), 0), lastIndex);
+      if (next === activeIndexRef.current) return;
+      setActiveIndexBoth(next);
+      const img = images[next];
+      if (img) ensureRatio(next, img.uri);
     },
-    [activeIndex, ensureRatio, images, SCREEN_WIDTH]
+    [ensureRatio, images, setActiveIndexBoth, SCREEN_WIDTH]
+  );
+
+  const onPagerScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      updateIndexFromOffset(event.nativeEvent.contentOffset.x);
+    },
+    [updateIndexFromOffset]
   );
 
   // When the pager mounts, jump it to the open index without animation so the
@@ -404,7 +503,7 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
                 source={{ uri: images[activeIndex]?.uri }}
                 contentFit="contain"
                 style={[
-                  { width: openFit.width, height: openFit.height, borderRadius: MEDIA_CARD_RADIUS },
+                  { width: activeFit.width, height: activeFit.height, borderRadius: MEDIA_CARD_RADIUS },
                   openImageStyle,
                 ]}
                 transition={0}
@@ -422,7 +521,8 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle>((
                 showsHorizontalScrollIndicator={false}
                 contentOffset={{ x: pendingIndexRef.current * SCREEN_WIDTH, y: 0 }}
                 onLayout={onPagerLayout}
-                onMomentumScrollEnd={onPagerScrollEnd}
+                onMomentumScrollEnd={onPagerScroll}
+                {...(Platform.OS === 'web' ? { onScroll: onPagerScroll } : {})}
                 scrollEventThrottle={16}
                 style={StyleSheet.absoluteFill}
               >
