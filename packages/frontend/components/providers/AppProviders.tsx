@@ -46,6 +46,7 @@ export const AppProviders = memo(function AppProviders({
       <GestureHandlerRootView style={{ flex: 1 }}>
         <OxyProvider
           oxyServices={oxyServices}
+          appName="Mention"
           storageKeyPrefix="mention"
           queryClient={queryClient}
         >
