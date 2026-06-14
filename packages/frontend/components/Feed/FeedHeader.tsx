@@ -46,9 +46,6 @@ export const FeedHeader = memo<FeedHeaderProps>(
 
         const dynamicStyle = useMemo(() => ({
             backgroundColor: theme.colors.card,
-            borderColor: theme.isDark
-                ? `${primaryColor}20`
-                : `${primaryColor}15`,
             shadowColor: primaryColor,
             shadowOffset: { width: 0, height: 0 },
             shadowOpacity: theme.isDark ? 0.2 : 0.08,
@@ -113,7 +110,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 9999,
         margin: 12,
-        borderWidth: StyleSheet.hairlineWidth,
     },
     pressed: {
         opacity: 0.7,
