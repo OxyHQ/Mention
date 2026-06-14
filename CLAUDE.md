@@ -87,6 +87,14 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 - `@oxyhq/core`, `@oxyhq/services` — Oxy platform SDK
 - `@oxyhq/bloom` — Shared UI component library
 
+## Auth Cold-Boot Reactivity (Web)
+
+On web, the session restores asynchronously after mount — the `/sso` path can take 5–25s. The SDK auth state (`useAuth()` `isAuthenticated` / `user`) IS reactive, but consumers must treat it as such:
+
+- **Key data fetches on identity, not on the stable singleton.** React Query keys and `useEffect` deps must include `isAuthenticated` / `user?.id`. Keying on `oxyServices` or `[]` fetches once while anonymous and never recovers when the session lands. The feed (`useFeedState`) keys its initial-fetch effect on `isAuthenticated`/`currentUserId` and invalidates the cached anon feed on identity change. The home feed (`app/(app)/index.tsx`) remounts on the auth-identity key (`isAuthenticated && user?.id ? user.id : 'anon'`).
+- **`isAuthResolved` gates UI affordances, NOT data fetches.** Use `isAuthResolved` (from `@oxyhq/services ^8.5.0`) to hide/skeleton auth-dependent affordances (sidebar Sign-in footer, anon CTA banners, `FeedFooter`) until cold boot is done. Do NOT gate `fetchInitial` or the feed-content fetch on it — that deferred the `getMtnFeed` request and stranded the authed feed on a permanent spinner (confirmed production incident).
+- **Jest does not reproduce this class of bug.** The slow SSO restore only manifests on a real cold boot with a session. Verify in a real browser (foregrounded tab); the `/sso` bounce can take 20–30s.
+
 ## Theming
 
 - **Bloom owns theming.** `BloomThemeProvider` (since v0.6.14) is the single source of truth for mode + color preset, with built-in persistence. Do NOT add a local theme store — pass `persistKey` + `storage` to the provider.
