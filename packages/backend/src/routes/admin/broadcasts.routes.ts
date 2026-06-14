@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import type { QueryFilter } from 'mongoose';
 import Room, {
   RoomStatus,
   RoomType,
@@ -133,7 +134,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { status, limit = '20', cursor } = req.query;
 
-    const query: any = {
+    const query: QueryFilter<IRoom> = {
       ownerType: OwnerType.AGORA,
       type: RoomType.BROADCAST,
       broadcastKind: BroadcastKind.AGORA,
