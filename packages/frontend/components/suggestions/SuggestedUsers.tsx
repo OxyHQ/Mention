@@ -9,6 +9,7 @@ import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
 import { logger } from '@/lib/logger';
+import { isAuthError } from '@/utils/authErrors';
 
 interface SuggestedUsersProps {
   visible?: boolean;
@@ -17,6 +18,17 @@ interface SuggestedUsersProps {
   maxCards?: number;
   hideDismiss?: boolean;
 }
+
+/**
+ * A recommended/similar profile as returned by the SDK. Derived from
+ * `getProfileRecommendations` so it stays in lockstep with the source of truth;
+ * it carries the SDK's index signature, which makes it assignable both to the
+ * cache helpers (`precacheProfileViews` / `enrichMissingAvatars`) and to the
+ * `SuggestedUserData` card shape.
+ */
+type RecommendedUser = Awaited<
+  ReturnType<ReturnType<typeof useAuth>['oxyServices']['getProfileRecommendations']>
+>[number];
 
 const DEFAULT_MAX_CARDS = 10;
 
@@ -27,7 +39,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   maxCards = DEFAULT_MAX_CARDS,
   hideDismiss,
 }: SuggestedUsersProps) {
-  const { oxyServices, isAuthenticated } = useAuth();
+  const { oxyServices } = useAuth();
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
@@ -36,7 +48,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   const fetchInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!isAuthenticated || !visible) return;
+    if (!visible) return;
 
     if (fetchInFlightRef.current) return;
     fetchInFlightRef.current = true;
@@ -46,11 +58,12 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     const fetchRecommendations = async () => {
       try {
         setLoading(true);
-        let response: any;
+        let response: unknown;
         if (sourceUserId) {
           try {
-            response = await (oxyServices as any).getSimilarProfiles(sourceUserId);
-          } catch {
+            response = await oxyServices.getSimilarProfiles(sourceUserId);
+          } catch (error) {
+            logger.warn('SuggestedUsers: getSimilarProfiles failed, falling back to recommendations', { error });
             response = await oxyServices.getProfileRecommendations();
           }
         } else {
@@ -58,7 +71,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
         }
         if (!mounted) return;
 
-        const users = Array.isArray(response) ? response : [];
+        const users: RecommendedUser[] = Array.isArray(response) ? response : [];
         setRecommendations(users);
 
         if (users.length > 0) {
@@ -73,7 +86,13 @@ export const SuggestedUsers = memo(function SuggestedUsers({
         }
       } catch (err) {
         if (!mounted) return;
-        logger.error('SuggestedUsers: error fetching recommendations');
+        // Recommendations are public; on the rare auth error degrade quietly to
+        // the empty state (component renders nothing) instead of logging it loud.
+        if (isAuthError(err)) {
+          logger.warn('SuggestedUsers: auth error fetching recommendations, showing empty state', { error: err });
+        } else {
+          logger.error('SuggestedUsers: error fetching recommendations', { error: err });
+        }
       } finally {
         fetchInFlightRef.current = false;
         if (mounted) {
@@ -87,7 +106,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     return () => {
       mounted = false;
     };
-  }, [oxyServices, isAuthenticated, visible, sourceUserId]);
+  }, [oxyServices, visible, sourceUserId]);
 
   const handleDismiss = useCallback((userId: string) => {
     setDismissedIds((prev) => {
@@ -108,7 +127,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     return result;
   }, [recommendations, dismissedIds, sourceUserId, maxCards]);
 
-  if (!visible || !isAuthenticated || loading || displayedUsers.length === 0) {
+  if (!visible || loading || displayedUsers.length === 0) {
     return null;
   }
 

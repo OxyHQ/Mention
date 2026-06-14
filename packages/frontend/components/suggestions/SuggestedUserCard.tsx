@@ -2,7 +2,7 @@ import React, { memo, useMemo, useCallback } from 'react';
 import { View, TouchableOpacity, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as OxyServicesNS from '@oxyhq/services';
+import { FollowButton } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -27,11 +27,6 @@ interface SuggestedUserCardProps {
   onDismiss: (id: string) => void;
   hideDismiss?: boolean;
 }
-
-const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
-  userId: string;
-  size?: 'small' | 'medium' | 'large';
-}>;
 
 export const SuggestedUserCard = memo(function SuggestedUserCard({
   user,

@@ -3,8 +3,7 @@ import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { useAuth } from "@oxyhq/services";
-import * as OxyServicesNS from "@oxyhq/services";
+import { useAuth, FollowButton } from "@oxyhq/services";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
@@ -16,6 +15,7 @@ import { getUserPlaceholderColor } from "@/utils/userPlaceholderColor";
 import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
 import { getRecommendationFilters } from '@/lib/recommendationFilters';
+import { isAuthError } from '@/utils/authErrors';
 
 interface ProfileData {
   id: string;
@@ -36,7 +36,7 @@ interface ProfileData {
 const MAX_DISPLAY_USERS = 5;
 
 export function WhoToFollowWidget() {
-  const { oxyServices, isAuthenticated } = useAuth();
+  const { oxyServices } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
 
@@ -45,11 +45,6 @@ export function WhoToFollowWidget() {
   const [recommendations, setRecommendations] = useState<ProfileData[]>([]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setLoading(false);
-      return;
-    }
-
     let mounted = true;
 
     const fetchRecommendations = async () => {
@@ -82,9 +77,17 @@ export function WhoToFollowWidget() {
         }
       } catch (err) {
         if (!mounted) return;
-        const errorMessage = err instanceof Error ? err.message : "Failed to fetch recommendations";
-        setError(errorMessage);
-        logger.error("Error fetching recommendations");
+        // Auth errors should never surface here now that recommendations are
+        // public, but if one slips through, degrade to the empty state rather
+        // than showing a scary error to logged-out visitors.
+        if (isAuthError(err)) {
+          logger.warn("WhoToFollowWidget: auth error fetching recommendations, showing empty state");
+          setRecommendations([]);
+        } else {
+          const errorMessage = err instanceof Error ? err.message : "Failed to fetch recommendations";
+          setError(errorMessage);
+          logger.error("Error fetching recommendations");
+        }
       } finally {
         if (mounted) {
           setLoading(false);
@@ -97,7 +100,7 @@ export function WhoToFollowWidget() {
     return () => {
       mounted = false;
     };
-  }, [oxyServices, isAuthenticated]);
+  }, [oxyServices]);
 
   const handleShowMore = useCallback(() => {
     router.push("/explore");
@@ -107,10 +110,6 @@ export function WhoToFollowWidget() {
     () => recommendations.slice(0, MAX_DISPLAY_USERS),
     [recommendations]
   );
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   if (loading) {
     return (
@@ -180,11 +179,6 @@ export function WhoToFollowWidget() {
     </BaseWidget>
   );
 }
-
-const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
-  userId: string;
-  size?: "small" | "medium" | "large";
-}>;
 
 const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { profileData: ProfileData; showBorder?: boolean }) => {
   const router = useRouter();

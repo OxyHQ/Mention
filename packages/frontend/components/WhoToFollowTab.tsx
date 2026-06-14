@@ -16,6 +16,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { logger } from '@/lib/logger';
+import { isAuthError } from '@/utils/authErrors';
 
 const APP_URL = 'https://mention.earth';
 
@@ -144,9 +145,15 @@ export function WhoToFollowTab() {
         );
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch recommendations';
-      setError(errorMessage);
-      logger.error('Error fetching recommendations');
+      // Recommendations are public; on the rare auth error keep `error` null so
+      // the empty state shows instead of a scary red error for logged-out users.
+      if (isAuthError(err)) {
+        logger.warn('WhoToFollowTab: auth error fetching recommendations, showing empty state');
+      } else {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch recommendations';
+        setError(errorMessage);
+        logger.error('Error fetching recommendations');
+      }
     } finally {
       setLoading(false);
     }

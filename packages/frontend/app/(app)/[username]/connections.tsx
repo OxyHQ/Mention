@@ -25,6 +25,7 @@ import { useProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
+import { isAuthError } from '@/utils/authErrors';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
 
@@ -86,9 +87,16 @@ export default function ConnectionsScreen() {
       setFollowers(list);
       precacheProfileViews(queryClient, list);
     } catch (err) {
-      const message = err instanceof globalThis.Error ? err.message : 'Failed to load followers';
-      setError(message);
-      logger.error('Error loading followers', { error: err });
+      // Followers are public; on an auth error show the empty state rather than
+      // a scary error for logged-out visitors.
+      if (isAuthError(err)) {
+        logger.warn('Auth error loading followers, showing empty state', { error: err });
+        setFollowers([]);
+      } else {
+        const message = err instanceof globalThis.Error ? err.message : 'Failed to load followers';
+        setError(message);
+        logger.error('Error loading followers', { error: err });
+      }
     }
   }, [profileData?.id, oxyServices]);
 
@@ -107,9 +115,16 @@ export default function ConnectionsScreen() {
       setFollowing(list);
       precacheProfileViews(queryClient, list);
     } catch (err) {
-      const message = err instanceof globalThis.Error ? err.message : 'Failed to load following';
-      setError(message);
-      logger.error('Error loading following', { error: err });
+      // Following lists are public; on an auth error show the empty state rather
+      // than a scary error for logged-out visitors.
+      if (isAuthError(err)) {
+        logger.warn('Auth error loading following, showing empty state', { error: err });
+        setFollowing([]);
+      } else {
+        const message = err instanceof globalThis.Error ? err.message : 'Failed to load following';
+        setError(message);
+        logger.error('Error loading following', { error: err });
+      }
     }
   }, [profileData?.id, oxyServices]);
 
@@ -122,9 +137,16 @@ export default function ConnectionsScreen() {
       setRecommendations(recommendationsList);
       precacheProfileViews(queryClient, recommendationsList);
     } catch (err) {
-      const message = err instanceof globalThis.Error ? err.message : 'Failed to load recommendations';
-      setError(message);
-      logger.error('Error loading recommendations', { error: err });
+      // Recommendations are public; on an auth error show the empty state rather
+      // than a scary error for logged-out visitors.
+      if (isAuthError(err)) {
+        logger.warn('Auth error loading recommendations, showing empty state', { error: err });
+        setRecommendations([]);
+      } else {
+        const message = err instanceof globalThis.Error ? err.message : 'Failed to load recommendations';
+        setError(message);
+        logger.error('Error loading recommendations', { error: err });
+      }
     }
   }, [oxyServices]);
 
