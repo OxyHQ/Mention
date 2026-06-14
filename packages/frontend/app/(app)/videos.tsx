@@ -57,12 +57,14 @@ const BOOST_ACTIVE_COLOR = '#10B981';
 const VERIFIED_COLOR = '#1DA1F2';
 
 // ── Types ────────────────────────────────────────────────────────
-// Runtime media reference. The shared `MediaItem` only declares `id` + `type`,
-// but hydrated/federated posts also carry an absolute `url`, so we type the
-// superset we actually read here.
+// Runtime media reference. The shared `MediaItem` declares `id` + `type` plus the
+// server-resolved final URLs (`url`, `thumbUrl`, `posterUrl`). We type the superset
+// we actually read here, keeping `id` for the legacy fallback path.
 interface MediaRef {
     id?: string;
     url?: string;
+    thumbUrl?: string;
+    posterUrl?: string;
     type?: 'image' | 'video' | 'gif';
 }
 
@@ -482,24 +484,26 @@ export default function VideosScreen() {
         [insets.bottom]
     );
 
-    // Resolve an Oxy/federated reference to a playable absolute URL. Federated /
-    // external absolute URLs stream through the backend media proxy (CORS + HTTP
-    // Range seeking + caching, survives expiring upstream links); Oxy file ids
-    // resolve to our own URLs and are returned as-is.
+    // Resolve a playable absolute URL. The backend now returns a FINAL `url`
+    // (our CDN/media-proxy or remote), so we use it directly. Fall back to the
+    // legacy client resolution only when `url` is absent (old cached responses):
+    // an http id passes through the proxy; an Oxy file id resolves via the SDK.
     const resolveVideoUrl = useCallback((ref: MediaRef): string => {
-        const raw = ref?.url || ref?.id || '';
+        if (ref?.url) return ref.url;
+        const raw = ref?.id || '';
         if (!raw) return '';
         if (raw.startsWith('http')) return proxyExternalUrl(raw);
         return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
     }, [oxyServices]);
 
-    // Resolve a static poster for a video reference from its RAW media id/url
-    // (BEFORE proxy wrapping). Oxy asset ids resolve to the generated `thumb`
-    // variant; federated absolute URLs resolve to the backend `/media/poster`
-    // frame extractor. Returns undefined when nothing sensible → neutral
-    // placeholder. The poster endpoint may 404 → the Image layer's own error
-    // handling falls back to the placeholder, so this never yields a broken image.
+    // Resolve a static poster. Prefer the server-resolved final `posterUrl`
+    // (fallback `thumbUrl`); fall back to the legacy client resolver from the RAW
+    // media id/url when absent. Returns undefined when nothing sensible → neutral
+    // placeholder. The poster URL may 404 → the Image layer's own error handling
+    // falls back to the placeholder, so this never yields a broken image.
     const resolvePosterUrl = useCallback((ref: MediaRef): string | undefined => {
+        if (ref?.posterUrl) return ref.posterUrl;
+        if (ref?.thumbUrl) return ref.thumbUrl;
         const raw = ref?.id || ref?.url || '';
         return videoPosterUrl(raw, oxyServices);
     }, [oxyServices]);

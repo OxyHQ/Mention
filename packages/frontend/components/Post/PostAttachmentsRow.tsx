@@ -14,7 +14,15 @@ import {
   PostAttachmentRoom,
 } from './Attachments';
 
-interface MediaObj { id: string; type: 'image' | 'video' | 'gif' }
+// Runtime media reference. The server now resolves final URLs (`url`, `thumbUrl`,
+// `posterUrl`); `id` remains for the legacy fallback path (old cached responses).
+interface MediaObj {
+  id: string;
+  type: 'image' | 'video' | 'gif';
+  url?: string;
+  thumbUrl?: string;
+  posterUrl?: string;
+}
 interface Props {
   media?: MediaObj[];
   attachments?: PostAttachmentDescriptor[];
@@ -78,7 +86,15 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
   const hasLink = useMemo(() => Boolean(linkMetadata?.url), [linkMetadata]);
 
-  const resolveMediaSrc = useCallback((id: string, variant: 'thumb' | 'full' = 'thumb') => {
+  // Prefer the server-resolved final URL: `url` for full-size (video/image) and
+  // `thumbUrl` for thumbnails. Fall back to the legacy client resolver only when
+  // the new field is absent (old in-memory/cached responses during the transition).
+  const resolveMediaSrc = useCallback((mediaItem: MediaObj, variant: 'thumb' | 'full') => {
+    const serverUrl = variant === 'full'
+      ? (mediaItem.url || mediaItem.thumbUrl)
+      : (mediaItem.thumbUrl || mediaItem.url);
+    if (serverUrl) return serverUrl;
+    const id = String(mediaItem.id || '');
     if (!id) return '';
     try {
       return getCachedFileDownloadUrlSync(oxyServices, id, variant);
@@ -106,12 +122,13 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       usedMedia.add(id);
       const resolvedType = explicitType || mediaItem.type || 'image';
       const variant = resolvedType === 'video' ? 'full' : 'thumb';
-      const src = resolveMediaSrc(id, variant);
+      const src = resolveMediaSrc(mediaItem, variant);
       if (!src) return;
       if (resolvedType === 'video') {
-        // Poster comes from the RAW media id (federated URL or Oxy id), BEFORE
-        // proxy wrapping: Oxy ids → `thumb`, federated URLs → `/media/poster`.
-        results.push({ type: 'video', mediaId: id, src, poster: videoPosterUrl(id, oxyServices) });
+        // Poster: prefer the server-resolved final `posterUrl`; fall back to the
+        // legacy client resolver from the RAW media id when absent (old data).
+        const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
+        results.push({ type: 'video', mediaId: id, src, poster });
       } else {
         const kind = resolvedType === 'gif' ? 'gif' : 'image';
         results.push({ type: 'image', mediaId: id, src, mediaType: kind });

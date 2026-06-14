@@ -6,9 +6,13 @@
 import React, { useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Image, ImageProps, View, StyleSheet, ViewStyle, ImageStyle, StyleProp, Platform } from 'react-native';
 import { flattenStyleArray } from '@/utils/theme';
-import { getOptimizedImageUrl, type ImageSize } from '@/services/imageOptimizationService';
 
-export type { ImageSize };
+/**
+ * Size variant hint retained for call-site compatibility. The backend now
+ * returns final, ready-to-render URLs (sizing/compression handled server-side),
+ * so this is no longer used to derive a URL — it only documents intent.
+ */
+export type ImageSize = 'thumb' | 'small' | 'medium' | 'large' | 'original';
 
 export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
   /** Image source URI or require() number */
@@ -75,29 +79,24 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
   const viewRef = useRef<View>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Determine effective source
+  // Determine effective source. The backend returns final, ready-to-render URLs,
+  // so we render `source.uri` directly without any client-side rewrite.
   const effectiveSource = useMemo(() => {
     if (typeof source === 'number') {
       return source;
     }
-    
-    if (source.uri) {
-      const uri = getOptimizedImageUrl(source.uri, size);
-      return { uri };
-    }
-    
-    return source;
-  }, [source, size]);
+    return source.uri ? { uri: source.uri } : source;
+  }, [source]);
 
-  // Determine low-res source for progressive loading
+  // Determine low-res source for progressive loading (also a final URL).
   const effectiveLowResSource = useMemo(() => {
     if (lowResSource) {
-      return typeof lowResSource === 'number' 
-        ? lowResSource 
-        : { uri: getOptimizedImageUrl(lowResSource.uri, 'thumb') };
+      return typeof lowResSource === 'number'
+        ? lowResSource
+        : { uri: lowResSource.uri };
     }
     if (progressive && typeof effectiveSource !== 'number' && effectiveSource.uri) {
-      return { uri: getOptimizedImageUrl(effectiveSource.uri, 'thumb') };
+      return { uri: effectiveSource.uri };
     }
     return null;
   }, [lowResSource, progressive, effectiveSource]);

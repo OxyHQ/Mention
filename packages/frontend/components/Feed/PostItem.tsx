@@ -152,17 +152,19 @@ const PostItem: React.FC<PostItemProps> = ({
         ? content.attachments
         : undefined;
 
-    const rawAvatar = viewPost?.user?.avatarUrl || (viewPost?.user as any)?.avatar;
-    // useImageUrl handles BOTH branches: an Oxy file id resolves to a signed/stream
-    // URL; an absolute federated/remote URL is routed through the media proxy so it
-    // loads same-origin (CORS-safe) on web instead of hot-linking the fediverse CDN.
-    const avatarSource = typeof rawAvatar === 'string' ? rawAvatar : undefined;
-    const resolvedAvatarUrl = useImageUrl(avatarSource, 'thumb', oxyServices);
+    // The backend resolves `avatarUrl` to a FINAL, ready-to-render URL, so we use
+    // it directly. Defensive fallback: when `avatarUrl` is absent, resolve the
+    // legacy raw `avatar` value (an Oxy file id, or a remote URL) via useImageUrl
+    // (old cached responses during the transition window).
+    const finalAvatarUrl = typeof viewPost?.user?.avatarUrl === 'string' ? viewPost.user.avatarUrl : undefined;
+    const legacyAvatar = (viewPost?.user as any)?.avatar;
+    const legacyAvatarSource = !finalAvatarUrl && typeof legacyAvatar === 'string' ? legacyAvatar : undefined;
+    const resolvedLegacyAvatar = useImageUrl(legacyAvatarSource, 'thumb', oxyServices);
 
     const avatarUri = useMemo(() => {
-        if (!rawAvatar) return undefined;
-        return resolvedAvatarUrl ?? (typeof rawAvatar === 'string' ? rawAvatar : undefined);
-    }, [rawAvatar, resolvedAvatarUrl]);
+        if (finalAvatarUrl) return finalAvatarUrl;
+        return resolvedLegacyAvatar ?? legacyAvatarSource;
+    }, [finalAvatarUrl, resolvedLegacyAvatar, legacyAvatarSource]);
 
     // Preload images for better perceived performance.
     // Only the avatar URL is known up-front; media items are referenced by id

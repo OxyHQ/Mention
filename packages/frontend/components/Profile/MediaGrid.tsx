@@ -77,11 +77,17 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         }
     }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
-    // Images use the `thumb` variant (grid-sized). Videos resolve their `thumb`
-    // variant too — an Oxy-generated static poster image (zero live decoders).
-    // Federated/absolute http URLs pass through unchanged via the cache helper.
+    // Grid image thumbnail. Prefer the server-resolved final `thumbUrl` (fallback
+    // `url`) from the media object; fall back to the legacy client resolver for a
+    // raw id/url string (old cached responses without the new fields).
     const resolveImageUri = useCallback(
-        (path?: string): string | undefined => {
+        (ref?: string | { thumbUrl?: string; url?: string; id?: string }): string | undefined => {
+            if (!ref) return undefined;
+            if (typeof ref !== 'string') {
+                const serverUrl = ref.thumbUrl || ref.url;
+                if (serverUrl) return serverUrl;
+            }
+            const path = typeof ref === 'string' ? ref : (ref.id || ref.url);
             if (!path) return undefined;
             const resolved = getCachedFileDownloadUrlSync(oxyServices, path, 'thumb');
             return resolved || undefined;
@@ -89,12 +95,20 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         [oxyServices]
     );
 
-    // Oxy asset ids resolve to the generated `thumb` poster; federated/absolute
-    // http videos resolve to the backend `/media/poster` frame extractor. Undefined
-    // → icon placeholder; a 404/error from the endpoint is handled by the cell's
-    // own image-error fallback.
+    // Static video poster. Prefer the server-resolved final `posterUrl` (fallback
+    // `thumbUrl`); fall back to the legacy client resolver for a raw id/url string.
+    // Undefined → icon placeholder; a 404/error from the URL is handled by the
+    // cell's own image-error fallback.
     const resolveVideoPosterUri = useCallback(
-        (path?: string): string | undefined => videoPosterUrl(path ?? '', oxyServices),
+        (ref?: string | { posterUrl?: string; thumbUrl?: string; url?: string; id?: string }): string | undefined => {
+            if (!ref) return undefined;
+            if (typeof ref !== 'string') {
+                const serverUrl = ref.posterUrl || ref.thumbUrl;
+                if (serverUrl) return serverUrl;
+            }
+            const path = typeof ref === 'string' ? ref : (ref.id || ref.url);
+            return videoPosterUrl(path ?? '', oxyServices);
+        },
         [oxyServices]
     );
 
@@ -102,33 +116,41 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         const out: MediaGridEntry[] = [];
         const items = (mediaFeed?.items?.length ? mediaFeed.items : (postsFeed?.items || [])) as any[];
 
+        // A media reference is either a raw id/url string (legacy) or a media
+        // object carrying the server-resolved final URLs (`url`/`thumbUrl`/`posterUrl`).
+        type MediaRef = string | { id?: string; url?: string; src?: string; path?: string; thumbUrl?: string; posterUrl?: string };
+
         const pickIdOrUrl = (x: any): string | undefined => {
             if (!x) return undefined;
             if (typeof x === 'string') return x;
             return x.id || x.url || x.src || x.path || undefined;
         };
 
-        const pushUris = (targetId: string, sources: (string | undefined)[], postType?: string, mediaTypes?: (string | undefined)[]) => {
-            const collected = sources.filter(Boolean) as string[];
+        const pushUris = (targetId: string, sources: (MediaRef | undefined)[], postType?: string, mediaTypes?: (string | undefined)[]) => {
+            const collected = sources.filter(Boolean) as MediaRef[];
             const seen = new Set<string>();
 
-            collected.forEach((raw, idx) => {
-                const isVideo = isVideoMediaRef(raw, { postType, mediaType: mediaTypes?.[idx] });
+            collected.forEach((ref, idx) => {
+                // Dedup/video-detection key is the raw id/url; resolution reads the
+                // object's server URLs first (handled inside the resolvers).
+                const key = pickIdOrUrl(ref);
+                if (!key) return;
+                const isVideo = isVideoMediaRef(key, { postType, mediaType: mediaTypes?.[idx] });
 
-                // For videos the cell renders a static poster (resolved via `thumb`);
-                // an empty/unresolvable poster still produces a placeholder cell, so
-                // a video entry is always valid. Images require a resolvable uri.
-                if (seen.has(raw)) return;
-                seen.add(raw);
+                // For videos the cell renders a static poster; an empty/unresolvable
+                // poster still produces a placeholder cell, so a video entry is always
+                // valid. Images require a resolvable uri.
+                if (seen.has(key)) return;
+                seen.add(key);
 
                 if (isVideo) {
-                    const posterUri = resolveVideoPosterUri(raw);
+                    const posterUri = resolveVideoPosterUri(ref);
                     const isCarousel = collected.length > 1;
                     out.push({ postId: targetId, uri: posterUri ?? '', isVideo: true, isCarousel, mediaIndex: idx });
                     return;
                 }
 
-                const uri = resolveImageUri(raw);
+                const uri = resolveImageUri(ref);
                 if (!uri) return;
                 const isCarousel = collected.length > 1;
                 out.push({ postId: targetId, uri, isVideo: false, isCarousel, mediaIndex: idx });
@@ -137,24 +159,25 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
         const extractFrom = (post: any, targetId: string) => {
             const postType = post?.type;
-            // Prefer normalized allMediaIds/mediaIds from backend
+            // Prefer the content.media objects: they carry the server-resolved final
+            // URLs (url/thumbUrl/posterUrl). Fall back to normalized id arrays only
+            // when the objects are absent (old cached responses).
+            const mediaArray: any[] = Array.isArray(post?.content?.media) ? post.content.media : [];
+            if (mediaArray.length) {
+                const mediaTypes = mediaArray.map((m: any) => (typeof m === 'object' && m.type) ? m.type : undefined);
+                pushUris(targetId, mediaArray, postType, mediaTypes);
+                return;
+            }
+
             const normalized = (post?.allMediaIds && post.allMediaIds.length)
                 ? post.allMediaIds
                 : (post?.mediaIds || []);
-
-            // Get media types if available from content.media array
-            const mediaArray = post?.content?.media || [];
-            const mediaTypes = mediaArray.map((m: any) => {
-                if (typeof m === 'object' && m.type) return m.type;
-                return undefined;
-            });
-
             if (normalized?.length) {
-                pushUris(targetId, normalized, postType, mediaTypes);
+                pushUris(targetId, normalized, postType);
                 return;
             }
             // Fallback to legacy structures
-            const collected: string[] = [];
+            const collected: MediaRef[] = [];
             const collectedTypes: (string | undefined)[] = [];
             const pushFromArray = (arr?: any[], options: { fromMedia?: boolean; fromAttachments?: boolean } = {}) => {
                 if (!Array.isArray(arr) || !arr.length) return;
@@ -163,10 +186,10 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                         if (m.type !== 'media' || !m.id) return;
                     }
 
-                    const raw = pickIdOrUrl(m);
-                    if (!raw) return;
+                    if (!pickIdOrUrl(m)) return;
 
-                    collected.push(raw);
+                    // Keep the object so server URLs survive; strings pass through.
+                    collected.push(m);
 
                     if (typeof m === 'object') {
                         if (options.fromAttachments && m.mediaType) {
@@ -181,7 +204,6 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                     }
                 });
             };
-            pushFromArray(post?.content?.media, { fromMedia: true });
             pushFromArray(post?.content?.images);
             pushFromArray(post?.content?.attachments, { fromAttachments: true });
             pushFromArray(post?.content?.files);

@@ -87,7 +87,10 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const originX = useSharedValue(0);
   const originY = useSharedValue(0);
 
-  // Resolve file ID to URL asynchronously (instant on cache hit, async on miss)
+  // An absolute http(s) `source` is a FINAL, server-resolved URL — render it
+  // directly. Defensive fallback: a non-http string is a legacy raw Oxy file id
+  // (old profile-design data) and is resolved asynchronously via useImageUrl
+  // (instant on cache hit, async on miss).
   const fileIdSource = typeof source === 'string' && !source.startsWith('http') ? source : undefined;
   const resolvedUrl = useImageUrl(errored ? undefined : fileIdSource, 'thumb');
 

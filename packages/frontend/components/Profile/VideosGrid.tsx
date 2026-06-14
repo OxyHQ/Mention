@@ -74,20 +74,32 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
     }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
     /**
-     * Resolve a static poster URL for a video media reference. Oxy asset ids
-     * resolve to the generated `thumb` variant (zero live decoders); federated /
-     * absolute http URLs resolve to the backend `/media/poster` frame extractor.
-     * Undefined → icon placeholder. A 404/error from the poster endpoint is
-     * handled by the cell's own image-error fallback.
+     * Resolve a static video poster. Prefer the server-resolved final `posterUrl`
+     * (fallback `thumbUrl`) from the media object; fall back to the legacy client
+     * resolver for a raw id/url string (Oxy `thumb` / backend `/media/poster`).
+     * Undefined → icon placeholder. A 404/error from the URL is handled by the
+     * cell's own image-error fallback.
      */
     const resolvePosterUri = useCallback(
-        (path?: string): string | undefined => videoPosterUrl(path ?? '', oxyServices),
+        (ref?: string | { posterUrl?: string; thumbUrl?: string; url?: string; id?: string }): string | undefined => {
+            if (!ref) return undefined;
+            if (typeof ref !== 'string') {
+                const serverUrl = ref.posterUrl || ref.thumbUrl;
+                if (serverUrl) return serverUrl;
+            }
+            const path = typeof ref === 'string' ? ref : (ref.id || ref.url);
+            return videoPosterUrl(path ?? '', oxyServices);
+        },
         [oxyServices]
     );
 
     const videoItems = useMemo<VideoGridEntry[]>(() => {
         const out: VideoGridEntry[] = [];
         const items = (mediaFeed?.items?.length ? mediaFeed.items : (postsFeed?.items || [])) as any[];
+
+        // A media reference is either a raw id/url string (legacy) or a media object
+        // carrying the server-resolved final URLs.
+        type MediaRef = string | { id?: string; url?: string; src?: string; path?: string; thumbUrl?: string; posterUrl?: string };
 
         const pickIdOrUrl = (x: any): string | undefined => {
             if (!x) return undefined;
@@ -97,31 +109,33 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
 
         const pushVideoSources = (
             targetId: string,
-            sources: (string | undefined)[],
+            sources: (MediaRef | undefined)[],
             postType?: string,
             mediaTypes?: (string | undefined)[]
         ) => {
-            const collected = sources.filter(Boolean) as string[];
+            const collected = sources.filter(Boolean) as MediaRef[];
             const seen = new Set<string>();
 
-            collected.forEach((raw, idx) => {
-                const isVideo = isVideoMediaRef(raw, { postType, mediaType: mediaTypes?.[idx] });
+            collected.forEach((ref, idx) => {
+                const key = pickIdOrUrl(ref);
+                if (!key) return;
+                const isVideo = isVideoMediaRef(key, { postType, mediaType: mediaTypes?.[idx] });
 
                 if (!isVideo) return; // Only include videos
-                if (seen.has(raw)) return;
-                seen.add(raw);
-                out.push({ postId: targetId, posterUri: resolvePosterUri(raw), mediaIndex: idx });
+                if (seen.has(key)) return;
+                seen.add(key);
+                out.push({ postId: targetId, posterUri: resolvePosterUri(ref), mediaIndex: idx });
             });
         };
 
         const extractFrom = (post: any, targetId: string) => {
             const postType = post?.type || post?.content?.type;
-            const media = post?.content?.media || [];
+            const media: any[] = Array.isArray(post?.content?.media) ? post.content.media : [];
             const mediaTypes = media.map((m: any) => m?.type);
 
             if (media.length > 0) {
-                const uris = media.map((m: any) => pickIdOrUrl(m.id || m.url || m.src || m.path));
-                pushVideoSources(targetId, uris, postType, mediaTypes);
+                // Pass the media objects so server URLs survive into the resolver.
+                pushVideoSources(targetId, media, postType, mediaTypes);
             } else if (post?.videoUrl || post?.video) {
                 pushVideoSources(targetId, [pickIdOrUrl(post.videoUrl || post.video)], postType);
             }

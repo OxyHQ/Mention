@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { imageUrlCache, getCachedFileDownloadUrl, proxyExternalUrl } from '@/utils/imageUrlCache';
+import { imageUrlCache, getCachedFileDownloadUrl } from '@/utils/imageUrlCache';
 import { oxyServices } from '@/lib/oxyServices';
 
 /**
@@ -7,11 +7,11 @@ import { oxyServices } from '@/lib/oxyServices';
  * Returns cached URL instantly on cache hit (no state update/re-render).
  * On cache miss, triggers async resolution and re-renders when ready.
  *
- * When `fileId` is already an absolute http(s) URL (a federated/remote avatar or
- * image whose remote URL hasn't yet been re-synced into an Oxy file id), it is
- * routed through the media proxy so it loads same-origin and CORS-safe on web —
- * hot-linking a fediverse CDN otherwise fails on web and breaks once the upstream
- * link expires. `proxyExternalUrl` returns our-own-origin URLs unchanged.
+ * The backend now returns FINAL, ready-to-render media URLs, so an absolute
+ * http(s) `fileId` is already a usable URL (our CDN/media-proxy or a remote one
+ * the server chose to expose) and is returned unchanged. Only Oxy file ids are
+ * resolved through the SDK — this branch is still used by Bloom's
+ * `resolveImageSource` for components that pass a raw file id.
  */
 export function useImageUrl(
   fileId: string | undefined | null,
@@ -23,7 +23,7 @@ export function useImageUrl(
   // Synchronous cache check — no blocking API call, no state update needed
   const cachedUrl = useMemo(() => {
     if (!fileId) return undefined;
-    if (fileId.startsWith('http://') || fileId.startsWith('https://')) return proxyExternalUrl(fileId);
+    if (fileId.startsWith('http://') || fileId.startsWith('https://')) return fileId;
     return imageUrlCache.get(fileId, variant) ?? undefined;
   }, [fileId, variant]);
 

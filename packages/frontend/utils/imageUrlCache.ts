@@ -286,18 +286,11 @@ export async function getCachedFileDownloadUrl(
   variant?: string,
   expiresIn?: number
 ): Promise<string> {
-  // External/federated media: the id is already an absolute HTTP URL. Route it
-  // through the backend media proxy (CORS + cache + Range, survives expiring
-  // upstream links). Cache the result keyed by fileId+variant so the proxied URL
-  // identity is stable across renders (prevents image flicker).
+  // Absolute HTTP URLs are already FINAL, ready-to-render URLs resolved by the
+  // backend (our CDN/media-proxy, or a remote one the server chose to expose).
+  // Return as-is — the client no longer rewrites them.
   if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
-    const cachedProxy = imageUrlCache.get(fileId, variant);
-    if (cachedProxy) {
-      return cachedProxy;
-    }
-    const proxied = proxyExternalUrl(fileId);
-    imageUrlCache.set(fileId, proxied, variant);
-    return proxied;
+    return fileId;
   }
 
   // Check cache first
@@ -339,18 +332,11 @@ export function getCachedFileDownloadUrlSync(
   variant?: string,
   expiresIn?: number
 ): string {
-  // External/federated media: the id is already an absolute HTTP URL. Route it
-  // through the backend media proxy (CORS + cache + Range, survives expiring
-  // upstream links). Cache the result keyed by fileId+variant so the proxied URL
-  // identity is stable across renders (prevents image flicker).
+  // Absolute HTTP URLs are already FINAL, ready-to-render URLs resolved by the
+  // backend (our CDN/media-proxy, or a remote one the server chose to expose).
+  // Return as-is — the client no longer rewrites them.
   if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
-    const cachedProxy = imageUrlCache.get(fileId, variant);
-    if (cachedProxy) {
-      return cachedProxy;
-    }
-    const proxied = proxyExternalUrl(fileId);
-    imageUrlCache.set(fileId, proxied, variant);
-    return proxied;
+    return fileId;
   }
 
   // Check cache first
