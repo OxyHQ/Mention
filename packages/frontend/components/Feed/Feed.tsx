@@ -188,7 +188,7 @@ const Feed = ((props: FeedProps) => {
         [type, userId, showOnlySaved, filters]
     );
 
-    const { user: currentUser, isAuthenticated, isAuthResolved, signIn } = useAuth();
+    const { user: currentUser, isAuthenticated, signIn } = useAuth();
     const { blockedSet } = usePrivacyControls();
 
     // Use the feed state hook for all feed operations
@@ -201,7 +201,6 @@ const Feed = ((props: FeedProps) => {
         reloadKey,
         isAuthenticated,
         currentUserId: currentUser?.id,
-        isAuthResolved,
     });
 
     // Destructure stable function references from feedState to avoid re-creating

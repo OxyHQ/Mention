@@ -26,7 +26,6 @@ import { LogoIcon } from '@/assets/logo';
 import { MenuIcon } from '@/assets/icons/menu-icon';
 import { useDrawer } from '@/context/DrawerContext';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
-import { resolveFeedIdentity, isAuthIdentitySettling } from '@/utils/feedAuthGate';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -221,39 +220,11 @@ const HomeScreen: React.FC = () => {
         // against the now-ready token. Without an identity-scoped key, React reconciles
         // the same element across the anon→authed transition and the feed stays stuck
         // on anonymous (or empty) content. This is the belt-and-suspenders guarantee
-        // alongside the auth-keyed initial-fetch effect inside useFeedState.
-        //
-        // The feed identity keys every <Feed> below so it remounts (and its
-        // mount-time fetch re-runs) when the auth identity flips. It MUST agree
-        // with the loading/guard logic inside useFeedState so the two never
-        // disagree and strand the feed in an anon configuration. Three states:
-        //
-        //   • !isAuthResolved → 'pending': the cold-boot determination has not
-        //     concluded. The Feed mounts and shows its spinner (it defers its
-        //     fetch on `isAuthResolved`) WITHOUT committing to the anon variant.
-        //   • authenticated but `user.id` not yet populated → 'pending' too: this
-        //     is the sub-window where useFeedState skips the fetch (it would be
-        //     tokenless) and reports loading. Using 'anon' here would mount the
-        //     Feed in an anonymous configuration that strands on the empty
-        //     placeholder; 'pending' keeps the spinner up until the id lands.
-        //   • resolved → the real identity: the user id when authenticated, the
-        //     literal 'anon' otherwise. The key flip remounts the Feed for the
-        //     correct (authed or anon) fetch.
-        // Both decisions come from the SAME pure helpers that drive useFeedState's
-        // loading gate, so the remount key here and the spinner-vs-empty decision
-        // there are guaranteed to agree.
-        const authGate = { isAuthResolved, isAuthenticated, currentUserId: user?.id };
-        const authIdentityPending = isAuthIdentitySettling(authGate);
-        const feedIdentity = resolveFeedIdentity(authGate);
-
-        // While the auth identity is still pending (undetermined, or authenticated
-        // with the id not yet landed), render the base For You feed — which exists
-        // in both anon and authed states — so static nav stays alive and the Feed's
-        // own spinner shows, without rendering any auth-specific affordance or
-        // committing to the anonymous variant.
-        if (authIdentityPending) {
-            return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} />;
-        }
+        // alongside the auth-keyed initial-fetch effect inside useFeedState. The feed
+        // itself shows its normal loading spinner while a session restores on cold
+        // boot; once auth resolves the key flips anon→userId and the Feed remounts to
+        // fetch the authenticated feed.
+        const feedIdentity = isAuthenticated && user?.id ? user.id : 'anon';
 
         if (isAuthenticated && activeTab.startsWith('custom:')) {
             const feedId = activeTab.replace('custom:', '');
