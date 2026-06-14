@@ -5,7 +5,7 @@ import {
   MEDIA_CACHE_EVICTION_CONCURRENCY,
   MEDIA_CACHE_TTL_MS,
 } from './constants';
-import { deleteCachedMedia, isMediaStoreWriteEnabled } from './oxyMediaStore';
+import { deleteCachedMedia, isMediaCacheEnabled } from './oxyMediaStore';
 
 type EvictionCandidate = Pick<IFederatedMediaCache, 'remoteUrl' | 'oxyFileId' | 'posterFileId'>;
 
@@ -46,8 +46,8 @@ async function evictOne(candidate: EvictionCandidate): Promise<void> {
  * (delete capability blocked upstream). Overlap-guarded by the scheduler.
  */
 export async function runEvictionOnce(): Promise<void> {
-  if (!isMediaStoreWriteEnabled()) {
-    logger.debug('[MediaCache] Eviction skipped — media store write disabled (blocked upstream)');
+  if (!isMediaCacheEnabled()) {
+    logger.debug('[MediaCache] Eviction skipped — media cache disabled (blocked upstream)');
     return;
   }
 

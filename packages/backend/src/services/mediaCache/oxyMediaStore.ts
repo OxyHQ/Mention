@@ -27,8 +27,8 @@ import { MEDIA_CACHE_WRITE_ENABLED } from './constants';
  *    service token as the bearer. No token is hand-minted: token lifecycle stays
  *    owned by the SDK.
  *
- * Both write operations are gated behind {@link isMediaStoreWriteEnabled}: when the
- * write side is disabled they throw {@link MediaStoreUnavailableError}, and the
+ * Both write operations are gated behind {@link isMediaCacheEnabled}: when the
+ * cache is disabled they throw {@link MediaStoreUnavailableError}, and the
  * worker/eviction jobs short-circuit on the same flag so no write traffic is
  * generated while the feature is off.
  */
@@ -90,23 +90,19 @@ interface OxyCacheUploadResponse {
   data?: { file?: { id?: unknown } };
 }
 
-/** True when the backend can actually upload/delete cached media in Oxy. */
-export function isMediaStoreWriteEnabled(): boolean {
-  return MEDIA_CACHE_WRITE_ENABLED;
-}
-
 /**
- * Master predicate for whether the federated media cache participates in the
- * proxy read-path AT ALL. When this is false the cache is COMPLETELY INERT: the
- * proxy/poster routes must perform ZERO `FederatedMediaCache` reads or writes (no
- * lookups, no access bumps, no enqueues) and behave exactly like the pre-cache
- * passthrough (stream from remote / on-demand ffmpeg poster).
+ * Master predicate for whether the federated media cache is active.
  *
- * Today the cache is only ever consistent end-to-end when the write side is
- * enabled — reading/recording with a disabled worker just accumulates dead
- * `pending` rows that nothing drains — so this currently equals
- * {@link isMediaStoreWriteEnabled}. It is a distinct, named predicate so the
- * read-path gating reads intentionally and can diverge from the write gate later.
+ * When this is false the cache is COMPLETELY INERT: the proxy/poster routes must
+ * perform ZERO `FederatedMediaCache` reads or writes (no lookups, no access
+ * bumps, no enqueues) and behave exactly like the pre-cache passthrough (stream
+ * from remote / on-demand ffmpeg poster); the worker/eviction jobs short-circuit
+ * on the same flag so no write traffic (Oxy upload/delete) is generated either.
+ *
+ * The cache is only ever consistent end-to-end when this is enabled — reading or
+ * recording with a disabled worker just accumulates dead `pending` rows that
+ * nothing drains — so a single flag governs both the read-path hooks and the
+ * write side together.
  */
 export function isMediaCacheEnabled(): boolean {
   return MEDIA_CACHE_WRITE_ENABLED;
@@ -172,12 +168,12 @@ async function readJsonResponse(response: IncomingMessage): Promise<unknown> {
  * payload's MIME type is sent verbatim as `Content-Type`; the derived name (when
  * provided) is sent as `x-original-name`. Returns the new Oxy file id.
  *
- * Gated behind {@link isMediaStoreWriteEnabled}; throws
- * {@link MediaStoreUnavailableError} when the write side is disabled and
+ * Gated behind {@link isMediaCacheEnabled}; throws
+ * {@link MediaStoreUnavailableError} when the cache is disabled and
  * {@link OxyMediaStoreRequestError} on a non-2xx oxy-api response.
  */
 export async function uploadCachedMedia(source: CachedMediaSource): Promise<UploadedAsset> {
-  if (!isMediaStoreWriteEnabled()) {
+  if (!isMediaCacheEnabled()) {
     throw new MediaStoreUnavailableError('upload');
   }
 
@@ -221,12 +217,12 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
 
 /**
  * Delete a previously-cached Oxy file (used by the eviction job and orphan
- * cleanup). Gated behind {@link isMediaStoreWriteEnabled}; throws
+ * cleanup). Gated behind {@link isMediaCacheEnabled}; throws
  * {@link MediaStoreUnavailableError} when disabled and
  * {@link OxyMediaStoreRequestError} on a non-2xx oxy-api response.
  */
 export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
-  if (!isMediaStoreWriteEnabled()) {
+  if (!isMediaCacheEnabled()) {
     throw new MediaStoreUnavailableError('delete');
   }
 

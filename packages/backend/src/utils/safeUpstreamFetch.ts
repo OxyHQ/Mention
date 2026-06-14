@@ -174,9 +174,17 @@ export async function fetchUpstreamFollowingRedirects(
   throw new UpstreamError('redirect loop exhausted');
 }
 
-/** Extract the bare media type family (strips parameters and casing). */
-export function contentTypeFamily(headers: IncomingHttpHeaders): string {
-  const raw = headers['content-type'];
+/**
+ * Extract the bare media type family from a raw content-type string (strips
+ * parameters and casing). E.g. `'IMAGE/PNG; charset=binary'` → `'image/png'`.
+ */
+export function contentTypeFamilyFromString(raw: string | undefined): string {
   if (typeof raw !== 'string') return '';
   return raw.split(';')[0]?.trim().toLowerCase() ?? '';
+}
+
+/** Extract the bare media type family from response headers. */
+export function contentTypeFamily(headers: IncomingHttpHeaders): string {
+  const raw = headers['content-type'];
+  return contentTypeFamilyFromString(typeof raw === 'string' ? raw : undefined);
 }

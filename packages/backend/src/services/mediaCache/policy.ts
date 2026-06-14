@@ -1,14 +1,13 @@
 import type { FederatedMediaCacheState } from '../../models/FederatedMediaCache';
+import { contentTypeFamilyFromString } from '../../utils/safeUpstreamFetch';
 import {
-  MEDIA_CACHE_ALLOWED_TYPE_PREFIXES,
   MEDIA_CACHE_BACKOFF_BASE_MS,
   MEDIA_CACHE_BACKOFF_MAX_MS,
   MEDIA_CACHE_MAX_FAIL_COUNT,
   MEDIA_CACHE_MAX_IMAGE_BYTES,
   MEDIA_CACHE_MAX_VIDEO_BYTES,
-  MEDIA_CACHE_REJECTED_TYPES,
-  MEDIA_CACHE_VIDEO_TYPE_PREFIX,
 } from './constants';
+import { MEDIA_VIDEO_TYPE_PREFIX, isAllowedMediaType } from './mediaTypes';
 
 /**
  * Pure decision helpers for the federated media cache.
@@ -70,15 +69,12 @@ export function decideProxyServe(lookup: CacheLookup | undefined): ProxyServeDec
 
 /** True when the content-type family is one this cache is willing to store. */
 export function isCacheableMediaType(contentType: string): boolean {
-  const family = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
-  if (MEDIA_CACHE_REJECTED_TYPES.has(family)) return false;
-  return MEDIA_CACHE_ALLOWED_TYPE_PREFIXES.some((prefix) => family.startsWith(prefix));
+  return isAllowedMediaType(contentTypeFamilyFromString(contentType));
 }
 
 /** True when the content type denotes a video (poster extraction applies). */
 export function isVideoType(contentType: string): boolean {
-  const family = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
-  return family.startsWith(MEDIA_CACHE_VIDEO_TYPE_PREFIX);
+  return contentTypeFamilyFromString(contentType).startsWith(MEDIA_VIDEO_TYPE_PREFIX);
 }
 
 /** The per-type size cap above which media stays proxy-only (marked `failed`). */

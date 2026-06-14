@@ -23,6 +23,7 @@ import { extractApMediaFromNote, type ApMediaType } from '../utils/federation/ap
 import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
+import { normalizeHashtag } from '../utils/textProcessing';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -584,7 +585,7 @@ class FederationService {
 
     for (const tag of note.tag) {
       if (tag?.type === 'Hashtag' && tag.name) {
-        const normalized = tag.name.replace(/^#/, '').trim().toLowerCase();
+        const normalized = normalizeHashtag(tag.name);
         if (normalized.length > 0) {
           hashtags.push(normalized);
         }

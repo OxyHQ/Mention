@@ -17,21 +17,35 @@ export function extractHashtags(text: string): string[] {
 }
 
 /**
+ * Canonical hashtag normalization.
+ *
+ * Strips a single leading `#`, trims surrounding whitespace, and lowercases so
+ * that every write path stores tags in the same form the case-insensitive read
+ * paths (`getPostsByHashtag`, the MTN `HashtagFeed`, the `$toLower` trending
+ * aggregations) expect. Returns `''` for empty/whitespace-only input so callers
+ * can filter out non-tags. This is the single source of truth for the recipe
+ * that was previously duplicated across the native and federated write paths.
+ */
+export function normalizeHashtag(raw: string): string {
+  return raw.replace(/^#/, '').trim().toLowerCase();
+}
+
+/**
  * Merge extracted hashtags with user-provided hashtags.
  *
  * Hashtags are stored canonically lowercased so that case-insensitive read
  * paths (`getPostsByHashtag`, the MTN `HashtagFeed`, the `$toLower` trending
- * aggregations) always match. `extractHashtags` already lowercases tags pulled
- * from the text; user-provided tags are normalized here (trimmed + lowercased)
- * before deduplication so a mixed-case `userProvided` entry can never be stored
- * verbatim. Empty entries are dropped.
+ * aggregations) always match. Both the text-extracted tags and the
+ * user-provided tags are run through `normalizeHashtag` before deduplication so
+ * a mixed-case `userProvided` entry can never be stored verbatim. Empty entries
+ * are dropped.
  *
  * Returns a deduplicated array of lowercase tag names.
  */
 export function mergeHashtags(text: string, userProvided?: string[]): string[] {
-  const extracted = extractHashtags(text);
+  const extracted = extractHashtags(text).map(normalizeHashtag).filter((tag) => tag.length > 0);
   const normalizedUserProvided = (userProvided || [])
-    .map((tag) => tag.trim().toLowerCase())
+    .map(normalizeHashtag)
     .filter((tag) => tag.length > 0);
   return [...new Set([...normalizedUserProvided, ...extracted])];
 }

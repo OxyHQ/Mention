@@ -3,7 +3,6 @@ import { IncomingMessage } from 'node:http';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
-import { assertSafePublicUrl } from '../utils/ssrfGuard';
 import {
   SsrfRejection,
   UpstreamResult,
@@ -13,6 +12,7 @@ import {
 import { extractPosterFrame } from '../utils/videoPoster';
 import { lookupCacheRow, bumpAccess, recordAccessAndMaybeEnqueue } from '../services/mediaCache/cacheStore';
 import { decideProxyServe } from '../services/mediaCache/policy';
+import { isAllowedMediaType } from '../services/mediaCache/mediaTypes';
 import { isMediaCacheEnabled, resolveOxyDownloadUrl } from '../services/mediaCache/oxyMediaStore';
 
 const router = express.Router();
@@ -77,16 +77,6 @@ const POSTER_CONTENT_TYPE = 'image/jpeg';
 /** Upstream content-type family the poster endpoint will accept (video only). */
 const POSTER_REQUIRED_TYPE_PREFIX = 'video/';
 
-/** Media content-type families this proxy is willing to relay. */
-const ALLOWED_CONTENT_TYPE_PREFIXES = ['image/', 'video/', 'audio/'] as const;
-
-/**
- * Content types that are explicitly rejected even though they match an allowed
- * prefix. SVG matches `image/` but is an XML document that can embed
- * `<script>`/event handlers; relaying it same-origin would enable stored XSS.
- */
-const REJECTED_CONTENT_TYPES: ReadonlySet<string> = new Set(['image/svg+xml']);
-
 /**
  * Forces the browser to render relayed media inline (never as a navigable
  * document) and discourages it from treating the bytes as an active document —
@@ -148,9 +138,65 @@ const mediaPosterRateLimiter = rateLimit({
 
 // --- Helpers ----------------------------------------------------------------
 
-function isAllowedMediaType(contentType: string): boolean {
-  if (REJECTED_CONTENT_TYPES.has(contentType)) return false;
-  return ALLOWED_CONTENT_TYPE_PREFIXES.some((prefix) => contentType.startsWith(prefix));
+/** Handle for an armed request deadline (see {@link withRequestDeadline}). */
+interface RequestDeadline {
+  /**
+   * Abort signal passed to `fetchUpstreamFollowingRedirects`. Firing the deadline
+   * aborts it, tearing down the in-flight upstream request.
+   */
+  signal: AbortSignal;
+  /**
+   * Expose the live upstream response so the deadline can destroy it even while
+   * streaming (the signal only aborts the request object, not the response body).
+   * Called once the non-redirect response is in hand.
+   */
+  setActiveResponse: (response: IncomingMessage) => void;
+}
+
+/**
+ * Arm an absolute wall-clock deadline for a single proxied/poster request
+ * (Slowloris defense). The idle socket timeout used while streaming resets on
+ * every byte, so a dribbling upstream could otherwise pin a connection forever;
+ * this hard ceiling tears the request down regardless of activity.
+ *
+ * On expiry it aborts the in-flight upstream request (via the returned signal),
+ * destroys the live upstream response if one was registered, then invokes
+ * `onTimeout` with a `canRespond` flag: `true` when nothing has been sent yet
+ * (the route should log AND emit its timeout status/body), `false` once a body is
+ * in flight — in which case the route should only log and the helper destroys
+ * `res`. The double-send guard is preserved.
+ *
+ * The timer is cleared on the single `res` 'close' event, which fires on every
+ * terminal path: success, error, or client disconnect.
+ */
+function withRequestDeadline(
+  res: Response,
+  maxMs: number,
+  onTimeout: (canRespond: boolean) => void,
+): RequestDeadline {
+  const abortController = new AbortController();
+  let activeResponse: IncomingMessage | null = null;
+
+  const deadlineTimer = setTimeout(() => {
+    abortController.abort();
+    if (activeResponse && !activeResponse.destroyed) activeResponse.destroy();
+    const canRespond = !res.headersSent;
+    onTimeout(canRespond);
+    if (!canRespond && !res.writableEnded) {
+      res.destroy();
+    }
+  }, maxMs);
+
+  res.once('close', () => {
+    clearTimeout(deadlineTimer);
+  });
+
+  return {
+    signal: abortController.signal,
+    setActiveResponse: (response: IncomingMessage): void => {
+      activeResponse = response;
+    },
+  };
 }
 
 /** Relay a single upstream header to the client only when present. */
@@ -310,21 +356,15 @@ async function tryServePosterFromCache(remoteUrl: string, res: Response): Promis
  * through our origin so the browser sees same-origin (CORS-safe), cacheable,
  * range-seekable bytes instead of hot-linking third-party CDNs.
  *
- * SECURITY: every upstream request — including each redirect hop — is validated
- * by `assertSafePublicUrl` and the TCP connection is pinned to the validated IP.
+ * SECURITY: every upstream request — including hop 0 and each redirect hop — is
+ * validated by `assertSafePublicUrl` inside `fetchUpstreamFollowingRedirects`
+ * (BEFORE any socket is opened) and the TCP connection is pinned to the validated
+ * IP. A blocked target surfaces as an `SsrfRejection` and maps to 403.
  */
 router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const rawUrl = req.query.url;
   if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
     res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
-    return;
-  }
-
-  // Pre-validate before opening any socket so obviously bad input fails fast.
-  const preCheck = await assertSafePublicUrl(rawUrl);
-  if (!preCheck.ok) {
-    logger.warn('[MediaProxy] Rejected target', { reason: preCheck.reason });
-    res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
     return;
   }
 
@@ -362,33 +402,20 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
       typeof req.headers['if-modified-since'] === 'string' ? req.headers['if-modified-since'] : undefined,
   };
 
-  // Absolute request deadline (Slowloris defense). The idle socket timeout below
-  // resets on every byte, so a dribbling upstream could pin a connection forever.
-  // This hard ceiling aborts the in-flight upstream request (via the signal),
-  // destroys the streamed response and ends the client response regardless of
-  // activity. It is cleared on the single `res` 'close' event, which fires on
-  // every terminal path: success, error, or client disconnect.
-  const abortController = new AbortController();
-  let activeResponse: IncomingMessage | null = null;
-  const deadlineTimer = setTimeout(() => {
+  // Absolute request deadline (Slowloris defense): hard wall-clock ceiling that
+  // tears the request down regardless of socket activity.
+  const deadline = withRequestDeadline(res, MAX_REQUEST_DURATION_MS, (canRespond) => {
     logger.warn('[MediaProxy] Aborting request past absolute deadline', {
       maxMs: MAX_REQUEST_DURATION_MS,
     });
-    abortController.abort();
-    if (activeResponse && !activeResponse.destroyed) activeResponse.destroy();
-    if (!res.headersSent) {
+    if (canRespond) {
       res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media timed out' });
-    } else if (!res.writableEnded) {
-      res.destroy();
     }
-  }, MAX_REQUEST_DURATION_MS);
-  res.once('close', () => {
-    clearTimeout(deadlineTimer);
   });
 
   let upstream: UpstreamResult;
   try {
-    upstream = await fetchUpstreamFollowingRedirects(rawUrl, extras, abortController.signal);
+    upstream = await fetchUpstreamFollowingRedirects(rawUrl, extras, deadline.signal);
   } catch (error) {
     // The deadline timer may already have responded (it aborts the in-flight
     // request, which surfaces here as an AbortError); don't double-send.
@@ -410,7 +437,7 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
   const { response } = upstream;
   // Expose the live response to the deadline timer so it can be torn down even
   // while streaming (the signal only aborts the request object, not the body).
-  activeResponse = response;
+  deadline.setActiveResponse(response);
   const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
 
   // 304 from a conditional request: relay validators, no body.
@@ -512,26 +539,20 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
  * instead of a black box until the first frame decodes.
  *
  * SECURITY: ffmpeg NEVER touches the network. We (1) SSRF-validate the URL and
- * every redirect hop via `assertSafePublicUrl` with the connection pinned to the
- * validated IP, (2) download a bounded prefix (POSTER_MAX_FETCH_BYTES) to a temp
- * file, then (3) run ffmpeg ONLY on that local file with `-protocol_whitelist
- * file` — so even a crafted container cannot make ffmpeg fetch a URL or read an
- * arbitrary local path. On any failure (non-video, no decodable frame in the
- * prefix, ffmpeg error/timeout) we respond 404 so the frontend falls back to a
- * placeholder.
+ * every redirect hop via `assertSafePublicUrl` inside
+ * `fetchUpstreamFollowingRedirects` (BEFORE any socket is opened) with the
+ * connection pinned to the validated IP — a blocked target surfaces as an
+ * `SsrfRejection` and maps to 403, (2) download a bounded prefix
+ * (POSTER_MAX_FETCH_BYTES) to a temp file, then (3) run ffmpeg ONLY on that local
+ * file with `-protocol_whitelist file` — so even a crafted container cannot make
+ * ffmpeg fetch a URL or read an arbitrary local path. On any failure (non-video,
+ * no decodable frame in the prefix, ffmpeg error/timeout) we respond 404 so the
+ * frontend falls back to a placeholder.
  */
 router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const rawUrl = req.query.url;
   if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
     res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
-    return;
-  }
-
-  // Pre-validate before opening any socket so obviously bad input fails fast.
-  const preCheck = await assertSafePublicUrl(rawUrl);
-  if (!preCheck.ok) {
-    logger.warn('[MediaPoster] Rejected target', { reason: preCheck.reason });
-    res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
     return;
   }
 
@@ -545,30 +566,21 @@ router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response
     return;
   }
 
-  // Absolute request deadline (fetch + decode). Aborts the in-flight upstream
-  // request via the signal; cleared on the single terminal `res` 'close'.
-  const abortController = new AbortController();
-  let activeResponse: IncomingMessage | null = null;
-  const deadlineTimer = setTimeout(() => {
+  // Absolute request deadline (fetch + decode): hard wall-clock ceiling that
+  // tears the request down regardless of socket activity.
+  const deadline = withRequestDeadline(res, POSTER_MAX_REQUEST_DURATION_MS, (canRespond) => {
     logger.warn('[MediaPoster] Aborting request past absolute deadline', {
       maxMs: POSTER_MAX_REQUEST_DURATION_MS,
     });
-    abortController.abort();
-    if (activeResponse && !activeResponse.destroyed) activeResponse.destroy();
-    if (!res.headersSent) {
+    if (canRespond) {
       res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
-    } else if (!res.writableEnded) {
-      res.destroy();
     }
-  }, POSTER_MAX_REQUEST_DURATION_MS);
-  res.once('close', () => {
-    clearTimeout(deadlineTimer);
   });
 
   // --- Fetch the SSRF-validated upstream (redirects re-validated per hop) ---
   let upstream: UpstreamResult;
   try {
-    upstream = await fetchUpstreamFollowingRedirects(rawUrl, {}, abortController.signal);
+    upstream = await fetchUpstreamFollowingRedirects(rawUrl, {}, deadline.signal);
   } catch (error) {
     if (res.headersSent || res.writableEnded) {
       return;
@@ -586,7 +598,7 @@ router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response
   }
 
   const { response } = upstream;
-  activeResponse = response;
+  deadline.setActiveResponse(response);
   const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
 
   // Only a 200 with a full body lets us extract a leading frame.

@@ -28,7 +28,7 @@ import {
 import {
   MediaStoreUnavailableError,
   deleteCachedMedia,
-  isMediaStoreWriteEnabled,
+  isMediaCacheEnabled,
   uploadCachedMedia,
 } from './oxyMediaStore';
 
@@ -324,8 +324,8 @@ function deriveFilename(remoteUrl: string, contentType: string): string {
  * so no broken upload traffic is generated. Overlap-guarded by the scheduler.
  */
 export async function runCacheWorkerOnce(): Promise<void> {
-  if (!isMediaStoreWriteEnabled()) {
-    logger.debug('[MediaCache] Worker skipped — media store write disabled (blocked upstream)');
+  if (!isMediaCacheEnabled()) {
+    logger.debug('[MediaCache] Worker skipped — media cache disabled (blocked upstream)');
     return;
   }
 

@@ -59,8 +59,18 @@ export async function bumpAccess(remoteUrl: string): Promise<void> {
 export async function recordAccessAndMaybeEnqueue(remoteUrl: string): Promise<boolean> {
   const now = new Date();
 
-  // Re-arm terminal/idle states to pending; clears any backoff so the worker
-  // re-attempts promptly on renewed activity.
+  // Common case first: bump access on an existing pending/cached row (no enqueue).
+  // The three state filters below are mutually exclusive (a row is in exactly one
+  // state), so trying the hot path first only reorders disjoint branches — it does
+  // not change which branch a given row state takes.
+  const bumped = await FederatedMediaCache.updateOne(
+    { remoteUrl, state: { $in: ['pending', 'cached'] } },
+    { $set: { lastAccessedAt: now } },
+  );
+  if (bumped.matchedCount > 0) return false;
+
+  // Rarer: re-arm terminal/idle states to pending; clears any backoff so the
+  // worker re-attempts promptly on renewed activity.
   const reArm = await FederatedMediaCache.updateOne(
     { remoteUrl, state: { $in: ['evicted', 'failed'] } },
     {
@@ -69,13 +79,6 @@ export async function recordAccessAndMaybeEnqueue(remoteUrl: string): Promise<bo
     },
   );
   if (reArm.modifiedCount > 0) return true;
-
-  // Bump access on an existing pending/cached row (no enqueue).
-  const bumped = await FederatedMediaCache.updateOne(
-    { remoteUrl, state: { $in: ['pending', 'cached'] } },
-    { $set: { lastAccessedAt: now } },
-  );
-  if (bumped.matchedCount > 0) return false;
 
   // No row at all → create a pending one. `upsert` + the unique index make this
   // race-safe: a concurrent insert collides on the unique key and is swallowed

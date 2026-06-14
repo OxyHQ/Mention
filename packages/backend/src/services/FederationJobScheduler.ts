@@ -7,6 +7,7 @@ import { Post } from '../models/Post';
 import { federationService } from './FederationService';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
+import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
 import {
   MEDIA_CACHE_EVICTION_INTERVAL_MS,
   MEDIA_CACHE_WORKER_INTERVAL_MS,
@@ -62,19 +63,25 @@ class FederationJobScheduler {
       );
     }, 15 * 60 * 1000);
 
-    // Drain pending federated-media cache jobs (download remote → upload to Oxy).
-    this.mediaCacheWorkerInterval = setInterval(() => {
-      this.runMediaCacheWorker().catch((err) =>
-        logger.error('Media cache worker job failed:', err)
-      );
-    }, MEDIA_CACHE_WORKER_INTERVAL_MS);
+    // Media-cache worker + eviction intervals are only created when the cache is
+    // enabled; while disabled they would no-op every tick, so we avoid arming the
+    // timers at all. Enabling the cache requires a redeploy, so creating them at
+    // boot is sufficient (no runtime flip to observe).
+    if (isMediaCacheEnabled()) {
+      // Drain pending federated-media cache jobs (download remote → upload to Oxy).
+      this.mediaCacheWorkerInterval = setInterval(() => {
+        this.runMediaCacheWorker().catch((err) =>
+          logger.error('Media cache worker job failed:', err)
+        );
+      }, MEDIA_CACHE_WORKER_INTERVAL_MS);
 
-    // Evict idle cached media from Oxy S3 (activity-based TTL).
-    this.mediaCacheEvictionInterval = setInterval(() => {
-      this.runMediaCacheEviction().catch((err) =>
-        logger.error('Media cache eviction job failed:', err)
-      );
-    }, MEDIA_CACHE_EVICTION_INTERVAL_MS);
+      // Evict idle cached media from Oxy S3 (activity-based TTL).
+      this.mediaCacheEvictionInterval = setInterval(() => {
+        this.runMediaCacheEviction().catch((err) =>
+          logger.error('Media cache eviction job failed:', err)
+        );
+      }, MEDIA_CACHE_EVICTION_INTERVAL_MS);
+    }
 
     // Stagger startup tasks to let DB connections warm up
     this.backfillTimeout = setTimeout(() => {

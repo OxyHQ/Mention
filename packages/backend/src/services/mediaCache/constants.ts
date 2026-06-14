@@ -32,21 +32,6 @@ export const MEDIA_CACHE_MAX_VIDEO_BYTES = 200 * BYTES_PER_MIB;
 export const MEDIA_CACHE_MAX_IMAGE_BYTES = 32 * BYTES_PER_MIB;
 
 /**
- * Content-type families this cache is willing to store. Mirrors the proxy's
- * allow-list; anything else is skipped (proxy-only) and never uploaded.
- */
-export const MEDIA_CACHE_ALLOWED_TYPE_PREFIXES = ['image/', 'video/', 'audio/'] as const;
-
-/**
- * Content types rejected even though they match an allowed prefix. SVG is an XML
- * document that can embed scripts; we never store/serve it same-origin.
- */
-export const MEDIA_CACHE_REJECTED_TYPES: ReadonlySet<string> = new Set(['image/svg+xml']);
-
-/** Prefix used to detect a video content type for poster extraction. */
-export const MEDIA_CACHE_VIDEO_TYPE_PREFIX = 'video/';
-
-/**
  * Number of leading bytes of a video to buffer for poster-frame extraction. A
  * keyframe lives near the start of a faststart container; we never need the
  * whole file just for the poster.

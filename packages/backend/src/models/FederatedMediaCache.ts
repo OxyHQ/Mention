@@ -64,7 +64,7 @@ export interface IFederatedMediaCache extends Document {
 
 const FederatedMediaCacheSchema = new Schema<IFederatedMediaCache>(
   {
-    remoteUrl: { type: String, required: true, unique: true, index: true },
+    remoteUrl: { type: String, required: true, unique: true },
     oxyFileId: { type: String },
     posterFileId: { type: String },
     contentType: { type: String },
