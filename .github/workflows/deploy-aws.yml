@@ -57,11 +57,53 @@ jobs:
 
       - name: Deploy to ECS (rolling; skipped until the service exists)
         run: |
+          set -euo pipefail
+
+          # Poll the PRIMARY deployment's rolloutState instead of the fixed
+          # `aws ecs wait services-stable` waiter (40 attempts x 15s = 10 min),
+          # which is shorter than Mention's rollout + ALB drain time and caused
+          # every successful deploy to false-fail with "Max attempts exceeded".
+          MAX_WAIT_SECS=1200   # 20 min hard cap before we call it a real timeout
+          POLL_INTERVAL=15     # seconds between describe-services polls
+
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ACTIVE" ]; then
-            aws ecs update-service --cluster "$CLUSTER" --service "$APP" --force-new-deployment >/dev/null
-            aws ecs wait services-stable --cluster "$CLUSTER" --services "$APP"
-            echo "deployed $APP"
-          else
+          if [ "$STATUS" != "ACTIVE" ]; then
             echo "ECS service $APP not created yet — image is in ECR, skipping deploy"
+            exit 0
           fi
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$APP" --force-new-deployment >/dev/null
+          echo "Triggered new deployment for $APP; polling rolloutState (timeout ${MAX_WAIT_SECS}s)..."
+
+          elapsed=0
+          while [ "$elapsed" -lt "$MAX_WAIT_SECS" ]; do
+            # describe-services must not abort the loop on a transient error (set -e safe).
+            DESC=$(aws ecs describe-services \
+              --cluster "$CLUSTER" --services "$APP" \
+              --query 'services[0].deployments[?status==`PRIMARY`]|[0].[rolloutState,runningCount,desiredCount]' \
+              --output text 2>/dev/null) || DESC=""
+
+            if [ -z "$DESC" ] || [ "$DESC" = "None" ]; then
+              echo "  ($elapsed s) no PRIMARY deployment info yet, retrying..."
+            else
+              ROLLOUT_STATE=$(echo "$DESC" | awk '{print $1}')
+              RUNNING=$(echo "$DESC" | awk '{print $2}')
+              DESIRED=$(echo "$DESC" | awk '{print $3}')
+              echo "  ($elapsed s) rolloutState=$ROLLOUT_STATE running=$RUNNING desired=$DESIRED"
+
+              if [ "$ROLLOUT_STATE" = "COMPLETED" ] && [ "$RUNNING" = "$DESIRED" ]; then
+                echo "deployed $APP — rollout COMPLETED ($RUNNING/$DESIRED tasks running)"
+                exit 0
+              fi
+              if [ "$ROLLOUT_STATE" = "FAILED" ]; then
+                echo "::error::ECS rollout for $APP FAILED — see service events in the AWS console"
+                exit 1
+              fi
+            fi
+
+            sleep "$POLL_INTERVAL"
+            elapsed=$((elapsed + POLL_INTERVAL))
+          done
+
+          echo "::error::ECS rollout for $APP did not reach COMPLETED within ${MAX_WAIT_SECS}s (genuine timeout)"
+          exit 1
