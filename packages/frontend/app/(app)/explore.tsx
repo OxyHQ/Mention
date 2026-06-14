@@ -72,7 +72,7 @@ const ExploreScreen: React.FC = () => {
           />
         );
       case 'people':
-        return <WhoToFollowTab />;
+        return <WhoToFollowTab listHeaderComponent={trendsHeader} />;
       case 'starter-packs':
         return <StarterPacksTab />;
       default:

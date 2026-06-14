@@ -64,7 +64,16 @@ function getUserId(user: Pick<RecommendedUser, 'id' | '_id'>): string {
   return String(user.id ?? user._id ?? '');
 }
 
-export function WhoToFollowTab() {
+interface WhoToFollowTabProps {
+  /**
+   * Optional header element rendered above the invite banner inside the list,
+   * so it scrolls away with the content — identical to the Feed-backed tabs,
+   * which pass the same trends strip as the Feed's `listHeaderComponent`.
+   */
+  listHeaderComponent?: React.ReactElement;
+}
+
+export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}) {
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -169,6 +178,34 @@ export function WhoToFollowTab() {
     return <FollowRow item={item} userId={id} />;
   }, []);
 
+  const listHeader = useMemo(
+    () => (
+      <>
+        {listHeaderComponent}
+        <TouchableOpacity
+          className="bg-card border-border"
+          style={styles.inviteBanner}
+          onPress={handleInviteFriends}
+          activeOpacity={0.7}
+        >
+          <View className="bg-primary" style={styles.inviteIconContainer}>
+            <Ionicons name="people" size={18} color={theme.colors.card} />
+          </View>
+          <View style={styles.inviteContent}>
+            <ThemedText className="text-foreground" style={styles.inviteTitle}>
+              {t('settings.inviteContacts.inviteBannerTitle')}
+            </ThemedText>
+            <ThemedText className="text-muted-foreground" style={styles.inviteSubtitle}>
+              {t('settings.inviteContacts.inviteBannerSubtitle')}
+            </ThemedText>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      </>
+    ),
+    [listHeaderComponent, handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t],
+  );
+
   if (loading && recommendations.length === 0) {
     return (
       <View style={styles.loadingContainer}>
@@ -192,51 +229,32 @@ export function WhoToFollowTab() {
     );
   }
 
-  const renderInviteBanner = () => (
-    <TouchableOpacity
-      className="bg-card border-border"
-      style={styles.inviteBanner}
-      onPress={handleInviteFriends}
-      activeOpacity={0.7}
-    >
-      <View className="bg-primary" style={styles.inviteIconContainer}>
-        <Ionicons name="people" size={20} color={theme.colors.card} />
-      </View>
-      <View style={styles.inviteContent}>
-        <ThemedText className="text-foreground" style={styles.inviteTitle}>
-          {t('settings.inviteContacts.inviteBannerTitle')}
-        </ThemedText>
-        <ThemedText className="text-muted-foreground" style={styles.inviteSubtitle}>
-          {t('settings.inviteContacts.inviteBannerSubtitle')}
-        </ThemedText>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-    </TouchableOpacity>
-  );
-
   return (
-    <LegendList
-      data={recommendations}
-      renderItem={renderUser}
-      keyExtractor={(item: RecommendedUser) => getUserId(item) || item.username}
-      ListHeaderComponent={renderInviteBanner}
-      ListEmptyComponent={
-        <View style={styles.emptyContainer}>
-          <ThemedText className="text-muted-foreground">
-            {t('No recommendations available')}
-          </ThemedText>
-        </View>
-      }
-      removeClippedSubviews={false}
-      maxToRenderPerBatch={10}
-      windowSize={10}
-      initialNumToRender={10}
-      recycleItems={true}
-      maintainVisibleContentPosition={true}
-      contentContainerStyle={styles.listContent}
-      refreshing={loading}
-      onRefresh={fetchAndEnrich}
-    />
+    <View className="flex-1 bg-background" style={styles.container}>
+      <LegendList
+        data={recommendations}
+        renderItem={renderUser}
+        keyExtractor={(item: RecommendedUser) => getUserId(item) || item.username}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <ThemedText className="text-muted-foreground">
+              {t('No recommendations available')}
+            </ThemedText>
+          </View>
+        }
+        removeClippedSubviews={false}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={10}
+        recycleItems={true}
+        maintainVisibleContentPosition={true}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        refreshing={loading}
+        onRefresh={fetchAndEnrich}
+      />
+    </View>
   );
 }
 
@@ -266,7 +284,7 @@ const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId:
         onPress={handlePress}
         activeOpacity={0.7}
       >
-        <Avatar source={avatarUri} size={48} />
+        <Avatar source={avatarUri} size={40} />
         <View style={styles.rowTextWrap}>
           <ThemedText className="text-foreground" style={styles.rowTitle}>
             {displayName}
@@ -275,7 +293,7 @@ const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId:
             @{username}
           </ThemedText>
           {item.bio ? (
-            <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={2}>
+            <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={1}>
               {item.bio}
             </ThemedText>
           ) : null}
@@ -288,6 +306,14 @@ const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId:
 FollowRow.displayName = 'FollowRow';
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    minHeight: 0,
+  },
+  list: {
+    flex: 1,
+    minHeight: 0,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -314,7 +340,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 0.5,
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
@@ -324,26 +350,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowTextWrap: {
-    marginLeft: 12,
+    marginLeft: 10,
     flex: 1,
   },
   rowTitle: {
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
   },
   rowSub: {
     paddingTop: 2,
-    fontSize: 14,
+    fontSize: 13,
   },
   rowBio: {
-    paddingTop: 4,
-    fontSize: 14,
-    lineHeight: 18,
+    paddingTop: 2,
+    fontSize: 13,
+    lineHeight: 17,
   },
   inviteBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 10,
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
@@ -352,9 +378,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   inviteIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -362,12 +388,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inviteTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     marginBottom: 2,
   },
   inviteSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
   },
 });

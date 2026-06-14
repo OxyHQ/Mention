@@ -120,7 +120,7 @@ export default function SettingsScreen() {
                             <Button
                                 variant="secondary"
                                 size="small"
-                                onPress={() => showBottomSheet?.('AccountSettings')}
+                                onPress={() => showBottomSheet?.('ManageAccount')}
                             >
                                 {t('settings.account.manageAccount', { defaultValue: 'Manage account' })}
                             </Button>
