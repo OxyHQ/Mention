@@ -121,8 +121,8 @@ interface VideoItemProps {
     onBoost: (postId: string, isBoosted: boolean) => void;
     onShare: (post: VideoPost) => void;
     formatCompactNumber: (count: number) => string;
-    globalMuted: boolean;
-    onMuteChange: (muted: boolean) => void;
+    muted: boolean;
+    onMutedChange: (muted: boolean) => void;
     bottomBarHeight: number;
     t: (key: string) => string;
     windowHeight: number;
@@ -136,8 +136,7 @@ interface ActiveVideoSurfaceProps {
     videoUrl: string;
     posterUrl?: string;
     isActive: boolean;
-    globalMuted: boolean;
-    isMuted: boolean;
+    muted: boolean;
     onMutedChange: (muted: boolean) => void;
     onError: () => void;
     t: (key: string) => string;
@@ -148,8 +147,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     videoUrl,
     posterUrl,
     isActive,
-    globalMuted,
-    isMuted,
+    muted,
     onMutedChange,
     onError,
     t,
@@ -173,7 +171,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         p.loop = true;
         // Single source of truth for the initial mute: the global store value
         // captured at mount. Subsequent changes flow through the sync effect below.
-        p.muted = globalMuted;
+        p.muted = muted;
     });
 
     // Surface readiness + errors so the poster can stay up until first frame and
@@ -192,10 +190,10 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
 
     // Single place that syncs the live player's mute with the store.
     useEffect(() => {
-        if (player.muted !== isMuted) {
-            player.muted = isMuted;
+        if (player.muted !== muted) {
+            player.muted = muted;
         }
-    }, [player, isMuted]);
+    }, [player, muted]);
 
     // Play only when this is the active index; otherwise the neighbour is
     // preloaded but paused. Restarts from the top each time it becomes active.
@@ -209,13 +207,13 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     }, [player, isActive]);
 
     const toggleMute = useCallback(() => {
-        const next = !isMuted;
+        const next = !muted;
         onMutedChange(next);
         player.muted = next;
         if (!next && isActive) {
             player.play();
         }
-    }, [isMuted, isActive, onMutedChange, player]);
+    }, [muted, isActive, onMutedChange, player]);
 
     const showPoster = !hasRendered;
 
@@ -249,7 +247,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
 
             <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={HIT_SLOP}>
                 <View style={styles.muteButtonInner}>
-                    <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={22} color="white" />
+                    <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={22} color="white" />
                 </View>
             </Pressable>
 
@@ -278,8 +276,8 @@ const VideoItem = memo<VideoItemProps>(({
     onBoost,
     onShare,
     formatCompactNumber,
-    globalMuted,
-    onMuteChange,
+    muted,
+    onMutedChange,
     bottomBarHeight,
     t,
     windowHeight,
@@ -311,9 +309,8 @@ const VideoItem = memo<VideoItemProps>(({
                     videoUrl={item.videoUrl}
                     posterUrl={item.posterUrl}
                     isActive={isActive}
-                    globalMuted={globalMuted}
-                    isMuted={globalMuted}
-                    onMutedChange={onMuteChange}
+                    muted={muted}
+                    onMutedChange={onMutedChange}
                     onError={handleError}
                     t={t}
                     theme={theme}
@@ -465,11 +462,18 @@ export default function VideosScreen() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
     const { isMuted: globalMuted, loadMutedState } = useVideoMuteStore();
-    const [targetPostId] = useState<string | undefined>(params.postId);
-    const [targetMediaIndex] = useState<number | undefined>(() => {
+    // Frozen at cold load: the target post + media index are read once so later
+    // param changes never re-trigger the initial load or re-order the reel.
+    const targetParamsRef = useRef<{ postId?: string; mediaIndex?: number } | null>(null);
+    if (!targetParamsRef.current) {
         const parsed = Number(params.mediaIndex);
-        return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
-    });
+        targetParamsRef.current = {
+            postId: params.postId,
+            mediaIndex: Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined,
+        };
+    }
+    const targetPostId = targetParamsRef.current.postId;
+    const targetMediaIndex = targetParamsRef.current.mediaIndex;
 
     const flatListRef = useRef<FlatList<VideoPost>>(null);
 
@@ -654,7 +658,9 @@ export default function VideosScreen() {
         }
     }, [fetchVideosUntilProgress, hasMore, nextCursor, loadingMore]);
 
-    const handleViewableItemsChangedRef = useRef(({ viewableItems }: { viewableItems: ViewableItem[] }) => {
+    // Stable for the lifetime of the screen: its only output is the stable
+    // `setCurrentVisibleIndex` setter, so the FlatList never sees a new identity.
+    const handleViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewableItem[] }) => {
         if (viewableItems?.length > 0) {
             const mostVisibleItem = viewableItems.find((vi) => vi.isViewable) || viewableItems[0];
             const index = mostVisibleItem?.index;
@@ -664,10 +670,6 @@ export default function VideosScreen() {
         } else {
             setCurrentVisibleIndex(-1);
         }
-    });
-
-    const handleViewableItemsChanged = useCallback((info: { viewableItems: ViewableItem[] }) => {
-        handleViewableItemsChangedRef.current(info);
     }, []);
 
     const handleLike = useCallback(async (postId: string, isLiked: boolean) => {
@@ -762,8 +764,8 @@ export default function VideosScreen() {
             onBoost={handleBoost}
             onShare={handleShare}
             formatCompactNumber={formatCompactNumber}
-            globalMuted={globalMuted}
-            onMuteChange={handleMuteChange}
+            muted={globalMuted}
+            onMutedChange={handleMuteChange}
             bottomBarHeight={bottomBarHeight}
             t={t}
             windowHeight={WINDOW_HEIGHT}

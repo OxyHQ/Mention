@@ -21,6 +21,11 @@ const MEDIA_POSTER_PATH = '/media/poster';
 // Oxy generated still-frame variant for native (non-federated) video assets.
 const OXY_THUMB_VARIANT = 'thumb';
 
+// Cache variant key for the federated/remote `/media/poster` branch. Keyed by
+// the raw video URL so the (deterministic) poster URL is computed once instead
+// of re-parsing + re-encoding on every render. Mirrors the thumb-variant cache.
+const POSTER_VARIANT = 'poster';
+
 /**
  * Origins we own — absolute URLs on these hosts must NOT be routed through the
  * proxy (they already resolve to our own backend/CDN and proxying them would be
@@ -129,6 +134,11 @@ export function videoPosterUrl(
     return resolved;
   }
 
+  // The federated/proxy branch below is deterministic for a given `videoUrl`
+  // but re-parses + re-encodes on every call. Memoize keyed by the raw URL.
+  const cachedPoster = imageUrlCache.get(videoUrl, POSTER_VARIANT);
+  if (cachedPoster) return cachedPoster;
+
   try {
     const parsed = new URL(videoUrl);
 
@@ -138,7 +148,9 @@ export function videoPosterUrl(
     if (ownOrigins.has(parsed.origin) && parsed.pathname === MEDIA_PROXY_PATH) {
       const original = parsed.searchParams.get('url');
       if (!original) return undefined;
-      return `${API_URL}${MEDIA_POSTER_PATH}?url=${encodeURIComponent(original)}`;
+      const posterUrl = `${API_URL}${MEDIA_POSTER_PATH}?url=${encodeURIComponent(original)}`;
+      imageUrlCache.set(videoUrl, posterUrl, POSTER_VARIANT);
+      return posterUrl;
     }
 
     // Any other own-origin URL: not a federated video we need to frame-grab.
@@ -148,7 +160,9 @@ export function videoPosterUrl(
     }
 
     // Federated / remote absolute URL → poster from the backend frame extractor.
-    return `${API_URL}${MEDIA_POSTER_PATH}?url=${encodeURIComponent(videoUrl)}`;
+    const posterUrl = `${API_URL}${MEDIA_POSTER_PATH}?url=${encodeURIComponent(videoUrl)}`;
+    imageUrlCache.set(videoUrl, posterUrl, POSTER_VARIANT);
+    return posterUrl;
   } catch {
     // Not a parseable absolute URL — no sensible poster.
     return undefined;

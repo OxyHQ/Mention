@@ -5,17 +5,17 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { Spinner } from '@/components/ui/Spinner';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
-import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { videoPosterUrl } from '@/utils/imageUrlCache';
+import VideoPosterCell from '@/components/common/VideoPosterCell';
+import { isVideoMediaRef } from '@/utils/mediaTypes';
 
 interface VideosGridProps {
     userId?: string;
@@ -38,67 +38,8 @@ interface VideoGridEntry {
 const NUM_COLUMNS = 3;
 const GAP = 1;
 const H_PADDING = 0;
-const PLAY_BADGE_SIZE = 24;
-const PLAY_BADGE_RADIUS = 12;
-const PLAY_ICON_SIZE = 16;
-const PLACEHOLDER_ICON_SIZE = 24;
 const PROFILE_VIDEO_FEED_LIMIT = 50;
 const PROFILE_POSTS_FEED_LIMIT = 60;
-
-/**
- * A single grid cell. Renders a STATIC poster image (no live decoder) plus a
- * play badge — this is a thumbnail grid (Instagram-style); playback happens
- * only in the fullscreen reels screen on tap. Hoisted to module scope and
- * memoized so cells never remount on parent re-render.
- */
-const VideoGridCell = React.memo<{ posterUri?: string; size: number; placeholderColor: string }>(
-    ({ posterUri, size, placeholderColor }) => {
-        const containerStyle = useMemo(
-            () => ({ width: size, height: size, overflow: 'hidden' as const }),
-            [size]
-        );
-        // Poster (esp. the federated `/media/poster` frame) can 404/fail to load →
-        // fall back to the video-icon placeholder, never a broken image.
-        const [posterFailed, setPosterFailed] = useState(false);
-
-        useEffect(() => {
-            setPosterFailed(false);
-        }, [posterUri]);
-
-        const handlePosterError = useCallback(() => setPosterFailed(true), []);
-
-        return (
-            <View className="bg-secondary" style={containerStyle}>
-                {posterUri && !posterFailed ? (
-                    <Image
-                        source={{ uri: posterUri }}
-                        style={{ width: '100%', height: '100%' }}
-                        contentFit="cover"
-                        transition={150}
-                        cachePolicy="memory-disk"
-                        onError={handlePosterError}
-                    />
-                ) : (
-                    <View className="w-full h-full items-center justify-center bg-secondary">
-                        <Ionicons name="videocam-outline" size={PLACEHOLDER_ICON_SIZE} color={placeholderColor} />
-                    </View>
-                )}
-                <View
-                    className="absolute top-1 right-1 items-center justify-center"
-                    style={{
-                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                        borderRadius: PLAY_BADGE_RADIUS,
-                        width: PLAY_BADGE_SIZE,
-                        height: PLAY_BADGE_SIZE,
-                    }}
-                >
-                    <Ionicons name="play" size={PLAY_ICON_SIZE} color="white" />
-                </View>
-            </View>
-        );
-    }
-);
-VideoGridCell.displayName = 'VideoGridCell';
 
 const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
     const { oxyServices } = useAuth();
@@ -162,13 +103,9 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         ) => {
             const collected = sources.filter(Boolean) as string[];
             const seen = new Set<string>();
-            const isPostVideo = postType === 'video';
 
             collected.forEach((raw, idx) => {
-                const mediaType = mediaTypes?.[idx];
-                const isMediaTypeVideo = mediaType === 'video';
-                const isFileExtensionVideo = /\.(mp4|mov|m4v|webm|mpg|mpeg|avi|mkv)$/i.test(String(raw));
-                const isVideo = isPostVideo || isMediaTypeVideo || isFileExtensionVideo;
+                const isVideo = isVideoMediaRef(raw, { postType, mediaType: mediaTypes?.[idx] });
 
                 if (!isVideo) return; // Only include videos
                 if (seen.has(raw)) return;
@@ -212,10 +149,11 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                 style={{ width: itemSize, height: itemSize, marginRight: GAP, marginBottom: GAP }}
                 onPress={handlePress}
             >
-                <VideoGridCell
+                <VideoPosterCell
                     posterUri={item.posterUri}
                     size={itemSize}
                     placeholderColor={theme.colors.textSecondary}
+                    badge="corner"
                 />
             </TouchableOpacity>
         );

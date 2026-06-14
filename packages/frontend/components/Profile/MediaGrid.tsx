@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { isDbAvailable } from '@/db';
+import VideoPosterCell from '@/components/common/VideoPosterCell';
+import { isVideoMediaRef } from '@/utils/mediaTypes';
 
 interface MediaGridProps {
     userId?: string;
@@ -34,60 +36,11 @@ interface MediaGridEntry {
 const NUM_COLUMNS = 3;
 const GAP = 1; // instagram-like tight spacing
 const H_PADDING = 0;
-const VIDEO_PLAY_ICON_SIZE = 24;
-const VIDEO_PLACEHOLDER_ICON_SIZE = 32;
 const CAROUSEL_ICON_SIZE = 12;
 const PROFILE_MEDIA_FEED_LIMIT = 50;
 const PROFILE_POSTS_FEED_LIMIT = 60;
 const INITIAL_RENDER_COUNT = 18;
 const WINDOW_SIZE = 7;
-
-/**
- * Static video cell for the media grid: a paused poster image (Oxy `thumb`
- * variant) plus a play badge. No live `useVideoPlayer`/`VideoView` — playback
- * happens only in the fullscreen reels screen on tap. Hoisted + memoized so
- * cells never remount on parent re-render.
- */
-const VideoGridCell = React.memo<{ posterUri?: string; size: number; placeholderColor: string }>(
-    ({ posterUri, size, placeholderColor }) => {
-        const containerStyle = useMemo(
-            () => ({ width: size, height: size, overflow: 'hidden' as const }),
-            [size]
-        );
-        // Poster (esp. the federated `/media/poster` frame) can 404/fail to load →
-        // fall back to the video-icon placeholder, never a broken image.
-        const [posterFailed, setPosterFailed] = useState(false);
-
-        useEffect(() => {
-            setPosterFailed(false);
-        }, [posterUri]);
-
-        const handlePosterError = useCallback(() => setPosterFailed(true), []);
-
-        return (
-            <View className="bg-secondary" style={containerStyle}>
-                {posterUri && !posterFailed ? (
-                    <Image
-                        source={{ uri: posterUri }}
-                        style={{ width: '100%', height: '100%' }}
-                        contentFit="cover"
-                        transition={150}
-                        cachePolicy="memory-disk"
-                        onError={handlePosterError}
-                    />
-                ) : (
-                    <View className="w-full h-full items-center justify-center bg-secondary">
-                        <Ionicons name="videocam-outline" size={VIDEO_PLACEHOLDER_ICON_SIZE} color={placeholderColor} />
-                    </View>
-                )}
-                <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
-                    <Ionicons name="play-circle" size={VIDEO_PLAY_ICON_SIZE} color="rgba(255, 255, 255, 0.9)" />
-                </View>
-            </View>
-        );
-    }
-);
-VideoGridCell.displayName = 'VideoGridCell';
 
 const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
     const { oxyServices } = useAuth();
@@ -158,13 +111,9 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         const pushUris = (targetId: string, sources: (string | undefined)[], postType?: string, mediaTypes?: (string | undefined)[]) => {
             const collected = sources.filter(Boolean) as string[];
             const seen = new Set<string>();
-            const isPostVideo = postType === 'video';
 
             collected.forEach((raw, idx) => {
-                const mediaType = mediaTypes?.[idx];
-                const isMediaTypeVideo = mediaType === 'video';
-                const isFileExtensionVideo = /\.(mp4|mov|m4v|webm|mpg|mpeg|avi|mkv)$/i.test(String(raw));
-                const isVideo = isPostVideo || isMediaTypeVideo || isFileExtensionVideo;
+                const isVideo = isVideoMediaRef(raw, { postType, mediaType: mediaTypes?.[idx] });
 
                 // For videos the cell renders a static poster (resolved via `thumb`);
                 // an empty/unresolvable poster still produces a placeholder cell, so
@@ -292,10 +241,11 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 onPress={handlePress}
             >
                 {item.isVideo ? (
-                    <VideoGridCell
+                    <VideoPosterCell
                         posterUri={item.uri || undefined}
                         size={itemSize}
                         placeholderColor={theme.colors.textSecondary}
+                        badge="center"
                     />
                 ) : (
                     <Image
