@@ -7,6 +7,7 @@ import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
+import { isAuthUndetermined, isAuthedIdentityPending } from '@/utils/feedAuthGate';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import {
     getFeedMemoryCache,
@@ -123,8 +124,10 @@ export function useFeedState({
     isAuthResolved,
 }: UseFeedStateOptions): UseFeedStateReturn {
     // Only an explicit `false` means "auth still resolving"; `undefined` callers
-    // (profile feeds, etc.) are not gated and behave as before.
-    const authUndetermined = isAuthResolved === false;
+    // (profile feeds, etc.) are not gated and behave as before. Shared with the
+    // home screen's feed-identity key (see `utils/feedAuthGate`) so the loading
+    // gate here and the remount key there can never disagree.
+    const authUndetermined = isAuthUndetermined({ isAuthResolved });
     const {
         fetchFeed,
         fetchUserFeed,
@@ -777,11 +780,26 @@ export function useFeedState({
     const slices = useMemoryFeed ? localSlices : globalFeed?.slices;
     const hasMore = useMemoryFeed ? localHasMore : !!globalFeed?.hasMore;
     const baseLoading = useMemoryFeed ? localLoading : !!globalFeed?.isLoading;
-    // While auth is undetermined we deliberately suppress the fetch, so surface a
-    // loading state (rather than an empty "No posts yet" placeholder) until the
-    // determination concludes and the real fetch runs. A genuinely-anonymous
-    // visitor resolves quickly, so this window is brief for them.
-    const isLoading = authUndetermined || baseLoading;
+    // The feed must NEVER strand on the empty "No posts yet" placeholder while
+    // auth is still settling. Two sub-windows are deliberately suppressed (the
+    // fetch is skipped during both — see `fetchInitial`), so we surface a loading
+    // state for them instead of an empty result:
+    //
+    //   1. `authUndetermined` — the cold-boot determination has not concluded
+    //      (`isAuthResolved === false`); `isAuthenticated` is not yet reliable.
+    //   2. `authedIdentityPending` — auth has resolved (or the caller does not
+    //      gate on resolution) and the viewer is authenticated, but the full
+    //      `currentUserId` has not landed yet. `fetchInitial` bails in exactly
+    //      this window (`isAuthenticated && !currentUserId`) to avoid issuing a
+    //      tokenless request, so without this guard `isLoading` would be `false`
+    //      with empty items → the placeholder commits and strands. The
+    //      initial-fetch effect is keyed on `currentUserId`, so it re-runs and
+    //      the real fetch fires the instant the id arrives.
+    //
+    // A genuinely-anonymous visitor (resolved, not authenticated) hits neither
+    // window, so the anon/public feed still loads promptly.
+    const authedIdentityPending = isAuthedIdentityPending({ isAuthResolved, isAuthenticated, currentUserId });
+    const isLoading = authUndetermined || authedIdentityPending || baseLoading;
     const error = useMemoryFeed ? localError : globalFeed?.error || null;
     const nextCursor = useMemoryFeed ? localNextCursor : globalFeed?.nextCursor;
 
