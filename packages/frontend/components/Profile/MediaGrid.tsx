@@ -43,7 +43,8 @@ const INITIAL_RENDER_COUNT = 18;
 const WINDOW_SIZE = 7;
 
 const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
-    const { oxyServices } = useAuth();
+    const { oxyServices, user } = useAuth();
+    const viewerId = user?.id;
     const router = useRouter();
     const theme = useTheme();
     const { t } = useTranslation();
@@ -62,7 +63,11 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         if (!userId || (isPrivate && !isOwnProfile)) return;
 
         fetchUserFeed(userId, { type: 'media', limit: PROFILE_MEDIA_FEED_LIMIT });
-    }, [userId, fetchUserFeed, isPrivate, isOwnProfile]);
+        // `viewerId` is in the deps so the feed refetches when the viewer's auth
+        // session resolves on cold boot — visibility of follower/owner-gated
+        // media depends on who is asking, and the request would otherwise run
+        // once while anonymous and never refresh.
+    }, [userId, viewerId, fetchUserFeed, isPrivate, isOwnProfile]);
 
     // Fallback: if media feed finished and is empty, attempt to load posts feed for media extraction
     useEffect(() => {
@@ -75,7 +80,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         if (isLoaded && isEmpty && !postsLoaded) {
             fetchUserFeed(userId, { type: 'posts', limit: PROFILE_POSTS_FEED_LIMIT });
         }
-    }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
+    }, [userId, viewerId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
     // Grid image thumbnail. Prefer the server-resolved final `thumbUrl` (fallback
     // `url`) from the media object; fall back to the legacy client resolver for a

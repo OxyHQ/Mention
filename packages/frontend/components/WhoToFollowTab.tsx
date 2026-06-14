@@ -166,7 +166,11 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     } finally {
       setLoading(false);
     }
-  }, [oxyServices]);
+    // `user?.id` is in the deps so the callback identity changes when the auth
+    // session resolves on cold boot. Without it, `oxyServices` is a stable
+    // singleton and the effect below fires once while anonymous, never
+    // refetching the personalized recommendations after sign-in lands.
+  }, [oxyServices, user?.id]);
 
   useEffect(() => {
     fetchAndEnrich();

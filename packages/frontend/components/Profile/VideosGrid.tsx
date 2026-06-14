@@ -42,7 +42,8 @@ const PROFILE_VIDEO_FEED_LIMIT = 50;
 const PROFILE_POSTS_FEED_LIMIT = 60;
 
 const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
-    const { oxyServices } = useAuth();
+    const { oxyServices, user } = useAuth();
+    const viewerId = user?.id;
     const router = useRouter();
     const theme = useTheme();
     const { t } = useTranslation();
@@ -59,7 +60,11 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         if (!userId || (isPrivate && !isOwnProfile)) return;
 
         fetchUserFeed(userId, { type: 'media', limit: PROFILE_VIDEO_FEED_LIMIT });
-    }, [userId, fetchUserFeed, isPrivate, isOwnProfile]);
+        // `viewerId` is in the deps so the feed refetches when the viewer's auth
+        // session resolves on cold boot — visibility of follower/owner-gated
+        // videos depends on who is asking, and the request would otherwise run
+        // once while anonymous and never refresh.
+    }, [userId, viewerId, fetchUserFeed, isPrivate, isOwnProfile]);
 
     useEffect(() => {
         if (!userId || (isPrivate && !isOwnProfile)) return;
@@ -71,7 +76,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         if (isLoaded && isEmpty && !postsLoaded) {
             fetchUserFeed(userId, { type: 'posts', limit: PROFILE_POSTS_FEED_LIMIT });
         }
-    }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
+    }, [userId, viewerId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
     /**
      * Resolve a static video poster. Prefer the server-resolved final `posterUrl`

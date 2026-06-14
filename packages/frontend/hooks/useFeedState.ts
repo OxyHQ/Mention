@@ -11,6 +11,7 @@ import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import {
     getFeedMemoryCache,
     setFeedMemoryCache,
+    clearFeedMemoryCache,
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
 
@@ -116,6 +117,8 @@ export function useFeedState({
         refreshFeed,
         loadMoreFeed,
         clearError: clearGlobalError,
+        clearFeed,
+        clearUserFeed,
     } = usePostsStore();
 
     // useMemoryFeed is true when:
@@ -194,6 +197,10 @@ export function useFeedState({
     const primaryAbortRef = useRef<AbortController | null>(null);
     const loadMoreAbortRef = useRef<AbortController | null>(null);
     const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
+    // Tracks the auth identity the currently-displayed feed was loaded under, so a
+    // change (anon→user, or user A→user B) can invalidate the stale cache before
+    // the fresh authenticated feed is fetched. `undefined` means "not yet seen".
+    const previousIdentityRef = useRef<string | undefined>(undefined);
 
     useEffect(() => {
         return () => {
@@ -273,8 +280,13 @@ export function useFeedState({
             // clear the spinner of the request that replaced it.
             const ownsPrimary = () => primaryAbortRef.current === controller;
 
+            // Transient cold-boot guard: at restore, `isAuthenticated` can flip true
+            // a tick before `currentUserId` lands. Skipping here is safe ONLY because
+            // the initial-fetch effect is keyed on `currentUserId` — once the id
+            // arrives the effect re-runs and this fetch proceeds. Without that dep
+            // this skip would be permanent (infinite spinner).
             if (isAuthenticated && !currentUserId) {
-                logger.debug('Not authenticated, skipping');
+                logger.debug('Auth resolving (no user id yet), deferring fetch until id lands');
                 isFetchingRef.current = false;
                 return;
             }
@@ -669,19 +681,55 @@ export function useFeedState({
         }
     }, [reloadKey]);
 
-    // Handle initial load and filter changes. Switching feed identity also resets
-    // the federated pending-poll budget so a new profile starts polling fresh.
+    // Handle initial load, filter changes, and auth-identity changes. This effect
+    // is keyed on the reactive auth identity (`isAuthenticated` + `currentUserId`)
+    // so that when a session restores asynchronously on cold boot — flipping
+    // anon→authed after mount — the initial fetch re-runs against the now-ready
+    // token instead of being stranded on the anonymous (or empty) result.
+    //
+    // Switching feed identity also resets the federated pending-poll budget so a
+    // new profile starts polling fresh.
     useDeepCompareEffect(() => {
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) return;
+
+        // The auth identity this run represents: the authenticated user id when
+        // signed in, the literal 'anon' otherwise. Saved feeds never key on the
+        // viewer, so their identity is constant.
+        const identity = showOnlySaved
+            ? 'saved'
+            : (isAuthenticated && currentUserId ? currentUserId : 'anon');
+        const previousIdentity = previousIdentityRef.current;
+        const identityChanged =
+            previousIdentity !== undefined && previousIdentity !== identity;
+        previousIdentityRef.current = identity;
+
+        // When the viewer changes (anon→user, or user A→user B), the cached feed
+        // belongs to the previous identity and must not suppress the fresh fetch.
+        // Drop both the memory-mode retained slice and the SQLite cache for this
+        // feed so `fetchInitial` performs a real network load for the new viewer.
+        if (identityChanged) {
+            seededCacheRef.current = undefined;
+            if (useMemoryFeed) {
+                clearFeedMemoryCache(feedScrollKey);
+            } else if (!showOnlySaved) {
+                // Saved feeds are viewer-invariant (identity is constant 'saved'),
+                // so this branch only runs for the regular per-viewer feeds.
+                if (userId) {
+                    clearUserFeed(userId, type);
+                } else {
+                    clearFeed(type);
+                }
+            }
+        }
 
         clearPendingPoll();
         pendingPollCountRef.current = 0;
         setPending(false);
 
         fetchInitial(false);
-    }, [type, userId, filters, useMemoryFeed, showOnlySaved]);
+    }, [type, userId, filters, useMemoryFeed, showOnlySaved, isAuthenticated, currentUserId]);
 
     // Return appropriate state based on which path is active.
     // useMemoryFeed covers both scoped (filtered) feeds and global feeds when SQLite

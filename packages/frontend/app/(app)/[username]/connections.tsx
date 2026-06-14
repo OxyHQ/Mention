@@ -148,7 +148,12 @@ export default function ConnectionsScreen() {
         logger.error('Error loading recommendations', { error: err });
       }
     }
-  }, [oxyServices]);
+    // `user?.id` is a dependency so recommendations refetch when the viewer's
+    // auth session resolves on cold boot: who-may-know suggestions are
+    // personalized for the signed-in viewer. `oxyServices` is a stable
+    // singleton, so without this the list loads once while anonymous and never
+    // updates after sign-in.
+  }, [oxyServices, user?.id]);
 
   // Load data based on active tab
   const loadCurrentTab = useCallback(async () => {

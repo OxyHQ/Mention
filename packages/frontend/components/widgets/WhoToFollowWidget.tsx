@@ -36,7 +36,7 @@ interface ProfileData {
 const MAX_DISPLAY_USERS = 5;
 
 export function WhoToFollowWidget() {
-  const { oxyServices } = useAuth();
+  const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
 
@@ -100,7 +100,11 @@ export function WhoToFollowWidget() {
     return () => {
       mounted = false;
     };
-  }, [oxyServices]);
+    // Re-run when the auth identity resolves: `oxyServices` is a stable
+    // singleton, so on cold boot this otherwise fires once while anonymous and
+    // never refetches the (personalized) recommendations after the session
+    // restores. `user?.id` flips from undefined → the real id on resolve.
+  }, [oxyServices, user?.id]);
 
   const handleShowMore = useCallback(() => {
     router.push("/explore");

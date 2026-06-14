@@ -17,7 +17,26 @@ import {
 type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices'>>;
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
+import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@/lib/logger';
+
+/**
+ * In-flight dedup discriminator for the viewer's auth state.
+ *
+ * Returns `'auth'` when an access token is present, `'anon'` otherwise. This is
+ * folded into the in-flight request key so an authenticated fetch can never
+ * piggyback on an in-flight anonymous fetch's promise (or vice versa) for the
+ * same descriptor — the two return different content and must resolve
+ * independently. Critically, this prevents an anon load issued during the
+ * cold-boot auth-not-ready window from masking the later authenticated fetch.
+ */
+function authDedupeMarker(): 'auth' | 'anon' {
+  try {
+    return oxyServices.getClient().getAccessToken() ? 'auth' : 'anon';
+  } catch {
+    return 'anon';
+  }
+}
 
 // Extended FeedRequest with frontend-specific filter properties
 interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
@@ -50,7 +69,7 @@ function getDedupeKey(request: ExtendedFeedRequest): string {
   const filterKey = filters
     ? Object.keys(filters).sort().map((k) => `${k}=${(filters as any)[k] ?? ''}`).join('&')
     : '';
-  return `${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
+  return `${authDedupeMarker()}|${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
 }
 
 class FeedService {
@@ -448,8 +467,10 @@ class FeedService {
     if (options?.cursor) params.cursor = options.cursor;
     if (options?.limit) params.limit = options.limit;
 
-    // Dedup in-flight
-    const cacheKey = `mtn|${descriptor}|${options?.cursor || 'initial'}`;
+    // Dedup in-flight. Keyed on the viewer's auth state so an authenticated fetch
+    // never shares an in-flight promise with an anonymous one for the same
+    // descriptor — the two return different content and must resolve independently.
+    const cacheKey = `mtn|${authDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}`;
     const existing = inFlightRequests.get(cacheKey);
     if (existing) return existing;
 

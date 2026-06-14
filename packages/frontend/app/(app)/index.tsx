@@ -40,7 +40,7 @@ const FAB_ICON_SIZE = 22;
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { open: openDrawer } = useDrawer();
@@ -212,13 +212,21 @@ const HomeScreen: React.FC = () => {
     };
 
     const renderContent = () => {
+        // Feeds that render in both the anon and authed branches (for_you, trending)
+        // must remount when the auth identity flips so their mount-time fetch re-runs
+        // against the now-ready token. Without an identity-scoped key, React reconciles
+        // the same element across the anon→authed transition and the feed stays stuck
+        // on anonymous (or empty) content. This is the belt-and-suspenders guarantee
+        // alongside the auth-keyed initial-fetch effect inside useFeedState.
+        const feedIdentity = isAuthenticated && user?.id ? user.id : 'anon';
+
         if (isAuthenticated && activeTab.startsWith('custom:')) {
             const feedId = activeTab.replace('custom:', '');
             const pinnedFeed = pinnedFeeds.find(f => f.feedId === feedId);
             if (pinnedFeed) {
                 return (
                     <Feed
-                        key={`custom-${feedId}`}
+                        key={`custom-${feedId}-${feedIdentity}`}
                         type="custom"
                         filters={{
                             customFeedId: feedId
@@ -234,19 +242,19 @@ const HomeScreen: React.FC = () => {
         if (!isAuthenticated) {
             switch (activeTab) {
                 case 'trending':
-                    return <Feed key="trending" type="explore" reloadKey={refreshKey} />;
+                    return <Feed key={`trending-${feedIdentity}`} type="explore" reloadKey={refreshKey} />;
                 default:
-                    return <Feed key="for_you" type="for_you" reloadKey={refreshKey} />;
+                    return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} />;
             }
         }
 
         switch (activeTab) {
             case 'following':
-                return <Feed key="following" type="following" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
+                return <Feed key={`following-${feedIdentity}`} type="following" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
             case 'trending':
-                return <Feed key="trending" type="explore" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
+                return <Feed key={`trending-${feedIdentity}`} type="explore" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
             default:
-                return <Feed key="for_you" type="for_you" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
+                return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
         }
     };
 

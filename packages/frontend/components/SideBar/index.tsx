@@ -213,7 +213,12 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     styles.footer,
                     { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
-                    {user && user.id ? (
+                    {/* Gate the footer on the SAME reactive condition as the profile
+                        row above (truthy `user`) so the two never disagree. A session
+                        restore can briefly commit a `user` before `user.id` lands;
+                        gating the footer on `user.id` left "Sign In" showing while the
+                        profile row had already flipped to the avatar. */}
+                    {user ? (
                         <SideBarItem
                             isActive={false}
                             icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.text} />}

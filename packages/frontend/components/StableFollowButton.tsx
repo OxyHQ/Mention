@@ -25,6 +25,18 @@ interface StableFollowButtonProps {
   size?: 'small' | 'medium' | 'large';
 }
 
+interface StableFollowButtonInnerProps extends StableFollowButtonProps {
+  /**
+   * The current viewer's id, forwarded from the outer wrapper (which already
+   * subscribes to OxyContext). Passing it as a prop — rather than calling
+   * useAuth() here — keeps the inner component free of the context
+   * subscription that would re-render all N buttons on every token refresh,
+   * while still letting the follow-status fetch re-run when the viewer's
+   * session resolves or switches on cold boot.
+   */
+  viewerId: string;
+}
+
 /**
  * Inner component that renders only when we know we should show the button.
  * Separating this avoids a Rules of Hooks violation (the library FollowButton
@@ -37,14 +49,20 @@ interface StableFollowButtonProps {
  */
 const StableFollowButtonInner = memo(function StableFollowButtonInner({
   userId,
+  viewerId,
   size = 'small',
-}: StableFollowButtonProps) {
+}: StableFollowButtonInnerProps) {
   const theme = useTheme();
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
 
-  // Fetch follow status once on mount — no dependency on shared store
+  // Fetch follow status when the target or the viewer changes. Follow state is
+  // per-viewer, so on cold boot it must re-run once the viewer's session
+  // resolves (and again if the active account switches) — keying on `userId`
+  // alone would otherwise snapshot the anonymous result and never refresh.
+  // `viewerId` only changes on a real identity change, so this does not thrash
+  // the optimistic follow/unfollow state set by handlePress.
   useEffect(() => {
     mountedRef.current = true;
     let cancelled = false;
@@ -63,7 +81,7 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [userId]);
+  }, [userId, viewerId]);
 
   const handlePress = useCallback(async () => {
     if (loading) return;
@@ -147,7 +165,7 @@ const StableFollowButton = memo(function StableFollowButton({
     return null;
   }
 
-  return <StableFollowButtonInner userId={targetUserId} size={size} />;
+  return <StableFollowButtonInner userId={targetUserId} viewerId={currentUserId} size={size} />;
 });
 
 const styles = StyleSheet.create({

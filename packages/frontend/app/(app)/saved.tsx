@@ -10,6 +10,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
+import { useAuth } from '@oxyhq/services';
 import { feedService } from '@/services/feedService';
 import { authenticatedClient } from '@/utils/api';
 import SEO from '@/components/SEO';
@@ -20,6 +21,8 @@ const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const theme = useTheme();
     const { t } = useTranslation();
+    const { isAuthenticated, user } = useAuth();
+    const viewerId = user?.id;
     const [searchQuery, setSearchQuery] = useState('');
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -43,12 +46,26 @@ const SavedPostsScreen: React.FC = () => {
         }
     }, []);
 
+    // Bookmarks and saved posts are strictly per-viewer (anonymous has none),
+    // so both effects gate on `isAuthenticated` and key on `viewerId`. Without
+    // this they fired once during the anonymous cold-boot window and never
+    // reloaded after the session restored ~5s later.
     useEffect(() => {
+        if (!isAuthenticated) {
+            setFolders([]);
+            return;
+        }
         fetchFolders();
-    }, [fetchFolders]);
+    }, [isAuthenticated, viewerId, fetchFolders]);
 
     // Fetch saved posts
     useEffect(() => {
+        if (!isAuthenticated) {
+            setPosts([]);
+            setLoading(false);
+            return;
+        }
+
         const fetchSavedPosts = async () => {
             setLoading(true);
             try {
@@ -74,7 +91,7 @@ const SavedPostsScreen: React.FC = () => {
 
         const timeoutId = setTimeout(fetchSavedPosts, searchQuery.trim() ? 500 : 0);
         return () => clearTimeout(timeoutId);
-    }, [searchQuery, selectedFolder]);
+    }, [isAuthenticated, viewerId, searchQuery, selectedFolder]);
 
     const handleCreateFolder = async () => {
         const name = newFolderName.trim();

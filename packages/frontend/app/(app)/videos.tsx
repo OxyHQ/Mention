@@ -454,7 +454,8 @@ export default function VideosScreen() {
     const { height: WINDOW_HEIGHT } = useWindowDimensions();
     const router = useRouter();
     const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
-    const { oxyServices } = useAuth();
+    const { oxyServices, user } = useAuth();
+    const viewerId = user?.id;
     const { likePost, unlikePost, boostPost, unboostPost, getPostById } = usePostsStore();
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
@@ -623,11 +624,22 @@ export default function VideosScreen() {
     }, [fetchVideos]);
 
     // Initial load. Target first (own try/catch), then the ranked chain.
+    // `viewerId` is a dependency so the reel rebuilds when the viewer's auth
+    // session resolves on cold boot: the ranked `videos` feed and the per-post
+    // isLiked/isBoosted/isSaved flags are viewer-dependent, so the anonymous
+    // first pass must be discarded once the session lands. We reset the
+    // accumulated state before reloading so the de-dup set doesn't suppress the
+    // authenticated results.
     useEffect(() => {
         let isMounted = true;
 
         const load = async () => {
             setIsLoading(true);
+            shownIdsRef.current = new Set();
+            setPosts([]);
+            setNextCursor(undefined);
+            setHasMore(true);
+            setCurrentVisibleIndex(0);
 
             if (targetPostId) {
                 const targetPost = await fetchPostById(targetPostId);
@@ -650,7 +662,7 @@ export default function VideosScreen() {
         return () => {
             isMounted = false;
         };
-    }, [targetPostId, fetchPostById, fetchVideosUntilProgress]);
+    }, [targetPostId, viewerId, fetchPostById, fetchVideosUntilProgress]);
 
     const handleLoadMore = useCallback(async () => {
         if (loadingMore || !hasMore || !nextCursor) return;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@oxyhq/services';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 
 export interface FeedSettings {
@@ -37,11 +38,18 @@ export const DEFAULT_FEED_SETTINGS: FeedSettings = {
  * Hook to load and update current user's feed settings
  */
 export function useFeedSettings() {
+  const { isAuthenticated, user } = useAuth();
+  const viewerId = user?.id;
   const [settings, setSettings] = useState<FeedSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const loadSettings = useCallback(async () => {
+    if (!isAuthenticated) {
+      setSettings(DEFAULT_FEED_SETTINGS);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -76,7 +84,12 @@ export function useFeedSettings() {
     } finally {
       setLoading(false);
     }
-  }, []);
+    // `isAuthenticated` is a dependency so the per-user feed settings load when
+    // the auth session resolves on cold boot; the driving effect re-runs when
+    // this callback's identity changes. The settings are scoped to the
+    // signed-in user, so the anonymous-window fetch must be replaced once the
+    // session lands.
+  }, [isAuthenticated]);
 
   const updateSettings = useCallback(async (updates: Partial<FeedSettings>): Promise<void> => {
     try {
@@ -109,7 +122,9 @@ export function useFeedSettings() {
 
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    // `viewerId` covers account switches; `loadSettings` re-runs the load when
+    // the auth session resolves (its identity changes with `isAuthenticated`).
+  }, [loadSettings, viewerId]);
 
   return {
     settings: settings || DEFAULT_FEED_SETTINGS,

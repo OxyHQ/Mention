@@ -85,7 +85,8 @@ export function useProfileData(username?: string): {
   loading: boolean;
   error: boolean;
 } {
-  const { oxyServices } = useAuth();
+  const { oxyServices, user } = useAuth();
+  const viewerId = user?.id ?? '';
 
   const handle = username ?? '';
   const isFederated = handle.includes('@');
@@ -109,10 +110,18 @@ export function useProfileData(username?: string): {
   // Appearance/customization (privacy, cover image, post count, color overrides).
   // Driven by React Query so it dedupes and avoids a manual effect. The
   // appearance store caches the result for synchronous reads elsewhere.
+  //
+  // `viewerId` is part of the query key because the appearance payload carries
+  // viewer-dependent fields (`followsYou`, and privacy-gated visibility). On
+  // cold boot the viewer's session resolves ~5s after mount, so without the
+  // viewer in the key these fields would stay frozen at their anonymous value.
+  // The profile/federated queries above stay viewer-independent, so public
+  // profile viewing is unaffected; only the relationship-aware appearance data
+  // refetches when the viewer identity lands.
   const userId = profile?.id ?? '';
   const loadForUser = useAppearanceStore((state) => state.loadForUser);
   const appearanceQuery = useQuery<UserAppearance | null>({
-    queryKey: ['appearance', 'user', userId],
+    queryKey: ['appearance', 'user', userId, 'viewer', viewerId],
     queryFn: () => loadForUser(userId, true),
     enabled: userId.length > 0,
     staleTime: PROFILE_STALE_TIME,
