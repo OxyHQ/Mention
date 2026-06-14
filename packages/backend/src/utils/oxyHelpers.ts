@@ -1,5 +1,6 @@
 import { OxyServices } from '@oxyhq/core';
 import { OxyClient } from './privacyHelpers';
+import { logger } from './logger';
 
 const OXY_BASE_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 
@@ -35,7 +36,7 @@ const serviceClient: OxyServices = (() => {
     if (token) {
       client.setTokens(token);
     } else {
-      console.warn('[oxyHelpers] Neither OXY_SERVICE_API_KEY/SECRET nor OXY_SERVICE_TOKEN is set; service client will be unauthenticated');
+      logger.warn('[oxyHelpers] Neither OXY_SERVICE_API_KEY/SECRET nor OXY_SERVICE_TOKEN is set; service client will be unauthenticated');
     }
   }
   return client;

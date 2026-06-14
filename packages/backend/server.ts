@@ -24,6 +24,7 @@ import compression from "compression";
 import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import { logger } from "./src/utils/logger";
+import { isAllowedOrigin } from "./src/utils/allowedOrigins";
 import { runMigrations } from "./src/migrations/runner";
 import { leaderElection } from "./src/services/LeaderElection";
 
@@ -92,19 +93,9 @@ export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https:
 
 // --- Middleware ---
 
-// CORS — must be FIRST so all responses (including 429, 500) have CORS headers
-const ALLOWED_ORIGINS: string[] = [
-  process.env.FRONTEND_URL || "https://mention.earth",
-  "https://agora.mention.earth",
-];
-
-const isAllowedOrigin = (origin: string): boolean => {
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  // Allow any localhost origin for development
-  if (origin.startsWith("http://localhost:")) return true;
-  return false;
-};
-
+// CORS — must be FIRST so all responses (including 429, 500) have CORS headers.
+// Origin allowlist lives in one place (src/utils/allowedOrigins) so production
+// never honours localhost / LAN-IP dev origins.
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && isAllowedOrigin(origin)) {

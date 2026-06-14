@@ -37,6 +37,7 @@ import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { api } from '@/utils/api';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
+import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@/components/SubtleHover';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 import { show as toast } from '@oxyhq/bloom/toast';
@@ -405,15 +406,9 @@ const PostItem: React.FC<PostItemProps> = ({
         impressions: null,
     };
 
-    const SPACING = 12; // Unified spacing for consistent padding/gaps
-    const HPAD = SPACING;
-    const VPAD = SPACING;
-    const SECTION_GAP = SPACING;
-    const AVATAR_SIZE = 40;
-    const AVATAR_GAP = SPACING;
-    // AVATAR_OFFSET is the distance from container edge to where text/content starts after avatar
-    // Header has HPAD padding, then avatar (40px), then gap (12px), so text starts at HPAD + 40 + 12
-    const AVATAR_OFFSET = HPAD + AVATAR_SIZE + AVATAR_GAP;
+    // Canonical post-item layout tokens (single source of truth: COMPONENT_SPACING.post).
+    // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
+    const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
 
     const Container: any = isPostDetail ? View : Pressable;
 

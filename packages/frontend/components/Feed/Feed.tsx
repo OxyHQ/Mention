@@ -27,6 +27,7 @@ import { FeedFilters, getItemKey, deduplicateItems, deepEqual, buildReplyTree, R
 import { getFeedScroll, setFeedScroll } from '@/stores/feedScrollStore';
 import type { FlashListRef } from '@shopify/flash-list';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
+import { POST_ITEM_SPACING } from '@/styles/shared';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
@@ -826,12 +827,14 @@ const styles = StyleSheet.create({
     },
     showThreadLink: {
         paddingVertical: 10,
-        paddingLeft: 64, // HPAD + AVATAR_SIZE + AVATAR_GAP
+        // Align with PostItem content (after avatar): HPAD + AVATAR_SIZE + AVATAR_GAP = 64
+        paddingLeft: POST_ITEM_SPACING.AVATAR_OFFSET,
         paddingRight: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
     },
     replyContextLabel: {
-        paddingLeft: 64, // HPAD + AVATAR_SIZE + AVATAR_GAP
+        // Align with PostItem content (after avatar): HPAD + AVATAR_SIZE + AVATAR_GAP = 64
+        paddingLeft: POST_ITEM_SPACING.AVATAR_OFFSET,
         paddingTop: 8,
         paddingBottom: 2,
     },
@@ -840,7 +843,8 @@ const styles = StyleSheet.create({
     },
     nestedThreadLine: {
         position: 'absolute',
-        left: 31, // PostItem HPAD(12) + AVATAR_SIZE(40)/2 - 1
+        // Center the thread line on the PostItem avatar: HPAD + AVATAR_SIZE/2 - 1 = 31
+        left: POST_ITEM_SPACING.HPAD + POST_ITEM_SPACING.AVATAR_SIZE / 2 - 1,
         top: 0,
         bottom: 0,
         width: THREAD_LINE_WIDTH,

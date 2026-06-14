@@ -12,6 +12,7 @@ import {
     getFeedMemoryCache,
     setFeedMemoryCache,
     clearFeedMemoryCache,
+    subscribeToNewLocalPosts,
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
 
@@ -162,6 +163,14 @@ export function useFeedState({
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
+    // Latest local items/slices, mirrored into refs so the new-post broadcast
+    // listener can read current state without re-subscribing on every change and
+    // without depending on possibly-stale closure values.
+    const localItemsRef = useRef(localItems);
+    localItemsRef.current = localItems;
+    const localSlicesRef = useRef(localSlices);
+    localSlicesRef.current = localSlices;
+
     // Federated outbox-sync polling state. `pending` is surfaced to consumers so
     // the UI can show a "loading posts…" state; the scheduler refetches a bounded
     // number of times until posts arrive (or the budget is exhausted).
@@ -213,6 +222,83 @@ export function useFeedState({
             clearPendingPoll();
         };
     }, [clearPendingPoll]);
+
+    // Memory-mode home feeds (web without SQLite) don't read SQLite, so a post
+    // created by postsStore won't appear until a manual refresh. Subscribe to the
+    // new-post broadcast and prepend it to the live items + retained cache,
+    // mirroring the SQLite "insert at top" behavior. Scoped/filtered feeds and
+    // the saved feed never receive arbitrary new posts; a profile feed only shows
+    // its own author's new post — matching the SQLite path's feed-key selection.
+    const HOME_FEED_TYPES = useMemo(() => new Set<FeedType>(['mixed', 'for_you', 'following', 'posts']), []);
+    useEffect(() => {
+        if (!useMemoryFeed || useScoped || showOnlySaved) return;
+        const isHomeFeed = !userId && HOME_FEED_TYPES.has(type);
+        if (!isHomeFeed && !userId) return;
+
+        return subscribeToNewLocalPosts((item) => {
+            // For a profile feed, only prepend the post if it belongs to that user.
+            if (userId && String((item as HydratedPost)?.user?.id ?? '') !== String(userId)) {
+                return;
+            }
+
+            const key = getItemKey(item);
+
+            // Prepend to live items (pure updater — dedup is order-stable).
+            setLocalItems((prev) =>
+                prev.some((p) => getItemKey(p) === key) ? prev : [item, ...prev]
+            );
+
+            // When the feed renders via slices (Feed.tsx prefers slices over items),
+            // prepend a single-post slice so the new post is visible there too.
+            const buildLocalSlice = (): FeedPostSlice => ({
+                _sliceKey: `local-new:${key}`,
+                isIncompleteThread: false,
+                items: [{
+                    post: item,
+                    isThreadParent: false,
+                    isThreadChild: false,
+                    isThreadLastChild: false,
+                }],
+            });
+            setLocalSlices((prev) => {
+                if (!prev) return prev;
+                const alreadyPresent = prev.some((slice) =>
+                    slice.items.some((si) => getItemKey(si.post) === key)
+                );
+                return alreadyPresent ? prev : [buildLocalSlice(), ...prev];
+            });
+
+            // Keep the retained slice in sync so an unmount→remount still shows it.
+            // The retained cache is the source of truth for memory mode, so compute
+            // the next snapshot from it (not from possibly-stale closure state).
+            const existing = getFeedMemoryCache(feedScrollKey);
+            const existingItems = existing?.items ?? localItemsRef.current;
+            if (!existingItems.some((p) => getItemKey(p) === key)) {
+                const existingSlices = existing?.slices ?? localSlicesRef.current;
+                const nextSlices = existingSlices
+                    && !existingSlices.some((slice) =>
+                        slice.items.some((si) => getItemKey(si.post) === key))
+                    ? [buildLocalSlice(), ...existingSlices]
+                    : existingSlices;
+                setFeedMemoryCache(feedScrollKey, {
+                    items: [item, ...existingItems],
+                    slices: nextSlices,
+                    hasMore: existing?.hasMore ?? localHasMore,
+                    nextCursor: existing?.nextCursor ?? localNextCursor,
+                });
+            }
+        });
+    }, [
+        useMemoryFeed,
+        useScoped,
+        showOnlySaved,
+        userId,
+        type,
+        HOME_FEED_TYPES,
+        feedScrollKey,
+        localHasMore,
+        localNextCursor,
+    ]);
 
     const clearError = useCallback(() => {
         if (useMemoryFeed) {

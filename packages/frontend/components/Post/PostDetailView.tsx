@@ -58,6 +58,9 @@ interface PostDetailViewProps {
     onFocusReply: () => void;
 }
 
+// Post detail view layout — intentionally distinct from the feed/compose tokens:
+// the focused (detail) post uses a larger 48px avatar and 16px horizontal padding,
+// not the 40px / 12px used in the compact feed list (POST_ITEM_SPACING).
 const AVATAR_SIZE = 48;
 const HPAD = 16;
 const ICON_SIZE = 22;

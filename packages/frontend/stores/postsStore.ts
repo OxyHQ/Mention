@@ -19,6 +19,7 @@ import {
 import { createScopedLogger } from '@/lib/logger';
 import { feedService } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
+import { publishNewLocalPost } from '@/stores/feedScrollStore';
 
 // ── Database imports ─────────────────────────────────────────────
 import {
@@ -625,6 +626,10 @@ export const usePostsStore = create<PostsStoreState>()(
           dbAddFeedItemAtStart(userFeedKey, newPost.id);
         }
 
+        // Memory-mode feeds (web without SQLite) don't read SQLite — broadcast the
+        // new post so any mounted in-memory home/profile feed prepends it live.
+        publishNewLocalPost(newPost);
+
         set((s) => ({ ...bumpVersion(s), isLoading: false, lastRefresh: Date.now() }));
         return newPost;
       } catch (error) {
@@ -665,6 +670,13 @@ export const usePostsStore = create<PostsStoreState>()(
           for (const post of newPosts) {
             dbAddFeedItemAtStart(userFeedKey, post.id);
           }
+        }
+
+        // Memory-mode feeds (web without SQLite) don't read SQLite — broadcast the
+        // thread's lead post so any mounted in-memory home/profile feed prepends it
+        // live. The thread renders as one slice headed by the first post.
+        if (newPosts[0]) {
+          publishNewLocalPost(newPosts[0]);
         }
 
         set((s) => ({ ...bumpVersion(s), isLoading: false, lastRefresh: Date.now() }));

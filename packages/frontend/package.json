@@ -2,6 +2,7 @@
   "name": "@mention/frontend",
   "main": "expo-router/entry",
   "version": "2.0.0",
+  "license": "UNLICENSED",
   "scripts": {
     "start": "expo start --reset-cache --tunnel --clear",
     "start:local": "expo start --reset-cache --clear",
@@ -13,8 +14,6 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo export --platform web --output-dir dist",
-    "build-web": "expo export --platform web --output-dir dist",
-    "build-web:prod": "expo export --platform web --output-dir dist",
     "build:apk": "eas build --platform android --profile apk --local",
     "build:apk:cloud": "eas build --platform android --profile apk",
     "build:android": "eas build --platform android --profile production",

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { socketService } from '@/services/socketService';
 
 /**
@@ -13,15 +13,27 @@ export function usePresence(userId: string | undefined): boolean {
       return;
     }
 
+    let cancelled = false;
+
     // Subscribe to presence updates
     const unsubscribe = socketService.subscribeToPresence(userId, (online) => {
-      setIsOnline(online);
+      if (!cancelled) setIsOnline(online);
     });
 
-    // Get initial presence
-    socketService.getPresence(userId).then(setIsOnline).catch(() => setIsOnline(false));
+    // Get initial presence (guarded against setState after unmount)
+    socketService
+      .getPresence(userId)
+      .then((online) => {
+        if (!cancelled) setIsOnline(online);
+      })
+      .catch(() => {
+        if (!cancelled) setIsOnline(false);
+      });
 
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [userId]);
 
   return isOnline;
@@ -33,26 +45,43 @@ export function usePresence(userId: string | undefined): boolean {
 export function usePresenceBulk(userIds: string[]): Record<string, boolean> {
   const [presenceMap, setPresenceMap] = useState<Record<string, boolean>>({});
 
+  // Stable, order-independent key so the effect only re-runs when the set of
+  // userIds actually changes — not on every render with a new array reference.
+  const key = useMemo(() => [...userIds].sort().join(','), [userIds]);
+
   useEffect(() => {
-    if (!userIds.length) {
+    const ids = key ? key.split(',') : [];
+    if (!ids.length) {
       setPresenceMap({});
       return;
     }
 
-    // Get initial presence for all users
-    socketService.getPresenceBulk(userIds).then(setPresenceMap).catch(() => setPresenceMap({}));
+    let cancelled = false;
+
+    // Get initial presence for all users (guarded against setState after unmount)
+    socketService
+      .getPresenceBulk(ids)
+      .then((map) => {
+        if (!cancelled) setPresenceMap(map);
+      })
+      .catch(() => {
+        if (!cancelled) setPresenceMap({});
+      });
 
     // Subscribe to each user's presence
-    const unsubscribes = userIds.map(userId =>
+    const unsubscribes = ids.map((userId) =>
       socketService.subscribeToPresence(userId, (online) => {
-        setPresenceMap(prev => ({ ...prev, [userId]: online }));
+        if (!cancelled) {
+          setPresenceMap((prev) => ({ ...prev, [userId]: online }));
+        }
       })
     );
 
     return () => {
-      unsubscribes.forEach(unsubscribe => unsubscribe());
+      cancelled = true;
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [userIds.join(',')]);
+  }, [key]);
 
   return presenceMap;
 }

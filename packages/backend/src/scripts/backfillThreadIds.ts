@@ -11,6 +11,7 @@
 
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
+import { logger } from '../utils/logger';
 
 const BATCH_SIZE = 500;
 
@@ -19,7 +20,7 @@ async function backfillThreadIds() {
     const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
     const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
     await mongoose.connect(mongoUri, { dbName });
-    console.log(`Connected to MongoDB (${dbName})`);
+    logger.info(`Connected to MongoDB (${dbName})`);
 
     // Count replies missing threadId
     const totalCount = await Post.countDocuments({
@@ -27,10 +28,10 @@ async function backfillThreadIds() {
       $or: [{ threadId: null }, { threadId: { $exists: false } }],
     });
 
-    console.log(`Found ${totalCount} replies missing threadId`);
+    logger.info(`Found ${totalCount} replies missing threadId`);
 
     if (totalCount === 0) {
-      console.log('Nothing to do');
+      logger.info('Nothing to do');
       await mongoose.disconnect();
       return;
     }
@@ -102,13 +103,13 @@ async function backfillThreadIds() {
       }
 
       processed += replies.length;
-      console.log(`Progress: ${processed}/${totalCount} (updated: ${updated}, parent-missing: ${skipped})`);
+      logger.info(`Progress: ${processed}/${totalCount} (updated: ${updated}, parent-missing: ${skipped})`);
     }
 
-    console.log(`Done. Updated ${updated} replies, ${skipped} had missing parents.`);
+    logger.info(`Done. Updated ${updated} replies, ${skipped} had missing parents.`);
     await mongoose.disconnect();
   } catch (error) {
-    console.error('Migration failed:', error);
+    logger.error('Migration failed', error);
     await mongoose.disconnect();
     process.exit(1);
   }

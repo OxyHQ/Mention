@@ -106,4 +106,46 @@ export function clearFeedMemoryCache(key: string): void {
     useFeedScrollStore.getState().clearMemoryCache(key);
 }
 
+// ── Local new-post broadcast (memory-mode feeds) ─────────────────────
+//
+// On the SQLite path, `postsStore` inserts a freshly created post at the top of
+// the relevant feeds and the home feed re-renders reactively. The memory-mode
+// path (web without COOP/COEP, where SQLite is unavailable) keeps feed items in
+// `useFeedState`'s local React state, which never reads SQLite — so it would
+// otherwise miss the new post until a manual refresh or TTL.
+//
+// This lightweight, session-scoped broadcast bridges that gap: `postsStore`
+// publishes the new item, every mounted memory-mode home feed prepends it to its
+// live items, and any retained slice is updated so an unmount→remount still shows
+// it. It is intentionally NOT a Zustand slice — subscribers are imperative feed
+// hooks, not rendered state.
+
+/** A post item prepended to memory-mode feeds. Shape matches a feed item. */
+export type LocalNewPostListener = (item: HydratedPost) => void;
+
+const localNewPostListeners = new Set<LocalNewPostListener>();
+
+/**
+ * Subscribe to newly created posts so a memory-mode feed can prepend them to its
+ * live items. Returns an unsubscribe function. No-op for the SQLite path, which
+ * updates reactively via selectors.
+ */
+export function subscribeToNewLocalPosts(listener: LocalNewPostListener): () => void {
+    localNewPostListeners.add(listener);
+    return () => {
+        localNewPostListeners.delete(listener);
+    };
+}
+
+/**
+ * Broadcast a freshly created post to all mounted memory-mode feeds. Called by
+ * `postsStore` after a successful create, mirroring the SQLite "insert at top"
+ * behavior for the in-memory path.
+ */
+export function publishNewLocalPost(item: HydratedPost): void {
+    for (const listener of localNewPostListeners) {
+        listener(item);
+    }
+}
+
 export { useFeedScrollStore };

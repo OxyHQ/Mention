@@ -9,7 +9,10 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { formatRelativeTimeCompact } from '@/utils/dateUtils';
 
-// Spacing tokens for consistent layout
+// PostHeader-local default spacing. HPAD here (8px) is only the fallback for the
+// `paddingHorizontal` prop — callers (PostItem, compose, detail) pass their own
+// context-specific padding, so this deliberately differs from the feed (12px),
+// compose (16px) and detail (16px) horizontal paddings.
 const HPAD = 8;
 const ROW_GAP = 8;
 

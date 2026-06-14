@@ -5,6 +5,7 @@ import { validateUrlSecurity } from '../utils/urlSecurity';
 import { imageCacheService } from '../services/imageCacheService';
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../middleware/rateLimitStore';
+import { getAllowedOrigins } from '../utils/allowedOrigins';
 
 const router = express.Router();
 
@@ -123,14 +124,8 @@ router.get('/optimize', imageOptimizeRateLimiter, async (req: AuthRequest, res: 
  */
 router.options('/optimize', (req: AuthRequest, res: Response) => {
   const origin = req.headers.origin;
-  const ALLOWED_ORIGINS = [
-    process.env.FRONTEND_URL || 'https://mention.earth',
-    'http://localhost:8081',
-    'http://localhost:8082',
-    'http://192.168.86.44:8081',
-  ];
 
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  if (origin && getAllowedOrigins().includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
     res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
