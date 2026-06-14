@@ -2,8 +2,10 @@
 FROM oven/bun:1.3.14-alpine AS builder
 WORKDIR /app
 
-# Copy workspace root files
-COPY package.json bun.lock ./
+# Copy workspace root files. The root tsconfig.json is the shared base that
+# every package's tsconfig `extends` ("../../tsconfig.json"); without it the
+# `tsc` builds below fail with TS5083 (cannot read file '/app/tsconfig.json').
+COPY package.json bun.lock tsconfig.json ./
 
 # Copy every workspace member's package.json. Bun's frozen lockfile install
 # requires the manifest of every workspace member to be present, even for
