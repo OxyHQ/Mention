@@ -385,6 +385,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 {postActions.deleteAction.length > 0 && <ActionGroup actions={postActions.deleteAction} />}
                 {postActions.articleAction.length > 0 && <ActionGroup actions={postActions.articleAction} />}
                 {postActions.sourcesAction.length > 0 && <ActionGroup actions={postActions.sourcesAction} />}
+                {postActions.addToListAction.length > 0 && <ActionGroup actions={postActions.addToListAction} />}
                 {postActions.muteReportAction.length > 0 && <ActionGroup actions={postActions.muteReportAction} />}
                 <ActionGroup actions={postActions.copyLinkAction} />
             </View>,

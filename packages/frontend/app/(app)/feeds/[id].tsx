@@ -21,6 +21,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
+import { subscribeToListChanges } from '@/services/listMutations';
 import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -629,42 +630,62 @@ export default function CustomFeedTimelineScreen() {
     storeData(PINNED_KEY, newPinned).catch(() => { });
   }, [id, pinned]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const f = await customFeedsService.get(String(id));
-        if (cancelled) return;
-        setFeed(f);
-        setLikeCount(f.likeCount || 0);
-        setIsLiked(f.isLiked || false);
+  // Source list ids of the loaded feed, tracked so a change to any of them can
+  // trigger a re-expansion of the feed's authors.
+  const sourceListIdsRef = useRef<string[]>([]);
 
-        // Expand authors from members + lists
-        const authors = new Set<string>(f.memberOxyUserIds || []);
-        if (f.sourceListIds?.length) {
-          await Promise.all(
-            f.sourceListIds.map(async (lid: string) => {
-              try {
-                const l = await listsService.get(String(lid));
-                (l.memberOxyUserIds || []).forEach((uid: string) => authors.add(uid));
-              } catch { }
-            })
-          );
-        }
-        // Exclude owner unless explicitly added as member
-        const ownerId = f.ownerOxyUserId;
-        if (ownerId && !f.memberOxyUserIds?.includes(ownerId)) {
-          authors.delete(ownerId);
-        }
-        if (!cancelled) setAuthorsCsv(Array.from(authors).join(','));
-      } catch {
-        if (!cancelled) setError('Failed to load feed');
-      } finally {
-        if (!cancelled) setLoading(false);
+  const loadFeed = useCallback(async (signal?: { cancelled: boolean }) => {
+    const cancelled = () => signal?.cancelled === true;
+    try {
+      const f = await customFeedsService.get(String(id));
+      if (cancelled()) return;
+      setFeed(f);
+      setLikeCount(f.likeCount || 0);
+      setIsLiked(f.isLiked || false);
+      sourceListIdsRef.current = Array.isArray(f.sourceListIds)
+        ? f.sourceListIds.map((lid: string) => String(lid))
+        : [];
+
+      // Expand authors from members + lists
+      const authors = new Set<string>(f.memberOxyUserIds || []);
+      if (f.sourceListIds?.length) {
+        await Promise.all(
+          f.sourceListIds.map(async (lid: string) => {
+            try {
+              const l = await listsService.get(String(lid));
+              (l.memberOxyUserIds || []).forEach((uid: string) => authors.add(uid));
+            } catch { }
+          })
+        );
       }
-    })();
-    return () => { cancelled = true; };
+      // Exclude owner unless explicitly added as member
+      const ownerId = f.ownerOxyUserId;
+      if (ownerId && !f.memberOxyUserIds?.includes(ownerId)) {
+        authors.delete(ownerId);
+      }
+      if (!cancelled()) setAuthorsCsv(Array.from(authors).join(','));
+    } catch {
+      if (!cancelled()) setError('Failed to load feed');
+    } finally {
+      if (!cancelled()) setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    loadFeed(signal);
+    return () => { signal.cancelled = true; };
+  }, [loadFeed]);
+
+  // When a source list this feed is built from changes (members added/removed),
+  // re-expand the feed's authors so the embedded `<Feed authors>` re-fetches.
+  useEffect(() => {
+    return subscribeToListChanges((changedId) => {
+      if (changedId === null || sourceListIdsRef.current.includes(String(changedId))) {
+        loadFeed();
+      }
+    });
+  }, [loadFeed]);
 
   const isPinned = pinned.includes(`custom:${id}`);
 

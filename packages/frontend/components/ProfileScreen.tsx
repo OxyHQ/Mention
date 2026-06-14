@@ -26,6 +26,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
 import ReportModal from '@/components/report/ReportModal';
+import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { confirmDialog } from '@/utils/alerts';
 import type { FeedType } from '@mention/shared-types';
 import { logger } from '@/lib/logger';
@@ -342,8 +343,27 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             bottomSheet.openBottomSheet(true);
         };
 
+        const handleAddToList = () => {
+            bottomSheet.setBottomSheetContent(
+                <AddToListSheet
+                    targetUserId={profileData.id}
+                    targetLabel={`@${displayUsername}`}
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                />
+            );
+            bottomSheet.openBottomSheet(true);
+        };
+
         const MenuContent = () => (
             <View className="py-2 px-4">
+                <IconButton variant="icon" onPress={handleAddToList} style={{ width: '100%', paddingVertical: 14 }}>
+                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
+                        <Ionicons name="list-outline" size={22} color={theme.colors.text} />
+                        <Text className="text-foreground text-base font-medium">
+                            {t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' })}
+                        </Text>
+                    </View>
+                </IconButton>
                 <IconButton variant="icon" onPress={handleMute} style={{ width: '100%', paddingVertical: 14 }}>
                     <View className="flex-row items-center w-full" style={{ gap: 14 }}>
                         <Ionicons name="volume-mute-outline" size={22} color={theme.colors.text} />

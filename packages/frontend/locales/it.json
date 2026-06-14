@@ -291,6 +291,24 @@
   "settings.privacy.cannotBlockYourself": "Non puoi bloccare te stesso",
   "settings.privacy.restrictedUsersDescription": "Gli utenti limitati possono vedere i tuoi post ma hanno un'interazione limitata. Non possono vedere quando sei online né commentare i tuoi post.",
   "settings.privacy.hiddenWordsComingSoon": "Gestione parole nascoste in arrivo",
+  "settings.privacy.hiddenWordsDescription": "I post che contengono queste parole o hashtag vengono nascosti dai tuoi feed. Inizia una voce con # per silenziare un hashtag.",
+  "settings.privacy.hiddenWordsSignInRequired": "Accedi per gestire le parole silenziate",
+  "settings.privacy.hiddenWordsSignInRequiredDesc": "Le parole e gli hashtag silenziati nascondono i post corrispondenti dai tuoi feed.",
+  "settings.privacy.addMutedWord": "Aggiungi una parola o un hashtag",
+  "settings.privacy.addWordPlaceholder": "Parola o #hashtag",
+  "settings.privacy.mutedWords": "Parole e hashtag silenziati",
+  "settings.privacy.mutedWordsEmpty": "Nessuna parola silenziata",
+  "settings.privacy.mutedWordTypeWord": "Parola",
+  "settings.privacy.mutedWordTypeHashtag": "Hashtag",
+  "settings.privacy.wordMuted": "Parola silenziata",
+  "settings.privacy.wordUnmuted": "Parola riattivata",
+  "settings.privacy.removeMutedWord": "Rimuovi parola silenziata",
+  "settings.privacy.removeMutedWordConfirm": "Smettere di nascondere i post che contengono \"{{value}}\"?",
+  "settings.privacy.failedToMuteWord": "Impossibile silenziare la parola",
+  "settings.privacy.failedToUnmuteWord": "Impossibile riattivare la parola",
+  "settings.privacy.failedToLoadMutedWords": "Impossibile caricare le parole silenziate",
+  "common.remove": "Rimuovi",
+  "common.tryAgain": "Riprova",
   "common.saving": "Salvataggio...",
   "settings.sections.preferences": "Preferenze",
   "Select your preferred language": "Seleziona la lingua preferita",
@@ -402,7 +420,9 @@
   "common": {
     "unknown": "sconosciuto",
     "someone": "Qualcuno",
-    "back": "Indietro"
+    "back": "Indietro",
+    "retry": "Riprova",
+    "close": "Chiudi"
   },
   "insights": {
     "posts": "Post",
@@ -648,6 +668,28 @@
       "remove": "Rimuovi",
       "saving": "Salvataggio…",
       "createButton": "Crea Lista"
+    },
+    "memberSingular": "membro",
+    "memberPlural": "membri",
+    "addTo": {
+      "menuItem": "Aggiungi/rimuovi dalle liste",
+      "title": "Aggiungi {{user}} a una lista",
+      "thisUser": "questo utente",
+      "added": "Aggiunto a {{list}}",
+      "removed": "Rimosso da {{list}}",
+      "empty": "Non hai ancora liste",
+      "newList": "Nuova lista",
+      "loadError": "Impossibile caricare le tue liste",
+      "toggleFailed": "Qualcosa è andato storto"
+    },
+    "edit": {
+      "title": "Modifica membri",
+      "addMembers": "Aggiungi membri",
+      "loadError": "Impossibile caricare questa lista",
+      "added": "@{{user}} aggiunto",
+      "addFailed": "Impossibile aggiungere il membro",
+      "removed": "@{{user}} rimosso",
+      "removeFailed": "Impossibile rimuovere il membro"
     }
   },
   "feeds": {
@@ -929,7 +971,7 @@
   "subscribe.title": "Passa a Premium",
   "subscribe.headline": "Sblocca le funzioni Premium",
   "subscribe.subtitle": "Ottieni il massimo da Mention con gli strumenti premium",
-  "subscribe.featuresTitle": "Funzionalit\u00e0 Premium",
+  "subscribe.featuresTitle": "Funzionalità Premium",
   "subscribe.translateFeature": "Traduci i post in qualsiasi lingua",
   "subscribe.autoTranslateFeature": "Traduzione automatica dei post in altre lingue",
   "subscribe.aiFeatures": "Funzionalità avanzate con intelligenza artificiale",

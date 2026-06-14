@@ -1,33 +1,39 @@
 {
+  // ---------------------------------------------------------------------------
+  // @mention/backend
+  //
+  // Compiled with `tsc` to `dist/` (CommonJS) and THAT emitted output is what
+  // the Docker/ECS image runs. The module format and emit layout below are a
+  // runtime contract — changing them changes what ships to production.
+  //
+  // Everything else inherits from the root base; we override only the bits that
+  // make this an emitting CommonJS Node service rather than the type-check-only
+  // base.
+  // ---------------------------------------------------------------------------
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2020",
+    // --- Intentional override of the root base: emit CommonJS for Node/Bun.
+    // The ECS image executes the emitted `dist/**` as CommonJS; `node`
+    // resolution matches that runtime.
     "module": "commonjs",
     "moduleResolution": "node",
+
+    // --- Emit settings (the root base is type-check only / noEmit).
+    // `rootDir: "./"` because the entrypoint `server.ts` lives at the package
+    // root (not under src/); TypeScript auto-excludes `outDir` (dist) from the
+    // compilation, so the emitted tree mirrors the source tree under dist/.
+    "noEmit": false,
     "rootDir": "./",
     "outDir": "dist",
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "composite": true,
+
+    // Resolve the workspace dependency to shared-types SOURCE during type-check
+    // so backend changes see un-built type updates immediately.
     "baseUrl": ".",
     "paths": {
-      "@mention/shared-types": [
-        "../shared-types/src"
-      ],
-      "@mention/shared-types/*": [
-        "../shared-types/src/*"
-      ]
+      "@mention/shared-types": ["../shared-types/src"],
+      "@mention/shared-types/*": ["../shared-types/src/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "package.json"
-  ],
-  "references": [
-    {
-      "path": "../shared-types"
-    }
-  ]
+  "include": ["**/*.ts", "package.json"],
+  "references": [{ "path": "../shared-types" }]
 }

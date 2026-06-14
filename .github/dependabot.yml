@@ -1,0 +1,101 @@
+# Dependabot configuration for the Mention monorepo.
+#
+# This repo uses Bun (`bun.lock`) with npm-style workspaces. Dependabot has no
+# native "bun" ecosystem, but the `npm` ecosystem reads `package.json` across
+# the workspace, so it works for surfacing dependency updates here. After a
+# Dependabot PR is merged, the lockfile is reconciled by our normal flow
+# (`bun install` regenerated `bun.lock`, committed alongside the manifest).
+#
+# Deliberately conservative:
+#   * The carefully pinned ecosystem packages (@oxyhq/*, expo*, react / react
+#     -native, and the metro/expo toolchain) are MANUALLY managed — their
+#     versions are coordinated across the whole Oxy ecosystem, so Dependabot is
+#     told to ignore them rather than fight the pins.
+#   * Everything else is grouped to keep PR volume low.
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # npm / Bun workspaces — root + every package.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/packages/*"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Madrid"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    # Group low-risk updates so we get a small number of consolidated PRs
+    # instead of one PR per package.
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+      dev-dependencies:
+        applies-to: version-updates
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    # MANUALLY managed — do NOT let Dependabot touch the pinned ecosystem.
+    # These versions are coordinated across all Oxy apps (Mention, Allo,
+    # Homiio, accounts, console, inbox, …) and bumped by hand.
+    ignore:
+      # Oxy platform SDK — pinned + aligned across the monorepo.
+      - dependency-name: "@oxyhq/*"
+      # Expo SDK + toolchain — locked to the Expo SDK 56 release train.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "eslint-config-expo"
+      # React / React Native core — version-locked via root `overrides`.
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-web"
+      # Metro / RN build + animation stack — must move in lockstep with Expo.
+      - dependency-name: "react-native-reanimated"
+      - dependency-name: "react-native-worklets"
+      - dependency-name: "react-native-worklets-core"
+      - dependency-name: "nativewind"
+      - dependency-name: "tailwindcss"
+      - dependency-name: "@tailwindcss/*"
+      - dependency-name: "lightningcss"
+      - dependency-name: "lightningcss-*"
+      # AI SDK — intentionally pinned (breaking changes between minors).
+      - dependency-name: "ai"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions — keep workflow action versions current.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Madrid"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      github-actions:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"

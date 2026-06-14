@@ -30,6 +30,8 @@ import ReplySettingsSheet, { type ReplyPermission } from '@/components/Compose/R
 import ReportModal from '@/components/report/ReportModal';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
+import { AddToListSheet } from '@/components/Lists/AddToListSheet';
+import { List as ListIcon } from '@/assets/icons/list-icon';
 
 const logger = createScopedLogger('usePostActions');
 
@@ -54,6 +56,7 @@ interface UsePostActionsParams {
 interface PostActionsResult {
     insightsAction: ActionItem[];
     saveActionGroup: ActionItem[];
+    addToListAction: ActionItem[];
     deleteAction: ActionItem[];
     articleAction: ActionItem[];
     sourcesAction: ActionItem[];
@@ -315,6 +318,26 @@ export function usePostActions({
             });
         }
 
+        const addToListAction: ActionItem[] = [];
+        const authorId = viewPost?.user?.id;
+        if (!isOwner && authorId) {
+            const authorHandle = viewPost?.user?.handle || viewPost?.user?.name || '';
+            addToListAction.push({
+                icon: <ListIcon size={20} className="text-muted-foreground" />,
+                text: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
+                onPress: () => {
+                    bottomSheet.setBottomSheetContent(
+                        <AddToListSheet
+                            targetUserId={authorId}
+                            targetLabel={authorHandle ? `@${authorHandle}` : undefined}
+                            onClose={() => bottomSheet.openBottomSheet(false)}
+                        />
+                    );
+                    bottomSheet.openBottomSheet(true);
+                },
+            });
+        }
+
         const copyLinkAction = [{
             icon: <LinkIcon size={20} className="text-muted-foreground" />,
             text: t('postActions.copyLink'),
@@ -333,6 +356,7 @@ export function usePostActions({
         return {
             insightsAction,
             saveActionGroup,
+            addToListAction,
             deleteAction,
             articleAction,
             sourcesAction,

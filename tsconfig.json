@@ -1,39 +1,71 @@
 {
+  // ---------------------------------------------------------------------------
+  // Root / solution tsconfig.
+  //
+  // This file is the SHARED, RUNTIME-NEUTRAL BASE for every package in the
+  // monorepo and the solution file that wires the TypeScript project references
+  // together (`tsc -b` builds them in dependency order).
+  //
+  // Design:
+  //   * The root intentionally does NOT extend `expo/tsconfig.base`. The Expo
+  //     base sets `customConditions: ["react-native"]`, which is only valid
+  //     with bundler/node16/nodenext module resolution and therefore conflicts
+  //     with the Node/CommonJS packages (backend, shared-types) that resolve
+  //     with `moduleResolution: "node"`. Leaking it into every package caused
+  //     `TS5098`. Instead, the Expo apps (frontend, agora) extend BOTH this
+  //     base AND `expo/tsconfig.base` (array `extends`), so the React-Native
+  //     condition lands only where bundler resolution is in effect.
+  //   * Each package's tsconfig `extends` this file and overrides ONLY what it
+  //     genuinely needs (see per-package comments). The defaults below are the
+  //     "type-check only" baseline (`noEmit: true`); packages that actually
+  //     emit JS (backend, shared-types, agora-shared) deliberately flip
+  //     `noEmit` and pick the module/target their runtime requires.
+  // ---------------------------------------------------------------------------
   "compilerOptions": {
+    // Language target shared by every package. Backend (Node/Bun) and the
+    // Expo apps are all comfortable with ES2020.
     "target": "ES2020",
+    "lib": ["ES2020"],
+
+    // Default module system for the type-check baseline. Emitting Node packages
+    // override this with the format their runtime requires (commonjs); Expo
+    // apps inherit `module: "preserve"` from the Expo base they also extend.
     "module": "ES2020",
-    "lib": [
-      "ES2020"
-    ],
+    "moduleResolution": "bundler",
+
+    // Correctness / safety defaults applied everywhere.
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
+
+    // NOTE: `isolatedModules` is intentionally NOT set in this shared base.
+    // The `tsc`-emitting Node packages (backend, shared-types) historically
+    // compiled without it, and enabling it globally would retroactively enforce
+    // `export type` on existing re-exports (TS1205). The Expo apps already get
+    // single-file-transpile safety from Metro's bundler. Keep this an explicit,
+    // documented absence rather than an accidental on/off divergence.
+
+    // Project-reference defaults. `composite` is required for any project that
+    // is referenced; declaration + maps make cross-package type resolution and
+    // go-to-definition work without rebuilding sources.
     "composite": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+
+    // The root itself never emits — it only orchestrates references and is the
+    // default for editor/CLI type-checking. Emitting packages override this.
+    "noEmit": true
   },
   "references": [
-    {
-      "path": "./packages/shared-types"
-    },
-    {
-      "path": "./packages/agora-shared"
-    },
-    {
-      "path": "./packages/backend"
-    },
-    {
-      "path": "./packages/frontend"
-    },
-    {
-      "path": "./packages/agora"
-    }
+    { "path": "./packages/shared-types" },
+    { "path": "./packages/agora-shared" },
+    { "path": "./packages/backend" },
+    { "path": "./packages/frontend" },
+    { "path": "./packages/agora" }
   ],
   "exclude": [
     "node_modules",
@@ -41,6 +73,5 @@
     "**/dist",
     "**/build",
     "**/.expo"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }

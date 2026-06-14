@@ -25,6 +25,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { listsService } from '@/services/listsService';
+import { subscribeToListChanges } from '@/services/listMutations';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
@@ -86,6 +87,19 @@ export default function ListDetailScreen() {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  // Auto-refresh when this list's membership/metadata changes anywhere in the
+  // app (e.g. from a profile/post "Add to list" action). Re-fetching the list
+  // produces fresh `memberOxyUserIds`, which changes the `<Feed authors>` filter
+  // so the embedded feed re-fetches automatically — no manual refresh needed.
+  useEffect(() => {
+    return subscribeToListChanges((changedId) => {
+      if (!id) return;
+      if (changedId === null || String(changedId) === String(id)) {
+        loadList();
+      }
+    });
+  }, [id, loadList]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

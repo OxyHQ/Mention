@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
+import { subscribeToListChanges } from '@/services/listMutations';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
@@ -22,23 +23,35 @@ export default function ListsScreen() {
   const { isAuthenticated, user } = useAuth();
   const viewerId = user?.id;
 
-  // `viewerId` is a dependency so the user's own lists load when the auth
-  // session resolves on cold boot. With `[]` deps this otherwise fired once
-  // while anonymous (returning nothing) and never refetched after sign-in.
-  useEffect(() => {
+  const loadLists = useCallback(async () => {
     if (!isAuthenticated) {
       setMyLists([]);
       return;
     }
-    (async () => {
-      try {
-        const mine = await listsService.list({ mine: true });
-        setMyLists(mine.items || []);
-      } catch (e) {
-        logger.warn('load lists failed', { error: e });
-      }
-    })();
-  }, [isAuthenticated, viewerId]);
+    try {
+      const mine = await listsService.list({ mine: true });
+      setMyLists(mine.items || []);
+    } catch (e) {
+      logger.warn('load lists failed', { error: e });
+    }
+  }, [isAuthenticated]);
+
+  // `viewerId` is a dependency so the user's own lists load when the auth
+  // session resolves on cold boot. With `[]` deps this otherwise fired once
+  // while anonymous (returning nothing) and never refetched after sign-in.
+  useEffect(() => {
+    loadLists();
+    // viewerId is intentionally part of the trigger set: a new session must
+    // reload the viewer's lists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadLists, viewerId]);
+
+  // Refresh the collection when a list is created/renamed/deleted anywhere.
+  useEffect(() => {
+    return subscribeToListChanges(() => {
+      loadLists();
+    });
+  }, [loadLists]);
 
   return (
     <>

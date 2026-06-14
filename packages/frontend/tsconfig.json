@@ -1,14 +1,36 @@
 {
-  "extends": "expo/tsconfig.base",
+  // ---------------------------------------------------------------------------
+  // @mention/frontend (Expo / React Native)
+  //
+  // Not compiled by `tsc` — Metro/Expo bundles the source. `tsc` here is only
+  // for type-checking (`tsc --noEmit` in CI / editor).
+  //
+  // Extends BOTH the monorepo root base (shared strict/composite defaults) AND
+  // `expo/tsconfig.base` (React-Native JSX, `customConditions: ["react-native"]`,
+  // bundler module resolution). The Expo base is layered here — not in the root
+  // — because its `customConditions` is only valid with bundler resolution and
+  // would break the Node/CommonJS packages. Later entries win, so the Expo base
+  // overrides root where they differ; the explicit overrides below win over both.
+  // ---------------------------------------------------------------------------
+  "extends": ["../../tsconfig.json", "expo/tsconfig.base"],
   "compilerOptions": {
-    "strict": true,
+    // React Native JSX runtime (the Expo base defaults to `react-jsx`).
     "jsx": "react-native",
+
+    // Re-assert strict + composite from the root base (the Expo base does not
+    // set them) so the frontend participates in project references with the
+    // same safety guarantees as the rest of the monorepo.
+    "strict": true,
     "composite": true,
+
+    // Expo's generated type plumbing (.expo/types, expo-router) expects
+    // `noEmit: false`; Metro — not tsc — owns the actual bundle, so this only
+    // affects how the type-checker is configured.
     "noEmit": false,
+
+    // App-local path alias used throughout the frontend (`@/components/...`).
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     }
   },
   "include": [

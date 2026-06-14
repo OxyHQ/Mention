@@ -298,6 +298,24 @@
   "settings.privacy.cannotBlockYourself": "No puedes bloquear tu propia cuenta",
   "settings.privacy.restrictedUsersDescription": "Los usuarios restringidos pueden ver tus publicaciones pero tienen interacción limitada. No pueden ver cuando estás en línea ni comentar en tus publicaciones.",
   "settings.privacy.hiddenWordsComingSoon": "Gestión de palabras ocultas próximamente",
+  "settings.privacy.hiddenWordsDescription": "Las publicaciones que contengan estas palabras o hashtags se ocultarán de tus feeds. Empieza una entrada con # para silenciar un hashtag.",
+  "settings.privacy.hiddenWordsSignInRequired": "Inicia sesión para gestionar las palabras silenciadas",
+  "settings.privacy.hiddenWordsSignInRequiredDesc": "Las palabras y hashtags silenciados ocultan las publicaciones que coincidan en tus feeds.",
+  "settings.privacy.addMutedWord": "Añadir una palabra o hashtag",
+  "settings.privacy.addWordPlaceholder": "Palabra o #hashtag",
+  "settings.privacy.mutedWords": "Palabras y hashtags silenciados",
+  "settings.privacy.mutedWordsEmpty": "Aún no hay palabras silenciadas",
+  "settings.privacy.mutedWordTypeWord": "Palabra",
+  "settings.privacy.mutedWordTypeHashtag": "Hashtag",
+  "settings.privacy.wordMuted": "Palabra silenciada",
+  "settings.privacy.wordUnmuted": "Palabra reactivada",
+  "settings.privacy.removeMutedWord": "Eliminar palabra silenciada",
+  "settings.privacy.removeMutedWordConfirm": "¿Dejar de ocultar las publicaciones que contengan \"{{value}}\"?",
+  "settings.privacy.failedToMuteWord": "No se pudo silenciar la palabra",
+  "settings.privacy.failedToUnmuteWord": "No se pudo reactivar la palabra",
+  "settings.privacy.failedToLoadMutedWords": "No se pudieron cargar las palabras silenciadas",
+  "common.remove": "Eliminar",
+  "common.tryAgain": "Reintentar",
   "common.saving": "Guardando...",
   "settings.sections.preferences": "Preferencias",
   "Select your preferred language": "Selecciona tu idioma preferido",
@@ -408,7 +426,9 @@
   "common": {
     "unknown": "desconocido",
     "someone": "Alguien",
-    "back": "Atrás"
+    "back": "Atrás",
+    "retry": "Reintentar",
+    "close": "Cerrar"
   },
   "insights": {
     "posts": "Publicaciones",
@@ -654,6 +674,28 @@
       "remove": "Eliminar",
       "saving": "Guardando…",
       "createButton": "Crear Lista"
+    },
+    "memberSingular": "miembro",
+    "memberPlural": "miembros",
+    "addTo": {
+      "menuItem": "Añadir/quitar de listas",
+      "title": "Añadir a {{user}} a una lista",
+      "thisUser": "este usuario",
+      "added": "Añadido a {{list}}",
+      "removed": "Eliminado de {{list}}",
+      "empty": "Aún no tienes listas",
+      "newList": "Nueva lista",
+      "loadError": "No se pudieron cargar tus listas",
+      "toggleFailed": "Algo salió mal"
+    },
+    "edit": {
+      "title": "Editar miembros",
+      "addMembers": "Añadir miembros",
+      "loadError": "No se pudo cargar esta lista",
+      "added": "@{{user}} añadido",
+      "addFailed": "No se pudo añadir el miembro",
+      "removed": "@{{user}} eliminado",
+      "removeFailed": "No se pudo eliminar el miembro"
     }
   },
   "feeds": {

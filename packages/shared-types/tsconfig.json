@@ -1,29 +1,29 @@
 {
-    "compilerOptions": {
-        "target": "ES2020",
-        "module": "commonjs",
-        "lib": [
-            "ES2020"
-        ],
-        "declaration": true,
-        "outDir": "./dist",
-        "rootDir": "./src",
-        "strict": true,
-        "esModuleInterop": true,
-        "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true,
-        "resolveJsonModule": true,
-        "moduleResolution": "node",
-        "allowSyntheticDefaultImports": true,
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true,
-        "composite": true
-    },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist"
-    ]
+  // ---------------------------------------------------------------------------
+  // @mention/shared-types
+  //
+  // Type definitions shared by BOTH the backend (Node/Bun, CommonJS) and the
+  // frontend (Metro/Expo bundler). It is the only emitting leaf both runtimes
+  // consume at the same time, so its output must be safe for each.
+  //
+  // It emits CommonJS to `dist/` (with .d.ts declarations) because the backend
+  // imports it as a compiled CJS dependency (`dist/index.js` / `dist/index.d.ts`)
+  // and runs that emitted output in the Docker/ECS image. Metro happily consumes
+  // the same CJS + declarations, so a single CJS build serves both. Everything
+  // else inherits from the root base.
+  // ---------------------------------------------------------------------------
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // --- Intentional override of the root base: emit CommonJS for the backend.
+    // `node` resolution matches the CJS module format the backend runtime uses.
+    "module": "commonjs",
+    "moduleResolution": "node",
+
+    // --- Emit settings (the root base is type-check only / noEmit).
+    "noEmit": false,
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

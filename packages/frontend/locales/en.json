@@ -289,6 +289,24 @@
     "settings.privacy.cannotBlockYourself": "You cannot block yourself",
     "settings.privacy.restrictedUsersDescription": "Restricted users can see your posts but have limited interaction. They cannot see when you're online or comment on your posts.",
     "settings.privacy.hiddenWordsComingSoon": "Hidden words management coming soon",
+    "settings.privacy.hiddenWordsDescription": "Posts containing these words or hashtags are hidden from your feeds. Start an entry with # to mute a hashtag.",
+    "settings.privacy.hiddenWordsSignInRequired": "Sign in to manage muted words",
+    "settings.privacy.hiddenWordsSignInRequiredDesc": "Muted words and hashtags hide matching posts from your feeds.",
+    "settings.privacy.addMutedWord": "Add a word or hashtag",
+    "settings.privacy.addWordPlaceholder": "Word or #hashtag",
+    "settings.privacy.mutedWords": "Muted words and hashtags",
+    "settings.privacy.mutedWordsEmpty": "No muted words yet",
+    "settings.privacy.mutedWordTypeWord": "Word",
+    "settings.privacy.mutedWordTypeHashtag": "Hashtag",
+    "settings.privacy.wordMuted": "Word muted",
+    "settings.privacy.wordUnmuted": "Word unmuted",
+    "settings.privacy.removeMutedWord": "Remove muted word",
+    "settings.privacy.removeMutedWordConfirm": "Stop hiding posts containing \"{{value}}\"?",
+    "settings.privacy.failedToMuteWord": "Failed to mute word",
+    "settings.privacy.failedToUnmuteWord": "Failed to unmute word",
+    "settings.privacy.failedToLoadMutedWords": "Failed to load muted words",
+    "common.remove": "Remove",
+    "common.tryAgain": "Try again",
     "common.saving": "Saving...",
     "settings.sections.preferences": "Preferences",
     "Select your preferred language": "Select your preferred language",
@@ -477,7 +495,9 @@
     "common": {
         "unknown": "unknown",
         "someone": "Someone",
-        "back": "Back"
+        "back": "Back",
+        "retry": "Try again",
+        "close": "Close"
     },
     "insights": {
         "posts": "Posts",
@@ -723,6 +743,28 @@
             "remove": "Remove",
             "saving": "Saving…",
             "createButton": "Create List"
+        },
+        "memberSingular": "member",
+        "memberPlural": "members",
+        "addTo": {
+            "menuItem": "Add/remove from lists",
+            "title": "Add {{user}} to list",
+            "thisUser": "this user",
+            "added": "Added to {{list}}",
+            "removed": "Removed from {{list}}",
+            "empty": "You have no lists yet",
+            "newList": "New list",
+            "loadError": "Could not load your lists",
+            "toggleFailed": "Something went wrong"
+        },
+        "edit": {
+            "title": "Edit members",
+            "addMembers": "Add members",
+            "loadError": "Could not load this list",
+            "added": "Added @{{user}}",
+            "addFailed": "Failed to add member",
+            "removed": "Removed @{{user}}",
+            "removeFailed": "Failed to remove member"
         }
     },
     "search": {

@@ -58,6 +58,7 @@ import imagesRoutes from './src/routes/images';
 import linksRoutes from './src/routes/links';
 import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
+import muteWordsRoutes from './src/routes/muteWords.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
 import topicsRoutes from './src/routes/topics.routes';
@@ -764,6 +765,7 @@ authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 authenticatedApiRouter.use("/gifs", gifsRoutes);
 authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
+authenticatedApiRouter.use("/mute-words", muteWordsRoutes); // Muted words & hashtags (feed tuner)
 authenticatedApiRouter.use("/reports", reportsRoutes);
 authenticatedApiRouter.use("/rooms", roomsRoutes);
 authenticatedApiRouter.use("/recordings", recordingsRoutes);

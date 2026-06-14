@@ -18,6 +18,30 @@ import { oxy as oxyClient } from '../../../server';
 import { extractFollowingIds } from '../../utils/privacyHelpers';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
+import { MuteWord } from '../../models/MuteWord';
+import type { TunerContext } from '../feed/FeedTuner';
+
+type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
+
+/**
+ * Load the user's muted words/hashtags and map them into the tuner-preference
+ * shape consumed by `filterMuteWords`. One query per feed request — no N+1.
+ * Returns an empty array for anonymous viewers or on load failure (fail-open:
+ * a muted-word lookup error must never break the feed).
+ */
+async function loadMuteWordsForUser(userId: string | undefined): Promise<MutePreference> {
+  if (!userId) return [];
+  try {
+    const docs = await MuteWord.find(
+      { userId },
+      { value: 1, targets: 1 },
+    ).lean();
+    return docs.map((doc) => ({ value: doc.value, targets: doc.targets }));
+  } catch (error) {
+    logger.warn('[MtnFeedController] Failed to load muted words', error);
+    return [];
+  }
+}
 
 /**
  * Merge oxyUserIds from accepted federated (ActivityPub) follows into the
@@ -124,11 +148,12 @@ class MtnFeedController {
 
       // Apply tuner pipeline
       if (response.slices.length > 0) {
+        const muteWords = await loadMuteWordsForUser(currentUserId);
         const tuner = FeedTuner.default();
         response.slices = tuner.apply(response.slices, {
           viewerId: currentUserId,
           preferences: {
-            // TODO: Load from user settings
+            muteWords,
             hideBoosts: false,
             hideReplies: false,
             hideSensitive: false,
