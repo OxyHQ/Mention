@@ -8,6 +8,7 @@ import { FollowingFeed } from './feeds/FollowingFeed';
 import { ForYouFeed } from './feeds/ForYouFeed';
 import { ExploreFeed } from './feeds/ExploreFeed';
 import { VideosFeed } from './feeds/VideosFeed';
+import { MediaFeed } from './feeds/MediaFeed';
 import { CustomFeed } from './feeds/CustomFeed';
 import { AuthorFeed } from './feeds/AuthorFeed';
 import { HashtagFeed } from './feeds/HashtagFeed';
@@ -21,6 +22,7 @@ export function registerAllFeeds(): void {
   feedAPIRegistry.register('for_you', () => new ForYouFeed());
   feedAPIRegistry.register('explore', () => new ExploreFeed());
   feedAPIRegistry.register('videos', () => new VideosFeed());
+  feedAPIRegistry.register('media', () => new MediaFeed());
   feedAPIRegistry.register('saved', () => new SavedFeed());
 
   feedAPIRegistry.register('custom', (params) => {

@@ -68,6 +68,7 @@ export const MtnConfig = {
       following: 5000,
       explore: 30000,
       videos: 5000,
+      media: 5000,
       saved: 10000,
       author: 10000,
       custom: 10000,

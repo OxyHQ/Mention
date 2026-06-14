@@ -367,6 +367,58 @@ export class FeedQueryBuilder {
   }
 
   /**
+   * Build query for the global Media feed.
+   *
+   * Mirrors buildVideosQuery but widens the content predicate to ANY media
+   * attachment (images, videos or gifs) rather than videos only. Matches
+   * public, published posts that are typed as IMAGE/VIDEO, carry at least one
+   * item in content.media, or carry a media attachment in content.attachments.
+   * Both native and federated posts are included (no federation exclusion).
+   * Boosts are excluded (the underlying original is surfaced instead). Replies
+   * flow through so multi-post threads can still be sliced.
+   *
+   * The content.media predicate is backed by the `{ 'content.media': 1,
+   * createdAt: -1 }` index; the type predicate is backed by the
+   * `{ type: 1, visibility: 1, status: 1, createdAt: -1 }` index.
+   */
+  static buildMediaFeedQuery(
+    seenPostIds: string[],
+    cursor?: string,
+  ): Record<string, unknown> {
+    const mediaMatch = {
+      $or: [
+        { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
+        { 'content.media.0': { $exists: true } },
+        { 'content.attachments': { $elemMatch: { type: 'media' } } },
+      ],
+    };
+
+    const match: Record<string, unknown> = {
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      $and: [
+        mediaMatch,
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
+      ],
+    };
+
+    // Exclude already-seen posts (de-prioritize seen content for discovery)
+    const seenObjectIds = seenPostIds
+      .filter(id => mongoose.Types.ObjectId.isValid(id))
+      .map(id => new mongoose.Types.ObjectId(id));
+    if (seenObjectIds.length > 0) {
+      (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
+    }
+
+    const cursorId = parseFeedCursor(cursor);
+    if (cursorId) {
+      (match.$and as unknown[]).push({ _id: { $lt: cursorId } });
+    }
+
+    return match;
+  }
+
+  /**
    * Build query for Following feed
    */
   static buildFollowingQuery(
