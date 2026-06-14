@@ -1,17 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { Image, View, StyleSheet, ViewStyle, Platform } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Image, Pressable, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
-import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
+import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
+import {
+  getAspectRatio,
+  hasAspectRatio,
+  setAspectRatio as setAspectRatioInCache,
+  DEFAULT_ASPECT_RATIO,
+} from '@/utils/imageAspectRatioCache';
+
+/** Screen-space rectangle of a tapped thumbnail, used to seed the zoom origin. */
+export interface MeasuredRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
   : null;
 
 const MIN_WIDTH = 100;
-
-const aspectRatioCache = new Map<string, number>();
 
 interface PostAttachmentMediaProps {
   type: 'image' | 'video' | 'gif';
@@ -20,7 +32,12 @@ interface PostAttachmentMediaProps {
   postId?: string;
   /** Poster (thumbnail) shown over the video until the first frame plays. */
   poster?: string;
-  onPress?: () => void;
+  /**
+   * Video: fired with no args (routes to the reels viewer).
+   * Image: fired with the measured on-screen rect of the tapped thumbnail so the
+   * gallery can animate the zoom from the image's origin.
+   */
+  onPress?: (rect?: MeasuredRect) => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
 }
@@ -54,17 +71,21 @@ const PostAttachmentVideo: React.FC<{
   );
 };
 
+const FULL_DIMENSION = '100%' as const;
+
 const PostAttachmentImage: React.FC<{
   src: string;
-}> = ({ src }) => {
+  onPress?: (rect?: MeasuredRect) => void;
+}> = ({ src, onPress }) => {
   const theme = useTheme();
+  const wrapperRef = useRef<View>(null);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(
-    () => aspectRatioCache.get(src)
+    () => getAspectRatio(src)
   );
 
   useEffect(() => {
-    if (aspectRatioCache.has(src)) {
-      setAspectRatio(aspectRatioCache.get(src));
+    if (hasAspectRatio(src)) {
+      setAspectRatio(getAspectRatio(src));
       return;
     }
     let cancelled = false;
@@ -74,19 +95,31 @@ const PostAttachmentImage: React.FC<{
         if (cancelled) return;
         if (width > 0 && height > 0) {
           const ratio = width / height;
-          aspectRatioCache.set(src, ratio);
           setAspectRatio(ratio);
+          // Persist to the shared cache so the gallery reuses it on open.
+          setAspectRatioInCache(src, ratio);
         }
       },
       () => {
         if (cancelled) return;
-        const fallback = 4 / 3;
-        aspectRatioCache.set(src, fallback);
-        setAspectRatio(fallback);
+        setAspectRatio(DEFAULT_ASPECT_RATIO);
+        setAspectRatioInCache(src, DEFAULT_ASPECT_RATIO);
       }
     );
     return () => { cancelled = true; };
   }, [src]);
+
+  const handlePress = useCallback(() => {
+    if (!onPress) return;
+    const node = wrapperRef.current;
+    if (!node) {
+      onPress(undefined);
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      onPress({ x, y, width, height });
+    });
+  }, [onPress]);
 
   const computedWidth = aspectRatio !== undefined
     ? Math.max(MEDIA_CARD_HEIGHT * aspectRatio, MIN_WIDTH)
@@ -105,11 +138,11 @@ const PostAttachmentImage: React.FC<{
     containerStyles.push(webGrabCursorStyle);
   }
 
-  return (
+  const lazyImage = (
     <LazyImage
       source={{ uri: src }}
       containerStyle={containerStyles}
-      style={{ width: '100%' as unknown as number, height: '100%' as unknown as number }}
+      style={styles.fullSize}
       resizeMode="cover"
       placeholder={
         <View
@@ -119,6 +152,22 @@ const PostAttachmentImage: React.FC<{
       }
       threshold={300}
     />
+  );
+
+  if (!onPress) {
+    return lazyImage;
+  }
+
+  return (
+    <Pressable
+      ref={wrapperRef}
+      onPress={handlePress}
+      accessibilityRole="imagebutton"
+      accessibilityLabel="Open image"
+      collapsable={false}
+    >
+      {lazyImage}
+    </Pressable>
   );
 };
 
@@ -142,14 +191,18 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     );
   }
 
-  return <PostAttachmentImage src={src} />;
+  return <PostAttachmentImage src={src} onPress={onPress} />;
 };
 
 const styles = StyleSheet.create({
   itemContainer: {
     borderWidth: 1,
-    borderRadius: 15,
+    borderRadius: MEDIA_CARD_RADIUS,
     overflow: 'hidden',
+  },
+  fullSize: {
+    width: FULL_DIMENSION,
+    height: FULL_DIMENSION,
   },
   videoPreserveAspect: {
     width: MEDIA_CARD_WIDTH,

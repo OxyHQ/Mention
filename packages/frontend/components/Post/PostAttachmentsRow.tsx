@@ -5,6 +5,12 @@ import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention
 import { useRouter } from 'expo-router';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import {
+  ZoomableImageGallery,
+  type ZoomableImageGalleryHandle,
+  type GalleryImage,
+} from '@/components/ZoomableImageGallery';
+import type { MeasuredRect } from '@/components/Post/Attachments/PostAttachmentMedia';
+import {
   PostAttachmentArticle,
   PostAttachmentLink,
   PostAttachmentMedia,
@@ -263,6 +269,38 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     router.push(`/videos${query}`);
   }, [postId, mediaArray, router]);
 
+  // Images-only subset (in render order) powering the zoom gallery. Each entry's
+  // position is the index the gallery opens at when its thumbnail is tapped;
+  // `imageIndexByMediaId` maps a tapped media id to that position.
+  const galleryImages = useMemo<GalleryImage[]>(
+    () => mediaItems
+      .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
+      .map(item => ({ uri: item.src })),
+    [mediaItems]
+  );
+
+  const imageIndexByMediaId = useMemo<Map<string, number>>(() => {
+    const map = new Map<string, number>();
+    let index = 0;
+    mediaItems.forEach((item) => {
+      if (item.type === 'image') {
+        map.set(item.mediaId, index);
+        index += 1;
+      }
+    });
+    return map;
+  }, [mediaItems]);
+
+  const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
+
+  // Open the zoom gallery seeded at the tapped image's index within the
+  // images-only subset, animating from the measured thumbnail rect.
+  const handleImagePress = useCallback((mediaId: string, rect?: MeasuredRect) => {
+    if (galleryImages.length === 0) return;
+    const index = imageIndexByMediaId.get(mediaId) ?? 0;
+    galleryRef.current?.open(galleryImages, index, rect);
+  }, [galleryImages, imageIndexByMediaId]);
+
   const screenWidth = Dimensions.get('window').width;
   const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
 
@@ -342,6 +380,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const nestedWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
 
   return (
+    <>
     <ScrollView
       ref={scrollViewRef}
       horizontal
@@ -423,15 +462,20 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           );
         }
         if (item.type === 'video' || item.type === 'image') {
+          const mediaId = item.mediaId;
           return (
             <PostAttachmentMedia
-              key={`${item.type}-${item.mediaId ?? idx}`}
+              key={`${item.type}-${mediaId ?? idx}`}
               type={item.type}
               src={item.src}
-              mediaId={item.mediaId}
+              mediaId={mediaId}
               poster={item.type === 'video' ? item.poster : undefined}
               postId={postId}
-              onPress={item.type === 'video' ? () => handleVideoPress(item.mediaId) : undefined}
+              onPress={
+                item.type === 'video'
+                  ? () => handleVideoPress(mediaId)
+                  : (rect?: MeasuredRect) => handleImagePress(mediaId, rect)
+              }
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
             />
@@ -440,6 +484,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         return null;
       })}
     </ScrollView>
+    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} />}
+    </>
   );
 }, (prevProps, nextProps) => {
   return (

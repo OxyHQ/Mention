@@ -4,6 +4,8 @@
 
 export const MEDIA_CARD_WIDTH = 280;
 export const MEDIA_CARD_HEIGHT = 180;
+/** Corner radius of post media cards (thumbnail + zoomed gallery image). */
+export const MEDIA_CARD_RADIUS = 15;
 export const POLL_ATTACHMENT_KEY = "poll";
 export const ARTICLE_ATTACHMENT_KEY = "article";
 export const EVENT_ATTACHMENT_KEY = "event";
