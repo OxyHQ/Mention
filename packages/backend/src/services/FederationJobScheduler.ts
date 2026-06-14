@@ -5,6 +5,12 @@ import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
 import { federationService } from './FederationService';
+import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
+import { runEvictionOnce } from './mediaCache/evictionJob';
+import {
+  MEDIA_CACHE_EVICTION_INTERVAL_MS,
+  MEDIA_CACHE_WORKER_INTERVAL_MS,
+} from './mediaCache/constants';
 
 /** Staleness threshold after which an actor profile is re-fetched. */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -16,6 +22,8 @@ class FederationJobScheduler {
   private actorRefreshInterval: ReturnType<typeof setInterval> | null = null;
   private deliveryRetryInterval: ReturnType<typeof setInterval> | null = null;
   private outboxSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private mediaCacheWorkerInterval: ReturnType<typeof setInterval> | null = null;
+  private mediaCacheEvictionInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
   private backfillTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -25,6 +33,8 @@ class FederationJobScheduler {
   private isSyncFollowedActorsPostsRunning = false;
   private isBackfillFederatedPostOxyUserIdsRunning = false;
   private isRetryFailedDeliveriesRunning = false;
+  private isMediaCacheWorkerRunning = false;
+  private isMediaCacheEvictionRunning = false;
 
   start(): void {
     if (!FEDERATION_ENABLED) {
@@ -51,6 +61,20 @@ class FederationJobScheduler {
         logger.error('Outbox sync job failed:', err)
       );
     }, 15 * 60 * 1000);
+
+    // Drain pending federated-media cache jobs (download remote → upload to Oxy).
+    this.mediaCacheWorkerInterval = setInterval(() => {
+      this.runMediaCacheWorker().catch((err) =>
+        logger.error('Media cache worker job failed:', err)
+      );
+    }, MEDIA_CACHE_WORKER_INTERVAL_MS);
+
+    // Evict idle cached media from Oxy S3 (activity-based TTL).
+    this.mediaCacheEvictionInterval = setInterval(() => {
+      this.runMediaCacheEviction().catch((err) =>
+        logger.error('Media cache eviction job failed:', err)
+      );
+    }, MEDIA_CACHE_EVICTION_INTERVAL_MS);
 
     // Stagger startup tasks to let DB connections warm up
     this.backfillTimeout = setTimeout(() => {
@@ -80,6 +104,14 @@ class FederationJobScheduler {
     if (this.outboxSyncInterval) {
       clearInterval(this.outboxSyncInterval);
       this.outboxSyncInterval = null;
+    }
+    if (this.mediaCacheWorkerInterval) {
+      clearInterval(this.mediaCacheWorkerInterval);
+      this.mediaCacheWorkerInterval = null;
+    }
+    if (this.mediaCacheEvictionInterval) {
+      clearInterval(this.mediaCacheEvictionInterval);
+      this.mediaCacheEvictionInterval = null;
     }
     if (this.backfillTimeout) {
       clearTimeout(this.backfillTimeout);
@@ -352,6 +384,40 @@ class FederationJobScheduler {
       }
     } finally {
       this.isRetryFailedDeliveriesRunning = false;
+    }
+  }
+
+  /**
+   * Drain pending federated-media cache jobs. No-ops when the cache write side
+   * is disabled (Oxy service-client upload capability is blocked upstream).
+   */
+  private async runMediaCacheWorker(): Promise<void> {
+    if (this.isMediaCacheWorkerRunning) {
+      logger.debug('[MediaCache] worker already running, skipping');
+      return;
+    }
+    this.isMediaCacheWorkerRunning = true;
+    try {
+      await runCacheWorkerOnce();
+    } finally {
+      this.isMediaCacheWorkerRunning = false;
+    }
+  }
+
+  /**
+   * Evict idle cached media from Oxy S3 past the activity TTL. No-ops when the
+   * cache write side is disabled (Oxy service-client delete is blocked upstream).
+   */
+  private async runMediaCacheEviction(): Promise<void> {
+    if (this.isMediaCacheEvictionRunning) {
+      logger.debug('[MediaCache] eviction already running, skipping');
+      return;
+    }
+    this.isMediaCacheEvictionRunning = true;
+    try {
+      await runEvictionOnce();
+    } finally {
+      this.isMediaCacheEvictionRunning = false;
     }
   }
 }

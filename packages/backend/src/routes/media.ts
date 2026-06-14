@@ -11,6 +11,9 @@ import {
   fetchUpstreamFollowingRedirects,
 } from '../utils/safeUpstreamFetch';
 import { extractPosterFrame } from '../utils/videoPoster';
+import { lookupCacheRow, bumpAccess, recordAccessAndMaybeEnqueue } from '../services/mediaCache/cacheStore';
+import { decideProxyServe } from '../services/mediaCache/policy';
+import { isMediaCacheEnabled, resolveOxyDownloadUrl } from '../services/mediaCache/oxyMediaStore';
 
 const router = express.Router();
 
@@ -95,6 +98,7 @@ const HTTP_STATUS = {
   OK: 200,
   PARTIAL_CONTENT: 206,
   NOT_MODIFIED: 304,
+  FOUND: 302,
   BAD_REQUEST: 400,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
@@ -226,6 +230,77 @@ function readBoundedPrefix(response: IncomingMessage, maxBytes: number): Promise
   });
 }
 
+/**
+ * Consult the federated-media cache for a (non-range) proxy request.
+ *
+ * Returns `true` when the request was fully handled by redirecting to the cached
+ * Oxy object (our CDN then serves the bytes). Returns `false` when the caller
+ * should fall through to the existing remote-stream behaviour; in that case this
+ * function has already recorded activity (bumping `lastAccessedAt` and enqueuing
+ * a cache job when appropriate) WITHOUT blocking the response.
+ *
+ * Never throws: any cache-layer failure degrades to the remote-stream fallback,
+ * preserving the proxy's current behaviour as the safety net.
+ */
+async function tryServeFromCache(remoteUrl: string, res: Response): Promise<boolean> {
+  try {
+    const decision = decideProxyServe(await lookupCacheRow(remoteUrl));
+
+    if (decision.action === 'serve-from-oxy') {
+      const oxyUrl = await resolveOxyDownloadUrl(decision.oxyFileId);
+      // Bump access in the background; do not delay the redirect on the write.
+      void bumpAccess(remoteUrl);
+      setPublicMediaCors(res);
+      res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
+      res.redirect(HTTP_STATUS.FOUND, oxyUrl);
+      return true;
+    }
+
+    if (decision.action === 'stream-and-enqueue') {
+      void recordAccessAndMaybeEnqueue(remoteUrl).catch((error: unknown) => {
+        logger.debug('[MediaProxy] Cache enqueue failed', {
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+    } else {
+      // stream-only (pending/failed): keep the entry warm, no enqueue.
+      void bumpAccess(remoteUrl);
+    }
+    return false;
+  } catch (error) {
+    // Cache layer unavailable (e.g. Oxy URL resolution failed) — fall back to
+    // streaming from the remote upstream, which is the existing behaviour.
+    logger.debug('[MediaProxy] Cache front failed; streaming from remote', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    return false;
+  }
+}
+
+/**
+ * Consult the federated-media cache for a poster request. Returns `true` (and
+ * redirects to the cached poster in Oxy) when one exists; otherwise `false` so
+ * the caller falls through to on-demand ffmpeg extraction. Never throws.
+ */
+async function tryServePosterFromCache(remoteUrl: string, res: Response): Promise<boolean> {
+  try {
+    const row = await lookupCacheRow(remoteUrl);
+    if (!row?.posterFileId) return false;
+
+    const oxyUrl = await resolveOxyDownloadUrl(row.posterFileId);
+    void bumpAccess(remoteUrl);
+    setPublicMediaCors(res);
+    res.setHeader('Cache-Control', POSTER_CACHE_CONTROL);
+    res.redirect(HTTP_STATUS.FOUND, oxyUrl);
+    return true;
+  } catch (error) {
+    logger.debug('[MediaPoster] Cached poster lookup failed; extracting on demand', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    return false;
+  }
+}
+
 // --- Route ------------------------------------------------------------------
 
 /**
@@ -251,6 +326,33 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     logger.warn('[MediaProxy] Rejected target', { reason: preCheck.reason });
     res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
     return;
+  }
+
+  // --- Activity-based cache front (only when the cache is enabled) ---
+  // When the federated media cache is disabled it is COMPLETELY INERT: we touch
+  // FederatedMediaCache ZERO times (no lookup, no access bump, no enqueue) and
+  // fall straight through to the remote stream below — the pre-cache behaviour.
+  //
+  // When enabled: if this URL is already cached in Oxy, redirect so our CDN serves
+  // the bytes; otherwise stream from remote (below) AND record activity to
+  // (re)cache it. A range request is NOT redirected: the cached Oxy object is
+  // served whole and Oxy/CDN handles range itself, but to preserve the existing
+  // seek semantics we only short-circuit for full (non-range) GETs; ranged
+  // requests fall through to the existing range-aware remote stream while still
+  // recording access.
+  if (isMediaCacheEnabled()) {
+    const hasRange = typeof req.headers.range === 'string' && req.headers.range.length > 0;
+    if (!hasRange) {
+      const cacheServed = await tryServeFromCache(rawUrl, res);
+      if (cacheServed) return;
+    } else {
+      // Ranged request: still record activity so the entry stays warm / gets cached.
+      void recordAccessAndMaybeEnqueue(rawUrl).catch((error: unknown) => {
+        logger.debug('[MediaProxy] Cache record (ranged) failed', {
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+    }
   }
 
   const extras = {
@@ -430,6 +532,16 @@ router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response
   if (!preCheck.ok) {
     logger.warn('[MediaPoster] Rejected target', { reason: preCheck.reason });
     res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
+    return;
+  }
+
+  // --- Cached poster front (only when the cache is enabled) ---
+  // When the cache is disabled this is COMPLETELY INERT — no FederatedMediaCache
+  // lookup, no access bump — and we fall straight through to on-demand ffmpeg
+  // extraction, the pre-cache behaviour. When enabled: if a cached entry for this
+  // video already has a poster frame in Oxy, redirect to it instead of re-running
+  // ffmpeg. Never throws — falls through to on-demand extraction on any failure.
+  if (isMediaCacheEnabled() && (await tryServePosterFromCache(rawUrl, res))) {
     return;
   }
 
