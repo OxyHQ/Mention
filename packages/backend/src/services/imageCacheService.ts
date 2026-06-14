@@ -250,8 +250,14 @@ class ImageCacheService {
   }
 
   /**
-   * Store image in S3 under link-previews/ prefix.
-   * Object is public-read so it can be served via the CDN.
+   * Store image in S3 under link-previews/ prefix, then serve it via the CDN.
+   *
+   * No object ACL is sent: the bucket uses Object Ownership = BucketOwnerEnforced,
+   * which disables ACLs entirely. Sending `ACL: 'public-read'` makes S3 reject the
+   * PUT with `AccessControlListNotSupported` ("The bucket does not allow ACLs") —
+   * the previous cause of every cache write silently failing and link-preview /
+   * optimized images returning 502. Public read on the `link-previews/` prefix is
+   * granted by the bucket policy, not per-object ACLs.
    */
   private async storeImage(buffer: Buffer, cacheKey: string, contentType: string): Promise<string> {
     const objectKey = this.getObjectKey(cacheKey);
@@ -261,7 +267,6 @@ class ImageCacheService {
       Key: objectKey,
       Body: buffer,
       ContentType: contentType || 'image/jpeg',
-      ACL: 'public-read',
       Metadata: {
         cachedAt: new Date().toISOString(),
       },

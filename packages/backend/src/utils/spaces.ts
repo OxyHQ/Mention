@@ -54,11 +54,14 @@ export async function getPresignedUploadUrl(
   contentType: string,
   expiresInSeconds: number = 3600
 ): Promise<string> {
+  // No object ACL: the bucket uses Object Ownership = BucketOwnerEnforced, which
+  // disables ACLs entirely. Sending one makes S3 reject the request with
+  // `AccessControlListNotSupported` ("The bucket does not allow ACLs"). Public vs
+  // private access is governed by the bucket policy, not per-object ACLs.
   const command = new PutObjectCommand({
     Bucket: DO_SPACES_BUCKET,
     Key: objectKey,
     ContentType: contentType,
-    ACL: 'private',
   });
   return getSignedUrl(getS3Client(), command, { expiresIn: expiresInSeconds });
 }
@@ -82,12 +85,20 @@ export async function uploadObject(
   contentType: string,
   acl: 'private' | 'public-read' = 'private'
 ): Promise<string> {
+  // No object ACL is sent: the bucket uses Object Ownership = BucketOwnerEnforced,
+  // which disables ACLs entirely. Sending `ACL: 'public-read'` (or any ACL) makes
+  // S3 reject the PUT with `AccessControlListNotSupported` ("The bucket does not
+  // allow ACLs") — the upload silently fails and the asset never appears. Public
+  // read is granted by the bucket policy on the public prefixes, not per object.
+  //
+  // The `acl` argument is retained only to pick the right return shape: callers
+  // that requested 'public-read' expect a CDN URL they can serve directly, while
+  // 'private' callers expect the raw object key (fetched later via a presigned URL).
   await getS3Client().send(new PutObjectCommand({
     Bucket: DO_SPACES_BUCKET,
     Key: objectKey,
     Body: body,
     ContentType: contentType,
-    ACL: acl,
   }));
   logger.info(`Uploaded to Spaces: ${objectKey}`);
   return acl === 'public-read' ? getCdnUrl(objectKey) : objectKey;
