@@ -25,6 +25,7 @@ import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import { logger } from "./src/utils/logger";
 import { runMigrations } from "./src/migrations/runner";
+import { leaderElection } from "./src/services/LeaderElection";
 
 // Models
 import { Post } from "./src/models/Post";
@@ -912,7 +913,23 @@ db.once("open", () => {
   require("./src/models/Block");
   require("./src/models/UserBehavior"); // Load UserBehavior model
 
-  // Initialize Feed Services (each service logs its own startup status)
+  // Background schedulers (cron-style jobs) must run on EXACTLY ONE backend
+  // task to avoid double-running when scaled to 2+ ECS tasks. They are gated
+  // behind Redis leader election: only the elected leader starts them, and a
+  // task that loses leadership stops them. See startSchedulers()/stopSchedulers().
+  void leaderElection.start(startSchedulers, stopSchedulers).catch((error) => {
+    logger.error("Leader election failed to start", error);
+  });
+});
+
+/**
+ * Start all in-process schedulers. Invoked by LeaderElection ONLY on the task
+ * that holds the scheduler leadership lock (or in the Redis-unavailable
+ * degraded fallback). Each service logs its own startup status. Failures are
+ * isolated so one scheduler failing to start does not block the others.
+ */
+function startSchedulers(): void {
+  // Feed job scheduler
   try {
     const { feedJobScheduler } = require("./src/services/FeedJobScheduler");
     feedJobScheduler.start();
@@ -920,7 +937,7 @@ db.once("open", () => {
     logger.warn("Failed to start feed job scheduler", error);
   }
 
-  // Initialize Trending Service
+  // Trending Service (30-min calculation interval)
   try {
     const { trendingService } = require("./src/services/TrendingService");
     trendingService.initialize();
@@ -928,7 +945,7 @@ db.once("open", () => {
     logger.warn("Failed to initialize trending service", error);
   }
 
-  // Initialize Topic Extraction Service
+  // Topic Extraction Service (5-min interval)
   try {
     const { topicExtractionService } = require("./src/services/TopicExtractionService");
     topicExtractionService.start();
@@ -936,7 +953,7 @@ db.once("open", () => {
     logger.warn("Failed to start topic extraction service", error);
   }
 
-  // Initialize Topic Service (daily AI enrichment of topic metadata)
+  // Topic Service (daily AI enrichment of topic metadata)
   try {
     const { topicService } = require("./src/services/TopicService");
     topicService.start();
@@ -944,7 +961,7 @@ db.once("open", () => {
     logger.warn("Failed to initialize topic service", error);
   }
 
-  // Initialize Recording Cleanup Service
+  // Recording Cleanup Service (6-hour interval + startup recovery)
   try {
     const { recordingCleanupService } = require("./src/services/RecordingCleanupService");
     recordingCleanupService.start();
@@ -952,14 +969,67 @@ db.once("open", () => {
     logger.warn("Failed to start recording cleanup service", error);
   }
 
-  // Initialize Federation Job Scheduler
+  // Federation Job Scheduler (also owns the media-cache worker + eviction jobs)
   try {
     const { federationJobScheduler } = require("./src/services/FederationJobScheduler");
     federationJobScheduler.start();
   } catch (error) {
     logger.warn("Failed to start federation job scheduler", error);
   }
-});
+}
+
+/**
+ * Stop all in-process schedulers. Invoked by LeaderElection when this task
+ * loses leadership (another task took over) or during graceful shutdown.
+ * Each stop is isolated so one failure does not prevent stopping the rest.
+ *
+ * NOTE: FeedSeenPostsService's in-memory cleanup interval is intentionally NOT
+ * stopped here — it is per-process memory hygiene for a request-time fallback
+ * cache, not a shared cron job, so every task (leader or not) must keep it.
+ */
+function stopSchedulers(): void {
+  try {
+    const { feedJobScheduler } = require("./src/services/FeedJobScheduler");
+    feedJobScheduler.stop();
+  } catch (error) {
+    logger.warn("Failed to stop feed job scheduler", error);
+  }
+
+  try {
+    const { trendingService } = require("./src/services/TrendingService");
+    trendingService.cleanup();
+  } catch (error) {
+    logger.warn("Failed to stop trending service", error);
+  }
+
+  try {
+    const { topicExtractionService } = require("./src/services/TopicExtractionService");
+    topicExtractionService.stop();
+  } catch (error) {
+    logger.warn("Failed to stop topic extraction service", error);
+  }
+
+  try {
+    const { topicService } = require("./src/services/TopicService");
+    topicService.stop();
+  } catch (error) {
+    logger.warn("Failed to stop topic service", error);
+  }
+
+  try {
+    const { recordingCleanupService } = require("./src/services/RecordingCleanupService");
+    recordingCleanupService.stop();
+  } catch (error) {
+    logger.warn("Failed to stop recording cleanup service", error);
+  }
+
+  try {
+    const { federationJobScheduler } = require("./src/services/FederationJobScheduler");
+    federationJobScheduler.stop();
+  } catch (error) {
+    logger.warn("Failed to stop federation job scheduler", error);
+  }
+}
 
 // --- Server Listen ---
 const PORT = Number(process.env.PORT) || 3000;
@@ -998,6 +1068,40 @@ const bootServer = async () => {
     }
   });
 };
+
+// --- Graceful Shutdown ---
+// ECS sends SIGTERM on task stop (and again SIGKILL after the stop timeout).
+// On shutdown we release the scheduler leadership lock so another task can pick
+// up the schedulers almost immediately, then stop accepting new connections.
+let isShuttingDown = false;
+const gracefulShutdown = (signal: string): void => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info(`Received ${signal} — shutting down gracefully`);
+
+  // Release the scheduler lock + stop schedulers first so failover is fast.
+  // leaderElection.stop() is safe to call even if this task was never leader.
+  void leaderElection
+    .stop()
+    .catch((error) => logger.error("Error stopping leader election", error))
+    .finally(() => {
+      // Stop accepting new HTTP/socket connections.
+      server.close(() => {
+        logger.info("HTTP server closed — exiting");
+        process.exit(0);
+      });
+
+      // Hard cap: if connections don't drain in time, force exit so ECS doesn't
+      // have to SIGKILL us.
+      setTimeout(() => {
+        logger.warn("Shutdown timed out — forcing exit");
+        process.exit(0);
+      }, 10_000).unref();
+    });
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 if (require.main === module) {
   void bootServer();

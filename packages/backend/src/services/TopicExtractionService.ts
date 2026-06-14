@@ -63,6 +63,7 @@ const EMPTY_EXTRACTION = (now: Date) => ({
 
 class TopicExtractionService {
   private extractionInterval: NodeJS.Timeout | null = null;
+  private initialRunTimeout: NodeJS.Timeout | null = null;
   private isExtracting = false;
 
   private readonly EXTRACTION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -77,8 +78,10 @@ class TopicExtractionService {
       });
     }, this.EXTRACTION_INTERVAL_MS);
 
-    // Run once on startup after a short delay
-    setTimeout(() => {
+    // Run once on startup after a short delay. Tracked so stop() can cancel it
+    // (e.g. when leadership is lost before the initial run fires).
+    this.initialRunTimeout = setTimeout(() => {
+      this.initialRunTimeout = null;
       this.processQueue().catch(error => {
         logger.error('[TopicExtraction] Initial processing failed:', error);
       });
@@ -92,6 +95,11 @@ class TopicExtractionService {
       clearInterval(this.extractionInterval);
       this.extractionInterval = null;
     }
+    if (this.initialRunTimeout) {
+      clearTimeout(this.initialRunTimeout);
+      this.initialRunTimeout = null;
+    }
+    logger.info('[TopicExtraction] Service stopped');
   }
 
   private async processQueue(): Promise<void> {

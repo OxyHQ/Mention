@@ -6,6 +6,8 @@ import { logger } from '../utils/logger';
 
 export class RecordingCleanupService {
   private interval: NodeJS.Timeout | null = null;
+  private recoverTimeout: NodeJS.Timeout | null = null;
+  private initialCleanupTimeout: NodeJS.Timeout | null = null;
   private isRunning = false;
 
   private readonly INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -15,15 +17,18 @@ export class RecordingCleanupService {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // Recover orphaned recordings on startup (server may have restarted during active recording)
-    setTimeout(() => {
+    // Recover orphaned recordings on startup (server may have restarted during
+    // active recording). Tracked so stop() can cancel it before it fires.
+    this.recoverTimeout = setTimeout(() => {
+      this.recoverTimeout = null;
       this.recoverOrphanedRecordings().catch(err =>
         logger.error('Error recovering orphaned recordings:', err)
       );
     }, 30 * 1000); // 30 seconds after startup
 
-    // Run cleanup after 1 minute
-    setTimeout(() => {
+    // Run cleanup after 1 minute. Tracked so stop() can cancel it.
+    this.initialCleanupTimeout = setTimeout(() => {
+      this.initialCleanupTimeout = null;
       this.cleanup().catch(err =>
         logger.error('Error in recording cleanup:', err)
       );
@@ -42,6 +47,14 @@ export class RecordingCleanupService {
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
+    }
+    if (this.recoverTimeout) {
+      clearTimeout(this.recoverTimeout);
+      this.recoverTimeout = null;
+    }
+    if (this.initialCleanupTimeout) {
+      clearTimeout(this.initialCleanupTimeout);
+      this.initialCleanupTimeout = null;
     }
     this.isRunning = false;
     logger.info('Recording cleanup service stopped');

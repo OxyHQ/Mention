@@ -14,10 +14,14 @@ const KNOWN_CATEGORIES = [
 
 class TopicService {
   private enrichmentInterval: NodeJS.Timeout | null = null;
+  private initialRunTimeout: NodeJS.Timeout | null = null;
   private readonly ENRICHMENT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   start(): void {
-    setTimeout(() => {
+    // Initial enrichment run on startup. Tracked so stop() can cancel it
+    // (e.g. when leadership is lost before the initial run fires).
+    this.initialRunTimeout = setTimeout(() => {
+      this.initialRunTimeout = null;
       this.enrichTopics().catch(err => {
         logger.warn('[TopicService] Enrichment failed:', err);
       });
@@ -37,6 +41,11 @@ class TopicService {
       clearInterval(this.enrichmentInterval);
       this.enrichmentInterval = null;
     }
+    if (this.initialRunTimeout) {
+      clearTimeout(this.initialRunTimeout);
+      this.initialRunTimeout = null;
+    }
+    logger.info('[TopicService] Enrichment pipeline stopped');
   }
 
   // --- Topic Identity (proxied to Oxy API) ---
