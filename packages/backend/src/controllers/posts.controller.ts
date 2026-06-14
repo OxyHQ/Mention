@@ -78,25 +78,27 @@ const sanitizeSources = (arr: unknown): { sources: Array<{ url: string; title?: 
   return { sources: normalized };
 };
 
-const sanitizeArticle = (input: any): { title?: string; body?: string } | undefined => {
+const sanitizeArticle = (input: unknown): { title?: string; body?: string } | undefined => {
   if (!input || typeof input !== 'object') return undefined;
-  const title = typeof input.title === 'string' ? input.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH) : undefined;
-  const body = typeof input.body === 'string' ? input.body.trim() : undefined;
+  const obj = input as Record<string, unknown>;
+  const title = typeof obj.title === 'string' ? obj.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH) : undefined;
+  const body = typeof obj.body === 'string' ? obj.body.trim() : undefined;
   if (!title && !body) return undefined;
   return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
 };
 
-const sanitizeEventData = (eventData: any): { eventId?: string; name?: string; date?: string; location?: string; description?: string } | null => {
+const sanitizeEventData = (eventData: unknown): { eventId?: string; name?: string; date?: string; location?: string; description?: string } | null => {
   if (!eventData || typeof eventData !== 'object') return null;
+  const obj = eventData as Record<string, unknown>;
 
   const sanitized = {
-    eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
-    name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
-    date: typeof eventData.date === 'string'
-      ? eventData.date.trim()
-      : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
-    location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
-    description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
+    eventId: typeof obj.eventId === 'string' ? obj.eventId.trim() : undefined,
+    name: typeof obj.name === 'string' ? obj.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
+    date: typeof obj.date === 'string'
+      ? obj.date.trim()
+      : (obj.date instanceof Date ? obj.date.toISOString() : undefined),
+    location: typeof obj.location === 'string' ? obj.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
+    description: typeof obj.description === 'string' ? obj.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
   };
 
   if (!sanitized.name || !sanitized.date) return null;
@@ -111,17 +113,18 @@ const sanitizeEventData = (eventData: any): { eventId?: string; name?: string; d
   return sanitized;
 };
 
-const sanitizeRoomData = (roomData: any): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
+const sanitizeRoomData = (roomData: unknown): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
   if (!roomData || typeof roomData !== 'object') return null;
-  const id = roomData.roomId ?? roomData.spaceId;
-  if (typeof id !== 'string' || typeof roomData.title !== 'string') return null;
+  const obj = roomData as Record<string, unknown>;
+  const id = obj.roomId ?? obj.spaceId;
+  if (typeof id !== 'string' || typeof obj.title !== 'string') return null;
 
   return {
     roomId: id.trim(),
-    title: roomData.title.trim().slice(0, 200),
-    ...(typeof roomData.status === 'string' && ['scheduled', 'live', 'ended'].includes(roomData.status) ? { status: roomData.status } : {}),
-    ...(typeof roomData.topic === 'string' ? { topic: roomData.topic.trim().slice(0, 100) } : {}),
-    ...(typeof roomData.host === 'string' ? { host: roomData.host.trim() } : {}),
+    title: obj.title.trim().slice(0, 200),
+    ...(typeof obj.status === 'string' && ['scheduled', 'live', 'ended'].includes(obj.status) ? { status: obj.status } : {}),
+    ...(typeof obj.topic === 'string' ? { topic: obj.topic.trim().slice(0, 100) } : {}),
+    ...(typeof obj.host === 'string' ? { host: obj.host.trim() } : {}),
   };
 };
 
@@ -142,13 +145,25 @@ interface NormalizedMediaItem {
   mime?: string;
 }
 
-const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
+/** Untrusted media entry shape accepted from the request body before normalization. */
+interface RawMediaInput {
+  id?: unknown;
+  fileId?: unknown;
+  _id?: unknown;
+  mediaId?: unknown;
+  type?: unknown;
+  mediaType?: unknown;
+  mime?: unknown;
+  contentType?: unknown;
+}
+
+const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
   if (!Array.isArray(arr)) return [];
 
   const seen = new Set<string>();
   const normalized: NormalizedMediaItem[] = [];
 
-  arr.forEach((item: any) => {
+  arr.forEach((item: unknown) => {
     if (!item) return;
 
     if (typeof item === 'string') {
@@ -160,13 +175,14 @@ const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
     }
 
     if (typeof item === 'object') {
-      const rawId = item.id || item.fileId || item._id || item.mediaId;
+      const obj = item as RawMediaInput;
+      const rawId = obj.id || obj.fileId || obj._id || obj.mediaId;
       if (!rawId) return;
       const id = String(rawId);
       if (!id || seen.has(id)) return;
 
-      const rawType = (item.type || item.mediaType || '').toString().toLowerCase();
-      const mimeValue = item.mime || item.contentType;
+      const rawType = (obj.type || obj.mediaType || '').toString().toLowerCase();
+      const mimeValue = obj.mime || obj.contentType;
       const rawMime = mimeValue ? mimeValue.toString().toLowerCase() : '';
 
       let resolvedType: 'image' | 'video' | 'gif';
@@ -892,7 +908,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     // Emit real-time feed update for new thread posts
     try {
-      const io = (global as any).io;
+      const io = global.io;
       if (io && createdPosts.length > 0) {
         // Emit the first post (main post) to feeds
         const mainPost = createdPosts[0];

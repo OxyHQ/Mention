@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { MentionData } from '@/components/MentionTextInput';
 import { createScopedLogger } from '@/lib/logger';
 import { GeoJSONPoint } from '@mention/shared-types';
+import { classifyApiError } from '@/utils/apiError';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import {
   ComposerMediaItem,
@@ -288,8 +289,23 @@ export const usePostSubmission = ({
         scheduledAt: scheduledAtRef.current 
       };
     } catch (error) {
-      logger.error('Error creating post', { error });
-      return { success: false, error: 'submission.failed' };
+      const { reason, normalized } = classifyApiError(error);
+      logger.error('Error creating post', {
+        reason,
+        status: normalized.status,
+        code: normalized.code,
+        message: normalized.message,
+      });
+      // `error` keeps the legacy generic key for back-compat; `reason` is the
+      // specific classification (`validation` | `rateLimited` | `network` |
+      // `server`) and `message` carries the server's own text so the caller can
+      // render a meaningful, localized toast instead of one generic failure.
+      return {
+        success: false,
+        error: 'submission.failed',
+        reason,
+        message: normalized.message,
+      };
     } finally {
       setIsPosting(false);
     }

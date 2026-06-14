@@ -222,7 +222,7 @@ class PostCreationService {
 
     if (!params.skipSocketEmit) {
       try {
-        const io = (global as { io?: { emit: (event: string, data: unknown) => void } }).io;
+        const io = global.io;
         if (io) {
           const postObj = { ...post.toObject(), id: String(post._id) };
           io.emit('feed:updated', {

@@ -1,4 +1,8 @@
 {
+  "Your post could not be published. {{detail}}": "No se pudo publicar tu publicación. {{detail}}",
+  "You're posting too fast. Please wait a moment and try again.": "Estás publicando demasiado rápido. Espera un momento e inténtalo de nuevo.",
+  "No connection. Check your network and try again.": "Sin conexión. Comprueba tu red e inténtalo de nuevo.",
+  "Something went wrong publishing your post. Please try again.": "Algo salió mal al publicar tu publicación. Inténtalo de nuevo.",
   "Home": "Inicio",
   "Profile": "Perfil",
   "Search": "Buscar",

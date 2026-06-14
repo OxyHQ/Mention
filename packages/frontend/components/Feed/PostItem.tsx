@@ -8,6 +8,7 @@ import {
     PostAttachmentBundle,
     PostContent,
     PostEngagementSummary,
+    PostRoomContent,
 } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
 import PostHeader from '../Post/PostHeader';
@@ -71,7 +72,7 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadLastChild = false,
 }) => {
     const { oxyServices, user: authUser } = useAuth();
-    const isPremium = (authUser as any)?.premium?.isPremium ?? false;
+    const isPremium = (authUser as { premium?: { isPremium?: boolean } } | null)?.premium?.isPremium ?? false;
     const theme = useTheme();
     const { t, i18n } = useTranslation();
     const router = useRouter();
@@ -86,7 +87,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const autoTranslateAttempted = useRef(false);
     const hasManuallyDismissed = useRef(false);
 
-    const postId = (post as any)?.id;
+    const postId = post?.id;
     const dataVersion = usePostsStore((state) => state.dataVersion);
     const storePost = useMemo(() => {
         if (!postId) return null;
@@ -119,7 +120,10 @@ const PostItem: React.FC<PostItemProps> = ({
     const eventContent = attachmentsBundle.event ?? content.event ?? null;
     const hasEvent = Boolean(eventContent);
 
-    const roomContent = attachmentsBundle.room ?? content.room ?? (attachmentsBundle as any).space ?? content.space ?? null;
+    // `room` is the canonical shape; `space` is the deprecated alias. Both are
+    // PostRoomContent; some legacy payloads also carry a raw `spaceId` field.
+    const roomContent: (PostRoomContent & { spaceId?: string }) | null =
+        attachmentsBundle.room ?? content.room ?? attachmentsBundle.space ?? content.space ?? null;
 
     const pollData = attachmentsBundle.poll ?? content.poll ?? null;
     const pollId = content.pollId ?? null;
@@ -131,10 +135,14 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const nestedPost = useMemo(() => {
         if (!viewPost) return null;
+        // `original`/`quoted` are legacy snake-case aliases for the hydrated
+        // `originalPost`/`quotedPost` nested summaries (some cached responses
+        // still carry them). Read both shapes via the alias view.
+        const legacy = viewPost as { original?: HydratedPostSummary | null; quoted?: HydratedPostSummary | null };
         if (viewPost.boost?.originalPost) return viewPost.boost.originalPost;
-        if ((viewPost as any).original) return (viewPost as any).original;
+        if (legacy.original) return legacy.original;
         if (viewPost.originalPost) return viewPost.originalPost;
-        if ((viewPost as any).quoted) return (viewPost as any).quoted;
+        if (legacy.quoted) return legacy.quoted;
         if (viewPost.quotedPost) return viewPost.quotedPost;
         return null;
     }, [viewPost]);
@@ -158,7 +166,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // legacy raw `avatar` value (an Oxy file id, or a remote URL) via useImageUrl
     // (old cached responses during the transition window).
     const finalAvatarUrl = typeof viewPost?.user?.avatarUrl === 'string' ? viewPost.user.avatarUrl : undefined;
-    const legacyAvatar = (viewPost?.user as any)?.avatar;
+    const legacyAvatar = viewPost?.user?.avatar;
     const legacyAvatarSource = !finalAvatarUrl && typeof legacyAvatar === 'string' ? legacyAvatar : undefined;
     const resolvedLegacyAvatar = useImageUrl(legacyAvatarSource, 'thumb', oxyServices);
 
@@ -333,7 +341,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const openMenu = useCallback(() => {
         const ActionRow: React.FC<{
-            icon: any;
+            icon: React.ReactNode;
             text: string;
             onPress: () => void;
             color?: string;
@@ -358,7 +366,7 @@ const PostItem: React.FC<PostItemProps> = ({
         );
 
         const ActionGroup: React.FC<{
-            actions: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
+            actions: Array<{ icon: React.ReactNode; text: string; onPress: () => void; color?: string }>;
         }> = ({ actions }) => {
             if (actions.length === 0) return null;
             return (
@@ -411,7 +419,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
     const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
 
-    const Container: any = isPostDetail ? View : Pressable;
+    const Container: React.ElementType = isPostDetail ? View : Pressable;
 
     const boostedBy = viewPost.boost?.actor
         ? {
@@ -596,9 +604,9 @@ const PostItem: React.FC<PostItemProps> = ({
                                         : null
                                 }
                                 room={
-                                    roomContent
+                                    roomContent && roomId
                                         ? {
-                                            roomId: roomContent.roomId || roomContent.spaceId,
+                                            roomId,
                                             title: roomContent.title,
                                             status: roomContent.status,
                                             topic: roomContent.topic,

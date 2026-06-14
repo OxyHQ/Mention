@@ -19,6 +19,7 @@ import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@/lib/logger';
+import { normalizeApiError } from '@/utils/apiError';
 
 /**
  * In-flight dedup discriminator for the viewer's auth state.
@@ -45,13 +46,14 @@ interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
 }
 
 // Helper function to make unauthenticated requests using publicClient
-const makePublicRequest = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
+const makePublicRequest = async (endpoint: string, params?: Record<string, unknown>): Promise<unknown> => {
   try {
     const response = await publicClient.get(endpoint, { params });
     return response.data;
-  } catch (error: any) {
-    const message = error?.response?.data?.message || error?.message || `HTTP error! status: ${error?.response?.status}`;
-    throw new Error(message);
+  } catch (error) {
+    const { message } = normalizeApiError(error);
+    // Preserve the original error (HTTP status, server payload) via `cause`.
+    throw new Error(message, { cause: error });
   }
 };
 
@@ -67,7 +69,10 @@ const inFlightRequests = new Map<string, Promise<FeedServiceResponse>>();
 function getDedupeKey(request: ExtendedFeedRequest): string {
   const filters = request.filters;
   const filterKey = filters
-    ? Object.keys(filters).sort().map((k) => `${k}=${(filters as any)[k] ?? ''}`).join('&')
+    ? Object.keys(filters)
+        .sort()
+        .map((k) => `${k}=${(filters as Record<string, unknown>)[k] ?? ''}`)
+        .join('&')
     : '';
   return `${authDedupeMarker()}|${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
 }
@@ -88,7 +93,7 @@ class FeedService {
           // Handle hashtag feed
           if (request.type === 'hashtag' && request.filters?.hashtag) {
             const tag = encodeURIComponent(request.filters.hashtag);
-            const tagParams: any = {};
+            const tagParams: Record<string, string | number> = {};
             if (request.cursor) tagParams.cursor = request.cursor;
             if (request.limit) tagParams.limit = request.limit;
 
@@ -102,7 +107,7 @@ class FeedService {
           // Handle topic feed
           if (request.type === 'topic' && request.filters?.topic) {
             const topic = encodeURIComponent(request.filters.topic);
-            const topicParams: any = {};
+            const topicParams: Record<string, string | number> = {};
             if (request.cursor) topicParams.cursor = request.cursor;
             if (request.limit) topicParams.limit = request.limit;
 
@@ -116,7 +121,7 @@ class FeedService {
           // Handle custom feed
           if (request.type === 'custom' && request.filters?.customFeedId) {
             const feedId = request.filters.customFeedId;
-            const timelineParams: any = {};
+            const timelineParams: Record<string, string | number> = {};
             if (request.cursor) timelineParams.cursor = request.cursor;
             if (request.limit) timelineParams.limit = request.limit;
 
@@ -133,7 +138,7 @@ class FeedService {
             if (!parentId) {
               return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
             }
-            const repliesParams: any = {};
+            const repliesParams: Record<string, string | number> = {};
             if (request.cursor) repliesParams.cursor = request.cursor;
             if (request.limit) repliesParams.limit = request.limit;
             if (request.filters?.sort) repliesParams.sort = request.filters.sort;
@@ -152,21 +157,18 @@ class FeedService {
             limit: request.limit || 20,
             signal: options?.signal,
           });
-        } catch (error: any) {
+        } catch (error) {
+          const normalized = normalizeApiError(error);
           logger.error('Error fetching feed', {
-            message: error?.message,
-            status: error?.response?.status,
-            statusText: error?.response?.statusText,
-            data: error?.response?.data,
+            message: normalized.message,
+            status: normalized.status,
+            code: normalized.code,
             feedType: request.type,
-            stack: error?.stack
           });
 
-          const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to fetch feed';
-          const errorToThrow = new Error(errorMessage);
-          (errorToThrow as any).status = error?.response?.status;
-          (errorToThrow as any).originalError = error;
-          throw errorToThrow;
+          // Preserve the original error (status, server payload, stack) via
+          // `cause` so callers can recover context with `normalizeApiError`.
+          throw new Error(normalized.message || 'Failed to fetch feed', { cause: error });
         }
       })();
 
@@ -206,7 +208,10 @@ class FeedService {
     try {
       const response = await publicClient.get(`/feed/user/${userId}/pinned`);
       return response.data?.item || null;
-    } catch {
+    } catch (error) {
+      // Absence of a pinned post is expected (404); log at debug so a real
+      // server/network failure is still observable without being noisy.
+      logger.debug('No pinned post resolved', { userId, ...normalizeApiError(error) });
       return null;
     }
   }
@@ -367,8 +372,13 @@ class FeedService {
     try {
       const transformed = await authenticatedClient.get(`/feed/item/${postId}`);
       return transformed.data;
-    } catch {
-      // Fallback to posts endpoint
+    } catch (error) {
+      // The feed-item endpoint may legitimately 404 for non-feed posts; fall
+      // back to the posts endpoint. Log so a non-404 failure is observable.
+      logger.debug('Feed-item lookup failed, falling back to /posts', {
+        postId,
+        ...normalizeApiError(error),
+      });
     }
     const response = await authenticatedClient.get(`/posts/${postId}`);
     return response.data;
@@ -481,12 +491,19 @@ class FeedService {
           signal: options?.signal,
         });
         return response.data?.data || response.data;
-      } catch (authError: any) {
-        const status = authError?.response?.status;
+      } catch (authError) {
+        const { status } = normalizeApiError(authError);
         if (status === 401 || status === 403) {
           try {
             return await makePublicRequest('/feed/mtn', params);
-          } catch {
+          } catch (publicError) {
+            // Anonymous fallback also failed. Surface the original auth error
+            // (the more meaningful failure) while keeping the public-request
+            // failure logged so it isn't silently swallowed.
+            logger.warn('Anonymous MTN feed fallback failed', {
+              descriptor,
+              ...normalizeApiError(publicError),
+            });
             throw authError;
           }
         }
@@ -511,7 +528,10 @@ class FeedService {
         params: { descriptor },
       });
       return response.data?.data || null;
-    } catch {
+    } catch (error) {
+      // Peek is a best-effort "new posts available" probe; a failure must not
+      // surface to the user, but log it so it's not invisible.
+      logger.debug('Feed peek failed', { descriptor, ...normalizeApiError(error) });
       return null;
     }
   }
@@ -527,8 +547,13 @@ class FeedService {
   }): Promise<void> {
     try {
       await authenticatedClient.post('/feed/mtn/interactions', data);
-    } catch {
-      // Non-critical
+    } catch (error) {
+      // Telemetry write — non-critical to the user, but log so silent loss of
+      // feed-ranking signal is observable in diagnostics.
+      logger.debug('Failed to send feed interaction', {
+        event: data.event,
+        ...normalizeApiError(error),
+      });
     }
   }
 

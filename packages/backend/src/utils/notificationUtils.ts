@@ -12,6 +12,19 @@ export interface CreateNotificationData {
 }
 
 /**
+ * Minimal actor shape consumed when building a real-time notification payload.
+ * Sourced either from `oxy.getUserById` (Oxy user) or a synthetic 'system'
+ * actor. `name` may be a plain string or the structured Oxy `{ full }` form.
+ */
+interface NotificationActor {
+  id?: string;
+  _id?: string;
+  username?: string;
+  name?: string | { full?: string };
+  avatar?: string;
+}
+
+/**
  * Creates a notification for a user action
  * Handles duplicate prevention and emits real-time events
  */
@@ -45,8 +58,8 @@ export const createNotification = async (
     await notification.save();
 
   // Emit real-time notification if requested with actor profile data
-    if (emitEvent && (global as any).io) {
-      let actor: any = null;
+    if (emitEvent && global.io) {
+      let actor: NotificationActor | null = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
           actor = await oxy.getUserById(data.actorId);
@@ -56,16 +69,17 @@ export const createNotification = async (
       } catch (e) {
         // ignore actor resolution failures
       }
+      const actorName = typeof actor?.name === 'string' ? actor.name : actor?.name?.full;
       const payload = {
         ...notification.toObject(),
         actorId_populated: actor ? {
           _id: actor.id || actor._id || data.actorId,
           username: actor.username || data.actorId,
-          name: actor.name?.full || actor.name || actor.username || data.actorId,
+          name: actorName || actor.username || data.actorId,
           avatar: actor.avatar
         } : undefined
       };
-      const notificationsNamespace = (global as any).io.of('/notifications');
+      const notificationsNamespace = global.io.of('/notifications');
       notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
     }
 

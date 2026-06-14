@@ -14,6 +14,7 @@ import {
 import { Loading } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/lib/logger';
+import { classifyApiError, type ApiErrorReason } from '@/utils/apiError';
 import { useAuth } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
@@ -770,9 +771,34 @@ const ComposeScreen = () => {
       // Navigate back after posting
       safeBack();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to publish post', { message });
-      toast(t('Failed to publish post'), { type: 'error' });
+      const { reason, normalized } = classifyApiError(error);
+      logger.error('Failed to publish post', {
+        reason,
+        status: normalized.status,
+        code: normalized.code,
+        message: normalized.message,
+      });
+
+      // Surface a specific, localized reason to the user instead of one generic
+      // failure. For validation/server errors the backend's own message is the
+      // most useful, so prefer it when present.
+      const reasonToToast: Record<ApiErrorReason, string> = {
+        validation: t('Your post could not be published. {{detail}}', {
+          defaultValue: 'Your post could not be published. {{detail}}',
+          detail: normalized.message,
+        }),
+        rateLimited: t("You're posting too fast. Please wait a moment and try again.", {
+          defaultValue: "You're posting too fast. Please wait a moment and try again.",
+        }),
+        network: t('No connection. Check your network and try again.', {
+          defaultValue: 'No connection. Check your network and try again.',
+        }),
+        server: t('Something went wrong publishing your post. Please try again.', {
+          defaultValue: 'Something went wrong publishing your post. Please try again.',
+        }),
+      };
+
+      toast(reasonToToast[reason], { type: 'error' });
     } finally {
       setIsPosting(false);
     }

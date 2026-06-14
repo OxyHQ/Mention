@@ -1,4 +1,8 @@
 {
+    "Your post could not be published. {{detail}}": "Your post could not be published. {{detail}}",
+    "You're posting too fast. Please wait a moment and try again.": "You're posting too fast. Please wait a moment and try again.",
+    "No connection. Check your network and try again.": "No connection. Check your network and try again.",
+    "Something went wrong publishing your post. Please try again.": "Something went wrong publishing your post. Please try again.",
     "Home": "Home",
     "Profile": "Profile",
     "Search": "Search",

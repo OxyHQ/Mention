@@ -1,7 +1,8 @@
 import { Response } from 'express';
+import type { ParsedQs } from 'qs';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
-import Like from '../models/Like';
+import Like, { ILike } from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import Block from '../models/Block';
 import Mute from '../models/Mute';
@@ -15,7 +16,9 @@ import {
   PostVisibility,
   HydratedPost,
 } from '@mention/shared-types';
-import mongoose from 'mongoose';
+import mongoose, { QueryFilter } from 'mongoose';
+import { IPost } from '../models/Post';
+import { IAccountList } from '../models/AccountList';
 import { io } from '../../server';
 import { oxy as oxyClient } from '../../server';
 import { feedCacheService } from '../services/FeedCacheService';
@@ -51,6 +54,43 @@ import { FEDERATION_ENABLED } from '../utils/federation/constants';
  * ACTOR_REFRESH_MIN_INTERVAL_MS guard used for full-actor refreshes.
  */
 const OUTBOX_SYNC_MIN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * A follower/mention reference may arrive as a bare user-id string or as a
+ * populated object carrying `id`/`_id`. Used when checking reply permissions.
+ */
+type FollowerRef = string | { id?: string; _id?: string };
+
+/**
+ * Express parses query values as `string | string[] | ParsedQs | ParsedQs[]`.
+ * Returns the value only when it is a plain string, otherwise `undefined`, so
+ * callers reading a single scalar param stay type-safe without an `any` cast.
+ */
+function coerceQueryString(value: ParsedQs[string]): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** Display-ready poll data attached to a post's content for the client. */
+interface PopulatedPollData {
+  question: string;
+  options: string[];
+  endTime: string;
+  votes: Record<number, number>;
+  userVotes: Record<string, string>;
+}
+
+/**
+ * Minimal lean-post shape touched by {@link FeedController.populatePollData}: it
+ * reads `content.pollId` and writes the resolved `content.poll` back in place.
+ */
+interface PollBearingPost {
+  content?: {
+    pollId?: string;
+    poll?: PopulatedPollData;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
 
 /**
  * Feed Controller
@@ -201,11 +241,11 @@ class FeedController {
    * @param blockedAndMutedIds - Array of user IDs to filter out
    * @returns Filtered posts array
    */
-  private filterBlockedAndMutedPosts(posts: any[], blockedAndMutedIds: string[]): any[] {
+  private filterBlockedAndMutedPosts<T extends { oxyUserId?: unknown }>(posts: T[], blockedAndMutedIds: string[]): T[] {
     if (blockedAndMutedIds.length === 0) return posts;
 
     return posts.filter(post => {
-      const authorId = post.oxyUserId?.toString() || post.oxyUserId;
+      const authorId = post.oxyUserId == null ? '' : String(post.oxyUserId);
       return !blockedAndMutedIds.includes(authorId);
     });
   }
@@ -218,10 +258,13 @@ class FeedController {
    */
   async populatePollData(posts: unknown[]): Promise<unknown[]> {
     try {
+      // Posts are lean documents; narrow to the poll-bearing shape we read/write.
+      const pollPosts = posts as Array<PollBearingPost>;
+
       // Get all poll IDs from posts
-      const pollIds = posts
-        .map((post: any) => post?.content?.pollId)
-        .filter(Boolean);
+      const pollIds = pollPosts
+        .map((post) => post?.content?.pollId)
+        .filter((id): id is string => Boolean(id));
 
       if (pollIds.length === 0) {
         return posts;
@@ -229,19 +272,19 @@ class FeedController {
 
       // Fetch all polls in one query
       const polls = await Poll.find({ _id: { $in: pollIds } }).lean();
-      
+
       // Create a map for quick lookup
-      const pollMap = new Map();
+      const pollMap = new Map<string, PopulatedPollData>();
       polls.forEach(poll => {
         pollMap.set(poll._id.toString(), {
           question: poll.question,
-          options: poll.options.map((option: any) => option.text),
+          options: poll.options.map((option) => option.text),
           endTime: poll.endsAt.toISOString(),
-          votes: poll.options.reduce((acc: any, option: any, index: number) => {
+          votes: poll.options.reduce<Record<number, number>>((acc, option, index) => {
             acc[index] = option.votes.length;
             return acc;
           }, {}),
-          userVotes: poll.options.reduce((acc: any, option: any) => {
+          userVotes: poll.options.reduce<Record<string, string>>((acc, option) => {
             option.votes.forEach((userId: string) => {
               acc[userId] = String(poll.options.indexOf(option));
             });
@@ -251,15 +294,16 @@ class FeedController {
       });
 
       // Add poll data to posts
-      return posts.map((post: any) => {
-        if (post?.content?.pollId) {
-          const pollData = pollMap.get(post.content.pollId);
-          if (pollData) {
+      pollPosts.forEach((post) => {
+        const pollId = post?.content?.pollId;
+        if (pollId) {
+          const pollData = pollMap.get(pollId);
+          if (pollData && post.content) {
             post.content.poll = pollData;
           }
         }
-        return post;
       });
+      return posts;
     } catch (error) {
       logger.error('Error populating poll data', error);
       return posts; // Return posts without poll data if population fails
@@ -318,8 +362,8 @@ class FeedController {
             try {
               if (feed.sourceListIds && feed.sourceListIds.length) {
                 const { AccountList } = require('../models/AccountList.js');
-                const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
-                lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
+                const lists: Array<Pick<IAccountList, 'memberOxyUserIds'>> = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
+                lists.forEach((l) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
                 authors = Array.from(new Set(authors));
               }
             } catch (e) {
@@ -362,14 +406,14 @@ class FeedController {
             .map((s) => s.trim())
             .filter(Boolean);
           if (ids.length) {
-            const lists = await AccountList.find({ _id: { $in: ids } }).lean();
+            const lists: Array<Pick<IAccountList, 'memberOxyUserIds'>> = await AccountList.find({ _id: { $in: ids } }).lean();
             const authors = new Set(
               String(filters.authors || '')
                 .split(',')
                 .map((s) => s.trim())
                 .filter(Boolean)
             );
-            lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.add(id)));
+            lists.forEach((l) => (l.memberOxyUserIds || []).forEach((id: string) => authors.add(id)));
             filters = { ...(filters || {}), authors: Array.from(authors).join(',') };
           }
         }
@@ -411,7 +455,7 @@ class FeedController {
       }
 
       // Build query
-      let query: any;
+      let query: QueryFilter<IPost>;
       if (feedType === 'saved' && savedPostIds.length > 0) {
         // For saved posts, use a simple query that only filters by saved post IDs
         // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
@@ -730,7 +774,7 @@ class FeedController {
       // Handle Likes feed separately (posts the user liked)
       if (type === 'likes') {
         // Paginate likes by Like document _id (chronological like order)
-        const likeQuery: any = { userId };
+        const likeQuery: QueryFilter<ILike> = { userId };
         const cursorId = parseFeedCursor(cursor);
         if (cursorId) {
           likeQuery._id = { $lt: cursorId };
@@ -764,7 +808,7 @@ class FeedController {
         // Preserve the like order
         const postsOrdered = likedPostIds
           .map(id => posts.find(p => p._id.toString() === id.toString()))
-          .filter(Boolean) as any[];
+          .filter((p): p is (typeof posts)[number] => Boolean(p));
 
         // Use FeedResponseBuilder for consistent response building
         const response = await FeedResponseBuilder.buildResponse({
@@ -1009,7 +1053,7 @@ class FeedController {
       const permissions: string[] = parentPost.replyPermission || ['anyone'];
 
       if (!permissions.includes('anyone')) {
-        const parentAuthorId = parentPost.oxyUserId?.toString?.() || (parentPost as any).oxyUserId;
+        const parentAuthorId = parentPost.oxyUserId ? String(parentPost.oxyUserId) : undefined;
 
         // If replying to own post, always allow
         if (parentAuthorId === currentUserId) {
@@ -1025,14 +1069,16 @@ class FeedController {
                 if (canReply) break;
                 switch (perm) {
                   case 'followers': {
+                    if (!parentAuthorId) break;
                     const authorFollowers = await oxyClient.getUserFollowers(parentAuthorId);
-                    canReply = authorFollowers?.followers?.some((f: any) => {
-                      const followerId = f.id || f._id || f;
+                    canReply = authorFollowers?.followers?.some((f: FollowerRef) => {
+                      const followerId = typeof f === 'string' ? f : (f.id || f._id);
                       return followerId === currentUserId || String(followerId) === String(currentUserId);
                     }) || false;
                     break;
                   }
                   case 'following': {
+                    if (!parentAuthorId) break;
                     try {
                       const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
                       const followingIds = extractFollowingIds(authorFollowing);
@@ -1043,7 +1089,7 @@ class FeedController {
                     break;
                   }
                   case 'mentioned': {
-                    canReply = (parentPost.mentions || []).some((m: any) => {
+                    canReply = (parentPost.mentions || []).some((m: FollowerRef) => {
                       const mentionId = typeof m === 'string' ? m : (m.id || m._id);
                       return mentionId === currentUserId || String(mentionId) === String(currentUserId);
                     });
@@ -1607,7 +1653,10 @@ class FeedController {
 
   async getRepliesFeed(req: AuthRequest, res: Response) {
     try {
-      const parentId = req.params.parentId || (req.query as any)['filters[parentPostId]'] || (req.query.filters as any)?.parentPostId;
+      const nestedFilters = req.query.filters as ParsedQs | undefined;
+      const parentId = req.params.parentId
+        || coerceQueryString(req.query['filters[parentPostId]'])
+        || coerceQueryString(nestedFilters?.parentPostId);
       if (!parentId) {
         return res.json({ items: [], hasMore: false });
       }
@@ -1617,7 +1666,7 @@ class FeedController {
       const sort = req.query.sort as string | undefined;
       const cursor = req.query.cursor as string | undefined;
 
-      const query: any = {
+      const query: QueryFilter<IPost> = {
         parentPostId: String(parentId),
         visibility: PostVisibility.PUBLIC,
         status: 'published',
@@ -1685,7 +1734,7 @@ class FeedController {
    */
   async getFeedItemById(req: AuthRequest, res: Response) {
     try {
-      const { id } = req.params as any;
+      const { id } = req.params;
       const currentUserId = req.user?.id;
 
       if (!id) {

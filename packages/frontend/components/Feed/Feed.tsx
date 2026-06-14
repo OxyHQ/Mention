@@ -16,7 +16,7 @@ import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useLayoutScroll, extractOffsetY } from '@/context/LayoutScrollContext';
+import { useLayoutScroll, extractOffsetY, type ScrollEvent, type WheelLikeEvent } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
 import { useRouter, useIsFocused, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +36,26 @@ import { extractAuthorId } from '@/utils/postUtils';
 
 // Type alias for feed items (what PostItem expects)
 type FeedItem = HydratedPost | Reply | Boost;
+
+/**
+ * Optional/legacy fields probed on a feed item for thread classification and
+ * "my recent post to top" sorting. These are NOT all present on the hydrated
+ * shape: `isLocalNew`/`date` come from optimistic local inserts, and
+ * `original`/`boostOf`/`quoted`/`quoteOf`/`replyTo` are raw/legacy aliases for
+ * the hydrated `originalPost`/`quotedPost`/`parentPostId` nested references.
+ * Reading them through this view avoids `as any` while keeping the defensive
+ * runtime checks intact.
+ */
+type FeedItemProbe = FeedItem & {
+    isLocalNew?: boolean;
+    date?: string;
+    createdAt?: string;
+    original?: unknown;
+    boostOf?: unknown;
+    quoted?: unknown;
+    quoteOf?: unknown;
+    replyTo?: unknown;
+};
 
 // Row type for FlashList with thread state
 interface FeedRow {
@@ -128,7 +148,7 @@ const NonScrollingScrollComponent = forwardRef<ScrollView, ScrollViewProps>(
             return (
                 <View
                     {...viewProps}
-                    ref={ref as any}
+                    ref={ref as React.Ref<View>}
                     style={[props.style, { overflow: 'visible' as const }]}
                 >
                     <View style={contentContainerStyle}>
@@ -183,7 +203,7 @@ const Feed = ((props: FeedProps) => {
     // the registered scrollable for web wheel forwarding — otherwise a frozen
     // background feed could move the shared value or steal wheel targeting.
     const isFocused = useIsFocused();
-    const flatListRef = useRef<any>(null);
+    const flatListRef = useRef<FlashListRef<FeedRow> | null>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     // Guards the one-shot scroll restore so it runs at most once per mount
     // (FlashList may fire onLoad more than once across re-layouts).
@@ -272,7 +292,7 @@ const Feed = ((props: FeedProps) => {
                 for (let i = 0; i < slice.items.length; i++) {
                     const sliceItem = slice.items[i];
                     const post = sliceItem.post as FeedItem;
-                    if (!post || !(post as any).id) continue;
+                    if (!post || !post.id) continue;
 
                     // Privacy filter
                     if (blockedSet.size > 0) {
@@ -351,9 +371,10 @@ const Feed = ((props: FeedProps) => {
             const others: FeedItem[] = [];
 
             for (const item of filteredByPrivacy) {
-                const ownerId = (item as any)?.user?.id;
-                if ((item as any)?.isLocalNew || ownerId === currentUser.id) {
-                    const d = (item as any)?.date || (item as any)?.createdAt;
+                const probe = item as FeedItemProbe;
+                const ownerId = probe.user?.id;
+                if (probe.isLocalNew || ownerId === currentUser.id) {
+                    const d = probe.date || probe.createdAt;
                     const ts = d ? Date.parse(d) : 0;
                     if (ts && now - ts <= THRESHOLD_MS) {
                         mineNow.push({ item, ts });
@@ -466,10 +487,10 @@ const Feed = ((props: FeedProps) => {
         if (row.nestingDepth > 0) return `nested_${row.nestingDepth}`;
         if (row.isThreadParent) return 'threadParent';
         if (row.isThreadChild) return 'threadChild';
-        const item = row.item;
-        if ((item as any)?.original || (item as any)?.boostOf) return 'boost';
-        if ((item as any)?.quoted || (item as any)?.quoteOf) return 'quote';
-        if ((item as any)?.parentPostId || (item as any)?.replyTo) return 'reply';
+        const item = row.item as FeedItemProbe;
+        if (item.original || item.boostOf) return 'boost';
+        if (item.quoted || item.quoteOf) return 'quote';
+        if (item.parentPostId || item.replyTo) return 'reply';
         return 'post';
     }, []);
 
@@ -491,7 +512,7 @@ const Feed = ((props: FeedProps) => {
         }
     }, []);
 
-    const assignListRef = useCallback((node: any) => {
+    const assignListRef = useCallback((node: FlashListRef<FeedRow> | null) => {
         flatListRef.current = node;
         clearScrollableRegistration();
         // Only the focused, scroll-owning feed registers as the active scrollable.
@@ -524,7 +545,7 @@ const Feed = ((props: FeedProps) => {
     // and persists the current offset under this feed's identity so a later
     // remount can restore it. Embedded feeds (scrollEnabled === false) don't
     // own scrolling, so we skip both.
-    const handleScrollEvent = useCallback((event: any) => {
+    const handleScrollEvent = useCallback((event: ScrollEvent) => {
         // Skip entirely when this feed isn't the focused screen: a frozen
         // background feed must never move the shared scrollY nor overwrite its
         // saved offset (it isn't actually being scrolled by the user).
@@ -625,7 +646,7 @@ const Feed = ((props: FeedProps) => {
     );
 
     // Handle wheel events
-    const handleWheelEvent = useCallback((event: any) => {
+    const handleWheelEvent = useCallback((event: WheelLikeEvent) => {
         if (forwardWheelEvent) {
             forwardWheelEvent(event);
         }

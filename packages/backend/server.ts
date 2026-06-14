@@ -25,6 +25,7 @@ import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import { logger } from "./src/utils/logger";
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
+import { AuthRequest } from "./src/types/auth";
 import { runMigrations } from "./src/migrations/runner";
 import { leaderElection } from "./src/services/LeaderElection";
 
@@ -151,7 +152,7 @@ app.use(compression({
 app.use(express.json({
   limit: '1mb',
   type: ['application/json', 'application/activity+json', 'application/ld+json'],
-  verify: (req: any, _res, buf) => {
+  verify: (req: express.Request & { rawBody?: string }, _res, buf) => {
     // Preserve raw body for ActivityPub HTTP signature + Digest verification
     req.rawBody = buf?.length ? buf.toString('utf8') : undefined;
   },
@@ -169,7 +170,7 @@ app.use(performanceMiddleware);
 // Middleware to parse nested query parameters (e.g., filters[authors]=user1,user2)
 app.use((req, res, next) => {
   if (req.query && typeof req.query === 'object') {
-    const filters: any = {};
+    const filters: Record<string, express.Request['query'][string]> = {};
     Object.keys(req.query).forEach(key => {
       const match = key.match(/^filters\[(.+)\]$/);
       if (match) {
@@ -180,7 +181,7 @@ app.use((req, res, next) => {
       }
     });
     if (Object.keys(filters).length > 0) {
-      (req.query as any).filters = filters;
+      (req.query as express.Request['query'] & { filters: typeof filters }).filters = filters;
     }
   }
   next();
@@ -202,7 +203,7 @@ app.use(async (req, res, next) => {
 const server = http.createServer(app);
 
 interface AuthenticatedSocket extends Socket {
-  user?: { id: string; [key: string]: any };
+  user?: { id: string; [key: string]: unknown };
 }
 
 // Presence tracking - Map of userId to Set of socket IDs (user can have multiple connections)
@@ -251,7 +252,7 @@ setInterval(() => {
 type DisconnectReason =
   | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";
 
-interface SocketError extends Error { description?: string; context?: any; }
+interface SocketError extends Error { description?: string; context?: unknown; }
 
 import { config, validateEnvironment } from './src/config';
 import { createSocketRateLimiter } from './src/middleware/socketRateLimit';
@@ -372,7 +373,8 @@ const roomsNamespace = initializeRoomSocket(io);
 // Use oxy.authSocket() which validates tokens via jwtDecode + Oxy API session validation.
 // This matches how oxy.auth() works for HTTP — no local JWT_SECRET needed.
 const oxySocketAuth = oxy.authSocket();
-[notificationsNamespace, postsNamespace, roomsNamespace, io].forEach((namespaceOrServer: any) => {
+const authTargets: Array<Namespace | SocketIOServer> = [notificationsNamespace, postsNamespace, roomsNamespace, io];
+authTargets.forEach((namespaceOrServer) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
     namespaceOrServer.use(oxySocketAuth);
   }
@@ -429,10 +431,10 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     }
   }));
 
-  socket.on("disconnect", (reason: DisconnectReason, description?: any) => {
+  socket.on("disconnect", (reason: DisconnectReason, description?: unknown) => {
     socketRateLimiter.cleanup(socket.id);
     logger.debug(
-      `Client ${socket.id} disconnected from notifications namespace: ${reason}${description ? ` - ${description}` : ""}`
+      `Client ${socket.id} disconnected from notifications namespace: ${reason}${description ? ` - ${String(description)}` : ""}`
     );
     socket.leave(userRoom);
   });
@@ -535,9 +537,9 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     }
   });
 
-  socket.on("disconnect", (reason: DisconnectReason, description?: any) => {
+  socket.on("disconnect", (reason: DisconnectReason, description?: unknown) => {
     socketRateLimiter.cleanup(socket.id);
-    logger.debug(`Client disconnected: ${reason}${description ? ` - ${description}` : ""}`);
+    logger.debug(`Client disconnected: ${reason}${description ? ` - ${String(description)}` : ""}`);
 
     // Track user presence on disconnect
     if (userId) {
@@ -691,9 +693,10 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 
 // --- Expose namespaces for use in routes ---
 app.set("io", io);
-// Expose io globally for utility modules that emit without direct access to req/app
-// Using any-cast to avoid augmenting global types across the project
-(global as any).io = io;
+// Expose io globally for utility modules that emit without direct access to
+// req/app. Typed via the `declare global { var io }` augmentation in
+// src/types/global.d.ts, so no cast is needed.
+global.io = io;
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
 
@@ -711,12 +714,13 @@ const optionalAuth = (req: express.Request, res: express.Response, next: express
   
   // Try to authenticate if header exists
   const authMiddleware = oxy.auth();
-  authMiddleware(req, res, (err?: any) => {
+  authMiddleware(req, res, (err?: unknown) => {
     if (err) {
       // Auth failed (invalid token, expired, etc.), but continue anyway
-      logger.debug(`Optional auth: Authentication failed, continuing as unauthenticated: ${err?.message || "Unknown error"}`);
+      const message = err instanceof Error ? err.message : "Unknown error";
+      logger.debug(`Optional auth: Authentication failed, continuing as unauthenticated: ${message}`);
       // Clear any partial user data that might have been set
-      (req as any).user = undefined;
+      (req as AuthRequest).user = undefined;
     }
     // Always continue the request chain
     next();
@@ -882,7 +886,7 @@ app.use(globalErrorHandler);
 // --- MongoDB Connection ---
 const db = mongoose.connection;
 let hasLoggedMongoError = false;
-db.on("error", (error: any) => {
+db.on("error", (error: Error & { code?: string; syscall?: string }) => {
   // Only log connection errors once to reduce spam
   if (error.code === 'ECONNREFUSED' || error.syscall === 'querySrv') {
     // Connection errors are already logged by connectToDatabase retry logic

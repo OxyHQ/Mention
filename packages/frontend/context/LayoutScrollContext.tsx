@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef } from 'react';
 import { Animated, Platform } from 'react-native';
 
-type ScrollEvent = {
+export type ScrollEvent = {
     nativeEvent?: {
         contentOffset?: { x?: number; y?: number } | number;
         target?: { scrollTop?: number };
@@ -11,7 +11,7 @@ type ScrollEvent = {
     [key: string]: any;
 };
 
-type WheelLikeEvent = {
+export type WheelLikeEvent = {
     deltaY?: number;
     preventDefault?: () => void;
     target?: any;

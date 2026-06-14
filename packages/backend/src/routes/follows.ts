@@ -23,7 +23,7 @@ router.post('/emit-follow', async (req: AuthRequest, res: Response) => {
     }
 
     // Emit socket event to specific user rooms only (no global broadcast)
-    const io = (global as any).io;
+    const io = global.io;
     if (io) {
       const eventData = {
         followerId: userId,
@@ -65,7 +65,7 @@ router.post('/emit-unfollow', async (req: AuthRequest, res: Response) => {
     }
 
     // Emit socket event to specific user rooms only (no global broadcast)
-    const io = (global as any).io;
+    const io = global.io;
     if (io) {
       const eventData = {
         followerId: userId,

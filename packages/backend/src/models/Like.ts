@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-interface ILike extends Document {
+export interface ILike extends Document {
   userId: string;
   postId: mongoose.Types.ObjectId;
   value: 1 | -1;

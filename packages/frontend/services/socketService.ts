@@ -1,9 +1,10 @@
 import { API_URL_SOCKET } from '@/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FeedType } from '@mention/shared-types';
+import { FeedType, HydratedPost } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
+import type { FeedItem } from '@/db';
 import { useTrendsStore } from '@/store/trendsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import {
@@ -31,8 +32,8 @@ interface EngagementEventData {
 
 interface FeedUpdateData {
   type?: string;
-  posts?: any[];
-  post?: any;
+  posts?: FeedItem[];
+  post?: FeedItem;
 }
 
 interface PresenceUpdateData {
@@ -63,7 +64,7 @@ class SocketService {
   private currentUserId?: string;
   private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
-  private feedUpdateQueue: Map<string, any[]> = new Map(); // Queue for batched feed updates
+  private feedUpdateQueue: Map<string, FeedItem[]> = new Map(); // Queue for batched feed updates
   private feedUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly FEED_UPDATE_DEBOUNCE_MS = 500; // Batch updates every 500ms
   private readonly MAX_BATCH_SIZE = 50; // Maximum items per batch
@@ -94,16 +95,16 @@ class SocketService {
   /**
    * Normalize post ID from various formats
    */
-  private normalizePostId(item: any): string {
+  private normalizePostId(item: { id?: unknown; _id?: unknown } | null | undefined): string {
     if (!item) return '';
 
-    if (item?.id) {
+    if (item.id) {
       return String(item.id);
     }
 
-    if (item?._id) {
+    if (item._id) {
       const _id = item._id;
-      return typeof _id === 'object' && _id.toString
+      return typeof _id === 'object' && _id !== null && 'toString' in _id
         ? _id.toString()
         : String(_id);
     }
@@ -653,8 +654,8 @@ class SocketService {
       }
       
       // Deduplicate posts in queue before adding
-      const seen = new Map<string, any>();
-      const uniquePosts: any[] = [];
+      const seen = new Map<string, FeedItem>();
+      const uniquePosts: FeedItem[] = [];
       for (const p of posts) {
         const id = this.normalizePostId(p);
 
@@ -1258,7 +1259,7 @@ class SocketService {
   /**
    * Emit custom event
    */
-  emit(event: string, data?: any): void {
+  emit(event: string, data?: unknown): void {
     if (!this.socket?.connected) return;
     this.socket.emit(event, data);
   }
@@ -1266,7 +1267,7 @@ class SocketService {
   /**
    * Listen to custom event
    */
-  on(event: string, callback: (data: any) => void): void {
+  on(event: string, callback: (data: unknown) => void): void {
     if (!this.socket) return;
     this.socket.on(event, callback);
   }
@@ -1274,7 +1275,7 @@ class SocketService {
   /**
    * Remove custom event listener
    */
-  off(event: string, callback?: (data: any) => void): void {
+  off(event: string, callback?: (data: unknown) => void): void {
     if (!this.socket) return;
 
     if (callback) {

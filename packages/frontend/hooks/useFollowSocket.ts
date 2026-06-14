@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { api } from '@/utils/api';
 import { logger } from '@/lib/logger';
+import { normalizeApiError } from '@/utils/apiError';
 
 /**
  * Hook to emit follow/unfollow events to the backend for real-time updates
@@ -18,8 +19,12 @@ export function useFollowSocket() {
         followingCount: counts?.followingCount,
       });
     } catch (error) {
-      // Non-critical: real-time broadcast failure should not block the follow action
-      logger.warn('[useFollowSocket] Failed to emit follow event', { followingId, error });
+      // Non-critical: real-time broadcast failure should not block the follow
+      // action. Logging (not rethrowing) is the correct handling here.
+      logger.warn('[useFollowSocket] Failed to emit follow event', {
+        followingId,
+        ...normalizeApiError(error),
+      });
     }
   }, []);
 
@@ -34,8 +39,12 @@ export function useFollowSocket() {
         followingCount: counts?.followingCount,
       });
     } catch (error) {
-      // Non-critical: real-time broadcast failure should not block the unfollow action
-      logger.warn('[useFollowSocket] Failed to emit unfollow event', { followingId, error });
+      // Non-critical: real-time broadcast failure should not block the unfollow
+      // action. Logging (not rethrowing) is the correct handling here.
+      logger.warn('[useFollowSocket] Failed to emit unfollow event', {
+        followingId,
+        ...normalizeApiError(error),
+      });
     }
   }, []);
 
