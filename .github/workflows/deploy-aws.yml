@@ -15,8 +15,8 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: eu-west-1
-  ECR_REGISTRY: 237343248947.dkr.ecr.eu-west-1.amazonaws.com
+  AWS_REGION: us-west-2
+  ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
   APP: mention
   CLUSTER: oxy-cluster
   DOCKERFILE: packages/backend/Dockerfile
