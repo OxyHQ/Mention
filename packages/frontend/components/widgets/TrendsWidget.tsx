@@ -88,7 +88,7 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
 
   if (variant === 'inline') {
     return (
-      <View className="px-4 pb-2 shrink-0">
+      <View className="px-4 pt-3 pb-2 border-b border-border">
         <Text className="text-[15px] font-bold text-foreground mb-1">{t('Trending')}</Text>
         {content}
       </View>

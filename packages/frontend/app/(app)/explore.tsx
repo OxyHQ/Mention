@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -54,10 +54,15 @@ const ExploreScreen: React.FC = () => {
     setTrendingRefreshing(false);
   }, [fetchTrends]);
 
+  // The trending strip is the scroll-away header of the feed-backed tabs.
+  // Memoized so it keeps a stable element identity and does not force the Feed
+  // to re-render on every parent render (Feed compares listHeaderComponent by identity).
+  const trendsHeader = useMemo(() => <TrendsWidget variant="inline" />, []);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'media':
-        return <Feed type="media" />;
+        return <Feed type="media" listHeaderComponent={trendsHeader} />;
       case 'trending':
         return (
           <TrendingList
@@ -67,13 +72,13 @@ const ExploreScreen: React.FC = () => {
           />
         );
       case 'custom':
-        return <Feed type="posts" />;
+        return <Feed type="posts" listHeaderComponent={trendsHeader} />;
       case 'people':
         return <WhoToFollowTab />;
       case 'starter-packs':
         return <StarterPacksTab />;
       default:
-        return <Feed type="explore" />;
+        return <Feed type="explore" listHeaderComponent={trendsHeader} />;
     }
   };
 
@@ -164,10 +169,9 @@ const ExploreScreen: React.FC = () => {
           {/* Spacer for header */}
           <Animated.View style={tabBarSpacerStyle} />
 
-          {/* Trends — scrolls away naturally, not sticky */}
-          <TrendsWidget variant="inline" />
-
-          {/* Tab Navigation - sticky */}
+          {/* Tab Navigation - sticky. The trending strip is rendered as the
+              feed's ListHeaderComponent so it scrolls away with the content
+              while the tab bar stays pinned at the top. */}
           <View style={styles.stickyTabBar}>
             <AnimatedTabBar
               tabs={[
