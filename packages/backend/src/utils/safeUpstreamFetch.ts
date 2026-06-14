@@ -1,5 +1,7 @@
 import http, { IncomingMessage, IncomingHttpHeaders } from 'node:http';
 import https from 'node:https';
+import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns';
+import type { LookupFunction } from 'node:net';
 import { URL } from 'node:url';
 import { assertSafePublicUrl } from './ssrfGuard';
 
@@ -100,13 +102,26 @@ function buildRequestOptions(
     // Aborts the in-flight request when an external deadline fires.
     signal,
     // Pin the connection to the validated IP — DNS is NOT re-resolved here.
-    lookup: (
+    // The runtime (notably Bun) may invoke a custom lookup with `{ all: true }`
+    // and then sort the result internally (`results.sort(...)`), so when `all`
+    // is requested we MUST return an array of { address, family } — returning a
+    // single value makes that internal sort throw `results.sort is not a function`.
+    lookup: ((
       _hostname: string,
-      _options: unknown,
-      callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+      options: number | LookupOneOptions | LookupAllOptions,
+      callback: (
+        err: NodeJS.ErrnoException | null,
+        address: string | LookupAddress[],
+        family?: number,
+      ) => void,
     ): void => {
-      callback(null, pinnedIp, pinnedFamily);
-    },
+      const wantsAll = typeof options === 'object' && options !== null && options.all === true;
+      if (wantsAll) {
+        callback(null, [{ address: pinnedIp, family: pinnedFamily }]);
+      } else {
+        callback(null, pinnedIp, pinnedFamily);
+      }
+    }) as unknown as LookupFunction,
   };
 }
 
