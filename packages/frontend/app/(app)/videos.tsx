@@ -10,7 +10,7 @@ import { useAuth } from '@oxyhq/services';
 import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -117,6 +117,10 @@ interface VideoItemProps {
     item: VideoPost;
     isActive: boolean;
     isNear: boolean;
+    // True only while the /videos route is the focused screen. When another
+    // route is pushed on top, freezeOnBlur pauses JS but the native decoder may
+    // keep playing audio/video; gating playback on this prevents that bleed.
+    screenFocused: boolean;
     theme: ReturnType<typeof useTheme>;
     onLike: (postId: string, isLiked: boolean) => void;
     onComment: (postId: string) => void;
@@ -138,6 +142,8 @@ interface ActiveVideoSurfaceProps {
     videoUrl: string;
     posterUrl?: string;
     isActive: boolean;
+    // See VideoItemProps.screenFocused — only play when active AND focused.
+    screenFocused: boolean;
     muted: boolean;
     onMutedChange: (muted: boolean) => void;
     onError: () => void;
@@ -149,6 +155,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     videoUrl,
     posterUrl,
     isActive,
+    screenFocused,
     muted,
     onMutedChange,
     onError,
@@ -197,25 +204,27 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }, [player, muted]);
 
-    // Play only when this is the active index; otherwise the neighbour is
-    // preloaded but paused. Restarts from the top each time it becomes active.
+    // Play only when this is the active index AND the /videos screen is focused;
+    // otherwise the neighbour is preloaded but paused, and a backgrounded reel
+    // (another route pushed on top) is fully paused so no audio/video bleeds
+    // through the frozen screen. Restarts from the top each time it (re)plays.
     useEffect(() => {
-        if (isActive) {
+        if (isActive && screenFocused) {
             player.currentTime = 0;
             player.play();
         } else {
             player.pause();
         }
-    }, [player, isActive]);
+    }, [player, isActive, screenFocused]);
 
     const toggleMute = useCallback(() => {
         const next = !muted;
         onMutedChange(next);
         player.muted = next;
-        if (!next && isActive) {
+        if (!next && isActive && screenFocused) {
             player.play();
         }
-    }, [muted, isActive, onMutedChange, player]);
+    }, [muted, isActive, screenFocused, onMutedChange, player]);
 
     const showPoster = !hasRendered;
 
@@ -272,6 +281,7 @@ const VideoItem = memo<VideoItemProps>(({
     item,
     isActive,
     isNear,
+    screenFocused,
     theme,
     onLike,
     onComment,
@@ -311,6 +321,7 @@ const VideoItem = memo<VideoItemProps>(({
                     videoUrl={item.videoUrl}
                     posterUrl={item.posterUrl}
                     isActive={isActive}
+                    screenFocused={screenFocused}
                     muted={muted}
                     onMutedChange={onMutedChange}
                     onError={handleError}
@@ -453,6 +464,7 @@ export default function VideosScreen() {
     const insets = useSafeAreaInsets();
     const { height: WINDOW_HEIGHT } = useWindowDimensions();
     const router = useRouter();
+    const isFocused = useIsFocused();
     const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
     const { oxyServices, user } = useAuth();
     const viewerId = user?.id;
@@ -774,6 +786,7 @@ export default function VideosScreen() {
             item={item}
             isActive={index === currentVisibleIndex}
             isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS}
+            screenFocused={isFocused}
             theme={theme}
             onLike={handleLike}
             onComment={handleComment}
@@ -786,7 +799,7 @@ export default function VideosScreen() {
             t={t}
             windowHeight={WINDOW_HEIGHT}
         />
-    ), [currentVisibleIndex, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 

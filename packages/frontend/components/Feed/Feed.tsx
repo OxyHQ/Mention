@@ -18,7 +18,7 @@ import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLayoutScroll, extractOffsetY } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
-import { useRouter } from 'expo-router';
+import { useRouter, useIsFocused } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { createScopedLogger } from '@/lib/logger';
 import { useFeedState } from '@/hooks/useFeedState';
@@ -168,6 +168,12 @@ const Feed = ((props: FeedProps) => {
     const { t } = useTranslation();
     const theme = useTheme();
     const router = useRouter();
+    // With the (app) center now a Stack, multiple feed screens can be mounted at
+    // once (e.g. the home feed stays mounted behind a pushed profile). Only the
+    // FOCUSED feed may drive the shared scrollY (header/FAB/BottomBar hide) and be
+    // the registered scrollable for web wheel forwarding — otherwise a frozen
+    // background feed could move the shared value or steal wheel targeting.
+    const isFocused = useIsFocused();
     const flatListRef = useRef<any>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     // Guards the one-shot scroll restore so it runs at most once per mount
@@ -462,21 +468,27 @@ const Feed = ((props: FeedProps) => {
     const assignListRef = useCallback((node: any) => {
         flatListRef.current = node;
         clearScrollableRegistration();
-        if (scrollEnabled === false) return;
+        // Only the focused, scroll-owning feed registers as the active scrollable.
+        if (scrollEnabled === false || !isFocused) return;
         if (node) {
             unregisterScrollableRef.current = registerScrollable(node);
         }
-    }, [clearScrollableRegistration, registerScrollable, scrollEnabled]);
+    }, [clearScrollableRegistration, registerScrollable, scrollEnabled, isFocused]);
 
+    // Reconcile the registration with focus + scroll ownership. On focus (with a
+    // mounted list and scrolling enabled) register so web `forwardWheelEvent`
+    // targets this feed; on blur clear it so a background feed never steals wheel
+    // targeting or moves the shared scrollY. `registerScrollable` returns a
+    // counter-guarded cleanup, so the unmount effect below remains correct.
     useEffect(() => {
-        if (scrollEnabled === false) {
+        if (scrollEnabled === false || !isFocused) {
             clearScrollableRegistration();
             return;
         }
         if (flatListRef.current && !unregisterScrollableRef.current) {
             unregisterScrollableRef.current = registerScrollable(flatListRef.current);
         }
-    }, [clearScrollableRegistration, registerScrollable, scrollEnabled]);
+    }, [clearScrollableRegistration, registerScrollable, scrollEnabled, isFocused]);
 
     useEffect(() => () => {
         clearScrollableRegistration();
@@ -487,13 +499,16 @@ const Feed = ((props: FeedProps) => {
     // remount can restore it. Embedded feeds (scrollEnabled === false) don't
     // own scrolling, so we skip both.
     const handleScrollEvent = useCallback((event: any) => {
-        if (scrollEnabled === false) return;
+        // Skip entirely when this feed isn't the focused screen: a frozen
+        // background feed must never move the shared scrollY nor overwrite its
+        // saved offset (it isn't actually being scrolled by the user).
+        if (scrollEnabled === false || !isFocused) return;
         if (handleScroll) {
             handleScroll(event);
         }
         const offset = extractOffsetY(event);
         setFeedScroll(feedScrollKey, offset);
-    }, [handleScroll, scrollEnabled, feedScrollKey]);
+    }, [handleScroll, scrollEnabled, isFocused, feedScrollKey]);
 
     // Restore the saved scroll offset once the list has measured/drawn its rows.
     // FlashList v2 lays items out after first render, so onLoad is the correct

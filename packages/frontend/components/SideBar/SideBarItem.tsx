@@ -42,7 +42,12 @@ export const SideBarItem = React.memo(function SideBarItem({
 
     const handlePress = useCallback(() => {
         if (onPress) return onPress();
-        if (href) router.push(href);
+        // `href` is only ever a tab-root destination from the persistent SideBar.
+        // Use `navigate` (not `push`) so re-selecting a tab pops to its existing
+        // instance in the (app) Stack instead of stacking a duplicate. This is an
+        // imperative Pressable (not an expo-router <Link>), so no middle-click /
+        // SEO link affordance is affected by this change.
+        if (href) router.navigate(href);
     }, [onPress, href, router]);
 
     const handleHoverIn = useCallback(() => setIsHovered(true), []);

@@ -147,9 +147,12 @@ export const BottomBar = () => {
         backgroundColor: `${effectiveTheme.colors.primary}1A`,
     }));
 
+    // Tab-root switch. With the (app) center now a Stack, `navigate` pops to the
+    // existing instance of the target tab instead of stacking a new copy, so the
+    // bottom-bar tabs never grow the stack or leave duplicate Home entries.
     const handlePress = useCallback((route: Href) => {
         haptic('Light');
-        router.push(route);
+        router.navigate(route);
     }, [haptic, router]);
 
     const handleHomePress = useCallback(() => {
@@ -157,7 +160,7 @@ export const BottomBar = () => {
         if (pathname === '/') {
             triggerHomeRefresh();
         } else {
-            router.push('/');
+            router.navigate('/');
         }
     }, [haptic, pathname, triggerHomeRefresh, router]);
 
@@ -184,7 +187,13 @@ export const BottomBar = () => {
     }), [effectiveTheme.colors.border, effectiveTheme.colors.shadow]);
 
     const handlePressVideos = useCallback(() => handlePress('/videos'), [handlePress]);
-    const handlePressCompose = useCallback(() => handlePress('/compose'), [handlePress]);
+    // Compose is a modal-presented detail, not a tab root, so it must `push`
+    // (over whatever screen is focused) rather than `navigate`. It does NOT go
+    // through `handlePress`, which now uses navigate semantics for tab roots.
+    const handlePressCompose = useCallback(() => {
+        haptic('Light');
+        router.push('/compose');
+    }, [haptic, router]);
     const handlePressNotifications = useCallback(() => handlePress('/notifications'), [handlePress]);
     const handlePressProfile = useCallback(() => {
         if (isAuthenticated && user?.username) {

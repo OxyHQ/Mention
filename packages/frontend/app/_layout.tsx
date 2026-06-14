@@ -1,6 +1,15 @@
 // Import Reanimated early to ensure proper initialization before other modules
 import 'react-native-reanimated';
 
+// Freeze inactive (blurred) screens app-wide. Combined with `freezeOnBlur: true`
+// on the (app) Stack, screens that the user navigates away from stay MOUNTED
+// (retaining their state + scroll position) but have their JS/render work paused
+// until they regain focus. This is what lets feed → /videos → back restore the
+// exact feed scroll position natively, Instagram-style. Must run once at module
+// scope, before any navigator mounts.
+import { enableFreeze } from 'react-native-screens';
+enableFreeze(true);
+
 // Suppress known React Native Web warning about text nodes in Views.
 // The React Compiler (Hermes) can produce stray punctuation string children in
 // compiled JSX (e.g. a literal ".") which triggers a harmless dev-only

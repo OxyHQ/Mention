@@ -61,18 +61,23 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         router.replace('/');
     }, [signOut, onNavigate, router, resetAppearance, resetTheme]);
 
+    // Every sidebar destination is a TAB ROOT (home, the current user's own
+    // profile, explore, notifications, chat, agora, insights, saved, feeds,
+    // lists, videos, settings). With the (app) center now a Stack, `navigate`
+    // pops to an existing instance of the target instead of stacking a new copy,
+    // so repeatedly clicking tabs never grows the stack or duplicates Home.
     const handleNavPress = useCallback((route: Href) => {
         onNavigate?.();
-        router.push(route);
+        router.navigate(route);
     }, [onNavigate, router]);
 
+    // Compose is a modal-presented detail, NOT a tab root, so it must always
+    // `push` (in both the drawer and persistent-sidebar branches) — never
+    // `navigate`, which would pop to / reuse an existing instance.
     const handleComposePress = useCallback(() => {
-        if (asDrawer) {
-            handleNavPress('/compose');
-        } else {
-            router.push('/compose');
-        }
-    }, [asDrawer, handleNavPress, router]);
+        onNavigate?.();
+        router.push('/compose');
+    }, [onNavigate, router]);
 
     const handleSignIn = useCallback(() => {
         onNavigate?.();

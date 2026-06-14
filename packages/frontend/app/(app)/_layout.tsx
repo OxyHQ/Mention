@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
-import { Slot, usePathname } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { useAuth } from '@oxyhq/services';
@@ -116,7 +116,23 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
             )}
             style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
           >
-            <Slot />
+            {/* The center column is a native Stack so pushed-from screens stay
+                mounted (and frozen via freezeOnBlur + enableFreeze) instead of
+                being torn down by a <Slot/>. `back` then restores the previous
+                screen — and its scroll position — natively. The (app) file tree
+                is auto-adopted; only routes that need a non-default presentation
+                are declared explicitly below. */}
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: Platform.OS === 'web' ? 'none' : 'default',
+                freezeOnBlur: true,
+                contentStyle: { flex: 1, backgroundColor: 'transparent' },
+              }}
+            >
+              <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="p/[id]/boost" options={{ presentation: 'modal' }} />
+            </Stack>
             {/* Only show the anon CTA once auth is definitively resolved. During the
                 cold-boot restore window `isAuthenticated` is UNDETERMINED — showing
                 the banner then would flash it to a user whose session is about to
