@@ -80,6 +80,12 @@ const HTTP_OK = 200;
 const HTTP_CREATED = 201;
 /** A successful delete may answer 200 or 204 (no content). */
 const HTTP_NO_CONTENT = 204;
+/**
+ * Unauthorized — the SDK-managed service token was rejected (e.g. revoked,
+ * rotated, or expired right at the clock-drift boundary). We recover ONCE by
+ * dropping the cached token and re-minting (see {@link withServiceTokenRetry}).
+ */
+const HTTP_UNAUTHORIZED = 401;
 /** Idle socket timeout while streaming a body to / reading a response from oxy-api. */
 const OXY_REQUEST_TIMEOUT_MS = 60_000;
 /** Cap on the error-body snippet captured for diagnostics (avoid unbounded logs). */
@@ -134,6 +140,35 @@ async function getServiceBearerToken(): Promise<string> {
   return getServiceOxyClient().getServiceToken();
 }
 
+/**
+ * Run an oxy-api request and recover from a single `401 Unauthorized` caused by a
+ * stale SDK-managed service token (revoked/rotated, or refreshed right at the
+ * clock-drift boundary). On a 401 we drop the cached token via the core client's
+ * synchronous {@link OxyServices.invalidateServiceToken} so the NEXT
+ * `getServiceToken()` re-mints a fresh JWT, then re-run `doRequest` exactly ONCE.
+ *
+ * `doRequest` MUST acquire the bearer token and (for the upload) open its file
+ * stream INTERNALLY on each call, because the retry re-invokes it: a consumed
+ * read stream cannot be re-sent, and the retry needs the freshly-minted token.
+ * The first attempt's 401 response is drained so its socket returns to the pool.
+ * Non-401 responses are returned verbatim for the caller to status-check.
+ */
+async function withServiceTokenRetry(
+  doRequest: () => Promise<IncomingMessage>,
+): Promise<IncomingMessage> {
+  const first = await doRequest();
+  if (first.statusCode !== HTTP_UNAUTHORIZED) {
+    return first;
+  }
+
+  // Discard the rejected token and release the dead socket before retrying.
+  getServiceOxyClient().invalidateServiceToken();
+  first.resume();
+  logger.warn('[MediaCache] Oxy service token rejected (401); re-minting and retrying once');
+
+  return doRequest();
+}
+
 /** Read up to {@link ERROR_BODY_SNIPPET_BYTES} of a response body for diagnostics. */
 async function readErrorSnippet(response: IncomingMessage): Promise<string> {
   return new Promise<string>((resolve) => {
@@ -177,22 +212,26 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
     throw new MediaStoreUnavailableError('upload');
   }
 
-  const token = await getServiceBearerToken();
   const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}`);
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': source.contentType,
-    Accept: 'application/json',
-  };
-  if (source.originalName) {
-    headers['x-original-name'] = source.originalName;
-  }
-  if (typeof source.sizeBytes === 'number' && Number.isFinite(source.sizeBytes)) {
-    headers['Content-Length'] = String(source.sizeBytes);
-  }
-
-  const response = await streamRequest('POST', target, headers, source.filePath);
+  // The token is acquired and the file stream re-opened INSIDE the closure so a
+  // 401 retry re-mints the bearer and pipes a fresh stream (a consumed stream
+  // cannot be re-sent).
+  const response = await withServiceTokenRetry(async () => {
+    const token = await getServiceBearerToken();
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': source.contentType,
+      Accept: 'application/json',
+    };
+    if (source.originalName) {
+      headers['x-original-name'] = source.originalName;
+    }
+    if (typeof source.sizeBytes === 'number' && Number.isFinite(source.sizeBytes)) {
+      headers['Content-Length'] = String(source.sizeBytes);
+    }
+    return streamRequest('POST', target, headers, source.filePath);
+  });
   const status = response.statusCode ?? 0;
 
   if (status !== HTTP_OK && status !== HTTP_CREATED) {
@@ -226,15 +265,18 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
     throw new MediaStoreUnavailableError('delete');
   }
 
-  const token = await getServiceBearerToken();
   const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}/${encodeURIComponent(oxyFileId)}`);
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
-  };
-
-  const response = await streamRequest('DELETE', target, headers);
+  // Token acquired inside the closure so a 401 retry mints a fresh bearer. The
+  // delete carries no body, so the retry is a plain re-issue.
+  const response = await withServiceTokenRetry(async () => {
+    const token = await getServiceBearerToken();
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    };
+    return streamRequest('DELETE', target, headers);
+  });
   const status = response.statusCode ?? 0;
 
   if (status !== HTTP_OK && status !== HTTP_NO_CONTENT) {

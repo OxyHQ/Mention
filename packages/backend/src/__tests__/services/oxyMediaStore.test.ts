@@ -27,9 +27,10 @@ const SERVICE_TOKEN = 'svc-token-xyz';
 const OXY_BASE = 'http://oxy.test';
 const getServiceToken = vi.fn<() => Promise<string>>().mockResolvedValue(SERVICE_TOKEN);
 const getBaseURL = vi.fn<() => string>().mockReturnValue(OXY_BASE);
+const invalidateServiceToken = vi.fn<() => void>();
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getServiceToken, getBaseURL }),
+  getServiceOxyClient: () => ({ getServiceToken, getBaseURL, invalidateServiceToken }),
 }));
 
 // --- Capture native HTTP requests + their streamed bodies. ---
@@ -117,6 +118,7 @@ beforeEach(async () => {
   requests.length = 0;
   getServiceToken.mockClear();
   getBaseURL.mockClear();
+  invalidateServiceToken.mockClear();
   respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }) });
   workDir = await mkdtemp(join(tmpdir(), 'oxy-media-store-test-'));
 });
@@ -186,6 +188,64 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
       OxyMediaStoreRequestError,
     );
   });
+
+  it('recovers from a 401 by invalidating the service token and retrying ONCE with a fresh stream', async () => {
+    const filePath = join(workDir, 'retry.bin');
+    const payload = Buffer.from('stream-must-be-reopened');
+    await writeFile(filePath, payload);
+
+    // First attempt 401 (stale token), second attempt 200 (re-minted token).
+    respond = () =>
+      requests.length === 1
+        ? { statusCode: 401, body: 'token rejected' }
+        : { statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_after_retry' } } }) };
+
+    const result = await uploadCachedMedia({
+      filePath,
+      contentType: 'image/png',
+      originalName: 'avatar.png',
+      sizeBytes: payload.byteLength,
+    });
+
+    expect(result.oxyFileId).toBe('oxy_file_after_retry');
+
+    // The cached token was dropped exactly once, and a fresh token minted per attempt.
+    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
+    expect(getServiceToken).toHaveBeenCalledTimes(2);
+
+    // Two POSTs were issued; the retry re-opened the file and streamed the FULL body.
+    expect(requests).toHaveLength(2);
+    expect(requests[0].options.method).toBe('POST');
+    expect(requests[1].options.method).toBe('POST');
+    expect(Buffer.concat(requests[1].bodyChunks).toString('utf8')).toBe('stream-must-be-reopened');
+  });
+
+  it('throws OxyMediaStoreRequestError when the upload retry also returns 401', async () => {
+    const filePath = join(workDir, 'retry-fail.bin');
+    await writeFile(filePath, Buffer.from('x'));
+    respond = () => ({ statusCode: 401, body: 'still unauthorized' });
+
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+      OxyMediaStoreRequestError,
+    );
+
+    // Recovered exactly once: 2 requests, 1 invalidation, no infinite retry loop.
+    expect(requests).toHaveLength(2);
+    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT invalidate the token on a non-401 upload failure', async () => {
+    const filePath = join(workDir, 'server-error.bin');
+    await writeFile(filePath, Buffer.from('x'));
+    respond = () => ({ statusCode: 500, body: 'boom' });
+
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+      OxyMediaStoreRequestError,
+    );
+
+    expect(requests).toHaveLength(1);
+    expect(invalidateServiceToken).not.toHaveBeenCalled();
+  });
 });
 
 describe('oxyMediaStore.deleteCachedMedia', () => {
@@ -215,5 +275,37 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     respond = () => ({ statusCode: 404, body: 'not found' });
 
     await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+  });
+
+  it('recovers from a 401 by invalidating the service token and retrying the DELETE once', async () => {
+    respond = () =>
+      requests.length === 1 ? { statusCode: 401, body: 'token rejected' } : { statusCode: 204, body: '' };
+
+    await deleteCachedMedia('oxy_file_to_delete');
+
+    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
+    expect(getServiceToken).toHaveBeenCalledTimes(2);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].options.method).toBe('DELETE');
+    expect(requests[1].options.path).toBe('/assets/service/cache/oxy_file_to_delete');
+    expect(requests[1].options.headers.Authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+  });
+
+  it('throws when the delete retry also returns 401', async () => {
+    respond = () => ({ statusCode: 401, body: 'still unauthorized' });
+
+    await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+
+    expect(requests).toHaveLength(2);
+    expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT invalidate the token on a non-401 delete failure', async () => {
+    respond = () => ({ statusCode: 404, body: 'not found' });
+
+    await expect(deleteCachedMedia('missing')).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+
+    expect(requests).toHaveLength(1);
+    expect(invalidateServiceToken).not.toHaveBeenCalled();
   });
 });
