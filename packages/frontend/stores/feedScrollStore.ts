@@ -2,18 +2,19 @@ import { create } from 'zustand';
 import { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 
 /**
- * Session-scoped feed scroll + memory-mode retention store.
+ * Session-scoped memory-mode retention store + local new-post bridge.
  *
  * This store is intentionally NOT persisted to disk. It keeps state in memory
- * for the lifetime of the app session so a screen that unmounts (e.g. when
- * navigating from the home feed to `/videos`, which replaces the route via
- * `<Slot />`) can restore both:
- *   1. the exact scroll offset, and
- *   2. (memory-mode only) the previously-loaded feed items,
- * when it remounts. A full reload naturally clears everything.
+ * for the lifetime of the app session so a memory-mode feed that unmounts (e.g.
+ * when navigating from the home feed to `/videos`, which replaces the route via
+ * `<Slot />`) can restore its previously-loaded feed items when it remounts. A
+ * full reload naturally clears everything.
  *
- * Both maps are keyed by the feed-identity key from `buildFeedScrollKey`, so
- * each distinct feed restores independently.
+ * Scroll-offset restoration is NOT handled here — it lives in Bloom's shared
+ * `@oxyhq/bloom/scroll` primitive, keyed by the active route.
+ *
+ * The memory cache is keyed by the feed-identity key from `buildFeedScrollKey`,
+ * so each distinct feed restores independently.
  */
 
 /**
@@ -29,28 +30,15 @@ export interface FeedMemoryCacheEntry {
 }
 
 interface FeedScrollStore {
-    /** Map of feed-identity key → last saved vertical scroll offset (px). */
-    offsets: Record<string, number>;
     /** Map of feed-identity key → retained memory-mode feed slice. */
     memoryCache: Record<string, FeedMemoryCacheEntry>;
-    setOffset: (key: string, offset: number) => void;
-    getOffset: (key: string) => number | undefined;
     setMemoryCache: (key: string, entry: FeedMemoryCacheEntry) => void;
     getMemoryCache: (key: string) => FeedMemoryCacheEntry | undefined;
     clearMemoryCache: (key: string) => void;
 }
 
 const useFeedScrollStore = create<FeedScrollStore>((set, get) => ({
-    offsets: {},
     memoryCache: {},
-
-    setOffset: (key, offset) => {
-        const current = get().offsets[key];
-        if (current === offset) return;
-        set((state) => ({ offsets: { ...state.offsets, [key]: offset } }));
-    },
-
-    getOffset: (key) => get().offsets[key],
 
     setMemoryCache: (key, entry) => {
         set((state) => ({ memoryCache: { ...state.memoryCache, [key]: entry } }));
@@ -67,21 +55,6 @@ const useFeedScrollStore = create<FeedScrollStore>((set, get) => ({
         });
     },
 }));
-
-/**
- * Read the saved scroll offset for a feed identity. Returns `undefined` when no
- * offset has been recorded yet (fresh feed).
- */
-export function getFeedScroll(key: string): number | undefined {
-    return useFeedScrollStore.getState().getOffset(key);
-}
-
-/**
- * Persist the latest scroll offset for a feed identity (session-scoped).
- */
-export function setFeedScroll(key: string, offset: number): void {
-    useFeedScrollStore.getState().setOffset(key, offset);
-}
 
 /**
  * Read the retained memory-mode feed slice for a feed identity, if any.

@@ -23,6 +23,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
 import { ScreenColorProvider, useScreenColor } from '@/context/ScreenColorContext';
 import { APP_COLOR_PRESETS, BloomColorScope, type AppColorName } from '@oxyhq/bloom/theme';
+import { ScrollRestorationProvider } from '@oxyhq/bloom/scroll';
 import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
@@ -116,28 +117,36 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
             )}
             style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
           >
-            {/* The center column is a native Stack so pushed-from screens stay
-                mounted (and frozen via freezeOnBlur + enableFreeze) instead of
-                being torn down by a <Slot/>. `back` then restores the previous
-                screen — and its scroll position — natively. The (app) file tree
-                is auto-adopted; only routes that need a non-default presentation
-                are declared explicitly below. */}
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: Platform.OS === 'web' ? 'none' : 'default',
-                freezeOnBlur: true,
-                contentStyle: { flex: 1, backgroundColor: 'transparent' },
-              }}
-            >
-              <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="p/[id]/boost" options={{ presentation: 'modal' }} />
-            </Stack>
-            {/* Only show the anon CTA once auth is definitively resolved. During the
-                cold-boot restore window `isAuthenticated` is UNDETERMINED — showing
-                the banner then would flash it to a user whose session is about to
-                restore. */}
-            {isAuthResolved && !isAuthenticated && <SignInBanner />}
+            {/* ScrollRestorationProvider holds only a route-keyed Map in context
+                and renders its children unchanged (no View / no layout output),
+                so it composes cleanly with the multi-column flex layout. It must
+                sit inside the navigation tree so the feed screens' useRoute()
+                resolves; scoping it to the center Stack keeps it off the
+                SideBar/RightBar columns. On native it's a no-op. */}
+            <ScrollRestorationProvider>
+              {/* The center column is a native Stack so pushed-from screens stay
+                  mounted (and frozen via freezeOnBlur + enableFreeze) instead of
+                  being torn down by a <Slot/>. `back` then restores the previous
+                  screen — and its scroll position — natively. The (app) file tree
+                  is auto-adopted; only routes that need a non-default presentation
+                  are declared explicitly below. */}
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: Platform.OS === 'web' ? 'none' : 'default',
+                  freezeOnBlur: true,
+                  contentStyle: { flex: 1, backgroundColor: 'transparent' },
+                }}
+              >
+                <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="p/[id]/boost" options={{ presentation: 'modal' }} />
+              </Stack>
+              {/* Only show the anon CTA once auth is definitively resolved. During the
+                  cold-boot restore window `isAuthenticated` is UNDETERMINED — showing
+                  the banner then would flash it to a user whose session is about to
+                  restore. */}
+              {isAuthResolved && !isAuthenticated && <SignInBanner />}
+            </ScrollRestorationProvider>
           </ThemedView>
         </BloomColorScope>
         <RightBar />
