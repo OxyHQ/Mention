@@ -53,9 +53,21 @@ packages/
 
 - **Frontend**: Expo Router, NativeWind + TailwindCSS 4.2, TanStack React Query, Zustand, Socket.io-client, LiveKit
 - **Backend**: Express 5, Mongoose 9, Redis 5, Socket.io, LiveKit Server SDK, Firebase Admin, AWS S3
-- **Feed System**: MTN protocol in `backend/src/mtn/` (ForYou, Following, Author, Hashtag, Explore, Custom feeds + tuners)
+- **Feed System**: MTN protocol in `backend/src/mtn/` (ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners). `videos` descriptor (`packages/shared-types/src/mtn/feedDescriptor.ts`) is backed by `VideosFeed` (`packages/backend/src/mtn/feed/feeds/VideosFeed.ts`) — ranked feed of video posts (native + federated) powering the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400. Use `videos`.
 - **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain.
 - **Auth**: Oxy integration via @oxyhq/core + @oxyhq/services
+
+## Federated Media Cache
+
+Remote/federated post media (images, video, audio) is proxied and cached through the backend:
+
+- **Proxy endpoint**: `GET /media/proxy?url=<remote url>` — SSRF-guarded (DNS-pinned, IP denylist, per-hop redirect re-validation, content-type allowlist image/video/audio, SVG rejected, range requests supported). Frontend rewrites federated media URLs to this proxy via `proxyExternalUrl()` in `packages/frontend/utils/imageUrlCache.ts`.
+- **Video poster endpoint**: `GET /media/poster?url=<video url>` — extracts a frame via ffmpeg (sandboxed: bounded download to temp file, `-protocol_whitelist file`, no network). Dockerfile installs ffmpeg. Frontend helper: `videoPosterUrl()`.
+- **S3 activity cache**: on proxy access, media is uploaded to Oxy S3 via `POST /assets/service/cache` on oxy-api (service-token-scoped, reserved `federation-media-cache` namespace). Cached entries are served via 302 to the Oxy CDN. Entries unused for 30 days are evicted and re-cached on next access. Model: `FederatedMediaCache`.
+- **Key code locations**: `packages/backend/src/services/mediaCache/*`, `routes/media.ts`, `utils/safeUpstreamFetch.ts`, `utils/ssrfGuard.ts`, `utils/videoPoster.ts`.
+- **Gated by env**: `FEDERATION_MEDIA_CACHE_WRITE_ENABLED=true` (set on the mention ECS task in `oxy-infra/terraform/app-services-realtime.tf`). Unset = proxy works but nothing is written to S3.
+- **Post storage**: federated media URLs are stored RAW (remote) on the post (`content.media[].id`). The cache keys off the remote URL and never rewrites the post.
+- **SSM secrets**: `OXY_SERVICE_API_KEY` + `OXY_SERVICE_API_SECRET` are live in SSM at `/oxy/mention/OXY_SERVICE_API_KEY` and `/oxy/mention/OXY_SERVICE_API_SECRET`, wired into the ECS task definition.
 
 ## Compose Intent URL
 

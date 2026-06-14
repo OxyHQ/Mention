@@ -1,73 +1,33 @@
-import { API_URL } from '@/config';
+import { proxyExternalUrl } from '@/utils/imageUrlCache';
 
 export type ImageSize = 'thumb' | 'small' | 'medium' | 'large' | 'original';
 
-interface SizePreset {
-  width: number;
-  height: number;
-  quality: number;
-}
-
 /**
- * Size presets mapping ImageSize to max dimensions and quality.
- * Images are resized to fit within these bounds while preserving aspect ratio.
+ * Resolve an image URI for display.
+ *
+ * Historically this routed external images through the backend `/images/optimize`
+ * endpoint to resize/recompress them. That path is now superseded by the media
+ * proxy (`/media/proxy`), which already streams external/federated media with
+ * CORS, HTTP Range, and a server-side cache — and unlike the optimize endpoint it
+ * does not depend on S3 object ACLs (the bucket is ownership-enforced, so the
+ * optimize write path always failed and returned 502). External absolute URLs are
+ * therefore routed through the proxy; our own-origin URLs (including URLs already
+ * wrapped by `/media/proxy`) and non-http references pass through untouched.
+ *
+ * `size` is retained for call-site compatibility; sizing/compression is handled by
+ * the proxy/CDN layer rather than a per-request optimize hop.
  */
-const SIZE_PRESETS: Record<Exclude<ImageSize, 'original'>, SizePreset> = {
-  thumb: { width: 80, height: 80, quality: 60 },
-  small: { width: 200, height: 200, quality: 70 },
-  medium: { width: 600, height: 600, quality: 80 },
-  large: { width: 1200, height: 1200, quality: 85 },
-};
-
-/**
- * Check if a URL should bypass the optimization proxy.
- * Returns true for URLs that are already optimized or internal.
- */
-function shouldBypassOptimization(uri: string): boolean {
-  // Relative paths are already on our server
-  if (!uri.startsWith('http://') && !uri.startsWith('https://')) {
-    return true;
-  }
-
-  // Already served through our image cache
-  if (uri.includes('/links/images/') || uri.includes('/images/')) {
-    return true;
-  }
-
-  // Data URIs
-  if (uri.startsWith('data:')) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Generate an optimized image URL that routes through the backend optimization service.
- * For 'original' size or already-optimized URLs, returns the URI unchanged.
- */
-export function getOptimizedImageUrl(uri: string, size: ImageSize): string {
+export function getOptimizedImageUrl(uri: string, _size: ImageSize): string {
   if (!uri || typeof uri !== 'string') {
     return uri;
   }
 
-  // No optimization needed for original size
-  if (size === 'original') {
-    return uri;
+  // Only absolute http(s) URLs are proxyable. `proxyExternalUrl` returns our-own
+  // origin URLs (and already-proxied URLs) unchanged, and is a no-op for
+  // data:/blob:/relative references — so it is safe to call unconditionally.
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    return proxyExternalUrl(uri);
   }
 
-  // Skip URLs that don't need optimization
-  if (shouldBypassOptimization(uri)) {
-    return uri;
-  }
-
-  const preset = SIZE_PRESETS[size];
-  const params = new URLSearchParams({
-    url: uri,
-    w: String(preset.width),
-    h: String(preset.height),
-    q: String(preset.quality),
-  });
-
-  return `${API_URL}/images/optimize?${params.toString()}`;
+  return uri;
 }

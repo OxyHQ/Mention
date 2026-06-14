@@ -9,16 +9,26 @@ import { useTranslation } from 'react-i18next';
 import { ScaleAndFadeIn, ScaleAndFadeOut } from '@/lib/animations/ScaleAndFade';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getApiOrigin } from '@/utils/api';
+import { proxyExternalUrl } from '@/utils/imageUrlCache';
 
 /**
- * Fix image URL to use correct API port (3000 for localhost)
+ * Resolve a link-preview image URL for display.
+ *
+ * Link previews carry an `image` that is often hosted on the EXTERNAL site (e.g.
+ * an og:image). Hot-linking that on web breaks for CORS-restricted hosts and dies
+ * when the upstream link expires, so external absolute URLs are routed through our
+ * media proxy (`proxyExternalUrl`), which serves them same-origin, cached, and
+ * CORS-safe. Own-origin URLs — including our cached `/links/images/` previews — and
+ * already-proxied URLs are returned unchanged by `proxyExternalUrl`. Relative
+ * paths are resolved against the API origin first (handles localhost port + cached
+ * previews) and are already on our origin, so they need no proxying.
  */
 function fixImageUrl(imageUrl: string | undefined): string | undefined {
   if (!imageUrl) return imageUrl;
 
-  // Already absolute and not a cached image - use as-is
+  // Absolute URL: keep our cached preview on the right origin, otherwise proxy it.
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    // If it's a cached image URL with wrong port, fix it
+    // If it's our cached preview image with the wrong port/origin, normalize it.
     if (imageUrl.includes('/links/images/')) {
       const apiOrigin = getApiOrigin();
       const pathMatch = imageUrl.match(/\/links\/images\/.+$/);
@@ -26,10 +36,13 @@ function fixImageUrl(imageUrl: string | undefined): string | undefined {
         return `${apiOrigin}${pathMatch[0]}`;
       }
     }
-    return imageUrl;
+    // External (or any other absolute) image → route through our media proxy so it
+    // loads reliably on web and survives expiring upstream links. Own-origin and
+    // already-proxied URLs are returned unchanged by proxyExternalUrl.
+    return proxyExternalUrl(imageUrl);
   }
 
-  // Relative URL - construct absolute URL with correct port
+  // Relative URL - construct absolute URL on our origin (correct port locally).
   if (imageUrl.startsWith('/links/images/') || imageUrl.startsWith('/')) {
     return `${getApiOrigin()}${imageUrl}`;
   }

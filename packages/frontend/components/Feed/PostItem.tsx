@@ -153,13 +153,15 @@ const PostItem: React.FC<PostItemProps> = ({
         : undefined;
 
     const rawAvatar = viewPost?.user?.avatarUrl || (viewPost?.user as any)?.avatar;
-    const avatarFileId = typeof rawAvatar === 'string' && !rawAvatar.startsWith('http') ? rawAvatar : undefined;
-    const resolvedAvatarUrl = useImageUrl(avatarFileId, 'thumb', oxyServices);
+    // useImageUrl handles BOTH branches: an Oxy file id resolves to a signed/stream
+    // URL; an absolute federated/remote URL is routed through the media proxy so it
+    // loads same-origin (CORS-safe) on web instead of hot-linking the fediverse CDN.
+    const avatarSource = typeof rawAvatar === 'string' ? rawAvatar : undefined;
+    const resolvedAvatarUrl = useImageUrl(avatarSource, 'thumb', oxyServices);
 
     const avatarUri = useMemo(() => {
         if (!rawAvatar) return undefined;
-        if (typeof rawAvatar === 'string' && rawAvatar.startsWith('http')) return rawAvatar;
-        return resolvedAvatarUrl ?? rawAvatar;
+        return resolvedAvatarUrl ?? (typeof rawAvatar === 'string' ? rawAvatar : undefined);
     }, [rawAvatar, resolvedAvatarUrl]);
 
     // Preload images for better perceived performance.
