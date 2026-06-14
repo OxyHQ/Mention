@@ -18,7 +18,7 @@ import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLayoutScroll, extractOffsetY } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
-import { useRouter, useIsFocused } from 'expo-router';
+import { useRouter, useIsFocused, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { createScopedLogger } from '@/lib/logger';
 import { useFeedState } from '@/hooks/useFeedState';
@@ -50,6 +50,14 @@ interface FeedRow {
 }
 
 const MAX_THREAD_NESTING_DEPTH = 3;
+
+// On web, a screen hidden with `display:none` (React Navigation background
+// screens) has its scroll container `scrollTop` reset to 0. When the screen is
+// re-shown on back navigation it needs a frame to lay out / become visible
+// before `scrollToOffset` takes effect. We restore after two animation frames
+// (one for the screen to become visible, one for layout to settle) and then
+// verify; if the list is still at the top we retry once on the next frame.
+const FOCUS_RESTORE_VERIFY_THRESHOLD_PX = 1;
 
 const logger = createScopedLogger('Feed');
 
@@ -179,6 +187,18 @@ const Feed = ((props: FeedProps) => {
     // Guards the one-shot scroll restore so it runs at most once per mount
     // (FlashList may fire onLoad more than once across re-layouts).
     const hasRestoredScrollRef = useRef(false);
+    // Set true once the user actually scrolls during the current focus session.
+    // While true, the focus-restore must not yank the list back — the user is in
+    // control. Reset on each blur so the next focus gain re-arms restore.
+    const userScrolledThisFocusRef = useRef(false);
+    // Tracks pending requestAnimationFrame handles for the focus restore so the
+    // focus-effect cleanup (blur) can cancel any in-flight restore.
+    const focusRestoreRafRef = useRef<number | null>(null);
+    // Mirror of the current row count, read inside the deferred focus restore
+    // without adding `feedRows` to the focus-effect deps (which must depend only
+    // on focus transitions). Restoring against an empty list would land past the
+    // end, so the restore bails when there are no rows yet.
+    const feedRowsCountRef = useRef(0);
     const [refreshing, setRefreshing] = useState(false);
     const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
 
@@ -362,6 +382,11 @@ const Feed = ((props: FeedProps) => {
         }));
     }, [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
 
+    // Keep the latest row count in a ref so the deferred focus restore can bail
+    // on an empty list without depending on `feedRows` (which would re-run the
+    // focus effect on every data change). Render-phase write of a mirror value.
+    feedRowsCountRef.current = feedRows.length;
+
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item: row }: { item: FeedRow; index: number }) => {
         const post = row.item;
@@ -507,6 +532,9 @@ const Feed = ((props: FeedProps) => {
             handleScroll(event);
         }
         const offset = extractOffsetY(event);
+        // The user is driving the scroll this focus session — once they've moved
+        // it themselves, the focus-restore must not yank it back.
+        userScrolledThisFocusRef.current = true;
         setFeedScroll(feedScrollKey, offset);
     }, [handleScroll, scrollEnabled, isFocused, feedScrollKey]);
 
@@ -530,6 +558,70 @@ const Feed = ((props: FeedProps) => {
         const list = flatListRef.current as FlashListRef<FeedRow> | null;
         list?.scrollToOffset({ offset: savedOffset, animated: false });
     }, [feedScrollKey, scrollEnabled, feedRows.length]);
+
+    // Restore the saved scroll offset when this feed regains focus (back
+    // navigation). The Phase-1 <Stack> keeps background feed screens MOUNTED,
+    // but on web React Navigation hides them with `display:none`, which resets
+    // the scroll container's `scrollTop` to 0. Because the FlashList does not
+    // remount when the screen is re-shown, `onLoad` does NOT re-fire — so the
+    // initial-mount restore above can't help the back case. This focus effect
+    // covers it: each fresh focus gain re-applies the saved offset once.
+    //
+    // Composition with the other scroll handlers:
+    //   - onScroll (`handleScrollEvent`) keeps saving the latest offset and marks
+    //     `userScrolledThisFocusRef` so we never fight an in-session user scroll.
+    //   - onLoad (`handleListLoad`) still covers the genuine cold/initial mount.
+    //   - This effect covers return-to-an-already-mounted-screen (back from
+    //     /videos, /p/[id], etc.). The cleanup runs on blur, re-arming the guard.
+    useFocusEffect(
+        useCallback(() => {
+            // A fresh focus gain re-arms the user-scroll guard for this session.
+            userScrolledThisFocusRef.current = false;
+
+            // Embedded feeds don't own scrolling — the parent ScrollView does.
+            if (scrollEnabled !== false) {
+                const savedOffset = getFeedScroll(feedScrollKey);
+                if (savedOffset && savedOffset > 0) {
+                    // Re-show on web needs a frame to become visible + lay out
+                    // before scrollToOffset takes effect. Apply after a double
+                    // rAF, then re-apply once more on a third frame as an
+                    // idempotent safety retry in case the first apply raced the
+                    // layout (scrolling to the same offset twice is invisible
+                    // with animated:false).
+                    const applyRestore = () => {
+                        if (userScrolledThisFocusRef.current) return;
+                        // Restoring against an empty list would scroll past the
+                        // end; wait until rows exist (cold mount before data).
+                        if (feedRowsCountRef.current === 0) return;
+                        const list = flatListRef.current as FlashListRef<FeedRow> | null;
+                        if (!list) return;
+                        list.scrollToOffset({ offset: savedOffset, animated: false });
+                        if (savedOffset <= FOCUS_RESTORE_VERIFY_THRESHOLD_PX) return;
+                        focusRestoreRafRef.current = requestAnimationFrame(() => {
+                            focusRestoreRafRef.current = null;
+                            if (userScrolledThisFocusRef.current) return;
+                            const verifyList = flatListRef.current as FlashListRef<FeedRow> | null;
+                            verifyList?.scrollToOffset({ offset: savedOffset, animated: false });
+                        });
+                    };
+
+                    focusRestoreRafRef.current = requestAnimationFrame(() => {
+                        focusRestoreRafRef.current = requestAnimationFrame(applyRestore);
+                    });
+                }
+            }
+
+            return () => {
+                // Blur: cancel any in-flight restore and reset the session guard
+                // so the next focus gain restores fresh.
+                if (focusRestoreRafRef.current !== null) {
+                    cancelAnimationFrame(focusRestoreRafRef.current);
+                    focusRestoreRafRef.current = null;
+                }
+                userScrolledThisFocusRef.current = false;
+            };
+        }, [feedScrollKey, scrollEnabled])
+    );
 
     // Handle wheel events
     const handleWheelEvent = useCallback((event: any) => {
