@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { PostType, PostVisibility, PostContent, PostStats, PostMetadata } from '@mention/shared-types';
+import { normalizePostHashtags } from '../utils/textProcessing';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
@@ -22,6 +23,9 @@ export interface IPost extends Document {
   language?: string;
   tags?: string[];
   mentions?: string[]; // oxyUserIds
+  // All detected hashtags in canonical form (lowercase, no `#`, deduped, order
+  // preserved). Derived by the centralized `pre('validate')` normalizer; holds
+  // every tag even when one was removed from a cleaned spammy block in content.
   hashtags?: string[];
   boostOf?: string; // original post id
   quoteOf?: string; // quoted post id
@@ -375,6 +379,32 @@ const PostSchema = new Schema<IPost>({
   },
   toObject: { virtuals: true },
   toJSON: { virtuals: true }
+});
+
+// Centralized hashtag normalization — the single enforcement point for every
+// document-based post write (createPost, createThread, updatePost, replies,
+// boosts, single federated ingest). Runs immediately before persistence so the
+// visible `content.text` is cleaned of spammy 4+ consecutive hashtag blocks and
+// the `hashtags` field always holds the full, canonical (lowercase, no `#`,
+// deduped, order-preserved) set of detected tags.
+//
+// Caller-supplied tags are already present on `this.hashtags` (callers merge
+// them via `mergeHashtags`), so they are passed back through as `userProvided`
+// to preserve tags that have no `#` token in the text. The raw federated batch
+// insert (`Post.collection.insertMany`) bypasses Mongoose middleware and calls
+// `normalizePostHashtags` directly instead.
+//
+// Idempotent: re-running over already-cleaned text and canonical hashtags is a
+// no-op, so repeated saves of the same document never strip more content.
+PostSchema.pre('validate', function() {
+  if (!this.isModified('content.text') && !this.isModified('hashtags') && !this.isNew) {
+    return;
+  }
+  const { content, hashtags } = normalizePostHashtags(this.content?.text, this.hashtags);
+  if (this.content) {
+    this.content.text = content;
+  }
+  this.hashtags = hashtags;
 });
 
 // Pre-save hook to clean up empty location objects

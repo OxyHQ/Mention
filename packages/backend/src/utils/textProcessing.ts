@@ -51,6 +51,87 @@ export function mergeHashtags(text: string, userProvided?: string[]): string[] {
 }
 
 /**
+ * Minimum number of consecutive hashtags (separated only by whitespace) that
+ * marks a block as "spammy" and triggers cleaning of the visible content.
+ * Exactly three consecutive hashtags stay fully visible.
+ */
+export const SPAM_HASHTAG_BLOCK_THRESHOLD = 4;
+
+/**
+ * Matches a hashtag token. Kept identical to {@link HASHTAG_REGEX} so detection
+ * for cleaning and detection for the stored `hashtags` field never diverge.
+ */
+const HASHTAG_TOKEN = '#[A-Za-z0-9_]+';
+
+/**
+ * Matches a run of {@link SPAM_HASHTAG_BLOCK_THRESHOLD}+ consecutive hashtags
+ * separated only by whitespace, extending to the end of input (a trailing
+ * block) or up to the next non-whitespace, non-hashtag character.
+ *
+ * Capture group 1 is the leading whitespace before the block (used to decide
+ * how much to trim when the block sits at the end of a sentence).
+ */
+const CONSECUTIVE_HASHTAG_BLOCK = new RegExp(
+  `(\\s*)((?:${HASHTAG_TOKEN})(?:\\s+${HASHTAG_TOKEN}){${SPAM_HASHTAG_BLOCK_THRESHOLD - 1},})`,
+  'g',
+);
+
+/**
+ * Result of {@link normalizePostHashtags}: the cleaned, user-visible content and
+ * the full set of detected hashtags in canonical form.
+ */
+export interface NormalizedPostHashtags {
+  /** Visible post text with spammy consecutive hashtag blocks removed per the rules. */
+  content: string;
+  /** Every detected hashtag: lowercase, no leading `#`, deduplicated, order preserved. */
+  hashtags: string[];
+}
+
+/**
+ * Centralized post-hashtag normalization. This is the single source of truth for
+ * how every post-creation/update path derives the stored `hashtags` field and
+ * cleans spammy hashtag blocks from the visible `content` text.
+ *
+ * Behavior:
+ *   1. Detects ALL hashtags in `text` (and merges any caller-supplied tags),
+ *      storing them lowercase, without the leading `#`, deduplicated, order
+ *      preserved. These ALWAYS land in `hashtags` even when removed from view.
+ *   2. Detects blocks of {@link SPAM_HASHTAG_BLOCK_THRESHOLD}+ CONSECUTIVE
+ *      hashtags (separated only by whitespace) and removes the spammy part from
+ *      the visible `content`.
+ *   3. The FIRST hashtag of a consecutive block is preserved in `content` ONLY
+ *      when normal (non-hashtag) text precedes the block — it may naturally
+ *      complete the sentence. With no preceding text the whole block is removed.
+ *   4. Hashtags used naturally inside sentence text (not part of a 4+ block)
+ *      stay in `content` untouched.
+ *
+ * Pure and side-effect free so it is unit-testable in isolation; the persistence
+ * layer (Post schema `pre('validate')` hook and the federated batch insert)
+ * invokes it immediately before writing.
+ */
+export function normalizePostHashtags(text: string | undefined | null, userProvided?: string[]): NormalizedPostHashtags {
+  const source = typeof text === 'string' ? text : '';
+  const hashtags = mergeHashtags(source, userProvided);
+
+  const content = source.replace(
+    CONSECUTIVE_HASHTAG_BLOCK,
+    (_match, leadingWhitespace: string, block: string, offset: number) => {
+      const hasPrecedingText = source.slice(0, offset).trim().length > 0;
+      if (!hasPrecedingText) {
+        // Block sits at the very start (only whitespace before it): drop it whole.
+        return '';
+      }
+      // Preserve the first hashtag so it can complete the preceding sentence,
+      // keeping the original leading whitespace; drop the rest of the block.
+      const firstTag = block.match(new RegExp(HASHTAG_TOKEN))?.[0] ?? '';
+      return `${leadingWhitespace}${firstTag}`;
+    },
+  ).replace(/[ \t]+$/g, '');
+
+  return { content, hashtags };
+}
+
+/**
  * Extract mention user IDs from placeholder format [mention:userId].
  */
 export function extractMentionIds(text: string): string[] {

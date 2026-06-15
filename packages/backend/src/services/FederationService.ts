@@ -23,7 +23,7 @@ import { extractApMediaFromNote, type ApMediaType } from '../utils/federation/ap
 import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
-import { normalizeHashtag } from '../utils/textProcessing';
+import { normalizeHashtag, normalizePostHashtags } from '../utils/textProcessing';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -471,9 +471,13 @@ class FederationService {
         const rawContent = note.content || '';
         if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) continue;
 
-        const text = htmlToPlainText(rawContent);
+        const rawText = htmlToPlainText(rawContent);
         const { media, attachments } = this.extractApMedia(note);
-        const hashtags = this.extractApHashtags(note);
+        // The raw collection insertMany below bypasses Mongoose middleware, so
+        // run the centralized normalizer explicitly: clean spammy hashtag blocks
+        // from the visible text and merge inline tags with the AP `tag` array
+        // tags (passed as userProvided so non-inline federated tags survive).
+        const { content: text, hashtags } = normalizePostHashtags(rawText, this.extractApHashtags(note));
         const published = note.published || activity.published;
 
         // Resolve author's Oxy User ID

@@ -113,6 +113,14 @@ export interface Post {
   language?: string;
   tags?: string[];
   mentions?: string[]; // oxyUserIds
+  /**
+   * Every hashtag detected for this post, in canonical form: lowercase, without
+   * the leading `#`, deduplicated, first-seen order preserved. Populated by the
+   * centralized backend normalizer immediately before persistence. Holds ALL
+   * detected tags — including ones the normalizer removed from the visible
+   * `content.text` when it cleaned a spammy block of 4+ consecutive hashtags.
+   * This is the single source of truth for discovery, search, and trending.
+   */
   hashtags?: string[];
   boostOf?: string; // original post id
   quoteOf?: string; // quoted post id
