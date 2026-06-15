@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { Path } from 'react-native-svg';
+import { IconSvg } from '@/assets/icons/IconSvg';
 
 interface IconProps {
     size?: number;
@@ -10,7 +11,7 @@ interface IconProps {
 }
 
 export const AutomatedIcon = ({ size = 24, color = 'currentColor', className, style }: IconProps) => (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} style={style}>
+    <IconSvg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} style={style}>
         <Path
             d="M11.9997 14C12.5519 14 12.9997 14.4477 12.9997 15C12.9997 15.5523 12.5519 16 11.9997 16C7.99569 16.0001 4.5971 18.6603 3.45377 22.2998C3.28818 22.8266 2.7267 23.1196 2.19986 22.9541C1.67323 22.7884 1.38014 22.2269 1.54556 21.7002C2.94019 17.2609 7.08729 14.0001 11.9997 14Z"
             fill={color}
@@ -25,5 +26,5 @@ export const AutomatedIcon = ({ size = 24, color = 'currentColor', className, st
             fillRule="evenodd"
             clipRule="evenodd"
         />
-    </Svg>
+    </IconSvg>
 );

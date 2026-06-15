@@ -10,7 +10,7 @@ import {
     StyleSheet,
     Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
 import { IconButton } from '@/components/ui/Button';
@@ -46,6 +46,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const defaultStyles = useDefaultStyles();
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const [showTimePicker, setShowTimePicker] = React.useState(false);
@@ -122,7 +123,10 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             presentationStyle="fullScreen"
             onRequestClose={onClose}
         >
-            <SafeAreaView className="flex-1 bg-background">
+            <View
+                className="flex-1 bg-background"
+                style={{ paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }}
+            >
                 <View className="flex-row items-center justify-between px-4 py-3" style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }}>
                     <IconButton variant="icon" onPress={onClose} className="w-10 h-10 justify-center items-center">
                         <CloseIcon size={20} className="text-foreground" />
@@ -248,7 +252,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         />
                     </ScrollView>
                 </KeyboardAvoidingView>
-            </SafeAreaView>
+            </View>
         </Modal>
     );
 };

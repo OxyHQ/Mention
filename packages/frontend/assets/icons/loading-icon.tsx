@@ -1,5 +1,6 @@
 import React from 'react';
-import Svg, { Rect } from 'react-native-svg';
+import { Rect } from 'react-native-svg';
+import { IconSvg } from '@/assets/icons/IconSvg';
 import { ViewStyle } from 'react-native';
 
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
@@ -33,7 +34,7 @@ export const Loading = ({ color = 'currentColor', size = 26, style: styleProp, c
                 styleProp,
             ]}
         >
-            <Svg viewBox="0 0 100 100" width={size} height={size} className={className}>
+            <IconSvg viewBox="0 0 100 100" width={size} height={size} className={className}>
                 <Rect fill={color} height="10" opacity="0" rx="5" ry="5" transform="rotate(-90 50 50)" width="28" x="67" y="45" />
                 <Rect fill={color} height="10" opacity="0.125" rx="5" ry="5" transform="rotate(-45 50 50)" width="28" x="67" y="45" />
                 <Rect fill={color} height="10" opacity="0.25" rx="5" ry="5" transform="rotate(0 50 50)" width="28" x="67" y="45" />
@@ -42,7 +43,7 @@ export const Loading = ({ color = 'currentColor', size = 26, style: styleProp, c
                 <Rect fill={color} height="10" opacity="0.625" rx="5" ry="5" transform="rotate(135 50 50)" width="28" x="67" y="45" />
                 <Rect fill={color} height="10" opacity="0.75" rx="5" ry="5" transform="rotate(180 50 50)" width="28" x="67" y="45" />
                 <Rect fill={color} height="10" opacity="0.875" rx="5" ry="5" transform="rotate(225 50 50)" width="28" x="67" y="45" />
-            </Svg>
+            </IconSvg>
         </Animated.View>
     );
 };

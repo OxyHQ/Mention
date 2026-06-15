@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useMediaQuery } from 'react-responsive';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 
 import { LogoIcon } from '@/assets/logo';
 import { Button } from '@/components/ui/Button';
+
 export default function AuthScreen() {
   const { signIn } = useAuth();
   const { t } = useTranslation();
@@ -44,7 +45,7 @@ export default function AuthScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 justify-center items-center p-6 bg-background">
+    <SafeAreaView className="flex-1 justify-center items-center bg-background p-6">
       <View className="flex-1 justify-center items-center gap-4">
         <LogoIcon size={48} className="text-primary" />
         <Text className="text-[28px] font-bold mt-2 text-foreground">

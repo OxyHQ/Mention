@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -10,7 +10,7 @@ export default function NotFoundScreen() {
     const safeBack = useSafeBack();
 
     return (
-        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
             <ThemedView style={styles.container}>
                 {/* Illustration */}
                 <View style={styles.illustrationWrap}>

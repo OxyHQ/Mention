@@ -1,9 +1,10 @@
 import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import { Path } from 'react-native-svg';
+import { IconSvg } from '@/assets/icons/IconSvg';
 import type { IconProps } from './types';
 
 export const MailIcon: React.FC<IconProps> = ({ size = 24, color = 'currentColor', className }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+  <IconSvg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
     <Path
       d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
       stroke={color}
@@ -18,5 +19,5 @@ export const MailIcon: React.FC<IconProps> = ({ size = 24, color = 'currentColor
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-  </Svg>
+  </IconSvg>
 );

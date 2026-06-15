@@ -6,7 +6,7 @@ import {
   SectionListData,
 } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';

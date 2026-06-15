@@ -19,7 +19,7 @@ import { useAuth } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -1290,7 +1290,7 @@ const ComposeScreen = () => {
         title={tCompose('seo.compose.title')}
         description={tCompose('seo.compose.description')}
       />
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView className="flex-1" edges={['top']}>
         <StatusBar style="light" />
 
         <KeyboardAvoidingView
@@ -2081,9 +2081,6 @@ const ComposeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

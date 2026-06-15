@@ -3,6 +3,8 @@ import { View, Text, Pressable } from 'react-native';
 import { APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 
+const SELECTED_SWATCH_TRANSFORM = { transform: [{ scale: 1.1 }] } as const;
+
 interface ColorSwatchPickerProps {
   value: AppColorName;
   onChange: (name: AppColorName) => void;
@@ -28,8 +30,13 @@ export function ColorSwatchPicker({ value, onChange, extraColors }: ColorSwatchP
             <View
               className={cn(
                 'w-9 h-9 rounded-full border-2 overflow-hidden',
-                isSelected ? 'border-foreground scale-110' : 'border-transparent',
+                isSelected ? 'border-foreground' : 'border-transparent',
               )}
+              // NativeWind 5 / react-native-css compiles `scale-110` to
+              // `transform: scale("110%")`, which React Native rejects
+              // (`Transform with key of "scale" must be a number`). Use the
+              // RN-native transform array for the selected pop instead.
+              style={isSelected ? SELECTED_SWATCH_TRANSFORM : undefined}
             >
               <View style={{ backgroundColor: preset.hex, flex: 1 }} />
             </View>

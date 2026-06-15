@@ -91,6 +91,13 @@ const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts'];
 const REPLIES_TAB_INDEX = 1;
 const BOOSTS_TAB_INDEX = 5;
 
+// Top-right header action icon metrics (IconButton `variant="icon"` renders a
+// 32×32 touch target; the cluster uses NativeWind `gap-1` = 4px). Used to size
+// the scrolled name overlay so it never overlaps the icons.
+const HEADER_ACTION_ICON_SIZE = 32;
+const HEADER_ACTION_ICON_GAP = 4;
+const HEADER_OVERLAY_ICON_CLEARANCE = 12;
+
 /**
  * Profile Screen - Main orchestrator component
  * Follows industry best practices with clean separation of concerns
@@ -418,28 +425,60 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         [scrollY]
     );
 
-    // Header name overlay opacity - shows when scrolled past profile content
-    const headerNameOpacity = useMemo(
-        () =>
-            scrollY.interpolate({
-                inputRange: [profileContentHeight - 20, profileContentHeight + 20],
-                outputRange: [0, 1],
-                extrapolate: 'clamp',
-            }),
-        [scrollY, profileContentHeight]
-    );
+    // Header name overlay opacity - shows when scrolled past profile content.
+    // Guard against the pre-measurement window: until ProfileContent's onLayout
+    // reports a real height, profileContentHeight is 0, which would make the
+    // interpolation input range [-20, 20] resolve to ~0.5 at scrollY=0 and paint
+    // the overlay (avatar + name) on top of the header icons and profile content.
+    // Keep the threshold strictly positive and force opacity 0 until measured.
+    const headerNameOpacity = useMemo(() => {
+        if (profileContentHeight <= 0) {
+            return 0;
+        }
+        // Reveal a touch later than the exact content height so the overlay only
+        // appears once the real name has scrolled out of view.
+        const revealStart = Math.max(profileContentHeight - 20, 1);
+        return scrollY.interpolate({
+            inputRange: [revealStart, profileContentHeight + 20],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+        });
+    }, [scrollY, profileContentHeight]);
 
     // SEO data
     const profileDisplayName = displayName || profileData?.username || username;
     const profileBio = profileData?.bio || '';
     const profileImage = avatarUri || bannerUri;
 
+    // Number of action icons rendered in the top-right cluster. Drives the right
+    // boundary of the scrolled name overlay so a long display name truncates
+    // instead of sliding under the icons.
+    const headerActionCount = useMemo(() => {
+        let count = 1; // share is always present
+        if (!isOwnProfile) count += 3; // subscribe + DM + more
+        if (isFederated) count += 1; // open-on-instance
+        return count;
+    }, [isOwnProfile, isFederated]);
+
+    // Each IconButton is HEADER_ACTION_ICON_SIZE wide with HEADER_ACTION_ICON_GAP
+    // between them; the cluster is offset from the right edge by
+    // (DEFAULT_PADDING - 8). Reserve that span (plus breathing room) so the
+    // overlay never collides with the icons.
+    const headerOverlayRight = useMemo(
+        () =>
+            (LAYOUT.DEFAULT_PADDING - 8) +
+            headerActionCount * HEADER_ACTION_ICON_SIZE +
+            (headerActionCount - 1) * HEADER_ACTION_ICON_GAP +
+            HEADER_OVERLAY_ICON_CLEARANCE,
+        [headerActionCount]
+    );
+
     // Dynamic styles
     const themedStyles = useMemo(
         () => ({
             container: { paddingTop: insets.top },
             headerActions: { top: insets.top + 6 },
-            headerNameOverlay: { top: insets.top + 6 },
+            headerNameOverlay: { top: insets.top + 6, right: headerOverlayRight },
             scrollView: { marginTop: minimalistMode ? 0 : LAYOUT.HEADER_HEIGHT_NARROWED },
             contentContainer: {
                 paddingTop: minimalistMode
@@ -447,7 +486,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     : LAYOUT.HEADER_HEIGHT_EXPANDED - insets.top,
             },
         }),
-        [insets.top, minimalistMode]
+        [insets.top, minimalistMode, headerOverlayRight]
     );
 
     return (
@@ -533,14 +572,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 source={avatarUri}
                                 size={32}
                             />
-                            <View>
+                            <View style={{ flex: 1, minWidth: 0 }}>
                                 <UserName
                                     name={displayName}
                                     verified={profileData?.verified}
                                     style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3 } }}
                                     unifiedColors={true}
                                 />
-                                <Text className="text-muted-foreground text-[13px]">
+                                <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
                                     {t('profile.postsCount', {
                                         count: profileData?.postsCount ?? 0,
                                         defaultValue: `${profileData?.postsCount ?? 0} posts`,

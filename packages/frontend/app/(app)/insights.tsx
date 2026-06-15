@@ -8,7 +8,7 @@ import {
     Platform
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
@@ -383,7 +383,7 @@ const InsightsScreen: React.FC = () => {
                 title={t('seo.insights.title')}
                 description={t('seo.insights.description')}
             />
-            <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
                 <ThemedView className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 

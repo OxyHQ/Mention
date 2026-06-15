@@ -1,9 +1,10 @@
 import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import { Path } from 'react-native-svg';
+import { IconSvg } from '@/assets/icons/IconSvg';
 import type { IconProps } from './types';
 
 export const ExternalLinkIcon: React.FC<IconProps> = ({ size = 24, color = 'currentColor', className }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+  <IconSvg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
     <Path
       d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
       stroke={color}
@@ -25,5 +26,5 @@ export const ExternalLinkIcon: React.FC<IconProps> = ({ size = 24, color = 'curr
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-  </Svg>
+  </IconSvg>
 );

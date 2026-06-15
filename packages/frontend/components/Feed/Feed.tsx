@@ -8,6 +8,7 @@ import {
     Text,
     ScrollView,
     type ScrollViewProps,
+    type ViewStyle,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { FeedType, HydratedPost, Reply, FeedBoost as Boost, FeedPostSlice, FeedSliceReason } from '@mention/shared-types';
@@ -102,9 +103,10 @@ const DEFAULT_FEED_PROPS = {
 
 const WEB_DATA_SET = { layoutscroll: 'true' } as const;
 
-const overrideFeedItemLayout = (layout: { size?: number }) => {
-    layout.size = 250;
-};
+// FlashList v2 auto-measures every row, so no estimate is needed. `drawDistance`
+// is the one render-ahead lever that still applies: keep it modest so we don't
+// mount far-offscreen post rows (each row is relatively heavy) every frame.
+const FEED_DRAW_DISTANCE = 250;
 
 /**
  * A non-scrolling ScrollView replacement for FlashList.
@@ -560,9 +562,10 @@ const Feed = ((props: FeedProps) => {
 
     // Memoize list style - when scroll is disabled (embedded in a parent ScrollView),
     // avoid flex: 1 which collapses to zero height in a non-flex scroll content container.
-    const listStyle = useMemo(
+    // FlashList v2 types `style` as a single ViewStyle (not StyleProp), so flatten here.
+    const listStyle = useMemo<ViewStyle>(
         () =>
-            flattenStyleArray([
+            StyleSheet.flatten([
                 scrollEnabled === false ? styles.listEmbedded : styles.list,
                 style,
             ]),
@@ -640,33 +643,31 @@ const Feed = ((props: FeedProps) => {
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemType={getItemType}
-                    {...({
-                        estimatedItemSize: 250,
-                        extraData: dataHash,
-                        ListHeaderComponent: headerComponent,
-                        ListEmptyComponent: emptyStateComponent,
-                        ListFooterComponent: showFooter ? footerComponent : null,
-                        scrollEnabled: scrollEnabled,
-                        ...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {}),
-                        refreshControl: refreshControl,
-                        onEndReached: handleLoadMore,
-                        onEndReachedThreshold: 0.7,
-                        showsVerticalScrollIndicator: false,
-                        keyboardShouldPersistTaps: 'handled',
-                        onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
-                        scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
-                        onWheel: Platform.OS === 'web' ? handleWheelEvent : undefined,
-                        contentContainerStyle: listContentStyle,
-                        style: listStyle,
-                        // Performance optimizations for FlashList
-                        drawDistance: 600,
-                        removeClippedSubviews: true,
-                        maxToRenderPerBatch: 10,
-                        windowSize: 10,
-                        initialNumToRender: 12,
-                        updateCellsBatchingPeriod: 50,
-                        overrideItemLayout: overrideFeedItemLayout,
-                    } as any)}
+                    extraData={dataHash}
+                    ListHeaderComponent={headerComponent}
+                    ListEmptyComponent={emptyStateComponent}
+                    ListFooterComponent={showFooter ? footerComponent : null}
+                    scrollEnabled={scrollEnabled}
+                    {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}
+                    refreshControl={refreshControl}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.7}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    onScroll={scrollEnabled === false ? undefined : handleScrollEvent}
+                    scrollEventThrottle={scrollEnabled === false ? undefined : scrollEventThrottle}
+                    {...(Platform.OS === 'web' ? { onWheel: handleWheelEvent } : {})}
+                    contentContainerStyle={listContentStyle}
+                    style={listStyle}
+                    // FlashList v2 perf levers. v2 auto-measures rows (no
+                    // estimatedItemSize) and recycles by `getItemType`; the v1/FlatList
+                    // props (maxToRenderPerBatch, windowSize, initialNumToRender,
+                    // updateCellsBatchingPeriod, removeClippedSubviews) and the
+                    // size-setting overrideItemLayout were no-ops here and have been
+                    // dropped. Cap the recycle pool so off-screen rows release memory
+                    // instead of accumulating during long sessions.
+                    drawDistance={FEED_DRAW_DISTANCE}
+                    maxItemsInRecyclePool={20}
                 />
             </View>
         </ErrorBoundary>

@@ -6,7 +6,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -452,7 +452,7 @@ const NotificationsScreen: React.FC = () => {
                 title={t('seo.notifications.title')}
                 description={t('seo.notifications.description')}
             />
-            <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
                 <ThemedView className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 

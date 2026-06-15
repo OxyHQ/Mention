@@ -3,7 +3,6 @@ import { View, Animated, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LogoIcon } from '@/assets/logo';
 import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
 
 interface AppSplashScreenProps {
     onFadeComplete?: () => void;
@@ -13,12 +12,16 @@ interface AppSplashScreenProps {
 const FADE_DURATION = 500;
 const LOGO_SIZE = 100;
 const SPINNER_SIZE = 28;
+// The splash renders during font loading via BloomThemeProvider's `onFontsLoading`,
+// i.e. BEFORE the theme context is available — so it must NOT depend on `useTheme()`
+// (which throws outside the provider). It intentionally shows a consistent dark
+// brand gradient so the white logo/spinner stay visible regardless of theme/mode.
+const SPLASH_GRADIENT = ['#1A1A1A', '#005c67'] as const;
 
 const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
     onFadeComplete,
     startFade = false
 }) => {
-    const theme = useTheme();
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -59,20 +62,10 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
         [fadeAnim]
     );
 
-    // Gradient colors: Use consistent dark gradient that works before theme loads
-    // This prevents the logo/spinner from being invisible on white background
-    const gradientColors = useMemo(
-        () => [
-            theme?.colors?.background || '#1A1A1A',
-            theme?.colors?.primary || '#005c67',
-        ] as const,
-        [theme?.colors?.background, theme?.colors?.primary]
-    );
-
     return (
         <Animated.View style={containerStyle}>
             <LinearGradient
-                colors={gradientColors}
+                colors={SPLASH_GRADIENT}
                 style={styles.gradient}
             >
                 <View style={styles.logoContainer}>

@@ -9,7 +9,7 @@ import {
     ScrollView,
     Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
 import { IconButton } from '@/components/ui/Button';
@@ -36,6 +36,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
 
     return (
         <Modal
@@ -44,7 +45,10 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
             presentationStyle="fullScreen"
             onRequestClose={onClose}
         >
-            <SafeAreaView className="flex-1 bg-background">
+            <View
+                className="flex-1 bg-background"
+                style={{ paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }}
+            >
                 <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
                     <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
                         <CloseIcon size={20} className="text-foreground" />
@@ -93,7 +97,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                         />
                     </ScrollView>
                 </KeyboardAvoidingView>
-            </SafeAreaView>
+            </View>
         </Modal>
     );
 };

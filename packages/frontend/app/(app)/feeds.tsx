@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
