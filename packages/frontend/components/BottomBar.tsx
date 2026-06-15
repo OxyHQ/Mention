@@ -9,16 +9,19 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-// Dark-mode override palette for videos screen
-const VIDEOS_DARK_PALETTE = {
-    card: '#003038',
-    border: '#555555',
-    text: '#AAAAAA',
-    textSecondary: '#888888',
-};
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
+
+// Forced-dark surface used only on the fullscreen Reels (/videos) screen, where
+// the bottom bar floats over dark video content regardless of the app theme.
+// Values are valid CSS color strings so alpha can be applied directly (the
+// app-theme path derives its colors from NativeWind tokens instead — see below).
+const VIDEOS_DARK_PALETTE = {
+    cardTranslucent: 'rgba(0, 48, 56, 0.8)', // #003038 @ 80%
+    border: '#555555',
+};
 
 const SPRING_CONFIG = {
     damping: 20,
@@ -48,20 +51,10 @@ export const BottomBar = () => {
     const bottomBarTranslateY = useSharedValue(0);
     const bottomBarOpacity = useSharedValue(1);
 
-    // Force dark theme on videos screen
+    // The Reels (/videos) screen floats this bar over dark video content, so it
+    // always renders against a forced-dark surface regardless of the app theme.
+    // Everywhere else the bar derives its colors from the Bloom theme.
     const isVideosScreen = pathname === '/videos';
-    const effectiveTheme = useMemo(() => isVideosScreen ? {
-        ...theme,
-        isDark: true,
-        colors: {
-            ...theme.colors,
-            card: VIDEOS_DARK_PALETTE.card,
-            border: VIDEOS_DARK_PALETTE.border,
-            text: VIDEOS_DARK_PALETTE.text,
-            textSecondary: VIDEOS_DARK_PALETTE.textSecondary,
-            primary: theme.colors.primary,
-        }
-    } : theme, [isVideosScreen, theme]);
 
     // Animated indicator
     const tabWidth = useSharedValue(0);
@@ -137,6 +130,10 @@ export const BottomBar = () => {
         opacity: bottomBarOpacity.value,
     }));
 
+    // Position/size are animated; the fill color is the theme primary at ~10%
+    // applied via the `bg-primary/10` NativeWind class on the indicator view so
+    // it stays reactive to the Bloom preset/mode (the previous
+    // `${colors.primary}1A` produced an invalid `hsl(...)1A` string).
     const indicatorStyle = useAnimatedStyle(() => ({
         position: 'absolute' as const,
         top: 4,
@@ -144,7 +141,6 @@ export const BottomBar = () => {
         width: tabWidth.value ? tabWidth.value - 8 : 0,
         left: indicatorX.value + 4,
         borderRadius: 22,
-        backgroundColor: `${effectiveTheme.colors.primary}1A`,
     }));
 
     // Tab-root switch. With the (app) center now a Stack, `navigate` pops to the
@@ -164,6 +160,11 @@ export const BottomBar = () => {
         }
     }, [haptic, pathname, triggerHomeRefresh, router]);
 
+    // Layout + shadow only. The border and background colors are driven by
+    // NativeWind theme classes (`border-border`, `bg-card/80`) so they stay
+    // reactive to the Bloom preset/mode; on the Reels screen they are overridden
+    // inline with the forced-dark palette. `colors.shadow` is already a valid
+    // `rgba(...)` string from the Bloom theme (no NativeWind equivalent).
     const containerStyle = useMemo(() => ({
         position: 'absolute' as const,
         bottom: 12,
@@ -171,12 +172,11 @@ export const BottomBar = () => {
         right: 16,
         height: 56,
         borderRadius: 28,
-        borderWidth: 1,
-        borderColor: effectiveTheme.colors.border,
         overflow: 'hidden' as const,
         zIndex: 1000,
+        ...(isVideosScreen ? { borderColor: VIDEOS_DARK_PALETTE.border } : {}),
         ...(Platform.OS === 'web' ? {
-            boxShadow: `0 2px 16px ${effectiveTheme.colors.shadow}`,
+            boxShadow: `0 2px 16px ${theme.colors.shadow}`,
         } : {
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 4 },
@@ -184,7 +184,7 @@ export const BottomBar = () => {
             shadowRadius: 12,
             elevation: 8,
         }),
-    }), [effectiveTheme.colors.border, effectiveTheme.colors.shadow]);
+    }), [isVideosScreen, theme.colors.shadow]);
 
     const handlePressVideos = useCallback(() => handlePress('/videos'), [handlePress]);
     // Compose is a modal-presented detail, not a tab root, so it must `push`
@@ -254,7 +254,7 @@ export const BottomBar = () => {
 
     const innerContent = (
         <>
-            <Animated.View style={indicatorStyle} />
+            <Animated.View className="bg-primary/10" style={indicatorStyle} />
             {tabs.map((tab, index) => (
                 <Pressable
                     key={index}
@@ -271,19 +271,23 @@ export const BottomBar = () => {
         </>
     );
 
+    // The translucent surface uses the Bloom `card` token at 80% via NativeWind
+    // (`bg-card/80`) so it tracks the theme; on the Reels screen it is overridden
+    // inline with the forced-dark translucent surface. `backdrop-blur` is web-only.
     const webContainerStyle = useMemo(() => ({
         ...containerStyle,
-        backgroundColor: `${effectiveTheme.colors.card}CC`,
+        ...(isVideosScreen ? { backgroundColor: VIDEOS_DARK_PALETTE.cardTranslucent } : {}),
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
-    }), [containerStyle, effectiveTheme.colors.card]);
+    }), [containerStyle, isVideosScreen]);
 
     if (Platform.OS === 'web') {
         return (
             <Animated.View style={bottomBarAnimatedStyle}>
                 <View
+                    className={cn('border', isVideosScreen ? undefined : 'border-border bg-card/80')}
                     style={webContainerStyle as any}
                     onLayout={onBarLayout}
                 >
@@ -295,10 +299,14 @@ export const BottomBar = () => {
 
     return (
         <Animated.View style={bottomBarAnimatedStyle}>
-            <View style={containerStyle} onLayout={onBarLayout}>
+            <View
+                className={cn('border', isVideosScreen ? undefined : 'border-border')}
+                style={containerStyle}
+                onLayout={onBarLayout}
+            >
                 <BlurView
                     intensity={80}
-                    tint={effectiveTheme.isDark ? 'dark' : 'light'}
+                    tint={isVideosScreen || theme.isDark ? 'dark' : 'light'}
                     experimentalBlurMethod="dimezisBlurView"
                     style={styles.blurContent}
                 >
