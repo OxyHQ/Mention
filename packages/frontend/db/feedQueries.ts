@@ -303,11 +303,14 @@ export function hasFeedData(feedKey: string): boolean {
 
   const db = getDb();
   if (!db) return false;
-  const row = db.getFirstSync<{ exists: number }>(
-    'SELECT EXISTS(SELECT 1 FROM feed_items WHERE feed_key = ?) as exists',
+  // `EXISTS` is a SQLite reserved keyword, so the result column must use a
+  // non-reserved alias — `as exists` fails to compile with `near "exists":
+  // syntax error`. Alias as `has_data` instead.
+  const row = db.getFirstSync<{ has_data: number }>(
+    'SELECT EXISTS(SELECT 1 FROM feed_items WHERE feed_key = ?) as has_data',
     feedKey
   );
-  return Boolean(row?.exists);
+  return Boolean(row?.has_data);
 }
 
 /**

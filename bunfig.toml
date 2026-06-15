@@ -1,0 +1,12 @@
+[install]
+# Hoisted layout (npm-style). Metro/Expo autolinking expects single, hoisted
+# instances of react, react-native, metro and expo-* packages. Bun >=1.3 defaults
+# to the isolated linker in workspaces, which keeps real packages in
+# node_modules/.bun and exposes them only via per-workspace symlinks. Metro
+# resolves several of its own packages (metro, metro-runtime, @react-native/*)
+# by walking node_modules from the project root; under the isolated layout those
+# lookups fail and the serializer/runtime can pick up mismatched copies, which
+# produces "Requiring unknown module <id>" runtime errors across async/lazy
+# bundle segments. Hoisting keeps a single flat tree that resolves the same in
+# local dev, CI, and the native dev client.
+linker = "hoisted"

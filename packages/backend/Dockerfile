@@ -5,7 +5,7 @@ WORKDIR /app
 # Copy workspace root files. The root tsconfig.json is the shared base that
 # every package's tsconfig `extends` ("../../tsconfig.json"); without it the
 # `tsc` builds below fail with TS5083 (cannot read file '/app/tsconfig.json').
-COPY package.json bun.lock tsconfig.json ./
+COPY package.json bun.lock bunfig.toml tsconfig.json ./
 
 # Copy every workspace member's package.json. Bun's frozen lockfile install
 # requires the manifest of every workspace member to be present, even for
@@ -43,7 +43,7 @@ RUN apk add --no-cache ffmpeg
 
 RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S appuser -G appgroup
 
-COPY --from=builder /app/package.json /app/bun.lock ./
+COPY --from=builder /app/package.json /app/bun.lock /app/bunfig.toml ./
 
 # Every workspace member's package.json is required for the frozen lockfile
 # install to reconcile, even in the production runtime image.
