@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Modal,
   Platform,
   ScrollView,
   useWindowDimensions,
@@ -106,8 +105,10 @@ interface FittedSize {
  * measured-origin zoom transition (`ZoomableAvatar`) for rectangular post media:
  *
  * - Open/close feel is identical to the avatar (same spring configs, web
- *   timing/easing, blur backdrop, Portal-on-web / Modal-on-native split, and the
- *   measure-origin technique).
+ *   timing/easing, blur backdrop, and the measure-origin technique). The viewer
+ *   renders through the Bloom `Portal` on BOTH platforms (RN's `Modal` is not
+ *   used on native — on the New Architecture / Fabric Android its host views
+ *   mount full-screen but never composite, leaving the viewer invisible).
  * - The OPENING (tapped) image animates from its measured rect to a centered,
  *   aspect-ratio-preserving fit within {@link FIT_FRACTION} of the screen. Once
  *   the open animation settles, a horizontal paging `ScrollView` mounts seeded at
@@ -571,22 +572,13 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
 
   if (!isOpen) return null;
 
-  if (Platform.OS === 'web') {
-    return <Portal>{renderContent()}</Portal>;
-  }
-
-  return (
-    <Modal
-      visible={isOpen}
-      transparent
-      animationType="none"
-      statusBarTranslucent={Platform.OS === 'android'}
-      onRequestClose={handleDismiss}
-      hardwareAccelerated={Platform.OS === 'android'}
-    >
-      {renderContent()}
-    </Modal>
-  );
+  // Both platforms render through the Bloom `Portal` so the viewer overlays the
+  // whole app from the root `Outlet`. RN's `Modal` is intentionally NOT used on
+  // native: on the New Architecture (Fabric) Android its host views mount
+  // full-screen in the tree but never composite to the screen, leaving the
+  // entire viewer (blur backdrop + zoomed image) invisible — tapping appeared to
+  // "do nothing". The Portal path is the same one the working web build uses.
+  return <Portal>{renderContent()}</Portal>;
 });
 
 ZoomableImageGalleryInner.displayName = 'ZoomableImageGallery';
@@ -607,7 +599,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
       },
       default: {
-        flex: 1,
+        // Mounted through the Bloom Portal `Outlet` (which renders its content
+        // inline at the app root on native, NOT wrapped in a full-screen view),
+        // so the gallery root must absolutely fill the screen itself to overlay
+        // the app. RN's `Modal` is not used on native: on the New Architecture
+        // (Fabric) Android its host views mount full-screen but never paint
+        // (the entire viewer — backdrop + image — stays invisible).
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'transparent',
