@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -14,7 +14,8 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
+import Animated, { useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
@@ -38,6 +39,11 @@ interface PinnedFeed {
 const PINNED_KEY = 'mention.pinnedFeeds';
 const FAB_ICON_SIZE = 22;
 
+// How far the FAB slides down when the bottom bar auto-hides, so it travels away
+// together with the bar (it also fades out) instead of floating in mid-air. Clears
+// the FAB's resting position above the bar.
+const FAB_OFFSCREEN_TRAVEL = 120;
+
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthenticated, isAuthResolved, user } = useAuth();
@@ -49,19 +55,21 @@ const HomeScreen: React.FC = () => {
     const { scrollY, scrollToTop } = useLayoutScroll();
     const [isScrolledDown, setIsScrolledDown] = useState(false);
     const isScrolledDownRef = useRef(false);
-    const insetTopRef = useRef(insets.top);
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
-    const headerTranslateY = useSharedValue(0);
-    const headerOpacity = useSharedValue(1);
     const headerHeight = 48;
     const fabTransition = useSharedValue(0);
 
-    useEffect(() => {
-        insetTopRef.current = insets.top;
-    }, [insets.top]);
+    // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header, the
+    // FAB and the bottom bar all derive their hide animation from this one value so
+    // they slide away together — no per-screen duplicate scroll listener.
+    const bottomBarHidden = useBottomBarVisibility();
+    const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
+    const headerOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
+    const fabTranslateY = useDerivedValue(() => bottomBarHidden.value * FAB_OFFSCREEN_TRAVEL);
+    const fabOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
 
     useEffect(() => {
         fabTransition.value = withTiming(isScrolledDown ? 1 : 0, { duration: 200 });
@@ -153,44 +161,23 @@ const HomeScreen: React.FC = () => {
         };
     }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
 
+    // Track only the "scrolled deep" threshold that flips the FAB between its
+    // compose and scroll-to-top affordances (React-rendered + drives onPress). The
+    // header / FAB / bottom-bar hide animation is handled by useBottomBarVisibility.
     useEffect(() => {
-        let isScrollingDown = false;
-        let lastKnownScrollY = 0;
-
         const listenerId = scrollY.addListener(({ value }) => {
             const currentScrollY = typeof value === 'number' ? value : 0;
-            const scrollDelta = currentScrollY - lastKnownScrollY;
-
-            if (Math.abs(scrollDelta) > 1) {
-                isScrollingDown = scrollDelta > 0;
-            }
-
             const nowScrolledDown = currentScrollY > 200;
             if (nowScrolledDown !== isScrolledDownRef.current) {
                 isScrolledDownRef.current = nowScrolledDown;
                 setIsScrolledDown(nowScrolledDown);
             }
-
-            if (currentScrollY > 50) {
-                if (isScrollingDown) {
-                    headerTranslateY.value = withTiming(-headerHeight - insetTopRef.current, { duration: 200 });
-                    headerOpacity.value = withTiming(0, { duration: 200 });
-                } else {
-                    headerTranslateY.value = withTiming(0, { duration: 200 });
-                    headerOpacity.value = withTiming(1, { duration: 200 });
-                }
-            } else {
-                headerTranslateY.value = withTiming(0, { duration: 200 });
-                headerOpacity.value = withTiming(1, { duration: 200 });
-            }
-
-            lastKnownScrollY = currentScrollY;
         });
 
         return () => {
             scrollY.removeListener(listenerId);
         };
-    }, [scrollY, headerTranslateY, headerOpacity, headerHeight]);
+    }, [scrollY]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
@@ -329,10 +316,14 @@ const HomeScreen: React.FC = () => {
                     {/* Content */}
                     {renderContent()}
 
-                    {/* Floating Action Button — compose or scroll-to-top */}
+                    {/* Floating Action Button — compose or scroll-to-top.
+                        Slides down + fades out together with the bottom bar when
+                        the bar auto-hides on scroll (shared visibility signal). */}
                     {isAuthenticated && (
                         <FAB
                             onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
+                            animatedTranslateY={fabTranslateY}
+                            animatedOpacity={fabOpacity}
                             customIcon={
                                 <View style={{ width: FAB_ICON_SIZE, height: FAB_ICON_SIZE }}>
                                     <Animated.View style={[fabComposeStyle, StyleSheet.absoluteFill, styles.fabIconLayer]} pointerEvents="none">

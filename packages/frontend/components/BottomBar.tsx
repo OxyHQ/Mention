@@ -1,17 +1,17 @@
 import { View, Pressable, Platform, LayoutChangeEvent, StyleSheet, type ViewStyle } from 'react-native';
 import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname, type Href } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 
 // Dark-mode override palette for the fullscreen Reels (/videos) screen, where the
@@ -45,6 +45,10 @@ const SPRING_CONFIG = {
 
 const TAB_COUNT = 5;
 const ICON_SIZE = 22;
+
+// Distance (px) the bar slides downward when fully hidden — enough to clear the
+// bar height + bottom offset + its shadow so nothing peeks above the edge.
+const BOTTOM_BAR_OFFSCREEN_TRAVEL = 100;
 const tabStyle = {
     flex: 1,
     alignItems: 'center' as const,
@@ -61,9 +65,9 @@ export const BottomBar = () => {
     const haptic = useHaptics();
     const { triggerHomeRefresh } = useHomeRefresh();
     const { t } = useTranslation();
-    const { scrollY } = useLayoutScroll();
-    const bottomBarTranslateY = useSharedValue(0);
-    const bottomBarOpacity = useSharedValue(1);
+    // Shared auto-hide signal (0 = visible, 1 = hidden). The FAB reads the same
+    // hook so it slides away in lock-step with this bar.
+    const hidden = useBottomBarVisibility();
 
     // The Reels (/videos) screen floats this bar over dark video content, so it
     // always renders against a forced-dark surface regardless of the app theme.
@@ -105,43 +109,11 @@ export const BottomBar = () => {
         }
     }
 
-    // Track scroll direction and animate bottom bar
-    useEffect(() => {
-        let isScrollingDown = false;
-        let lastKnownScrollY = 0;
-
-        const listenerId = scrollY.addListener(({ value }) => {
-            const currentScrollY = typeof value === 'number' ? value : 0;
-            const scrollDelta = currentScrollY - lastKnownScrollY;
-
-            if (Math.abs(scrollDelta) > 1) {
-                isScrollingDown = scrollDelta > 0;
-            }
-
-            if (currentScrollY > 50) {
-                if (isScrollingDown) {
-                    bottomBarTranslateY.value = withTiming(100, { duration: 200 });
-                    bottomBarOpacity.value = withTiming(0, { duration: 200 });
-                } else {
-                    bottomBarTranslateY.value = withTiming(0, { duration: 200 });
-                    bottomBarOpacity.value = withTiming(1, { duration: 200 });
-                }
-            } else {
-                bottomBarTranslateY.value = withTiming(0, { duration: 200 });
-                bottomBarOpacity.value = withTiming(1, { duration: 200 });
-            }
-
-            lastKnownScrollY = currentScrollY;
-        });
-
-        return () => {
-            scrollY.removeListener(listenerId);
-        };
-    }, [scrollY, bottomBarTranslateY, bottomBarOpacity]);
-
+    // Slide the bar down by its full off-screen travel and fade as `hidden`
+    // animates 0 → 1. The FAB applies the same `hidden` value to its own travel.
     const bottomBarAnimatedStyle = useAnimatedStyle(() => ({
-        transform: [{ translateY: bottomBarTranslateY.value }],
-        opacity: bottomBarOpacity.value,
+        transform: [{ translateY: hidden.value * BOTTOM_BAR_OFFSCREEN_TRAVEL }],
+        opacity: 1 - hidden.value,
     }));
 
     // Position/size are animated; the fill color is the theme primary at ~10%

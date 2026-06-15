@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -9,8 +9,8 @@ import { router } from 'expo-router';
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
+import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
@@ -27,14 +27,18 @@ const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { scrollY } = useLayoutScroll();
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
-  const headerTranslateY = useSharedValue(0);
-  const headerOpacity = useSharedValue(1);
-  const fabTranslateY = useSharedValue(0);
-  const fabOpacity = useSharedValue(1);
   const headerHeight = 48;
   const fabHeight = 80;
+
+  // Shared auto-hide signal (0 = visible, 1 = hidden) — the same hook the bottom
+  // bar uses, so the header and the FAB slide away in lock-step with the bar
+  // instead of running a duplicate scroll listener here.
+  const hidden = useBottomBarVisibility();
+  const headerTranslateY = useDerivedValue(() => hidden.value * -(headerHeight + insets.top));
+  const headerOpacity = useDerivedValue(() => 1 - hidden.value);
+  const fabTranslateY = useDerivedValue(() => hidden.value * fabHeight);
+  const fabOpacity = useDerivedValue(() => 1 - hidden.value);
 
   // Trending tab reads from the same store as TrendsWidget — single data source
   const trends = useTrendsStore(state => state.trends);
@@ -79,47 +83,6 @@ const ExploreScreen: React.FC = () => {
         return <Feed type="explore" listHeaderComponent={trendsHeader} />;
     }
   };
-
-  // Subscribe to scroll for header/FAB hide — external subscription (valid useEffect per React docs)
-  const lastScrollStateRef = useRef<'hidden' | 'visible' | null>(null);
-
-  React.useEffect(() => {
-    let isScrollingDown = false;
-    let lastKnownScrollY = 0;
-
-    const listenerId = scrollY.addListener(({ value }) => {
-      const currentScrollY = typeof value === 'number' ? value : 0;
-      const scrollDelta = currentScrollY - lastKnownScrollY;
-
-      if (Math.abs(scrollDelta) > 1) {
-        isScrollingDown = scrollDelta > 0;
-      }
-
-      const nextState: 'hidden' | 'visible' =
-        currentScrollY > 50 && isScrollingDown ? 'hidden' : 'visible';
-
-      if (nextState !== lastScrollStateRef.current) {
-        lastScrollStateRef.current = nextState;
-        if (nextState === 'hidden') {
-          headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
-          headerOpacity.value = withTiming(0, { duration: 200 });
-          fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
-          fabOpacity.value = withTiming(0, { duration: 200 });
-        } else {
-          headerTranslateY.value = withTiming(0, { duration: 200 });
-          headerOpacity.value = withTiming(1, { duration: 200 });
-          fabTranslateY.value = withTiming(0, { duration: 200 });
-          fabOpacity.value = withTiming(1, { duration: 200 });
-        }
-      }
-
-      lastKnownScrollY = currentScrollY;
-    });
-
-    return () => {
-      scrollY.removeListener(listenerId);
-    };
-  }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, fabOpacity, headerHeight, fabHeight, insets.top]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
