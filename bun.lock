@@ -216,7 +216,7 @@
         "expo-video": "~56.1.3",
         "expo-web-browser": "~56.0.5",
         "i18next": "^25.10.3",
-        "lightningcss": "^1.32.0",
+        "lightningcss": "1.30.1",
         "livekit-client": "^2.17.3",
         "lucide-react-native": "^0.577.0",
         "nativewind": "5.0.0-preview.3",
@@ -261,7 +261,7 @@
       "optionalDependencies": {
         "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",
         "@unrs/resolver-binding-linux-x64-gnu": "^1.11.1",
-        "lightningcss-linux-x64-gnu": "^1.32.0",
+        "lightningcss-linux-x64-gnu": "1.30.1",
       },
     },
     "packages/mcp": {
@@ -290,6 +290,9 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo-file-system": "56.0.8",
     "expo-secure-store": "56.0.4",
+    "lightningcss": "1.30.1",
+    "lightningcss-linux-x64-gnu": "1.30.1",
+    "lightningcss-linux-x64-musl": "1.30.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
@@ -2416,29 +2419,27 @@
 
     "lighthouse-logger": ["lighthouse-logger@1.4.2", "", { "dependencies": { "debug": "^2.6.9", "marky": "^1.2.2" } }, ""],
 
-    "lightningcss": ["lightningcss@1.32.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.32.0", "lightningcss-darwin-arm64": "1.32.0", "lightningcss-darwin-x64": "1.32.0", "lightningcss-freebsd-x64": "1.32.0", "lightningcss-linux-arm-gnueabihf": "1.32.0", "lightningcss-linux-arm64-gnu": "1.32.0", "lightningcss-linux-arm64-musl": "1.32.0", "lightningcss-linux-x64-gnu": "1.32.0", "lightningcss-linux-x64-musl": "1.32.0", "lightningcss-win32-arm64-msvc": "1.32.0", "lightningcss-win32-x64-msvc": "1.32.0" } }, ""],
+    "lightningcss": ["lightningcss@1.30.1", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-darwin-arm64": "1.30.1", "lightningcss-darwin-x64": "1.30.1", "lightningcss-freebsd-x64": "1.30.1", "lightningcss-linux-arm-gnueabihf": "1.30.1", "lightningcss-linux-arm64-gnu": "1.30.1", "lightningcss-linux-arm64-musl": "1.30.1", "lightningcss-linux-x64-gnu": "1.30.1", "lightningcss-linux-x64-musl": "1.30.1", "lightningcss-win32-arm64-msvc": "1.30.1", "lightningcss-win32-x64-msvc": "1.30.1" } }, "sha512-xi6IyHML+c9+Q3W0S4fCQJOym42pyurFiJUHEcEyHS0CeKzia4yZDEsLlqOFykxOdHpNy0NmvVO31vcSqAxJCg=="],
 
-    "lightningcss-android-arm64": ["lightningcss-android-arm64@1.32.0", "", { "os": "android", "cpu": "arm64" }, "sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg=="],
+    "lightningcss-darwin-arm64": ["lightningcss-darwin-arm64@1.30.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-c8JK7hyE65X1MHMN+Viq9n11RRC7hgin3HhYKhrMyaXflk5GVplZ60IxyoVtzILeKr+xAJwg6zK6sjTBJ0FKYQ=="],
 
-    "lightningcss-darwin-arm64": ["lightningcss-darwin-arm64@1.32.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-RzeG9Ju5bag2Bv1/lwlVJvBE3q6TtXskdZLLCyfg5pt+HLz9BqlICO7LZM7VHNTTn/5PRhHFBSjk5lc4cmscPQ=="],
+    "lightningcss-darwin-x64": ["lightningcss-darwin-x64@1.30.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-k1EvjakfumAQoTfcXUcHQZhSpLlkAuEkdMBsI/ivWw9hL+7FtilQc0Cy3hrx0AAQrVtQAbMI7YjCgYgvn37PzA=="],
 
-    "lightningcss-darwin-x64": ["lightningcss-darwin-x64@1.32.0", "", { "os": "darwin", "cpu": "x64" }, "sha512-U+QsBp2m/s2wqpUYT/6wnlagdZbtZdndSmut/NJqlCcMLTWp5muCrID+K5UJ6jqD2BFshejCYXniPDbNh73V8w=="],
+    "lightningcss-freebsd-x64": ["lightningcss-freebsd-x64@1.30.1", "", { "os": "freebsd", "cpu": "x64" }, "sha512-kmW6UGCGg2PcyUE59K5r0kWfKPAVy4SltVeut+umLCFoJ53RdCUWxcRDzO1eTaxf/7Q2H7LTquFHPL5R+Gjyig=="],
 
-    "lightningcss-freebsd-x64": ["lightningcss-freebsd-x64@1.32.0", "", { "os": "freebsd", "cpu": "x64" }, "sha512-JCTigedEksZk3tHTTthnMdVfGf61Fky8Ji2E4YjUTEQX14xiy/lTzXnu1vwiZe3bYe0q+SpsSH/CTeDXK6WHig=="],
+    "lightningcss-linux-arm-gnueabihf": ["lightningcss-linux-arm-gnueabihf@1.30.1", "", { "os": "linux", "cpu": "arm" }, "sha512-MjxUShl1v8pit+6D/zSPq9S9dQ2NPFSQwGvxBCYaBYLPlCWuPh9/t1MRS8iUaR8i+a6w7aps+B4N0S1TYP/R+Q=="],
 
-    "lightningcss-linux-arm-gnueabihf": ["lightningcss-linux-arm-gnueabihf@1.32.0", "", { "os": "linux", "cpu": "arm" }, "sha512-x6rnnpRa2GL0zQOkt6rts3YDPzduLpWvwAF6EMhXFVZXD4tPrBkEFqzGowzCsIWsPjqSK+tyNEODUBXeeVHSkw=="],
+    "lightningcss-linux-arm64-gnu": ["lightningcss-linux-arm64-gnu@1.30.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-gB72maP8rmrKsnKYy8XUuXi/4OctJiuQjcuqWNlJQ6jZiWqtPvqFziskH3hnajfvKB27ynbVCucKSm2rkQp4Bw=="],
 
-    "lightningcss-linux-arm64-gnu": ["lightningcss-linux-arm64-gnu@1.32.0", "", { "os": "linux", "cpu": "arm64" }, ""],
+    "lightningcss-linux-arm64-musl": ["lightningcss-linux-arm64-musl@1.30.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-jmUQVx4331m6LIX+0wUhBbmMX7TCfjF5FoOH6SD1CttzuYlGNVpA7QnrmLxrsub43ClTINfGSYyHe2HWeLl5CQ=="],
 
-    "lightningcss-linux-arm64-musl": ["lightningcss-linux-arm64-musl@1.32.0", "", { "os": "linux", "cpu": "arm64" }, ""],
+    "lightningcss-linux-x64-gnu": ["lightningcss-linux-x64-gnu@1.30.1", "", { "os": "linux", "cpu": "x64" }, "sha512-piWx3z4wN8J8z3+O5kO74+yr6ze/dKmPnI7vLqfSqI8bccaTGY5xiSGVIJBDd5K5BHlvVLpUB3S2YCfelyJ1bw=="],
 
-    "lightningcss-linux-x64-gnu": ["lightningcss-linux-x64-gnu@1.32.0", "", { "os": "linux", "cpu": "x64" }, "sha512-V7Qr52IhZmdKPVr+Vtw8o+WLsQJYCTd8loIfpDaMRWGUZfBOYEJeyJIkqGIDMZPwPx24pUMfwSxxI8phr/MbOA=="],
+    "lightningcss-linux-x64-musl": ["lightningcss-linux-x64-musl@1.30.1", "", { "os": "linux", "cpu": "x64" }, "sha512-rRomAK7eIkL+tHY0YPxbc5Dra2gXlI63HL+v1Pdi1a3sC+tJTcFrHX+E86sulgAXeI7rSzDYhPSeHHjqFhqfeQ=="],
 
-    "lightningcss-linux-x64-musl": ["lightningcss-linux-x64-musl@1.32.0", "", { "os": "linux", "cpu": "x64" }, "sha512-bYcLp+Vb0awsiXg/80uCRezCYHNg1/l3mt0gzHnWV9XP1W5sKa5/TCdGWaR/zBM2PeF/HbsQv/j2URNOiVuxWg=="],
+    "lightningcss-win32-arm64-msvc": ["lightningcss-win32-arm64-msvc@1.30.1", "", { "os": "win32", "cpu": "arm64" }, "sha512-mSL4rqPi4iXq5YVqzSsJgMVFENoa4nGTT/GjO2c0Yl9OuQfPsIfncvLrEW6RbbB24WtZ3xP/2CCmI3tNkNV4oA=="],
 
-    "lightningcss-win32-arm64-msvc": ["lightningcss-win32-arm64-msvc@1.32.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-8SbC8BR40pS6baCM8sbtYDSwEVQd4JlFTOlaD3gWGHfThTcABnNDBda6eTZeqbofalIJhFx0qKzgHJmcPTnGdw=="],
-
-    "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.32.0", "", { "os": "win32", "cpu": "x64" }, "sha512-Amq9B/SoZYdDi1kFrojnoqPLxYhQ4Wo5XiL8EVJrVsB8ARoC1PWW6VGtT0WKCemjy8aC+louJnjS7U18x3b06Q=="],
+    "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.30.1", "", { "os": "win32", "cpu": "x64" }, "sha512-PVqXh48wh4T53F/1CCu8PIPCxLzWyCnn/9T5W1Jpmdy5h9Cwd+0YQS6/LwhHXSafuc61/xg9Lv5OrCby6a++jg=="],
 
     "limiter": ["limiter@1.1.5", "", {}, ""],
 
@@ -3526,8 +3527,6 @@
 
     "@mention/agora/@oxyhq/bloom": ["@oxyhq/bloom@0.6.21", "", { "dependencies": { "nanoid": "^5.1.5", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-font": "*", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.0.0", "react-native-reanimated": ">=3.0.0", "react-native-safe-area-context": ">=5.0.0", "react-native-svg": ">=13.0.0", "sonner": ">=2.0.0", "sonner-native": ">=0.17.0" }, "optionalPeers": ["expo", "expo-font", "react-dom", "react-native-gesture-handler", "react-native-reanimated", "react-native-svg", "sonner", "sonner-native"] }, "sha512-QpRTccKJ3eDFhO7CrrHfiZnPYmjiOvwzZ0jzmVDfgo+AmYLMqUUrx9jGejLYrIQL+vYfR5mc06t9jdYCFK/IHw=="],
 
-    "@mention/agora/@oxyhq/services": ["@oxyhq/services@8.6.1", "", { "dependencies": { "@lottiefiles/dotlottie-react": "^0.13.5", "@react-native-async-storage/async-storage": "2.2.0", "@types/react": "*", "copyfiles": "^2.4.1", "expo-blur": "~56.0.3", "expo-checkbox": "~56.0.1", "expo-crypto": "~56.0.3", "expo-print": "~56.0.3", "expo-secure-store": "~56.0.4", "lottie-react-native": "^7.3.4", "react-native-keyboard-controller": "1.21.6", "react-native-qrcode-svg": "^6.3.0", "react-native-url-polyfill": "^2.0.0", "socket.io-client": "^4.8.1", "sonner": "^2.0.4", "sonner-native": "^0.20.0", "typescript": "^5.9.2", "zustand": "^5.0.9" }, "peerDependencies": { "@expo/vector-icons": "^15.0.3", "@oxyhq/bloom": ">=0.5.0", "@oxyhq/core": "^2.4.1", "@react-native-community/netinfo": "^11.4.1", "@tanstack/query-async-storage-persister": "^5.100", "@tanstack/query-sync-storage-persister": "^5.100", "@tanstack/react-query": "^5.100", "@tanstack/react-query-persist-client": "^5.100", "@types/react-native": "*", "expo": ">=56.0.0", "expo-document-picker": "~56.0.4", "expo-file-system": "~56.0.7", "expo-font": "~56.0.5", "expo-image": "~56.0.8", "expo-image-manipulator": "~56.0.3", "expo-linear-gradient": "~56.0.4", "nativewind": ">=4.0.0", "react": ">=18.0.0", "react-native": ">=0.85.0", "react-native-gesture-handler": "~2.31.2", "react-native-reanimated": ">=4.3.0", "react-native-safe-area-context": "~5.7.0", "react-native-svg": ">=15.15.0" }, "optionalPeers": ["@expo/vector-icons", "@tanstack/query-sync-storage-persister", "@types/react-native", "expo", "expo-document-picker", "expo-font", "expo-image", "expo-image-manipulator", "expo-linear-gradient", "nativewind"] }, "sha512-U7/nd7WmAJDLZTcKc8yX922+YhDAHFj3TIyDOUNrPCsBUcHtkeiwKIU2pDazvnVqKiAygl/D2BPWRT6DrdzSMQ=="],
-
     "@mention/agora-shared/sonner-native": ["sonner-native@0.23.1", "", { "peerDependencies": { "react": "*", "react-native": "*", "react-native-gesture-handler": ">=2.16.1", "react-native-reanimated": ">=3.10.1", "react-native-safe-area-context": ">=4.10.5", "react-native-screens": ">=3.31.1", "react-native-svg": ">=15.6.0" } }, "sha512-p4WRxVoTjLTeuLcvuyMNzgd81tEUS0ayoqXEFhi5GNU1okbvBpqU5GiUjv14DgiLUYXPUQ0qq+OdrFJM2j4j+w=="],
 
     "@mention/backend/@mention/shared-types": ["@mention/shared-types@file:packages/shared-types", { "devDependencies": { "@types/node": "^25.5.0", "typescript": "^5.9.3" } }],
@@ -4010,12 +4009,6 @@
 
     "@jest/types/@types/node/undici-types": ["undici-types@6.21.0", "", {}, ""],
 
-    "@mention/agora/@oxyhq/services/@lottiefiles/dotlottie-react": ["@lottiefiles/dotlottie-react@0.13.5", "", { "dependencies": { "@lottiefiles/dotlottie-web": "0.44.0" }, "peerDependencies": { "react": "^17 || ^18 || ^19" } }, "sha512-4U5okwjRqDPkjB572hfZtLXJ/LGfCo6vDwUB2KIPEUoSgqbIlw+UrbnaqVp3GS+dRvhMD27F2JObpHpYRlpF0Q=="],
-
-    "@mention/agora/@oxyhq/services/@react-native-community/netinfo": ["@react-native-community/netinfo@11.5.2", "", { "peerDependencies": { "react": "*", "react-native": ">=0.59" } }, ""],
-
-    "@mention/agora/@oxyhq/services/sonner-native": ["sonner-native@0.20.0", "", { "peerDependencies": { "react": "*", "react-native": "*", "react-native-gesture-handler": ">=2.16.1", "react-native-reanimated": ">=3.10.1", "react-native-safe-area-context": ">=4.10.5", "react-native-screens": ">=3.31.1" } }, "sha512-DU31DDEYpFsLdL0yOQDPZizqXr4TIUaC/t1K6NCPgRSXdZAXYwUPH7VWRY6KGO4MZ8Wt/gHU4EXuHFtATVPAqg=="],
-
     "@modelcontextprotocol/sdk/ajv/json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, ""],
 
     "@oxyhq/services/@lottiefiles/dotlottie-react/@lottiefiles/dotlottie-web": ["@lottiefiles/dotlottie-web@0.44.0", "", {}, "sha512-IUWKVciDJI/BMWDWnh7j0Ngd0N8q9ySRAwm84aDqIE07qpmdZ7x1rkIpBaU1yHSNqNYHeh1Rxsl+LC3CY4f0KA=="],
@@ -4251,8 +4244,6 @@
     "@google-cloud/storage/google-auth-library/gcp-metadata/google-logging-utils": ["google-logging-utils@0.0.2", "", {}, ""],
 
     "@istanbuljs/load-nyc-config/find-up/locate-path/p-locate": ["p-locate@4.1.0", "", { "dependencies": { "p-limit": "^2.2.0" } }, ""],
-
-    "@mention/agora/@oxyhq/services/@lottiefiles/dotlottie-react/@lottiefiles/dotlottie-web": ["@lottiefiles/dotlottie-web@0.44.0", "", {}, "sha512-IUWKVciDJI/BMWDWnh7j0Ngd0N8q9ySRAwm84aDqIE07qpmdZ7x1rkIpBaU1yHSNqNYHeh1Rxsl+LC3CY4f0KA=="],
 
     "@react-native/babel-preset/@react-native/babel-plugin-codegen/@react-native/codegen/hermes-parser": ["hermes-parser@0.32.0", "", { "dependencies": { "hermes-estree": "0.32.0" } }, ""],
 
