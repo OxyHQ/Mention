@@ -83,10 +83,19 @@ class FeedService {
    * Caching is now handled by SQLite via postsStore — this is a pure network layer.
    */
   async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedServiceResponse> {
-      // Deduplicate in-flight requests
+      // Deduplicate in-flight requests — but ONLY for signal-less callers. A
+      // request carrying an AbortSignal is owned by a single caller whose
+      // lifecycle controls the abort; it must neither be served from the shared
+      // cache (it would inherit a foreign abort and reject as "canceled") nor
+      // stored into it (its abort would poison every other deduped caller). See
+      // the matching guard in getMtnFeed for the full rationale (this was the
+      // root cause of the empty-feed-on-remount bug).
       const dedupeKey = getDedupeKey(request);
-      const inFlight = inFlightRequests.get(dedupeKey);
-      if (inFlight) return inFlight;
+      const canShare = !options?.signal;
+      if (canShare) {
+        const inFlight = inFlightRequests.get(dedupeKey);
+        if (inFlight) return inFlight;
+      }
 
       const fetchPromise = (async () => {
         try {
@@ -171,6 +180,10 @@ class FeedService {
           throw new Error(normalized.message || 'Failed to fetch feed', { cause: error });
         }
       })();
+
+      if (!canShare) {
+        return await fetchPromise;
+      }
 
       inFlightRequests.set(dedupeKey, fetchPromise);
       try {
@@ -481,8 +494,20 @@ class FeedService {
     // never shares an in-flight promise with an anonymous one for the same
     // descriptor — the two return different content and must resolve independently.
     const cacheKey = `mtn|${authDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}`;
-    const existing = inFlightRequests.get(cacheKey);
-    if (existing) return existing;
+
+    // In-flight sharing is ONLY safe for signal-less requests. A request that
+    // carries an AbortSignal is owned by a single caller whose lifecycle controls
+    // the abort: it must neither be served from the shared cache (it would inherit
+    // a foreign abort and reject as "canceled") nor stored into it (its abort
+    // would poison every other caller awaiting the shared promise). This was the
+    // root cause of the empty feed: the feed hook remounting mid-load aborted the
+    // first request, and the second request — which shared the first's in-flight
+    // promise — inherited that cancellation instead of making its own fetch.
+    const canShare = !options?.signal;
+    if (canShare) {
+      const existing = inFlightRequests.get(cacheKey);
+      if (existing) return existing;
+    }
 
     const fetchPromise = (async () => {
       try {
@@ -510,6 +535,10 @@ class FeedService {
         throw authError;
       }
     })();
+
+    if (!canShare) {
+      return await fetchPromise;
+    }
 
     inFlightRequests.set(cacheKey, fetchPromise);
     try {

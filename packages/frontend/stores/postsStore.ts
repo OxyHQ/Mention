@@ -316,14 +316,26 @@ export const usePostsStore = create<PostsStoreState>()(
       const requestKey = `${type}:${request.cursor || 'initial'}`;
       const now = Date.now();
 
-      // Debounce
+      // Debounce: collapse a rapid repeat of the same request (e.g. an effect
+      // firing twice in quick succession) into the in-flight one.
       const pending = pendingRequests.get(requestKey);
       if (pending && now - pending.timestamp < 300) return;
+
+      // A later request for the same key supersedes the in-flight one (e.g. the
+      // feed hook remounted mid-load and re-issued the initial fetch). Abort the
+      // prior request AND mark that we superseded it, so the concurrent guard
+      // below does not then refuse to start the replacement — otherwise we'd
+      // cancel the only running request and never issue a new one, stranding the
+      // feed empty.
+      const supersededPrior = !!pending?.abortController;
       if (pending?.abortController) pending.abortController.abort();
 
-      // Prevent concurrent
+      // Prevent two independent concurrent loads of the same feed. Skipped when
+      // we just superseded the prior request: that request is now aborted, so we
+      // are the sole legitimate load and must proceed (its stale `isLoading`
+      // flag would otherwise block us).
       const ui = get().feedUI[feedKey];
-      if (ui?.isLoading && !request.cursor) return;
+      if (ui?.isLoading && !request.cursor && !supersededPrior) return;
 
       const abortController = new AbortController();
       pendingRequests.set(requestKey, { timestamp: now, abortController });
