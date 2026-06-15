@@ -62,6 +62,7 @@ import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@/lib/logger';
 import { useShareIntentRouter } from '@/lib/shareIntent';
+import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 
 // Styles
 import '../global.css';
@@ -140,6 +141,8 @@ export default function RootLayout() {
       <BloomThemeProvider
         defaultMode="system"
         defaultColorPreset="blue"
+        persistKey={BLOOM_THEME_PERSIST_KEY}
+        storage={BLOOM_THEME_STORAGE}
         onFontsLoading={<AppSplashScreen />}
       >
         {appIsReady ? (
