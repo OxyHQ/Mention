@@ -27,6 +27,13 @@ export const OXY_AUTH_URL =
   process.env.EXPO_PUBLIC_OXY_AUTH_URL ||
   (process.env.NODE_ENV === 'production' ? 'https://auth.oxy.so' : 'http://localhost:3002');
 
+// Mention's registered Oxy OAuth client id (ApplicationCredential publicKey).
+// Required by @oxyhq/services for the cross-app device sign-in flow. Public and
+// safe to commit; overridable per-environment via EXPO_PUBLIC_OXY_CLIENT_ID.
+export const OXY_CLIENT_ID =
+  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
+  'oxy_dk_ba07b16e89bd180d2b58c09b02db550e727fa598ed73e2f2';
+
 // Public web origin used to build shareable deep links (posts, trends, rooms).
 export const WEB_BASE_URL =
   process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';

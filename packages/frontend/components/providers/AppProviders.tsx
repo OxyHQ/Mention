@@ -18,6 +18,7 @@ import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
+import { OXY_CLIENT_ID } from '@/config';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import i18n from '@/lib/i18n';
@@ -46,7 +47,7 @@ export const AppProviders = memo(function AppProviders({
       <GestureHandlerRootView style={{ flex: 1 }}>
         <OxyProvider
           oxyServices={oxyServices}
-          appName="Mention"
+          clientId={OXY_CLIENT_ID}
           storageKeyPrefix="mention"
           queryClient={queryClient}
         >
