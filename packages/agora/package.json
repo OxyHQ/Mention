@@ -50,7 +50,7 @@
     "expo-splash-screen": "~56.0.10",
     "expo-status-bar": "~56.0.4",
     "expo-web-browser": "~56.0.5",
-    "livekit-client": "^2.17.1",
+    "livekit-client": "^2.19.2",
     "lottie-react-native": "^7.3.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
