@@ -1,4 +1,4 @@
-import { View, Pressable, Platform, LayoutChangeEvent, StyleSheet } from 'react-native';
+import { View, Pressable, Platform, LayoutChangeEvent, StyleSheet, type ViewStyle } from 'react-native';
 import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname, type Href } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -14,14 +14,28 @@ import { useTranslation } from 'react-i18next';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 
-// Forced-dark surface used only on the fullscreen Reels (/videos) screen, where
-// the bottom bar floats over dark video content regardless of the app theme.
-// Values are valid CSS color strings so alpha can be applied directly (the
-// app-theme path derives its colors from NativeWind tokens instead — see below).
+// Dark-mode override palette for the fullscreen Reels (/videos) screen, where the
+// bar floats over dark video content regardless of the app theme. Values are valid
+// CSS color strings so alpha can be applied directly; elsewhere the bar derives its
+// colors from the Bloom theme via NativeWind tokens.
 const VIDEOS_DARK_PALETTE = {
     cardTranslucent: 'rgba(0, 48, 56, 0.8)', // #003038 @ 80%
     border: '#555555',
 };
+
+// Subtle frosted-glass blur radius for the web bar (medium, not extreme).
+const WEB_BLUR_RADIUS = '12px';
+
+/**
+ * Web-only style extension. React Native's `ViewStyle` does not declare the CSS
+ * backdrop-filter props, but on web (react-native-web) unknown style keys are
+ * forwarded to the DOM, so these render as real CSS. Gated behind the web branch
+ * so they never reach native.
+ */
+interface WebBackdropStyle extends ViewStyle {
+    backdropFilter?: string;
+    WebkitBackdropFilter?: string;
+}
 
 const SPRING_CONFIG = {
     damping: 20,
@@ -132,8 +146,7 @@ export const BottomBar = () => {
 
     // Position/size are animated; the fill color is the theme primary at ~10%
     // applied via the `bg-primary/10` NativeWind class on the indicator view so
-    // it stays reactive to the Bloom preset/mode (the previous
-    // `${colors.primary}1A` produced an invalid `hsl(...)1A` string).
+    // it stays reactive to the Bloom preset/mode.
     const indicatorStyle = useAnimatedStyle(() => ({
         position: 'absolute' as const,
         top: 4,
@@ -165,14 +178,14 @@ export const BottomBar = () => {
     // reactive to the Bloom preset/mode; on the Reels screen they are overridden
     // inline with the forced-dark palette. `colors.shadow` is already a valid
     // `rgba(...)` string from the Bloom theme (no NativeWind equivalent).
-    const containerStyle = useMemo(() => ({
-        position: 'absolute' as const,
+    const containerStyle = useMemo<ViewStyle>(() => ({
+        position: 'absolute',
         bottom: 12,
         left: 16,
         right: 16,
         height: 56,
         borderRadius: 28,
-        overflow: 'hidden' as const,
+        overflow: 'hidden',
         zIndex: 1000,
         ...(isVideosScreen ? { borderColor: VIDEOS_DARK_PALETTE.border } : {}),
         ...(Platform.OS === 'web' ? {
@@ -271,16 +284,17 @@ export const BottomBar = () => {
         </>
     );
 
-    // The translucent surface uses the Bloom `card` token at 80% via NativeWind
-    // (`bg-card/80`) so it tracks the theme; on the Reels screen it is overridden
-    // inline with the forced-dark translucent surface. `backdrop-blur` is web-only.
-    const webContainerStyle = useMemo(() => ({
+    // Web frosted-glass surface: a subtle CSS backdrop blur over the translucent
+    // `bg-card/80` token (applied via NativeWind className below) so the content
+    // behind the bar blurs through, mirroring the native BlurView. The backdrop
+    // props are web-only CSS, gated behind the `Platform.OS === 'web'` branch.
+    const webContainerStyle = useMemo<WebBackdropStyle>(() => ({
         ...containerStyle,
         ...(isVideosScreen ? { backgroundColor: VIDEOS_DARK_PALETTE.cardTranslucent } : {}),
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
+        backdropFilter: `blur(${WEB_BLUR_RADIUS})`,
+        WebkitBackdropFilter: `blur(${WEB_BLUR_RADIUS})`,
+        flexDirection: 'row',
+        alignItems: 'center',
     }), [containerStyle, isVideosScreen]);
 
     if (Platform.OS === 'web') {
@@ -288,7 +302,7 @@ export const BottomBar = () => {
             <Animated.View style={bottomBarAnimatedStyle}>
                 <View
                     className={cn('border', isVideosScreen ? undefined : 'border-border bg-card/80')}
-                    style={webContainerStyle as any}
+                    style={webContainerStyle}
                     onLayout={onBarLayout}
                 >
                     {innerContent}
