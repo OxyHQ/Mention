@@ -39,10 +39,11 @@ interface PinnedFeed {
 const PINNED_KEY = 'mention.pinnedFeeds';
 const FAB_ICON_SIZE = 22;
 
-// How far the FAB slides down when the bottom bar auto-hides, so it travels away
-// together with the bar (it also fades out) instead of floating in mid-air. Clears
-// the FAB's resting position above the bar.
-const FAB_OFFSCREEN_TRAVEL = 120;
+// When the bottom bar hides, the FAB stays fully visible and simply drops into the
+// space the bar vacated. The drop distance equals the bar-clearance the FAB reserves
+// above the bar at rest (FloatingActionButton uses bottomBarHeight = 60), so the FAB
+// ends up where the bar was instead of sliding off-screen.
+const FAB_BAR_HIDDEN_DROP = 60;
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -62,14 +63,15 @@ const HomeScreen: React.FC = () => {
     const headerHeight = 48;
     const fabTransition = useSharedValue(0);
 
-    // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header, the
-    // FAB and the bottom bar all derive their hide animation from this one value so
-    // they slide away together — no per-screen duplicate scroll listener.
+    // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header and
+    // the FAB both derive their motion from this one value so they stay in lock-step
+    // with the bottom bar — no per-screen duplicate scroll listener.
     const bottomBarHidden = useBottomBarVisibility();
     const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
     const headerOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
-    const fabTranslateY = useDerivedValue(() => bottomBarHidden.value * FAB_OFFSCREEN_TRAVEL);
-    const fabOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
+    // The FAB stays fully visible: it drops DOWN into the bar's vacated spot when the
+    // bar hides (no opacity fade), and rises back above the bar when it returns.
+    const fabTranslateY = useDerivedValue(() => bottomBarHidden.value * FAB_BAR_HIDDEN_DROP);
 
     useEffect(() => {
         fabTransition.value = withTiming(isScrolledDown ? 1 : 0, { duration: 200 });
@@ -316,14 +318,14 @@ const HomeScreen: React.FC = () => {
                     {/* Content */}
                     {renderContent()}
 
-                    {/* Floating Action Button — compose or scroll-to-top.
-                        Slides down + fades out together with the bottom bar when
-                        the bar auto-hides on scroll (shared visibility signal). */}
+                    {/* Floating Action Button — compose or scroll-to-top. Stays
+                        fully visible at all times: rests above the bottom bar and
+                        drops into the bar's vacated spot when the bar auto-hides on
+                        scroll (shared visibility signal). No opacity fade. */}
                     {isAuthenticated && (
                         <FAB
                             onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
                             animatedTranslateY={fabTranslateY}
-                            animatedOpacity={fabOpacity}
                             customIcon={
                                 <View style={{ width: FAB_ICON_SIZE, height: FAB_ICON_SIZE }}>
                                     <Animated.View style={[fabComposeStyle, StyleSheet.absoluteFill, styles.fabIconLayer]} pointerEvents="none">

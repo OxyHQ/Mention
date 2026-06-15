@@ -23,22 +23,29 @@ import { useTrendsStore } from '@/store/trendsStore';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'people' | 'starter-packs';
 
+// When the bottom bar hides, the FAB stays fully visible and drops into the space
+// the bar vacated. The drop equals the bar-clearance the FAB reserves above the bar
+// at rest (FloatingActionButton uses bottomBarHeight = 60), so it lands where the bar
+// was instead of sliding off-screen.
+const FAB_BAR_HIDDEN_DROP = 60;
+
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
   const headerHeight = 48;
-  const fabHeight = 80;
 
   // Shared auto-hide signal (0 = visible, 1 = hidden) — the same hook the bottom
-  // bar uses, so the header and the FAB slide away in lock-step with the bar
-  // instead of running a duplicate scroll listener here.
+  // bar uses, so the header and the FAB stay in lock-step with the bar instead of
+  // running a duplicate scroll listener here.
   const hidden = useBottomBarVisibility();
   const headerTranslateY = useDerivedValue(() => hidden.value * -(headerHeight + insets.top));
   const headerOpacity = useDerivedValue(() => 1 - hidden.value);
-  const fabTranslateY = useDerivedValue(() => hidden.value * fabHeight);
-  const fabOpacity = useDerivedValue(() => 1 - hidden.value);
+  // The FAB stays fully visible: it drops DOWN into the bar's vacated spot when the
+  // bar hides (no opacity fade), and rises back above the bar when it returns. The
+  // drop equals the bar-clearance the FAB reserves above the bar (bottomBarHeight = 60).
+  const fabTranslateY = useDerivedValue(() => hidden.value * FAB_BAR_HIDDEN_DROP);
 
   // Trending tab reads from the same store as TrendsWidget — single data source
   const trends = useTrendsStore(state => state.trends);
@@ -151,12 +158,13 @@ const ExploreScreen: React.FC = () => {
           {/* Content */}
           {renderContent()}
 
-          {/* Floating Action Button - Search */}
+          {/* Floating Action Button - Search. Stays fully visible: rests above the
+              bottom bar and drops into the bar's vacated spot when the bar auto-hides
+              on scroll (shared visibility signal). No opacity fade. */}
           <FAB
             onPress={() => router.push('/search')}
             customIcon={<Search className="text-background" size={24} />}
             animatedTranslateY={fabTranslateY}
-            animatedOpacity={fabOpacity}
           />
         </ThemedView>
       </SafeAreaView>
