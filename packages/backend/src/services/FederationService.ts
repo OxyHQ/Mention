@@ -17,7 +17,7 @@ import {
   isBlockedDomain,
   resolveOxyUser,
 } from '../utils/federation/constants';
-import { PostVisibility } from '@mention/shared-types';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
 import { extractApMediaFromNote, type ApMediaType } from '../utils/federation/apMedia';
 import { decode as decodeEntities } from 'he';
@@ -36,6 +36,15 @@ const ACTOR_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
  * eligible for a (background) re-fetch.
  */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * A candidate extracted from a remote actor's outbox during backfill.
+ * Either a top-level Note/Article authored by the actor, or an Announce (boost)
+ * of another actor's object.
+ */
+type OutboxCandidate =
+  | { kind: 'note'; note: Record<string, any>; activity: Record<string, any>; activityId: string }
+  | { kind: 'announce'; activity: Record<string, any>; activityId: string; announcedUri: string };
 
 /**
  * Sign a GET request using the instance actor key pair (managed by Oxy).
@@ -68,6 +77,18 @@ async function signedFetch(url: string, accept: string): Promise<Response> {
     });
   }
 
+  // A 401/403 on a signed request means the remote rejected OUR signature
+  // (e.g. it could not resolve/verify our keyId, or our instance key pair is
+  // missing/invalid because the service token could not be acquired). Without a
+  // log this silently yields zero results — surface it so the failure mode is
+  // observable in production. The caller still receives the response and decides
+  // how to proceed; we do not change control flow here.
+  if (res.status === 401 || res.status === 403) {
+    logger.warn(
+      `[FedSync] signedFetch got ${res.status} ${res.statusText} for ${url} — remote rejected our HTTP signature (check instance key pair / service token); returning the failed response so no posts are imported from this source`,
+    );
+  }
+
   return res;
 }
 
@@ -81,11 +102,17 @@ class FederationService {
   private readonly inFlightActorRefreshes = new Set<string>();
 
   /**
-   * Extract candidate top-level notes from outbox items into the candidates array.
+   * Extract candidate items from outbox items into the candidates array.
+   *
+   * Two kinds of candidates are produced:
+   *  - `note`: a top-level Note/Article authored by this actor (Create/Note/Article).
+   *  - `announce`: an Announce (boost/reblog) of another actor's object. The
+   *    announced object is fetched and imported later in `syncOutboxPosts`, then
+   *    a boost Post (mirroring native reposts) is created attributed to this actor.
    */
   private extractCandidates(
     items: any[],
-    candidates: { note: any; activity: any; activityId: string }[],
+    candidates: OutboxCandidate[],
     limit: number,
   ): void {
     for (const item of items) {
@@ -93,6 +120,15 @@ class FederationService {
 
       const activity = typeof item === 'string' ? null : item;
       if (!activity) continue;
+
+      // Announce (boost) — capture the announced object URI for later import.
+      if (activity.type === 'Announce') {
+        const activityId = activity.id;
+        const announcedUri = this.extractAnnouncedObjectUri(activity.object);
+        if (!activityId || !announcedUri) continue;
+        candidates.push({ kind: 'announce', activity, activityId, announcedUri });
+        continue;
+      }
 
       const note = activity.type === 'Create' ? activity.object :
         (activity.type === 'Note' || activity.type === 'Article') ? activity : null;
@@ -103,8 +139,21 @@ class FederationService {
       const activityId = note.id || activity.id;
       if (!activityId) continue;
 
-      candidates.push({ note, activity, activityId });
+      candidates.push({ kind: 'note', note, activity, activityId });
     }
+  }
+
+  /**
+   * Extract the announced object URI from an Announce activity's `object`,
+   * which may be a plain URI string or an embedded object with an `id`.
+   */
+  private extractAnnouncedObjectUri(object: unknown): string | undefined {
+    if (typeof object === 'string') return object;
+    if (object && typeof object === 'object' && 'id' in object) {
+      const id = (object as { id?: unknown }).id;
+      return typeof id === 'string' ? id : undefined;
+    }
+    return undefined;
   }
 
   /**
@@ -375,9 +424,10 @@ class FederationService {
       logger.info(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
 
       // Paginate through outbox pages to collect enough top-level posts.
-      // Most outbox items are replies/boosts which we skip, so we may need
-      // several pages to reach the desired limit.
-      const candidates: { note: any; activity: any; activityId: string }[] = [];
+      // Most outbox items are replies which we skip, so we may need several
+      // pages to reach the desired limit. Both notes and boosts (Announce) are
+      // collected; announces are imported separately below.
+      const candidates: OutboxCandidate[] = [];
       const MAX_PAGES = 10;
       let nextPageUrl: string | null = null;
 
@@ -414,6 +464,13 @@ class FederationService {
         return 0;
       }
 
+      const noteCandidates = candidates.filter(
+        (c): c is Extract<OutboxCandidate, { kind: 'note' }> => c.kind === 'note',
+      );
+      const announceCandidates = candidates.filter(
+        (c): c is Extract<OutboxCandidate, { kind: 'announce' }> => c.kind === 'announce',
+      );
+
       // Bulk dedup: single query instead of N queries
       const allActivityIds = candidates.map(c => c.activityId);
       const existingPosts = await Post.find(
@@ -424,9 +481,10 @@ class FederationService {
         existingPosts.map(p => (p.federation as { activityId?: string } | undefined)?.activityId),
       );
 
-      // Resolve actor URIs → Oxy User IDs
+      // Resolve actor URIs → Oxy User IDs (note authors only; announce authors
+      // are always the outbox owner, resolved via actor.oxyUserId below).
       const actorUris = new Set<string>();
-      for (const { note } of candidates) {
+      for (const { note } of noteCandidates) {
         const uri = this.extractActorUri(note.attributedTo);
         if (uri) actorUris.add(uri);
       }
@@ -461,11 +519,11 @@ class FederationService {
         }
       }
 
-      logger.info(`[FedSync] ${candidates.length} candidates, ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
+      logger.info(`[FedSync] ${candidates.length} candidates (${noteCandidates.length} notes, ${announceCandidates.length} announces), ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
 
       // Build documents for batch insert
       const newDocs: any[] = [];
-      for (const { note, activity, activityId } of candidates) {
+      for (const { note, activity, activityId } of noteCandidates) {
         if (existingIds.has(activityId)) continue;
 
         const rawContent = note.content || '';
@@ -556,13 +614,210 @@ class FederationService {
         });
       }
 
-      const synced = existingIds.size + newDocs.length;
-      logger.debug(`Synced ${newDocs.length} new outbox posts for ${actor.acct} (${existingIds.size} already existed)`);
+      // Import boosts (Announce) attributed to the outbox owner. Each announce
+      // ensures the boosted Note exists locally, then creates a boost Post that
+      // mirrors native reposts (type=boost, boostOf=<local note _id>). Processed
+      // sequentially with the booster's resolved oxyUserId; deduped by the
+      // Announce activity id.
+      const boosterOxyUserId = actor.oxyUserId ?? actorOxyMap.get(actor.uri) ?? null;
+      let importedBoosts = 0;
+      for (const announce of announceCandidates) {
+        if (existingIds.has(announce.activityId)) continue;
+        const created = await this.importAnnounce(
+          announce.activity,
+          announce.announcedUri,
+          boosterOxyUserId,
+        );
+        if (created) importedBoosts++;
+      }
+
+      const synced = existingIds.size + newDocs.length + importedBoosts;
+      logger.debug(`Synced ${newDocs.length} new outbox posts and ${importedBoosts} boosts for ${actor.acct} (${existingIds.size} already existed)`);
       return synced;
     } catch (err) {
       logger.warn(`Failed to sync outbox posts from ${actor.outboxUrl}:`, err);
       return 0;
     }
+  }
+
+  /**
+   * Import a boost (Announce). Ensures the announced Note exists locally as a
+   * Post, then creates a boost Post attributed to the booster — mirroring the
+   * native repost shape (`type: 'boost'`, `boostOf: <local note _id>`,
+   * `oxyUserId: <booster>`). Idempotent: deduped by the Announce activity id via
+   * the `federation.activityId` unique sparse index.
+   *
+   * @param announceActivity the full Announce activity (for `published`).
+   * @param announcedUri the URI of the announced (boosted) object.
+   * @param boosterOxyUserId the booster's resolved Oxy user id, or null.
+   * @returns true when a new boost Post was created.
+   */
+  private async importAnnounce(
+    announceActivity: Record<string, any>,
+    announcedUri: string,
+    boosterOxyUserId: string | null,
+  ): Promise<boolean> {
+    const announceId = typeof announceActivity.id === 'string' ? announceActivity.id : undefined;
+    if (!announceId) return false;
+
+    // Dedup the boost itself by the Announce activity id.
+    const existingBoost = await Post.exists({ 'federation.activityId': announceId });
+    if (existingBoost) return false;
+
+    // Ensure the boosted Note exists locally and get its local Post _id.
+    const originalPostId = await this.ensureFederatedNote(announcedUri);
+    if (!originalPostId) {
+      logger.info(`[FedSync] could not resolve boosted object ${announcedUri} for announce ${announceId}; skipping boost`);
+      return false;
+    }
+
+    const published = typeof announceActivity.published === 'string' ? announceActivity.published : undefined;
+
+    const { postCreationService } = require('./PostCreationService') as {
+      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
+    };
+
+    try {
+      await postCreationService.create({
+        oxyUserId: boosterOxyUserId,
+        boostOf: originalPostId,
+        // A boost carries no content of its own — mirror native reposts which
+        // store an empty content body and rely on `boostOf` for hydration.
+        content: { text: '' },
+        visibility: PostVisibility.PUBLIC,
+        federation: {
+          activityId: announceId,
+          url: typeof announceActivity.url === 'string' ? announceActivity.url : announceId,
+        },
+        status: 'published',
+        skipNotifications: true,
+        skipSocketEmit: true,
+        skipFederationDelivery: true,
+        ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
+      });
+      return true;
+    } catch (err) {
+      // A duplicate-key error means a concurrent import already created the
+      // boost — treat as already-imported, not a failure.
+      if (this.isDuplicateKeyError(err)) return false;
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[FedSync] failed to create boost for announce ${announceId}: ${message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Ensure a federated Note/Article exists locally as a Post and return its
+   * local Post `_id` (as a string). Fetches the object via `signedFetch` when it
+   * is not already stored. Returns null when the object cannot be fetched or is
+   * not a Note/Article.
+   *
+   * Used by boost import so a boost's `boostOf` always references a real local
+   * Post `_id`, exactly like native reposts (which the hydration layer resolves
+   * by looking the original post up by `_id`).
+   */
+  private async ensureFederatedNote(objectUri: string): Promise<string | null> {
+    // Already stored?
+    const existing = await Post.findOne(
+      { 'federation.activityId': objectUri },
+      { _id: 1 },
+    ).lean();
+    if (existing) return String(existing._id);
+
+    // Fetch the announced object (the boosted Note) from its origin.
+    let note: Record<string, any>;
+    try {
+      const res = await signedFetch(objectUri, AP_CONTENT_TYPE);
+      if (!res.ok) {
+        logger.info(`[FedSync] failed to fetch boosted object ${objectUri}: ${res.status} ${res.statusText}`);
+        return null;
+      }
+      note = await res.json() as Record<string, any>;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.info(`[FedSync] error fetching boosted object ${objectUri}: ${message}`);
+      return null;
+    }
+
+    if (!note || (note.type !== 'Note' && note.type !== 'Article')) {
+      logger.info(`[FedSync] boosted object ${objectUri} is not a Note/Article (type=${note?.type}); skipping`);
+      return null;
+    }
+
+    const rawContent = typeof note.content === 'string' ? note.content : '';
+    if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) {
+      logger.info(`[FedSync] boosted object ${objectUri} exceeds max content length; skipping`);
+      return null;
+    }
+
+    // Resolve the original author's actor → Oxy user id so the boosted post is
+    // attributed correctly (same resolution path as handleCreate/syncOutbox).
+    const authorUri = this.extractActorUri(note.attributedTo);
+    let authorOxyUserId: string | null = null;
+    if (authorUri) {
+      const authorActor = await this.getOrFetchActor(authorUri);
+      authorOxyUserId = authorActor?.oxyUserId ?? null;
+    }
+
+    const text = htmlToPlainText(rawContent);
+    const { media, attachments } = this.extractApMedia(note);
+    const hashtags = this.extractApHashtags(note);
+    const published = typeof note.published === 'string' ? note.published : undefined;
+    const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
+
+    const { postCreationService } = require('./PostCreationService') as {
+      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<{ _id: unknown }> };
+    };
+
+    try {
+      const created = await postCreationService.create({
+        oxyUserId: authorOxyUserId,
+        federation: {
+          activityId: noteActivityId,
+          inReplyTo: typeof note.inReplyTo === 'string' ? note.inReplyTo : undefined,
+          url: typeof note.url === 'string' ? note.url : noteActivityId,
+          sensitive: note.sensitive === true,
+          spoilerText: typeof note.summary === 'string' ? note.summary : undefined,
+        },
+        content: {
+          text,
+          media: media.length > 0 ? media : undefined,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        },
+        visibility: this.mapApVisibility(note.to, note.cc),
+        hashtags,
+        status: 'published',
+        metadata: { isSensitive: note.sensitive === true },
+        skipNotifications: true,
+        skipSocketEmit: true,
+        skipFederationDelivery: true,
+        ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
+      });
+      return String(created._id);
+    } catch (err) {
+      // Concurrent import may have created it — re-read to return the id.
+      if (this.isDuplicateKeyError(err)) {
+        const raced = await Post.findOne(
+          { 'federation.activityId': noteActivityId },
+          { _id: 1 },
+        ).lean();
+        return raced ? String(raced._id) : null;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[FedSync] failed to store boosted note ${objectUri}: ${message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Whether an error is a MongoDB duplicate-key error (code 11000), including
+   * Mongoose `MongoServerError` and bulk write error shapes.
+   */
+  private isDuplicateKeyError(err: unknown): boolean {
+    if (err && typeof err === 'object' && 'code' in err) {
+      return (err as { code?: unknown }).code === 11000;
+    }
+    return false;
   }
 
   /**
@@ -1226,14 +1481,36 @@ class FederationService {
   }
 
   private async handleAnnounce(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
-    if (!objectId) return;
+    const announcedUri = this.extractAnnouncedObjectUri(activity.object);
+    if (!announcedUri) return;
 
-    // Increment boost count on the original post
+    // Increment the boost count on the original post when we already know it
+    // locally (keeps engagement metrics accurate regardless of follow state).
     await Post.updateOne(
-      { 'federation.activityId': objectId },
+      { 'federation.activityId': announcedUri },
       { $inc: { 'stats.boostsCount': 1 } },
     );
+
+    // Only import the boost into local feeds when the booster is followed by at
+    // least one local user — mirrors the follow gate in handleCreate so we don't
+    // ingest arbitrary remote content. Pushed boosts from followed actors should
+    // appear in their followers' feeds exactly like native reposts.
+    const hasFollower = await FederatedFollow.exists({
+      remoteActorUri: actorUri,
+      direction: 'outbound',
+      status: 'accepted',
+    });
+    if (!hasFollower) return;
+
+    // Resolve the booster's Oxy user id, then import the boost (ensures the
+    // boosted Note exists locally and creates a native-shaped boost Post).
+    const boosterActor = await this.getOrFetchActor(actorUri);
+    const boosterOxyUserId = boosterActor?.oxyUserId ?? null;
+
+    const created = await this.importAnnounce(activity, announcedUri, boosterOxyUserId);
+    if (created) {
+      logger.debug(`Imported boost from ${actorUri} of ${announcedUri}`);
+    }
   }
 
   private async handleAccept(activity: Record<string, any>, actorUri: string): Promise<void> {

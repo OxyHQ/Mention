@@ -951,31 +951,48 @@ class FeedController {
             return;
           }
 
-          // Quick path: create a minimal FederatedActor with just the outbox URL
-          // instead of doing a full fetchRemoteActor (which fetches collection
-          // counts). The full actor refresh is enqueued below.
-          const domain = new URL(actorUri).hostname;
-          const username = (oxyUser.username || '').split('@')[0] || 'unknown';
-          const acct = `${username}@${domain}`;
-          const minimalOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
-          logger.info(`[FedSync] creating minimal FederatedActor: acct=${acct} outboxUrl=${minimalOutboxUrl}`);
-          actor = await FederatedActor.findOneAndUpdate(
-            { uri: actorUri },
-            {
-              $set: {
-                uri: actorUri,
-                username,
-                domain,
-                acct,
-                inboxUrl: `${actorUri}${actorUri.endsWith('/') ? '' : '/'}inbox`,
-                outboxUrl: minimalOutboxUrl,
-                oxyUserId: syncUserId,
-                lastFetchedAt: new Date(0), // Mark stale so the refresh below runs
+          // Fetch the real actor document so we use its advertised `outbox`
+          // (and `inbox`) endpoints. Guessing `actorUri + '/outbox'` only happens
+          // to work on Mastodon-style layouts and breaks non-Mastodon servers
+          // (PeerTube, Lemmy, some Pleroma) whose outbox lives elsewhere.
+          // `fetchRemoteActor` upserts the FederatedActor with the canonical
+          // `outboxUrl`/`inboxUrl` taken from `actor.outbox`/`actor.inbox`.
+          actor = await federationService.fetchRemoteActor(actorUri);
+
+          if (!actor) {
+            // The remote actor fetch failed (network error, blocked domain,
+            // unauthorized fetch, etc.). Fall back to a minimal FederatedActor
+            // with a guessed outbox so the sync can still attempt Mastodon-style
+            // layouts; the enqueued background refresh will correct it later.
+            const domain = new URL(actorUri).hostname;
+            const username = (oxyUser.username || '').split('@')[0] || 'unknown';
+            const acct = `${username}@${domain}`;
+            const fallbackOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
+            logger.info(`[FedSync] fetchRemoteActor failed for ${actorUri}; creating minimal FederatedActor with fallback outboxUrl=${fallbackOutboxUrl}`);
+            actor = await FederatedActor.findOneAndUpdate(
+              { uri: actorUri },
+              {
+                $set: {
+                  uri: actorUri,
+                  username,
+                  domain,
+                  acct,
+                  inboxUrl: `${actorUri}${actorUri.endsWith('/') ? '' : '/'}inbox`,
+                  outboxUrl: fallbackOutboxUrl,
+                  oxyUserId: syncUserId,
+                  lastFetchedAt: new Date(0), // Mark stale so the refresh below runs
+                },
+                $setOnInsert: { type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, fields: [], followersCount: 0, followingCount: 0, postsCount: 0 },
               },
-              $setOnInsert: { type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, fields: [], followersCount: 0, followingCount: 0, postsCount: 0 },
-            },
-            { upsert: true, returnDocument: 'after', lean: true },
-          ) as IFederatedActor | null;
+              { upsert: true, returnDocument: 'after', lean: true },
+            ) as IFederatedActor | null;
+          } else if (!actor.oxyUserId) {
+            // Stamp the resolved oxyUserId so the outbox sync attributes posts
+            // to the right author (fetchRemoteActor resolves it via Oxy, but
+            // make sure the local row carries the caller-supplied id too).
+            await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
+            actor.oxyUserId = syncUserId;
+          }
         }
 
         if (!actor) return;

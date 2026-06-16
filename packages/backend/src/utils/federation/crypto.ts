@@ -34,7 +34,13 @@ export async function getKeyPair(username: string): Promise<KeyPairData> {
     headers['Authorization'] = `Bearer ${serviceToken}`;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.debug(`[FedSync] Could not get service token for keypair fetch: ${message}`);
+    // A missing/invalid service credential is a hard operational failure: the
+    // keypair endpoint requires a service token, so without one the fetch below
+    // will 401 and all signed federation requests for this key fail. Surface it
+    // at error level so it is visible in production info-level logs.
+    logger.error(
+      `[FedSync] Failed to acquire service token for keypair fetch (username=${username}, url=${url}); proceeding unauthenticated and the request will likely 401: ${message}`,
+    );
     // Fall back to no auth (may work in dev if serviceAuthMiddleware is relaxed)
   }
 
