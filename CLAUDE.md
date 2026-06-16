@@ -54,7 +54,7 @@ packages/
 - **Frontend**: Expo Router, NativeWind + TailwindCSS 4.2, TanStack React Query, Zustand, Socket.io-client, LiveKit
 - **Backend**: Express 5, Mongoose 9, Redis 5, Socket.io, LiveKit Server SDK, Firebase Admin, AWS S3
 - **Feed System**: MTN protocol in `backend/src/mtn/` (ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners). `videos` descriptor (`packages/shared-types/src/mtn/feedDescriptor.ts`) is backed by `VideosFeed` (`packages/backend/src/mtn/feed/feeds/VideosFeed.ts`) — ranked feed of video posts (native + federated) powering the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400. Use `videos`.
-- **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain.
+- **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain. Outbox sync uses the actor's advertised `outbox` URL (`fetchRemoteActor`), with `actorUri + '/outbox'` only as fallback — guessing breaks PeerTube/Lemmy/some Pleroma. Boosts (Announce) are imported as `type:'boost'` posts (mirroring native repost shape), deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill (`syncOutboxPosts`/`extractCandidates`) paths.
 - **Auth**: Oxy integration via @oxyhq/core + @oxyhq/services
 
 ## Federated Media Cache
@@ -68,6 +68,18 @@ Remote/federated post media (images, video, audio) is proxied and cached through
 - **Gated by env**: `FEDERATION_MEDIA_CACHE_WRITE_ENABLED=true` (set on the mention ECS task in `oxy-infra/terraform/app-services-realtime.tf`). Unset = proxy works but nothing is written to S3.
 - **Post storage**: federated media URLs are stored RAW (remote) on the post (`content.media[].id`). The cache keys off the remote URL and never rewrites the post.
 - **SSM secrets**: `OXY_SERVICE_API_KEY` + `OXY_SERVICE_API_SECRET` are live in SSM at `/oxy/mention/OXY_SERVICE_API_KEY` and `/oxy/mention/OXY_SERVICE_API_SECRET`, wired into the ECS task definition.
+
+## Federation — Service Credential & Outbox Sync
+
+Federated post sync requires a valid Oxy `service`-type ApplicationCredential. Flow: view federated profile → `syncOutboxPosts` → `getKeyPair('instance')` → `getServiceToken()` (`POST api.oxy.so/auth/service-token`) → signs the GET to the remote ActivityPub outbox.
+
+**Silent sticky outage pattern:** a bad/missing service token causes `getServiceToken()` to fail → signed fetch returns 0 posts. The outbox-sync cooldown (`OUTBOX_SYNC_MIN_INTERVAL_MS`, stamps `lastOutboxSyncAt` in `feed.controller.ts`) then makes this empty first sync PERMANENT (`pending:true`, 0 posts) until `lastOutboxSyncAt` is manually cleared from the DB. A bad service token is invisible at `LOG_LEVEL=info` — service-token and signed-fetch failures now log at `error`/`warn` (commit `7138fbaf`).
+
+**Current service credential:** Oxy ApplicationCredential id `6a30ca4b5b15dc1bb793ad53` under the "Mention" Application, scopes `federation:write` + `user:read` + `files:write`. Secrets in GitHub `OxyHQ/Mention` → SSM `/oxy/mention/OXY_SERVICE_API_KEY|SECRET`.
+
+**Recreating creds:** use `~/Oxy/OxyHQServices/packages/api/scripts/create-service-credential.ts` (generic/idempotent; not committed — OxyHQServices working tree has an in-progress rewrite). Always use the real `ApplicationCredential.create` (SHA-256 secretHash). NEVER do a raw DB insert. Run prod-DB one-shots as a Fargate task in the oxy-api SG/subnets.
+
+**Mention is the only app using the Oxy service-token flow** (no other app needed a service credential as of 2026-06-16).
 
 ## Compose Intent URL
 
