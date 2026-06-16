@@ -515,6 +515,11 @@ class FederationService {
           metadata: {
             isSensitive: note.sensitive === true,
           },
+          // The raw collection insertMany bypasses Mongoose schema defaults, so
+          // seed the classification subdoc explicitly. Federated/imported posts
+          // must default to `pending` so the classification batch job picks them
+          // up exactly like locally created posts.
+          postClassification: { status: 'pending', attempts: 0 },
           ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
         });
       }

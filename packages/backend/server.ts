@@ -950,6 +950,14 @@ function startSchedulers(): void {
     logger.warn("Failed to start topic extraction service", error);
   }
 
+  // Post Classification Service (5-min interval; no-ops unless enabled + Alia configured)
+  try {
+    const { postClassificationService } = require("./src/services/PostClassificationService");
+    postClassificationService.start();
+  } catch (error) {
+    logger.warn("Failed to start post classification service", error);
+  }
+
   // Topic Service (daily AI enrichment of topic metadata)
   try {
     const { topicService } = require("./src/services/TopicService");
@@ -1004,6 +1012,13 @@ function stopSchedulers(): void {
     topicExtractionService.stop();
   } catch (error) {
     logger.warn("Failed to stop topic extraction service", error);
+  }
+
+  try {
+    const { postClassificationService } = require("./src/services/PostClassificationService");
+    postClassificationService.stop();
+  } catch (error) {
+    logger.warn("Failed to stop post classification service", error);
   }
 
   try {

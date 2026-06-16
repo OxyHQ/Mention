@@ -1,5 +1,12 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { PostType, PostVisibility, PostContent, PostStats, PostMetadata } from '@mention/shared-types';
+import {
+  PostType,
+  PostVisibility,
+  PostContent,
+  PostStats,
+  PostMetadata,
+  PostClassification,
+} from '@mention/shared-types';
 import { normalizePostHashtags } from '../utils/textProcessing';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
@@ -47,6 +54,10 @@ export interface IPost extends Document {
     topics?: Array<{ name: string; type: 'topic' | 'entity'; relevance: number; topicId?: string }>;
     extractedAt?: Date;
   };
+  // Internal AI-inferred classification metadata. Separate from `hashtags`.
+  // Defaults to a `pending` status on creation so the async classification batch
+  // job picks it up; the AI provider/model is never stored here.
+  postClassification?: PostClassification;
   translations?: Array<{ language: string; text: string; translatedAt: Date }>;
   createdAt: string;
   updatedAt: string;
@@ -286,6 +297,63 @@ const FederationSchema = new Schema({
   spoilerText: { type: String },
 }, { _id: false });
 
+// Default status applied to every newly created post so the async classification
+// batch job (PostClassificationService) picks it up. Kept as a named constant so
+// the model, the service queue filter, and tests share one source of truth.
+export const POST_CLASSIFICATION_PENDING = 'pending' as const;
+
+// All score subfields share the same 0..1 normalized probability bound.
+const CLASSIFICATION_SCORE_MIN = 0;
+const CLASSIFICATION_SCORE_MAX = 1;
+
+const classificationScoreField = () => ({
+  type: Number,
+  default: 0,
+  min: CLASSIFICATION_SCORE_MIN,
+  max: CLASSIFICATION_SCORE_MAX,
+});
+
+const PostClassificationScoresSchema = new Schema({
+  toxicity: classificationScoreField(),
+  constructiveness: classificationScoreField(),
+  spam: classificationScoreField(),
+  quality: classificationScoreField(),
+  controversy: classificationScoreField(),
+  negativity: classificationScoreField(),
+}, { _id: false });
+
+const PostClassificationSchema = new Schema({
+  topics: { type: [String], default: [] },
+  sentiment: {
+    type: String,
+    enum: ['positive', 'neutral', 'negative', 'mixed'],
+    default: 'neutral',
+  },
+  intent: {
+    type: String,
+    enum: ['question', 'announcement', 'feedback', 'opinion', 'complaint', 'joke', 'news', 'personal_update', 'other'],
+    default: 'other',
+  },
+  scores: { type: PostClassificationScoresSchema, default: () => ({}) },
+  confidence: {
+    type: Number,
+    default: 0,
+    min: CLASSIFICATION_SCORE_MIN,
+    max: CLASSIFICATION_SCORE_MAX,
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'classified', 'failed'],
+    default: POST_CLASSIFICATION_PENDING,
+    index: true,
+  },
+  // Number of classification attempts made so far. Used to cap retries before
+  // flipping a persistently failing post to `failed`. Internal bookkeeping —
+  // intentionally not part of the product-facing PostClassification type.
+  attempts: { type: Number, default: 0 },
+  classifiedAt: { type: Date },
+}, { _id: false });
+
 const PostSchema = new Schema<IPost>({
   oxyUserId: { type: String, required: false, index: true },
   federation: { type: FederationSchema, default: undefined },
@@ -365,6 +433,16 @@ const PostSchema = new Schema<IPost>({
       _id: false,
     }],
     extractedAt: { type: Date },
+  },
+  // Internal AI classification metadata. Defaults to a `pending` subdoc so EVERY
+  // document-based creation path (composer/API via PostCreationService,
+  // createThread, replies, single federated ingest, MCP) yields a post the
+  // classification batch job will pick up — with zero per-path code. The raw
+  // federated batch path (`Post.collection.insertMany`) bypasses Mongoose
+  // defaults and sets this explicitly in FederationService.
+  postClassification: {
+    type: PostClassificationSchema,
+    default: () => ({ status: POST_CLASSIFICATION_PENDING }),
   },
   translations: [{
     language: { type: String, required: true },
@@ -447,6 +525,7 @@ PostSchema.index({ 'content.media': 1, createdAt: -1 });
 PostSchema.index({ createdAt: -1 }); // Default sort order
 PostSchema.index({ 'extracted.extractedAt': 1, createdAt: -1 }); // Topic extraction queue
 PostSchema.index({ 'extracted.topics.name': 1, createdAt: -1 }); // Topic name lookup
+PostSchema.index({ 'postClassification.status': 1, createdAt: 1 }); // Classification batch queue
 
 // Geospatial indexes for both location fields
 PostSchema.index({ 'content.location': '2dsphere' }); // User's shared location
