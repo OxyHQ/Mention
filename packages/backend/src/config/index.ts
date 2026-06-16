@@ -83,6 +83,15 @@ export const config = {
     model: 'alia-v1',
     timeoutMs: 30_000,
   },
+  /**
+   * AI-powered post classification (topics, sentiment, intent, quality/safety
+   * signals). Provider/model selection lives INSIDE Alia (the Oxy multi-provider
+   * AI gateway) — never stored on the post. Disabled by default; the service
+   * also no-ops when Alia itself is not configured.
+   */
+  classification: {
+    enabled: process.env.POST_CLASSIFICATION_ENABLED === 'true',
+  },
 } as const;
 
 // Validate critical environment variables at startup

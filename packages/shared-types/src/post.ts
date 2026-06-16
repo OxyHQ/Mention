@@ -101,6 +101,81 @@ export interface PollData {
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
+/**
+ * Sentiment inferred from a post's content. `mixed` covers posts that are
+ * simultaneously positive and negative (e.g. constructive criticism).
+ */
+export type PostSentiment = 'positive' | 'neutral' | 'negative' | 'mixed';
+
+/**
+ * High-level communicative intent inferred from a post's content. `other` is the
+ * catch-all when no specific intent applies.
+ */
+export type PostIntent =
+  | 'question'
+  | 'announcement'
+  | 'feedback'
+  | 'opinion'
+  | 'complaint'
+  | 'joke'
+  | 'news'
+  | 'personal_update'
+  | 'other';
+
+/**
+ * Quality / safety / ranking signals inferred from a post's content. Every score
+ * is a normalized probability in the inclusive range 0..1.
+ *
+ * These are deliberately orthogonal so ranking can combine them without
+ * re-parsing content — e.g. negative-but-constructive posts (high
+ * `constructiveness`, low `toxicity`) stay eligible while toxic/ragebait posts
+ * (high `toxicity`, low `constructiveness`) become downrank candidates.
+ */
+export interface PostClassificationScores {
+  /** Likelihood the content is toxic, harassing, or abusive. */
+  toxicity: number;
+  /** Degree to which the content is constructive / adds value. */
+  constructiveness: number;
+  /** Likelihood the content is spam or low-effort promotion. */
+  spam: number;
+  /** Overall content quality (clarity, substance, effort). */
+  quality: number;
+  /** Degree to which the content is divisive / controversial. */
+  controversy: number;
+  /** Strength of negative emotional tone, independent of toxicity. */
+  negativity: number;
+}
+
+/**
+ * Status of a post's AI classification lifecycle:
+ * - `pending`: not yet classified (default on creation, awaiting the batch job).
+ * - `classified`: successfully classified; `classifiedAt` is set.
+ * - `failed`: classification failed after the retry budget was exhausted.
+ */
+export type PostClassificationStatus = 'pending' | 'classified' | 'failed';
+
+/**
+ * Internal, AI-inferred classification metadata for a post. This is intelligence
+ * derived from the post's content (topics, sentiment, intent, quality/safety
+ * signals) used for ranking, search, recommendations, and moderation.
+ *
+ * It is intentionally SEPARATE from user-written {@link Post.hashtags}: hashtags
+ * are explicit user tokens; `topics` here are inferred. The AI provider/model is
+ * an infrastructure concern and is deliberately NOT stored on the post.
+ */
+export interface PostClassification {
+  /** Inferred topics/tags (lowercase, normalized). Distinct from hashtags. */
+  topics: string[];
+  sentiment: PostSentiment;
+  intent: PostIntent;
+  scores: PostClassificationScores;
+  /** Overall confidence in this classification, 0..1. */
+  confidence: number;
+  status: PostClassificationStatus;
+  /** When the post was successfully classified. Absent until `classified`. */
+  classifiedAt?: Date;
+}
+
 export interface Post {
   id: string;
   _id?: string;
@@ -134,6 +209,13 @@ export interface Post {
   location?: GeoJSONPoint; // Post creation location metadata
   status?: 'draft' | 'published' | 'scheduled';
   scheduledFor?: string;
+  /**
+   * Internal AI-inferred classification metadata (topics, sentiment, intent,
+   * quality/safety scores). Separate from user {@link Post.hashtags}. Populated
+   * asynchronously by the classification batch job; defaults to a `pending`
+   * status on creation. The AI provider/model is never stored here.
+   */
+  postClassification?: PostClassification;
   createdAt: string;
   updatedAt: string;
 }
