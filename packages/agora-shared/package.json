@@ -11,16 +11,16 @@
     "react-native-safe-area-context": "^5.7.0",
     "@oxyhq/services": "^10.0.0",
     "@oxyhq/core": "^3.2.0",
-    "livekit-client": "^2.17.3",
+    "livekit-client": "^2.19.2",
     "@livekit/react-native": "^2.9.6",
     "expo-audio": "^56.0.12",
     "expo-image-picker": "^56.0.17",
     "socket.io-client": "^4.8.3",
     "@expo/vector-icons": "^15.1.1",
-    "react-native-svg": "^15.15.4",
-    "sonner-native": "^0.23.1",
+    "react-native-svg": "^15.15.5",
+    "sonner-native": "^0.26.1",
     "expo-blur": "^56.0.3",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
