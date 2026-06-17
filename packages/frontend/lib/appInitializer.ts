@@ -6,15 +6,12 @@
 import { Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 
-import { OxyServices } from '@oxyhq/core';
-
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import {
   hasNotificationPermission,
   setupNotifications,
 } from '@/utils/notifications';
 import { initializeI18n } from './i18n';
-import { INITIALIZATION_TIMEOUT } from './constants';
 import { logger } from '@/lib/logger';
 
 export interface InitializationResult {
@@ -26,23 +23,7 @@ export interface AppInitializationState {
   fontsLoaded: boolean;
   i18nInitialized: boolean;
   notificationsSetup: boolean;
-  authReady: boolean;
   videoMuteLoaded: boolean;
-}
-
-/**
- * Waits for authentication to be ready
- */
-async function waitForAuth(
-  services: OxyServices,
-  timeoutMs: number = INITIALIZATION_TIMEOUT.AUTH
-): Promise<boolean> {
-  try {
-    return await services.waitForAuth(timeoutMs);
-  } catch (e) {
-    logger.warn('waitForAuth failed', { error: e });
-    return false;
-  }
 }
 
 /**
@@ -73,21 +54,6 @@ async function loadVideoMuteState(): Promise<void> {
 }
 
 /**
- * Fetches current user if auth is ready
- */
-async function fetchCurrentUser(services: OxyServices, authReady: boolean): Promise<void> {
-  if (!authReady) {
-    return;
-  }
-
-  try {
-    await services.getCurrentUser();
-  } catch (error) {
-    logger.warn('Failed to fetch current user during init', { error });
-  }
-}
-
-/**
  * Main app initialization function
  * Coordinates all initialization steps
  */
@@ -110,10 +76,7 @@ export class AppInitializer {
   /**
    * Initializes the entire app
    */
-  static async initializeApp(
-    fontsLoaded: boolean,
-    services: OxyServices
-  ): Promise<InitializationResult> {
+  static async initializeApp(fontsLoaded: boolean): Promise<InitializationResult> {
     if (!fontsLoaded) {
       return {
         success: false,
@@ -124,16 +87,10 @@ export class AppInitializer {
     try {
       // Run all init tasks in parallel to minimize startup time
       logger.debug('Starting initialization');
-      const authPromise = waitForAuth(services, INITIALIZATION_TIMEOUT.AUTH);
 
       const results = await Promise.allSettled([
         setupNotificationsIfNeeded().then(() => logger.debug('Notifications done')),
         loadVideoMuteState().then(() => logger.debug('VideoMute done')),
-        // Fetch current user once auth resolves
-        authPromise.then((authReady) => {
-          logger.debug('Auth resolved', { authReady });
-          return fetchCurrentUser(services, authReady);
-        }).then(() => logger.debug('CurrentUser done')),
       ]);
 
       logger.debug('All tasks settled', { statuses: results.map(r => r.status) });
@@ -157,4 +114,3 @@ export class AppInitializer {
   }
 
 }
-

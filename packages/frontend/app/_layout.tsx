@@ -92,7 +92,7 @@ export default function RootLayout() {
   }, []);
 
   const initializeApp = useCallback(async () => {
-    const result = await AppInitializer.initializeApp(true, oxyServices);
+    const result = await AppInitializer.initializeApp(true);
 
     if (result.success) {
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));

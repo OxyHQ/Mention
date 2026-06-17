@@ -4,14 +4,9 @@ import { API_URL } from '@/config';
 
 // Shared OxyServices singleton reference — set by AppProviders after auth init
 let _oxyServices: OxyServices | null = null;
-let _activeSessionId: string | null = null;
 
 export function setOxyServicesRef(svc: OxyServices) {
   _oxyServices = svc;
-}
-
-export function setActiveSessionIdRef(id: string | null) {
-  _activeSessionId = id;
 }
 
 // Authenticated axios client for Mention backend (api.mention.earth)
@@ -28,7 +23,7 @@ authenticatedClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Retry once on 401 after refreshing the access token via session
+// Retry once on 401 after rotating the current refresh-cookie slot.
 authenticatedClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -36,18 +31,14 @@ authenticatedClient.interceptors.response.use(
     if (error.response?.status === 401 && _oxyServices && !config._retried) {
       config._retried = true;
       try {
-        if (_activeSessionId) {
-          await _oxyServices.getTokenBySession(_activeSessionId);
-        } else {
-          await _oxyServices.waitForAuth(3000);
-        }
-        const token = _oxyServices.getAccessToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const refreshed = await _oxyServices.refreshTokenViaCookie();
+        if (refreshed?.accessToken) {
+          _oxyServices.setTokens(refreshed.accessToken);
+          config.headers.Authorization = `Bearer ${refreshed.accessToken}`;
           return authenticatedClient(config);
         }
       } catch {
-        // Token refresh failed — fall through to reject
+        // Refresh failed — fall through to reject
       }
     }
     return Promise.reject(error);

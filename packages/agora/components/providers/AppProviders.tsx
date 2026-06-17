@@ -9,9 +9,10 @@ import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { BloomThemeProvider } from '@oxyhq/bloom';
 
+import { OXY_CLIENT_ID } from '@/config';
 import { agoraConfig } from '@/lib/agoraConfig';
 import { roomQueryKeys } from '@/hooks/useRoomsQuery';
-import { setOxyServicesRef, setActiveSessionIdRef } from '@/utils/api';
+import { setOxyServicesRef } from '@/utils/api';
 
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 try {
@@ -30,13 +31,10 @@ interface AppProvidersProps {
 }
 
 function OxyServicesSync({ children }: { children: React.ReactNode }) {
-  const { oxyServices, activeSessionId } = useOxy();
+  const { oxyServices } = useOxy();
   useEffect(() => {
     if (oxyServices) setOxyServicesRef(oxyServices);
   }, [oxyServices]);
-  useEffect(() => {
-    setActiveSessionIdRef(activeSessionId ?? null);
-  }, [activeSessionId]);
   return <>{children}</>;
 }
 
@@ -65,6 +63,7 @@ export const AppProviders = memo(function AppProviders({
             <QueryClientProvider client={queryClient}>
               <OxyProvider
                 oxyServices={oxyServices}
+                clientId={OXY_CLIENT_ID}
                 storageKeyPrefix="agora"
               >
                 <OxyServicesSync>
