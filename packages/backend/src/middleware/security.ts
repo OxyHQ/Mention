@@ -5,44 +5,26 @@ import { Request, Response } from "express";
 import { AuthRequest } from "../types/auth";
 import { RedisStore } from "./rateLimitStore";
 
+// Realistic limits for a media-heavy app. A single screen can fan out into
+// dozens of API + media calls, so the old 1000/15min ceiling was far too low.
+// Authenticated users get a generous budget; anonymous traffic is capped lower.
+const AUTHENTICATED_LIMIT_PER_WINDOW = 5000; // per 15 min
+const UNAUTHENTICATED_LIMIT_PER_WINDOW = 600; // per 15 min
+
 // Create Redis store for distributed rate limiting
 const redisStore = new RedisStore({ 
   prefix: 'rate-limit:api:',
   windowMs: 15 * 60 * 1000 // 15 minutes
 });
 
-// Rate limiting middleware with Redis store for distributed rate limiting
-// Realistic limits for production scale
-const rateLimiter = rateLimit({
-  store: redisStore,
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  // This middleware runs before auth, so req.user is never set.
-  // Use a flat limit here; per-endpoint rate limiters handle auth-aware limits.
-  max: 1000,
-  // req.user is never set at this stage, so always key by IP
-  keyGenerator: (req: Request) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
-  },
-  message: "Too many requests, please try again later.",
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req: Request) => req.path.startsWith('/files/upload') || req.method === 'OPTIONS'
-});
-
-// Brute force protection middleware (exclude file uploads and preflight)
-const bruteForceProtection: any = slowDown({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  // This middleware runs before auth, so req.user is never set.
-  // Use a flat limit matching the rate limiter above.
-  delayAfter: 1000,
-  delayMs: () => 500, // add 500ms delay per request above limit
-  skip: (req: Request) => req.path.startsWith('/files/upload') || req.method === 'OPTIONS'
-});
-
 /**
- * Generate a rate limit key based on user authentication status
- * Uses user ID for authenticated users, IP address for unauthenticated users
+ * Generate a rate limit key based on user authentication status.
+ * Uses user ID for authenticated users, IP address for unauthenticated users.
+ *
+ * Per-user keying is essential behind the ALB: many users egress through a
+ * small pool of proxy IPs, so IP-only keying would force unrelated users to
+ * share a single bucket and trip 429s. `optionalAuth` runs globally before the
+ * limiter (see server.ts), so `req.user.id` is populated by the time this runs.
  */
 function generateRateLimitKey(req: Request, prefix: string): string {
   const authReq = req as AuthRequest;
@@ -63,6 +45,60 @@ function getRateLimitMax(req: Request, authenticatedLimit: number, unauthenticat
   const authReq = req as AuthRequest;
   return authReq.user?.id ? authenticatedLimit : unauthenticatedLimit;
 }
+
+/**
+ * Shared predicate for requests that must never be rate limited / slowed down.
+ *
+ * Used by BOTH the global rate limiter and the brute-force slow-down so the two
+ * stay in lockstep. Exemptions:
+ *  - OPTIONS preflight: CORS checks must always succeed instantly.
+ *  - File uploads: large multipart bodies are inherently low-frequency and
+ *    counting them against the API budget breaks media posting.
+ *  - Image proxy / optimization ('/images/'): a single feed render pulls many
+ *    images through our origin; these must not consume the API budget.
+ *  - Media streaming / proxy ('/media/'): range-seeking generates many
+ *    sub-requests per asset that should not count as API calls.
+ *  - Health / liveness probes ('/health'): load balancer + ECS probes hit this
+ *    constantly and must never be throttled.
+ */
+function isRateLimitExempt(req: Request): boolean {
+  if (req.method === 'OPTIONS') {
+    return true;
+  }
+  const path = req.path;
+  return (
+    path.startsWith('/files/upload') ||
+    path.includes('/images/') ||
+    path.includes('/media/') ||
+    path.startsWith('/health')
+  );
+}
+
+// Rate limiting middleware with Redis store for distributed rate limiting.
+// Keyed per-user (falling back to IP) so authenticated users behind the shared
+// ALB IPs each get their own bucket and the higher authenticated limit.
+const rateLimiter = rateLimit({
+  store: redisStore,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: (req: Request) => getRateLimitMax(req, AUTHENTICATED_LIMIT_PER_WINDOW, UNAUTHENTICATED_LIMIT_PER_WINDOW),
+  keyGenerator: (req: Request) => generateRateLimitKey(req, 'api'),
+  message: "Too many requests, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: isRateLimitExempt,
+});
+
+// Brute force protection middleware. Mirrors the rate limiter's auth-aware
+// threshold and shares the same exemption predicate.
+const bruteForceProtection: RequestHandler = slowDown({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  delayAfter: (req: Request) => getRateLimitMax(req, AUTHENTICATED_LIMIT_PER_WINDOW, UNAUTHENTICATED_LIMIT_PER_WINDOW),
+  delayMs: () => 500, // add 500ms delay per request above limit
+  // Key per-user (fallback to IP) for the same reason as the rate limiter:
+  // shared ALB IPs must not lump distinct authenticated users together.
+  keyGenerator: (req: Request) => generateRateLimitKey(req, 'brute-force'),
+  skip: isRateLimitExempt,
+});
 
 // Rate limiter for link refresh operations (stricter limits)
 // Link refresh is expensive (fetching HTML, downloading images, processing)

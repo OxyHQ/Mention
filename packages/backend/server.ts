@@ -80,7 +80,10 @@ import federationApiRoutes from './src/routes/federation.api.routes';
 import { registerAllFeeds } from './src/mtn/feed/registerFeeds';
 
 // Middleware
-import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
+// @ts-ignore - TypeScript doesn't resolve the /server export with moduleResolution: node
+import { createOxyRateLimit } from '@oxyhq/core/dist/cjs/server';
+import { RedisStore } from "./src/middleware/rateLimitStore";
+import { bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
 import { performanceMiddleware } from "./src/middleware/performance";
 
@@ -92,6 +95,53 @@ const app = express();
 app.set('trust proxy', 1);
 
 export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
+
+// --- Create Redis Store for Rate Limiting ---
+const redisStore = new RedisStore({ 
+  prefix: 'rate-limit:api:',
+  windowMs: 15 * 60 * 1000 // 15 minutes
+});
+
+// --- Create Centralized Rate Limiter ---
+// The new createOxyRateLimit middleware handles both session resolution and rate limiting
+// internally, so we don't need the separate optionalAuth middleware anymore.
+const rateLimiter = createOxyRateLimit(oxy, { 
+  store: redisStore 
+});
+
+// --- Optional Auth Middleware ---
+// This is now only needed for specific routes that want to resolve req.user
+// but don't have rate limiting (since the centralized rate limiter handles this internally).
+// Keep it for backward compatibility with routes that expect it.
+const optionalAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Already resolved by an earlier pass (e.g., from rate limiter) — avoid a costly re-verify.
+  if ((req as AuthRequest).user?.id) {
+    return next();
+  }
+
+  // Check if Authorization header exists
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    // No auth header, continue as unauthenticated
+    logger.debug("Optional auth: No authorization header, continuing as unauthenticated");
+    return next();
+  }
+
+  // Try to authenticate if header exists
+  const authMiddleware = oxy.auth();
+  authMiddleware(req, res, (err?: unknown) => {
+    if (err) {
+      // Auth failed (invalid token, expired, etc.), but continue anyway
+      const message = err instanceof Error ? err.message : "Unknown error";
+      logger.debug(`Optional auth: Authentication failed, continuing as unauthenticated: ${message}`);
+      // Clear any partial user data that might have been set
+      (req as AuthRequest).user = undefined;
+    }
+    // Always continue the request chain
+    next();
+  });
+};
 
 // --- Middleware ---
 
@@ -699,33 +749,6 @@ app.set("io", io);
 global.io = io;
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
-
-// --- Optional Auth Middleware ---
-// Tries to authenticate but doesn't fail if no token is provided
-const optionalAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Check if Authorization header exists
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader) {
-    // No auth header, continue as unauthenticated
-    logger.debug("Optional auth: No authorization header, continuing as unauthenticated");
-    return next();
-  }
-  
-  // Try to authenticate if header exists
-  const authMiddleware = oxy.auth();
-  authMiddleware(req, res, (err?: unknown) => {
-    if (err) {
-      // Auth failed (invalid token, expired, etc.), but continue anyway
-      const message = err instanceof Error ? err.message : "Unknown error";
-      logger.debug(`Optional auth: Authentication failed, continuing as unauthenticated: ${message}`);
-      // Clear any partial user data that might have been set
-      (req as AuthRequest).user = undefined;
-    }
-    // Always continue the request chain
-    next();
-  });
-};
 
 // --- API ROUTES ---
 // Public API routes (no authentication required)
