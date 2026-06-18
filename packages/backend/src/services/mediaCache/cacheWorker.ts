@@ -30,6 +30,9 @@ import {
   deleteCachedMedia,
   isMediaCacheEnabled,
   uploadCachedMedia,
+  uploadFederatedMedia,
+  type CachedMediaSource,
+  type UploadedAsset,
 } from './oxyMediaStore';
 
 /** Random bytes for temp filenames (collision resistance). */
@@ -54,6 +57,8 @@ interface DownloadResult {
 type DownloadOutcome =
   | { ok: true; download: DownloadResult }
   | { ok: false; reason: 'not-media' | 'too-large' | 'upstream-error' | 'ssrf' };
+
+type MediaUploader = (source: CachedMediaSource) => Promise<UploadedAsset>;
 
 /**
  * Stream a remote media body to a local temp file, enforcing the per-type size
@@ -199,7 +204,7 @@ async function processEntry(remoteUrl: string): Promise<void> {
 
     let posterFileId: string | undefined;
     if (isVideoType(contentType)) {
-      posterFileId = await extractAndUploadPoster(filePath, dir);
+      posterFileId = await extractAndUploadPoster(filePath, dir, uploadCachedMedia);
     }
 
     await FederatedMediaCache.updateOne(
@@ -254,7 +259,11 @@ async function processEntry(remoteUrl: string): Promise<void> {
  * (small, bounded) JPEG is written to a temp file inside the worker's `dir` and
  * streamed to Oxy, keeping the upload boundary uniformly file-stream based.
  */
-async function extractAndUploadPoster(filePath: string, dir: string): Promise<string | undefined> {
+async function extractAndUploadPoster(
+  filePath: string,
+  dir: string,
+  upload: MediaUploader,
+): Promise<string | undefined> {
   const prefix = await readFilePrefix(filePath, MEDIA_CACHE_POSTER_PREFIX_BYTES);
   if (prefix.length === 0) return undefined;
 
@@ -266,13 +275,91 @@ async function extractAndUploadPoster(filePath: string, dir: string): Promise<st
 
   const posterPath = join(dir, `${randomBytes(TEMP_NAME_RANDOM_BYTES).toString('hex')}.jpg`);
   await writeFile(posterPath, poster.jpeg);
-  const uploaded = await uploadCachedMedia({
+  const uploaded = await upload({
     filePath: posterPath,
     contentType: POSTER_CONTENT_TYPE,
     originalName: POSTER_FILENAME,
     sizeBytes: poster.jpeg.byteLength,
   });
   return uploaded.oxyFileId;
+}
+
+export interface PersistedFederatedMedia {
+  oxyFileId: string;
+  posterFileId?: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+/**
+ * Download a remote ActivityPub media URL and persist it as a normal public Oxy
+ * asset owned by the resolved federated Oxy user. This deliberately bypasses
+ * `FederatedMediaCache`: persisted post media must not be evicted by the cache
+ * TTL job while a Mention post still references its file id.
+ */
+export async function persistRemoteMediaForFederatedOwner(
+  remoteUrl: string,
+  ownerUserId: string,
+  metadata?: Record<string, unknown>,
+): Promise<PersistedFederatedMedia | null> {
+  if (!isMediaCacheEnabled()) {
+    logger.debug('[MediaCache] Durable federation upload skipped — media writes disabled');
+    return null;
+  }
+
+  const dir = await mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX));
+  try {
+    const outcome = await downloadToTempFile(remoteUrl, dir);
+    if (!outcome.ok) return null;
+
+    const { filePath, contentType, sizeBytes } = outcome.download;
+    const media = await uploadFederatedMedia({
+      filePath,
+      contentType,
+      originalName: deriveFilename(remoteUrl, contentType),
+      sizeBytes,
+      ownerUserId,
+      metadata,
+    });
+
+    let posterFileId: string | undefined;
+    if (isVideoType(contentType)) {
+      posterFileId = await extractAndUploadPoster(filePath, dir, (source) =>
+        uploadFederatedMedia({
+          ...source,
+          ownerUserId,
+          metadata: {
+            ...(metadata || {}),
+            role: 'poster',
+          },
+        })
+      );
+    }
+
+    return {
+      oxyFileId: media.oxyFileId,
+      posterFileId,
+      contentType,
+      sizeBytes,
+    };
+  } catch (error) {
+    if (error instanceof MediaStoreUnavailableError) {
+      logger.error('[MediaCache] Durable federation upload unavailable', {
+        reason: error.message,
+      });
+    } else {
+      logger.warn('[MediaCache] Durable federation upload failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch((error: unknown) => {
+      logger.warn('[MediaCache] Failed to remove durable upload temp dir', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+    });
+  }
 }
 
 /** Increment failCount and either schedule a backoff or mark `failed`. */

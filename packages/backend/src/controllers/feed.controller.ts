@@ -957,7 +957,10 @@ class FeedController {
           // (PeerTube, Lemmy, some Pleroma) whose outbox lives elsewhere.
           // `fetchRemoteActor` upserts the FederatedActor with the canonical
           // `outboxUrl`/`inboxUrl` taken from `actor.outbox`/`actor.inbox`.
-          actor = await federationService.fetchRemoteActor(actorUri);
+          const acctHint = typeof oxyUser.username === 'string' && oxyUser.username.includes('@')
+            ? oxyUser.username
+            : undefined;
+          actor = await federationService.fetchRemoteActor(actorUri, false, acctHint);
 
           if (!actor) {
             // The remote actor fetch failed (network error, blocked domain,
@@ -1018,13 +1021,19 @@ class FeedController {
             await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
             actor.oxyUserId = syncUserId;
           }
-          const syncedCount = await federationService.syncOutboxPosts(actor, this.FED_OUTBOX_SYNC_LIMIT);
+          const syncResult = await federationService.syncOutboxPostsDetailed(actor, this.FED_OUTBOX_SYNC_LIMIT);
+          const syncedCount = syncResult.syncedCount;
           logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
-          // Stamp the sync time so subsequent views honour the cooldown.
-          await FederatedActor.updateOne(
-            { _id: actor._id },
-            { $set: { lastOutboxSyncAt: new Date() } },
-          );
+          if (syncResult.shouldStampCooldown) {
+            // Stamp the sync time so subsequent views honour the cooldown only
+            // after a fetch that actually exposed an inspectable outbox.
+            await FederatedActor.updateOne(
+              { _id: actor._id },
+              { $set: { lastOutboxSyncAt: new Date() } },
+            );
+          } else {
+            logger.info(`[FedSync] not stamping outbox cooldown for ${actor.acct}; reason=${syncResult.reason ?? 'unknown'}`);
+          }
           // Backfill oxyUserId on any posts that were stored without it
           if (syncedCount > 0) {
             await Post.updateMany(

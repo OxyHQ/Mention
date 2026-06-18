@@ -24,6 +24,8 @@ import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
 import { normalizeHashtag, normalizePostHashtags } from '../utils/textProcessing';
+import { recordAccessAndMaybeEnqueue } from './mediaCache/cacheStore';
+import { persistRemoteMediaForFederatedOwner } from './mediaCache/cacheWorker';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -45,6 +47,43 @@ const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 type OutboxCandidate =
   | { kind: 'note'; note: Record<string, any>; activity: Record<string, any>; activityId: string }
   | { kind: 'announce'; activity: Record<string, any>; activityId: string; announcedUri: string };
+
+type ExtractedMediaItem = { id: string; type: ApMediaType };
+type ExtractedMediaAttachment = { type: 'media'; id: string; mediaType: ApMediaType };
+
+interface OutboxSyncResult {
+  syncedCount: number;
+  shouldStampCooldown: boolean;
+  reason?: string;
+}
+
+function isAbsoluteHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
+function firstStringUrl(value: unknown): string | undefined {
+  if (typeof value === 'string' && isAbsoluteHttpUrl(value)) return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const resolved = firstStringUrl(item);
+      if (resolved) return resolved;
+    }
+    return undefined;
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return firstStringUrl(record.url) || firstStringUrl(record.href);
+  }
+  return undefined;
+}
+
+function getRemoteHost(remoteUrl: string): string | undefined {
+  try {
+    return new URL(remoteUrl).host.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Sign a GET request using the instance actor key pair (managed by Oxy).
@@ -143,6 +182,63 @@ class FederationService {
     }
   }
 
+  private async materializeFederatedMedia(
+    media: ExtractedMediaItem[],
+    attachments: ExtractedMediaAttachment[],
+    ownerOxyUserId: string | null | undefined,
+    context: { activityId?: string; actorUri?: string } = {},
+  ): Promise<{ media: ExtractedMediaItem[]; attachments: ExtractedMediaAttachment[] }> {
+    if (media.length === 0) return { media, attachments };
+
+    const idMap = new Map<string, string>();
+    const outputMedia: ExtractedMediaItem[] = [];
+
+    for (const item of media) {
+      const remoteUrl = item.id;
+      if (!isAbsoluteHttpUrl(remoteUrl)) {
+        outputMedia.push(item);
+        continue;
+      }
+
+      if (!ownerOxyUserId) {
+        void recordAccessAndMaybeEnqueue(remoteUrl);
+        outputMedia.push(item);
+        continue;
+      }
+
+      const persisted = await persistRemoteMediaForFederatedOwner(remoteUrl, ownerOxyUserId, {
+        remoteHost: getRemoteHost(remoteUrl),
+        activityId: context.activityId,
+        actorUri: context.actorUri,
+        mediaType: item.type,
+      });
+
+      if (!persisted) {
+        void recordAccessAndMaybeEnqueue(remoteUrl);
+        outputMedia.push(item);
+        continue;
+      }
+
+      idMap.set(remoteUrl, persisted.oxyFileId);
+      outputMedia.push({
+        ...item,
+        id: persisted.oxyFileId,
+        remoteUrl,
+        cachedFromFederation: true,
+        ...(persisted.posterFileId ? { posterFileId: persisted.posterFileId } : {}),
+      } as ExtractedMediaItem);
+    }
+
+    if (idMap.size === 0) return { media: outputMedia, attachments };
+
+    const outputAttachments = attachments.map((attachment) => ({
+      ...attachment,
+      id: idMap.get(attachment.id) || attachment.id,
+    }));
+
+    return { media: outputMedia, attachments: outputAttachments };
+  }
+
   /**
    * Extract the announced object URI from an Announce activity's `object`,
    * which may be a plain URI string or an embedded object with an `id`.
@@ -215,7 +311,7 @@ class FederationService {
    *   stored file ID. Pass `true` from refresh paths (scheduled job, viewed
    *   profile refresh) and `false` for first-time creation.
    */
-  async fetchRemoteActor(actorUri: string, forceAvatarRefresh = false): Promise<IFederatedActor | null> {
+  async fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<IFederatedActor | null> {
     try {
       // Normalize: strip www. prefix for known AP domains (e.g., www.threads.net → threads.net)
       actorUri = actorUri.replace(/^(https?:\/\/)www\./i, '$1');
@@ -231,8 +327,8 @@ class FederationService {
         // the username-based URI we may have stored.
         const parsed = new URL(actorUri);
         const pathUsername = parsed.pathname.split('/').filter(Boolean).pop();
-        if (pathUsername) {
-          const acct = `${pathUsername}@${parsed.hostname}`;
+        const acct = acctHint || (pathUsername ? `${pathUsername}@${parsed.hostname}` : undefined);
+        if (acct) {
           logger.info(`[FedSync] attempting WebFinger fallback for ${acct}`);
           const resolved = await this.resolveWebFinger(acct);
           if (resolved && resolved !== actorUri) {
@@ -293,6 +389,9 @@ class FederationService {
         }
       }
 
+      const avatarUrl = firstStringUrl(actor.icon);
+      const headerUrl = firstStringUrl(actor.image);
+
       const update: Partial<IFederatedActor> = {
         uri: actor.id,
         username,
@@ -300,8 +399,8 @@ class FederationService {
         acct,
         displayName: decodeEntities(actor.name || username),
         summary: actor.summary ? htmlToPlainText(actor.summary) : '',
-        avatarUrl: actor.icon?.url || actor.icon?.href || undefined,
-        headerUrl: actor.image?.url || actor.image?.href || undefined,
+        avatarUrl,
+        headerUrl,
         inboxUrl: actor.inbox,
         outboxUrl: actor.outbox || undefined,
         sharedInboxUrl: actor.endpoints?.sharedInbox || undefined,
@@ -343,7 +442,7 @@ class FederationService {
             actorUri: actor.id,
             domain,
             displayName: decodeEntities(actor.name || username),
-            avatar: actor.icon?.url || actor.icon?.href,
+            avatar: avatarUrl,
             bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
             // On refresh, tell Oxy to re-download and replace the avatar even if
             // it already stored a file ID. Coordinated with oxy-api's
@@ -356,7 +455,6 @@ class FederationService {
             await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyId } });
           }
           // Download and upload remote banner to Oxy (same pattern as avatar)
-          const headerUrl = actor.image?.url || actor.image?.href;
           if (oxyId && headerUrl) {
             try {
               const imgRes = await fetch(headerUrl);
@@ -410,18 +508,29 @@ class FederationService {
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
   async syncOutboxPosts(actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string }, limit = 20): Promise<number> {
-    if (!actor.outboxUrl) return 0;
+    const result = await this.syncOutboxPostsDetailed(actor, limit);
+    return result.syncedCount;
+  }
+
+  async syncOutboxPostsDetailed(
+    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string },
+    limit = 20,
+  ): Promise<OutboxSyncResult> {
+    if (!actor.outboxUrl) {
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
+    }
 
     try {
       // Fetch the outbox collection (signed for authorized-fetch servers)
       const res = await signedFetch(actor.outboxUrl, AP_CONTENT_TYPE);
       if (!res.ok) {
         logger.info(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${actor.outboxUrl}`);
-        return 0;
+        return { syncedCount: 0, shouldStampCooldown: false, reason: `outbox-http-${res.status}` };
       }
 
       const collection = await res.json() as Record<string, any>;
       logger.info(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
+      const remoteTotalItems = typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
 
       // Paginate through outbox pages to collect enough top-level posts.
       // Most outbox items are replies which we skip, so we may need several
@@ -430,6 +539,7 @@ class FederationService {
       const candidates: OutboxCandidate[] = [];
       const MAX_PAGES = 10;
       let nextPageUrl: string | null = null;
+      let paginationFailed = false;
 
       if (collection.orderedItems) {
         this.extractCandidates(collection.orderedItems, candidates, limit);
@@ -443,6 +553,7 @@ class FederationService {
           const pageRes = await signedFetch(nextPageUrl, AP_CONTENT_TYPE);
           if (!pageRes.ok) {
             logger.info(`[FedSync] outbox page fetch failed: ${pageRes.status} for ${nextPageUrl}`);
+            paginationFailed = true;
             break;
           }
           const pageData = await pageRes.json() as Record<string, any>;
@@ -453,6 +564,7 @@ class FederationService {
           nextPageUrl = pageData.next || null;
         } catch (pageErr) {
           logger.debug(`[FedSync] outbox pagination error: ${pageErr}`);
+          paginationFailed = true;
           break;
         }
       }
@@ -461,7 +573,14 @@ class FederationService {
 
       if (candidates.length === 0) {
         logger.info(`[FedSync] no candidate notes found for ${actor.acct}`);
-        return 0;
+        const hasInlineItems = Array.isArray(collection.orderedItems) && collection.orderedItems.length > 0;
+        const hasFirstPage = Boolean(collection.first);
+        const nonEmptyButNotInspectable = !hasInlineItems && !hasFirstPage && typeof remoteTotalItems === 'number' && remoteTotalItems > 0;
+        return {
+          syncedCount: 0,
+          shouldStampCooldown: !paginationFailed && !nonEmptyButNotInspectable,
+          reason: nonEmptyButNotInspectable ? 'non-empty-outbox-without-items' : 'no-candidates',
+        };
       }
 
       const noteCandidates = candidates.filter(
@@ -530,7 +649,7 @@ class FederationService {
         if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) continue;
 
         const rawText = htmlToPlainText(rawContent);
-        const { media, attachments } = this.extractApMedia(note);
+        const extracted = this.extractApMedia(note);
         // The raw collection insertMany below bypasses Mongoose middleware, so
         // run the centralized normalizer explicitly: clean spammy hashtag blocks
         // from the visible text and merge inline tags with the AP `tag` array
@@ -544,6 +663,12 @@ class FederationService {
         if (!resolvedOxyUserId) {
           logger.info(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
         }
+        const { media, attachments } = await this.materializeFederatedMedia(
+          extracted.media,
+          extracted.attachments,
+          resolvedOxyUserId,
+          { activityId, actorUri: actorUri ?? undefined },
+        );
 
         newDocs.push({
           oxyUserId: resolvedOxyUserId,
@@ -633,10 +758,10 @@ class FederationService {
 
       const synced = existingIds.size + newDocs.length + importedBoosts;
       logger.debug(`Synced ${newDocs.length} new outbox posts and ${importedBoosts} boosts for ${actor.acct} (${existingIds.size} already existed)`);
-      return synced;
+      return { syncedCount: synced, shouldStampCooldown: true };
     } catch (err) {
       logger.warn(`Failed to sync outbox posts from ${actor.outboxUrl}:`, err);
-      return 0;
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'exception' };
     }
   }
 
@@ -760,10 +885,16 @@ class FederationService {
     }
 
     const text = htmlToPlainText(rawContent);
-    const { media, attachments } = this.extractApMedia(note);
+    const extracted = this.extractApMedia(note);
     const hashtags = this.extractApHashtags(note);
     const published = typeof note.published === 'string' ? note.published : undefined;
     const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
+    const { media, attachments } = await this.materializeFederatedMedia(
+      extracted.media,
+      extracted.attachments,
+      authorOxyUserId,
+      { activityId: noteActivityId, actorUri: authorUri ?? undefined },
+    );
 
     const { postCreationService } = require('./PostCreationService') as {
       postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<{ _id: unknown }> };
@@ -914,7 +1045,7 @@ class FederationService {
     this.inFlightActorRefreshes.add(actorUri);
     void (async () => {
       try {
-        await this.fetchRemoteActor(actorUri, forceAvatarRefresh);
+        await this.fetchRemoteActor(actorUri, forceAvatarRefresh, existing?.acct);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.warn(`[FedSync] background actor refresh failed for ${actorUri}: ${message}`);
@@ -1422,7 +1553,13 @@ class FederationService {
     if (!actor) return;
 
     const hashtags = this.extractApHashtags(object);
-    const { media, attachments } = this.extractApMedia(object);
+    const extracted = this.extractApMedia(object);
+    const { media, attachments } = await this.materializeFederatedMedia(
+      extracted.media,
+      extracted.attachments,
+      actor.oxyUserId,
+      { activityId: object.id, actorUri },
+    );
 
     const { postCreationService } = require('./PostCreationService') as {
       postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
@@ -1584,7 +1721,18 @@ class FederationService {
       if (!objectId) return;
 
       const text = htmlToPlainText(object.content || '');
-      const { media, attachments } = this.extractApMedia(object);
+      const existingPost = await Post.findOne(
+        { 'federation.activityId': objectId },
+        { oxyUserId: 1 },
+      ).lean<{ oxyUserId?: string | null } | null>();
+      const ownerOxyUserId = existingPost?.oxyUserId ?? (await this.getOrFetchActor(actorUri))?.oxyUserId ?? null;
+      const extracted = this.extractApMedia(object);
+      const { media, attachments } = await this.materializeFederatedMedia(
+        extracted.media,
+        extracted.attachments,
+        ownerOxyUserId,
+        { activityId: objectId, actorUri },
+      );
 
       await Post.updateOne(
         { 'federation.activityId': objectId },

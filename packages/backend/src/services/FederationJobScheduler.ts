@@ -166,7 +166,7 @@ class FederationJobScheduler {
         },
       ],
     })
-      .select('uri')
+      .select('uri acct')
       .limit(ACTOR_REFRESH_BATCH_SIZE) // Process in batches to avoid fan-out storms
       .lean();
 
@@ -181,7 +181,7 @@ class FederationJobScheduler {
       await Promise.allSettled(
         batch.map((actor) =>
           // forceAvatarRefresh=true → Oxy re-downloads/replaces the avatar.
-          federationService.fetchRemoteActor(actor.uri, true).catch((err) => {
+          federationService.fetchRemoteActor(actor.uri, true, actor.acct).catch((err) => {
             const message = err instanceof Error ? err.message : String(err);
             logger.debug(`[FedSync] Failed to refresh actor ${actor.uri}: ${message}`);
           })

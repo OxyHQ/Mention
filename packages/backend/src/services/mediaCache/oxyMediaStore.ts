@@ -74,6 +74,8 @@ export interface CachedMediaSource {
 
 /** Path of the oxy-api service-token asset cache endpoint (relative to the API base). */
 const OXY_ASSET_CACHE_PATH = '/assets/service/cache';
+/** Path of the oxy-api durable federated-media upload endpoint. */
+const OXY_ASSET_FEDERATION_PATH = '/assets/service/federation';
 
 /** Successful upload status returned by the oxy-api cache endpoint. */
 const HTTP_OK = 200;
@@ -212,7 +214,38 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
     throw new MediaStoreUnavailableError('upload');
   }
 
-  const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}`);
+  return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
+}
+
+export interface FederatedMediaSource extends CachedMediaSource {
+  ownerUserId: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Upload durable federated media to Oxy as a normal public asset owned by the
+ * resolved federated Oxy user. This is used when Mention persists post media
+ * references directly to file ids, so the file must not be in the cache eviction
+ * namespace.
+ */
+export async function uploadFederatedMedia(source: FederatedMediaSource): Promise<UploadedAsset> {
+  if (!isMediaCacheEnabled()) {
+    throw new MediaStoreUnavailableError('upload');
+  }
+
+  const metadata = source.metadata ? JSON.stringify(source.metadata).slice(0, 4096) : undefined;
+  return uploadMediaToOxy(OXY_ASSET_FEDERATION_PATH, source, {
+    'x-owner-user-id': source.ownerUserId,
+    ...(metadata ? { 'x-media-metadata': metadata } : {}),
+  });
+}
+
+async function uploadMediaToOxy(
+  path: string,
+  source: CachedMediaSource,
+  extraHeaders: Record<string, string> = {},
+): Promise<UploadedAsset> {
+  const target = new URL(`${getOxyApiBaseUrl()}${path}`);
 
   // The token is acquired and the file stream re-opened INSIDE the closure so a
   // 401 retry re-mints the bearer and pipes a fresh stream (a consumed stream
@@ -223,6 +256,7 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
       Authorization: `Bearer ${token}`,
       'Content-Type': source.contentType,
       Accept: 'application/json',
+      ...extraHeaders,
     };
     if (source.originalName) {
       headers['x-original-name'] = source.originalName;

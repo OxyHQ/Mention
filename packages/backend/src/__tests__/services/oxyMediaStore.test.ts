@@ -110,7 +110,12 @@ vi.mock('node:https', () => ({
   request: (options: CapturedRequest['options'], cb: (res: Readable & { statusCode: number }) => void) => fakeRequest(options, cb),
 }));
 
-import { uploadCachedMedia, deleteCachedMedia, OxyMediaStoreRequestError } from '../../services/mediaCache/oxyMediaStore';
+import {
+  uploadCachedMedia,
+  uploadFederatedMedia,
+  deleteCachedMedia,
+  OxyMediaStoreRequestError,
+} from '../../services/mediaCache/oxyMediaStore';
 
 let workDir: string;
 
@@ -245,6 +250,42 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
 
     expect(requests).toHaveLength(1);
     expect(invalidateServiceToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('oxyMediaStore.uploadFederatedMedia', () => {
+  it('POSTs to /assets/service/federation with owner and metadata headers', async () => {
+    const filePath = join(workDir, 'fed.bin');
+    const payload = Buffer.from('durable-fediverse-media');
+    await writeFile(filePath, payload);
+
+    respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_fed' } } }) });
+
+    const result = await uploadFederatedMedia({
+      filePath,
+      contentType: 'image/jpeg',
+      originalName: 'photo.jpg',
+      sizeBytes: payload.byteLength,
+      ownerUserId: '6a3000000000000000000000',
+      metadata: { remoteHost: 'example.social', activityId: 'https://example.social/posts/1' },
+    });
+
+    expect(result).toEqual({ oxyFileId: 'oxy_file_fed', sizeBytes: payload.byteLength, contentType: 'image/jpeg' });
+    expect(requests).toHaveLength(1);
+
+    const sent = requests[0];
+    expect(sent.options.method).toBe('POST');
+    expect(sent.options.hostname).toBe('oxy.test');
+    expect(sent.options.path).toBe('/assets/service/federation');
+    expect(sent.options.headers.Authorization).toBe(`Bearer ${SERVICE_TOKEN}`);
+    expect(sent.options.headers['Content-Type']).toBe('image/jpeg');
+    expect(sent.options.headers['x-original-name']).toBe('photo.jpg');
+    expect(sent.options.headers['x-owner-user-id']).toBe('6a3000000000000000000000');
+    expect(JSON.parse(sent.options.headers['x-media-metadata'])).toEqual({
+      remoteHost: 'example.social',
+      activityId: 'https://example.social/posts/1',
+    });
+    expect(Buffer.concat(sent.bodyChunks).toString('utf8')).toBe('durable-fediverse-media');
   });
 });
 
