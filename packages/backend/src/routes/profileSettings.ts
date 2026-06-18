@@ -5,10 +5,10 @@ import Post from '../models/Post';
 import Bookmark from '../models/Bookmark';
 import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
-import { AuthRequest, requireAuth } from '../middleware/auth';
+import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { ensureUserSettings } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
-import { getAuthenticatedUserId } from '../utils/auth';
+import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 
 const router = Router();

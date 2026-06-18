@@ -14,10 +14,10 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { MuteWord } from '../models/MuteWord';
-import { AuthRequest, requireAuth } from '../middleware/auth';
+import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
-import { getAuthenticatedUserId } from '../utils/auth';
+import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { normalizeHashtag } from '../utils/textProcessing';
 import { logger } from '../utils/logger';
 

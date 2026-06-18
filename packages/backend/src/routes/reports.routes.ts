@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import Report, { ReportedType, ReportCategory, ReportStatus } from '../models/Report.model';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 
 const router = Router();

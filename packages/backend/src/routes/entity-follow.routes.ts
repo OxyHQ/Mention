@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { EntityFollow } from '../models/EntityFollow';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 
 const router = Router();

@@ -8,7 +8,7 @@ import Room, {
   SpeakerPermission,
   IRoom,
 } from '../../models/Room';
-import { AuthRequest } from '../../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../../utils/logger';
 import {
   createLiveKitRoomForRoom,

@@ -1,12 +1,11 @@
-import express, { Request, Response } from 'express';
+import express, { Response } from 'express';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import AccountList from '../models/AccountList';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
 
 const router = express.Router();
-
-interface AuthRequest extends Request { user?: { id: string } }
 
 // Create list (accounts)
 router.post('/', async (req: AuthRequest, res: Response) => {

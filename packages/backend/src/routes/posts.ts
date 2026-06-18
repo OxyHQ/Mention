@@ -31,7 +31,7 @@ import {
 import { Threadgate } from '../models/Threadgate';
 import { Postgate } from '../models/Postgate';
 import { createPostUri } from '@mention/shared-types';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 
 const router = Router();
 

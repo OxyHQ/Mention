@@ -4,7 +4,7 @@ import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';

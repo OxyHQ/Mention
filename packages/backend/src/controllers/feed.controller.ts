@@ -26,7 +26,7 @@ import { userPreferenceService } from '../services/UserPreferenceService';
 import { postHydrationService } from '../services/PostHydrationService';
 import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
 import { FeedResponseBuilder } from '../utils/FeedResponseBuilder';

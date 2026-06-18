@@ -2,7 +2,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { Request, Response, NextFunction } from 'express';
 import { RedisStore } from './rateLimitStore';
 import { logger } from '../utils/logger';
-import { AuthRequest } from './auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 
 /**
  * Rate limiter configuration for feed endpoints
@@ -121,4 +121,3 @@ export const apiRateLimiter = rateLimit({
     return ipKeyGenerator(ip);
   },
 });
-

@@ -1,5 +1,5 @@
 import express, { Response } from 'express';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { validateUrlSecurity } from '../utils/urlSecurity';
 import { imageCacheService } from '../services/imageCacheService';

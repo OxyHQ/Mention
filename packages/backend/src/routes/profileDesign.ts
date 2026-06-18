@@ -4,7 +4,7 @@ import Post from '../models/Post';
 import { extractPublicProfileData } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { resolveMediaRef } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';

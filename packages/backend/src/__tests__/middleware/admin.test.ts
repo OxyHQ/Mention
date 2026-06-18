@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Response, NextFunction } from 'express';
-import type { AuthRequest } from '../../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 
 // --- helpers ----------------------------------------------------------------
 

@@ -1,12 +1,11 @@
-import express, { Request, Response } from 'express';
+import express, { Response } from 'express';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import StarterPack from '../models/StarterPack';
 import { escapeRegex } from '../utils/textProcessing';
 
 const router = express.Router();
 
 const MAX_MEMBERS = 150;
-
-interface AuthRequest extends Request { user?: { id: string } }
 
 // Create starter pack
 router.post('/', async (req: AuthRequest, res: Response) => {

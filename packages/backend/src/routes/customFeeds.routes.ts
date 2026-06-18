@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import CustomFeed from '../models/CustomFeed';
 import FeedReview from '../models/FeedReview';
 import { Post } from '../models/Post';
@@ -9,10 +10,6 @@ import FeedLike from '../models/FeedLike';
 import { oxy as oxyClient } from '../../server';
 import { escapeRegex } from '../utils/textProcessing';
 import { logger } from '../utils/logger';
-
-interface AuthRequest extends Request {
-  user?: { id: string };
-}
 
 const router = Router();
 

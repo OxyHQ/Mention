@@ -1,10 +1,10 @@
 import express, { Response } from 'express';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { linkMetadataService } from '../services/linkMetadataService';
 import { logger } from '../utils/logger';
 import { validateUrlSecurity } from '../utils/urlSecurity';
 import { imageCacheService } from '../services/imageCacheService';
-import { requireAuth } from '../middleware/auth';
+import { requireOxyAuth as requireAuth } from '@oxyhq/core/server';
 import { linkRefreshRateLimiter, linkCacheClearRateLimiter } from '../middleware/security';
 import { getAllowedOrigins } from '../utils/allowedOrigins';
 

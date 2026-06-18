@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
 import { feedController } from '../controllers/feed.controller';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { config } from '../config';
 import { oxy as oxyClient } from '../../server';
 

@@ -25,7 +25,7 @@ import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import { logger } from "./src/utils/logger";
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
-import { AuthRequest } from "./src/types/auth";
+import type { OxyAuthRequest as AuthRequest } from "@oxyhq/core/server";
 import { runMigrations } from "./src/migrations/runner";
 import { leaderElection } from "./src/services/LeaderElection";
 

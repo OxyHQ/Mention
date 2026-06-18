@@ -8,7 +8,7 @@
 import { Request, Response } from 'express';
 import { isValidFeedDescriptor, MtnConfig } from '@mention/shared-types';
 import type { FeedDescriptor } from '@mention/shared-types';
-import { AuthRequest } from '../../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { feedAPIRegistry } from '../feed/FeedAPIRegistry';
 import { FeedTuner } from '../feed/FeedTuner';
 import { UserPrivacyManager } from '../UserPrivacyManager';

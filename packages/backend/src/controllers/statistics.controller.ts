@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { AuthRequest } from "../types/auth";
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
 import { aliaChat, isAliaEnabled } from '../utils/alia';

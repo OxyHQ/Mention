@@ -3,7 +3,7 @@ import multer from 'multer';
 import House, { HouseMemberRole, IHouseMember } from '../models/House';
 import Room, { RoomStatus } from '../models/Room';
 import Series from '../models/Series';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { processImage } from '../utils/imageProcessor';
 import { uploadObject, deleteObject, getAgoraHouseAvatarKey, getAgoraHouseCoverKey, getCdnUrl } from '../utils/spaces';

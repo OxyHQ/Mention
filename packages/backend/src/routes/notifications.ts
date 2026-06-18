@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import Notification from "../models/Notification";
 import Post from "../models/Post";
@@ -8,14 +9,6 @@ import PushToken from '../models/PushToken';
 import { sendPushToUser } from '../utils/push';
 import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
-
-// Extend Request type to include user property
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    [key: string]: any;
-  };
-}
 
 const router = express.Router();
 

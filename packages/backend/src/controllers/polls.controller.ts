@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import Poll, { IPoll } from '../models/Poll';
 import Post from '../models/Post';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import mongoose from 'mongoose';

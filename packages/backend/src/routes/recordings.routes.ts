@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import Recording, { RecordingStatus, RecordingAccess } from '../models/Recording';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { getRecordingPresignedUrl, deleteRecordingFromSpaces } from '../utils/spaces';
 

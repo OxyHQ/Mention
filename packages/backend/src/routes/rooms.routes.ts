@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import multer from 'multer';
 import Room, { IRoom, RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
 import House, { HouseMemberRole } from '../models/House';
-import { AuthRequest } from '../types/auth';
+import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import {
   generateRoomToken,
