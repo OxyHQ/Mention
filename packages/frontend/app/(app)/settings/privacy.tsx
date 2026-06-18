@@ -60,20 +60,24 @@ const FILTER_TOGGLES: Array<{
 export default function PrivacySettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
+    const canLoadPrivateSettings = isAuthResolved && isReady && isAuthenticated;
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
     const [recFilters, setRecFilters] = useState<RecommendationFilters>(DEFAULT_RECOMMENDATION_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+            return;
+        }
         if (!isAuthenticated) {
             setLoading(false);
             return;
         }
         loadPrivacySettings();
         getRecommendationFilters().then(setRecFilters);
-    }, [isAuthenticated]);
+    }, [isAuthResolved, isReady, isAuthenticated]);
 
     const loadPrivacySettings = async () => {
         try {
@@ -101,7 +105,29 @@ export default function PrivacySettingsScreen() {
         return t('settings.privacy.public');
     };
 
-    if (!isAuthenticated) {
+    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.title'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <View className="flex-1 items-center justify-center">
+                    <Loading />
+                </View>
+            </ThemedView>
+        );
+    }
+
+    if (!canLoadPrivateSettings) {
         return (
             <ThemedView className="flex-1">
                 <Header

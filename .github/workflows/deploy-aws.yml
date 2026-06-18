@@ -41,6 +41,14 @@ jobs:
           echo "$SECRETS_JSON" | jq -r 'to_entries[] | select((.key|ascii_upcase) as $k | ($k=="GITHUB_TOKEN" or ($k|startswith("ACTIONS_")))|not) | [.key,.value]|@tsv' | \
           while IFS=$'\t' read -r k v; do
             [ -z "$k" ] && continue
+            if [ -z "$v" ] || [ "$v" = "-" ]; then
+              echo "::warning::skip empty/placeholder secret $k; SSM unchanged"
+              continue
+            fi
+            if [ "$k" = "REDIS_URL" ] && [ "$AWS_REGION" = "us-west-2" ] && ! printf '%s' "$v" | grep -q '\.usw2\.cache\.amazonaws\.com'; then
+              echo "::warning::skip REDIS_URL because it does not point at the us-west-2 Valkey endpoint; SSM unchanged"
+              continue
+            fi
             case " $SHARED " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
             aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
           done

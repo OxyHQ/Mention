@@ -29,15 +29,15 @@ Frontends deploy automatically via GitHub Actions (`.github/workflows/deploy-fro
 ### Change Detection
 
 The workflow uses `dorny/paths-filter@v3` for per-job granularity:
-- **mention-frontend** rebuilds when `packages/frontend/**`, `packages/shared-types/**`, `package.json`, or `package-lock.json` change
-- **agora-frontend** rebuilds when `packages/agora/**`, `packages/agora-shared/**`, `packages/shared-types/**`, `package.json`, or `package-lock.json` change
+- **mention-frontend** rebuilds when `packages/frontend/**`, `packages/shared-types/**`, `package.json`, or `bun.lock` change
+- **agora-frontend** rebuilds when `packages/agora/**`, `packages/agora-shared/**`, `packages/shared-types/**`, `package.json`, or `bun.lock` change
 
 Both jobs run in parallel when both apps have changes. Neither runs if only backend code changed.
 
 ### Build Process
 
 Each frontend job:
-1. Installs dependencies with `npm ci`
+1. Installs dependencies with `bun install --frozen-lockfile`
 2. Builds `@mention/shared-types` first (dependency)
 3. Builds the frontend with `NODE_OPTIONS=--max-old-space-size=4096`
 4. Deploys `dist/` to Cloudflare Pages via `wrangler pages deploy`
@@ -60,7 +60,7 @@ The `mention-production` DO app deploys the backend service only.
 ### Build Command
 
 ```
-npm ci --include=dev && npm run -w @mention/backend build && npm prune --omit=dev
+bun install --frozen-lockfile && bun run --filter @mention/backend build
 ```
 
 - Instance: `apps-s-1vcpu-1gb-fixed`

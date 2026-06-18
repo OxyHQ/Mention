@@ -17,18 +17,22 @@ import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 export default function TagsMentionsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
+    const canLoadPrivateSettings = isAuthResolved && isReady && isAuthenticated;
     const [allowTags, setAllowTags] = useState(true);
     const [allowMentions, setAllowMentions] = useState(true);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+            return;
+        }
         if (!isAuthenticated) {
             setLoading(false);
             return;
         }
         loadSettings();
-    }, [isAuthenticated]);
+    }, [isAuthResolved, isReady, isAuthenticated]);
 
     const loadSettings = async () => {
         try {
@@ -67,7 +71,29 @@ export default function TagsMentionsScreen() {
         }
     };
 
-    if (!isAuthenticated) {
+    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.tagsAndMentions'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <View className="flex-1 items-center justify-center">
+                    <Loading />
+                </View>
+            </ThemedView>
+        );
+    }
+
+    if (!canLoadPrivateSettings) {
         return (
             <ThemedView className="flex-1">
                 <Header

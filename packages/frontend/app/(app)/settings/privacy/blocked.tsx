@@ -46,7 +46,8 @@ export default function BlockedUsersScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
     const safeBack = useSafeBack();
-    const { user: currentUser, oxyServices, isAuthenticated } = useAuth();
+    const { user: currentUser, oxyServices, isAuthenticated, isAuthResolved, isReady } = useAuth();
+    const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
     const bottomSheet = React.useContext(BottomSheetContext);
     const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
@@ -174,9 +175,9 @@ export default function BlockedUsersScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            if (!isAuthenticated) return;
+            if (!canUsePrivateApi) return;
             loadBlockedUsers();
-        }, [isAuthenticated, loadBlockedUsers])
+        }, [canUsePrivateApi, loadBlockedUsers])
     );
 
     const searchUsersViaOxy = useCallback(async (query: string): Promise<BlockedUser[]> => {
@@ -344,7 +345,29 @@ export default function BlockedUsersScreen() {
 
     const getAvatarUri = (user: BlockedUser) => user.avatar;
 
-    if (!isAuthenticated) {
+    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.blockedUsers'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <View className="flex-1 items-center justify-center">
+                    <Loading />
+                </View>
+            </ThemedView>
+        );
+    }
+
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header

@@ -38,6 +38,32 @@ interface GifItem {
   height: number;
 }
 
+interface GifMediaFile {
+  gif?: { url?: string; width?: number; height?: number };
+  webp?: { url?: string; width?: number; height?: number };
+  jpg?: { url?: string; width?: number; height?: number };
+}
+
+interface KlipyGifItem {
+  id?: string | number;
+  slug?: string;
+  title?: string;
+  width?: number;
+  height?: number;
+  file?: {
+    sm?: GifMediaFile;
+    md?: GifMediaFile;
+    hd?: GifMediaFile;
+  };
+}
+
+interface GifApiResponse {
+  result?: boolean;
+  data?: {
+    data?: KlipyGifItem[];
+  };
+}
+
 
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
   const theme = useTheme();
@@ -61,13 +87,13 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         ? { q: query.trim(), page: '1', per_page: '20' }
         : { page: '1', per_page: '20' };
 
-      const response = await api.get(endpoint, params);
+      const response = await api.get<GifApiResponse>(endpoint, params);
       const data = response.data;
 
       // Handle backend API response format: { result: true, data: { data: [...] } }
       if (data.result && data.data?.data && Array.isArray(data.data.data)) {
         // Map KLIPY response to our GifItem format
-        const mappedGifs: GifItem[] = data.data.data.map((gif: any) => {
+        const mappedGifs: GifItem[] = data.data.data.map((gif) => {
           // Use medium size for thumbnail, HD for full GIF
           const thumbnailFile = gif.file?.md || gif.file?.sm || gif.file?.hd;
           const fullFile = gif.file?.hd || gif.file?.md || gif.file?.sm;

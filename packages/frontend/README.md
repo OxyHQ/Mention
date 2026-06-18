@@ -85,10 +85,10 @@ git clone https://github.com/OxyHQ/Mention.git
 cd Mention
 
 # Install all dependencies
-npm run install:all
+bun run install:all
 
 # Start frontend development
-npm run dev:frontend
+bun run dev:frontend
 ```
 
 #### Option 2: From This Package Directory
@@ -97,19 +97,19 @@ npm run dev:frontend
 cd packages/frontend
 
 # Install dependencies
-npm install
+bun install
 
 # Start the app
-npm start
+bun run start
 ```
 
 ### Running the App
 
 Once the development server is running, you can:
 
-- **Web**: Press `w` in the terminal or run `npm run web`
-- **iOS**: Press `i` in the terminal or run `npm run ios` (requires macOS)
-- **Android**: Press `a` in the terminal or run `npm run android`
+- **Web**: Press `w` in the terminal or run `bun run web`
+- **iOS**: Press `i` in the terminal or run `bun run ios` (requires macOS)
+- **Android**: Press `a` in the terminal or run `bun run android`
 - **Expo Go**: Scan the QR code with the Expo Go app on your device
 
 ### Environment Setup
@@ -128,18 +128,18 @@ EXPO_PUBLIC_BITDRIFT_KEY=your_bitdrift_key
 
 ## Development Scripts
 
-- `npm start` — Start Expo development server
-- `npm run dev` — Start Expo development server (alias for start)
-- `npm run android` — Run on Android device/emulator
-- `npm run ios` — Run on iOS simulator
-- `npm run web` — Run in web browser
-- `npm run build-web` — Build static web output
-- `npm run build-web:prod` — Build static web output for production
-- `npm run reset-project` — Reset to a fresh project state
-- `npm run clear-cache` — Clear Expo cache
-- `npm run lint` — Lint codebase
-- `npm run test` — Run tests
-- `npm run clean` — Clean build artifacts
+- `bun run start` — Start Expo development server
+- `bun run dev` — Start Expo development server (alias for start)
+- `bun run android` — Run on Android device/emulator
+- `bun run ios` — Run on iOS simulator
+- `bun run web` — Run in web browser
+- `bun run build-web` — Build static web output
+- `bun run build-web:prod` — Build static web output for production
+- `bun run reset-project` — Reset to a fresh project state
+- `bun run clear-cache` — Clear Expo cache
+- `bun run lint` — Lint codebase
+- `bun run test` — Run tests
+- `bun run clean` — Clean build artifacts
 
 ## Monorepo Integration
 
@@ -165,7 +165,7 @@ Contributions are welcome! Please see the [main README](../../README.md) for the
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests and linting: `npm run test && npm run lint`
+4. Run tests and linting: `bun run test && bun run lint`
 5. Submit a pull request
 
 ## License

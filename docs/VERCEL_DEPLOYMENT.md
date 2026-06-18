@@ -20,7 +20,7 @@ The root `vercel.json` is configured for frontend deployment:
   "name": "mention-monorepo",
   "buildCommand": "VERCEL_TARGET=frontend node scripts/build-for-vercel.js",
   "outputDirectory": "packages/frontend/dist",
-  "installCommand": "npm install",
+  "installCommand": "bun install --frozen-lockfile",
   "framework": null,
   "rewrites": [
     {
@@ -34,7 +34,7 @@ The root `vercel.json` is configured for frontend deployment:
 **Note**: If the build script doesn't exist, you can use:
 ```json
 {
-  "buildCommand": "npm run build:shared-types && npm run build:frontend"
+  "buildCommand": "bun run build:shared-types && bun run build:frontend"
 }
 ```
 
@@ -64,9 +64,9 @@ Backend uses `packages/backend/vercel.json`:
 
 For deployment, ensure:
 
-1. **Shared-types are built first** - Run `npm run build:shared-types` before building frontend/backend
-2. **Dependencies installed** - `npm install` installs all workspace dependencies
-3. **Build target** - Build frontend with `npm run build:frontend` or backend with `npm run build:backend`
+1. **Shared-types are built first** - Run `bun run build:shared-types` before building frontend/backend
+2. **Dependencies installed** - `bun install` installs all workspace dependencies
+3. **Build target** - Build frontend with `bun run build:frontend` or backend with `bun run build:backend`
 
 The monorepo structure ensures shared-types are available to both packages through workspace dependencies.
 
@@ -139,14 +139,14 @@ Make sure to set the following environment variables in your Vercel project:
 
 If you encounter shared-types import errors:
 
-1. Ensure shared-types are built: `npm run build:shared-types`
+1. Ensure shared-types are built: `bun run build:shared-types`
 2. Check that shared-types are built: `ls packages/shared-types/dist/`
 3. Verify TypeScript path mappings in `tsconfig.json` files
-4. Ensure workspace dependencies are installed: `npm install`
+4. Ensure workspace dependencies are installed: `bun install`
 
 ### Build Failures
 
-1. Check that all dependencies are installed: `npm install`
+1. Check that all dependencies are installed: `bun install`
 2. Ensure TypeScript is properly configured
 3. Verify that the target package exists and has a build script
 
@@ -156,16 +156,16 @@ For local development, use the workspace scripts:
 
 ```bash
 # Install all dependencies
-npm run install:all
+bun run install:all
 
 # Build shared-types
-npm run build:shared-types
+bun run build:shared-types
 
 # Start frontend
-npm run dev:frontend
+bun run dev:frontend
 
 # Start backend
-npm run dev:backend
+bun run dev:backend
 ```
 
 ## Notes

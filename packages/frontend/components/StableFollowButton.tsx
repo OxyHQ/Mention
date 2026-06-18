@@ -19,6 +19,9 @@ import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import type { OxyServices } from '@oxyhq/core';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('StableFollowButton');
 
 interface StableFollowButtonProps {
   userId: string;
@@ -76,7 +79,7 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
         }
       })
       .catch(() => {
-        // Silently ignore — button will show "Follow" by default
+        logger.debug('Failed to load follow status', { userId, viewerId });
       });
 
     return () => {
@@ -99,7 +102,8 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
       } else {
         await oxyServices.followUser(userId);
       }
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to update follow state', { userId, error });
       // Revert on failure
       if (mountedRef.current) {
         setIsFollowing(wasFollowing);
@@ -158,12 +162,12 @@ const StableFollowButton = memo(function StableFollowButton({
   userId,
   size = 'small',
 }: StableFollowButtonProps) {
-  const { user: currentUser, isAuthenticated, oxyServices } = useAuth();
+  const { user: currentUser, isAuthenticated, isAuthResolved, isReady, oxyServices } = useAuth();
 
   const currentUserId = currentUser?.id ? String(currentUser.id).trim() : '';
   const targetUserId = userId ? String(userId).trim() : '';
 
-  if (!isAuthenticated || !targetUserId || (currentUserId && currentUserId === targetUserId)) {
+  if (!isAuthResolved || !isReady || !isAuthenticated || !targetUserId || (currentUserId && currentUserId === targetUserId)) {
     return null;
   }
 

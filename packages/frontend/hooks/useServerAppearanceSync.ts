@@ -15,18 +15,19 @@ function isValidThemeMode(value: string | undefined): value is ThemeMode {
 }
 
 export function useServerAppearanceSync(): void {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthResolved, isReady } = useAuth();
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const { setMode, setColorPreset } = useBloomTheme();
+  const canLoadPrivateAppearance = isAuthResolved && isReady && isAuthenticated;
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!canLoadPrivateAppearance) return;
     void loadMySettings(true);
-  }, [isAuthenticated, loadMySettings]);
+  }, [canLoadPrivateAppearance, loadMySettings]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!canLoadPrivateAppearance) return;
     const appearance = mySettings?.appearance;
     if (!appearance) return;
 
@@ -37,5 +38,5 @@ export function useServerAppearanceSync(): void {
     if (appearance.primaryColor && appearance.primaryColor.length > 0) {
       setColorPreset(hexToAppColorName(appearance.primaryColor));
     }
-  }, [isAuthenticated, mySettings, setMode, setColorPreset]);
+  }, [canLoadPrivateAppearance, mySettings, setMode, setColorPreset]);
 }

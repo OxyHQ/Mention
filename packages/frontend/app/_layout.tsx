@@ -145,8 +145,9 @@ export default function RootLayout() {
         storage={BLOOM_THEME_STORAGE}
         onFontsLoading={<AppSplashScreen />}
       >
-        {appIsReady ? (
-          <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
+        <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
+          {appIsReady ? (
+            <>
             {Platform.OS !== 'web' && (
               <NotificationPermissionGate
                 appIsReady={appIsReady}
@@ -157,27 +158,32 @@ export default function RootLayout() {
               <AuthRouter />
               <PortalOutlet />
             </PortalProvider>
-          </AppProviders>
-        ) : (
-          <AppSplashScreen
-            startFade={splashState.initializationComplete}
-            onFadeComplete={handleSplashFadeComplete}
-          />
-        )}
+            </>
+          ) : (
+            <AppSplashScreen
+              startFade={splashState.initializationComplete}
+              onFadeComplete={handleSplashFadeComplete}
+            />
+          )}
+        </AppProviders>
       </BloomThemeProvider>
     </ImageResolverProvider>
   );
 }
 
 function AuthRouter() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthResolved } = useAuth();
   const router = useRouter();
 
   useServerAppearanceSync();
 
   // Forward OS share-sheet payloads into `/compose`. No-op on web
   // (handled by the manifest Share Target).
-  useShareIntentRouter({ router, enabled: isAuthenticated });
+  useShareIntentRouter({ router, enabled: isAuthResolved && isAuthenticated });
+
+  if (!isAuthResolved) {
+    return null;
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

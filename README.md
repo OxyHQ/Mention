@@ -21,7 +21,7 @@
 
 ## Project Structure
 
-This is a **monorepo** using npm workspaces with the following structure:
+This is a **monorepo** using Bun workspaces with the following structure:
 
 ```
 /
@@ -69,7 +69,7 @@ This is a **monorepo** using npm workspaces with the following structure:
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+ and npm 8+
+- Node.js 18+ and Bun 1.3+
 - MongoDB instance
 - Expo CLI for mobile development
 
@@ -82,51 +82,51 @@ This is a **monorepo** using npm workspaces with the following structure:
 
 2. **Install all dependencies**
    ```bash
-   npm run install:all
+   bun install
    ```
 
 ### Development
 
 #### Start All Services
 ```bash
-npm run dev
+bun run dev
 ```
 
 #### Start Individual Services
 ```bash
 # Frontend only
-npm run dev:frontend
+bun run dev:frontend
 
 # Backend only
-npm run dev:backend
+bun run dev:backend
 ```
 
 #### Frontend Development
 The frontend is an Expo React Native app that can run on:
-- **Web**: `npm run web` (or `npm run dev:frontend` then press 'w')
-- **iOS**: `npm run ios` (requires macOS and Xcode)
-- **Android**: `npm run android` (requires Android Studio)
+- **Web**: `bun run web` (or `bun run dev:frontend` then press 'w')
+- **iOS**: `bun run ios` (requires macOS and Xcode)
+- **Android**: `bun run android` (requires Android Studio)
 
 #### Backend Development
 The backend runs on the development server with hot reload:
 ```bash
-npm run dev:backend
+bun run dev:backend
 ```
 
 ## Development Scripts
 
 ### Root Level (Monorepo)
-- `npm run dev` — Start all services in development mode
-- `npm run dev:frontend` — Start frontend development server
-- `npm run dev:backend` — Start backend development server
-- `npm run build` — Build all packages
-- `npm run build:shared-types` — Build shared types package
-- `npm run build:frontend` — Build frontend for production
-- `npm run build:backend` — Build backend for production
-- `npm run test` — Run tests across all packages
-- `npm run lint` — Lint all packages
-- `npm run clean` — Clean all build artifacts
-- `npm run install:all` — Install dependencies for all packages
+- `bun run dev` — Start all services in development mode
+- `bun run dev:frontend` — Start frontend development server
+- `bun run dev:backend` — Start backend development server
+- `bun run build` — Build all packages
+- `bun run build:shared-types` — Build shared types package
+- `bun run build:frontend` — Build frontend for production
+- `bun run build:backend` — Build backend for production
+- `bun run test` — Run tests across all packages
+- `bun run lint` — Lint all packages
+- `bun run clean` — Clean all build artifacts
+- `bun install` — Install dependencies for all packages
 
 ### Frontend (`@mention/frontend`)
 - `npm start` — Start Expo development server

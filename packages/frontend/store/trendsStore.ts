@@ -23,6 +23,11 @@ interface TrendApiItem {
   updatedAt?: string;
 }
 
+interface TrendsApiResponse {
+  trending?: TrendApiItem[];
+  summary?: string;
+}
+
 interface TrendsStore {
   trends: Trend[];
   summary: string;
@@ -58,7 +63,7 @@ export const useTrendsStore = create<TrendsStore>()(
         const silent = !!opts?.silent;
         if (!silent) set({ isLoading: true, error: null });
         try {
-          const response = await api.get('/trending', { params: { limit: 10 } });
+          const response = await api.get<TrendsApiResponse>('/trending', { limit: 10 });
           const items: TrendApiItem[] = response.data.trending || [];
           const next = items.map((item) => ({
             id: item._id || item.name,

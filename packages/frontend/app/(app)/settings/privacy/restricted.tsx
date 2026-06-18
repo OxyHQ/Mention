@@ -46,7 +46,8 @@ export default function RestrictedUsersScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
     const safeBack = useSafeBack();
-    const { user: currentUser, isAuthenticated, oxyServices } = useAuth();
+    const { user: currentUser, isAuthenticated, isAuthResolved, isReady, oxyServices } = useAuth();
+    const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
     const bottomSheet = React.useContext(BottomSheetContext);
     const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
     const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);
@@ -61,7 +62,7 @@ export default function RestrictedUsersScreen() {
     const restrictedUserIdsSet = useMemo(() => new Set(restrictedUserIds), [restrictedUserIds]);
 
     const loadRestrictedUsers = useCallback(async () => {
-        if (!isAuthenticated) {
+        if (!canUsePrivateApi) {
             restrictedLogger.debug('Not authenticated, skipping load');
             setLoading(false);
             return;
@@ -185,21 +186,21 @@ export default function RestrictedUsersScreen() {
         } finally {
             setLoading(false);
         }
-    }, [t, currentUser?.id, isAuthenticated, bottomSheet, oxyServices]);
+    }, [t, currentUser?.id, canUsePrivateApi, bottomSheet, oxyServices]);
 
     useFocusEffect(
         useCallback(() => {
-            if (isAuthenticated) {
+            if (canUsePrivateApi) {
                 loadRestrictedUsers();
             }
-        }, [loadRestrictedUsers, isAuthenticated])
+        }, [loadRestrictedUsers, canUsePrivateApi])
     );
 
     useEffect(() => {
-        if (isAuthenticated) {
+        if (canUsePrivateApi) {
             loadRestrictedUsers();
         }
-    }, [isAuthenticated, loadRestrictedUsers]);
+    }, [canUsePrivateApi, loadRestrictedUsers]);
 
     const performSearch = useCallback(async (query: string) => {
         if (searchAbortControllerRef.current) {
@@ -414,7 +415,29 @@ export default function RestrictedUsersScreen() {
         return user.avatar;
     }, []);
 
-    if (!isAuthenticated) {
+    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.restrictedUsers'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <View className="flex-1 items-center justify-center">
+                    <Loading />
+                </View>
+            </ThemedView>
+        );
+    }
+
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header

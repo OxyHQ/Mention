@@ -28,6 +28,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
+import { useAuth } from '@oxyhq/services';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -56,7 +57,7 @@ const QuickFeedRow = ({
   label,
   onPress,
 }: {
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
   label: string;
   onPress?: () => void;
@@ -68,7 +69,7 @@ const QuickFeedRow = ({
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Ionicons name={icon as any} size={20} color={iconColor} />
+      <Ionicons name={icon} size={20} color={iconColor} />
       <Text className="flex-1 text-[15px] font-semibold text-foreground">{label}</Text>
       <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
     </TouchableOpacity>
@@ -105,7 +106,7 @@ const FeedRow = ({
         <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
           {item.owner ? `@${item.owner.username || item.owner.handle}` : ''}
           {memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : ''}
-          {(item.likeCount || 0) > 0 ? ` · ${formatCompactNumber(item.likeCount!)} likes` : ''}
+          {typeof item.likeCount === 'number' && item.likeCount > 0 ? ` · ${formatCompactNumber(item.likeCount)} likes` : ''}
         </Text>
         {item.description ? (
           <Text className="text-[13px] leading-[18px] mt-0.5 text-muted-foreground" numberOfLines={2}>
@@ -136,18 +137,26 @@ const FeedRow = ({
 const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const { isAuthenticated, isAuthResolved, isReady } = useAuth();
   const [pinned, setPinned] = useState<string[]>([]);
   const [myFeeds, setMyFeeds] = useState<FeedItem[]>([]);
   const [publicFeeds, setPublicFeeds] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const canLoadPrivateFeeds = isAuthResolved && isReady && isAuthenticated;
 
   const loadFeeds = useCallback(async () => {
+    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+      return;
+    }
+
     try {
       setLoading(true);
       const [mine, pub, storedPinned] = await Promise.all([
-        customFeedsService.list({ mine: true }),
+        canLoadPrivateFeeds
+          ? customFeedsService.list({ mine: true })
+          : Promise.resolve({ items: [], total: 0 }),
         customFeedsService.list({ publicOnly: true }),
         getData<string[]>(PINNED_KEY),
       ]);
@@ -155,9 +164,9 @@ const FeedsScreen: React.FC = () => {
       setPinned(storedPinned || []);
       setMyFeeds(mine.items || []);
 
-      const mineIds = new Set((mine.items || []).map((f: any) => String(f._id || f.id)));
+      const mineIds = new Set((mine.items || []).map((feed: FeedItem) => String(feed._id || feed.id)));
       setPublicFeeds(
-        (pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id)))
+        (pub.items || []).filter((feed: FeedItem) => !mineIds.has(String(feed._id || feed.id)))
       );
     } catch (e) {
       logger.warn('Failed loading feeds', { error: e });
@@ -165,11 +174,14 @@ const FeedsScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [canLoadPrivateFeeds, isAuthResolved, isReady, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+      return;
+    }
     loadFeeds();
-  }, [loadFeeds]);
+  }, [isAuthResolved, isReady, isAuthenticated, loadFeeds]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -313,9 +325,6 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   searchInput: {
-    ...Platform.select({
-      web: { outlineStyle: 'none' as any },
-    }),
   },
   feedRow: {
     flexDirection: 'row',

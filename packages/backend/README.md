@@ -33,10 +33,10 @@ git clone https://github.com/OxyHQ/Mention.git
 cd Mention
 
 # Install all dependencies
-npm run install:all
+bun run install:all
 
 # Start backend development
-npm run dev:backend
+bun run dev:backend
 ```
 
 #### Option 2: From This Package Directory
@@ -45,10 +45,10 @@ npm run dev:backend
 cd packages/backend
 
 # Install dependencies
-npm install
+bun install
 
 # Start development server
-npm run dev
+bun run dev
 ```
 
 ### Environment Configuration
@@ -75,13 +75,13 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 
 #### Development Mode
 ```bash
-npm run dev
+bun run dev
 ```
 
 #### Production Mode
 ```bash
-npm run build
-npm start
+bun run build
+bun run start
 ```
 
 ### Database Setup
@@ -91,10 +91,10 @@ The API uses MongoDB with Mongoose. Make sure your MongoDB instance is running a
 #### Running Migrations
 ```bash
 # Development environment
-npm run migrate:dev
+bun run migrate:dev
 
 # Production environment
-npm run migrate
+bun run migrate
 ```
 
 ## API Endpoints
@@ -252,14 +252,14 @@ erDiagram
 
 ## Development Scripts
 
-- `npm run dev` — Start development server with hot reload
-- `npm run build` — Build the project
-- `npm run start` — Start production server
-- `npm run lint` — Lint codebase
-- `npm run clean` — Clean build artifacts
-- `npm run migrate` — Run database migrations
-- `npm run migrate:dev` — Run database migrations in development
-- `npm run test` — Run tests (placeholder)
+- `bun run dev` — Start development server with hot reload
+- `bun run build` — Build the project
+- `bun run start` — Start production server
+- `bun run lint` — Lint codebase
+- `bun run clean` — Clean build artifacts
+- `bun run migrate` — Run database migrations
+- `bun run migrate:dev` — Run database migrations in development
+- `bun run test` — Run tests (placeholder)
 
 ## Monorepo Integration
 
@@ -480,7 +480,7 @@ Contributions are welcome! Please see the [main README](../../README.md) for the
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests and linting: `npm run test && npm run lint`
+4. Run tests and linting: `bun run test && bun run lint`
 5. Submit a pull request
 
 ## License
