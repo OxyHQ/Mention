@@ -13,7 +13,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
 import { useFocusEffect } from 'expo-router';
-import { useAuth, OxyAuthPrompt, queryKeys } from '@oxyhq/services';
+import { OxyAuthPrompt, queryKeys, useAuth } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 import { queryClient } from '@/lib/queryClient';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -46,8 +46,14 @@ export default function BlockedUsersScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
     const safeBack = useSafeBack();
-    const { user: currentUser, oxyServices, isAuthenticated, isAuthResolved, isReady } = useAuth();
-    const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
+    const {
+        user: currentUser,
+        oxyServices,
+        isAuthenticated,
+        isAuthResolved,
+        canUsePrivateApi,
+        isPrivateApiPending,
+    } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
@@ -345,7 +351,7 @@ export default function BlockedUsersScreen() {
 
     const getAvatarUri = (user: BlockedUser) => user.avatar;
 
-    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+    if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
                 <Header

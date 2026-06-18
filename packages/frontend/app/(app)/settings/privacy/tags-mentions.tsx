@@ -12,19 +12,18 @@ import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 export default function TagsMentionsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
-    const canLoadPrivateSettings = isAuthResolved && isReady && isAuthenticated;
+    const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const [allowTags, setAllowTags] = useState(true);
     const [allowMentions, setAllowMentions] = useState(true);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        if (!isAuthResolved || isPrivateApiPending) {
             return;
         }
         if (!isAuthenticated) {
@@ -32,7 +31,7 @@ export default function TagsMentionsScreen() {
             return;
         }
         loadSettings();
-    }, [isAuthResolved, isReady, isAuthenticated]);
+    }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
 
     const loadSettings = async () => {
         try {
@@ -71,7 +70,7 @@ export default function TagsMentionsScreen() {
         }
     };
 
-    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+    if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
                 <Header
@@ -93,7 +92,7 @@ export default function TagsMentionsScreen() {
         );
     }
 
-    if (!canLoadPrivateSettings) {
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header

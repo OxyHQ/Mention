@@ -3,10 +3,9 @@ import { Platform, Text, TextInput } from 'react-native';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { OxyServices } from '@oxyhq/core';
 
 import { AppProviders } from '@/components/providers/AppProviders';
-import { OXY_BASE_URL } from '@/config';
+import { oxyServices } from '@/lib/oxyServices';
 
 // Register LiveKit globals on native
 if (Platform.OS !== 'web') {
@@ -31,11 +30,6 @@ export default function RootLayout() {
       fontMap['Inter'] = InterVariable;
       return fontMap;
     }, [])
-  );
-
-  const oxyServices = useMemo(
-    () => new OxyServices({ baseURL: OXY_BASE_URL }),
-    []
   );
 
   // Set Inter as the default font for all Text and TextInput components

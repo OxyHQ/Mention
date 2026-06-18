@@ -20,7 +20,6 @@ import { Gear, GearActive } from "@/assets/icons/gear-icon";
 import { Search, SearchActive } from "@/assets/icons/search-icon";
 import { ComposeIcon } from "@/assets/icons/compose-icon";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@oxyhq/services";
 import { confirmDialog } from "@/utils/alerts";
 import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
@@ -32,10 +31,22 @@ import { useAppearanceStore } from '@/store/appearanceStore';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
+import { useAuth } from '@oxyhq/services';
 
 const WindowHeight = Dimensions.get('window').height;
 
 const webCursorPointer = Platform.select({ web: { cursor: 'pointer' } }) as ViewStyle | undefined;
+
+type WebSidebarContainerStyle = Omit<ViewStyle, 'height' | 'position'> & {
+    position?: ViewStyle['position'] | 'sticky';
+    height?: ViewStyle['height'] | '100vh';
+};
+
+const webStickyContainerStyle: WebSidebarContainerStyle = {
+    position: 'sticky',
+    overflow: 'hidden',
+    height: '100vh',
+};
 
 interface SideBarProps {
     asDrawer?: boolean;
@@ -45,7 +56,7 @@ interface SideBarProps {
 export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const { t } = useTranslation();
     const router = useRouter();
-    const { user, signIn, signOut, isAuthResolved } = useAuth();
+    const { user, signIn, signOut, isAuthenticated, isAuthResolved, isPrivateApiPending } = useAuth();
     const theme = useTheme();
     const { resetTheme } = useBloomTheme();
     const resetAppearance = useAppearanceStore((state) => state.reset);
@@ -54,7 +65,9 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const handleSignOut = useCallback(async () => {
         try {
             await signOut();
-        } catch {}
+        } catch (error: unknown) {
+            logger.warn('Sign out failed', { error });
+        }
         resetAppearance();
         resetTheme();
         onNavigate?.();
@@ -162,6 +175,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const pathname = usePathname();
     const isSideBarVisible = useIsScreenNotMobile();
     const isExpanded = useIsSideBarExpanded();
+    const showAuthPlaceholder = !isAuthResolved || isPrivateApiPending || (isAuthenticated && !user);
 
     if (!asDrawer && !isSideBarVisible) return null;
 
@@ -228,7 +242,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                         3. ANON (resolved, no user): show Sign In.
                         Gating on the SAME reactive condition as the profile row above
                         (truthy `user`) keeps the two in agreement. */}
-                    {!isAuthResolved ? (
+                    {showAuthPlaceholder ? (
                         <View
                             className={showExpanded ? 'w-full self-stretch px-4' : 'self-center px-3'}
                             style={styles.footerSkeleton}
@@ -238,7 +252,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                                 <View className="bg-muted rounded-full h-3.5 flex-1 ml-3 mr-6" />
                             )}
                         </View>
-                    ) : user ? (
+                    ) : isAuthenticated ? (
                         <SideBarItem
                             isActive={false}
                             icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.text} />}
@@ -265,11 +279,7 @@ const styles = StyleSheet.create({
     container: {
         padding: 6,
         ...(Platform.select({
-            web: {
-                position: 'sticky' as any,
-                overflow: 'hidden',
-                height: '100vh' as any,
-            },
+            web: webStickyContainerStyle,
             default: {
                 height: WindowHeight,
             },

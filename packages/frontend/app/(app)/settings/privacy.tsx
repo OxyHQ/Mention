@@ -21,7 +21,7 @@ import {
     saveRecommendationFilters,
 } from '@/lib/recommendationFilters';
 import type { PrivacySettings } from '@/hooks/usePrivacySettings';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 const FILTER_TOGGLES: Array<{
     icon: IconName;
@@ -60,15 +60,14 @@ const FILTER_TOGGLES: Array<{
 export default function PrivacySettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
-    const canLoadPrivateSettings = isAuthResolved && isReady && isAuthenticated;
+    const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
     const [recFilters, setRecFilters] = useState<RecommendationFilters>(DEFAULT_RECOMMENDATION_FILTERS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        if (!isAuthResolved || isPrivateApiPending) {
             return;
         }
         if (!isAuthenticated) {
@@ -77,7 +76,7 @@ export default function PrivacySettingsScreen() {
         }
         loadPrivacySettings();
         getRecommendationFilters().then(setRecFilters);
-    }, [isAuthResolved, isReady, isAuthenticated]);
+    }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
 
     const loadPrivacySettings = async () => {
         try {
@@ -105,7 +104,7 @@ export default function PrivacySettingsScreen() {
         return t('settings.privacy.public');
     };
 
-    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+    if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
                 <Header
@@ -127,7 +126,7 @@ export default function PrivacySettingsScreen() {
         );
     }
 
-    if (!canLoadPrivateSettings) {
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header

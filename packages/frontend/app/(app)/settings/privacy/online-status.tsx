@@ -12,22 +12,25 @@ import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 export default function OnlineStatusScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { isAuthenticated } = useAuth();
+    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
     const [showOnlineStatus, setShowOnlineStatus] = useState(true);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!isAuthenticated) {
+        if (isPrivateApiPending) {
+            return;
+        }
+        if (!canUsePrivateApi) {
             setLoading(false);
             return;
         }
         loadSettings();
-    }, [isAuthenticated]);
+    }, [canUsePrivateApi, isPrivateApiPending]);
 
     const loadSettings = async () => {
         try {
@@ -64,7 +67,29 @@ export default function OnlineStatusScreen() {
         }
     };
 
-    if (!isAuthenticated) {
+    if (isPrivateApiPending) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.onlineStatus'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <View className="flex-1 justify-center items-center">
+                    <Loading className="text-primary" size="large" />
+                </View>
+            </ThemedView>
+        );
+    }
+
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header

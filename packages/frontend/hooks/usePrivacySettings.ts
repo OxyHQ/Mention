@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';
+import { useAuth } from '@oxyhq/services';
 
 const logger = createScopedLogger('usePrivacySettings');
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '@oxyhq/services';
 
 const PRIVACY_SETTINGS_CACHE_KEY = '@mention_privacy_settings';
 
@@ -36,8 +36,7 @@ export interface PrivacySettings {
  * @returns Privacy settings or null if not available
  */
 export function usePrivacySettings(userId?: string | null): PrivacySettings | null {
-    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
-    const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
+    const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const [settings, setSettings] = useState<PrivacySettings | null>(null);
 
     useEffect(() => {
@@ -46,7 +45,7 @@ export function usePrivacySettings(userId?: string | null): PrivacySettings | nu
             return;
         }
 
-        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        if (!isAuthResolved || isPrivateApiPending) {
             return;
         }
 
@@ -74,7 +73,7 @@ export function usePrivacySettings(userId?: string | null): PrivacySettings | nu
         };
 
         loadSettings();
-    }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isReady, userId]);
+    }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isPrivateApiPending, userId]);
 
     return settings;
 }
@@ -88,8 +87,7 @@ let cachedPrivacySettings: PrivacySettings | null = null;
 let cacheLoadPromise: Promise<void> | null = null;
 
 export function useCurrentUserPrivacySettings(): PrivacySettings | null {
-    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
-    const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
+    const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const [settings, setSettings] = useState<PrivacySettings | null>(() => {
         // Try to load from cache synchronously on first render
         if (cachedPrivacySettings) {
@@ -112,7 +110,7 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
     });
 
     useEffect(() => {
-        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        if (!isAuthResolved || isPrivateApiPending) {
             return;
         }
 
@@ -182,7 +180,7 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
         };
 
         loadSettings();
-    }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isReady]);
+    }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isPrivateApiPending]);
 
     // Return settings (will be cached value immediately if available)
     return settings;

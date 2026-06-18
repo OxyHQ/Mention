@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { useAuth } from '@oxyhq/services';
 import { useBloomTheme, hexToAppColorName, type ThemeMode } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAuth } from '@oxyhq/services';
 
 const VALID_THEME_MODES: ReadonlySet<ThemeMode> = new Set<ThemeMode>([
   'light',
@@ -15,19 +15,18 @@ function isValidThemeMode(value: string | undefined): value is ThemeMode {
 }
 
 export function useServerAppearanceSync(): void {
-  const { isAuthenticated, isAuthResolved, isReady } = useAuth();
+  const { canUsePrivateApi } = useAuth();
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const { setMode, setColorPreset } = useBloomTheme();
-  const canLoadPrivateAppearance = isAuthResolved && isReady && isAuthenticated;
 
   useEffect(() => {
-    if (!canLoadPrivateAppearance) return;
+    if (!canUsePrivateApi) return;
     void loadMySettings(true);
-  }, [canLoadPrivateAppearance, loadMySettings]);
+  }, [canUsePrivateApi, loadMySettings]);
 
   useEffect(() => {
-    if (!canLoadPrivateAppearance) return;
+    if (!canUsePrivateApi) return;
     const appearance = mySettings?.appearance;
     if (!appearance) return;
 
@@ -38,5 +37,5 @@ export function useServerAppearanceSync(): void {
     if (appearance.primaryColor && appearance.primaryColor.length > 0) {
       setColorPreset(hexToAppColorName(appearance.primaryColor));
     }
-  }, [canLoadPrivateAppearance, mySettings, setMode, setColorPreset]);
+  }, [canUsePrivateApi, mySettings, setMode, setColorPreset]);
 }

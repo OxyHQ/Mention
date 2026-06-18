@@ -1,9 +1,9 @@
-import React, { memo, useEffect, useMemo, useCallback } from 'react';
+import React, { memo, useMemo, useCallback } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { OxyProvider, useOxy } from '@oxyhq/services';
+import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
@@ -12,7 +12,6 @@ import { BloomThemeProvider } from '@oxyhq/bloom';
 import { OXY_CLIENT_ID } from '@/config';
 import { agoraConfig } from '@/lib/agoraConfig';
 import { roomQueryKeys } from '@/hooks/useRoomsQuery';
-import { setOxyServicesRef } from '@/utils/api';
 
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 try {
@@ -28,14 +27,6 @@ const queryClient = new QueryClient({
 interface AppProvidersProps {
   children: React.ReactNode;
   oxyServices: OxyServices;
-}
-
-function OxyServicesSync({ children }: { children: React.ReactNode }) {
-  const { oxyServices } = useOxy();
-  useEffect(() => {
-    if (oxyServices) setOxyServicesRef(oxyServices);
-  }, [oxyServices]);
-  return <>{children}</>;
 }
 
 function AgoraProviderWithInvalidation({ children }: { children: React.ReactNode }) {
@@ -66,15 +57,13 @@ export const AppProviders = memo(function AppProviders({
                 clientId={OXY_CLIENT_ID}
                 storageKeyPrefix="agora"
               >
-                <OxyServicesSync>
-                  <AgoraProviderWithInvalidation>
-                    <LiveRoomProvider>
-                      {children}
-                      <StatusBar style="auto" />
-                      <ToastOutlet />
-                    </LiveRoomProvider>
-                  </AgoraProviderWithInvalidation>
-                </OxyServicesSync>
+                <AgoraProviderWithInvalidation>
+                  <LiveRoomProvider>
+                    {children}
+                    <StatusBar style="auto" />
+                    <ToastOutlet />
+                  </LiveRoomProvider>
+                </AgoraProviderWithInvalidation>
               </OxyProvider>
             </QueryClientProvider>
           </KeyboardProvider>

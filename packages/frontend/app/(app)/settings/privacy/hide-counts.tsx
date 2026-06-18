@@ -13,14 +13,14 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import { RowIcon } from '@/components/settings/RowIcon';
 import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
 import { createScopedLogger } from '@/lib/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 const hideCountsLogger = createScopedLogger('HideCounts');
 
 export default function HideCountsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { isAuthenticated } = useAuth();
+    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
     const [hideLikeCounts, setHideLikeCounts] = useState(false);
     const [hideShareCounts, setHideShareCounts] = useState(false);
     const [hideReplyCounts, setHideReplyCounts] = useState(false);
@@ -30,12 +30,15 @@ export default function HideCountsScreen() {
     const allHidden = hideLikeCounts && hideShareCounts && hideReplyCounts && hideSaveCounts;
 
     useEffect(() => {
-        if (!isAuthenticated) {
+        if (isPrivateApiPending) {
+            return;
+        }
+        if (!canUsePrivateApi) {
             setLoading(false);
             return;
         }
         loadSettings();
-    }, [isAuthenticated]);
+    }, [canUsePrivateApi, isPrivateApiPending]);
 
     const loadSettings = async () => {
         try {
@@ -112,7 +115,29 @@ export default function HideCountsScreen() {
         }
     };
 
-    if (!isAuthenticated) {
+    if (isPrivateApiPending) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.privacy.hideAllCounts'),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <View className="flex-1 justify-center items-center">
+                    <Loading className="text-primary" size="large" />
+                </View>
+            </ThemedView>
+        );
+    }
+
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header

@@ -137,24 +137,23 @@ const FeedRow = ({
 const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const { isAuthenticated, isAuthResolved, isReady } = useAuth();
+  const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const [pinned, setPinned] = useState<string[]>([]);
   const [myFeeds, setMyFeeds] = useState<FeedItem[]>([]);
   const [publicFeeds, setPublicFeeds] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const canLoadPrivateFeeds = isAuthResolved && isReady && isAuthenticated;
 
   const loadFeeds = useCallback(async () => {
-    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+    if (!isAuthResolved || isPrivateApiPending) {
       return;
     }
 
     try {
       setLoading(true);
       const [mine, pub, storedPinned] = await Promise.all([
-        canLoadPrivateFeeds
+        canUsePrivateApi
           ? customFeedsService.list({ mine: true })
           : Promise.resolve({ items: [], total: 0 }),
         customFeedsService.list({ publicOnly: true }),
@@ -174,14 +173,14 @@ const FeedsScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [canLoadPrivateFeeds, isAuthResolved, isReady, isAuthenticated]);
+  }, [canUsePrivateApi, isAuthResolved, isPrivateApiPending]);
 
   useEffect(() => {
-    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+    if (!isAuthResolved || isPrivateApiPending) {
       return;
     }
     loadFeeds();
-  }, [isAuthResolved, isReady, isAuthenticated, loadFeeds]);
+  }, [isAuthResolved, isPrivateApiPending, loadFeeds]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -191,7 +190,9 @@ const FeedsScreen: React.FC = () => {
   const onTogglePin = useCallback(async (id: string) => {
     setPinned((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      storeData(PINNED_KEY, next).catch(() => {});
+      storeData(PINNED_KEY, next).catch((error) => {
+        logger.warn('Failed to persist pinned feeds', { error });
+      });
       return next;
     });
   }, []);

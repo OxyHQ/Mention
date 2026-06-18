@@ -16,10 +16,10 @@ import {
   Platform,
 } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import type { OxyServices } from '@oxyhq/core';
 import { createScopedLogger } from '@/lib/logger';
+import { useAuth } from '@oxyhq/services';
 
 const logger = createScopedLogger('StableFollowButton');
 
@@ -154,20 +154,20 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
  * Outer wrapper that handles the "should we render?" check before any hooks
  * in the inner component are called, avoiding Rules of Hooks violations.
  *
- * This is the only place we use useAuth() — to check if the user is authenticated
- * and to get their ID for the self-follow guard. The inner component avoids context
- * subscriptions entirely.
+ * This is the only place that subscribes to auth state — to check if private
+ * API calls are safe and to get the viewer ID for the self-follow guard. The
+ * inner component avoids context subscriptions entirely.
  */
 const StableFollowButton = memo(function StableFollowButton({
   userId,
   size = 'small',
 }: StableFollowButtonProps) {
-  const { user: currentUser, isAuthenticated, isAuthResolved, isReady, oxyServices } = useAuth();
+  const { user: currentUser, canUsePrivateApi, oxyServices } = useAuth();
 
   const currentUserId = currentUser?.id ? String(currentUser.id).trim() : '';
   const targetUserId = userId ? String(userId).trim() : '';
 
-  if (!isAuthResolved || !isReady || !isAuthenticated || !targetUserId || (currentUserId && currentUserId === targetUserId)) {
+  if (!canUsePrivateApi || !targetUserId || (currentUserId && currentUserId === targetUserId)) {
     return null;
   }
 

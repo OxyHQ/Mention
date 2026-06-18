@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useAuth } from '@oxyhq/services';
 import type { BlockedUser, RestrictedUser } from '@oxyhq/core';
 import { usePrivacyStore } from '@/stores/privacyStore';
 import { logger } from '@/lib/logger';
+import { useAuth } from '@oxyhq/services';
 
 interface UsePrivacyControlsOptions {
     autoRefresh?: boolean;
@@ -21,7 +21,7 @@ function extractListId(entry: BlockedUser | RestrictedUser): string | undefined 
 
 export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
     const { autoRefresh = true, minIntervalMs = DEFAULT_INTERVAL } = options || {};
-    const { oxyServices, isAuthenticated, isAuthResolved, user } = useAuth();
+    const { oxyServices, isAuthenticated, isAuthResolved, canUsePrivateApi, user } = useAuth();
     const viewerId = user?.id;
 
     // Use individual selectors for optimal performance (Zustand automatically shallow compares)
@@ -47,7 +47,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
     const attemptedViewerRef = useRef<string | null>(null);
 
     const refreshPrivacyLists = useCallback(async () => {
-        if (!oxyServices) return;
+        if (!canUsePrivateApi || !oxyServices) return;
         if (inFlightRef.current) return;
         inFlightRef.current = true;
         setLoading(true);
@@ -84,7 +84,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
             inFlightRef.current = false;
             setLoading(false);
         }
-    }, [oxyServices, setError, setLists, setLoading]);
+    }, [canUsePrivateApi, oxyServices, setError, setLists, setLoading]);
 
     useEffect(() => {
         // Reset the store AND the per-identity attempt guard whenever the
@@ -99,7 +99,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
         // Gate strictly on a resolved, authenticated session with a known viewer.
         // During cold-boot (`!isAuthResolved`) `isAuthenticated` is UNDETERMINED,
         // so we must NOT fire — that is the window that produced the 401 storm.
-        if (!autoRefresh || !isAuthResolved || !isAuthenticated || !oxyServices || !viewerId) {
+        if (!autoRefresh || !canUsePrivateApi || !oxyServices || !viewerId) {
             return;
         }
 
@@ -116,8 +116,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
         }
     }, [
         autoRefresh,
-        isAuthResolved,
-        isAuthenticated,
+        canUsePrivateApi,
         oxyServices,
         viewerId,
         hasFetched,
@@ -160,4 +159,3 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
         shouldGhostInteractions,
     };
 }
-

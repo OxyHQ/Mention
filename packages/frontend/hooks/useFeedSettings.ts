@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@oxyhq/services';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
+import { useAuth } from '@oxyhq/services';
 
 export interface FeedSettings {
   diversity: {
@@ -38,15 +38,14 @@ export const DEFAULT_FEED_SETTINGS: FeedSettings = {
  * Hook to load and update current user's feed settings
  */
 export function useFeedSettings() {
-  const { isAuthenticated, isAuthResolved, isReady, user } = useAuth();
+  const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } = useAuth();
   const viewerId = user?.id;
-  const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
   const [settings, setSettings] = useState<FeedSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const loadSettings = useCallback(async () => {
-    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+    if (!isAuthResolved || isPrivateApiPending) {
       return;
     }
 
@@ -94,7 +93,7 @@ export function useFeedSettings() {
     // this callback's identity changes. The settings are scoped to the
     // signed-in user, so the anonymous-window fetch must be replaced once the
     // session lands.
-  }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isReady]);
+  }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isPrivateApiPending]);
 
   const updateSettings = useCallback(async (updates: Partial<FeedSettings>): Promise<void> => {
     if (!canUsePrivateApi) {
@@ -143,9 +142,6 @@ export function useFeedSettings() {
     reloadSettings: loadSettings,
   };
 }
-
-
-
 
 
 

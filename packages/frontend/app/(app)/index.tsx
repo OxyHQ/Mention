@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect } from 'expo-router';
 import Feed from '@/components/Feed/Feed';
-import { useAuth } from '@oxyhq/services';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
@@ -28,6 +27,8 @@ import { LogoIcon } from '@/assets/logo';
 import { MenuIcon } from '@/assets/icons/menu-icon';
 import { useDrawer } from '@/context/DrawerContext';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { useAuth } from '@oxyhq/services';
+import { logger } from '@/lib/logger';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -35,6 +36,12 @@ interface PinnedFeed {
     id: string;
     title: string;
     feedId: string;
+}
+
+interface FeedReference {
+    _id?: string;
+    id?: string;
+    title?: string;
 }
 
 const PINNED_KEY = 'mention.pinnedFeeds';
@@ -48,7 +55,7 @@ const FAB_BAR_HIDDEN_DROP = 60;
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
-    const { isAuthenticated, isAuthResolved, user } = useAuth();
+    const { isAuthenticated, isAuthResolved, canUsePrivateApi, user } = useAuth();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { open: openDrawer } = useDrawer();
@@ -59,7 +66,6 @@ const HomeScreen: React.FC = () => {
     const isScrolledDownRef = useRef(false);
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
-    const [myFeeds, setMyFeeds] = useState<any[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const headerHeight = 48;
     const fabTransition = useSharedValue(0);
@@ -90,7 +96,7 @@ const HomeScreen: React.FC = () => {
     }));
 
     const loadFeeds = React.useCallback(async () => {
-        if (!isAuthenticated) return;
+        if (!canUsePrivateApi) return;
 
         try {
             const pinned = (await getData<string[]>(PINNED_KEY)) || [];
@@ -103,8 +109,8 @@ const HomeScreen: React.FC = () => {
             const myFeedsList = mineFeeds.items || [];
             const publicFeedsList = publicFeeds.items || [];
 
-            const allFeedsMap = new Map<string, any>();
-            [...myFeedsList, ...publicFeedsList].forEach((feed: any) => {
+            const allFeedsMap = new Map<string, FeedReference>();
+            [...myFeedsList, ...publicFeedsList].forEach((feed: FeedReference) => {
                 const feedId = String(feed._id || feed.id);
                 if (!allFeedsMap.has(feedId)) {
                     allFeedsMap.set(feedId, feed);
@@ -112,16 +118,14 @@ const HomeScreen: React.FC = () => {
             });
             const allFeeds = Array.from(allFeedsMap.values());
 
-            setMyFeeds(myFeedsList);
-
             const pinnedFeedData = pinned
                 .map((id) => {
                     const feedId = id.replace('custom:', '');
-                    const feed = allFeeds.find((f: any) => String(f._id || f.id) === feedId);
+                    const feed = allFeeds.find((f) => String(f._id || f.id) === feedId);
                     if (feed) {
                         return {
                             id,
-                            title: feed.title,
+                            title: feed.title || 'Untitled Feed',
                             feedId
                         };
                     }
@@ -130,10 +134,10 @@ const HomeScreen: React.FC = () => {
                 .filter(Boolean) as PinnedFeed[];
 
             setPinnedFeeds(pinnedFeedData);
-        } catch (error: any) {
-            // Silently ignore errors
+        } catch (error: unknown) {
+            logger.warn('Failed to load pinned feeds', { error });
         }
-    }, [isAuthenticated]);
+    }, [canUsePrivateApi]);
 
     useEffect(() => {
         loadFeeds();
@@ -214,9 +218,9 @@ const HomeScreen: React.FC = () => {
         // itself shows its normal loading spinner while a session restores on cold
         // boot; once auth resolves the key flips anon→userId and the Feed remounts to
         // fetch the authenticated feed.
-        const feedIdentity = isAuthenticated && user?.id ? user.id : 'anon';
+        const feedIdentity = canUsePrivateApi && user?.id ? user.id : 'anon';
 
-        if (isAuthenticated && activeTab.startsWith('custom:')) {
+        if (canUsePrivateApi && activeTab.startsWith('custom:')) {
             const feedId = activeTab.replace('custom:', '');
             const pinnedFeed = pinnedFeeds.find(f => f.feedId === feedId);
             if (pinnedFeed) {
@@ -235,7 +239,7 @@ const HomeScreen: React.FC = () => {
             }
         }
 
-        if (!isAuthenticated) {
+        if (!canUsePrivateApi) {
             switch (activeTab) {
                 case 'trending':
                     return <Feed key={`trending-${feedIdentity}`} type="explore" reloadKey={refreshKey} />;
@@ -306,13 +310,13 @@ const HomeScreen: React.FC = () => {
                         <AnimatedTabBar
                             tabs={[
                                 { id: 'for_you', label: t('For You') },
-                                ...(isAuthenticated ? [{ id: 'following', label: t('Following') }] : []),
+                                ...(canUsePrivateApi ? [{ id: 'following', label: t('Following') }] : []),
                                 { id: 'trending', label: t('Trending') },
-                                ...(isAuthenticated ? pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })) : []),
+                                ...(canUsePrivateApi ? pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })) : []),
                             ]}
                             activeTabId={activeTab}
                             onTabPress={handleTabPress}
-                            scrollEnabled={isAuthenticated && pinnedFeeds.length > 0}
+                            scrollEnabled={canUsePrivateApi && pinnedFeeds.length > 0}
                         />
                     </View>
 
@@ -323,7 +327,7 @@ const HomeScreen: React.FC = () => {
                         fully visible at all times: rests above the bottom bar and
                         drops into the bar's vacated spot when the bar auto-hides on
                         scroll (shared visibility signal). No opacity fade. */}
-                    {isAuthenticated && (
+                    {canUsePrivateApi && (
                         <FAB
                             onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
                             animatedTranslateY={fabTranslateY}

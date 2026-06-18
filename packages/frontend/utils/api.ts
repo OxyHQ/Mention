@@ -1,13 +1,11 @@
 import { oxyServices } from '@/lib/oxyServices';
-import axios, { AxiosHeaders, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
 import { API_URL } from '@/config';
-import { createScopedLogger } from '@/lib/logger';
 
 const API_TIMEOUT_MS = 15_000;
-const logger = createScopedLogger('MentionApi');
 
-interface RetryableAxiosRequestConfig extends InternalAxiosRequestConfig<unknown> {
-  _retry?: boolean;
+interface DataResponse<T> {
+  data: T;
 }
 
 function getHttpStatus(error: unknown): number | undefined {
@@ -31,56 +29,37 @@ function getHttpStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function setAuthorizationHeader(config: InternalAxiosRequestConfig<unknown>, token: string): void {
-  const headers = AxiosHeaders.from(config.headers);
-  headers.set('Authorization', `Bearer ${token}`);
-  config.headers = headers;
-}
+const mentionApiClient = oxyServices.createLinkedClient({ baseURL: API_URL });
+const linkedClient = mentionApiClient.client;
+type LinkedRequestConfig = NonNullable<Parameters<typeof linkedClient.get>[1]>;
+type LinkedDeleteConfig = NonNullable<Parameters<typeof linkedClient.delete>[1]>;
 
-function getAuthorizationHeader(config: InternalAxiosRequestConfig<unknown>): string | undefined {
-  const value = AxiosHeaders.from(config.headers).get('Authorization');
-  return typeof value === 'string' ? value : undefined;
-}
+const authenticatedClient = {
+  async get<T = unknown>(endpoint: string, config?: LinkedRequestConfig): Promise<DataResponse<T>> {
+    const data = await linkedClient.get<T>(endpoint, config);
+    return { data };
+  },
 
-// Authenticated axios client for Mention backend (api.mention.earth)
-// Auth token is read from the shared OxyServices instance on every request
-const authenticatedClient = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: API_TIMEOUT_MS,
-});
+  async post<T = unknown>(endpoint: string, body?: unknown, config?: LinkedRequestConfig): Promise<DataResponse<T>> {
+    const data = await linkedClient.post<T>(endpoint, body, config);
+    return { data };
+  },
 
-authenticatedClient.interceptors.request.use((config) => {
-  const token = oxyServices.getClient().getAccessToken();
-  if (token) {
-    setAuthorizationHeader(config, token);
-  }
-  return config;
-});
+  async put<T = unknown>(endpoint: string, body?: unknown, config?: LinkedRequestConfig): Promise<DataResponse<T>> {
+    const data = await linkedClient.put<T>(endpoint, body, config);
+    return { data };
+  },
 
-// Handle auth races: if a request left with an old/missing bearer while the SDK
-// committed a newer token, retry once with the current token. Real 401s still
-// propagate to the caller instead of poking at private SDK internals.
-authenticatedClient.interceptors.response.use(
-  (response) => response,
-  async (error: AxiosError<unknown, unknown>) => {
-    const originalRequest = error.config as RetryableAxiosRequestConfig | undefined;
-    if (getHttpStatus(error) === 401 && originalRequest && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const latestToken = oxyServices.getClient().getAccessToken();
-      const latestHeader = latestToken ? `Bearer ${latestToken}` : undefined;
-      if (latestToken && latestHeader !== getAuthorizationHeader(originalRequest)) {
-        setAuthorizationHeader(originalRequest, latestToken);
-        return authenticatedClient(originalRequest);
-      }
-      logger.warn('Authenticated request rejected with the current Oxy token', {
-        method: originalRequest.method,
-        url: originalRequest.url,
-      });
-    }
-    return Promise.reject(error);
-  }
-);
+  async delete<T = unknown>(endpoint: string, config?: LinkedDeleteConfig): Promise<DataResponse<T>> {
+    const data = await linkedClient.delete<T>(endpoint, config);
+    return { data };
+  },
+
+  async patch<T = unknown>(endpoint: string, body?: unknown, config?: LinkedRequestConfig): Promise<DataResponse<T>> {
+    const data = await linkedClient.patch<T>(endpoint, body, config);
+    return { data };
+  },
+};
 
 // Public API client (no authentication)
 const publicClient = axios.create({

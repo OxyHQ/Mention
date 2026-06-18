@@ -1,70 +1,56 @@
-import axios from 'axios';
-import type { OxyServices } from '@oxyhq/core';
+import type { HttpClient, HttpRequestConfig, HttpResponse } from '@mention/agora-shared';
 import { API_URL } from '@/config';
+import { oxyServices } from '@/lib/oxyServices';
 
-// Shared OxyServices singleton reference — set by AppProviders after auth init
-let _oxyServices: OxyServices | null = null;
+const agoraApiClient = oxyServices.createLinkedClient({ baseURL: API_URL });
+const linkedClient = agoraApiClient.client;
 
-export function setOxyServicesRef(svc: OxyServices) {
-  _oxyServices = svc;
+function linkedConfig(config?: HttpRequestConfig): { params?: HttpRequestConfig['params'] } | undefined {
+  return config?.params ? { params: config.params } : undefined;
 }
 
-// Authenticated axios client for Mention backend (api.mention.earth)
-const authenticatedClient = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' },
-});
+const authenticatedClient: HttpClient = {
+  async get(url: string, config?: HttpRequestConfig): Promise<HttpResponse> {
+    const data = await linkedClient.get<Record<string, unknown>>(url, linkedConfig(config));
+    return { data };
+  },
 
-authenticatedClient.interceptors.request.use((config) => {
-  const token = _oxyServices?.getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+  async post(url: string, data?: Record<string, unknown> | FormData, config?: HttpRequestConfig): Promise<HttpResponse> {
+    const responseData = await linkedClient.post<Record<string, unknown>>(url, data, linkedConfig(config));
+    return { data: responseData };
+  },
 
-// Retry once on 401 after rotating the current refresh-cookie slot.
-authenticatedClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const config = error.config;
-    if (error.response?.status === 401 && _oxyServices && !config._retried) {
-      config._retried = true;
-      try {
-        const refreshed = await _oxyServices.refreshTokenViaCookie();
-        if (refreshed?.accessToken) {
-          _oxyServices.setTokens(refreshed.accessToken);
-          config.headers.Authorization = `Bearer ${refreshed.accessToken}`;
-          return authenticatedClient(config);
-        }
-      } catch {
-        // Refresh failed — fall through to reject
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+  async patch(url: string, data?: Record<string, unknown>, config?: HttpRequestConfig): Promise<HttpResponse> {
+    const responseData = await linkedClient.patch<Record<string, unknown>>(url, data, linkedConfig(config));
+    return { data: responseData };
+  },
+
+  async delete(url: string, config?: HttpRequestConfig): Promise<HttpResponse> {
+    const data = await linkedClient.delete<Record<string, unknown>>(url, linkedConfig(config));
+    return { data };
+  },
+};
 
 export const api = {
   async get<T = unknown>(endpoint: string, params?: Record<string, string | number | boolean | undefined>): Promise<{ data: T }> {
-    const response = await authenticatedClient.get(endpoint, { params });
-    return { data: response.data };
+    const data = await linkedClient.get<T>(endpoint, { params });
+    return { data };
   },
   async post<T = unknown>(endpoint: string, body?: Record<string, unknown>): Promise<{ data: T }> {
-    const response = await authenticatedClient.post(endpoint, body);
-    return { data: response.data };
+    const data = await linkedClient.post<T>(endpoint, body);
+    return { data };
   },
   async put<T = unknown>(endpoint: string, body?: Record<string, unknown>): Promise<{ data: T }> {
-    const response = await authenticatedClient.put(endpoint, body);
-    return { data: response.data };
+    const data = await linkedClient.put<T>(endpoint, body);
+    return { data };
   },
   async delete<T = unknown>(endpoint: string): Promise<{ data: T }> {
-    const response = await authenticatedClient.delete(endpoint);
-    return { data: response.data };
+    const data = await linkedClient.delete<T>(endpoint);
+    return { data };
   },
   async patch<T = unknown>(endpoint: string, body?: Record<string, unknown>): Promise<{ data: T }> {
-    const response = await authenticatedClient.patch(endpoint, body);
-    return { data: response.data };
+    const data = await linkedClient.patch<T>(endpoint, body);
+    return { data };
   },
 };
 

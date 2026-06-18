@@ -14,7 +14,7 @@ import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon, type IconName } from '@/lib/icons';
 import { logger } from '@/lib/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 type VisibilityOption = 'public' | 'private' | 'followers_only';
 
@@ -29,15 +29,14 @@ export default function ProfileVisibilityScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
     const safeBack = useSafeBack();
-    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
-    const canLoadPrivateSettings = isAuthResolved && isReady && isAuthenticated;
+    const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
     const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>('public');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+        if (!isAuthResolved || isPrivateApiPending) {
             return;
         }
         if (!isAuthenticated) {
@@ -45,7 +44,7 @@ export default function ProfileVisibilityScreen() {
             return;
         }
         loadSettings();
-    }, [isAuthResolved, isReady, isAuthenticated]);
+    }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
 
     const loadSettings = async () => {
         try {
@@ -105,7 +104,7 @@ export default function ProfileVisibilityScreen() {
         }
     };
 
-    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+    if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
                 <Header
@@ -127,7 +126,7 @@ export default function ProfileVisibilityScreen() {
         );
     }
 
-    if (!canLoadPrivateSettings) {
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header
