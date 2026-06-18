@@ -11,7 +11,13 @@ import {
 } from './constants';
 import { isMediaCacheEnabled } from './oxyMediaStore';
 
-const REMOTE_MEDIA_ID_PATTERN = /^https?:\/\//i;
+export const REMOTE_MEDIA_ID_PATTERN = /^https?:\/\//i;
+
+export const FEDERATED_MEDIA_BACKFILL_MATCH = {
+  federation: { $ne: null },
+  oxyUserId: { $type: 'string', $ne: '' },
+  'content.media': { $elemMatch: { id: REMOTE_MEDIA_ID_PATTERN } },
+} as const;
 
 type StoredMediaItem = MediaItem & {
   remoteUrl?: string;
@@ -19,7 +25,7 @@ type StoredMediaItem = MediaItem & {
   posterFileId?: string;
 };
 
-interface BackfillPost {
+export interface FederatedMediaBackfillPost {
   _id: Types.ObjectId;
   oxyUserId?: string | null;
   federation?: { activityId?: string } | null;
@@ -82,7 +88,9 @@ function rewriteMediaAttachments(
   });
 }
 
-async function persistPostMedia(post: BackfillPost): Promise<PostBackfillResult> {
+export async function backfillFederatedMediaPost(
+  post: FederatedMediaBackfillPost,
+): Promise<PostBackfillResult> {
   const ownerUserId = post.oxyUserId;
   const media = Array.isArray(post.content?.media) ? post.content.media : [];
   if (!ownerUserId || media.length === 0) {
@@ -172,15 +180,11 @@ export async function runFederatedMediaBackfillOnce(): Promise<FederatedMediaBac
     return { scannedPosts: 0, updatedPosts: 0, convertedMedia: 0, failedMedia: 0, disabled: true };
   }
 
-  const posts = await Post.find({
-    federation: { $ne: null },
-    oxyUserId: { $type: 'string', $ne: '' },
-    'content.media': { $elemMatch: { id: REMOTE_MEDIA_ID_PATTERN } },
-  })
+  const posts = await Post.find(FEDERATED_MEDIA_BACKFILL_MATCH)
     .select('_id oxyUserId federation.activityId content.media content.attachments createdAt')
     .sort({ createdAt: -1 })
     .limit(FEDERATED_MEDIA_BACKFILL_BATCH_SIZE)
-    .lean<BackfillPost[]>();
+    .lean<FederatedMediaBackfillPost[]>();
 
   if (posts.length === 0) {
     return { scannedPosts: 0, updatedPosts: 0, convertedMedia: 0, failedMedia: 0, disabled: false };
@@ -198,7 +202,7 @@ export async function runFederatedMediaBackfillOnce(): Promise<FederatedMediaBac
 
   for (let i = 0; i < posts.length; i += FEDERATED_MEDIA_BACKFILL_CONCURRENCY) {
     const batch = posts.slice(i, i + FEDERATED_MEDIA_BACKFILL_CONCURRENCY);
-    const settled = await Promise.allSettled(batch.map((post) => persistPostMedia(post)));
+    const settled = await Promise.allSettled(batch.map((post) => backfillFederatedMediaPost(post)));
 
     for (const outcome of settled) {
       if (outcome.status === 'fulfilled') {

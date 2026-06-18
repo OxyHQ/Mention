@@ -7,10 +7,8 @@ import { Post } from '../models/Post';
 import { federationService } from './FederationService';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
-import { runFederatedMediaBackfillOnce } from './mediaCache/federatedMediaBackfill';
 import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
 import {
-  FEDERATED_MEDIA_BACKFILL_INTERVAL_MS,
   MEDIA_CACHE_EVICTION_INTERVAL_MS,
   MEDIA_CACHE_WORKER_INTERVAL_MS,
 } from './mediaCache/constants';
@@ -27,12 +25,10 @@ class FederationJobScheduler {
   private outboxSyncInterval: ReturnType<typeof setInterval> | null = null;
   private mediaCacheWorkerInterval: ReturnType<typeof setInterval> | null = null;
   private mediaCacheEvictionInterval: ReturnType<typeof setInterval> | null = null;
-  private federatedMediaBackfillInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
   private backfillTimeout: ReturnType<typeof setTimeout> | null = null;
   private initialSyncTimeout: ReturnType<typeof setTimeout> | null = null;
-  private federatedMediaBackfillTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Overlap guards — prevent concurrent runs when intervals fire faster than jobs complete
   private isSyncFollowedActorsPostsRunning = false;
@@ -40,7 +36,6 @@ class FederationJobScheduler {
   private isRetryFailedDeliveriesRunning = false;
   private isMediaCacheWorkerRunning = false;
   private isMediaCacheEvictionRunning = false;
-  private isFederatedMediaBackfillRunning = false;
 
   start(): void {
     if (!FEDERATION_ENABLED) {
@@ -87,13 +82,6 @@ class FederationJobScheduler {
         );
       }, MEDIA_CACHE_EVICTION_INTERVAL_MS);
 
-      // Convert historical federated post media rows from remote HTTP URLs to
-      // durable Oxy asset ids owned by the federated Oxy users.
-      this.federatedMediaBackfillInterval = setInterval(() => {
-        this.runFederatedMediaBackfill().catch((err) =>
-          logger.error('Federated media backfill job failed:', err)
-        );
-      }, FEDERATED_MEDIA_BACKFILL_INTERVAL_MS);
     }
 
     // Stagger startup tasks to let DB connections warm up
@@ -108,14 +96,6 @@ class FederationJobScheduler {
         logger.error('Initial outbox sync failed:', err)
       );
     }, 30 * 1000);
-
-    if (isMediaCacheEnabled()) {
-      this.federatedMediaBackfillTimeout = setTimeout(() => {
-        this.runFederatedMediaBackfill().catch((err) =>
-          logger.error('Initial federated media backfill failed:', err)
-        );
-      }, 45 * 1000);
-    }
 
     logger.info('Federation job scheduler started');
   }
@@ -141,10 +121,6 @@ class FederationJobScheduler {
       clearInterval(this.mediaCacheEvictionInterval);
       this.mediaCacheEvictionInterval = null;
     }
-    if (this.federatedMediaBackfillInterval) {
-      clearInterval(this.federatedMediaBackfillInterval);
-      this.federatedMediaBackfillInterval = null;
-    }
     if (this.backfillTimeout) {
       clearTimeout(this.backfillTimeout);
       this.backfillTimeout = null;
@@ -152,10 +128,6 @@ class FederationJobScheduler {
     if (this.initialSyncTimeout) {
       clearTimeout(this.initialSyncTimeout);
       this.initialSyncTimeout = null;
-    }
-    if (this.federatedMediaBackfillTimeout) {
-      clearTimeout(this.federatedMediaBackfillTimeout);
-      this.federatedMediaBackfillTimeout = null;
     }
     logger.info('Federation job scheduler stopped');
   }
@@ -457,22 +429,6 @@ class FederationJobScheduler {
     }
   }
 
-  /**
-   * Backfill historical federated posts whose media was imported before durable
-   * Oxy ownership existed. New imports already persist media inline.
-   */
-  private async runFederatedMediaBackfill(): Promise<void> {
-    if (this.isFederatedMediaBackfillRunning) {
-      logger.debug('[MediaBackfill] already running, skipping');
-      return;
-    }
-    this.isFederatedMediaBackfillRunning = true;
-    try {
-      await runFederatedMediaBackfillOnce();
-    } finally {
-      this.isFederatedMediaBackfillRunning = false;
-    }
-  }
 }
 
 export const federationJobScheduler = new FederationJobScheduler();
