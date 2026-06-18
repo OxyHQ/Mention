@@ -64,6 +64,15 @@ export const MEDIA_CACHE_WORKER_CONCURRENCY = 3;
 /** How often the cache worker drains pending entries. */
 export const MEDIA_CACHE_WORKER_INTERVAL_MS = 60 * MS_PER_SECOND;
 
+/** Max historical federated posts converted from remote URLs to Oxy assets per run. */
+export const FEDERATED_MEDIA_BACKFILL_BATCH_SIZE = 20;
+
+/** Concurrent historical post conversions within one backfill run. */
+export const FEDERATED_MEDIA_BACKFILL_CONCURRENCY = 3;
+
+/** How often the historical federated-media backfill checks for old remote refs. */
+export const FEDERATED_MEDIA_BACKFILL_INTERVAL_MS = 60 * MS_PER_SECOND;
+
 /** Max cached+idle entries evicted from S3 per eviction-job run. */
 export const MEDIA_CACHE_EVICTION_BATCH_SIZE = 50;
 
