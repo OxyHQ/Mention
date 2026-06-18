@@ -18,7 +18,7 @@ import {
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { oxyServices } from '@/lib/oxyServices';
+import type { OxyServices } from '@oxyhq/core';
 
 interface StableFollowButtonProps {
   userId: string;
@@ -35,6 +35,7 @@ interface StableFollowButtonInnerProps extends StableFollowButtonProps {
    * session resolves or switches on cold boot.
    */
   viewerId: string;
+  oxyServices: OxyServices;
 }
 
 /**
@@ -50,6 +51,7 @@ interface StableFollowButtonInnerProps extends StableFollowButtonProps {
 const StableFollowButtonInner = memo(function StableFollowButtonInner({
   userId,
   viewerId,
+  oxyServices,
   size = 'small',
 }: StableFollowButtonInnerProps) {
   const theme = useTheme();
@@ -81,7 +83,7 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [userId, viewerId]);
+  }, [oxyServices, userId, viewerId]);
 
   const handlePress = useCallback(async () => {
     if (loading) return;
@@ -107,7 +109,7 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
         setLoading(false);
       }
     }
-  }, [userId, loading, isFollowing]);
+  }, [oxyServices, userId, loading, isFollowing]);
 
   const buttonStyle = [
     styles.button,
@@ -156,7 +158,7 @@ const StableFollowButton = memo(function StableFollowButton({
   userId,
   size = 'small',
 }: StableFollowButtonProps) {
-  const { user: currentUser, isAuthenticated } = useAuth();
+  const { user: currentUser, isAuthenticated, oxyServices } = useAuth();
 
   const currentUserId = currentUser?.id ? String(currentUser.id).trim() : '';
   const targetUserId = userId ? String(userId).trim() : '';
@@ -165,7 +167,7 @@ const StableFollowButton = memo(function StableFollowButton({
     return null;
   }
 
-  return <StableFollowButtonInner userId={targetUserId} viewerId={currentUserId} size={size} />;
+  return <StableFollowButtonInner userId={targetUserId} viewerId={currentUserId} oxyServices={oxyServices} size={size} />;
 });
 
 const styles = StyleSheet.create({
