@@ -183,8 +183,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const displayName = design?.displayName || '';
     const avatarUri = design?.avatar;
     const bannerUri =
-        design?.coverPhotoEnabled && design?.coverImage
-            ? (isFederated ? design.coverImage : oxyServices.getFileDownloadUrl(design.coverImage, 'full'))
+        design?.coverPhotoEnabled && design?.bannerUrl
+            ? design.bannerUrl
             : undefined;
     const minimalistMode = design?.minimalistMode ?? false;
 

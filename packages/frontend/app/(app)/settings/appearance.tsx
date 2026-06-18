@@ -71,7 +71,7 @@ export default function AppearanceSettingsScreen() {
     const header = updates.headerImageId ?? headerImageId;
     await updateMySettings({
       appearance: { themeMode: mode, primaryColor: color || undefined },
-      profileHeaderImage: header || undefined,
+      profileHeaderImage: header || null,
     });
     setSettingsSaving(false);
   }, [themeMode, preset.hex, headerImageId, updateMySettings]);

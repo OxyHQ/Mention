@@ -34,7 +34,6 @@ export interface UserAppearance {
     coverPhotoEnabled?: boolean;
     minimalistMode?: boolean;
     displayName?: string;
-    coverImage?: string;
   };
   followsYou?: boolean;
   privacy?: {
@@ -49,7 +48,7 @@ export interface UserAppearance {
 
 export interface UserAppearanceUpdate {
   appearance?: Partial<AppearanceSettings>;
-  profileHeaderImage?: string;
+  profileHeaderImage?: string | null;
   profileCustomization?: UserAppearance['profileCustomization'];
   interests?: UserAppearance['interests'];
 }

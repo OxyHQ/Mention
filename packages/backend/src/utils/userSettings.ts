@@ -1,4 +1,5 @@
 import UserSettings from '../models/UserSettings';
+import { resolveMediaRef } from './mediaResolver';
 
 /**
  * Default profile customization settings
@@ -7,6 +8,19 @@ export const DEFAULT_PROFILE_CUSTOMIZATION = {
   coverPhotoEnabled: true,
   minimalistMode: false,
 } as const;
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function resolveProfileHeaderImage(value: unknown): string | undefined {
+  const ref = nonEmptyString(value);
+  if (!ref) return undefined;
+
+  return resolveMediaRef(ref).url || undefined;
+}
 
 /**
  * Ensures a UserSettings document exists for a user
@@ -36,13 +50,26 @@ export async function ensureUserSettings(oxyUserId: string) {
  * Extracts public profile design data from UserSettings document
  */
 export function extractPublicProfileData(doc: any, userId: string) {
+  const customization = doc?.profileCustomization || {};
+  const displayName = nonEmptyString(customization.displayName);
+  const profileCustomization = {
+    coverPhotoEnabled:
+      typeof customization.coverPhotoEnabled === 'boolean'
+        ? customization.coverPhotoEnabled
+        : DEFAULT_PROFILE_CUSTOMIZATION.coverPhotoEnabled,
+    minimalistMode:
+      typeof customization.minimalistMode === 'boolean'
+        ? customization.minimalistMode
+        : DEFAULT_PROFILE_CUSTOMIZATION.minimalistMode,
+    ...(displayName && { displayName }),
+  };
+
   return {
     oxyUserId: userId,
     appearance: doc?.appearance?.primaryColor ? {
       primaryColor: doc.appearance.primaryColor,
     } : undefined,
-    profileHeaderImage: doc?.profileHeaderImage,
-    profileCustomization: doc?.profileCustomization || DEFAULT_PROFILE_CUSTOMIZATION,
+    profileHeaderImage: resolveProfileHeaderImage(doc?.profileHeaderImage),
+    profileCustomization,
   };
 }
-

@@ -6,7 +6,6 @@ import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../uti
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { resolveMediaRef } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -31,7 +30,6 @@ interface PublicProfileDesignResponse {
     coverPhotoEnabled: boolean;
     minimalistMode: boolean;
     displayName?: string;
-    coverImage?: string;
   };
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -85,12 +83,6 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
 
     // User has access - return full profile design data with privacy info
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
-
-    // Emit a FINAL, ready-to-render header image URL (CDN/proxy) instead of a raw
-    // ref so the frontend never computes it.
-    if (response.profileHeaderImage) {
-      response.profileHeaderImage = resolveMediaRef(response.profileHeaderImage).url || undefined;
-    }
 
     // Calculate post-related counts in parallel. All three are scoped to the
     // user's public content and leverage existing indexes (oxyUserId, type,

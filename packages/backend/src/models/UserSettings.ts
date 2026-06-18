@@ -37,7 +37,6 @@ export interface ProfileCustomization {
   coverPhotoEnabled?: boolean;
   minimalistMode?: boolean;
   displayName?: string; // Custom display name (overrides Oxy profile name)
-  coverImage?: string; // Custom cover image (alternative to profileHeaderImage)
 }
 
 export interface InterestsSettings {
@@ -120,7 +119,6 @@ const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
   coverPhotoEnabled: { type: Boolean, default: true },
   minimalistMode: { type: Boolean, default: false },
   displayName: { type: String },
-  coverImage: { type: String },
 }, { _id: false });
 
 const InterestsSchema = new Schema<InterestsSettings>({
@@ -169,4 +167,3 @@ const UserSettingsSchema = new Schema<IUserSettings>({
 export const UserSettings = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);
 
 export default UserSettings;
-

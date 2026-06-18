@@ -67,6 +67,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     const { appearance, profileHeaderImage, privacy, profileCustomization, interests, feedSettings, notificationPreferences } = req.body || {};
 
     const update: Record<string, any> = {};
+    const unset: Record<string, ''> = {};
     
     if (appearance) {
       update['appearance'] = {};
@@ -81,7 +82,14 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     }
     
     if (typeof profileHeaderImage === 'string') {
-      update.profileHeaderImage = profileHeaderImage;
+      const trimmedProfileHeaderImage = profileHeaderImage.trim();
+      if (trimmedProfileHeaderImage) {
+        update.profileHeaderImage = trimmedProfileHeaderImage;
+      } else {
+        unset.profileHeaderImage = '';
+      }
+    } else if (profileHeaderImage === null) {
+      unset.profileHeaderImage = '';
     }
     
     if (profileCustomization) {
@@ -95,11 +103,6 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         update['profileCustomization.displayName'] = profileCustomization.displayName.trim() || undefined;
       } else if (profileCustomization.displayName === null) {
         update['profileCustomization.displayName'] = undefined;
-      }
-      if (typeof profileCustomization.coverImage === 'string') {
-        update['profileCustomization.coverImage'] = profileCustomization.coverImage.trim() || undefined;
-      } else if (profileCustomization.coverImage === null) {
-        update['profileCustomization.coverImage'] = undefined;
       }
     }
     
@@ -211,11 +214,21 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const doc = await UserSettings.findOneAndUpdate(
-      { oxyUserId },
-      { $set: update },
-      { upsert: true, new: true }
-    ).lean();
+    const operation: Record<string, Record<string, any>> = {};
+    if (Object.keys(update).length > 0) {
+      operation.$set = update;
+    }
+    if (Object.keys(unset).length > 0) {
+      operation.$unset = unset;
+    }
+
+    const doc = Object.keys(operation).length > 0
+      ? await UserSettings.findOneAndUpdate(
+        { oxyUserId },
+        operation,
+        { upsert: true, new: true }
+      ).lean()
+      : await ensureUserSettings(oxyUserId);
 
     return sendSuccessResponse(res, 200, doc);
   } catch (err) {

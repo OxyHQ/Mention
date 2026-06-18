@@ -5,14 +5,14 @@
 `useProfileData` is a **unified hook** that combines multiple data sources into a single, consistent profile data object:
 
 1. **Oxy Profile Data** - Basic user info from `usersStore` (username, bio, avatar, etc.)
-2. **Appearance/Customization Settings** - From `appearanceStore` (displayName, coverImage, minimalistMode, etc.)
+2. **Appearance/Customization Settings** - From `appearanceStore` (displayName, profileHeaderImage, minimalistMode, etc.)
 3. **Privacy Settings** - From `usePrivacySettings` (profileVisibility, etc.)
 
 ## Key Benefits
 
 - ✅ **Automatic fetching** - Fetches profile data when username changes
 - ✅ **Automatic appearance loading** - Loads customization settings automatically
-- ✅ **Unified design computation** - Computes `displayName`, `coverImage`, `avatar`, `minimalistMode` from multiple sources
+- ✅ **Unified design computation** - Computes `displayName`, `bannerUrl`, `avatar`, `minimalistMode` from profile data and profile design settings
 - ✅ **Optimized re-renders** - Uses Zustand selectors to prevent unnecessary re-renders
 - ✅ **Type-safe** - Returns properly typed `ProfileData` with all computed fields
 
@@ -29,7 +29,7 @@
    - Profile previews
    - Settings screens showing other users
 
-3. **When you need design/customization data** - If you need `displayName`, `minimalistMode`, `coverImage`, etc.
+3. **When you need design/customization data** - If you need `displayName`, `minimalistMode`, `bannerUrl`, etc.
 
 ### ❌ **DON'T Use** `useProfileData` for:
 
@@ -86,7 +86,7 @@ const { data: profileData, loading } = useProfileData(cleanUsername);
 // profileData now includes:
 // - profileData.design.displayName (customized display name)
 // - profileData.design.minimalistMode
-// - profileData.design.coverImage
+// - profileData.design.bannerUrl
 // - profileData.privacy.profileVisibility
 // - All original oxyProfile fields
 ```
@@ -115,7 +115,7 @@ interface ProfileData {
   // Computed design values
   design: {
     displayName: string;        // Customized or fallback to name/username
-    coverImage?: string;       // Custom cover image
+    bannerUrl?: string;        // Ready-to-render profile banner URL
     avatar?: string;           // Avatar URL
     coverPhotoEnabled: boolean;
     minimalistMode: boolean;
@@ -131,4 +131,3 @@ interface ProfileData {
   [key: string]: any;
 }
 ```
-

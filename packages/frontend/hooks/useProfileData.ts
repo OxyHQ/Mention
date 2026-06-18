@@ -10,7 +10,7 @@ const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
 export interface ProfileDesign {
   displayName: string;
-  coverImage?: string;
+  bannerUrl?: string;
   avatar?: string;
   coverPhotoEnabled: boolean;
   minimalistMode: boolean;
@@ -59,7 +59,7 @@ function computeDesign(
 
   return {
     displayName: customization?.displayName || nameValue || profile.username || '',
-    coverImage: customization?.coverImage || appearance?.profileHeaderImage,
+    bannerUrl: appearance?.profileHeaderImage,
     avatar: profile.avatar,
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
     minimalistMode: customization?.minimalistMode ?? false,
