@@ -92,20 +92,21 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
 router.get('/', async (req: any, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Authentication required' });
-
     const { mine, publicOnly, search, userId: queryUserId } = req.query as any;
     const q: any = {};
 
     if (queryUserId) {
       // Fetch feeds by a specific user — public only unless it's the current user
       q.ownerOxyUserId = queryUserId;
-      if (queryUserId !== userId) {
+      if (!userId || queryUserId !== userId) {
         q.isPublic = true;
       }
     } else if (mine === 'true') {
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
       q.ownerOxyUserId = userId;
     } else if (publicOnly === 'true') {
+      q.isPublic = true;
+    } else if (!userId) {
       q.isPublic = true;
     } else {
       // default: mine + public

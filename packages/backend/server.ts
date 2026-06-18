@@ -771,6 +771,8 @@ publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (opti
 publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth required)
 publicApiRouter.use("/topics", topicsRoutes); // Topic collection (no auth required)
 publicApiRouter.use("/federation", optionalAuth, federationApiRoutes); // Write endpoints enforce auth internally
+publicApiRouter.use("/feeds", optionalAuth, customFeedsRoutes); // Public feed discovery; write routes enforce auth internally
+publicApiRouter.use("/rooms", optionalAuth, roomsRoutes); // Public room discovery; write routes enforce auth internally
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
@@ -782,7 +784,6 @@ authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
 authenticatedApiRouter.use("/statistics", statisticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
-authenticatedApiRouter.use("/feeds", customFeedsRoutes); // User-created feeds
 authenticatedApiRouter.use("/labelers", labelerRoutes); // Composable moderation labels
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
 authenticatedApiRouter.use("/test", testRoutes);
@@ -793,7 +794,6 @@ authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/mute-words", muteWordsRoutes); // Muted words & hashtags (feed tuner)
 authenticatedApiRouter.use("/reports", reportsRoutes);
-authenticatedApiRouter.use("/rooms", roomsRoutes);
 authenticatedApiRouter.use("/recordings", recordingsRoutes);
 authenticatedApiRouter.use("/houses", housesRoutes);
 authenticatedApiRouter.use("/series", seriesRoutes);

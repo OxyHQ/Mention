@@ -1,5 +1,5 @@
 import { createScopedLogger } from "@/lib/logger";
-import { authenticatedClient } from "@/utils/api";
+import { authenticatedClient, publicClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
 import { Storage } from "@/utils/storage";
@@ -83,7 +83,7 @@ class SearchService {
   // Search feeds
   async searchFeeds(query: string): Promise<any[]> {
     try {
-      const res = await authenticatedClient.get("/feeds", {
+      const res = await publicClient.get("/feeds", {
         params: { publicOnly: true, search: query }
       });
       return res.data.items || [];

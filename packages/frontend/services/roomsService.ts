@@ -1,6 +1,6 @@
 import axios from "axios";
 import { createScopedLogger } from "@/lib/logger";
-import { authenticatedClient } from "@/utils/api";
+import { authenticatedClient, publicClient } from "@/utils/api";
 
 const logger = createScopedLogger('RoomsService');
 
@@ -47,7 +47,7 @@ class RoomsService {
     try {
       const params: Record<string, string> = {};
       if (status) params.status = status;
-      const res = await authenticatedClient.get("/rooms", { params });
+      const res = await publicClient.get("/rooms", { params });
       return res.data.rooms || res.data.data || res.data || [];
     } catch (error: unknown) {
       if (axios.isAxiosError(error) && error.response?.status === 429) {
