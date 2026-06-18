@@ -36,11 +36,22 @@ export interface PrivacySettings {
  * @returns Privacy settings or null if not available
  */
 export function usePrivacySettings(userId?: string | null): PrivacySettings | null {
+    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
+    const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
     const [settings, setSettings] = useState<PrivacySettings | null>(null);
 
     useEffect(() => {
         if (!userId) {
             setSettings(null);
+            return;
+        }
+
+        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+            return;
+        }
+
+        if (!canUsePrivateApi) {
+            setSettings(DEFAULT_PRIVACY_SETTINGS);
             return;
         }
 
@@ -52,7 +63,7 @@ export function usePrivacySettings(userId?: string | null): PrivacySettings | nu
                 } else {
                     setSettings(DEFAULT_PRIVACY_SETTINGS);
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
                 if (isNotFoundError(error)) {
                     setSettings(DEFAULT_PRIVACY_SETTINGS);
                 } else {
@@ -63,7 +74,7 @@ export function usePrivacySettings(userId?: string | null): PrivacySettings | nu
         };
 
         loadSettings();
-    }, [userId]);
+    }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isReady, userId]);
 
     return settings;
 }
@@ -77,7 +88,8 @@ let cachedPrivacySettings: PrivacySettings | null = null;
 let cacheLoadPromise: Promise<void> | null = null;
 
 export function useCurrentUserPrivacySettings(): PrivacySettings | null {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, isAuthResolved, isReady } = useAuth();
+    const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
     const [settings, setSettings] = useState<PrivacySettings | null>(() => {
         // Try to load from cache synchronously on first render
         if (cachedPrivacySettings) {
@@ -100,8 +112,12 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
     });
 
     useEffect(() => {
+        if (!isAuthResolved || (isAuthenticated && !isReady)) {
+            return;
+        }
+
         // Only make API call if user is authenticated
-        if (!isAuthenticated) {
+        if (!canUsePrivateApi) {
             // Use cached settings or defaults if not authenticated
             if (cacheLoadPromise) {
                 cacheLoadPromise.then(() => {
@@ -133,19 +149,19 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
                     // Cache the settings for next time
                     try {
                         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(freshSettings));
-                    } catch (cacheErr) {
-                        logger.debug('Failed to cache privacy settings');
+                    } catch (cacheErr: unknown) {
+                        logger.debug('Failed to cache privacy settings', { error: cacheErr });
                     }
                 } else {
                     cachedPrivacySettings = DEFAULT_PRIVACY_SETTINGS;
                     setSettings(DEFAULT_PRIVACY_SETTINGS);
                     try {
                         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(DEFAULT_PRIVACY_SETTINGS));
-                    } catch (cacheErr) {
-                        logger.debug('Failed to cache default privacy settings');
+                    } catch (cacheErr: unknown) {
+                        logger.debug('Failed to cache default privacy settings', { error: cacheErr });
                     }
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
                 if (isUnauthorizedError(error)) {
                     setSettings(cachedPrivacySettings || DEFAULT_PRIVACY_SETTINGS);
                     return;
@@ -155,20 +171,18 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
                     setSettings(DEFAULT_PRIVACY_SETTINGS);
                     try {
                         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(DEFAULT_PRIVACY_SETTINGS));
-                    } catch (cacheErr) {
-                        logger.debug('Failed to cache default privacy settings');
+                    } catch (cacheErr: unknown) {
+                        logger.debug('Failed to cache default privacy settings', { error: cacheErr });
                     }
                 } else {
                     logger.debug('Could not load current user privacy settings');
-                    if (!settings) {
-                        setSettings(cachedPrivacySettings || DEFAULT_PRIVACY_SETTINGS);
-                    }
+                    setSettings((current) => current ?? cachedPrivacySettings ?? DEFAULT_PRIVACY_SETTINGS);
                 }
             }
         };
 
         loadSettings();
-    }, [isAuthenticated]);
+    }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isReady]);
 
     // Return settings (will be cached value immediately if available)
     return settings;
@@ -179,8 +193,7 @@ export async function updatePrivacySettingsCache(privacySettings: PrivacySetting
     try {
         cachedPrivacySettings = privacySettings;
         await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(privacySettings));
-    } catch (error) {
-        logger.debug('Failed to update privacy settings cache');
+    } catch (error: unknown) {
+        logger.debug('Failed to update privacy settings cache', { error });
     }
 }
-

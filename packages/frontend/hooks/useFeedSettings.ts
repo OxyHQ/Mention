@@ -38,14 +38,19 @@ export const DEFAULT_FEED_SETTINGS: FeedSettings = {
  * Hook to load and update current user's feed settings
  */
 export function useFeedSettings() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isAuthResolved, isReady, user } = useAuth();
   const viewerId = user?.id;
+  const canUsePrivateApi = isAuthResolved && isReady && isAuthenticated;
   const [settings, setSettings] = useState<FeedSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const loadSettings = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthResolved || (isAuthenticated && !isReady)) {
+      return;
+    }
+
+    if (!canUsePrivateApi) {
       setSettings(DEFAULT_FEED_SETTINGS);
       setLoading(false);
       return;
@@ -75,11 +80,11 @@ export function useFeedSettings() {
       } else {
         setSettings(DEFAULT_FEED_SETTINGS);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isUnauthorizedError(err) || isNotFoundError(err)) {
         setSettings(DEFAULT_FEED_SETTINGS);
       } else {
-        setError(err);
+        setError(err instanceof Error ? err : new Error('Failed to load feed settings'));
       }
     } finally {
       setLoading(false);
@@ -89,9 +94,13 @@ export function useFeedSettings() {
     // this callback's identity changes. The settings are scoped to the
     // signed-in user, so the anonymous-window fetch must be replaced once the
     // session lands.
-  }, [isAuthenticated]);
+  }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isReady]);
 
   const updateSettings = useCallback(async (updates: Partial<FeedSettings>): Promise<void> => {
+    if (!canUsePrivateApi) {
+      throw new Error('Sign in to update feed settings');
+    }
+
     try {
       const response = await authenticatedClient.put('/profile/settings', {
         feedSettings: updates,
@@ -115,10 +124,10 @@ export function useFeedSettings() {
           },
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw err;
     }
-  }, []);
+  }, [canUsePrivateApi]);
 
   useEffect(() => {
     loadSettings();
@@ -134,7 +143,6 @@ export function useFeedSettings() {
     reloadSettings: loadSettings,
   };
 }
-
 
 
 
