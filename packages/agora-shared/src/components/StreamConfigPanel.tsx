@@ -19,6 +19,7 @@ import { PanelHeader } from './PanelHeader';
 interface StreamConfigPanelProps {
   roomId: string;
   roomStatus?: string;
+  initialStreamUrl?: string;
   initialRtmpUrl?: string;
   initialStreamKey?: string;
   onClose: () => void;
@@ -27,15 +28,32 @@ interface StreamConfigPanelProps {
 
 type StreamMode = 'url' | 'rtmp';
 
-export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialStreamKey, onClose, onStreamStarted }: StreamConfigPanelProps) {
+type NativeFormDataFile = {
+  uri: string;
+  name: string;
+  type: string;
+};
+
+interface NativeFormDataAppender {
+  append(name: string, value: NativeFormDataFile): void;
+}
+
+function appendNativeFile(formData: FormData, file: NativeFormDataFile): void {
+  const nativeFormData = formData as unknown as NativeFormDataAppender;
+  nativeFormData.append('file', file);
+}
+
+export function StreamConfigPanel({ roomId, roomStatus, initialStreamUrl, initialRtmpUrl, initialStreamKey, onClose, onStreamStarted }: StreamConfigPanelProps) {
   const { useTheme, agoraService, toast, onRoomChanged } = useAgoraConfig();
   const theme = useTheme();
 
+  const initialUrl = initialStreamUrl?.trim() ?? '';
   const hasExistingKey = !!(initialStreamKey);
+  const isEditingUrlStream = roomStatus === 'live' && initialUrl.length > 0;
   const [mode, setMode] = useState<StreamMode>(hasExistingKey ? 'rtmp' : 'url');
   const [loading, setLoading] = useState(false);
 
-  const [streamUrl, setStreamUrl] = useState('');
+  const [streamUrl, setStreamUrl] = useState(initialUrl);
 
   const [rtmpUrl, setRtmpUrl] = useState<string | null>(initialRtmpUrl || null);
   const [streamKey, setStreamKey] = useState<string | null>(initialStreamKey || null);
@@ -80,11 +98,12 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
           const blob = await response.blob();
           formData.append('file', new File([blob], 'stream-cover.jpg', { type: asset.mimeType || 'image/jpeg' }));
         } else {
-          formData.append('file', {
+          const nativeFile: NativeFormDataFile = {
             uri: asset.uri,
             name: 'stream-cover.jpg',
             type: asset.mimeType || 'image/jpeg',
-          } as any);
+          };
+          appendNativeFile(formData, nativeFile);
         }
 
         const cdnUrl = await agoraService.uploadRoomImage(roomId, formData);
@@ -188,9 +207,15 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
 
   const handleUpdateMetadata = async () => {
     if (loading) return;
+    const trimmedUrl = streamUrl.trim();
+    if (mode === 'url' && !trimmedUrl) {
+      toast.error('Stream URL is required');
+      return;
+    }
     setLoading(true);
     try {
       const success = await agoraService.updateStreamMetadata(roomId, {
+        ...(mode === 'url' ? { url: trimmedUrl } : {}),
         title: title.trim() || undefined,
         image: imageCdnUrl || undefined,
         description: description.trim() || undefined,
@@ -302,7 +327,12 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
                   <Text style={[styles.credValue, { color: theme.colors.text }]} numberOfLines={1}>
                     {streamKey}
                   </Text>
-                  <TouchableOpacity onPress={() => copyToClipboard(streamKey!, 'Stream key')} style={styles.copyBtn}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (streamKey) copyToClipboard(streamKey, 'Stream key');
+                    }}
+                    style={styles.copyBtn}
+                  >
                     <MaterialCommunityIcons name="content-copy" size={18} color={theme.colors.primary} />
                   </TouchableOpacity>
                 </View>
@@ -391,11 +421,17 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
                   opacity: loading ? 0.6 : 1,
                 },
               ]}
-              onPress={handleStartUrlStream}
+              onPress={isEditingUrlStream ? handleUpdateMetadata : handleStartUrlStream}
               disabled={!streamUrl.trim() || loading}
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : isEditingUrlStream ? (
+                <MaterialCommunityIcons
+                  name="content-save"
+                  size={18}
+                  color={streamUrl.trim() ? '#FFFFFF' : theme.colors.textSecondary}
+                />
               ) : (
                 <MaterialCommunityIcons
                   name="play"
@@ -404,7 +440,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
                 />
               )}
               <Text style={{ color: streamUrl.trim() ? '#FFFFFF' : theme.colors.textSecondary, fontWeight: '600', fontSize: 16 }}>
-                Start Stream
+                {isEditingUrlStream ? 'Save Stream Info' : 'Start Stream'}
               </Text>
             </TouchableOpacity>
           )}

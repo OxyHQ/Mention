@@ -37,7 +37,7 @@
     "@lottiefiles/dotlottie-react": "^0.19.4",
     "@oxyhq/bloom": "^0.8.5",
     "@oxyhq/core": "^3.4.7",
-    "@oxyhq/services": "^10.2.5",
+    "@oxyhq/services": "^10.2.6",
     "@react-native/js-polyfills": "^0.85.3",
     "array.prototype.map": "^1.0.8",
     "react-native-worklets": "0.8.3",

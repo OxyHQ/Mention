@@ -1200,19 +1200,81 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
   }
 });
 
+type UpdateStreamMetadataBody = {
+  url?: unknown;
+  title?: unknown;
+  image?: unknown;
+  description?: unknown;
+};
+
+type ParsedOptionalText =
+  | { ok: true; value: string | undefined }
+  | { ok: false; message: string };
+
+const parseOptionalStreamText = (value: unknown, field: string): ParsedOptionalText => {
+  if (value === undefined || value === null) {
+    return { ok: true, value: undefined };
+  }
+
+  if (typeof value !== 'string') {
+    return { ok: false, message: `${field} must be a string` };
+  }
+
+  const trimmed = value.trim();
+  return { ok: true, value: trimmed.length > 0 ? trimmed : undefined };
+};
+
 /**
  * Update stream metadata (host only)
  * PATCH /api/rooms/:id/stream
- * Body: { title?, image?, description? }
+ * Body: { url?, title?, image?, description? }
  */
 router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
-    const { title, image, description } = req.body;
+    const { url, title, image, description } = req.body as UpdateStreamMetadataBody;
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    let nextStreamUrl: string | undefined;
+    if (url !== undefined) {
+      if (typeof url !== 'string') {
+        return res.status(400).json({ message: 'url must be a string' });
+      }
+
+      const trimmedUrl = url.trim();
+      if (!trimmedUrl) {
+        return res.status(400).json({ message: 'url cannot be empty' });
+      }
+
+      try {
+        const parsed = new URL(trimmedUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return res.status(400).json({ message: 'Only http and https URLs are supported' });
+        }
+      } catch {
+        return res.status(400).json({ message: 'Invalid URL format' });
+      }
+
+      nextStreamUrl = trimmedUrl;
+    }
+
+    const parsedTitle = parseOptionalStreamText(title, 'title');
+    if (!parsedTitle.ok) {
+      return res.status(400).json({ message: parsedTitle.message });
+    }
+
+    const parsedImage = parseOptionalStreamText(image, 'image');
+    if (!parsedImage.ok) {
+      return res.status(400).json({ message: parsedImage.message });
+    }
+
+    const parsedDescription = parseOptionalStreamText(description, 'description');
+    if (!parsedDescription.ok) {
+      return res.status(400).json({ message: parsedDescription.message });
     }
 
     const room = await Room.findById(id);
@@ -1224,14 +1286,38 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Only the host can update stream info' });
     }
 
-    if (!room.activeIngressId) {
+    if (!room.activeIngressId && nextStreamUrl === undefined) {
       return res.status(400).json({ message: 'No active stream to update' });
     }
 
+    if (nextStreamUrl !== undefined && nextStreamUrl !== (room.activeStreamUrl ?? undefined)) {
+      if (room.status !== RoomStatus.LIVE) {
+        return res.status(400).json({ message: 'Room must be live to update stream URL' });
+      }
+
+      const ingress = await createRoomUrlIngress(String(id), nextStreamUrl);
+      const previousIngressId = room.activeIngressId;
+      if (previousIngressId) {
+        try {
+          await deleteIngress(previousIngressId);
+        } catch (ingressDeleteError) {
+          logger.warn('Failed to delete previous stream ingress after URL update:', {
+            roomId: id,
+            ingressId: previousIngressId,
+            error: ingressDeleteError,
+          });
+        }
+      }
+      room.activeIngressId = ingress.ingressId;
+      room.activeStreamUrl = nextStreamUrl;
+      room.rtmpUrl = undefined;
+      room.rtmpStreamKey = undefined;
+    }
+
     // Update metadata fields
-    if (title !== undefined) room.streamTitle = title ? String(title).trim() : undefined;
-    if (image !== undefined) room.streamImage = image ? String(image).trim() : undefined;
-    if (description !== undefined) room.streamDescription = description ? String(description).trim() : undefined;
+    if (title !== undefined) room.streamTitle = parsedTitle.value;
+    if (image !== undefined) room.streamImage = parsedImage.value;
+    if (description !== undefined) room.streamDescription = parsedDescription.value;
     await room.save();
 
     logger.info(`Stream metadata updated for room ${id}`);
@@ -1242,6 +1328,7 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
       io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
         spaceId: id,
         roomId: id,
+        url: room.activeStreamUrl || null,
         title: room.streamTitle || null,
         image: room.streamImage || null,
         description: room.streamDescription || null,
@@ -1249,7 +1336,7 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.json({ message: 'Stream info updated' });
+    res.json({ message: 'Stream info updated', url: room.activeStreamUrl || null });
   } catch (error) {
     logger.error('Error updating stream metadata:', { userId: req.user?.id, roomId: req.params.id, error });
     res.status(500).json({

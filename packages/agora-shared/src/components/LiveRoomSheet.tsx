@@ -350,6 +350,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
       <StreamConfigPanel
         roomId={roomId}
         roomStatus={room?.status}
+        initialStreamUrl={room?.activeStreamUrl ?? undefined}
         initialRtmpUrl={room?.rtmpUrl ?? undefined}
         initialStreamKey={room?.rtmpStreamKey ?? undefined}
         onClose={() => setActivePanel(null)}

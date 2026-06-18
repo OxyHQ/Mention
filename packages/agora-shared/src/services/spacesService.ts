@@ -1,5 +1,5 @@
 import type { Room, Recording, House, HttpClient } from '../types';
-import { validateRooms, validateRoom, validateRecordings, validateHouse, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
+import { validateRooms, validateRoom, validateRecordings, validateRecording, validateHouse, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
 
 export interface CreateRoomData {
   [key: string]: unknown;
@@ -13,6 +13,38 @@ export interface CreateRoomData {
   houseId?: string;
   broadcastKind?: 'user';
   recordingEnabled?: boolean;
+}
+
+export interface StreamMetadataUpdate extends Record<string, unknown> {
+  url?: string;
+  title?: string;
+  image?: string;
+  description?: string;
+}
+
+interface RecordingResponse {
+  recording: Recording;
+  playbackUrl: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function parseRecordingResponse(value: unknown): RecordingResponse | null {
+  if (!isRecord(value) || typeof value.playbackUrl !== 'string') {
+    return null;
+  }
+
+  const recording = validateRecording(value.recording);
+  if (!recording) {
+    return null;
+  }
+
+  return {
+    recording,
+    playbackUrl: value.playbackUrl,
+  };
 }
 
 export function createAgoraService(httpClient: HttpClient) {
@@ -141,7 +173,7 @@ export function createAgoraService(httpClient: HttpClient) {
       }
     },
 
-    async updateStreamMetadata(id: string, data: { title?: string; image?: string; description?: string }): Promise<boolean> {
+    async updateStreamMetadata(id: string, data: StreamMetadataUpdate): Promise<boolean> {
       if (!id) return false;
       try {
         await httpClient.patch(`/rooms/${id}/stream`, data);
@@ -297,7 +329,7 @@ export function createAgoraService(httpClient: HttpClient) {
       if (!recordingId) return null;
       try {
         const res = await httpClient.get(`/recordings/${recordingId}`);
-        return res.data as any;
+        return parseRecordingResponse(res.data);
       } catch (error) {
         console.warn("Failed to fetch recording", error);
         return null;

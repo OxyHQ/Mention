@@ -36,6 +36,13 @@ export interface Room {
   createdAt: string;
 }
 
+interface StreamMetadataUpdate {
+  url?: string;
+  title?: string;
+  image?: string;
+  description?: string;
+}
+
 class RoomsService {
   private _backoffUntil = 0;
 
@@ -143,7 +150,7 @@ class RoomsService {
     return res.data;
   }
 
-  async updateStreamMetadata(id: string, data: { title?: string; image?: string; description?: string }): Promise<boolean> {
+  async updateStreamMetadata(id: string, data: StreamMetadataUpdate): Promise<boolean> {
     if (!id) return false;
     try {
       await authenticatedClient.patch(`/rooms/${id}/stream`, data);

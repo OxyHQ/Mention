@@ -22,20 +22,23 @@ interface StreamConfigModalProps {
   visible: boolean;
   onClose: () => void;
   roomId: string;
+  initialStreamUrl?: string;
   onStreamStarted: () => void;
 }
 
 type StreamMode = 'url' | 'rtmp';
 
-export function StreamConfigModal({ visible, onClose, roomId, onStreamStarted }: StreamConfigModalProps) {
+export function StreamConfigModal({ visible, onClose, roomId, initialStreamUrl, onStreamStarted }: StreamConfigModalProps) {
   const { useTheme, agoraService, toast } = useAgoraConfig();
   const theme = useTheme();
   const { oxyServices } = useAuth();
 
+  const initialUrl = initialStreamUrl?.trim() ?? '';
+  const isEditingUrlStream = initialUrl.length > 0;
   const [mode, setMode] = useState<StreamMode>('url');
   const [loading, setLoading] = useState(false);
 
-  const [streamUrl, setStreamUrl] = useState('');
+  const [streamUrl, setStreamUrl] = useState(initialUrl);
 
   const [rtmpUrl, setRtmpUrl] = useState<string | null>(null);
   const [streamKey, setStreamKey] = useState<string | null>(null);
@@ -89,7 +92,13 @@ export function StreamConfigModal({ visible, onClose, roomId, onStreamStarted }:
           file = await response.blob();
         }
 
-        const uploadResponse = await oxyServices!.uploadRawFile(file, 'public');
+        if (!oxyServices) {
+          toast.error('File uploads are unavailable');
+          setImagePreviewUri(null);
+          return;
+        }
+
+        const uploadResponse = await oxyServices.uploadRawFile(file, 'public');
 
         const fileId = uploadResponse?.file?.key || uploadResponse?.file?.id || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.data?.id;
 
@@ -167,9 +176,15 @@ export function StreamConfigModal({ visible, onClose, roomId, onStreamStarted }:
 
   const handleUpdateMetadata = async () => {
     if (loading) return;
+    const trimmedUrl = streamUrl.trim();
+    if (mode === 'url' && !trimmedUrl) {
+      toast.error('Stream URL is required');
+      return;
+    }
     setLoading(true);
     try {
       const success = await agoraService.updateStreamMetadata(roomId, {
+        ...(mode === 'url' ? { url: trimmedUrl } : {}),
         title: title.trim() || undefined,
         image: imageFileId || undefined,
         description: description.trim() || undefined,
@@ -299,7 +314,12 @@ export function StreamConfigModal({ visible, onClose, roomId, onStreamStarted }:
                     <Text style={[styles.credValue, { color: theme.colors.text }]} numberOfLines={1}>
                       {streamKey}
                     </Text>
-                    <TouchableOpacity onPress={() => copyToClipboard(streamKey!, 'Stream key')} style={styles.copyBtn}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (streamKey) copyToClipboard(streamKey, 'Stream key');
+                      }}
+                      style={styles.copyBtn}
+                    >
                       <MaterialCommunityIcons name="content-copy" size={18} color={theme.colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -373,11 +393,17 @@ export function StreamConfigModal({ visible, onClose, roomId, onStreamStarted }:
                     opacity: loading ? 0.6 : 1,
                   },
                 ]}
-                onPress={handleStartUrlStream}
+                onPress={isEditingUrlStream ? handleUpdateMetadata : handleStartUrlStream}
                 disabled={!streamUrl.trim() || loading}
               >
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : isEditingUrlStream ? (
+                  <MaterialCommunityIcons
+                    name="content-save"
+                    size={18}
+                    color={streamUrl.trim() ? '#FFFFFF' : theme.colors.textSecondary}
+                  />
                 ) : (
                   <MaterialCommunityIcons
                     name="play"
@@ -386,7 +412,7 @@ export function StreamConfigModal({ visible, onClose, roomId, onStreamStarted }:
                   />
                 )}
                 <Text style={{ color: streamUrl.trim() ? '#FFFFFF' : theme.colors.textSecondary, fontWeight: '600', fontSize: 16 }}>
-                  Start Stream
+                  {isEditingUrlStream ? 'Save Stream Info' : 'Start Stream'}
                 </Text>
               </TouchableOpacity>
             )}
