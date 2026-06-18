@@ -5,6 +5,7 @@ import {
 } from 'livekit-server-sdk';
 import { getS3UploadConfig } from './spaces';
 import { logger } from './logger';
+import { isLiveKitAlreadyExistsError } from './livekitErrors';
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
@@ -108,6 +109,15 @@ export async function generateBroadcastToken(
  * Create a LiveKit room when a room goes live.
  */
 export async function createLiveKitRoomForRoom(roomId: string, maxParticipants: number = 100) {
+  return ensureLiveKitRoomForRoom(roomId, maxParticipants);
+}
+
+/**
+ * Ensure the backing LiveKit room exists before operations such as ingress.
+ * Creating a room is idempotent from the API route's point of view: "already
+ * exists" is a successful readiness state.
+ */
+export async function ensureLiveKitRoomForRoom(roomId: string, maxParticipants: number = 100) {
   try {
     const room = await getRoomService().createRoom({
       name: `room_${roomId}`,
@@ -117,6 +127,11 @@ export async function createLiveKitRoomForRoom(roomId: string, maxParticipants: 
     logger.info(`LiveKit room created: room_${roomId}`);
     return room;
   } catch (error) {
+    if (isLiveKitAlreadyExistsError(error)) {
+      logger.debug(`LiveKit room already exists: room_${roomId}`);
+      return null;
+    }
+
     logger.error(`Failed to create LiveKit room for room ${roomId}:`, error);
     throw error;
   }

@@ -8,6 +8,7 @@ import {
   generateRoomToken,
   generateBroadcastToken,
   createLiveKitRoomForRoom,
+  ensureLiveKitRoomForRoom,
   deleteLiveKitRoomForRoom,
   createRoomUrlIngress,
   createRoomRtmpIngress,
@@ -15,6 +16,10 @@ import {
   startRoomRecording,
   stopRoomRecording,
 } from '../utils/livekit';
+import {
+  mapLiveKitIngressError,
+  shouldRetryIngressAfterDeletingExisting,
+} from '../utils/livekitErrors';
 import Recording, { IRecording, RecordingStatus, RecordingAccess } from '../models/Recording';
 import { getRecordingObjectKey, uploadObject, deleteObject, getAgoraRoomImageKey } from '../utils/spaces';
 import { processImage } from '../utils/imageProcessor';
@@ -34,6 +39,115 @@ const uploadMiddleware = multer({
 });
 
 const router = Router();
+
+type CreatedIngress = Awaited<ReturnType<typeof createRoomUrlIngress>>;
+
+interface IngressReplacementResult {
+  ingress: CreatedIngress;
+  previousIngressId?: string;
+  previousDeletedBeforeCreate: boolean;
+}
+
+function emitStreamStarted(roomId: string, room: Pick<IRoom, 'streamTitle' | 'streamImage' | 'streamDescription'>) {
+  const io = global.io;
+  if (!io) return;
+
+  const roomPayload = {
+    roomId,
+    title: room.streamTitle || undefined,
+    image: room.streamImage || undefined,
+    description: room.streamDescription || undefined,
+    timestamp: new Date().toISOString(),
+  };
+
+  io.of('/rooms').to(`room:${roomId}`).emit('room:stream:started', roomPayload);
+  io.of('/spaces').to(`space:${roomId}`).emit('space:stream:started', {
+    ...roomPayload,
+    spaceId: roomId,
+  });
+}
+
+function emitStreamStopped(roomId: string) {
+  const io = global.io;
+  if (!io) return;
+
+  const roomPayload = {
+    roomId,
+    timestamp: new Date().toISOString(),
+  };
+
+  io.of('/rooms').to(`room:${roomId}`).emit('room:stream:stopped', roomPayload);
+  io.of('/spaces').to(`space:${roomId}`).emit('space:stream:stopped', {
+    ...roomPayload,
+    spaceId: roomId,
+  });
+}
+
+function sendLiveKitIngressError(
+  res: Response,
+  error: unknown,
+  operation: string,
+  context: { roomId: string; userId?: string }
+) {
+  const mapped = mapLiveKitIngressError(error);
+  logger.warn('LiveKit stream ingress operation failed', {
+    operation,
+    roomId: context.roomId,
+    userId: context.userId,
+    status: mapped.liveKit.status,
+    code: mapped.liveKit.code,
+    message: mapped.liveKit.message,
+    responseCode: mapped.code,
+  });
+
+  return res.status(mapped.statusCode).json({
+    message: mapped.message,
+    code: mapped.code,
+  });
+}
+
+async function createIngressReplacingExisting(
+  room: IRoom,
+  roomId: string,
+  createIngress: () => Promise<CreatedIngress>
+): Promise<IngressReplacementResult> {
+  const previousIngressId = room.activeIngressId || undefined;
+
+  try {
+    return {
+      ingress: await createIngress(),
+      previousIngressId,
+      previousDeletedBeforeCreate: false,
+    };
+  } catch (error) {
+    if (!previousIngressId || !shouldRetryIngressAfterDeletingExisting(error)) {
+      throw error;
+    }
+
+    logger.warn('Retrying stream ingress creation after deleting existing ingress', {
+      roomId,
+      ingressId: previousIngressId,
+    });
+    await deleteIngress(previousIngressId);
+
+    return {
+      ingress: await createIngress(),
+      previousIngressId,
+      previousDeletedBeforeCreate: true,
+    };
+  }
+}
+
+async function cleanupPreviousIngressAfterReplacement(roomId: string, result: IngressReplacementResult) {
+  if (
+    result.previousIngressId &&
+    !result.previousDeletedBeforeCreate &&
+    result.previousIngressId !== result.ingress.ingressId
+  ) {
+    await deleteIngress(result.previousIngressId);
+    logger.info(`Replaced previous ingress for room ${roomId}: ${result.previousIngressId}`);
+  }
+}
 
 // --- Recording auto-stop timers (1 hour max) ---
 const MAX_RECORDING_DURATION_MS = 60 * 60 * 1000; // 1 hour
@@ -1092,16 +1206,22 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Room must be live to add a stream' });
     }
 
-    // If there's already an active ingress, delete it first
-    if (room.activeIngressId) {
-      await deleteIngress(room.activeIngressId);
+    let ingressResult: IngressReplacementResult;
+    try {
+      await ensureLiveKitRoomForRoom(String(id), room.maxParticipants);
+      ingressResult = await createIngressReplacingExisting(room, String(id), () =>
+        createRoomUrlIngress(String(id), trimmedUrl)
+      );
+      await cleanupPreviousIngressAfterReplacement(String(id), ingressResult);
+    } catch (liveKitError) {
+      return sendLiveKitIngressError(res, liveKitError, 'create-url-ingress', {
+        roomId: String(id),
+        userId,
+      });
     }
 
-    // Create the URL ingress
-    const ingress = await createRoomUrlIngress(String(id), trimmedUrl);
-
     // Persist ingress info + metadata (clear RTMP fields if switching modes)
-    room.activeIngressId = ingress.ingressId;
+    room.activeIngressId = ingressResult.ingress.ingressId;
     room.activeStreamUrl = trimmedUrl;
     room.rtmpUrl = undefined;
     room.rtmpStreamKey = undefined;
@@ -1113,21 +1233,11 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.info(`Live stream started in room ${id}: ${trimmedUrl}`);
 
     // Notify participants via socket (no URL -- only metadata)
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
-        spaceId: id,
-        roomId: id,
-        title: room.streamTitle || null,
-        image: room.streamImage || null,
-        description: room.streamDescription || null,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    emitStreamStarted(String(id), room);
 
     res.json({
       message: 'Stream started successfully',
-      ingressId: ingress.ingressId,
+      ingressId: ingressResult.ingress.ingressId,
       url: trimmedUrl,
     });
   } catch (error) {
@@ -1180,15 +1290,8 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
 
     logger.info(`Live stream stopped in room ${id}`);
 
-    // Notify participants via socket
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:stream:stopped', {
-        spaceId: id,
-        roomId: id,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    // Notify participants via both current and legacy namespaces
+    emitStreamStopped(String(id));
 
     res.json({ message: 'Stream stopped successfully' });
   } catch (error) {
@@ -1295,20 +1398,21 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ message: 'Room must be live to update stream URL' });
       }
 
-      const ingress = await createRoomUrlIngress(String(id), nextStreamUrl);
-      const previousIngressId = room.activeIngressId;
-      if (previousIngressId) {
-        try {
-          await deleteIngress(previousIngressId);
-        } catch (ingressDeleteError) {
-          logger.warn('Failed to delete previous stream ingress after URL update:', {
-            roomId: id,
-            ingressId: previousIngressId,
-            error: ingressDeleteError,
-          });
-        }
+      let ingressResult: IngressReplacementResult;
+      try {
+        await ensureLiveKitRoomForRoom(String(id), room.maxParticipants);
+        ingressResult = await createIngressReplacingExisting(room, String(id), () =>
+          createRoomUrlIngress(String(id), nextStreamUrl)
+        );
+        await cleanupPreviousIngressAfterReplacement(String(id), ingressResult);
+      } catch (liveKitError) {
+        return sendLiveKitIngressError(res, liveKitError, 'update-url-ingress', {
+          roomId: String(id),
+          userId,
+        });
       }
-      room.activeIngressId = ingress.ingressId;
+
+      room.activeIngressId = ingressResult.ingress.ingressId;
       room.activeStreamUrl = nextStreamUrl;
       room.rtmpUrl = undefined;
       room.rtmpStreamKey = undefined;
@@ -1323,18 +1427,7 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.info(`Stream metadata updated for room ${id}`);
 
     // Notify participants via socket with updated metadata
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
-        spaceId: id,
-        roomId: id,
-        url: room.activeStreamUrl || null,
-        title: room.streamTitle || null,
-        image: room.streamImage || null,
-        description: room.streamDescription || null,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    emitStreamStarted(String(id), room);
 
     res.json({ message: 'Stream info updated', url: room.activeStreamUrl || null });
   } catch (error) {
@@ -1374,17 +1467,23 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Room must be live to configure streaming' });
     }
 
-    // If there's already an active ingress, delete it first
-    if (room.activeIngressId) {
-      await deleteIngress(room.activeIngressId);
+    let ingressResult: IngressReplacementResult;
+    try {
+      await ensureLiveKitRoomForRoom(String(id), room.maxParticipants);
+      ingressResult = await createIngressReplacingExisting(room, String(id), () =>
+        createRoomRtmpIngress(String(id))
+      );
+      await cleanupPreviousIngressAfterReplacement(String(id), ingressResult);
+    } catch (liveKitError) {
+      return sendLiveKitIngressError(res, liveKitError, 'create-rtmp-ingress', {
+        roomId: String(id),
+        userId,
+      });
     }
-
-    // Create the RTMP ingress
-    const ingress = await createRoomRtmpIngress(String(id));
 
     // LiveKit may return an empty url if the RTMP service doesn't have a
     // public URL configured.  Derive a fallback from LIVEKIT_URL.
-    let rtmpUrl = ingress.url || '';
+    let rtmpUrl = ingressResult.ingress.url || '';
     if (!rtmpUrl) {
       const host = (process.env.LIVEKIT_URL || '')
         .replace(/^wss?:\/\//, '')
@@ -1393,34 +1492,24 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
     }
 
     // Persist ingress info + metadata (clear URL mode fields)
-    room.activeIngressId = ingress.ingressId;
+    room.activeIngressId = ingressResult.ingress.ingressId;
     room.activeStreamUrl = undefined;
     room.rtmpUrl = rtmpUrl;
-    room.rtmpStreamKey = ingress.streamKey;
+    room.rtmpStreamKey = ingressResult.ingress.streamKey;
     room.streamTitle = title ? String(title).trim() : undefined;
     room.streamImage = image ? String(image).trim() : undefined;
     room.streamDescription = description ? String(description).trim() : undefined;
     await room.save();
 
-    logger.info(`RTMP ingress created for room ${id}: ${ingress.ingressId}`);
+    logger.info(`RTMP ingress created for room ${id}: ${ingressResult.ingress.ingressId}`);
 
     // Notify participants via socket (metadata only -- no credentials)
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
-        spaceId: id,
-        roomId: id,
-        title: room.streamTitle || null,
-        image: room.streamImage || null,
-        description: room.streamDescription || null,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    emitStreamStarted(String(id), room);
 
     res.json({
       message: 'RTMP stream key generated',
       rtmpUrl,
-      streamKey: ingress.streamKey,
+      streamKey: ingressResult.ingress.streamKey,
     });
   } catch (error) {
     logger.error('Error generating RTMP key:', { userId: req.user?.id, roomId: req.params.id, error });
