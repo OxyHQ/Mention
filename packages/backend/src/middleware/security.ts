@@ -5,17 +5,10 @@ import { Request, Response } from "express";
 import { AuthRequest } from "../types/auth";
 import { RedisStore } from "./rateLimitStore";
 
-// Realistic limits for a media-heavy app. A single screen can fan out into
-// dozens of API + media calls, so the old 1000/15min ceiling was far too low.
-// Authenticated users get a generous budget; anonymous traffic is capped lower.
+// Realistic thresholds for global slow-down. The shared global rate limiter is
+// owned by @oxyhq/core/server; this file only contains app-specific throttles.
 const AUTHENTICATED_LIMIT_PER_WINDOW = 5000; // per 15 min
 const UNAUTHENTICATED_LIMIT_PER_WINDOW = 600; // per 15 min
-
-// Create Redis store for distributed rate limiting
-const redisStore = new RedisStore({ 
-  prefix: 'rate-limit:api:',
-  windowMs: 15 * 60 * 1000 // 15 minutes
-});
 
 /**
  * Generate a rate limit key based on user authentication status.
@@ -47,10 +40,9 @@ function getRateLimitMax(req: Request, authenticatedLimit: number, unauthenticat
 }
 
 /**
- * Shared predicate for requests that must never be rate limited / slowed down.
+ * Shared predicate for requests that must never be slowed down.
  *
- * Used by BOTH the global rate limiter and the brute-force slow-down so the two
- * stay in lockstep. Exemptions:
+ * Exemptions:
  *  - OPTIONS preflight: CORS checks must always succeed instantly.
  *  - File uploads: large multipart bodies are inherently low-frequency and
  *    counting them against the API budget breaks media posting.
@@ -73,20 +65,6 @@ function isRateLimitExempt(req: Request): boolean {
     path.startsWith('/health')
   );
 }
-
-// Rate limiting middleware with Redis store for distributed rate limiting.
-// Keyed per-user (falling back to IP) so authenticated users behind the shared
-// ALB IPs each get their own bucket and the higher authenticated limit.
-const rateLimiter = rateLimit({
-  store: redisStore,
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: (req: Request) => getRateLimitMax(req, AUTHENTICATED_LIMIT_PER_WINDOW, UNAUTHENTICATED_LIMIT_PER_WINDOW),
-  keyGenerator: (req: Request) => generateRateLimitKey(req, 'api'),
-  message: "Too many requests, please try again later.",
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: isRateLimitExempt,
-});
 
 // Brute force protection middleware. Mirrors the rate limiter's auth-aware
 // threshold and shares the same exemption predicate.
@@ -210,4 +188,4 @@ export const feedThrottle: RequestHandler = slowDown({
   }
 });
 
-export { rateLimiter, bruteForceProtection };
+export { bruteForceProtection };

@@ -17,7 +17,7 @@ interface SerializedAuthError {
 
 /**
  * Returns `true` when the given error represents an Oxy authentication failure
- * (e.g. a session/token that the SDK requires but the caller does not have).
+ * (e.g. an authenticated request when the caller has no valid bearer token).
  *
  * Detection order:
  * 1. Core's own {@link isAuthenticationError} (canonical source of truth).

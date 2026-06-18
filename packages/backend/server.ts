@@ -80,8 +80,7 @@ import federationApiRoutes from './src/routes/federation.api.routes';
 import { registerAllFeeds } from './src/mtn/feed/registerFeeds';
 
 // Middleware
-// @ts-ignore - TypeScript doesn't resolve the /server export with moduleResolution: node
-import { createOxyRateLimit } from '@oxyhq/core/dist/cjs/server';
+import { createOxyRateLimit } from '@oxyhq/core/server';
 import { RedisStore } from "./src/middleware/rateLimitStore";
 import { bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
