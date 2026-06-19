@@ -41,7 +41,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
 }: ProfileHeaderDefaultProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
+  const canPoke = !isFederated;
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || isFederated);
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   return (
@@ -94,19 +95,21 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           </View>
         ) : profileId ? (
           <View className="flex-row items-center gap-3">
-            <TouchableOpacity
-              className={cn(
-                'rounded-full border items-center justify-center',
-                poked ? 'bg-primary border-primary' : 'bg-background border-border',
-              )}
-              style={{ width: 38, height: 38 }}
-              onPress={togglePoke}
-              disabled={pokeLoading}
-              accessibilityRole="button"
-              accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-            >
-              <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
-            </TouchableOpacity>
+            {canPoke && (
+              <TouchableOpacity
+                className={cn(
+                  'rounded-full border items-center justify-center',
+                  poked ? 'bg-primary border-primary' : 'bg-background border-border',
+                )}
+                style={{ width: 38, height: 38 }}
+                onPress={togglePoke}
+                disabled={pokeLoading}
+                accessibilityRole="button"
+                accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
+              >
+                <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
+              </TouchableOpacity>
+            )}
             <FollowButtonComponent userId={profileId} />
           </View>
         ) : null}
@@ -195,26 +198,29 @@ export const ProfileActions = memo(function ProfileActions({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
+  const canPoke = !isFederated;
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || isFederated);
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
     if (!profileId) return null;
     return (
       <View className="flex-row items-center gap-3">
-        <TouchableOpacity
-          className={cn(
-            'rounded-full border items-center justify-center',
-            poked ? 'bg-primary border-primary' : 'bg-background border-border',
-          )}
-          style={{ width: 38, height: 38 }}
-          onPress={togglePoke}
-          disabled={pokeLoading}
-          accessibilityRole="button"
-          accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-        >
-          <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
-        </TouchableOpacity>
+        {canPoke && (
+          <TouchableOpacity
+            className={cn(
+              'rounded-full border items-center justify-center',
+              poked ? 'bg-primary border-primary' : 'bg-background border-border',
+            )}
+            style={{ width: 38, height: 38 }}
+            onPress={togglePoke}
+            disabled={pokeLoading}
+            accessibilityRole="button"
+            accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
+          >
+            <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
+          </TouchableOpacity>
+        )}
         <FollowButtonComponent userId={profileId} />
       </View>
     );

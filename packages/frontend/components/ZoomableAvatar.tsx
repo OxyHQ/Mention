@@ -25,6 +25,8 @@ import {
   GestureDetector,
 } from 'react-native-gesture-handler';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { useImageResolver } from '@oxyhq/bloom/image-resolver';
+import { useAuth } from '@oxyhq/services';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@oxyhq/bloom/portal';
@@ -52,6 +54,8 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   className,
 }) => {
   const theme = useTheme();
+  const { oxyServices } = useAuth();
+  const imageResolver = useImageResolver();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const [isZoomed, setIsZoomed] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -92,14 +96,19 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   // (old profile-design data) and is resolved asynchronously via useImageUrl
   // (instant on cache hit, async on miss).
   const fileIdSource = typeof source === 'string' && !source.startsWith('http') ? source : undefined;
-  const resolvedUrl = useImageUrl(errored ? undefined : fileIdSource, 'thumb');
+  const providerResolvedUrl = fileIdSource ? imageResolver?.(fileIdSource) : undefined;
+  const resolvedUrl = useImageUrl(errored ? undefined : fileIdSource, 'thumb', oxyServices);
 
   const resolvedSource = useMemo(() => {
     if (!source || errored) return undefined;
     if (typeof source !== 'string') return source;
     if (source.startsWith('http')) return source;
-    return resolvedUrl;
-  }, [source, errored, resolvedUrl]);
+    return providerResolvedUrl ?? resolvedUrl;
+  }, [source, errored, providerResolvedUrl, resolvedUrl]);
+
+  React.useEffect(() => {
+    setErrored(false);
+  }, [source, resolvedUrl, providerResolvedUrl]);
 
   const imageSource = useMemo(() => {
     if (resolvedSource) {
