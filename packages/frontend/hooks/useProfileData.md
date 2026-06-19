@@ -4,15 +4,15 @@
 
 `useProfileData` is a **unified hook** that combines multiple data sources into a single, consistent profile data object:
 
-1. **Oxy Profile Data** - Basic user info from `usersStore` (username, bio, avatar, etc.)
-2. **Appearance/Customization Settings** - From `appearanceStore` (displayName, profileHeaderImage, minimalistMode, etc.)
+1. **Oxy Profile Data** - Basic user info from the Oxy SDK profile cache (`username`, `name.displayName`, bio, avatar, etc.)
+2. **Appearance/Customization Settings** - From `appearanceStore` (profileHeaderImage, minimalistMode, color, etc.)
 3. **Privacy Settings** - From `usePrivacySettings` (profileVisibility, etc.)
 
 ## Key Benefits
 
 - ✅ **Automatic fetching** - Fetches profile data when username changes
 - ✅ **Automatic appearance loading** - Loads customization settings automatically
-- ✅ **Unified design computation** - Uses the API-provided `displayName` plus profile design settings for `bannerUrl`, `avatar`, `minimalistMode`, and color
+- ✅ **Unified design computation** - Uses the API-provided `name.displayName` plus profile design settings for `bannerUrl`, `avatar`, `minimalistMode`, and color
 - ✅ **Optimized re-renders** - Uses Zustand selectors to prevent unnecessary re-renders
 - ✅ **Type-safe** - Returns properly typed `ProfileData` with all computed fields
 
@@ -29,7 +29,7 @@
    - Profile previews
    - Settings screens showing other users
 
-3. **When you need design/customization data** - If you need `displayName`, `minimalistMode`, `bannerUrl`, etc.
+3. **When you need design/customization data** - If you need `name.displayName`, `minimalistMode`, `bannerUrl`, etc.
 
 ### ❌ **DON'T Use** `useProfileData` for:
 
@@ -50,7 +50,7 @@
 
 ## Display Name Contract
 
-`displayName` comes from the Oxy API as a required, already-resolved value. `useProfileData` may apply Mention profile customization when present, but it must not rebuild names from `name.first`, `name.last`, `name.full`, or `username`.
+`name.displayName` comes from the Oxy API as a required, already-resolved value. `useProfileData` renders that value directly and does not apply Mention customization, rebuild names from `name.first`, `name.last`, `name.full`, or fall back to `username`.
 
 ## API
 
@@ -75,7 +75,7 @@ interface ProfileData {
   
   // Computed design values
   design: {
-    displayName: string;        // API displayName, overridden only by profile customization
+    displayName: string;        // API name.displayName
     bannerUrl?: string;        // Ready-to-render profile banner URL
     avatar?: string;           // Avatar URL
     coverPhotoEnabled: boolean;
@@ -89,6 +89,6 @@ interface ProfileData {
   };
   
   // All other oxyProfile fields
-  [key: string]: any;
+  [key: string]: unknown;
 }
 ```

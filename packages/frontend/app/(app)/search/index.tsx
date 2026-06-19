@@ -17,7 +17,15 @@ import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from '@oxyhq/bloom/theme';
-import { searchService, SEARCH_OPERATORS } from "@/services/searchService";
+import {
+    searchService,
+    SEARCH_OPERATORS,
+    type SearchFeedResult,
+    type SearchHashtagResult,
+    type SearchListResult,
+    type SearchPostResult,
+    type SearchUserResult,
+} from "@/services/searchService";
 import { Loading } from '@oxyhq/bloom/loading';
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
@@ -36,12 +44,12 @@ type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 type SearchTab = "all" | ResultTab;
 
 type LocalSearchResults = {
-    posts: any[];
-    users: any[];
-    feeds: any[];
-    hashtags: any[];
-    lists: any[];
-    saved: any[];
+    posts: SearchPostResult[];
+    users: SearchUserResult[];
+    feeds: SearchFeedResult[];
+    hashtags: SearchHashtagResult[];
+    lists: SearchListResult[];
+    saved: SearchPostResult[];
 };
 
 const EMPTY_RESULTS: LocalSearchResults = {
@@ -172,14 +180,14 @@ export default function SearchIndex() {
                     }
                     setResultsCache(cleanupCache(updatedCache));
                 } else {
-                    const fetchMap: Record<string, () => Promise<any>> = {
+                    const fetchMap = {
                         posts: () => searchService.searchPosts(searchQuery),
                         users: () => searchService.searchUsers(searchQuery),
                         feeds: () => searchService.searchFeeds(searchQuery),
                         hashtags: () => searchService.searchHashtags(searchQuery),
                         lists: () => searchService.searchLists(searchQuery),
                         saved: () => searchService.searchSaved(searchQuery),
-                    };
+                    } satisfies Record<ResultTab, () => Promise<LocalSearchResults[ResultTab]>>;
 
                     const data = await fetchMap[activeTab]();
                     newResults = { ...EMPTY_RESULTS, [activeTab]: data || [] };
@@ -223,15 +231,16 @@ export default function SearchIndex() {
         setSearchHistory([]);
     }, []);
 
-    const renderUserItem = useCallback((user: any) => {
+    const renderUserItem = useCallback((user: SearchUserResult) => {
         const username = user.username || user.handle || '';
+        if (!username || !user.name?.displayName) return null;
         const isFederated = user.isFederated || user.type === 'federated';
         const instance = user.instance || user.federation?.domain;
 
         const profileData: ProfileCardData = {
             id: String(user.id || user.username || ''),
             username,
-            displayName: user.displayName,
+            name: user.name,
             avatar: user?.avatar || undefined,
             verified: user.verified || false,
             description: user.bio,
@@ -257,37 +266,36 @@ export default function SearchIndex() {
         );
     }, [theme]);
 
-    const renderFeedItem = useCallback((feed: any) => {
+    const renderFeedItem = useCallback((feed: SearchFeedResult) => {
+        const id = String(feed.id || feed._id || '');
+        if (!id) return null;
+        const owner = feed.creator || feed.owner;
         const feedData: FeedCardData = {
-            id: String(feed.id || feed._id || ''),
-            uri: feed.uri || `feed:${feed.id || feed._id}`,
+            id,
+            uri: feed.uri || `feed:${id}`,
             displayName: feed.title || feed.displayName || 'Untitled Feed',
             description: feed.description,
             avatar: feed.avatar,
-            creator: feed.creator ? {
-                username: feed.creator.username || feed.creator.handle || '',
-                displayName: feed.creator.displayName,
-                avatar: feed.creator.avatar,
-            } : feed.owner ? {
-                username: feed.owner.username || feed.owner.handle || '',
-                displayName: feed.owner.displayName,
-                avatar: feed.owner.avatar,
+            creator: owner ? {
+                username: owner.username || owner.handle || '',
+                displayName: owner.name?.displayName,
+                avatar: owner.avatar,
             } : undefined,
             likeCount: feed.likeCount,
             subscriberCount: feed.subscriberCount || feed.memberCount,
         };
 
         return (
-            <View key={feed.id} style={styles.itemWrapper}>
+            <View key={id} style={styles.itemWrapper}>
                 <FeedCard
                     feed={feedData}
-                    onPress={() => router.push(`/feeds/${feed.id}`)}
+                    onPress={() => router.push(`/feeds/${id}`)}
                 />
             </View>
         );
     }, []);
 
-    const renderHashtagItem = useCallback((hashtag: any) => (
+    const renderHashtagItem = useCallback((hashtag: SearchHashtagResult) => (
         <View key={hashtag.tag}>
             <TouchableOpacity
                 style={styles.hashtagItem}
@@ -312,17 +320,19 @@ export default function SearchIndex() {
         </View>
     ), [theme, t]);
 
-    const renderListItem = useCallback((list: any) => {
+    const renderListItem = useCallback((list: SearchListResult) => {
+        const id = String(list.id || list._id || '');
+        if (!id) return null;
         const owner = list.owner || list.createdBy || list.creator;
         const listData: ListCardData = {
-            id: String(list.id || list._id || ''),
-            uri: list.uri || `list:${list.id || list._id}`,
+            id,
+            uri: list.uri || `list:${id}`,
             name: list.name || list.title || 'Untitled List',
             description: list.description,
             avatar: list.avatar,
             creator: owner ? {
                 username: owner.username || owner.handle || '',
-                displayName: owner.displayName,
+                displayName: owner.name?.displayName,
                 avatar: owner.avatar,
             } : undefined,
             purpose: list.purpose === 'modlist' ? 'modlist' : 'curatelist',
@@ -330,10 +340,10 @@ export default function SearchIndex() {
         };
 
         return (
-            <View key={list.id} style={styles.itemWrapper}>
+            <View key={id} style={styles.itemWrapper}>
                 <ListCardComponent
                     list={listData}
-                    onPress={() => router.push(`/lists/${list.id}`)}
+                    onPress={() => router.push(`/lists/${id}`)}
                 />
             </View>
         );
@@ -363,7 +373,7 @@ export default function SearchIndex() {
         return (results[activeTab]?.length || 0) > 0;
     }, [activeTab, results, hasResults]);
 
-    const renderSection = (title: string, items: any[], renderItem: (item: any) => React.ReactNode, showTitle: boolean) => {
+    const renderSection = <T,>(title: string, items: T[], renderItem: (item: T) => React.ReactNode, showTitle: boolean) => {
         if (items.length === 0) return null;
         return (
             <View style={styles.section}>
@@ -562,7 +572,7 @@ export default function SearchIndex() {
                                     renderSection(
                                         t("search.sections.posts", "Posts"),
                                         results.posts,
-                                        (post: any) => <PostItem key={post.id} post={post} />,
+                                        (post: SearchPostResult) => <PostItem key={post.id} post={post} />,
                                         activeTab === "all",
                                     )
                                 }
@@ -598,7 +608,7 @@ export default function SearchIndex() {
                                     renderSection(
                                         t("search.sections.saved", "Saved"),
                                         results.saved,
-                                        (post: any) => <PostItem key={post.id || post._id} post={post} />,
+                                        (post: SearchPostResult) => <PostItem key={post.id || post._id} post={post} />,
                                         activeTab === "all",
                                     )
                                 }

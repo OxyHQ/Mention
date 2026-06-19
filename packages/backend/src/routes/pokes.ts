@@ -22,13 +22,26 @@ async function resolveUsers(ids: string[]): Promise<Map<string, User>> {
   return map;
 }
 
-function toUserSummary(user: User | undefined, id: string) {
+function toUserSummary(user: User) {
   return {
-    id: user?.id || user?._id || id,
-    username: user?.username || id,
-    displayName: user?.displayName ?? id,
-    avatar: user?.avatar,
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    avatar: user.avatar,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return isRecord(error) && error.code === 11000;
+}
+
+function extractUsersFromResult(result: unknown, key: 'followers' | 'following'): User[] {
+  const list = isRecord(result) ? result[key] : result;
+  return Array.isArray(list) ? list.filter((user): user is User => isRecord(user) && typeof user.id === 'string') : [];
 }
 
 const POKES_LIMIT = 100;
@@ -47,13 +60,18 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
     const pokerIds = pokes.map((p) => p.pokerId);
     const profiles = await resolveUsers(pokerIds);
 
-    const items = pokes.map((p) => ({
-      id: p._id,
-      user: toUserSummary(profiles.get(p.pokerId), p.pokerId),
-      pokeCount: 1,
-      pokedBack: pokedBackSet.has(p.pokerId),
-      createdAt: p.createdAt,
-    }));
+    const items = pokes.flatMap((p) => {
+      const user = profiles.get(p.pokerId);
+      return user
+        ? [{
+            id: p._id,
+            user: toUserSummary(user),
+            pokeCount: 1,
+            pokedBack: pokedBackSet.has(p.pokerId),
+            createdAt: p.createdAt,
+          }]
+        : [];
+    });
 
     return res.json({ pokes: items });
   } catch (error) {
@@ -71,11 +89,16 @@ router.get('/sent', async (req: AuthRequest, res: Response) => {
     const pokedIds = pokes.map((p) => p.pokedId);
     const profiles = await resolveUsers(pokedIds);
 
-    const items = pokes.map((p) => ({
-      id: p._id,
-      user: toUserSummary(profiles.get(p.pokedId), p.pokedId),
-      createdAt: p.createdAt,
-    }));
+    const items = pokes.flatMap((p) => {
+      const user = profiles.get(p.pokedId);
+      return user
+        ? [{
+            id: p._id,
+            user: toUserSummary(user),
+            createdAt: p.createdAt,
+          }]
+        : [];
+    });
 
     return res.json({ pokes: items });
   } catch (error) {
@@ -98,12 +121,8 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     ]);
     const alreadyPokedIds = new Set(existingPokes.map((p) => p.pokedId));
 
-    const extractIds = (result: any, key: string) => {
-      const list = result?.[key] || result || [];
-      return Array.isArray(list) ? list.map((u: any) => String(u.id || u._id || u.userID)) : [];
-    };
-    const followerIds = extractIds(followersResult, 'followers');
-    const followingIds = extractIds(followingResult, 'following');
+    const followerIds = extractUsersFromResult(followersResult, 'followers').map((user) => user.id);
+    const followingIds = extractUsersFromResult(followingResult, 'following').map((user) => user.id);
 
     // Merge and deduplicate, excluding self and already-poked
     const candidateIds = [...new Set([...followerIds, ...followingIds])]
@@ -113,11 +132,10 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     const limitedIds = candidateIds.slice(0, 20);
     const profiles = await resolveUsers(limitedIds);
 
-    const items = limitedIds
-      .filter((id) => profiles.has(id))
-      .map((id) => ({
-        user: toUserSummary(profiles.get(id), id),
-      }));
+    const items = limitedIds.flatMap((id) => {
+      const user = profiles.get(id);
+      return user ? [{ user: toUserSummary(user) }] : [];
+    });
 
     return res.json({ suggestions: items });
   } catch (error) {
@@ -169,8 +187,8 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
     }
 
     return res.json({ poked: true });
-  } catch (error: any) {
-    if (error?.code === 11000) {
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
       return res.json({ poked: true });
     }
     logger.error('[Pokes] Error poking user:', { userId: req.user?.id, targetId: req.params.userId, error });

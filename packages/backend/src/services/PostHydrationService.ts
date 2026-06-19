@@ -597,11 +597,12 @@ export class PostHydrationService {
           try {
             const userData: OxyUser = await defaultOxyClient.getUserById(userId);
             const username: string = String(userData?.username || userData?.handle || userId);
-            const displayName: string = userData.displayName;
+            const displayName: string = userData.name.displayName;
+            const profileImage = (userData as { profileImage?: unknown }).profileImage;
             const rawAvatar: string | undefined = typeof userData?.avatar === 'string'
               ? userData.avatar
-              : typeof (userData as Record<string, unknown>)?.profileImage === 'string'
-                ? (userData as Record<string, unknown>).profileImage as string
+              : typeof profileImage === 'string'
+                ? profileImage
                 : undefined;
             const avatarValue = resolveAvatarUrl(rawAvatar);
 
@@ -1275,15 +1276,18 @@ export class PostHydrationService {
           const userData = await defaultOxyClient.getUserById(mentionId);
           const username = userData.username || mentionId;
 
+          const profileImage = (userData as { profileImage?: unknown }).profileImage;
           const rawAvatar = typeof userData.avatar === 'string'
             ? userData.avatar
-            : (userData as Record<string, unknown>).profileImage as string | undefined ?? undefined;
+            : typeof profileImage === 'string'
+              ? profileImage
+              : undefined;
           const avatarValue = resolveAvatarUrl(rawAvatar);
 
           mentionCache.set(mentionId, {
             id: userData.id || mentionId,
             handle: username,
-            displayName: userData.displayName,
+            displayName: userData.name.displayName,
             avatarUrl: avatarValue,
             avatar: avatarValue,
             badges: Array.isArray(userData.badges)

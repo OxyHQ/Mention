@@ -21,27 +21,17 @@ import type { User } from '@oxyhq/core';
 interface MemberProfile {
   id: string;
   username: string;
-  displayName?: string;
+  name: {
+    displayName: string;
+  };
   avatar?: string;
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
 
 // Remove the web focus outline to match the other text inputs in the app.
-// `outlineWidth` is a valid (numeric) react-native-web TextStyle property, so
-// this needs no `as any` (unlike the `outlineStyle: 'none'` string literal,
-// which RN-web types as the strict CSS border-style union).
+// `outlineWidth` is a valid numeric react-native-web TextStyle property.
 const INPUT_STYLE: TextStyle = Platform.OS === 'web' ? { outlineWidth: 0 } : {};
-
-function toMemberProfile(uid: string, profile: unknown): MemberProfile {
-  const p = profile as Pick<User, 'username' | 'displayName' | 'avatar'> | null;
-  return {
-    id: uid,
-    username: p?.username || uid,
-    displayName: p?.displayName,
-    avatar: p?.avatar,
-  };
-}
 
 /**
  * List member management screen. Resolves the broken `/lists/:id/edit` route that
@@ -79,12 +69,13 @@ export default function EditListMembersScreen() {
       const memberIds: string[] = Array.isArray(data?.memberOxyUserIds) ? data.memberOxyUserIds : [];
       const profiles = await Promise.all(
         memberIds.map(async (uid): Promise<MemberProfile> => {
-          try {
-            const profile = await oxyServices.getUserById(uid);
-            return toMemberProfile(uid, profile);
-          } catch {
-            return { id: uid, username: uid };
-          }
+          const profile = await oxyServices.getUserById(uid);
+          return {
+            id: profile.id,
+            username: profile.username,
+            name: profile.name,
+            avatar: profile.avatar,
+          };
         }),
       );
       setMembers(profiles);
@@ -117,12 +108,12 @@ export default function EditListMembersScreen() {
     searchTimer.current = setTimeout(async () => {
       try {
         const res = await oxyServices.searchProfiles(trimmed, { limit: 10 });
-        const data = (res as { data?: unknown })?.data ?? res;
-        const list = Array.isArray(data) ? data : [];
-        setResults(list.map((u: unknown) => {
-          const p = u as { id?: string; username?: string };
-          return toMemberProfile(String(p.id ?? ''), u);
-        }).filter((p) => p.id.length > 0));
+        setResults(res.data.map((profile: User) => ({
+          id: profile.id,
+          username: profile.username,
+          name: profile.name,
+          avatar: profile.avatar,
+        })));
       } catch (e) {
         logger.warn('searchProfiles failed', { error: e });
         setResults([]);
@@ -254,9 +245,7 @@ export default function EditListMembersScreen() {
                   <Avatar source={u.avatar} size={36} />
                   <View className="flex-1">
                     <Text className="text-foreground font-medium" numberOfLines={1}>@{u.username}</Text>
-                    {u.displayName ? (
-                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>{u.displayName}</Text>
-                    ) : null}
+                    <Text className="text-muted-foreground text-xs" numberOfLines={1}>{u.name.displayName}</Text>
                   </View>
                   {busy ? (
                     <SpinnerIcon size={18} className="text-primary" />
@@ -293,9 +282,7 @@ export default function EditListMembersScreen() {
                   <Avatar source={m.avatar} size={36} />
                   <View className="flex-1">
                     <Text className="text-foreground font-medium" numberOfLines={1}>@{m.username}</Text>
-                    {m.displayName ? (
-                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>{m.displayName}</Text>
-                    ) : null}
+                    <Text className="text-muted-foreground text-xs" numberOfLines={1}>{m.name.displayName}</Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => removeMember(m)}

@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 import type { User } from '@oxyhq/core';
 
-type MinimalUser = Pick<User, 'id' | 'username' | 'displayName' | 'avatar'>;
+type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 export default function CreateStarterPackScreen() {
   const { oxyServices } = useAuth();
@@ -122,7 +122,7 @@ export default function CreateStarterPackScreen() {
           <View className="border border-border rounded-[10px] overflow-hidden">
             {results.map((u) => (
               <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
-                <Text className="text-foreground font-primary">@{u.username} · {u.displayName}</Text>
+                <Text className="text-foreground font-primary">@{u.username} · {u.name.displayName}</Text>
                 <Text className="text-primary font-semibold font-primary">Add</Text>
               </TouchableOpacity>
             ))}

@@ -276,18 +276,21 @@ export interface CreatePostRequest {
   metadata?: CreatePostMetadata;
 }
 
+export interface CreateThreadPostRequest {
+  content: PostContent;
+  visibility?: PostVisibility;
+  tags?: string[];
+  mentions?: string[];
+  hashtags?: string[];
+  replyPermission?: ReplyPermission[];
+  reviewReplies?: boolean;
+  quotesDisabled?: boolean;
+  metadata?: CreatePostMetadata;
+}
+
 export interface CreateThreadRequest {
   mode: 'thread' | 'beast'; // thread = linked posts, beast = separate posts
-  posts: {
-    content: PostContent;
-    visibility?: PostVisibility;
-    tags?: string[];
-    mentions?: string[];
-    hashtags?: string[];
-    replyPermission?: ReplyPermission[];
-    reviewReplies?: boolean;
-    quotesDisabled?: boolean;
-  }[];
+  posts: CreateThreadPostRequest[];
 }
 
 export interface UpdatePostRequest {

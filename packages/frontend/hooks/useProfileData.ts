@@ -20,17 +20,41 @@ export interface ProfileDesign {
 export interface ProfileData {
   id: string;
   username: string;
+  name: User['name'];
   bio?: string;
   verified?: boolean;
   avatar?: string;
+  color?: string;
+  createdAt?: string;
+  updatedAt?: string;
   postsCount?: number;
   boostsCount?: number;
   repliesCount?: number;
   followsYou?: boolean;
   isFederated?: boolean;
+  isAgent?: boolean;
+  isAutomated?: boolean;
+  isFollowing?: boolean;
+  isFollowPending?: boolean;
   instance?: string;
+  actorUri?: string;
   followersCount?: number;
   followingCount?: number;
+  primaryLocation?: string;
+  verifiedAt?: string;
+  usernameChangeCount?: number;
+  connectedVia?: string;
+  links?: User['links'];
+  fields?: Array<{
+    name?: string;
+    value?: string;
+    verifiedAt?: string;
+  }>;
+  communities?: unknown[];
+  federation?: {
+    actorUri?: string;
+    domain?: string;
+  };
   design: ProfileDesign;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -38,7 +62,7 @@ export interface ProfileData {
   // ProfileData spreads the full Oxy `User` plus arbitrary backend fields that
   // many consumers read positionally (links, joined date, communities, etc.).
   // Keep this permissive to preserve those existing call sites unchanged.
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -48,19 +72,17 @@ function computeDesign(
   profile: User,
   appearance: UserAppearance | null | undefined,
 ): ProfileDesign {
-  const customization = appearance?.profileCustomization;
-
   const presetColor =
     typeof profile.color === 'string' && profile.color in APP_COLOR_PRESETS
       ? profile.color
       : undefined;
 
   return {
-    displayName: customization?.displayName ?? profile.displayName,
+    displayName: profile.name.displayName,
     bannerUrl: appearance?.profileHeaderImage,
     avatar: profile.avatar,
-    coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,
-    minimalistMode: customization?.minimalistMode ?? false,
+    coverPhotoEnabled: appearance?.profileCustomization?.coverPhotoEnabled ?? true,
+    minimalistMode: appearance?.profileCustomization?.minimalistMode ?? false,
     color:
       presetColor ||
       HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor ?? ''] ||

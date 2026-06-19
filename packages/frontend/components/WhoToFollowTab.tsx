@@ -93,13 +93,13 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
 
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
-        name: user?.displayName ?? 'Someone',
+        name: user?.name.displayName ?? 'Someone',
         handle: userHandle,
         url: APP_URL,
       });
     }
     return t('settings.inviteContacts.shareMessage', {
-      name: user?.displayName ?? 'Someone',
+      name: user?.name.displayName ?? 'Someone',
       url: APP_URL,
     });
   }, [user, t]);
@@ -292,7 +292,7 @@ const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId:
         <Avatar source={item.avatar || cachedUser?.avatar} size={40} />
         <View style={styles.rowTextWrap}>
           <ThemedText className="text-foreground" style={styles.rowTitle}>
-            {item.displayName}
+            {item.name.displayName}
           </ThemedText>
           {handle ? (
             <ThemedText className="text-muted-foreground" style={styles.rowSub}>

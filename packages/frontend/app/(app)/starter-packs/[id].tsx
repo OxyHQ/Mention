@@ -68,7 +68,7 @@ export default function StarterPackDetailScreen() {
                   return {
                     id: uid,
                     username: profile.username,
-                    displayName: profile.displayName,
+                    displayName: profile.name.displayName,
                     avatar: profile.avatar,
                   };
                 }

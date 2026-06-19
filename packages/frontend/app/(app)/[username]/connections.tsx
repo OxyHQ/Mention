@@ -21,7 +21,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useAuth } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorComponent } from '@/components/Error';
-import { useProfileData } from '@/hooks/useProfileData';
+import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
@@ -36,7 +36,6 @@ interface ConnectionUser {
   userID?: string;
   username?: string;
   handle?: string;
-  displayName: string;
   avatar?: string;
   profilePicture?: string;
   bio?: string;
@@ -50,21 +49,50 @@ interface ConnectionUser {
     first?: string;
     last?: string;
     full?: string;
+    displayName?: string;
   };
   profile?: {
-    name?: {
-      full?: string;
-    };
     bio?: string;
   };
 }
 
 export default function ConnectionsScreen() {
+  const { username } = useLocalSearchParams<{ username: string }>();
+  const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
+  const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
+  const { colorName: profileColorName } = useProfileScreenColor({
+    username: cleanUsername,
+    designColor: profileData?.design?.color,
+  });
+
+  return (
+    <BloomColorScope colorPreset={profileColorName} asChild>
+      <ConnectionsContent
+        routeUsername={username}
+        cleanUsername={cleanUsername}
+        profileData={profileData}
+        profileLoading={profileLoading}
+      />
+    </BloomColorScope>
+  );
+}
+
+interface ConnectionsContentProps {
+  routeUsername?: string;
+  cleanUsername: string;
+  profileData: ProfileData | null;
+  profileLoading: boolean;
+}
+
+function ConnectionsContent({
+  routeUsername,
+  cleanUsername,
+  profileData,
+  profileLoading,
+}: ConnectionsContentProps) {
   const insets = useSafeAreaInsets();
   const safeBack = useSafeBack();
-  const { username } = useLocalSearchParams<{ username: string }>();
   const pathname = usePathname();
-  const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const { oxyServices, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,17 +101,12 @@ export default function ConnectionsScreen() {
   const [recommendations, setRecommendations] = useState<ConnectionUser[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
-  const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
 
   const profileHandle = getNormalizedUserHandle({
     username: profileData?.username || cleanUsername,
     instance: profileData?.instance,
     isFederated: profileData?.isFederated,
   }) || cleanUsername;
-  const { colorName: profileColorName } = useProfileScreenColor({
-    username: cleanUsername,
-    designColor: profileData?.design?.color,
-  });
 
   // Determine active tab from pathname
   const getActiveTab = useCallback((): TabType => {
@@ -111,12 +134,8 @@ export default function ConnectionsScreen() {
 
     try {
       setError(null);
-      const followersList: any = await oxyServices.getUserFollowers(profileData.id);
-      const list = Array.isArray(followersList?.followers)
-        ? followersList.followers
-        : Array.isArray(followersList)
-          ? followersList
-          : [];
+      const followersList = await oxyServices.getUserFollowers(profileData.id);
+      const list = followersList.followers;
       setFollowers(list);
       precacheProfileViews(queryClient, list);
     } catch (err) {
@@ -139,12 +158,8 @@ export default function ConnectionsScreen() {
 
     try {
       setError(null);
-      const followingList: any = await oxyServices.getUserFollowing(profileData.id);
-      const list = Array.isArray(followingList?.following)
-        ? followingList.following
-        : Array.isArray(followingList)
-          ? followingList
-          : [];
+      const followingList = await oxyServices.getUserFollowing(profileData.id);
+      const list = followingList.following;
       setFollowing(list);
       precacheProfileViews(queryClient, list);
     } catch (err) {
@@ -215,28 +230,29 @@ export default function ConnectionsScreen() {
   }, [activeTab, profileId, loadCurrentTab]);
 
   const handleTabPress = useCallback((tabId: string) => {
-    if (!username) return;
+    if (!routeUsername) return;
     const tab = tabId as TabType;
     const subroute = tab === 'who-may-know' ? 'who-may-know' : tab;
     router.push(`/@${profileHandle}/${subroute}`);
-  }, [profileHandle, username]);
+  }, [profileHandle, routeUsername]);
 
   const getInviteMessage = useCallback(() => {
     const userHandle = user?.username || '';
     const appUrl = 'https://mention.earth';
+    const viewerName = user?.name.displayName ?? 'Someone';
 
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
-        name: user?.displayName ?? 'Someone',
+        name: viewerName,
         handle: userHandle,
         url: appUrl,
-        defaultValue: `Join me on Mention! ${user?.displayName ?? 'Someone'} (@${userHandle})\n${appUrl}`
+        defaultValue: `Join me on Mention! ${viewerName} (@${userHandle})\n${appUrl}`
       });
     } else {
       return t('settings.inviteContacts.shareMessage', {
-        name: user?.displayName ?? 'Someone',
+        name: viewerName,
         url: appUrl,
-        defaultValue: `Join me on Mention! ${user?.displayName ?? 'Someone'}\n${appUrl}`
+        defaultValue: `Join me on Mention! ${viewerName}\n${appUrl}`
       });
     }
   }, [user, t]);
@@ -288,7 +304,7 @@ export default function ConnectionsScreen() {
     const avatarSource = item?.avatar ?? item.profilePicture;
     const bio = item?.profile?.bio || item?.bio;
     const userId = String(item.id || item._id || item.userID || '');
-    if (!userId) return null;
+    if (!userId || !item.name?.displayName) return null;
 
     return (
       <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
@@ -300,7 +316,7 @@ export default function ConnectionsScreen() {
           <Avatar source={avatarSource || undefined} size={48} />
           <View className="ml-3 flex-1">
             <ThemedText className="font-semibold text-base text-foreground" numberOfLines={1}>
-              {item.displayName}
+              {item.name.displayName}
             </ThemedText>
             <ThemedText className="pt-0.5 text-sm text-muted-foreground" numberOfLines={1}>
               @{handle}
@@ -479,7 +495,6 @@ export default function ConnectionsScreen() {
   };
 
   return (
-    <BloomColorScope colorPreset={profileColorName} asChild>
     <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
       <Header
         options={{
@@ -507,7 +522,6 @@ export default function ConnectionsScreen() {
 
       {renderContent()}
     </ThemedView>
-    </BloomColorScope>
   );
 }
 

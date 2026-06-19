@@ -3,7 +3,9 @@ import { authenticatedClient } from '../utils/api';
 export interface PokeUser {
   id: string;
   username: string;
-  name: string;
+  name: {
+    displayName: string;
+  };
   avatar?: string;
   bio?: string;
 }

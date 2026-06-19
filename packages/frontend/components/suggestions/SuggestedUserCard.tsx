@@ -14,8 +14,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 interface SuggestedUserData {
   id: string;
   username?: string;
-  displayName: string;
-  name?: { first?: string; last?: string; full?: string };
+  name: { displayName: string; first?: string; last?: string; full?: string };
   avatar?: string;
   bio?: string;
   isFederated?: boolean;
@@ -62,7 +61,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       <Avatar source={user.avatar || cachedUser?.avatar} size={40} />
       <View className="flex-1 ml-3 mr-3">
         <UserName
-          name={user.displayName}
+          name={user.name.displayName}
           isFederated={user.isFederated}
           isAgent={user.isAgent}
           isAutomated={user.isAutomated}

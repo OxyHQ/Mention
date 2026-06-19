@@ -33,7 +33,7 @@ import { useTranslation } from 'react-i18next';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import { GeoJSONPoint, HydratedPost } from '@mention/shared-types';
+import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
@@ -681,7 +681,7 @@ const ComposeScreen = () => {
     setIsPosting(true);
     try {
       // Prepare all posts (main + thread items)
-      const allPosts = [];
+      const allPosts: CreatePostRequest[] = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
 
       // Build main post. If the quote fetch succeeded we forward the id so
@@ -740,11 +740,11 @@ const ComposeScreen = () => {
         };
         await feedService.editPost(editPostId, editData);
       } else if (allPosts.length === 1) {
-        await createPost(allPosts[0] as any);
+        await createPost(allPosts[0]);
       } else {
         await createThread({
           mode: postingMode,
-          posts: allPosts as any
+          posts: allPosts
         });
       }
 
@@ -1426,7 +1426,7 @@ const ComposeScreen = () => {
                   <PostHeader
                     paddingHorizontal={HPAD}
                     user={{
-                      displayName: user?.displayName ?? '',
+                      displayName: user?.name.displayName ?? '',
                       handle: user?.username || '',
                       verified: Boolean(user?.verified)
                     }}

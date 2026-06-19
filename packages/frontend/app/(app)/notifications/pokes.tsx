@@ -21,7 +21,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import SEO from '@/components/SEO';
-import { pokeService } from '@/services/pokeService';
+import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
@@ -153,7 +153,7 @@ export default function PokesScreen() {
 
     const renderUserRow = useCallback((
         key: string,
-        user: { id: string; username: string; displayName: string; avatar?: string },
+        user: PokeUser,
         subtitle: React.ReactNode,
         buttonVariant: 'poke' | 'pokeBack' | 'undo',
     ) => (
@@ -166,7 +166,7 @@ export default function PokesScreen() {
                 <Avatar source={user.avatar || undefined} size={40} />
                 <View style={styles.userText}>
                     <ThemedText style={styles.userName} numberOfLines={1}>
-                        {user.displayName}
+                        {user.name.displayName}
                     </ThemedText>
                     <ThemedText className="text-muted-foreground" style={styles.userMeta} numberOfLines={1}>
                         {subtitle}

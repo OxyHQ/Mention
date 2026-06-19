@@ -27,8 +27,7 @@ const restrictedLogger = createScopedLogger('RestrictedUsers');
 interface RestrictedUser {
     id?: string;
     _id?: string;
-    name?: string | { full?: string; first?: string; last?: string };
-    displayName: string;
+    name?: User['name'];
     username?: string;
     handle?: string;
     avatar?: string;
@@ -105,11 +104,11 @@ export default function RestrictedUsersScreen() {
             }
 
             const BATCH_SIZE = 10;
-            const userPromises: Promise<RestrictedUser>[] = [];
+            const userPromises: Promise<RestrictedUser | null>[] = [];
 
             for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
                 const batch = userIds.slice(i, i + BATCH_SIZE);
-                const batchPromises = batch.map(async (userId: string) => {
+                const batchPromises = batch.map(async (userId: string): Promise<RestrictedUser | null> => {
                     try {
                         restrictedLogger.debug(`Fetching user details for: ${userId}`);
 
@@ -153,29 +152,18 @@ export default function RestrictedUsersScreen() {
                         });
                         restrictedLogger.debug(`Found user for ${userId}: ${user ? 'yes' : 'no'}`);
 
-                        if (!user) {
-                            restrictedLogger.debug(`Creating fallback user object for ${userId}`);
-                            return {
-                                id: userId,
-                                username: userId.substring(0, 8) + '...',
-                                handle: userId.substring(0, 8) + '...',
-                            } as RestrictedUser;
-                        }
+                        if (!user) return null;
 
-                        return user as RestrictedUser;
+                        return user;
                     } catch (error) {
                         restrictedLogger.warn(`Failed to fetch user ${userId}`, { error });
-                        return {
-                            id: userId,
-                            username: userId.substring(0, 8) + '...',
-                            handle: userId.substring(0, 8) + '...',
-                        } as RestrictedUser;
+                        return null;
                     }
                 });
                 userPromises.push(...batchPromises);
             }
 
-            const users = (await Promise.all(userPromises)).filter(Boolean) as RestrictedUser[];
+            const users = (await Promise.all(userPromises)).filter((user): user is RestrictedUser => Boolean(user));
             restrictedLogger.debug(`Loaded ${users.length} users`);
             setRestrictedUsers(users);
         } catch (error) {
@@ -229,13 +217,15 @@ export default function RestrictedUsersScreen() {
             if (oxyServices?.searchProfiles) {
                 try {
                     const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
-                    results = Array.isArray(data) ? (data as RestrictedUser[]) : [];
+                    results = Array.isArray(data) ? data : [];
                 } catch (oxyError) {
                     restrictedLogger.warn('oxyServices.searchProfiles failed, falling back', { error: oxyError });
-                    results = await searchService.searchUsers(query) as RestrictedUser[];
+                    const fallbackResults = await searchService.searchUsers(query);
+                    results = fallbackResults.filter((user): user is RestrictedUser => Boolean(user.name));
                 }
             } else {
-                results = await searchService.searchUsers(query) as RestrictedUser[];
+                const fallbackResults = await searchService.searchUsers(query);
+                results = fallbackResults.filter((user): user is RestrictedUser => Boolean(user.name));
             }
 
             if (abortController.signal.aborted) {
@@ -407,18 +397,6 @@ export default function RestrictedUsersScreen() {
         bottomSheet.openBottomSheet(true);
     };
 
-    const getUserDisplayName = useCallback((user: RestrictedUser) => {
-        return user.displayName;
-    }, []);
-
-    const getUserHandle = useCallback((user: RestrictedUser) => {
-        return user.username || user.handle || '';
-    }, []);
-
-    const getAvatarUri = useCallback((user: RestrictedUser) => {
-        return user.avatar;
-    }, []);
-
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
@@ -515,16 +493,15 @@ export default function RestrictedUsersScreen() {
                     <SettingsListGroup>
                         {searchResults.map((user) => {
                             const userId = getUserId(user);
-                            const displayName = getUserDisplayName(user);
-                            const handle = getUserHandle(user);
-                            const avatarUri = getAvatarUri(user);
+                            const handle = user.username || user.handle || '';
                             const isRestricting = restricting === userId;
+                            if (!userId || !user.name?.displayName) return null;
 
                             return (
                                 <SettingsListItem
                                     key={userId}
-                                    icon={<Avatar source={avatarUri} size={36} />}
-                                    title={displayName}
+                                    icon={<Avatar source={user.avatar} size={36} />}
+                                    title={user.name.displayName}
                                     description={`@${handle}`}
                                     onPress={() => !isRestricting && handleRestrict(user)}
                                     disabled={isRestricting}
@@ -568,15 +545,14 @@ export default function RestrictedUsersScreen() {
                     ) : (
                         restrictedUsers.map((user) => {
                             const userId = getUserId(user);
-                            const displayName = getUserDisplayName(user);
-                            const handle = getUserHandle(user);
-                            const avatarUri = getAvatarUri(user);
+                            const handle = user.username || user.handle || '';
+                            if (!userId || !user.name?.displayName) return null;
 
                             return (
                                 <SettingsListItem
                                     key={userId}
-                                    icon={<Avatar source={avatarUri} size={40} />}
-                                    title={displayName}
+                                    icon={<Avatar source={user.avatar} size={40} />}
+                                    title={user.name.displayName}
                                     description={`@${handle}`}
                                     showChevron={false}
                                     rightElement={

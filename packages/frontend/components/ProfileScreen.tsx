@@ -103,7 +103,20 @@ const HEADER_OVERLAY_ICON_CLEARANCE = 12;
  * Profile Screen - Main orchestrator component
  * Follows industry best practices with clean separation of concerns
  */
-const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
+interface MentionProfileContentProps extends ProfileScreenProps {
+    username: string;
+    isFederated: boolean;
+    profileData: ProfileData | null;
+    loading: boolean;
+}
+
+const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
+    tab = 'posts',
+    username,
+    isFederated,
+    profileData,
+    loading,
+}) => {
     const { user: currentUser, oxyServices, showBottomSheet } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
@@ -114,20 +127,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const FollowButtonComponent = (OxyServicesNS as { FollowButton?: FollowButtonComponent })
         .FollowButton as FollowButtonComponent;
 
-    // Parse username from URL — strip leading @ but keep user@instance for federated
-    let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
-    if (urlUsername?.startsWith('@')) {
-        urlUsername = urlUsername.slice(1);
-    }
-    const username = urlUsername || '';
-    const isFederated = username.includes('@');
-
     // Active tab — use local state so tab switching doesn't trigger router navigation.
     // Initialize from the route prop, then manage locally.
     const [activeTab, setActiveTab] = useState(() => tabToIndex(tab));
 
-    // Profile data
-    const { data: profileData, loading, error: profileError } = useProfileData(username);
     const safeBack = useSafeBack();
 
     // Profile content height for scroll-to functionality
@@ -201,11 +204,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         if (!currentUser?.id || !profileData?.id) return false;
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
-
-    const { colorName: profileColorName } = useProfileScreenColor({
-        username,
-        designColor: design?.color,
-    });
 
     // User's profile color hex for passing to buttons
     const isPrivate = useMemo(
@@ -514,7 +512,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     type="profile"
                 />
             ) : null}
-            <BloomColorScope colorPreset={profileColorName} asChild>
             <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
@@ -696,8 +693,35 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     </>
                 )}
             </View>
-            </BloomColorScope>
         </>
+    );
+};
+
+const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
+    let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
+    if (urlUsername?.startsWith('@')) {
+        urlUsername = urlUsername.slice(1);
+    }
+    const username = urlUsername || '';
+    const isFederated = username.includes('@');
+    const { data: profileData, loading } = useProfileData(username);
+    const { colorName: profileColorName } = useProfileScreenColor({
+        username,
+        designColor: profileData?.design?.color,
+    });
+
+    return (
+        <BloomColorScope colorPreset={profileColorName} asChild>
+            <View className="flex-1 bg-background">
+                <MentionProfileContent
+                    tab={tab}
+                    username={username}
+                    isFederated={isFederated}
+                    profileData={profileData}
+                    loading={loading}
+                />
+            </View>
+        </BloomColorScope>
     );
 };
 

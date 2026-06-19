@@ -28,7 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/lib/logger';
 import type { User } from '@oxyhq/core';
 
-type MinimalUser = Pick<User, 'id' | 'username' | 'displayName' | 'avatar'>;
+type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 const CreateFeedScreen: React.FC = () => {
   const theme = useTheme();
@@ -284,7 +284,7 @@ const CreateFeedScreen: React.FC = () => {
                   <Avatar source={u.avatar} size={40} />
                   <View className="flex-1 gap-px">
                     <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                      {u.displayName}
+                      {u.name.displayName}
                     </Text>
                     <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
                       @{u.username}
@@ -306,7 +306,7 @@ const CreateFeedScreen: React.FC = () => {
               <Avatar source={m.avatar} size={40} />
               <View className="flex-1 gap-px">
                 <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                  {m.displayName}
+                  {m.name.displayName}
                 </Text>
                 <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
                   @{m.username}

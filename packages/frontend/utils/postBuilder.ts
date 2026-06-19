@@ -1,5 +1,5 @@
 import { MentionData } from '@/components/MentionTextInput';
-import { GeoJSONPoint } from '@mention/shared-types';
+import type { CreatePostRequest, CreateThreadPostRequest, GeoJSONPoint, PostSourceLink, ReplyPermission } from '@mention/shared-types';
 import { buildAttachmentsPayload } from './attachmentsUtils';
 import {
   ComposerMediaItem,
@@ -12,6 +12,15 @@ import {
   createMediaAttachmentKey,
 } from './composeUtils';
 import type { ThreadItem } from '@/hooks/useThreadManager';
+import type { ArticleData } from '@/hooks/useArticleManager';
+import type { EventData } from '@/hooks/useEventManager';
+import type { RoomAttachmentData } from '@/hooks/useRoomManager';
+
+type ComposeLocation = {
+  latitude: number;
+  longitude: number;
+  address?: string;
+};
 
 interface BuildMainPostParams {
   postContent: string;
@@ -19,16 +28,16 @@ interface BuildMainPostParams {
   mediaIds: ComposerMediaItem[];
   pollTitle: string;
   pollOptions: string[];
-  article: any;
+  article: ArticleData | null;
   hasArticleContent: boolean;
-  event: any;
+  event: EventData | null;
   hasEventContent: boolean;
-  room: any;
+  room: RoomAttachmentData | null;
   hasRoomContent: boolean;
-  location: any;
-  formattedSources: any[];
+  location: ComposeLocation | null;
+  formattedSources: PostSourceLink[];
   attachmentOrder: string[];
-  replyPermission: string[];
+  replyPermission: ReplyPermission[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
   scheduledAt: Date | null;
@@ -37,7 +46,7 @@ interface BuildMainPostParams {
   quotedPostId?: string;
 }
 
-export const buildMainPost = (params: BuildMainPostParams) => {
+export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest => {
   const {
     postContent,
     mentions,
@@ -133,7 +142,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
   };
 };
 
-export const buildThreadPost = (item: ThreadItem) => {
+export const buildThreadPost = (item: ThreadItem): CreateThreadPostRequest => {
   const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
   const threadHasLocation = Boolean(item.location);
   const threadHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));

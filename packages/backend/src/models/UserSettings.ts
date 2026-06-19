@@ -36,7 +36,6 @@ export interface PrivacySettings {
 export interface ProfileCustomization {
   coverPhotoEnabled?: boolean;
   minimalistMode?: boolean;
-  displayName?: string; // Custom display name (overrides Oxy profile name)
 }
 
 export interface InterestsSettings {
@@ -71,7 +70,7 @@ export interface FeedSettings {
   };
 }
 
-export interface IUserSettings extends Document {
+export interface UserSettingsData {
   oxyUserId: string;
   appearance: AppearanceSettings;
   profileHeaderImage?: string;
@@ -83,6 +82,8 @@ export interface IUserSettings extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface IUserSettings extends UserSettingsData, Document {}
 
 const AppearanceSchema = new Schema<AppearanceSettings>({
   themeMode: { type: String, enum: ['light', 'dark', 'system', 'adaptive'], default: 'system' },
@@ -118,7 +119,6 @@ const PrivacySchema = new Schema<PrivacySettings>({
 const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
   coverPhotoEnabled: { type: Boolean, default: true },
   minimalistMode: { type: Boolean, default: false },
-  displayName: { type: String },
 }, { _id: false });
 
 const InterestsSchema = new Schema<InterestsSettings>({

@@ -70,11 +70,6 @@ const BoostScreen: React.FC = () => {
         setIsSubmitting(true);
 
         try {
-            // Create new boost data
-            const avatarUrl = typeof (user as any).avatar === 'string'
-                ? (user as any).avatar
-                : ((user as any).avatar || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg');
-
             // Create boost request
             const boostRequest: CreateBoostRequest = {
                 originalPostId: postId!,
@@ -178,7 +173,7 @@ const BoostScreen: React.FC = () => {
                         />
                         <View className="justify-center">
                             <Text className="text-foreground text-base font-bold mb-0.5">
-                                {user?.displayName}
+                                {user?.name.displayName}
                             </Text>
                             <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
                         </View>

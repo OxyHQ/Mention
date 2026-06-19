@@ -33,7 +33,6 @@ export interface UserAppearance {
   profileCustomization?: {
     coverPhotoEnabled?: boolean;
     minimalistMode?: boolean;
-    displayName?: string;
   };
   followsYou?: boolean;
   privacy?: {

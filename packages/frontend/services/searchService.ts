@@ -3,16 +3,72 @@ import { authenticatedClient, publicClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
 import { Storage } from "@/utils/storage";
+import type { User } from '@oxyhq/core';
+import type { HydratedPost } from '@mention/shared-types';
 
 const logger = createScopedLogger('SearchService');
 
+export type SearchPostResult = HydratedPost & { _id?: string };
+
+export type SearchUserResult = User & {
+  handle?: string;
+  isFederated?: boolean;
+  type?: string;
+  instance?: string;
+  federation?: { domain?: string };
+};
+
+export interface SearchOwnerResult {
+  username?: string;
+  handle?: string;
+  displayName?: string;
+  name?: { displayName?: string };
+  avatar?: string;
+}
+
+export interface SearchFeedResult {
+  id?: string;
+  _id?: string;
+  uri?: string;
+  title?: string;
+  displayName?: string;
+  description?: string;
+  avatar?: string | null;
+  creator?: SearchOwnerResult;
+  owner?: SearchOwnerResult;
+  likeCount?: number;
+  subscriberCount?: number;
+  memberCount?: number;
+}
+
+export interface SearchHashtagResult {
+  tag: string;
+  count?: number;
+}
+
+export interface SearchListResult {
+  id?: string;
+  _id?: string;
+  uri?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  avatar?: string | null;
+  owner?: SearchOwnerResult;
+  createdBy?: SearchOwnerResult;
+  creator?: SearchOwnerResult;
+  purpose?: string;
+  itemCount?: number;
+  memberCount?: number;
+}
+
 export interface SearchResults {
-  posts?: any[];
-  hashtags?: any[];
-  feeds?: any[];
-  users?: any[];
-  lists?: any[];
-  saved?: any[];
+  posts?: SearchPostResult[];
+  hashtags?: SearchHashtagResult[];
+  feeds?: SearchFeedResult[];
+  users?: SearchUserResult[];
+  lists?: SearchListResult[];
+  saved?: SearchPostResult[];
 }
 
 export interface SearchFilters {
@@ -31,6 +87,14 @@ export interface SearchFilters {
 const SEARCH_HISTORY_KEY = 'mention_search_history';
 const MAX_SEARCH_HISTORY = 10;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isHydratedPost(value: unknown): value is SearchPostResult {
+  return isRecord(value) && typeof value.id === 'string' && isRecord(value.content);
+}
+
 /**
  * Search operator definitions for display in the UI hint.
  */
@@ -46,9 +110,9 @@ export const SEARCH_OPERATORS = [
 
 class SearchService {
   // Search posts - query is passed raw to backend which parses operators
-  async searchPosts(query: string): Promise<any[]> {
+  async searchPosts(query: string): Promise<SearchPostResult[]> {
     try {
-      const res = await authenticatedClient.get("/search", {
+      const res = await authenticatedClient.get<{ posts?: SearchPostResult[] }>("/search", {
         params: { query, type: "posts" }
       });
       return res.data.posts || [];
@@ -59,7 +123,7 @@ class SearchService {
   }
 
   // Search users via Oxy services
-  async searchUsers(query: string): Promise<any[]> {
+  async searchUsers(query: string): Promise<SearchUserResult[]> {
     try {
       // Use OxyServices searchProfiles method
       const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
@@ -81,9 +145,9 @@ class SearchService {
   }
 
   // Search feeds
-  async searchFeeds(query: string): Promise<any[]> {
+  async searchFeeds(query: string): Promise<SearchFeedResult[]> {
     try {
-      const res = await publicClient.get("/feeds", {
+      const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
         params: { publicOnly: true, search: query }
       });
       return res.data.items || [];
@@ -94,9 +158,9 @@ class SearchService {
   }
 
   // Search lists
-  async searchLists(query: string): Promise<any[]> {
+  async searchLists(query: string): Promise<SearchListResult[]> {
     try {
-      const res = await authenticatedClient.get("/lists", {
+      const res = await authenticatedClient.get<{ items?: SearchListResult[] }>("/lists", {
         params: { search: query }
       });
       return res.data.items || [];
@@ -107,9 +171,9 @@ class SearchService {
   }
 
   // Search hashtags — backend exposes POST /hashtags/search with body { query }
-  async searchHashtags(query: string): Promise<any[]> {
+  async searchHashtags(query: string): Promise<SearchHashtagResult[]> {
     try {
-      const res = await authenticatedClient.post("/hashtags/search", { query });
+      const res = await authenticatedClient.post<{ data?: SearchHashtagResult[] }>("/hashtags/search", { query });
       return res.data.data || [];
     } catch (error) {
       // Silently return empty array on error
@@ -118,15 +182,17 @@ class SearchService {
   }
 
   // Search saved posts
-  async searchSaved(query: string): Promise<unknown[]> {
+  async searchSaved(query: string): Promise<SearchPostResult[]> {
     try {
       const response = await feedService.getSavedPosts({
         page: 1,
         limit: 20,
         search: query
       });
-      const data = response.data as { posts?: unknown[] } | undefined;
-      return data?.posts ?? [];
+      const data = response.data;
+      return isRecord(data) && Array.isArray(data.posts)
+        ? data.posts.filter(isHydratedPost)
+        : [];
     } catch (error) {
       logger.warn("Failed searching saved posts", { error });
       return [];
@@ -153,13 +219,16 @@ class SearchService {
   }
 
   // Advanced search with filters
-  async searchAdvanced(query: string, filters: SearchFilters = {}): Promise<{ posts: any[]; hasMore: boolean; nextCursor?: string }> {
+  async searchAdvanced(query: string, filters: SearchFilters = {}): Promise<{ posts: SearchPostResult[]; hasMore: boolean; nextCursor?: string }> {
     try {
-      const params: any = { query, type: 'posts', ...filters };
-      // Remove undefined values
-      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+      const params: Record<string, string | number | boolean> = { query, type: 'posts' };
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined) {
+          params[key] = value;
+        }
+      });
 
-      const res = await authenticatedClient.get("/search", { params });
+      const res = await authenticatedClient.get<{ posts?: SearchPostResult[]; hasMore?: boolean; nextCursor?: string }>("/search", { params });
       return {
         posts: res.data.posts || [],
         hasMore: res.data.hasMore || false,

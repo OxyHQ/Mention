@@ -62,7 +62,13 @@ export const createNotification = async (
       let actor: NotificationActor | null = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
-          actor = await oxy.getUserById(data.actorId);
+          const oxyActor = await oxy.getUserById(data.actorId);
+          actor = {
+            id: oxyActor.id,
+            username: oxyActor.username,
+            displayName: oxyActor.name.displayName,
+            avatar: oxyActor.avatar ?? undefined,
+          };
         } else if (data.actorId === 'system') {
           actor = { id: 'system', username: 'system', displayName: 'System' };
         }

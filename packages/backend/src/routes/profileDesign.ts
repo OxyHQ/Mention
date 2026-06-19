@@ -29,7 +29,6 @@ interface PublicProfileDesignResponse {
   profileCustomization?: {
     coverPhotoEnabled: boolean;
     minimalistMode: boolean;
-    displayName?: string;
   };
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';

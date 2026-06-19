@@ -99,11 +99,6 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       if (typeof profileCustomization.minimalistMode === 'boolean') {
         update['profileCustomization.minimalistMode'] = profileCustomization.minimalistMode;
       }
-      if (typeof profileCustomization.displayName === 'string') {
-        update['profileCustomization.displayName'] = profileCustomization.displayName.trim() || undefined;
-      } else if (profileCustomization.displayName === null) {
-        update['profileCustomization.displayName'] = undefined;
-      }
     }
     
     if (privacy) {

@@ -123,7 +123,8 @@ function objectId(value: unknown): string | undefined {
 
 function nameToString(value: unknown): string | undefined {
   const object = objectValue(value);
-  return object ? stringValue(object.displayName) : stringValue(value);
+  const name = objectValue(object?.name);
+  return object ? stringValue(name?.displayName) || stringValue(object.displayName) : stringValue(value);
 }
 
 function extractActor(n: TRawNotification): GroupedActor {
@@ -131,7 +132,8 @@ function extractActor(n: TRawNotification): GroupedActor {
   const actorId = objectId(n.actorId) || 'unknown';
 
   if (populated) {
-    const name = populated.displayName || populated.username || actorId;
+    const populatedName = objectValue(populated.name);
+    const name = stringValue(populatedName?.displayName) || populated.displayName || populated.username || actorId;
     return {
       id: actorId,
       name,
@@ -143,9 +145,10 @@ function extractActor(n: TRawNotification): GroupedActor {
   const actor = objectValue(n.actorId);
   if (actor) {
     const username = stringValue(actor.username);
+    const actorName = objectValue(actor.name);
     return {
       id: objectId(actor) || 'unknown',
-      name: stringValue(actor.displayName) || username || actorId,
+      name: stringValue(actorName?.displayName) || stringValue(actor.displayName) || username || actorId,
       username,
       avatar: stringValue(actor.avatar),
     };

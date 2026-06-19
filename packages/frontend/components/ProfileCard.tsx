@@ -16,7 +16,9 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 export interface ProfileCardData {
   id: string;
   username: string;
-  displayName: string;
+  name: {
+    displayName: string;
+  };
   avatar?: string | null;
   verified?: boolean;
   description?: string;
@@ -75,7 +77,7 @@ export function ProfileCard({
             className="text-base font-semibold"
             style={{ lineHeight: 20 }}
             numberOfLines={1}>
-            {profile.displayName}
+            {profile.name.displayName}
           </ThemedText>
           <View className="flex-row items-center gap-1">
             <ThemedText

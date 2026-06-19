@@ -55,11 +55,12 @@ packages/
 - **Backend**: Express 5, Mongoose 9, Redis 5, Socket.io, LiveKit Server SDK, Firebase Admin, AWS S3
 - **Feed System**: MTN protocol in `backend/src/mtn/` (ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners). `videos` descriptor (`packages/shared-types/src/mtn/feedDescriptor.ts`) is backed by `VideosFeed` (`packages/backend/src/mtn/feed/feeds/VideosFeed.ts`) — ranked feed of video posts (native + federated) powering the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400. Use `videos`.
 - **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain. Outbox sync uses the actor's advertised `outbox` URL (`fetchRemoteActor`), with `actorUri + '/outbox'` only as fallback — guessing breaks PeerTube/Lemmy/some Pleroma. Boosts (Announce) are imported as `type:'boost'` posts (mirroring native repost shape), deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill (`syncOutboxPosts`/`extractCandidates`) paths.
-- **Auth**: Oxy integration via `@oxyhq/core ^3.4.16` + `@oxyhq/services ^10.2.10`
+- **Auth**: Oxy integration via `@oxyhq/core ^3.4.17` + `@oxyhq/services ^10.2.11`
 
 ## Profile Identity Contract
 
-- Oxy API owns canonical user display names. User/profile DTOs must provide `displayName` as the already-resolved value. Mention frontend renders `displayName` directly and must not recompute names from `name.first`, `name.last`, `name.full`, or add local `displayName || username` fallback chains in components.
+- Oxy API owns canonical user display names. User/profile DTOs must provide `name.displayName` as the already-resolved value. Mention frontend renders `name.displayName` directly and must not recompute names from `name.first`, `name.last`, `name.full`, or add local `displayName || username` fallback chains in components.
+- Profile update payloads use the shared `UserProfileUpdate` contract from `@oxyhq/contracts` via the SDK/API layers. Do not create Mention-local profile update interfaces for Oxy user fields.
 - Mention post DTOs must be produced by `PostHydrationService` (`packages/backend/src/services/PostHydrationService.ts`). Controllers must not hand-build post `user` objects, notification embedded posts, or nearby/feed post responses; hydration is the single place that resolves `PostActorSummary.displayName`, avatar, engagement, permissions, and related post data.
 - Profile routes use `getNormalizedUserHandle` from `@oxyhq/core` for local and federated handles. Do not add local profile-route helpers, manually append federated instances, navigate to raw ids, or generate `?username=` profile URLs.
 - Valid profile URLs are `/@username` and `/@username@domain`. Duplicate instance suffixes such as `/@user@domain@domain` are bugs in handle normalization and should be fixed at the source.
@@ -103,7 +104,7 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 
 ## Dependencies
 
-- `@oxyhq/core ^3.4.16`, `@oxyhq/services ^10.2.10` — Oxy platform SDK
+- `@oxyhq/core ^3.4.17`, `@oxyhq/services ^10.2.11` — Oxy platform SDK
 - `@oxyhq/bloom ^0.8.5` — Shared UI component library
 
 ## Auth Cold-Boot Reactivity (Web)
@@ -111,7 +112,7 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 On web, the session restores asynchronously after mount — the `/sso` path can take 5–25s. The SDK auth state (`useAuth()` `isAuthenticated` / `user`) IS reactive, but consumers must treat it as such:
 
 - **Key data fetches on identity, not on the stable singleton.** React Query keys and `useEffect` deps must include `isAuthenticated` / `user?.id`. Keying on `oxyServices` or `[]` fetches once while anonymous and never recovers when the session lands. The feed (`useFeedState`) keys its initial-fetch effect on `isAuthenticated`/`currentUserId` and invalidates the cached anon feed on identity change. The home feed (`app/(app)/index.tsx`) remounts on the auth-identity key (`isAuthenticated && user?.id ? user.id : 'anon'`).
-- **SDK-owned private API readiness.** Use `useAuth().canUsePrivateApi` / `useAuth().isPrivateApiPending` from `@oxyhq/services ^10.2.10` to gate private endpoints (`/managed-accounts`, privacy lists, follow-status mutations, profile/settings, custom feeds). Do NOT add local auth hooks, token helpers, Axios auth interceptors, manual `Authorization` headers, or app-local refresh/session invalidation.
+- **SDK-owned private API readiness.** Use `useAuth().canUsePrivateApi` / `useAuth().isPrivateApiPending` from `@oxyhq/services ^10.2.11` to gate private endpoints (`/managed-accounts`, privacy lists, follow-status mutations, profile/settings, custom feeds). Do NOT add local auth hooks, token helpers, Axios auth interceptors, manual `Authorization` headers, or app-local refresh/session invalidation.
 - **SDK-owned SSO callback and cold boot.** The frontend uses `OxyProvider` with a registered `clientId`; SDK cold boot owns stored-session restore, FedCM/silent restore, `/sso` bounce, and `/__oxy/sso-callback` consumption. Do not add per-app callback routes or local SSO helper copies.
 - **Mention backend clients use linked SDK clients.** `packages/frontend/utils/api.ts` and `packages/agora/utils/api.ts` adapt `oxyServices.createLinkedClient({ baseURL: API_URL })` into the app's `{ data }` response shape. Refresh and invalidated-token sign-out belong to `@oxyhq/core`/`@oxyhq/services`, not the app.
 - **Backend auth middleware comes from core.** Backend APIs use `@oxyhq/core/server` (`createOxyAuthMiddleware`, `createOptionalOxyAuth`, `createOxyRateLimit`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`). Do not define local `AuthRequest`, `requireAuth`, `getUserId`, bearer parsers, or token-decoding middleware. Bearer-authenticated writes do not fetch app-local CSRF tokens; CSRF remains for ambient cookie credentials.
@@ -123,6 +124,8 @@ On web, the session restores asynchronously after mount — the `/sso` path can 
 - **Bloom owns theming.** `BloomThemeProvider` (since v0.6.14) is the single source of truth for mode + color preset, with built-in persistence. Do NOT add a local theme store — pass `persistKey` + `storage` to the provider.
 - **Default preset for Mention frontend: `blue`** (not `oxy`).
 - **Default preset for Agora: `yellow`** (matches the existing `#FFC107` brand).
+- Use NativeWind className-based styles for themed UI whenever a class exists. NativeWind must consume Bloom tokens/classes instead of app-local color wrappers or one-off inline color maps.
+- Profile-scoped colors must wrap the subtree with `BloomColorScope` before any child calls `useTheme()` / `useBloomTheme()` or renders Bloom components. Split wrapper/content components when needed so hooks run inside the scope.
 - Settings UI uses Bloom's `SettingsList` (`SettingsListGroup` / `SettingsListItem` from `@oxyhq/bloom/settings-list`). Do not introduce local `SettingsItem` wrappers — they diverge from Bloom.
 - `lib/app-color-presets.ts#getScopedColorCSSVariables` is still needed for Tailwind `@theme` scoped overrides; do not remove it when cleaning up the legacy theme store.
 - Frontend `app/_layout.tsx` is the only place that wires the provider; consumers read theme via `useTheme()` / `useBloomTheme()` from `@oxyhq/bloom`.

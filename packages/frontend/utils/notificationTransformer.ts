@@ -4,6 +4,9 @@ import { NotificationType } from '@mention/shared-types';
 export interface NotificationActor {
   _id?: string;
   username?: string;
+  name?: {
+    displayName?: string;
+  };
   displayName?: string;
   avatar?: string;
 }
@@ -45,7 +48,7 @@ export interface TransformedNotification {
   isRead: boolean;
   createdAt: string;
   actionUrl?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 function isNotificationActor(value: unknown): value is NotificationActor {
@@ -58,14 +61,16 @@ function isNotificationActor(value: unknown): value is NotificationActor {
  */
 export const transformNotification = (
   rawNotification: RawNotification,
-  t: (key: string, options?: any) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ): TransformedNotification => {
   const actorFromActorId = isNotificationActor(rawNotification.actorId)
     ? rawNotification.actorId
     : undefined;
   const actorName =
+    actorFromActorId?.name?.displayName ||
     actorFromActorId?.displayName ||
     actorFromActorId?.username ||
+    rawNotification.actorId_populated?.name?.displayName ||
     rawNotification.actorId_populated?.displayName ||
     rawNotification.actorId_populated?.username ||
     'Someone';
@@ -162,7 +167,7 @@ const getActionUrl = (notification: RawNotification): string => {
 /**
  * Extracts additional metadata from the notification for display
  */
-const extractMetadata = (notification: RawNotification): Record<string, any> => {
+const extractMetadata = (notification: RawNotification): Record<string, unknown> => {
   return {
     entityId: notification.entityId,
     entityType: notification.entityType,
@@ -175,7 +180,7 @@ const extractMetadata = (notification: RawNotification): Record<string, any> => 
  */
 const getEntityDescription = (
   notification: RawNotification,
-  _t: (key: string, options?: any) => string
+  _t: (key: string, options?: Record<string, unknown>) => string
 ): string => {
   // This would typically fetch the actual post/reply content
   // For now, we'll return a generic description

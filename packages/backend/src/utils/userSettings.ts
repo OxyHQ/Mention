@@ -1,4 +1,4 @@
-import UserSettings from '../models/UserSettings';
+import UserSettings, { type UserSettingsData } from '../models/UserSettings';
 import { resolveMediaRef } from './mediaResolver';
 
 /**
@@ -27,20 +27,20 @@ function resolveProfileHeaderImage(value: unknown): string | undefined {
  * Creates with defaults if missing, updates if missing profileCustomization
  */
 export async function ensureUserSettings(oxyUserId: string) {
-  let doc = await UserSettings.findOne({ oxyUserId }).lean();
+  let doc = await UserSettings.findOne({ oxyUserId }).lean<UserSettingsData>().exec();
   
   if (!doc) {
     const created = await UserSettings.create({ 
       oxyUserId,
       profileCustomization: DEFAULT_PROFILE_CUSTOMIZATION,
     });
-    doc = created.toObject() as any;
+    doc = created.toObject<UserSettingsData>();
   } else if (!doc.profileCustomization) {
     doc = await UserSettings.findOneAndUpdate(
       { oxyUserId },
       { $set: { profileCustomization: DEFAULT_PROFILE_CUSTOMIZATION } },
       { new: true }
-    ).lean();
+    ).lean<UserSettingsData>().exec();
   }
   
   return doc;
@@ -49,9 +49,8 @@ export async function ensureUserSettings(oxyUserId: string) {
 /**
  * Extracts public profile design data from UserSettings document
  */
-export function extractPublicProfileData(doc: any, userId: string) {
+export function extractPublicProfileData(doc: Partial<UserSettingsData> | null | undefined, userId: string) {
   const customization = doc?.profileCustomization || {};
-  const displayName = nonEmptyString(customization.displayName);
   const profileCustomization = {
     coverPhotoEnabled:
       typeof customization.coverPhotoEnabled === 'boolean'
@@ -61,7 +60,6 @@ export function extractPublicProfileData(doc: any, userId: string) {
       typeof customization.minimalistMode === 'boolean'
         ? customization.minimalistMode
         : DEFAULT_PROFILE_CUSTOMIZATION.minimalistMode,
-    ...(displayName && { displayName }),
   };
 
   return {

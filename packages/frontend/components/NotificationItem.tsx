@@ -105,7 +105,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         try {
             const cachedUser = queryClient.getQueryData<User>(queryKeys.users.detail(String(id)));
             if (cachedUser) {
-                const resolvedName = cachedUser.displayName;
+                const resolvedName = cachedUser.name.displayName;
                 setActorName(resolvedName);
                 setActorAvatar(cachedUser.avatar);
                 actorCacheRef.current.set(String(id), { name: resolvedName, avatar: cachedUser.avatar });
@@ -131,8 +131,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     staleTime: 5 * 60 * 1000,
                 });
                 if (!cancelled && ensured) {
-                    actorCacheRef.current.set(String(id), { name: ensured.displayName, avatar: ensured.avatar });
-                    setActorName(ensured.displayName);
+                    actorCacheRef.current.set(String(id), { name: ensured.name.displayName, avatar: ensured.avatar });
+                    setActorName(ensured.name.displayName);
                     setActorAvatar(ensured.avatar);
                 } else if (!cancelled) {
                     actorCacheRef.current.set(String(id), { name: String(id), avatar: undefined });

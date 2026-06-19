@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import UserName from '@/components/UserName';
@@ -46,7 +46,7 @@ export const ProfileContent = memo(function ProfileContent({
     isFederated: profileData.isFederated,
   }) || username;
 
-  const handleLayout = (event: any) => {
+  const handleLayout = (event: LayoutChangeEvent) => {
     onLayout?.(event.nativeEvent.layout.height);
   };
 
@@ -149,7 +149,7 @@ export const ProfileContent = memo(function ProfileContent({
       {/* Profile fields (federated profiles) */}
       {profileData.isFederated && profileData.fields && profileData.fields.length > 0 && (
         <View className="mb-3" style={{ gap: 1 }}>
-          {profileData.fields.map((field: any, i: number) => (
+          {profileData.fields.map((field, i) => (
             <View
               key={i}
               className="flex-row items-center py-1.5 border-b border-border"

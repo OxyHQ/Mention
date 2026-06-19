@@ -21,8 +21,8 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 interface ProfileData {
   id: string;
   username?: string;
-  displayName: string;
-  name?: {
+  name: {
+    displayName: string;
     first?: string;
     last?: string;
     full?: string;
@@ -207,7 +207,7 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
         <Avatar source={profileData.avatar || cachedUser?.avatar} size={34} placeholderColor={getUserPlaceholderColor(cachedUser)} />
         <View className="ml-2.5 flex-1 mr-2">
           <UserName
-            name={profileData.displayName}
+            name={profileData.name.displayName}
             isFederated={profileData.isFederated}
             isAgent={profileData.isAgent}
             isAutomated={profileData.isAutomated}

@@ -103,7 +103,7 @@ export async function formatPushForNotification(n: any) {
   try {
     if (n.actorId && n.actorId !== 'system') {
       const actor = await oxy.getUserById(n.actorId);
-      actorName = actor?.displayName ?? actorName;
+      actorName = actor?.name.displayName ?? actorName;
     } else if (n.actorId === 'system') {
       actorName = 'System';
     }

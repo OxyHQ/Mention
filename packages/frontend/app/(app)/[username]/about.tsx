@@ -13,26 +13,37 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
+import type { ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 
 export default function AccountInfoScreen() {
-  const insets = useSafeAreaInsets();
-  const safeBack = useSafeBack();
   const { username } = useLocalSearchParams<{ username: string }>();
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
-  const { t } = useTranslation();
-  const theme = useTheme();
-  // Use unified profile data hook - automatically fetches profile and appearance settings
   const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
-
-  const design = profileData?.design;
-
   const { colorName: profileColorName } = useProfileScreenColor({
     username: cleanUsername,
-    designColor: design?.color,
+    designColor: profileData?.design.color,
   });
+
+  return (
+    <BloomColorScope colorPreset={profileColorName} asChild>
+      <AccountInfoContent profileData={profileData} profileLoading={profileLoading} />
+    </BloomColorScope>
+  );
+}
+
+interface AccountInfoContentProps {
+  profileData: ProfileData | null;
+  profileLoading: boolean;
+}
+
+function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentProps) {
+  const insets = useSafeAreaInsets();
+  const safeBack = useSafeBack();
+  const { t } = useTranslation();
+  const theme = useTheme();
 
   // Format join date
   const joinDate = useMemo(() => {
@@ -57,7 +68,6 @@ export default function AccountInfoScreen() {
 
   if (profileLoading) {
     return (
-      <BloomColorScope colorPreset={profileColorName} asChild>
       <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
         <Header
           options={{
@@ -75,13 +85,11 @@ export default function AccountInfoScreen() {
           <Loading className="text-primary" size="large" />
         </View>
       </ThemedView>
-      </BloomColorScope>
     );
   }
 
   if (!profileData) {
     return (
-      <BloomColorScope colorPreset={profileColorName} asChild>
       <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
         <Header
           options={{
@@ -101,12 +109,10 @@ export default function AccountInfoScreen() {
           </ThemedText>
         </View>
       </ThemedView>
-      </BloomColorScope>
     );
   }
 
   return (
-    <BloomColorScope colorPreset={profileColorName} asChild>
     <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
       <Header
         options={{
@@ -246,7 +252,6 @@ export default function AccountInfoScreen() {
         </View>
       </ScrollView>
     </ThemedView>
-    </BloomColorScope>
   );
 }
 

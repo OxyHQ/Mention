@@ -42,6 +42,21 @@ const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const DEFAULT_BOOSTS_LIMIT = 50;
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
 
+const buildPostMetadata = (metadata: unknown): Record<string, unknown> => {
+  if (!metadata || typeof metadata !== 'object') {
+    return {};
+  }
+
+  const incomingMetadata = metadata as Record<string, unknown>;
+  const postMetadata: Record<string, unknown> = {};
+
+  if (incomingMetadata.isSensitive === true) {
+    postMetadata.isSensitive = true;
+  }
+
+  return postMetadata;
+};
+
 /**
  * Sanitize and validate sources array.
  * Returns { sources, error } — error is set if the array exceeds the max size.
@@ -608,12 +623,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     const isScheduled = postStatus === 'scheduled';
 
-    // Build metadata from request
-    const incomingMetadata = req.body.metadata || {};
-    const postMetadata: Record<string, unknown> = {};
-    if (incomingMetadata.isSensitive === true) {
-      postMetadata.isSensitive = true;
-    }
+    const postMetadata = buildPostMetadata(req.body.metadata);
 
     const post = await postCreationService.create({
       oxyUserId: userId,
@@ -694,7 +704,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     for (let i = 0; i < posts.length; i++) {
       const postData = posts[i];
-      const { content, hashtags, mentions, visibility, replyPermission, reviewReplies, quotesDisabled } = postData;
+      const { content, hashtags, mentions, visibility, replyPermission, reviewReplies, quotesDisabled, metadata } = postData;
 
       // Process content location data
       let processedContentLocation = null;
@@ -812,6 +822,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         replyPermission: replyPermission || ['anyone'],
         reviewReplies: reviewReplies || false,
         quotesDisabled: quotesDisabled || false,
+        metadata: buildPostMetadata(metadata),
         stats: {
           likesCount: 0,
           boostsCount: 0,

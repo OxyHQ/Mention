@@ -27,8 +27,7 @@ const blockedLogger = createScopedLogger('BlockedUsers');
 interface BlockedUser {
     id?: string;
     _id?: string;
-    name?: string | { full?: string; first?: string; last?: string };
-    displayName: string;
+    name?: User['name'];
     username?: string;
     handle?: string;
     avatar?: string;
@@ -96,7 +95,7 @@ export default function BlockedUsersScreen() {
                 return;
             }
 
-            const userPromises = userIds.map(async (userId: string) => {
+            const userPromises = userIds.map(async (userId: string): Promise<BlockedUser | null> => {
                 try {
                     blockedLogger.debug(`Fetching user details for: ${userId}`);
 
@@ -140,27 +139,16 @@ export default function BlockedUsersScreen() {
                     });
                     blockedLogger.debug(`Found user for ${userId}: ${user ? 'yes' : 'no'}`);
 
-                    if (!user) {
-                        blockedLogger.debug(`Creating fallback user object for ${userId}`);
-                        return {
-                            id: userId,
-                            username: userId.substring(0, 8) + '...',
-                            handle: userId.substring(0, 8) + '...',
-                        } as BlockedUser;
-                    }
+                    if (!user) return null;
 
-                    return user as BlockedUser;
+                    return user;
                 } catch (error) {
                     blockedLogger.warn(`Failed to fetch user ${userId}`, { error });
-                    return {
-                        id: userId,
-                        username: userId.substring(0, 8) + '...',
-                        handle: userId.substring(0, 8) + '...',
-                    } as BlockedUser;
+                    return null;
                 }
             });
 
-            const users = (await Promise.all(userPromises)).filter(Boolean) as BlockedUser[];
+            const users = (await Promise.all(userPromises)).filter((user): user is BlockedUser => Boolean(user));
             blockedLogger.debug(`Loaded users: ${users.length}`);
             setBlockedUsers(users);
         } catch (error) {
@@ -191,12 +179,13 @@ export default function BlockedUsersScreen() {
         if (oxyServices?.searchProfiles) {
             try {
                 const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
-                return Array.isArray(data) ? (data as BlockedUser[]) : [];
+                return Array.isArray(data) ? data : [];
             } catch (error) {
                 blockedLogger.warn('oxyServices.searchProfiles failed, falling back', { error });
             }
         }
-        return searchService.searchUsers(query) as Promise<BlockedUser[]>;
+        const results = await searchService.searchUsers(query);
+        return results.filter((user): user is BlockedUser => Boolean(user.name));
     }, [oxyServices]);
 
     const handleSearch = useCallback(async (query: string) => {
@@ -341,14 +330,6 @@ export default function BlockedUsersScreen() {
         bottomSheet.openBottomSheet(true);
     };
 
-    const getUserDisplayName = (user: BlockedUser) => {
-        return user.displayName;
-    };
-
-    const getUserHandle = (user: BlockedUser) => user.username || user.handle || '';
-
-    const getAvatarUri = (user: BlockedUser) => user.avatar;
-
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
@@ -436,16 +417,15 @@ export default function BlockedUsersScreen() {
                     <SettingsListGroup>
                         {searchResults.map((user) => {
                             const userId = getUserId(user);
-                            const displayName = getUserDisplayName(user);
-                            const handle = getUserHandle(user);
-                            const avatarUri = getAvatarUri(user);
+                            const handle = user.username || user.handle || '';
                             const isBlocking = blocking === userId;
+                            if (!userId || !user.name?.displayName) return null;
 
                             return (
                                 <SettingsListItem
                                     key={userId}
-                                    icon={<Avatar source={avatarUri} size={36} />}
-                                    title={displayName}
+                                    icon={<Avatar source={user.avatar} size={36} />}
+                                    title={user.name.displayName}
                                     description={`@${handle}`}
                                     onPress={() => !isBlocking && handleBlock(user)}
                                     disabled={isBlocking}
@@ -489,15 +469,14 @@ export default function BlockedUsersScreen() {
                     ) : (
                         blockedUsers.map((user) => {
                             const userId = getUserId(user);
-                            const displayName = getUserDisplayName(user);
-                            const handle = getUserHandle(user);
-                            const avatarUri = getAvatarUri(user);
+                            const handle = user.username || user.handle || '';
+                            if (!userId || !user.name?.displayName) return null;
 
                             return (
                                 <SettingsListItem
                                     key={userId}
-                                    icon={<Avatar source={avatarUri} size={40} />}
-                                    title={displayName}
+                                    icon={<Avatar source={user.avatar} size={40} />}
+                                    title={user.name.displayName}
                                     description={`@${handle}`}
                                     showChevron={false}
                                     rightElement={

@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import type { User } from '@oxyhq/core';
 
-type MinimalUser = Pick<User, 'id' | 'username' | 'displayName' | 'avatar'>;
+type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 export default function CreateListScreen() {
   const { oxyServices } = useAuth();
@@ -128,7 +128,7 @@ export default function CreateListScreen() {
           <View className="border border-border rounded-[10px] overflow-hidden">
             {results.map((u) => (
               <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
-                <Text className="text-foreground font-primary">@{u.username} • {u.displayName}</Text>
+                <Text className="text-foreground font-primary">@{u.username} • {u.name.displayName}</Text>
                 <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
               </TouchableOpacity>
             ))}
