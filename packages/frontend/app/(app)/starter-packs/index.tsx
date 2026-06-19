@@ -85,15 +85,16 @@ export default function StarterPacksScreen() {
           ) : (
             <View className="px-1">
               {myPacks.map((p: any) => {
+                const memberCount = p.memberCount ?? (p.memberOxyUserIds || []).length;
                 const cardData: StarterPackCardData = {
                   id: String(p._id || p.id),
                   name: p.name || 'Untitled Pack',
                   description: p.description,
                   creator: p.creator || p.owner,
-                  memberCount: (p.memberOxyUserIds || []).length,
+                  memberCount,
                   useCount: p.useCount || 0,
-                  memberAvatars: p.memberAvatars || [],
-                  totalMembers: (p.memberOxyUserIds || []).length,
+                  memberAvatars: p.memberAvatars ?? [],
+                  totalMembers: memberCount,
                 };
 
                 return (

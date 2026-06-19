@@ -1,11 +1,25 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import AccountList from '../models/AccountList';
+import AccountList, { IAccountList } from '../models/AccountList';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
 
 const router = express.Router();
+
+type LeanAccountList = Pick<
+  IAccountList,
+  'ownerOxyUserId' | 'title' | 'description' | 'isPublic' | 'memberOxyUserIds' | 'subscriberCount' | 'createdAt' | 'updatedAt'
+> & { _id: mongoose.Types.ObjectId; subscriberCount?: number };
+
+/**
+ * Normalize a lean AccountList so `subscriberCount` is always present.
+ * Lists created before the field existed lack it in MongoDB; `.lean()` bypasses
+ * schema defaults, so default it to 0 here for a stable DTO shape.
+ */
+function serializeList(list: LeanAccountList): LeanAccountList & { subscriberCount: number } {
+  return { ...list, subscriberCount: list.subscriberCount ?? 0 };
+}
 
 // Create list (accounts)
 router.post('/', async (req: AuthRequest, res: Response) => {
@@ -40,8 +54,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     if (mine === 'true') q.ownerOxyUserId = userId;
     if (publicOnly === 'true') q.isPublic = true;
     if (!mine && !publicOnly) q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
-    const items = await AccountList.find(q).sort({ updatedAt: -1 }).lean();
-    res.json({ items, total: items.length });
+    const items = await AccountList.find(q).sort({ updatedAt: -1 }).lean<LeanAccountList[]>();
+    const serialized = items.map(serializeList);
+    res.json({ items: serialized, total: serialized.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list lists' });
   }
@@ -51,10 +66,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const list = await AccountList.findById(req.params.id).lean();
+    const list = await AccountList.findById(req.params.id).lean<LeanAccountList>();
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (!list.isPublic && list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
-    res.json(list);
+    res.json(serializeList(list));
   } catch (error) {
     res.status(500).json({ error: 'Failed to get list' });
   }

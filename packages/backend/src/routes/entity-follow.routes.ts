@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { EntityFollow } from '../models/EntityFollow';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
+import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
 
 const router = Router();
 
@@ -34,6 +35,12 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     const follow = new EntityFollow({ userId, entityType, entityId });
     await follow.save();
+
+    // Following a list is a subscription: bump the list's subscriber count.
+    // This does NOT follow the list's members and does NOT affect follower counts.
+    if (entityType === LIST_ENTITY_TYPE) {
+      await listSubscriptionService.incrementSubscriberCount(entityId);
+    }
 
     logger.debug(`User ${userId} followed ${entityType}:${entityId}`);
 
@@ -75,6 +82,11 @@ router.delete('/', async (req: AuthRequest, res: Response) => {
 
     if (!result) {
       return res.status(404).json({ message: 'Entity follow not found' });
+    }
+
+    // Unsubscribing from a list decrements its subscriber count (floored at 0).
+    if (entityType === LIST_ENTITY_TYPE) {
+      await listSubscriptionService.decrementSubscriberCount(entityId);
     }
 
     logger.debug(`User ${userId} unfollowed ${entityType}:${entityId}`);

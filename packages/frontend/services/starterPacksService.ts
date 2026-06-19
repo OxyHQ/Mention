@@ -8,6 +8,8 @@ export interface StarterPackSummary {
   ownerOxyUserId?: string;
   memberOxyUserIds?: string[];
   memberCount?: number;
+  /** Pre-resolved member avatar URLs (up to 8) returned by the list endpoint. */
+  memberAvatars?: string[];
   useCount?: number;
   createdAt?: string;
   updatedAt?: string;

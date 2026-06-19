@@ -4,7 +4,7 @@ import { PressableScale } from '@/lib/animations/PressableScale';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { AvatarStack, type AvatarStackProfile } from './AvatarStack';
+import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
@@ -85,11 +85,11 @@ export function FeedCard({
         return parts.join(', ');
     }, [feed.displayName, feed.creator, feed.memberCount, feed.likeCount, showLikes]);
 
-    const avatarProfiles: AvatarStackProfile[] = useMemo(() => {
+    const avatarItems: AvatarGroupItem[] = useMemo(() => {
         if (!feed.memberAvatars || feed.memberAvatars.length === 0) return [];
-        return feed.memberAvatars.slice(0, 3).map((uri, i) => ({
+        return feed.memberAvatars.map((uri, i) => ({
             id: `member-${i}`,
-            avatar: uri,
+            uri,
         }));
     }, [feed.memberAvatars]);
 
@@ -129,9 +129,9 @@ export function FeedCard({
                     )}
                 </View>
 
-                {/* Right side: avatar stack or custom slot */}
-                {avatarProfiles.length > 0 ? (
-                    <AvatarStack profiles={avatarProfiles} size={28} />
+                {/* Right side: avatar cluster or custom slot */}
+                {avatarItems.length > 0 ? (
+                    <AvatarGroup items={avatarItems} size={28} max={3} />
                 ) : headerRight ? (
                     <View>{headerRight}</View>
                 ) : null}

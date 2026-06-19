@@ -18,6 +18,7 @@ export interface MentionList {
   memberOxyUserIds?: string[];
   memberCount?: number;
   likeCount?: number;
+  subscriberCount?: number;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;

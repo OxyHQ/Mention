@@ -700,6 +700,15 @@
       "addFailed": "No se pudo añadir el miembro",
       "removed": "@{{user}} eliminado",
       "removeFailed": "No se pudo eliminar el miembro"
+    },
+    "subscriberCount": "{{count}} seguidores",
+    "subscriberSingular": "seguidor",
+    "subscriberPlural": "seguidores",
+    "followList": "Seguir lista",
+    "followingList": "Siguiendo",
+    "sections": {
+      "yours": "Tus listas",
+      "followed": "Listas que sigues"
     }
   },
   "feeds": {

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
@@ -25,6 +26,7 @@ export interface ListCardData {
     };
     purpose?: 'curatelist' | 'modlist';
     itemCount?: number;
+    subscriberCount?: number;
 }
 
 interface ListCardProps {
@@ -44,6 +46,7 @@ export function ListCard({
     style,
 }: ListCardProps) {
     const router = useRouter();
+    const { t } = useTranslation();
 
     const handlePress = () => {
         if (onPress) {
@@ -98,13 +101,25 @@ export function ListCard({
                     </ThemedText>
                 </View>
             )}
-            {list.itemCount !== undefined && (
-                <View style={styles.itemCount}>
-                    <ThemedText
-                        className="text-muted-foreground"
-                        style={styles.itemCountText}>
-                        {list.itemCount} {list.itemCount === 1 ? 'item' : 'items'}
-                    </ThemedText>
+            {(list.itemCount !== undefined || list.subscriberCount !== undefined) && (
+                <View style={styles.metaRow}>
+                    {list.itemCount !== undefined && (
+                        <ThemedText
+                            className="text-muted-foreground"
+                            style={styles.itemCountText}>
+                            {list.itemCount} {list.itemCount === 1 ? 'item' : 'items'}
+                        </ThemedText>
+                    )}
+                    {list.subscriberCount !== undefined && (
+                        <ThemedText
+                            className="text-muted-foreground"
+                            style={styles.itemCountText}>
+                            {t('lists.subscriberCount', {
+                                count: list.subscriberCount,
+                                defaultValue: '{{count}} subscribers',
+                            })}
+                        </ThemedText>
+                    )}
                 </View>
             )}
         </PressableScale>
@@ -144,8 +159,11 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 20,
     },
-    itemCount: {
+    metaRow: {
         marginTop: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
     itemCountText: {
         fontSize: 14,

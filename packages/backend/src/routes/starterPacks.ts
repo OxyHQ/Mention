@@ -1,11 +1,87 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import StarterPack from '../models/StarterPack';
+import type { User as OxyUser } from '@oxyhq/core';
+import StarterPack, { IStarterPack } from '../models/StarterPack';
 import { escapeRegex } from '../utils/textProcessing';
+import { oxy } from '../../server';
+import { resolveAvatarUrl } from '../utils/mediaResolver';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
 const MAX_MEMBERS = 150;
+
+/** Number of member avatars surfaced per pack in the list response. */
+const LIST_AVATAR_LIMIT = 8;
+
+/** A starter pack as returned by `.lean()` — a plain object with `_id`. */
+type LeanStarterPack = Pick<
+  IStarterPack,
+  'ownerOxyUserId' | 'name' | 'description' | 'memberOxyUserIds' | 'usedByOxyUserIds' | 'useCount' | 'createdAt' | 'updatedAt'
+> & { _id: unknown };
+
+/** Shape of each item in the `GET /starter-packs` list response. */
+interface StarterPackListItem extends LeanStarterPack {
+  memberAvatars: string[];
+  memberCount: number;
+}
+
+/**
+ * Resolve a single Oxy member's avatar to a FINAL, ready-to-render URL.
+ * Mirrors {@link PostHydrationService}'s actor resolution: prefer `avatar`,
+ * fall back to `profileImage`, then run through {@link resolveAvatarUrl} so the
+ * frontend never has to construct URLs. Returns `undefined` on any failure or
+ * when the member has no avatar so the caller can omit it.
+ */
+async function resolveMemberAvatar(oxyUserId: string): Promise<string | undefined> {
+  try {
+    const userData: OxyUser = await oxy.getUserById(oxyUserId);
+    const profileImage = (userData as { profileImage?: unknown }).profileImage;
+    const rawAvatar: string | undefined = typeof userData.avatar === 'string'
+      ? userData.avatar
+      : typeof profileImage === 'string'
+        ? profileImage
+        : undefined;
+    return resolveAvatarUrl(rawAvatar);
+  } catch (error) {
+    logger.warn(`[StarterPacks] Failed to resolve member avatar for ${oxyUserId}:`, error);
+    return undefined;
+  }
+}
+
+/**
+ * Enrich a page of starter packs with `memberAvatars` (≤8 resolved URLs) and
+ * `memberCount`. Avoids N+1: collects the union of each pack's first
+ * {@link LIST_AVATAR_LIMIT} member ids, resolves every unique id ONCE, then maps
+ * avatars back per pack preserving member order.
+ */
+async function enrichWithMemberAvatars(packs: LeanStarterPack[]): Promise<StarterPackListItem[]> {
+  const uniqueMemberIds = new Set<string>();
+  for (const pack of packs) {
+    for (const id of (pack.memberOxyUserIds ?? []).slice(0, LIST_AVATAR_LIMIT)) {
+      uniqueMemberIds.add(id);
+    }
+  }
+
+  const avatarById = new Map<string, string>();
+  await Promise.all(
+    Array.from(uniqueMemberIds).map(async (memberId) => {
+      const avatar = await resolveMemberAvatar(memberId);
+      if (avatar) {
+        avatarById.set(memberId, avatar);
+      }
+    }),
+  );
+
+  return packs.map((pack) => {
+    const members = pack.memberOxyUserIds ?? [];
+    const memberAvatars = members
+      .slice(0, LIST_AVATAR_LIMIT)
+      .map((id) => avatarById.get(id))
+      .filter((url): url is string => typeof url === 'string');
+    return { ...pack, memberAvatars, memberCount: members.length };
+  });
+}
 
 // Create starter pack
 router.post('/', async (req: AuthRequest, res: Response) => {
@@ -52,8 +128,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     const sort: any = mine === 'true' ? { updatedAt: -1 } : { useCount: -1, createdAt: -1 };
-    const items = await StarterPack.find(q).sort(sort).limit(50).lean();
-    res.json({ items, total: items.length });
+    const items = await StarterPack.find(q).sort(sort).limit(50).lean<LeanStarterPack[]>();
+    const enriched = await enrichWithMemberAvatars(items);
+    res.json({ items: enriched, total: enriched.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list starter packs' });
   }

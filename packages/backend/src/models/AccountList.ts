@@ -6,6 +6,8 @@ export interface IAccountList extends Document {
   description?: string;
   isPublic: boolean;
   memberOxyUserIds: string[];
+  /** Number of users who follow (subscribe to) this list. Maintained atomically. */
+  subscriberCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,6 +18,7 @@ const AccountListSchema = new Schema<IAccountList>({
   description: { type: String },
   isPublic: { type: Boolean, default: true },
   memberOxyUserIds: { type: [String], default: [] },
+  subscriberCount: { type: Number, default: 0, min: 0 },
 }, { timestamps: true });
 
 AccountListSchema.index({ ownerOxyUserId: 1, createdAt: -1 });

@@ -694,6 +694,15 @@
       "addFailed": "Impossibile aggiungere il membro",
       "removed": "@{{user}} rimosso",
       "removeFailed": "Impossibile rimuovere il membro"
+    },
+    "subscriberCount": "{{count}} iscritti",
+    "subscriberSingular": "iscritto",
+    "subscriberPlural": "iscritti",
+    "followList": "Segui lista",
+    "followingList": "Segui già",
+    "sections": {
+      "yours": "Le tue liste",
+      "followed": "Liste seguite"
     }
   },
   "feeds": {

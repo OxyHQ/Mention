@@ -20,7 +20,7 @@ export function StarterPacksTab() {
       const res = await starterPacksService.list();
       setPacks(res.items || []);
     } catch (e) {
-      logger.warn('load starter packs failed');
+      logger.warn('load starter packs failed', { error: e });
     } finally {
       setLoading(false);
     }
@@ -58,15 +58,16 @@ export function StarterPacksTab() {
   }
 
   const renderItem = ({ item }: { item: any }) => {
+    const memberCount = item.memberCount ?? (item.memberOxyUserIds || []).length;
     const cardData: StarterPackCardData = {
       id: String(item._id || item.id),
       name: item.name || 'Untitled Pack',
       description: item.description,
       creator: item.creator || item.owner,
-      memberCount: (item.memberOxyUserIds || []).length,
+      memberCount,
       useCount: item.useCount || 0,
-      memberAvatars: item.memberAvatars || [],
-      totalMembers: (item.memberOxyUserIds || []).length,
+      memberAvatars: item.memberAvatars ?? [],
+      totalMembers: memberCount,
     };
 
     return (

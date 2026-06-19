@@ -19,6 +19,7 @@ import { extractFollowingIds } from '../../utils/privacyHelpers';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
 import { MuteWord } from '../../models/MuteWord';
+import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import type { TunerContext } from '../feed/FeedTuner';
 
 type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
@@ -73,6 +74,33 @@ async function mergeFederatedFollowIds(
   }
 }
 
+/**
+ * Merge member oxyUserIds from lists the user SUBSCRIBES to (a 'list' EntityFollow)
+ * into the given followingIds array, deduplicating in-place.
+ *
+ * Following a list is a subscription, NOT a follow: this only changes which posts
+ * the viewer SEES in their main feed (the author candidate set). It does not create
+ * any follow relationship and does not alter follower/following counts.
+ *
+ * Excludes the viewer's own id and any id already present in followingIds.
+ */
+async function mergeSubscribedListMemberIds(
+  localUserId: string,
+  followingIds: string[],
+): Promise<void> {
+  const memberIds = await listSubscriptionService.getSubscribedListMemberIds(localUserId);
+  if (memberIds.length === 0) return;
+
+  const existing = new Set(followingIds);
+  existing.add(localUserId);
+  for (const id of memberIds) {
+    if (!existing.has(id)) {
+      followingIds.push(id);
+      existing.add(id);
+    }
+  }
+}
+
 class MtnFeedController {
   /**
    * GET /api/feed?descriptor=for_you&cursor=...&limit=30
@@ -114,6 +142,12 @@ class MtnFeedController {
           await mergeFederatedFollowIds(currentUserId, followingIds);
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load federated following', error);
+        }
+
+        try {
+          await mergeSubscribedListMemberIds(currentUserId, followingIds);
+        } catch (error) {
+          logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
         }
       }
 
@@ -204,6 +238,12 @@ class MtnFeedController {
           await mergeFederatedFollowIds(currentUserId, followingIds);
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load federated following', error);
+        }
+
+        try {
+          await mergeSubscribedListMemberIds(currentUserId, followingIds);
+        } catch (error) {
+          logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
         }
       }
 

@@ -3,10 +3,10 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { PressableScale } from '@/lib/animations/PressableScale';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import { useAuth } from '@oxyhq/services';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { ResponsiveAvatarStack } from './AvatarStack';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
@@ -35,6 +35,9 @@ interface StarterPackCardProps {
   /** Hide description (compact variant for notifications) */
   noDescription?: boolean;
 }
+
+/** Max avatars shown in the compact row cluster before the "+N" overflow chip. */
+const MAX_ROW_AVATARS = 6;
 
 /**
  * Starter pack card matching Bluesky's StarterPackCard layout:
@@ -76,7 +79,16 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
     return parts.join(', ');
   }, [pack.name, pack.creator, pack.memberCount, pack.useCount, isOwner]);
 
-  const hasAvatars = pack.memberAvatars && pack.memberAvatars.length > 0;
+  const avatarItems = useMemo<AvatarGroupItem[]>(
+    () =>
+      (pack.memberAvatars ?? []).map((uri, index) => ({
+        id: `${pack.id}-avatar-${index}`,
+        uri,
+      })),
+    [pack.memberAvatars, pack.id],
+  );
+
+  const hasAvatars = avatarItems.length > 0;
 
   return (
     <PressableScale
@@ -86,12 +98,14 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       testID={`starterpack-${pack.id}`}>
-      {/* Avatar stack or icon */}
+      {/* Compact group-avatar cluster, or rocket fallback when no avatars exist */}
       {hasAvatars ? (
-        <ResponsiveAvatarStack
-          avatars={pack.memberAvatars!}
+        <AvatarGroup
+          items={avatarItems}
+          size={32}
+          max={MAX_ROW_AVATARS}
           total={pack.totalMembers ?? pack.memberCount}
-          maxDisplay={8}
+          ringColor={theme.colors.card}
         />
       ) : (
         <View className="bg-primary/20" style={styles.iconBubble}>

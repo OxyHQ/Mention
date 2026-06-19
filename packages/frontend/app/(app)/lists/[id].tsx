@@ -50,6 +50,7 @@ interface ListData {
   creator?: ListOwner;
   ownerOxyUserId?: string;
   memberOxyUserIds?: string[];
+  subscriberCount?: number;
 }
 
 const TABS_CONFIG = [
@@ -111,6 +112,7 @@ export default function ListDetailScreen() {
   const listOwner = list?.owner || list?.createdBy || list?.creator;
   const isOwnList = Boolean(user?.id && list?.ownerOxyUserId === user.id);
   const memberCount = (list?.memberOxyUserIds || []).length;
+  const subscriberCount = list?.subscriberCount ?? 0;
   const listId = String(list?._id || list?.id || id);
 
   const handleShare = useCallback(async () => {
@@ -267,6 +269,16 @@ export default function ListDetailScreen() {
             </Text>
           </View>
           <View className="flex-row items-center gap-1">
+            <Text className="text-foreground text-sm font-semibold">
+              {subscriberCount}
+            </Text>
+            <Text className="text-muted-foreground text-sm">
+              {subscriberCount === 1
+                ? t('lists.subscriberSingular', { defaultValue: 'subscriber' })
+                : t('lists.subscriberPlural', { defaultValue: 'subscribers' })}
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-1">
             <Ionicons
               name={list.isPublic ? 'globe-outline' : 'lock-closed-outline'}
               size={14}
@@ -276,9 +288,17 @@ export default function ListDetailScreen() {
               {list.isPublic ? 'Public' : 'Private'}
             </Text>
           </View>
-          <View className="ml-auto">
-            <EntityFollowButton entityType="list" entityId={listId} label="Join" followingLabel="Joined" size="sm" />
-          </View>
+          {!isOwnList ? (
+            <View className="ml-auto">
+              <EntityFollowButton
+                entityType="list"
+                entityId={listId}
+                label={t('lists.followList', { defaultValue: 'Follow list' })}
+                followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
+                size="sm"
+              />
+            </View>
+          ) : null}
         </View>
       </View>
 
