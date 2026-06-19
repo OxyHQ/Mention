@@ -85,6 +85,25 @@ function getRemoteHost(remoteUrl: string): string | undefined {
   }
 }
 
+function normalizeFederatedAcct(acct: string | undefined): string | undefined {
+  if (!acct) return undefined;
+  const cleaned = acct.trim().replace(/^acct:/i, '').replace(/^@/, '');
+  const atIndex = cleaned.indexOf('@');
+  if (atIndex <= 0 || atIndex === cleaned.length - 1) return undefined;
+
+  const localPart = cleaned.substring(0, atIndex).toLowerCase();
+  const domain = cleaned.substring(atIndex + 1).toLowerCase();
+  if (!localPart || !domain) return undefined;
+
+  return `${localPart}@${domain}`;
+}
+
+function domainFromAcct(acct: string): string | undefined {
+  const atIndex = acct.indexOf('@');
+  if (atIndex === -1 || atIndex === acct.length - 1) return undefined;
+  return acct.substring(atIndex + 1).toLowerCase();
+}
+
 /**
  * Sign a GET request using the instance actor key pair (managed by Oxy).
  * Required by servers that enforce authorized fetch (e.g., Threads).
@@ -272,11 +291,11 @@ class FederationService {
    * @param acct - e.g. "alice@mastodon.social" or "@alice@mastodon.social"
    */
   async resolveWebFinger(acct: string): Promise<string | null> {
-    const cleaned = acct.replace(/^@/, '');
-    const atIndex = cleaned.indexOf('@');
-    if (atIndex === -1) return null;
+    const cleaned = normalizeFederatedAcct(acct);
+    if (!cleaned) return null;
 
-    const domain = cleaned.substring(atIndex + 1);
+    const domain = domainFromAcct(cleaned);
+    if (!domain) return null;
     if (isBlockedDomain(domain)) return null;
 
     const resource = `acct:${cleaned}`;
@@ -313,9 +332,7 @@ class FederationService {
    */
   async fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<IFederatedActor | null> {
     try {
-      // Normalize: strip www. prefix for known AP domains (e.g., www.threads.net → threads.net)
-      actorUri = actorUri.replace(/^(https?:\/\/)www\./i, '$1');
-
+      const canonicalAcctHint = normalizeFederatedAcct(acctHint);
       // Use signed fetch for servers that enforce authorized fetch (e.g., Threads)
       let res = await signedFetch(actorUri, AP_CONTENT_TYPE);
       if (!res.ok) {
@@ -327,7 +344,8 @@ class FederationService {
         // the username-based URI we may have stored.
         const parsed = new URL(actorUri);
         const pathUsername = parsed.pathname.split('/').filter(Boolean).pop();
-        const acct = acctHint || (pathUsername ? `${pathUsername}@${parsed.hostname}` : undefined);
+        const acct = canonicalAcctHint
+          || (pathUsername ? normalizeFederatedAcct(`${pathUsername}@${parsed.hostname}`) : undefined);
         if (acct) {
           logger.info(`[FedSync] attempting WebFinger fallback for ${acct}`);
           const resolved = await this.resolveWebFinger(acct);
@@ -356,14 +374,20 @@ class FederationService {
         return null;
       }
 
-      const domain = new URL(actor.id).hostname;
-      if (isBlockedDomain(domain)) {
-        logger.info(`[FedSync] fetchRemoteActor blocked domain ${domain} for ${actorUri}`);
+      const actorHost = new URL(actor.id).hostname.toLowerCase();
+      const username = actor.preferredUsername || actor.name || 'unknown';
+      const actorWebfinger = typeof actor.webfinger === 'string'
+        ? normalizeFederatedAcct(actor.webfinger)
+        : undefined;
+      const acct = canonicalAcctHint
+        || actorWebfinger
+        || normalizeFederatedAcct(`${username}@${actorHost}`)
+        || `${String(username).toLowerCase()}@${actorHost}`;
+      const domain = domainFromAcct(acct) || actorHost;
+      if (isBlockedDomain(domain) || isBlockedDomain(actorHost)) {
+        logger.info(`[FedSync] fetchRemoteActor blocked domain ${domain} actorHost=${actorHost} for ${actorUri}`);
         return null;
       }
-
-      const username = actor.preferredUsername || actor.name || 'unknown';
-      const acct = `${username}@${domain}`;
 
       // Fetch collection counts (followers, following, posts) in parallel
       const [followersCount, followingCount, postsCount] = await Promise.all([

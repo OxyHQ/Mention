@@ -56,6 +56,13 @@ import { FEDERATION_ENABLED } from '../utils/federation/constants';
 const OUTBOX_SYNC_MIN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
+ * Cached federated actors older than this are refreshed before a profile outbox
+ * sync. Profile sync runs off the request path, so it can afford to fetch the
+ * actor document first and use the advertised outbox instead of stale guesses.
+ */
+const FEDERATED_ACTOR_PROFILE_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
  * A follower/mention reference may arrive as a bare user-id string or as a
  * populated object carrying `id`/`_id`. Used when checking reply permissions.
  */
@@ -935,6 +942,7 @@ class FeedController {
     void (async () => {
       try {
         let actor: IFederatedActor | null = cachedActor ?? null;
+        let refreshedActorForSync = false;
         logger.info(`[FedSync] background sync userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
 
         if (!actor) {
@@ -996,6 +1004,18 @@ class FeedController {
             await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
             actor.oxyUserId = syncUserId;
           }
+        } else if (this.shouldRefreshActorBeforeOutboxSync(actor)) {
+          const refreshed = await federationService.fetchRemoteActor(actor.uri, false, actor.acct);
+          if (refreshed) {
+            actor = refreshed;
+            refreshedActorForSync = true;
+            if (!actor.oxyUserId) {
+              await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
+              actor.oxyUserId = syncUserId;
+            }
+          } else {
+            logger.info(`[FedSync] cached actor refresh failed before outbox sync for ${actor.acct}; using cached outboxUrl=${actor.outboxUrl ?? 'none'}`);
+          }
         }
 
         if (!actor) return;
@@ -1009,7 +1029,8 @@ class FeedController {
           // this actor's outbox within the cooldown window. Profile views are
           // frequent; the outbox rarely changes between back-to-back views.
           const lastSyncMs = actor.lastOutboxSyncAt?.getTime();
-          const syncedRecently = typeof lastSyncMs === 'number'
+          const syncedRecently = !refreshedActorForSync
+            && typeof lastSyncMs === 'number'
             && Date.now() - lastSyncMs < OUTBOX_SYNC_MIN_INTERVAL_MS;
           if (syncedRecently) {
             logger.info(`[FedSync] outbox sync skipped (cooldown) for ${actor.acct}`);
@@ -1047,6 +1068,14 @@ class FeedController {
         logger.warn(`[FedSync] background profile sync failed for userId=${syncUserId}: ${message}`);
       }
     })();
+  }
+
+  private shouldRefreshActorBeforeOutboxSync(actor: IFederatedActor): boolean {
+    if (!actor.outboxUrl) return true;
+    const fetchedAt = actor.lastFetchedAt?.getTime();
+    if (typeof fetchedAt !== 'number') return true;
+    if (fetchedAt <= 0) return true;
+    return Date.now() - fetchedAt > FEDERATED_ACTOR_PROFILE_STALE_MS;
   }
 
   /**
