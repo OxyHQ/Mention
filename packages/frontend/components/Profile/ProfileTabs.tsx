@@ -15,7 +15,7 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { ListCard, type ListCardData } from '@/components/ListCard';
 import { starterPacksService } from '@/services/starterPacksService';
 import { listsService } from '@/services/listsService';
-import type { FeedType } from '@mention/shared-types';
+import type { FeedType, HydratedPost } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 import { logger } from '@/lib/logger';
 
@@ -35,7 +35,7 @@ export const ProfileTabs = memo(function ProfileTabs({
 }: ProfileTabsProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [pinnedPost, setPinnedPost] = useState<any>(null);
+  const [pinnedPost, setPinnedPost] = useState<HydratedPost | null>(null);
 
   // Fetch pinned post once per profile
   useEffect(() => {

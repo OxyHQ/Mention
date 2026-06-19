@@ -42,7 +42,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   const theme = useTheme();
   const { t } = useTranslation();
   const canPoke = !isFederated;
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || isFederated);
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   return (
@@ -107,7 +107,12 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
                 accessibilityRole="button"
                 accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
               >
-                <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
+                <FontAwesome5
+                  name="hand-point-right"
+                  size={18}
+                  color={poked ? theme.colors.primaryForeground : theme.colors.text}
+                  solid={poked}
+                />
               </TouchableOpacity>
             )}
             <FollowButtonComponent userId={profileId} />
@@ -199,7 +204,7 @@ export const ProfileActions = memo(function ProfileActions({
   const theme = useTheme();
   const { t } = useTranslation();
   const canPoke = !isFederated;
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || isFederated);
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
@@ -218,7 +223,12 @@ export const ProfileActions = memo(function ProfileActions({
             accessibilityRole="button"
             accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
           >
-            <FontAwesome5 name="hand-point-right" size={18} color={poked ? '#fff' : theme.colors.text} solid={poked} />
+            <FontAwesome5
+              name="hand-point-right"
+              size={18}
+              color={poked ? theme.colors.primaryForeground : theme.colors.text}
+              solid={poked}
+            />
           </TouchableOpacity>
         )}
         <FollowButtonComponent userId={profileId} />

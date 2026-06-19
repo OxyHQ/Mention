@@ -105,7 +105,7 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 ## Dependencies
 
 - `@oxyhq/core ^3.4.17`, `@oxyhq/services ^10.2.11` — Oxy platform SDK
-- `@oxyhq/bloom ^0.8.5` — Shared UI component library
+- `@oxyhq/bloom ^0.8.6` — Shared UI component library
 
 ## Auth Cold-Boot Reactivity (Web)
 
@@ -125,7 +125,8 @@ On web, the session restores asynchronously after mount — the `/sso` path can 
 - **Default preset for Mention frontend: `blue`** (not `oxy`).
 - **Default preset for Agora: `yellow`** (matches the existing `#FFC107` brand).
 - Use NativeWind className-based styles for themed UI whenever a class exists. NativeWind must consume Bloom tokens/classes instead of app-local color wrappers or one-off inline color maps.
+- Profile-scoped NativeWind utilities require `@oxyhq/bloom >= 0.8.6`, where `BloomColorScope` emits Tailwind v4 `--color-*` aliases from the same canonical Bloom token resolver.
 - Profile-scoped colors must wrap the subtree with `BloomColorScope` before any child calls `useTheme()` / `useBloomTheme()` or renders Bloom components. Split wrapper/content components when needed so hooks run inside the scope.
 - Settings UI uses Bloom's `SettingsList` (`SettingsListGroup` / `SettingsListItem` from `@oxyhq/bloom/settings-list`). Do not introduce local `SettingsItem` wrappers — they diverge from Bloom.
-- `lib/app-color-presets.ts#getScopedColorCSSVariables` is still needed for Tailwind `@theme` scoped overrides; do not remove it when cleaning up the legacy theme store.
+- Do not add app-local scoped color variable helpers for profile theming; `BloomColorScope` owns scoped Bloom/NativeWind variables.
 - Frontend `app/_layout.tsx` is the only place that wires the provider; consumers read theme via `useTheme()` / `useBloomTheme()` from `@oxyhq/bloom`.
