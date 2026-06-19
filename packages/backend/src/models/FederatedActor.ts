@@ -6,6 +6,21 @@ export interface FederatedActorField {
   verifiedAt?: Date;
 }
 
+export interface FederatedOutboxBackfillState {
+  status?: 'pending' | 'complete' | 'unavailable' | 'failed';
+  outboxUrl?: string;
+  cursorUrl?: string;
+  cursorItemOffset?: number;
+  processedCount?: number;
+  importedCount?: number;
+  existingCount?: number;
+  pageCount?: number;
+  lockedUntil?: Date;
+  lastRunAt?: Date;
+  completedAt?: Date;
+  lastError?: string;
+}
+
 export interface IFederatedActor extends Document {
   uri: string;
   username: string;
@@ -38,6 +53,7 @@ export interface IFederatedActor extends Document {
   oxyUserId?: string;
   lastFetchedAt?: Date;
   lastOutboxSyncAt?: Date;
+  outboxBackfill?: FederatedOutboxBackfillState;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,6 +94,20 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   oxyUserId: { type: String, index: { sparse: true } },
   lastFetchedAt: { type: Date },
   lastOutboxSyncAt: { type: Date },
+  outboxBackfill: {
+    status: { type: String, enum: ['pending', 'complete', 'unavailable', 'failed'] },
+    outboxUrl: { type: String },
+    cursorUrl: { type: String },
+    cursorItemOffset: { type: Number, default: 0 },
+    processedCount: { type: Number, default: 0 },
+    importedCount: { type: Number, default: 0 },
+    existingCount: { type: Number, default: 0 },
+    pageCount: { type: Number, default: 0 },
+    lockedUntil: { type: Date },
+    lastRunAt: { type: Date },
+    completedAt: { type: Date },
+    lastError: { type: String },
+  },
 }, {
   timestamps: true,
 });
@@ -85,6 +115,7 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
 FederatedActorSchema.index({ domain: 1, username: 1 }, { unique: true });
 FederatedActorSchema.index({ lastFetchedAt: 1 }); // For refreshStaleActors() job queries
 FederatedActorSchema.index({ publicKeyId: 1 }, { sparse: true }); // For HTTP signature verification lookups
+FederatedActorSchema.index({ 'outboxBackfill.status': 1, 'outboxBackfill.lockedUntil': 1 });
 
 export const FederatedActor = mongoose.model<IFederatedActor>('FederatedActor', FederatedActorSchema);
 export default FederatedActor;

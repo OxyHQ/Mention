@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getKeyPair: vi.fn(),
   signRequest: vi.fn(),
+  actorFind: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
+  postFind: vi.fn(),
+  postInsertMany: vi.fn(),
+  postExists: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
 }));
@@ -17,6 +21,7 @@ vi.mock('../../utils/federation/crypto', () => ({
 vi.mock('../../models/FederatedActor', () => ({
   default: {
     findOne: vi.fn(),
+    find: mocks.actorFind,
     findOneAndUpdate: mocks.findOneAndUpdate,
     updateOne: mocks.updateOne,
   },
@@ -32,7 +37,13 @@ vi.mock('../../models/FederationDeliveryQueue', () => ({
 }));
 
 vi.mock('../../models/Post', () => ({
-  Post: {},
+  Post: {
+    find: mocks.postFind,
+    exists: mocks.postExists,
+    collection: {
+      insertMany: mocks.postInsertMany,
+    },
+  },
 }));
 
 vi.mock('../../models/UserSettings', () => ({
@@ -55,6 +66,23 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+function createNoteActivity(id: string, actorUri = 'https://mastodon.social/users/alice') {
+  return {
+    id: `${actorUri}/statuses/${id}/activity`,
+    type: 'Create',
+    actor: actorUri,
+    published: `2026-06-18T00:00:0${id}Z`,
+    object: {
+      id: `${actorUri}/statuses/${id}`,
+      type: 'Note',
+      attributedTo: actorUri,
+      content: `<p>post ${id}</p>`,
+      published: `2026-06-18T00:00:0${id}Z`,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+    },
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -73,6 +101,14 @@ beforeEach(() => {
     ...update.$set,
   }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
+  mocks.actorFind.mockReturnValue({
+    lean: vi.fn().mockResolvedValue([]),
+  });
+  mocks.postFind.mockReturnValue({
+    lean: vi.fn().mockResolvedValue([]),
+  });
+  mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
+  mocks.postExists.mockResolvedValue(null);
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
@@ -169,10 +205,135 @@ describe('federationService.syncOutboxPostsDetailed', () => {
       oxyUserId: 'oxy_user_threads',
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       syncedCount: 0,
       shouldStampCooldown: true,
       reason: 'non-empty-outbox-without-items',
+      candidateCount: 0,
+      reachedEnd: false,
     });
+  });
+
+  it('returns a page cursor with item offset when a backfill batch stops mid-page', async () => {
+    const outboxUrl = 'https://mastodon.social/users/alice/outbox';
+    const firstPageUrl = 'https://mastodon.social/users/alice/outbox?page=true';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === outboxUrl) {
+        return jsonResponse({
+          type: 'OrderedCollection',
+          totalItems: 3,
+          first: firstPageUrl,
+        });
+      }
+      if (url === firstPageUrl) {
+        return jsonResponse({
+          type: 'OrderedCollectionPage',
+          id: firstPageUrl,
+          next: 'https://mastodon.social/users/alice/outbox?max_id=3&page=true',
+          orderedItems: [
+            createNoteActivity('1'),
+            createNoteActivity('2'),
+            createNoteActivity('3'),
+          ],
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await federationService.syncOutboxPostsDetailed(
+      {
+        uri: 'https://mastodon.social/users/alice',
+        acct: 'alice@mastodon.social',
+        outboxUrl,
+        oxyUserId: 'oxy_user_alice',
+      },
+      { limit: 2, maxPages: 1 },
+    );
+
+    expect(result).toMatchObject({
+      syncedCount: 2,
+      shouldStampCooldown: true,
+      candidateCount: 2,
+      newPostCount: 2,
+      nextCursor: { url: firstPageUrl, itemOffset: 2 },
+      reachedEnd: false,
+    });
+    expect(mocks.postInsertMany).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ federation: expect.objectContaining({ activityId: 'https://mastodon.social/users/alice/statuses/1' }) }),
+        expect.objectContaining({ federation: expect.objectContaining({ activityId: 'https://mastodon.social/users/alice/statuses/2' }) }),
+      ]),
+      { ordered: false },
+    );
+  });
+
+  it('continues from a stored page cursor and offset', async () => {
+    const outboxUrl = 'https://mastodon.social/users/alice/outbox';
+    const firstPageUrl = 'https://mastodon.social/users/alice/outbox?page=true';
+    const secondPageUrl = 'https://mastodon.social/users/alice/outbox?max_id=3&page=true';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === outboxUrl) {
+        return jsonResponse({
+          type: 'OrderedCollection',
+          totalItems: 4,
+          first: firstPageUrl,
+        });
+      }
+      if (url === firstPageUrl) {
+        return jsonResponse({
+          type: 'OrderedCollectionPage',
+          id: firstPageUrl,
+          next: secondPageUrl,
+          orderedItems: [
+            createNoteActivity('1'),
+            createNoteActivity('2'),
+            createNoteActivity('3'),
+          ],
+        });
+      }
+      if (url === secondPageUrl) {
+        return jsonResponse({
+          type: 'OrderedCollectionPage',
+          id: secondPageUrl,
+          orderedItems: [
+            createNoteActivity('4'),
+          ],
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await federationService.syncOutboxPostsDetailed(
+      {
+        uri: 'https://mastodon.social/users/alice',
+        acct: 'alice@mastodon.social',
+        outboxUrl,
+        oxyUserId: 'oxy_user_alice',
+      },
+      {
+        limit: 2,
+        maxPages: 2,
+        startPageUrl: firstPageUrl,
+        startItemOffset: 2,
+      },
+    );
+
+    expect(result).toMatchObject({
+      syncedCount: 2,
+      shouldStampCooldown: true,
+      candidateCount: 2,
+      newPostCount: 2,
+      reachedEnd: true,
+    });
+    expect(result.nextCursor).toBeUndefined();
+    expect(mocks.postInsertMany).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ federation: expect.objectContaining({ activityId: 'https://mastodon.social/users/alice/statuses/3' }) }),
+        expect.objectContaining({ federation: expect.objectContaining({ activityId: 'https://mastodon.social/users/alice/statuses/4' }) }),
+      ]),
+      { ordered: false },
+    );
   });
 });

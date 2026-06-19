@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger';
+import type { Types } from 'mongoose';
 import { FEDERATION_ENABLED, extractActorUriFromActivityId } from '../utils/federation/constants';
-import FederatedActor from '../models/FederatedActor';
+import FederatedActor, { type FederatedOutboxBackfillState } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
@@ -19,10 +20,35 @@ const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 /** Max number of stale actors refreshed per scheduled run. */
 const ACTOR_REFRESH_BATCH_SIZE = 50;
 
+/** Import at most the 100 most recent importable outbox activities per actor. */
+const OUTBOX_RECENT_BACKFILL_LIMIT = 100;
+
+/** Per-run cap for one actor; larger history is advanced by persisted cursor. */
+const OUTBOX_RECENT_BACKFILL_BATCH_SIZE = 20;
+
+/** Bound page fan-out per actor/run; the cursor continues on the next scheduler tick. */
+const OUTBOX_RECENT_BACKFILL_MAX_PAGES_PER_RUN = 5;
+
+/** Number of actors advanced per scheduler run. */
+const OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE = 10;
+
+/** Per-actor distributed lock TTL for recent outbox backfill. */
+const OUTBOX_RECENT_BACKFILL_LOCK_MS = 10 * 60 * 1000;
+
+type RecentOutboxBackfillActor = {
+  _id: Types.ObjectId;
+  uri: string;
+  acct: string;
+  outboxUrl?: string;
+  oxyUserId?: string;
+  outboxBackfill?: FederatedOutboxBackfillState;
+};
+
 class FederationJobScheduler {
   private actorRefreshInterval: ReturnType<typeof setInterval> | null = null;
   private deliveryRetryInterval: ReturnType<typeof setInterval> | null = null;
   private outboxSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private outboxBackfillInterval: ReturnType<typeof setInterval> | null = null;
   private mediaCacheWorkerInterval: ReturnType<typeof setInterval> | null = null;
   private mediaCacheEvictionInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -32,6 +58,7 @@ class FederationJobScheduler {
 
   // Overlap guards — prevent concurrent runs when intervals fire faster than jobs complete
   private isSyncFollowedActorsPostsRunning = false;
+  private isSyncRecentOutboxBackfillsRunning = false;
   private isBackfillFederatedPostOxyUserIdsRunning = false;
   private isRetryFailedDeliveriesRunning = false;
   private isMediaCacheWorkerRunning = false;
@@ -60,6 +87,12 @@ class FederationJobScheduler {
     this.outboxSyncInterval = setInterval(() => {
       this.syncFollowedActorsPosts().catch((err) =>
         logger.error('Outbox sync job failed:', err)
+      );
+    }, 15 * 60 * 1000);
+
+    this.outboxBackfillInterval = setInterval(() => {
+      this.syncRecentOutboxBackfills().catch((err) =>
+        logger.error('Recent outbox backfill job failed:', err)
       );
     }, 15 * 60 * 1000);
 
@@ -95,6 +128,9 @@ class FederationJobScheduler {
       this.syncFollowedActorsPosts().catch((err) =>
         logger.error('Initial outbox sync failed:', err)
       );
+      this.syncRecentOutboxBackfills().catch((err) =>
+        logger.error('Initial recent outbox backfill failed:', err)
+      );
     }, 30 * 1000);
 
     logger.info('Federation job scheduler started');
@@ -112,6 +148,10 @@ class FederationJobScheduler {
     if (this.outboxSyncInterval) {
       clearInterval(this.outboxSyncInterval);
       this.outboxSyncInterval = null;
+    }
+    if (this.outboxBackfillInterval) {
+      clearInterval(this.outboxBackfillInterval);
+      this.outboxBackfillInterval = null;
     }
     if (this.mediaCacheWorkerInterval) {
       clearInterval(this.mediaCacheWorkerInterval);
@@ -235,6 +275,215 @@ class FederationJobScheduler {
     } finally {
       this.isSyncFollowedActorsPostsRunning = false;
     }
+  }
+
+  /**
+   * Backfill the recent historical window for resolved federated actors.
+   *
+   * This is intentionally separate from `syncFollowedActorsPosts()`:
+   * - the followed sync always checks the latest page for new content;
+   * - this job advances an opaque ActivityPub cursor until the 100 most recent
+   *   importable activities have been inspected, then stops for that actor.
+   */
+  private async syncRecentOutboxBackfills(): Promise<void> {
+    if (this.isSyncRecentOutboxBackfillsRunning) {
+      logger.debug('[FedSync] syncRecentOutboxBackfills already running, skipping');
+      return;
+    }
+
+    this.isSyncRecentOutboxBackfillsRunning = true;
+    try {
+      const now = new Date();
+      const actors = await FederatedActor.find({
+        outboxUrl: { $exists: true, $ne: null },
+        oxyUserId: { $ne: null },
+        $and: [
+          {
+            $or: [
+              { 'outboxBackfill.status': { $exists: false } },
+              { 'outboxBackfill.status': { $in: ['pending', 'failed'] } },
+              { $expr: { $ne: ['$outboxBackfill.outboxUrl', '$outboxUrl'] } },
+            ],
+          },
+          {
+            $or: [
+              { 'outboxBackfill.lockedUntil': { $exists: false } },
+              { 'outboxBackfill.lockedUntil': null },
+              { 'outboxBackfill.lockedUntil': { $lte: now } },
+            ],
+          },
+        ],
+      })
+        .select('uri acct outboxUrl oxyUserId outboxBackfill')
+        .sort({ 'outboxBackfill.lastRunAt': 1, updatedAt: 1 })
+        .limit(OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE)
+        .lean<RecentOutboxBackfillActor[]>();
+
+      if (actors.length === 0) return;
+
+      logger.info(`[FedSync] Advancing recent outbox backfill for ${actors.length} actors`);
+
+      for (const actor of actors) {
+        await this.runRecentOutboxBackfillForActor(actor);
+      }
+    } finally {
+      this.isSyncRecentOutboxBackfillsRunning = false;
+    }
+  }
+
+  private async runRecentOutboxBackfillForActor(actor: RecentOutboxBackfillActor): Promise<void> {
+    const outboxUrl = actor.outboxUrl;
+    if (!outboxUrl) return;
+
+    const previousState = actor.outboxBackfill;
+    const outboxChanged = Boolean(previousState?.outboxUrl && previousState.outboxUrl !== outboxUrl);
+    const previousProcessedCount = outboxChanged ? 0 : Math.max(0, previousState?.processedCount ?? 0);
+    const previousImportedCount = outboxChanged ? 0 : Math.max(0, previousState?.importedCount ?? 0);
+    const previousExistingCount = outboxChanged ? 0 : Math.max(0, previousState?.existingCount ?? 0);
+    const previousPageCount = outboxChanged ? 0 : Math.max(0, previousState?.pageCount ?? 0);
+
+    if (!outboxChanged && previousProcessedCount >= OUTBOX_RECENT_BACKFILL_LIMIT) {
+      await FederatedActor.updateOne(
+        { _id: actor._id },
+        {
+          $set: {
+            'outboxBackfill.status': 'complete',
+            'outboxBackfill.outboxUrl': outboxUrl,
+            'outboxBackfill.processedCount': OUTBOX_RECENT_BACKFILL_LIMIT,
+            'outboxBackfill.completedAt': new Date(),
+          },
+          $unset: {
+            'outboxBackfill.cursorUrl': '',
+            'outboxBackfill.lockedUntil': '',
+            'outboxBackfill.lastError': '',
+          },
+        },
+      );
+      return;
+    }
+
+    const now = new Date();
+    const lockUntil = new Date(now.getTime() + OUTBOX_RECENT_BACKFILL_LOCK_MS);
+    const claimUpdate: {
+      $set: Record<string, unknown>;
+      $unset: Record<string, ''>;
+    } = {
+      $set: {
+        'outboxBackfill.status': 'pending',
+        'outboxBackfill.outboxUrl': outboxUrl,
+        'outboxBackfill.lockedUntil': lockUntil,
+        'outboxBackfill.lastRunAt': now,
+      },
+      $unset: {
+        'outboxBackfill.lastError': '',
+      },
+    };
+
+    if (outboxChanged) {
+      Object.assign(claimUpdate.$set, {
+        'outboxBackfill.cursorItemOffset': 0,
+        'outboxBackfill.processedCount': 0,
+        'outboxBackfill.importedCount': 0,
+        'outboxBackfill.existingCount': 0,
+        'outboxBackfill.pageCount': 0,
+      });
+      Object.assign(claimUpdate.$unset, {
+        'outboxBackfill.cursorUrl': '',
+        'outboxBackfill.completedAt': '',
+      });
+    }
+
+    const claim = await FederatedActor.updateOne(
+      {
+        _id: actor._id,
+        $or: [
+          { 'outboxBackfill.lockedUntil': { $exists: false } },
+          { 'outboxBackfill.lockedUntil': null },
+          { 'outboxBackfill.lockedUntil': { $lte: now } },
+        ],
+      },
+      claimUpdate,
+    );
+
+    if ((claim.modifiedCount ?? 0) === 0) return;
+
+    const remaining = Math.max(0, OUTBOX_RECENT_BACKFILL_LIMIT - previousProcessedCount);
+    const result = await federationService.syncOutboxPostsDetailed(
+      {
+        uri: actor.uri,
+        acct: actor.acct,
+        outboxUrl,
+        oxyUserId: actor.oxyUserId,
+      },
+      {
+        limit: Math.min(OUTBOX_RECENT_BACKFILL_BATCH_SIZE, remaining),
+        maxPages: OUTBOX_RECENT_BACKFILL_MAX_PAGES_PER_RUN,
+        startPageUrl: outboxChanged ? undefined : previousState?.cursorUrl,
+        startItemOffset: outboxChanged ? 0 : previousState?.cursorItemOffset ?? 0,
+      },
+    );
+
+    const processedDelta = result.candidateCount ?? 0;
+    const processedCount = Math.min(OUTBOX_RECENT_BACKFILL_LIMIT, previousProcessedCount + processedDelta);
+    const importedCount = previousImportedCount + (result.newPostCount ?? 0) + (result.importedBoostCount ?? 0);
+    const existingCount = previousExistingCount + (result.existingCount ?? 0);
+    const pageCount = previousPageCount + (result.pagesFetched ?? 0);
+
+    const update: {
+      $set: Record<string, unknown>;
+      $unset: Record<string, ''>;
+    } = {
+      $set: {
+        'outboxBackfill.outboxUrl': outboxUrl,
+        'outboxBackfill.processedCount': processedCount,
+        'outboxBackfill.importedCount': importedCount,
+        'outboxBackfill.existingCount': existingCount,
+        'outboxBackfill.pageCount': pageCount,
+        'outboxBackfill.lastRunAt': new Date(),
+      },
+      $unset: {
+        'outboxBackfill.lockedUntil': '',
+        'outboxBackfill.lastError': '',
+      },
+    };
+
+    if (result.reason === 'non-empty-outbox-without-items') {
+      Object.assign(update.$set, {
+        'outboxBackfill.status': 'unavailable',
+        'outboxBackfill.completedAt': new Date(),
+      });
+      Object.assign(update.$unset, {
+        'outboxBackfill.cursorUrl': '',
+      });
+    } else if (!result.shouldStampCooldown) {
+      Object.assign(update.$set, {
+        'outboxBackfill.status': 'failed',
+        'outboxBackfill.lastError': result.reason ?? 'unknown',
+      });
+    } else if (processedCount >= OUTBOX_RECENT_BACKFILL_LIMIT || result.reachedEnd || !result.nextCursor) {
+      Object.assign(update.$set, {
+        'outboxBackfill.status': 'complete',
+        'outboxBackfill.completedAt': new Date(),
+      });
+      Object.assign(update.$unset, {
+        'outboxBackfill.cursorUrl': '',
+      });
+    } else {
+      Object.assign(update.$set, {
+        'outboxBackfill.status': 'pending',
+        'outboxBackfill.cursorUrl': result.nextCursor.url,
+        'outboxBackfill.cursorItemOffset': result.nextCursor.itemOffset,
+      });
+      Object.assign(update.$unset, {
+        'outboxBackfill.completedAt': '',
+      });
+    }
+
+    await FederatedActor.updateOne({ _id: actor._id }, update);
+    logger.info(
+      `[FedSync] recent backfill ${actor.acct}: status=${String(update.$set['outboxBackfill.status'])} ` +
+      `processed=${processedCount}/${OUTBOX_RECENT_BACKFILL_LIMIT} imported=${importedCount} existing=${existingCount}`,
+    );
   }
 
   /**

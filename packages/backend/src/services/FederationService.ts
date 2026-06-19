@@ -55,10 +55,48 @@ interface OutboxSyncResult {
   syncedCount: number;
   shouldStampCooldown: boolean;
   reason?: string;
+  candidateCount?: number;
+  newPostCount?: number;
+  existingCount?: number;
+  importedBoostCount?: number;
+  pagesFetched?: number;
+  reachedEnd?: boolean;
+  nextCursor?: {
+    url: string;
+    itemOffset: number;
+  };
+}
+
+interface OutboxSyncOptions {
+  limit?: number;
+  maxPages?: number;
+  startPageUrl?: string;
+  startItemOffset?: number;
 }
 
 function isAbsoluteHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
+}
+
+function asRecord(value: unknown): Record<string, any> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, any>
+    : null;
+}
+
+function activityPubItems(value: Record<string, any>): unknown[] {
+  if (Array.isArray(value.orderedItems)) return value.orderedItems;
+  if (Array.isArray(value.items)) return value.items;
+  return [];
+}
+
+function activityPubLinkUrl(value: unknown): string | null {
+  if (typeof value === 'string' && isAbsoluteHttpUrl(value)) return value;
+  const record = asRecord(value);
+  if (!record) return null;
+  if (typeof record.id === 'string' && isAbsoluteHttpUrl(record.id)) return record.id;
+  if (typeof record.href === 'string' && isAbsoluteHttpUrl(record.href)) return record.href;
+  return null;
 }
 
 function firstStringUrl(value: unknown): string | undefined {
@@ -168,15 +206,16 @@ class FederationService {
    *    announced object is fetched and imported later in `syncOutboxPosts`, then
    *    a boost Post (mirroring native reposts) is created attributed to this actor.
    */
-  private extractCandidates(
-    items: any[],
+  private async extractCandidates(
+    items: unknown[],
     candidates: OutboxCandidate[],
     limit: number,
-  ): void {
-    for (const item of items) {
-      if (candidates.length >= limit) break;
+    startIndex = 0,
+  ): Promise<number> {
+    for (let index = startIndex; index < items.length; index++) {
+      if (candidates.length >= limit) return index;
 
-      const activity = typeof item === 'string' ? null : item;
+      const activity = await this.resolveOutboxActivity(items[index]);
       if (!activity) continue;
 
       // Announce (boost) — capture the announced object URI for later import.
@@ -188,9 +227,8 @@ class FederationService {
         continue;
       }
 
-      const note = activity.type === 'Create' ? activity.object :
-        (activity.type === 'Note' || activity.type === 'Article') ? activity : null;
-      if (!note || typeof note !== 'object') continue;
+      const note = await this.extractOutboxNote(activity);
+      if (!note) continue;
       if (note.type !== 'Note' && note.type !== 'Article') continue;
       if (note.inReplyTo) continue;
 
@@ -198,6 +236,46 @@ class FederationService {
       if (!activityId) continue;
 
       candidates.push({ kind: 'note', note, activity, activityId });
+    }
+
+    return items.length;
+  }
+
+  private async resolveOutboxActivity(item: unknown): Promise<Record<string, any> | null> {
+    const inlineActivity = asRecord(item);
+    if (inlineActivity) return inlineActivity;
+
+    if (typeof item !== 'string' || !isAbsoluteHttpUrl(item)) return null;
+    return this.fetchActivityPubObject(item);
+  }
+
+  private async extractOutboxNote(activity: Record<string, any>): Promise<Record<string, any> | null> {
+    if (activity.type === 'Note' || activity.type === 'Article') return activity;
+    if (activity.type !== 'Create') return null;
+
+    const inlineObject = asRecord(activity.object);
+    if (inlineObject) return inlineObject;
+
+    if (typeof activity.object === 'string' && isAbsoluteHttpUrl(activity.object)) {
+      return this.fetchActivityPubObject(activity.object);
+    }
+
+    return null;
+  }
+
+  private async fetchActivityPubObject(url: string): Promise<Record<string, any> | null> {
+    try {
+      const res = await signedFetch(url, AP_CONTENT_TYPE);
+      if (!res.ok) {
+        logger.info(`[FedSync] ActivityPub object fetch failed: ${res.status} ${res.statusText} for ${url}`);
+        return null;
+      }
+      const object = await res.json();
+      return asRecord(object);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.info(`[FedSync] ActivityPub object fetch error for ${url}: ${message}`);
+      return null;
     }
   }
 
@@ -551,11 +629,23 @@ class FederationService {
 
   async syncOutboxPostsDetailed(
     actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string },
-    limit = 20,
+    limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     if (!actor.outboxUrl) {
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
     }
+
+    const options: Required<Pick<OutboxSyncOptions, 'limit' | 'maxPages' | 'startItemOffset'>>
+      & Pick<OutboxSyncOptions, 'startPageUrl'> = typeof limitOrOptions === 'number'
+        ? { limit: limitOrOptions, maxPages: 10, startItemOffset: 0 }
+        : {
+            limit: limitOrOptions.limit ?? 20,
+            maxPages: limitOrOptions.maxPages ?? 10,
+            startPageUrl: limitOrOptions.startPageUrl,
+            startItemOffset: limitOrOptions.startItemOffset ?? 0,
+          };
+    const limit = Math.max(1, options.limit);
+    const maxPages = Math.max(1, options.maxPages);
 
     try {
       // Fetch the outbox collection (signed for authorized-fetch servers)
@@ -569,54 +659,124 @@ class FederationService {
       logger.info(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
       const remoteTotalItems = typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
 
-      // Paginate through outbox pages to collect enough top-level posts.
-      // Most outbox items are replies which we skip, so we may need several
-      // pages to reach the desired limit. Both notes and boosts (Announce) are
-      // collected; announces are imported separately below.
       const candidates: OutboxCandidate[] = [];
-      const MAX_PAGES = 10;
-      let nextPageUrl: string | null = null;
+      let pagesFetched = 0;
+      let nextCursor: OutboxSyncResult['nextCursor'];
+      let reachedEnd = false;
       let paginationFailed = false;
+      const visitedPageUrls = new Set<string>();
 
-      if (collection.orderedItems) {
-        this.extractCandidates(collection.orderedItems, candidates, limit);
-      } else if (collection.first) {
-        nextPageUrl = typeof collection.first === 'string' ? collection.first : collection.first.id;
-      }
-
-      // Paginate through pages until we have enough candidates or run out of pages
-      for (let page = 0; page < MAX_PAGES && nextPageUrl && candidates.length < limit; page++) {
-        try {
-          const pageRes = await signedFetch(nextPageUrl, AP_CONTENT_TYPE);
-          if (!pageRes.ok) {
-            logger.info(`[FedSync] outbox page fetch failed: ${pageRes.status} for ${nextPageUrl}`);
-            paginationFailed = true;
-            break;
+      const processPage = async (
+        pageData: Record<string, any>,
+        pageUrl: string,
+        startItemOffset: number,
+      ): Promise<void> => {
+        const items = activityPubItems(pageData);
+        const normalizedOffset = Math.max(0, Math.min(startItemOffset, items.length));
+        if (items.length > 0) {
+          const nextItemOffset = await this.extractCandidates(items, candidates, limit, normalizedOffset);
+          if (nextItemOffset < items.length) {
+            nextCursor = { url: pageUrl, itemOffset: nextItemOffset };
+            return;
           }
-          const pageData = await pageRes.json() as Record<string, any>;
-          const items = pageData.orderedItems || [];
-          if (items.length === 0) break;
+        }
 
-          this.extractCandidates(items, candidates, limit);
-          nextPageUrl = pageData.next || null;
+        const nextPageUrl = activityPubLinkUrl(pageData.next);
+        if (nextPageUrl) {
+          nextCursor = { url: nextPageUrl, itemOffset: 0 };
+        } else {
+          nextCursor = undefined;
+          reachedEnd = true;
+        }
+      };
+
+      const fetchAndProcessPage = async (pageUrl: string, startItemOffset: number): Promise<void> => {
+        if (visitedPageUrls.has(pageUrl)) {
+          logger.info(`[FedSync] outbox pagination loop detected for ${actor.acct} at ${pageUrl}`);
+          paginationFailed = true;
+          nextCursor = undefined;
+          return;
+        }
+        visitedPageUrls.add(pageUrl);
+
+        if (pagesFetched >= maxPages) {
+          nextCursor = { url: pageUrl, itemOffset: startItemOffset };
+          return;
+        }
+
+        try {
+          const pageRes = await signedFetch(pageUrl, AP_CONTENT_TYPE);
+          if (!pageRes.ok) {
+            logger.info(`[FedSync] outbox page fetch failed: ${pageRes.status} for ${pageUrl}`);
+            paginationFailed = true;
+            nextCursor = undefined;
+            return;
+          }
+
+          pagesFetched++;
+          const pageData = await pageRes.json() as Record<string, any>;
+          await processPage(pageData, pageUrl, startItemOffset);
         } catch (pageErr) {
           logger.debug(`[FedSync] outbox pagination error: ${pageErr}`);
           paginationFailed = true;
+          nextCursor = undefined;
+        }
+      };
+
+      const firstPageObject = asRecord(collection.first);
+      const inlineItems = activityPubItems(collection);
+      if (options.startPageUrl) {
+        nextCursor = { url: options.startPageUrl, itemOffset: Math.max(0, options.startItemOffset) };
+      } else if (inlineItems.length > 0) {
+        await processPage(collection, actor.outboxUrl, 0);
+      } else if (firstPageObject && activityPubItems(firstPageObject).length > 0) {
+        await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? actor.outboxUrl, 0);
+      } else {
+        const firstPageUrl = activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
+        if (firstPageUrl) {
+          nextCursor = { url: firstPageUrl, itemOffset: 0 };
+        }
+      }
+
+      // Paginate through pages until we have enough candidates, run out of pages,
+      // or exhaust the per-run page budget. The returned cursor is opaque remote
+      // state: we persist it exactly and never synthesize pagination URLs.
+      while (
+        nextCursor
+        && candidates.length < limit
+        && !reachedEnd
+        && !paginationFailed
+      ) {
+        const cursor = nextCursor;
+        await fetchAndProcessPage(cursor.url, cursor.itemOffset);
+        if (nextCursor?.url === cursor.url && nextCursor.itemOffset === cursor.itemOffset) {
+          // The page budget was reached before this cursor could be processed.
           break;
         }
       }
 
-      logger.info(`[FedSync] collected ${candidates.length} candidates across pages for ${actor.acct}`);
+      logger.info(`[FedSync] collected ${candidates.length} candidates across ${pagesFetched} fetched pages for ${actor.acct}`);
 
       if (candidates.length === 0) {
         logger.info(`[FedSync] no candidate notes found for ${actor.acct}`);
-        const hasInlineItems = Array.isArray(collection.orderedItems) && collection.orderedItems.length > 0;
-        const hasFirstPage = Boolean(collection.first);
-        const nonEmptyButNotInspectable = !hasInlineItems && !hasFirstPage && typeof remoteTotalItems === 'number' && remoteTotalItems > 0;
+        const hasInlineItems = inlineItems.length > 0;
+        const hasFirstPage = Boolean(collection.first || collection.next);
+        const nonEmptyButNotInspectable = !options.startPageUrl
+          && !hasInlineItems
+          && !hasFirstPage
+          && typeof remoteTotalItems === 'number'
+          && remoteTotalItems > 0;
         return {
           syncedCount: 0,
           shouldStampCooldown: !paginationFailed,
           reason: nonEmptyButNotInspectable ? 'non-empty-outbox-without-items' : 'no-candidates',
+          candidateCount: 0,
+          newPostCount: 0,
+          existingCount: 0,
+          importedBoostCount: 0,
+          pagesFetched,
+          reachedEnd,
+          nextCursor,
         };
       }
 
@@ -795,7 +955,18 @@ class FederationService {
 
       const synced = existingIds.size + newDocs.length + importedBoosts;
       logger.debug(`Synced ${newDocs.length} new outbox posts and ${importedBoosts} boosts for ${actor.acct} (${existingIds.size} already existed)`);
-      return { syncedCount: synced, shouldStampCooldown: true };
+      return {
+        syncedCount: synced,
+        shouldStampCooldown: !paginationFailed,
+        reason: paginationFailed ? 'pagination-failed' : undefined,
+        candidateCount: candidates.length,
+        newPostCount: newDocs.length,
+        existingCount: existingIds.size,
+        importedBoostCount: importedBoosts,
+        pagesFetched,
+        reachedEnd,
+        nextCursor,
+      };
     } catch (err) {
       logger.warn(`Failed to sync outbox posts from ${actor.outboxUrl}:`, err);
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'exception' };
