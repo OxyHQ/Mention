@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, StyleProp, TextStyle, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface LinkifiedTextProps {
   text: string;
@@ -60,7 +61,12 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
             key={`m-${key++}`}
             className="text-primary"
             style={linkStyle}
-            onPress={() => router.push(`/@${mentionUsername}`)}
+            onPress={() => {
+              const handle = getNormalizedUserHandle({ username: mentionUsername });
+              if (handle) {
+                router.push(`/@${handle}`);
+              }
+            }}
           >
             {mentionDisplay}
           </Text>
@@ -96,7 +102,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
               key={`h-${key++}`}
               className="text-primary"
               style={linkStyle}
-              onPress={() => router.push(`/hashtag/${encodeURIComponent(tag)}` as any)}
+              onPress={() => router.push(`/hashtag/${encodeURIComponent(tag)}`)}
             >
               {entity}
             </Text>

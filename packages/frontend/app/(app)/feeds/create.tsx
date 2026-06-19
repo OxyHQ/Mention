@@ -26,8 +26,9 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/lib/logger';
+import type { User } from '@oxyhq/core';
 
-type MinimalUser = { id: string; username: string; name?: { full?: string }; avatar?: any };
+type MinimalUser = Pick<User, 'id' | 'username' | 'displayName' | 'avatar'>;
 
 const CreateFeedScreen: React.FC = () => {
   const theme = useTheme();
@@ -71,9 +72,8 @@ const CreateFeedScreen: React.FC = () => {
       }
       searchTimer.current = setTimeout(async () => {
         try {
-          const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
-          const data = (res as any)?.data ?? res;
-          setResults(Array.isArray(data) ? data : []);
+          const { data } = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
+          setResults(data);
         } catch (e) {
           logger.warn('searchProfiles failed', { error: e });
         }
@@ -284,7 +284,7 @@ const CreateFeedScreen: React.FC = () => {
                   <Avatar source={u.avatar} size={40} />
                   <View className="flex-1 gap-px">
                     <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                      {u.name?.full || u.username}
+                      {u.displayName}
                     </Text>
                     <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
                       @{u.username}
@@ -306,7 +306,7 @@ const CreateFeedScreen: React.FC = () => {
               <Avatar source={m.avatar} size={40} />
               <View className="flex-1 gap-px">
                 <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                  {m.name?.full || m.username}
+                  {m.displayName}
                 </Text>
                 <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
                   @{m.username}

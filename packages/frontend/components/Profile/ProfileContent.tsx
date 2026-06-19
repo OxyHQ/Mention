@@ -15,6 +15,7 @@ import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * Main profile content section
@@ -38,7 +39,12 @@ export const ProfileContent = memo(function ProfileContent({
 }: ProfileContentProps) {
   const { t } = useTranslation();
   const design = profileData.design;
-  const minimalistMode = design?.minimalistMode ?? false;
+  const minimalistMode = design.minimalistMode;
+  const profileHandle = getNormalizedUserHandle({
+    username: profileData.username || username,
+    instance: profileData.instance,
+    isFederated: profileData.isFederated,
+  }) || username;
 
   const handleLayout = (event: any) => {
     onLayout?.(event.nativeEvent.layout.height);
@@ -61,7 +67,7 @@ export const ProfileContent = memo(function ProfileContent({
     >
       {minimalistMode ? (
         <ProfileHeaderMinimalist
-          displayName={design?.displayName || ''}
+          displayName={design.displayName}
           username={profileData.username}
           avatarUri={avatarUri}
           verified={profileData.verified}
@@ -72,7 +78,7 @@ export const ProfileContent = memo(function ProfileContent({
         />
       ) : (
         <ProfileHeaderDefault
-          displayName={design?.displayName || ''}
+          displayName={design.displayName}
           username={profileData.username}
           avatarUri={avatarUri}
           verified={profileData.verified}
@@ -171,6 +177,7 @@ export const ProfileContent = memo(function ProfileContent({
         links={profileData.links}
         createdAt={profileData.createdAt}
         username={username}
+        profileHandle={profileHandle}
       />
 
       {/* Stats (following, followers, posts) */}
@@ -182,6 +189,7 @@ export const ProfileContent = memo(function ProfileContent({
           boostsCount={profileData.boostsCount ?? 0}
           repliesCount={profileData.repliesCount ?? 0}
           profileUsername={profileData.username}
+          profileHandle={profileHandle}
           username={username}
           onPostsPress={onPostsPress}
           onBoostsPress={onBoostsPress}

@@ -56,7 +56,7 @@ export function FeedCard({
         if (onPress) {
             onPress();
         } else if (feed.id) {
-            router.push(`/feeds/${feed.id}` as never);
+            router.push(`/feeds/${feed.id}`);
         }
     }, [onPress, feed.id]);
 

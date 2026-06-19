@@ -1426,7 +1426,7 @@ const ComposeScreen = () => {
                   <PostHeader
                     paddingHorizontal={HPAD}
                     user={{
-                      name: user?.name?.full || user?.username || '',
+                      displayName: user?.displayName ?? '',
                       handle: user?.username || '',
                       verified: Boolean(user?.verified)
                     }}

@@ -12,12 +12,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@/lib/logger';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface User {
   id: string;
-  name: string;
+  displayName: string;
   handle: string;
-  avatar: string;
+  avatar?: string;
   verified: boolean;
 }
 
@@ -74,7 +75,10 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 
   const handleUserPress = useCallback((handle: string) => {
     onClose();
-    router.push(`/@${handle}`);
+    const profileHandle = getNormalizedUserHandle({ handle });
+    if (profileHandle) {
+      router.push(`/@${profileHandle}`);
+    }
   }, [onClose, router]);
 
   const renderUser = useCallback(({ item }: { item: User }) => {
@@ -88,7 +92,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
         <View className="flex-1">
           <View className="flex-row items-center">
             <Text className="text-foreground text-base font-semibold" numberOfLines={1}>
-              {item.name}
+              {item.displayName}
             </Text>
             {item.verified && (
               <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />

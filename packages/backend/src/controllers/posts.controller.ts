@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import type { User as OxyUser } from '@oxyhq/core';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -652,31 +651,18 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Fetch user data from Oxy
-    let userData: OxyUser | null = null;
-    try {
-      userData = await oxyClient.getUserById(userId);
-    } catch (error) {
-      logger.error('Failed to fetch user data from Oxy', error);
+    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+
+    if (!hydratedPost) {
+      return res.status(500).json({ message: 'Post created but could not be hydrated' });
     }
 
-    const postObj = post.toObject();
-    const transformedPost = {
-      ...postObj,
-      id: String(post._id),
-      user: {
-        id: userId,
-        name: userData?.name?.full || 'Unknown User',
-        handle: userData?.username || 'unknown',
-        avatar: resolveAvatarUrl(typeof userData?.avatar === 'string' ? userData.avatar : undefined) ?? '',
-        verified: (userData as Record<string, unknown>)?.verified === true,
-      },
-      status: post.status,
-      scheduledFor: post.scheduledFor ? post.scheduledFor.toISOString() : undefined,
-      oxyUserId: undefined,
-    };
-
-    res.status(201).json({ success: true, post: transformedPost });
+    res.status(201).json({ success: true, post: hydratedPost });
   } catch (error) {
     logger.error('Error creating post', error);
     res.status(500).json({ message: 'Error creating post' });
@@ -703,16 +689,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    const createdPosts = [];
+    const createdPostObjects: object[] = [];
     let mainPostId: string | null = null;
-
-    // Pre-fetch user data once (avoids N+1 in loop)
-    let threadUserData: OxyUser | null = null;
-    try {
-      threadUserData = await oxyClient.getUserById(userId);
-    } catch (error) {
-      logger.error('Failed to fetch user data from Oxy for thread', error);
-    }
 
     for (let i = 0; i < posts.length; i++) {
       const postData = posts[i];
@@ -884,25 +862,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         mainPostId = String(post._id);
       }
 
-      const userData = threadUserData;
-
-      // Transform response
-      const postObj = post.toObject();
-      const transformedPost = {
-        ...postObj,
-        id: String(post._id),
-        user: {
-          id: userId,
-          name: userData?.name?.full || 'Unknown User',
-          handle: userData?.username || 'unknown',
-          avatar: resolveAvatarUrl(typeof userData?.avatar === 'string' ? userData.avatar : undefined) ?? '',
-          verified: (userData as Record<string, unknown>)?.verified === true,
-        },
-        oxyUserId: undefined,
-      };
-
-      createdPosts.push(transformedPost);
+      createdPostObjects.push(post.toObject());
     }
+
+    const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
 
     logger.info(`Created ${createdPosts.length} posts in ${mode} mode`);
 
@@ -1168,10 +1136,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       ...postObj,
       user: {
         id: postObj.oxyUserId,
-        name: 'User',
+        displayName: postObj.oxyUserId,
         handle: postObj.oxyUserId,
-        avatar: '',
-        verified: false,
+        avatar: undefined,
+        avatarUrl: undefined,
+        isVerified: false,
       },
       oxyUserId: undefined,
     };
@@ -2098,20 +2067,21 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
       userIds.map(async (userId) => {
         try {
           const userData = await oxyClient.getUserById(userId);
+          const avatar = resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined);
           return {
             id: userData.id,
-            name: userData.name?.full || userData.username,
-            handle: userData.username,
-            avatar: resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined) ?? '',
-            verified: userData.verified || false
+            displayName: userData.displayName,
+            handle: userData.username || userId,
+            avatar,
+            verified: Boolean(userData.verified || userData.isVerified)
           };
         } catch (error) {
           logger.error(`Error fetching user ${userId}`, error);
           return {
             id: userId,
-            name: 'User',
-            handle: 'user',
-            avatar: '',
+            displayName: userId,
+            handle: userId,
+            avatar: undefined,
             verified: false
           };
         }
@@ -2163,20 +2133,21 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
       userIds.map(async (userId) => {
         try {
           const userData = await oxyClient.getUserById(userId);
+          const avatar = resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined);
           return {
             id: userData.id,
-            name: userData.name?.full || userData.username,
-            handle: userData.username,
-            avatar: resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined) ?? '',
-            verified: userData.verified || false
+            displayName: userData.displayName,
+            handle: userData.username || userId,
+            avatar,
+            verified: Boolean(userData.verified || userData.isVerified)
           };
         } catch (error) {
           logger.error(`Error fetching user ${userId}`, error);
           return {
             id: userId,
-            name: 'User',
-            handle: 'user',
-            avatar: '',
+            displayName: userId,
+            handle: userId,
+            avatar: undefined,
             verified: false
           };
         }
@@ -2244,48 +2215,20 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
       .limit(75) // Slightly higher limit since we're querying both location types
       .lean();
 
-    // Get current user for liked/saved status
     const currentUserId = req.user?.id;
-    let savedPostIds: string[] = [];
-    let likedPostIds: string[] = [];
-    
-    if (currentUserId) {
-      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
-      savedPostIds = savedPosts.map(saved => saved.postId.toString());
-
-      const likedPosts = await Like.find({ userId: currentUserId }).lean();
-      likedPostIds = likedPosts.map(liked => liked.postId.toString());
-    }
-
-    // Transform posts to match frontend expectations
-    const transformedPosts = posts.map((post) => {
-      const userData = post.oxyUserId as unknown;
-      const rawAvatar = typeof userData === 'object' && userData !== null
-        ? (userData as Record<string, unknown>)?.avatar
-        : undefined;
-      return {
-        ...post,
-        user: {
-          id: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)._id : userData,
-          name: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.name : 'Unknown User',
-          handle: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.username : 'unknown',
-          avatar: resolveAvatarUrl(typeof rawAvatar === 'string' ? rawAvatar : undefined) ?? '',
-          verified: typeof userData === 'object' && userData !== null ? (userData as Record<string, unknown>)?.verified : false
-        },
-        isLiked: likedPostIds.includes(post._id.toString()),
-        isSaved: savedPostIds.includes(post._id.toString())
-      };
+    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+      viewerId: currentUserId,
+      oxyClient: createScopedOxyClient(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
     });
 
-    // Remove oxyUserId from response
-    transformedPosts.forEach(post => delete post.oxyUserId);
-
     res.json({
-      posts: transformedPosts,
+      posts: hydratedPosts,
       center: { latitude, longitude },
       radius: radiusMeters,
       locationType: 'both',
-      count: transformedPosts.length
+      count: hydratedPosts.length
     });
   } catch (error) {
     logger.error('Error fetching nearby posts (both locations)', error);

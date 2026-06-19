@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * ProfileCard Component
@@ -15,7 +16,7 @@ import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 export interface ProfileCardData {
   id: string;
   username: string;
-  displayName?: string;
+  displayName: string;
   avatar?: string | null;
   verified?: boolean;
   description?: string;
@@ -46,14 +47,13 @@ export function ProfileCard({
   const handlePress = () => {
     if (onPress) {
       onPress();
-    } else if (profile.isFederated && profile.instance) {
-      router.push(`/@${profile.username}@${profile.instance}`);
     } else {
-      router.push(`/@${profile.username}`);
+      const handle = getNormalizedUserHandle(profile);
+      if (handle) {
+        router.push(`/@${handle}`);
+      }
     }
   };
-
-  const displayName = profile.displayName || profile.username;
 
   return (
     <TouchableOpacity
@@ -75,7 +75,7 @@ export function ProfileCard({
             className="text-base font-semibold"
             style={{ lineHeight: 20 }}
             numberOfLines={1}>
-            {displayName}
+            {profile.displayName}
           </ThemedText>
           <View className="flex-row items-center gap-1">
             <ThemedText

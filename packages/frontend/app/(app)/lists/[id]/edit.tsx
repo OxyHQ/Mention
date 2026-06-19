@@ -16,6 +16,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@/lib/logger';
+import type { User } from '@oxyhq/core';
 
 interface MemberProfile {
   id: string;
@@ -33,11 +34,11 @@ const SEARCH_DEBOUNCE_MS = 300;
 const INPUT_STYLE: TextStyle = Platform.OS === 'web' ? { outlineWidth: 0 } : {};
 
 function toMemberProfile(uid: string, profile: unknown): MemberProfile {
-  const p = profile as { username?: string; displayName?: string; avatar?: string; name?: { full?: string } } | null;
+  const p = profile as Pick<User, 'username' | 'displayName' | 'avatar'> | null;
   return {
     id: uid,
-    username: p?.username || p?.name?.full || uid,
-    displayName: p?.name?.full || p?.displayName,
+    username: p?.username || uid,
+    displayName: p?.displayName,
     avatar: p?.avatar,
   };
 }

@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
-import * as OxyServicesNS from '@oxyhq/services';
+import { FollowButton } from '@oxyhq/services';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useProfileData } from '@/hooks/useProfileData';
@@ -13,11 +14,6 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from '@/components/UserName';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { type ProfileHoverCardProps } from './types';
-
-const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
-  userId: string;
-  size?: 'small' | 'medium' | 'large';
-}> | undefined;
 
 const IS_TOUCH_DEVICE = typeof window !== 'undefined' && 'ontouchstart' in window;
 
@@ -263,18 +259,21 @@ let Card = ({
   const router = useRouter();
   const { data: profile, loading } = useProfileData(username);
 
-  const profileIsFederated = profile?.isFederated;
-  const profileInstance = profile?.instance;
+  const isFederated = profile?.isFederated;
+  const instance = profile?.instance;
   const profileUsername = profile?.username;
 
   const handlePressProfile = useCallback(() => {
     hide();
-    if (profileIsFederated && profileInstance) {
-      router.push(`/@${profileUsername}@${profileInstance}` as any);
-    } else {
-      router.push(`/@${username}` as any);
+    const handle = getNormalizedUserHandle({
+      username: profileUsername || username,
+      instance,
+      isFederated,
+    });
+    if (handle) {
+      router.push(`/@${handle}`);
     }
-  }, [hide, router, username, profileIsFederated, profileInstance, profileUsername]);
+  }, [hide, router, username, isFederated, instance, profileUsername]);
 
   return (
     <View
@@ -344,7 +343,7 @@ function CardContent({
         onPointerUp={onPressProfile}>
         <View className="flex-row items-center">
           <UserName
-            name={profile.design.displayName || profile.username}
+            name={profile.design.displayName}
             verified={profile.verified}
           />
         </View>

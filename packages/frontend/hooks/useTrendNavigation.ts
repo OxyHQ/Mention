@@ -23,12 +23,13 @@ export function useTrendNavigation() {
 
     if (trend.type === 'hashtag') {
       const tag = (trend.hashtag || trend.text).replace(/^#/, '');
-      router.push(`/hashtag/${encodeURIComponent(tag)}` as any);
+      router.push(`/hashtag/${encodeURIComponent(tag)}`);
     } else {
-      router.push({
-        pathname: `/trend/${encodeURIComponent(trend.text)}` as any,
-        params: { description: trend.description, type: trend.type },
-      });
+      const params = new URLSearchParams();
+      if (trend.description) params.set('description', trend.description);
+      params.set('type', trend.type);
+      const query = params.toString();
+      router.push(`/trend/${encodeURIComponent(trend.text)}${query ? `?${query}` : ''}`);
     }
   }, [router]);
 

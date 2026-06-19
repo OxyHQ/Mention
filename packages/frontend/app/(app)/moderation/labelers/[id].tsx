@@ -242,7 +242,7 @@ const LabelerDetailScreen: React.FC = () => {
 
   const creatorName = useMemo(() => {
     if (!labeler?.createdBy) return null;
-    return labeler.createdBy.name?.full || labeler.createdBy.username || null;
+    return labeler.createdBy.displayName;
   }, [labeler]);
 
   const labelerId = labeler ? String(labeler._id || labeler.id) : '';

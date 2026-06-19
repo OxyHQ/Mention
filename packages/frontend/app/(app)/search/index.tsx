@@ -224,45 +224,25 @@ export default function SearchIndex() {
     }, []);
 
     const renderUserItem = useCallback((user: any) => {
-        let displayName = user.username || user.handle;
-        if (typeof user.name === 'string') {
-            displayName = user.name;
-        } else if (user.name?.full) {
-            displayName = user.name.full;
-        } else if (user.name?.first) {
-            displayName = `${user.name.first} ${user.name.last || ''}`.trim();
-        } else if (user.displayName) {
-            displayName = user.displayName;
-        }
-
         const username = user.username || user.handle || '';
-        const avatarUri = user?.avatar;
+        const isFederated = user.isFederated || user.type === 'federated';
+        const instance = user.instance || user.federation?.domain;
 
         const profileData: ProfileCardData = {
             id: String(user.id || user.username || ''),
             username,
-            displayName,
-            avatar: avatarUri || undefined,
+            displayName: user.displayName,
+            avatar: user?.avatar || undefined,
             verified: user.verified || false,
             description: user.bio,
-        };
-
-        const isFederated = user.isFederated || user.type === 'federated';
-        const instance = user.instance || user.federation?.domain;
-
-        const handlePress = () => {
-            if (isFederated && instance) {
-                router.push(`/@${username}@${instance}`);
-            } else {
-                router.push(`/@${username}`);
-            }
+            isFederated,
+            instance,
         };
 
         return (
             <View key={user.id || user.username} style={styles.itemWrapper}>
                 <ProfileCard
                     profile={profileData}
-                    onPress={handlePress}
                     style={styles.profileCardStyle}
                 />
                 {isFederated && instance ? (

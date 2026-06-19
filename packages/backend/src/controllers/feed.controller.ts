@@ -145,8 +145,7 @@ class FeedController {
       uniqueUserIds.map(async (userId) => {
         const userData = await oxyClient.getUserById(userId);
         const username = userData.username || 'user';
-        const displayName = userData.name?.full || username;
-        return { userId, username, displayName };
+        return { userId, username, displayName: userData.displayName };
       })
     );
 
@@ -161,7 +160,7 @@ class FeedController {
 
     let resultText = text;
     for (const userId of mentions) {
-      const userData = userDataMap.get(userId) || { username: 'user', displayName: 'User' };
+      const userData = userDataMap.get(userId) || { username: userId, displayName: userId };
       const placeholder = `[mention:${userId}]`;
       resultText = resultText.replace(
         new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),

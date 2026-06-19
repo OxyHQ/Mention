@@ -140,7 +140,7 @@ class ThreadSlicingService {
             parentAuthor: {
               id: parentAuthor.id || parent.oxyUserId || '',
               handle: parentAuthor.handle || '',
-              displayName: parentAuthor.displayName || parentAuthor.handle || '',
+              displayName: parentAuthor.displayName ?? parentAuthor.handle ?? '',
               avatarUrl: parentAuthor.avatarUrl,
             },
           }));

@@ -39,7 +39,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
 
   const userName = useMemo(() => {
     if (!post) return '';
-    return post.user?.displayName || post.user?.name || post.user?.handle || '';
+    return post.user ? post.user.displayName : '';
   }, [post]);
 
   const userHandle = useMemo(() => {

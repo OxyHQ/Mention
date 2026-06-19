@@ -32,6 +32,7 @@ import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
 import { useAuth } from '@oxyhq/services';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const WindowHeight = Dimensions.get('window').height;
 
@@ -97,7 +98,9 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         signIn().catch(() => {});
     }, [onNavigate, signIn]);
 
-    const sideBarData = useMemo<Array<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route: Href }>>(() => [
+    const profileHandle = getNormalizedUserHandle(user);
+
+    const sideBarData = useMemo<Array<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route?: Href; onPress?: () => void }>>(() => [
         {
             title: t("sidebar.home"),
             icon: <Home />,
@@ -108,7 +111,11 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             title: t("sidebar.profile"),
             icon: <Avatar source={avatarUri} size={24} />,
             iconActive: <Avatar source={avatarUri} size={24} />,
-            route: `/@${user.username}` as Href,
+            onPress: () => {
+                if (profileHandle) {
+                    handleNavPress(`/@${profileHandle}`);
+                }
+            },
         }] : []),
         {
             title: t("sidebar.explore"),
@@ -170,7 +177,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             iconActive: <GearActive />,
             route: '/settings',
         },
-    ], [t, user, avatarUri]);
+    ], [t, user, avatarUri, profileHandle, handleNavPress]);
 
     const pathname = usePathname();
     const isSideBarVisible = useIsScreenNotMobile();
@@ -195,7 +202,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     styles.navigationSection,
                     { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
-                    {sideBarData.map(({ title, icon, iconActive, route }) => (
+                    {sideBarData.map(({ title, icon, iconActive, route, onPress }) => (
                         <SideBarItem
                             href={asDrawer ? undefined : route}
                             key={title}
@@ -203,7 +210,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                             text={title}
                             isActive={pathname === route}
                             isExpanded={showExpanded}
-                            onPress={asDrawer ? () => handleNavPress(route) : undefined}
+                            onPress={onPress || (asDrawer && route ? () => handleNavPress(route) : undefined)}
                         />
                     ))}
 

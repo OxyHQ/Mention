@@ -9,6 +9,7 @@ import { ThemedText } from './ThemedText';
 import { ResponsiveAvatarStack } from './AvatarStack';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 export interface StarterPackCardData {
   id: string;
@@ -51,8 +52,9 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
   const isOwner = pack.creator?.id ? pack.creator.id === user?.id : false;
 
   const handleCreatorPress = useCallback(() => {
-    if (pack.creator && !isOwner) {
-      router.push(`/@${pack.creator.username}` as never);
+    const handle = getNormalizedUserHandle({ username: pack.creator?.username });
+    if (handle && !isOwner) {
+      router.push(`/@${handle}`);
     }
   }, [pack.creator, isOwner]);
 

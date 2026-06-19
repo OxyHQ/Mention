@@ -29,6 +29,7 @@ export interface GroupedNotification {
   actors: {
     id: string;
     name: string;
+    username?: string;
     avatar?: string;
   }[];
   /** Total number of unique actors in this group */
@@ -69,9 +70,7 @@ export function groupNotifications(
     }
 
     // Build a group key from type + entityId
-    const entityId = typeof n.entityId === 'object' && n.entityId !== null
-      ? (n.entityId as any)._id || String(n.entityId)
-      : String(n.entityId || '');
+    const entityId = objectId(n.entityId) || String(n.entityId || '');
     const groupKey = `${n.type}:${entityId}`;
 
     const existing = groups.get(groupKey);
@@ -105,25 +104,50 @@ export function groupNotifications(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function extractActor(n: TRawNotification): { id: string; name: string; avatar?: string } {
+type GroupedActor = GroupedNotification['actors'][number];
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined;
+}
+
+function objectId(value: unknown): string | undefined {
+  const object = objectValue(value);
+  return object
+    ? stringValue(object._id) || stringValue(object.id)
+    : stringValue(value);
+}
+
+function nameToString(value: unknown): string | undefined {
+  const object = objectValue(value);
+  return object ? stringValue(object.displayName) : stringValue(value);
+}
+
+function extractActor(n: TRawNotification): GroupedActor {
   const populated = n.actorId_populated;
-  const actorId = typeof n.actorId === 'string'
-    ? n.actorId
-    : (n.actorId as any)?._id || String(n.actorId || 'unknown');
+  const actorId = objectId(n.actorId) || 'unknown';
 
   if (populated) {
-    const name = typeof populated.name === 'string'
-      ? populated.name
-      : (populated.name as any)?.full || populated.username || actorId;
-    return { id: actorId, name, avatar: populated.avatar };
+    const name = populated.displayName || populated.username || actorId;
+    return {
+      id: actorId,
+      name,
+      username: populated.username,
+      avatar: populated.avatar,
+    };
   }
 
-  if (typeof n.actorId === 'object' && n.actorId !== null) {
-    const obj = n.actorId as any;
+  const actor = objectValue(n.actorId);
+  if (actor) {
+    const username = stringValue(actor.username);
     return {
-      id: obj._id || obj.id || 'unknown',
-      name: obj.name?.full || obj.name || obj.username || actorId,
-      avatar: obj.avatar,
+      id: objectId(actor) || 'unknown',
+      name: stringValue(actor.displayName) || username || actorId,
+      username,
+      avatar: stringValue(actor.avatar),
     };
   }
 

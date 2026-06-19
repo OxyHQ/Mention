@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
-import { useAuth } from '@oxyhq/services';
+import { Loading } from '@oxyhq/bloom/loading';
 
 export default function AccountInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -24,20 +24,15 @@ export default function AccountInfoScreen() {
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const { t } = useTranslation();
   const theme = useTheme();
-  const { user: currentUser } = useAuth();
   // Use unified profile data hook - automatically fetches profile and appearance settings
   const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
 
-  const isOwnProfile = currentUser?.id === profileData?.id;
   const design = profileData?.design;
 
   const { colorName: profileColorName } = useProfileScreenColor({
     username: cleanUsername,
     designColor: design?.color,
-    isOwnProfile,
   });
-
-  const avatarSource = profileData?.design?.avatar || profileData?.avatar;
 
   // Format join date
   const joinDate = useMemo(() => {
@@ -60,11 +55,55 @@ export default function AccountInfoScreen() {
     });
   }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
 
-  const displayName = useMemo(() => (
-    profileData?.design?.displayName ||
-    profileData?.username ||
-    cleanUsername
-  ), [profileData, cleanUsername]);
+  if (profileLoading) {
+    return (
+      <BloomColorScope colorPreset={profileColorName} asChild>
+      <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
+        <Header
+          options={{
+            title: t('About', { defaultValue: 'About' }),
+            leftComponents: [
+              <IconButton key="back" variant="icon" onPress={() => safeBack()}>
+                <BackArrowIcon size={20} className="text-foreground" />
+              </IconButton>,
+            ],
+          }}
+          hideBottomBorder={true}
+          disableSticky={true}
+        />
+        <View className="flex-1 items-center justify-center">
+          <Loading className="text-primary" size="large" />
+        </View>
+      </ThemedView>
+      </BloomColorScope>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <BloomColorScope colorPreset={profileColorName} asChild>
+      <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
+        <Header
+          options={{
+            title: t('About', { defaultValue: 'About' }),
+            leftComponents: [
+              <IconButton key="back" variant="icon" onPress={() => safeBack()}>
+                <BackArrowIcon size={20} className="text-foreground" />
+              </IconButton>,
+            ],
+          }}
+          hideBottomBorder={true}
+          disableSticky={true}
+        />
+        <View className="flex-1 items-center justify-center px-6">
+          <ThemedText className="text-base text-muted-foreground text-center">
+            {t('profile.notFound.title', { defaultValue: 'Profile not found' })}
+          </ThemedText>
+        </View>
+      </ThemedView>
+      </BloomColorScope>
+    );
+  }
 
   return (
     <BloomColorScope colorPreset={profileColorName} asChild>
@@ -94,22 +133,22 @@ export default function AccountInfoScreen() {
         <View className="flex-row items-center mb-4 gap-3 overflow-visible">
           <View className="relative overflow-visible">
             <Avatar
-              source={avatarSource}
+              source={profileData.design.avatar || profileData.avatar}
               size={56}
-              verified={profileData?.verified}
+              verified={profileData.verified}
             />
           </View>
           <View className="flex-1 gap-1">
             <View className="flex-row items-center gap-1.5">
               <ThemedText className="text-lg font-bold text-foreground">
-                {displayName}
+                {profileData.design.displayName}
               </ThemedText>
-              {profileData?.verified && (
+              {profileData.verified && (
                 <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
               )}
             </View>
             <ThemedText className="text-[15px] text-muted-foreground">
-              @{profileData?.username || cleanUsername}
+              @{profileData.username}
             </ThemedText>
           </View>
         </View>
@@ -117,7 +156,7 @@ export default function AccountInfoScreen() {
         {/* Account Details List */}
         <View className="rounded-2xl overflow-hidden bg-card">
           {/* Date Joined */}
-          {profileData?.createdAt && (
+          {profileData.createdAt && (
             <View className="border-border" style={[styles.detailRow, styles.firstRow]}>
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
@@ -134,7 +173,7 @@ export default function AccountInfoScreen() {
           )}
 
           {/* Account Based In */}
-          {profileData?.primaryLocation && (
+          {profileData.primaryLocation && (
             <View className="border-border" style={[styles.detailRow]}>
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="location-outline" size={18} color={theme.colors.textSecondary} />
@@ -151,7 +190,7 @@ export default function AccountInfoScreen() {
           )}
 
           {/* Verified */}
-          {profileData?.verified && (
+          {profileData.verified && (
             <TouchableOpacity
               className="border-border" style={[styles.detailRow]}
               activeOpacity={0.7}
@@ -172,7 +211,7 @@ export default function AccountInfoScreen() {
           )}
 
           {/* Username Changes */}
-          {(profileData?.usernameChangeCount ?? 0) > 0 && (
+          {(profileData.usernameChangeCount ?? 0) > 0 && (
             <View className="border-border" style={[styles.detailRow]}>
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
@@ -182,14 +221,14 @@ export default function AccountInfoScreen() {
                   {t('Username changes', { defaultValue: 'Username changes' })}
                 </ThemedText>
                 <ThemedText className="text-[13px] text-muted-foreground">
-                  {profileData?.usernameChangeCount}
+                  {profileData.usernameChangeCount}
                 </ThemedText>
               </View>
             </View>
           )}
 
           {/* Connected Via - could be expanded later with app store info */}
-          {profileData?.connectedVia && (
+          {profileData.connectedVia && (
             <View style={[styles.detailRow, styles.lastRow]}>
               <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
                 <Ionicons name="globe-outline" size={18} color={theme.colors.textSecondary} />

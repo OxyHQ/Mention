@@ -47,6 +47,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import EngagementListSheet from './EngagementListSheet';
 import { cn } from '@/lib/utils';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 type PostEntity = HydratedPost & {
     original?: any;
@@ -178,18 +179,14 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
 
     const goToUser = useCallback(() => {
         if (!viewPost?.user) return;
-        const handle = viewPost.user.handle;
+        const handle = getNormalizedUserHandle({
+            handle: viewPost.user.handle,
+            username: viewPost.user.handle,
+        });
         if (handle) {
-            // Federated handles already contain the domain (e.g. alice@mastodon.social)
-            // so we only need to prepend @. Do NOT append @instance again.
             router.push(`/@${handle}`);
-            return;
         }
-        const id = viewPost.user.id;
-        if (id) {
-            router.push(`/${id}`);
-        }
-    }, [router, viewPost?.user?.handle, viewPost?.user?.id]);
+    }, [router, viewPost?.user?.handle]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
@@ -350,7 +347,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
                     <View className="flex-1 mr-2">
                         <View className="flex-row items-center">
                             <UserName
-                                name={viewPost.user.name || viewPost.user.displayName || ''}
+                                name={viewPost.user.displayName}
                                 verified={viewPost.user.isVerified}
                                 onPress={goToUser}
                                 style={{ name: { fontSize: 16, fontWeight: '700' } }}

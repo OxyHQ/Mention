@@ -20,7 +20,7 @@ interface NotificationActor {
   id?: string;
   _id?: string;
   username?: string;
-  name?: string | { full?: string };
+  displayName?: string;
   avatar?: string;
 }
 
@@ -64,18 +64,17 @@ export const createNotification = async (
         if (data.actorId && data.actorId !== 'system') {
           actor = await oxy.getUserById(data.actorId);
         } else if (data.actorId === 'system') {
-          actor = { id: 'system', username: 'system', name: { full: 'System' } };
+          actor = { id: 'system', username: 'system', displayName: 'System' };
         }
       } catch (e) {
         // ignore actor resolution failures
       }
-      const actorName = typeof actor?.name === 'string' ? actor.name : actor?.name?.full;
       const payload = {
         ...notification.toObject(),
         actorId_populated: actor ? {
           _id: actor.id || actor._id || data.actorId,
           username: actor.username || data.actorId,
-          name: actorName || actor.username || data.actorId,
+          displayName: actor.displayName ?? data.actorId,
           avatar: actor.avatar
         } : undefined
       };

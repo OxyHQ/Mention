@@ -17,7 +17,7 @@ const HPAD = 8;
 const ROW_GAP = 8;
 
 interface User {
-  name: string;
+  displayName: string;
   handle: string;
   verified?: boolean;
   isFederated?: boolean;
@@ -29,7 +29,7 @@ interface PostHeaderProps {
   date?: string;
   showBoost?: boolean;
   showReply?: boolean;
-  boostedBy?: { name: string; handle: string; verified?: boolean; date?: string };
+  boostedBy?: { displayName: string; handle: string; verified?: boolean; date?: string };
   paddingHorizontal?: number;
   children?: React.ReactNode;
   avatarUri?: string;
@@ -60,7 +60,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const theme = useTheme();
 
   const timeLabel = useMemo(() => formatRelativeTimeCompact(date || ''), [date]);
-  const boostLabel = useMemo(() => boostedBy ? `${boostedBy.name} boosted` : undefined, [boostedBy]);
+  const boostLabel = useMemo(() => boostedBy ? `${boostedBy.displayName} boosted` : undefined, [boostedBy]);
   const boostTime = useMemo(() => boostedBy?.date ? formatRelativeTimeCompact(boostedBy.date) : undefined, [boostedBy?.date]);
 
   return (
@@ -74,7 +74,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         <View className="flex-1" style={{ gap: 4 }}>
           <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
             <UserName
-              name={user.name}
+              name={user.displayName}
               verified={user.verified}
               onPress={onPressUser}
             />

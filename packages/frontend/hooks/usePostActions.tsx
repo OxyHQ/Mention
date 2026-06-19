@@ -257,7 +257,7 @@ export function usePostActions({
         const handleMuteUser = async () => {
             try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
             const userId = viewPost?.user?.id;
-            const username = viewPost?.user?.handle || viewPost?.user?.name || 'this user';
+            const username = viewPost?.user?.handle || viewPost?.user?.displayName || 'this user';
 
             if (!userId) {
                 toast(t('postActions.unableToMuteUser'), { type: 'error' });
@@ -303,7 +303,7 @@ export function usePostActions({
         const muteReportAction: ActionItem[] = [];
 
         if (!isOwner) {
-            const username = viewPost?.user?.handle || viewPost?.user?.name || 'user';
+            const username = viewPost?.user?.handle || viewPost?.user?.displayName || 'user';
             muteReportAction.push({
                 icon: <MuteIcon size={20} className="text-muted-foreground" />,
                 text: t('postActions.muteUser', { username }),
@@ -321,7 +321,7 @@ export function usePostActions({
         const addToListAction: ActionItem[] = [];
         const authorId = viewPost?.user?.id;
         if (!isOwner && authorId) {
-            const authorHandle = viewPost?.user?.handle || viewPost?.user?.name || '';
+            const authorHandle = viewPost?.user?.handle || '';
             addToListAction.push({
                 icon: <ListIcon size={20} className="text-muted-foreground" />,
                 text: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
@@ -365,4 +365,3 @@ export function usePostActions({
         };
     }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere]);
 }
-

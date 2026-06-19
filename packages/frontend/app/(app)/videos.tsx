@@ -22,6 +22,7 @@ import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 // ── Tuning constants ─────────────────────────────────────────────
 // One-screen vertical pager: keep the live-player window tight so only the
@@ -302,13 +303,14 @@ const VideoItem = memo<VideoItemProps>(({
     const handleError = useCallback(() => setVideoError(true), []);
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
-    const userName = useMemo(() => item.user?.name || '', [item.user?.name]);
+    const userName = useMemo(() => item.user?.displayName ?? '', [item.user?.displayName]);
     const userHandle = useMemo(() => item.user?.handle || t('common.unknown'), [item.user?.handle, t]);
     const postText = useMemo(() => item.content?.text?.trim() || '', [item.content?.text]);
 
     const handleProfilePress = useCallback(() => {
-        if (item.user?.handle) {
-            router.push(`/@${item.user.handle}/videos`);
+        const handle = getNormalizedUserHandle({ handle: item.user?.handle });
+        if (handle) {
+            router.push(`/@${handle}/videos`);
         }
     }, [item.user?.handle, router]);
 
@@ -743,7 +745,7 @@ export default function VideosScreen() {
             const postUrl = `https://mention.earth/p/${post.id}`;
             const contentText = post?.content?.text || '';
             const user = post?.user || ({} as VideoPost['user']);
-            const name = user.name || user.handle || t('common.someone');
+            const name = user.displayName ?? t('common.someone');
             const handle = user.handle || '';
             const shareMessage = contentText
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`

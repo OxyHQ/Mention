@@ -55,7 +55,14 @@ packages/
 - **Backend**: Express 5, Mongoose 9, Redis 5, Socket.io, LiveKit Server SDK, Firebase Admin, AWS S3
 - **Feed System**: MTN protocol in `backend/src/mtn/` (ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners). `videos` descriptor (`packages/shared-types/src/mtn/feedDescriptor.ts`) is backed by `VideosFeed` (`packages/backend/src/mtn/feed/feeds/VideosFeed.ts`) — ranked feed of video posts (native + federated) powering the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400. Use `videos`.
 - **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain. Outbox sync uses the actor's advertised `outbox` URL (`fetchRemoteActor`), with `actorUri + '/outbox'` only as fallback — guessing breaks PeerTube/Lemmy/some Pleroma. Boosts (Announce) are imported as `type:'boost'` posts (mirroring native repost shape), deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill (`syncOutboxPosts`/`extractCandidates`) paths.
-- **Auth**: Oxy integration via `@oxyhq/core ^3.4.13` + `@oxyhq/services ^10.2.10`
+- **Auth**: Oxy integration via `@oxyhq/core ^3.4.16` + `@oxyhq/services ^10.2.10`
+
+## Profile Identity Contract
+
+- Oxy API owns canonical user display names. User/profile DTOs must provide `displayName` as the already-resolved value. Mention frontend renders `displayName` directly and must not recompute names from `name.first`, `name.last`, `name.full`, or add local `displayName || username` fallback chains in components.
+- Mention post DTOs must be produced by `PostHydrationService` (`packages/backend/src/services/PostHydrationService.ts`). Controllers must not hand-build post `user` objects, notification embedded posts, or nearby/feed post responses; hydration is the single place that resolves `PostActorSummary.displayName`, avatar, engagement, permissions, and related post data.
+- Profile routes use `getNormalizedUserHandle` from `@oxyhq/core` for local and federated handles. Do not add local profile-route helpers, manually append federated instances, navigate to raw ids, or generate `?username=` profile URLs.
+- Valid profile URLs are `/@username` and `/@username@domain`. Duplicate instance suffixes such as `/@user@domain@domain` are bugs in handle normalization and should be fixed at the source.
 
 ## Federated Media Cache
 
@@ -96,7 +103,7 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 
 ## Dependencies
 
-- `@oxyhq/core ^3.4.13`, `@oxyhq/services ^10.2.10` — Oxy platform SDK
+- `@oxyhq/core ^3.4.16`, `@oxyhq/services ^10.2.10` — Oxy platform SDK
 - `@oxyhq/bloom ^0.8.5` — Shared UI component library
 
 ## Auth Cold-Boot Reactivity (Web)

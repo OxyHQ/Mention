@@ -32,7 +32,7 @@ function buildUserProfile(userData: any, fallbackId: string): UserProfile {
     id: userData?.id || fallbackId,
     username: userData?.username || userData?.handle || fallbackId,
     handle: userData?.username || userData?.handle || fallbackId,
-    displayName: userData?.name?.full || userData?.displayName || userData?.username || fallbackId,
+    displayName: userData?.displayName ?? fallbackId,
     avatar: resolveAvatar(userData),
   };
 }

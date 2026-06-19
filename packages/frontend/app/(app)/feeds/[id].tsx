@@ -35,8 +35,9 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import BottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
-import * as OxyServicesNS from '@oxyhq/services';
+import { FollowButton } from '@oxyhq/services';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -48,8 +49,6 @@ interface MemberProfile {
   displayName: string;
   avatar?: string;
 }
-
-const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }> | undefined;
 
 const TABS_CONFIG = [
   { id: 'recent', labelKey: 'feeds.detail.tabs.recent' },
@@ -78,7 +77,8 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 }) {
   const theme = useTheme();
   const safeBack = useSafeBack();
-  const creatorHandle = feed.owner?.username ? `@${feed.owner.username}` : '';
+  const creatorHandleValue = getNormalizedUserHandle({ username: feed.owner?.username });
+  const creatorHandle = creatorHandleValue ? `@${creatorHandleValue}` : '';
 
   return (
     <View
@@ -162,7 +162,8 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
   onClose: () => void;
 }) {
   const theme = useTheme();
-  const creatorHandle = feed.owner?.username ? `@${feed.owner.username}` : '';
+  const creatorHandleValue = getNormalizedUserHandle({ username: feed.owner?.username });
+  const creatorHandle = creatorHandleValue ? `@${creatorHandleValue}` : '';
 
   return (
     <View className="gap-4 px-5 pb-8 pt-2">
@@ -177,7 +178,9 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
             <TouchableOpacity
               onPress={() => {
                 onClose();
-                router.push(`/@${feed.owner?.username}` as any);
+                if (creatorHandleValue) {
+                  router.push(`/@${creatorHandleValue}`);
+                }
               }}
               activeOpacity={0.7}
             >
@@ -286,7 +289,12 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Memb
         <TouchableOpacity
           key={m.id}
           className="flex-row items-center gap-3 py-3"
-          onPress={() => router.push(`/@${m.username}` as any)}
+          onPress={() => {
+            const handle = getNormalizedUserHandle({ username: m.username });
+            if (handle) {
+              router.push(`/@${handle}`);
+            }
+          }}
           activeOpacity={0.7}
         >
           <Avatar source={m.avatar} size={44} />
@@ -298,7 +306,7 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Memb
               {m.displayName}
             </Text>
           </View>
-          {FollowButton && <FollowButton userId={m.id} />}
+          <FollowButton userId={m.id} />
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -516,8 +524,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
       ) : (
         reviews.map((review) => {
           const reviewId = String(review._id || review.id);
-          const reviewerName =
-            review.reviewer?.displayName || review.reviewer?.username || 'Anonymous';
+          const reviewerName = review.reviewer?.displayName ?? 'Anonymous';
           const reviewerAvatar = review.reviewer?.avatar;
           const date = review.createdAt
             ? new Date(review.createdAt).toLocaleDateString(undefined, {

@@ -82,6 +82,7 @@ export interface ProfileStatsProps {
   boostsCount: number;
   repliesCount: number;
   profileUsername?: string;
+  profileHandle?: string;
   username: string;
   onPostsPress: () => void;
   onBoostsPress: () => void;
@@ -104,6 +105,7 @@ export interface ProfileMetaProps {
   links?: string[];
   createdAt?: string;
   username: string;
+  profileHandle?: string;
 }
 
 // Community interface
@@ -182,4 +184,3 @@ export interface UseProfileScrollReturn {
   assignScrollRef: (node: any) => void;
   scrollToContent: (offset: number) => void;
 }
-

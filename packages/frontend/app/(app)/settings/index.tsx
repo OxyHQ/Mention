@@ -13,6 +13,7 @@ import { useProfileData } from "@/hooks/useProfileData";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Button } from "@/components/ui/Button";
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { Loading } from '@oxyhq/bloom/loading';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { confirmDialog } from "@/utils/alerts";
 import { useBloomTheme } from '@oxyhq/bloom/theme';
@@ -73,13 +74,6 @@ export default function SettingsScreen() {
         router.replace('/');
     };
 
-    const displayName = currentUserProfile?.design?.displayName ||
-        (user
-            ? typeof user.name === 'string'
-                ? user.name
-                : user.name?.full || user.name?.first || user.username
-            : 'User');
-
     return (
         <ThemedView className="flex-1">
             <Header
@@ -104,17 +98,21 @@ export default function SettingsScreen() {
                 scrollEventThrottle={scrollEventThrottle}
                 {...(Platform.OS === 'web' ? { dataSet: { layoutscroll: 'true' } } : {}) as Record<string, unknown>}
             >
-                {isAuthenticated ? (
+                {isAuthenticated && !currentUserProfile ? (
+                    <View className="items-center py-4">
+                        <Loading />
+                    </View>
+                ) : isAuthenticated && currentUserProfile ? (
                     <View className="items-center py-4 gap-1">
                         <Avatar
-                            source={currentUserProfile?.avatar || user?.avatar}
+                            source={currentUserProfile.avatar}
                             size={80}
                         />
                         <Text className="text-2xl font-bold text-foreground mt-2" numberOfLines={1}>
-                            {displayName}
+                            {currentUserProfile.design.displayName}
                         </Text>
                         <Text className="text-base text-muted-foreground" numberOfLines={1}>
-                            @{user?.username || 'username'}
+                            @{currentUserProfile.username}
                         </Text>
                         <View className="mt-3">
                             <Button

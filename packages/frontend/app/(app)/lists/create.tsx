@@ -11,8 +11,9 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@/lib/logger';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import type { User } from '@oxyhq/core';
 
-type MinimalUser = { id: string; username: string; name?: { full?: string } };
+type MinimalUser = Pick<User, 'id' | 'username' | 'displayName' | 'avatar'>;
 
 export default function CreateListScreen() {
   const { oxyServices } = useAuth();
@@ -40,9 +41,8 @@ export default function CreateListScreen() {
     if (!q.trim()) { setResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       try {
-        const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
-        const data = (res as any)?.data ?? res;
-        setResults(Array.isArray(data) ? data : []);
+        const { data } = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
+        setResults(data);
       } catch (e) {
         logger.warn('searchProfiles failed', { error: e });
       }
@@ -128,7 +128,7 @@ export default function CreateListScreen() {
           <View className="border border-border rounded-[10px] overflow-hidden">
             {results.map((u) => (
               <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
-                <Text className="text-foreground font-primary">@{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}</Text>
+                <Text className="text-foreground font-primary">@{u.username} • {u.displayName}</Text>
                 <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
               </TouchableOpacity>
             ))}

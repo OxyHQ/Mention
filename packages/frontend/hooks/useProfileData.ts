@@ -49,8 +49,6 @@ function computeDesign(
   appearance: UserAppearance | null | undefined,
 ): ProfileDesign {
   const customization = appearance?.profileCustomization;
-  const nameValue =
-    typeof profile.name === 'string' ? profile.name : profile.name?.full;
 
   const presetColor =
     typeof profile.color === 'string' && profile.color in APP_COLOR_PRESETS
@@ -58,7 +56,7 @@ function computeDesign(
       : undefined;
 
   return {
-    displayName: customization?.displayName || nameValue || profile.username || '',
+    displayName: customization?.displayName ?? profile.displayName,
     bannerUrl: appearance?.profileHeaderImage,
     avatar: profile.avatar,
     coverPhotoEnabled: customization?.coverPhotoEnabled ?? true,

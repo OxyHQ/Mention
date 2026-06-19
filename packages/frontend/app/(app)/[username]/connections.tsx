@@ -26,8 +26,38 @@ import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 import { isAuthError } from '@/utils/authErrors';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
+
+interface ConnectionUser {
+  id?: string;
+  _id?: string;
+  userID?: string;
+  username?: string;
+  handle?: string;
+  displayName: string;
+  avatar?: string;
+  profilePicture?: string;
+  bio?: string;
+  isFederated?: boolean;
+  type?: string;
+  instance?: string;
+  federation?: {
+    domain?: string;
+  };
+  name?: {
+    first?: string;
+    last?: string;
+    full?: string;
+  };
+  profile?: {
+    name?: {
+      full?: string;
+    };
+    bio?: string;
+  };
+}
 
 export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
@@ -38,18 +68,21 @@ export default function ConnectionsScreen() {
   const { oxyServices, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [followers, setFollowers] = useState<any[]>([]);
-  const [following, setFollowing] = useState<any[]>([]);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [followers, setFollowers] = useState<ConnectionUser[]>([]);
+  const [following, setFollowing] = useState<ConnectionUser[]>([]);
+  const [recommendations, setRecommendations] = useState<ConnectionUser[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
-  const { data: profileData } = useProfileData(cleanUsername);
+  const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
 
-  const isOwnProfile = user?.id === profileData?.id;
+  const profileHandle = getNormalizedUserHandle({
+    username: profileData?.username || cleanUsername,
+    instance: profileData?.instance,
+    isFederated: profileData?.isFederated,
+  }) || cleanUsername;
   const { colorName: profileColorName } = useProfileScreenColor({
     username: cleanUsername,
     designColor: profileData?.design?.color,
-    isOwnProfile,
   });
 
   // Determine active tab from pathname
@@ -184,40 +217,26 @@ export default function ConnectionsScreen() {
   const handleTabPress = useCallback((tabId: string) => {
     if (!username) return;
     const tab = tabId as TabType;
-
-    let path: string;
-    if (tab === 'following') {
-      path = `/@${cleanUsername}/following`;
-    } else if (tab === 'who-may-know') {
-      path = `/@${cleanUsername}/who-may-know`;
-    } else {
-      path = `/@${cleanUsername}/followers`;
-    }
-
-    router.push(path as any);
-  }, [cleanUsername, username]);
+    const subroute = tab === 'who-may-know' ? 'who-may-know' : tab;
+    router.push(`/@${profileHandle}/${subroute}`);
+  }, [profileHandle, username]);
 
   const getInviteMessage = useCallback(() => {
-    const userName = user
-      ? typeof user.name === 'string'
-        ? user.name
-        : user.name?.full || user.name?.first || user.username
-      : 'Someone';
     const userHandle = user?.username || '';
     const appUrl = 'https://mention.earth';
 
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
-        name: userName,
+        name: user?.displayName ?? 'Someone',
         handle: userHandle,
         url: appUrl,
-        defaultValue: `Join me on Mention! ${userName} (@${userHandle})\n${appUrl}`
+        defaultValue: `Join me on Mention! ${user?.displayName ?? 'Someone'} (@${userHandle})\n${appUrl}`
       });
     } else {
       return t('settings.inviteContacts.shareMessage', {
-        name: userName,
+        name: user?.displayName ?? 'Someone',
         url: appUrl,
-        defaultValue: `Join me on Mention! ${userName}\n${appUrl}`
+        defaultValue: `Join me on Mention! ${user?.displayName ?? 'Someone'}\n${appUrl}`
       });
     }
   }, [user, t]);
@@ -254,34 +273,37 @@ export default function ConnectionsScreen() {
     }
   }, [getInviteMessage, t]);
 
-  const renderUser = useCallback(({ item }: { item: any }) => {
-    const usernameValue = item?.username || item?.handle || item?.userID || item?.id;
+  const renderUser = useCallback(({ item }: { item: ConnectionUser }) => {
+    const usernameValue = item?.username || item?.handle;
     if (!usernameValue) return null;
+    const instance = item?.instance || item?.federation?.domain;
+    const isFederated = item?.isFederated || item?.type === 'federated';
+    const handle = getNormalizedUserHandle({
+      username: String(usernameValue),
+      instance,
+      isFederated,
+    });
+    if (!handle) return null;
 
-    const displayName =
-      item?.profile?.name?.full ||
-      (item?.name?.first ? `${item.name.first} ${item.name.last || ''}`.trim() : '') ||
-      item?.displayName ||
-      usernameValue;
-
-    const avatarSource = item?.avatar ?? (item as any)?.profilePicture;
+    const avatarSource = item?.avatar ?? item.profilePicture;
     const bio = item?.profile?.bio || item?.bio;
-    const userId = String((item as any).id || (item as any)._id || (item as any).userID);
+    const userId = String(item.id || item._id || item.userID || '');
+    if (!userId) return null;
 
     return (
       <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity
           className="flex-row items-center flex-1"
-          onPress={() => router.push(`/@${usernameValue}` as any)}
+          onPress={() => router.push(`/@${handle}`)}
           activeOpacity={0.7}
         >
           <Avatar source={avatarSource || undefined} size={48} />
           <View className="ml-3 flex-1">
             <ThemedText className="font-semibold text-base text-foreground" numberOfLines={1}>
-              {displayName}
+              {item.displayName}
             </ThemedText>
             <ThemedText className="pt-0.5 text-sm text-muted-foreground" numberOfLines={1}>
-              @{usernameValue}
+              @{handle}
             </ThemedText>
             {bio ? (
               <ThemedText className="pt-1 text-sm leading-[18px] text-muted-foreground" numberOfLines={2}>
@@ -293,7 +315,7 @@ export default function ConnectionsScreen() {
         <StableFollowButton userId={userId} size="small" />
       </View>
     );
-  }, [theme.colors.border]);
+  }, [router, theme.colors.border]);
 
   const renderInviteBanner = useCallback(() => (
     <TouchableOpacity
@@ -330,11 +352,7 @@ export default function ConnectionsScreen() {
     }
   }, [activeTab, followers, following, recommendations]);
 
-  const profileDisplayName = useMemo(() => (
-    profileData?.design?.displayName ||
-    profileData?.username ||
-    cleanUsername
-  ), [profileData, cleanUsername]);
+  const profileDisplayName = profileData?.design.displayName;
 
   const getEmptyMessage = () => {
     switch (activeTab) {
@@ -352,11 +370,13 @@ export default function ConnectionsScreen() {
   const getEmptySubtitle = () => {
     switch (activeTab) {
       case 'followers':
+        if (!profileDisplayName) return '';
         return t('connections.emptyFollowersSubtitle', {
           name: profileDisplayName,
           defaultValue: `When people follow ${profileDisplayName}, they'll appear here.`,
         });
       case 'following':
+        if (!profileDisplayName) return '';
         return t('connections.emptyFollowingSubtitle', {
           name: profileDisplayName,
           defaultValue: `When ${profileDisplayName} follows people, they'll appear here.`,
@@ -373,9 +393,13 @@ export default function ConnectionsScreen() {
   const getTitle = () => {
     switch (activeTab) {
       case 'followers':
-        return `${profileDisplayName} ${t('Followers', { defaultValue: 'Followers' })}`;
+        return profileDisplayName
+          ? `${profileDisplayName} ${t('Followers', { defaultValue: 'Followers' })}`
+          : t('Followers', { defaultValue: 'Followers' });
       case 'following':
-        return `${profileDisplayName} ${t('Following', { defaultValue: 'Following' })}`;
+        return profileDisplayName
+          ? `${profileDisplayName} ${t('Following', { defaultValue: 'Following' })}`
+          : t('Following', { defaultValue: 'Following' });
       case 'who-may-know':
         return t('Who May Know', { defaultValue: 'Who May Know' });
       default:
@@ -413,11 +437,22 @@ export default function ConnectionsScreen() {
       );
     }
 
+    if (profileLoading && activeTab !== 'who-may-know') {
+      return (
+        <View className="flex-1 items-center justify-center gap-3 px-4">
+          <Loading className="text-primary" size="large" />
+          <ThemedText className="text-base text-muted-foreground">
+            {t('Loading...', { defaultValue: 'Loading...' })}
+          </ThemedText>
+        </View>
+      );
+    }
+
     return (
       <LegendList
         data={currentData}
         renderItem={renderUser}
-        keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
+        keyExtractor={(item: ConnectionUser) => String(item.id || item._id || item.userID || item.username)}
         ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
         ListEmptyComponent={
           <View className="items-center py-[60px] px-8 gap-2">

@@ -20,12 +20,21 @@ import SEO from '@/components/SEO';
 import { cn } from '@/lib/utils';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { show as toast } from '@oxyhq/bloom/toast';
+import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 
 interface MemberProfile {
   id: string;
   username: string;
-  displayName?: string;
+  displayName: string;
   avatar?: string;
+}
+
+interface StarterPackDetail {
+  name: string;
+  description?: string;
+  memberOxyUserIds?: string[];
+  ownerOxyUserId?: string;
+  useCount: number;
 }
 
 type FollowState = 'idle' | 'processing' | 'complete';
@@ -36,7 +45,7 @@ export default function StarterPackDetailScreen() {
   const { user, oxyServices } = useAuth();
   const safeBack = useSafeBack();
   const haptics = useHaptics();
-  const [pack, setPack] = useState<any | null>(null);
+  const [pack, setPack] = useState<StarterPackDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<MemberProfile[]>([]);
@@ -47,27 +56,29 @@ export default function StarterPackDetailScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const p = await starterPacksService.get(String(id));
+        const p = await starterPacksService.get(String(id)) as StarterPackDetail;
         setPack(p);
 
         if (p.memberOxyUserIds?.length) {
           const profiles = await Promise.all(
-            p.memberOxyUserIds.map(async (uid: string): Promise<MemberProfile> => {
+            p.memberOxyUserIds.map(async (uid: string): Promise<MemberProfile | null> => {
               try {
-                const profile = await oxyServices.getUserById(uid);
+                const profile: User | null = await oxyServices.getUserById(uid);
                 if (profile) {
                   return {
                     id: uid,
-                    username: (profile as any).username || (profile as any).name?.full || uid,
-                    displayName: (profile as any).name?.full || (profile as any).displayName,
-                    avatar: (profile as any).avatar,
+                    username: profile.username,
+                    displayName: profile.displayName,
+                    avatar: profile.avatar,
                   };
                 }
-              } catch { /* ignore individual failures */ }
-              return { id: uid, username: uid };
+              } catch (error) {
+                logger.warn('Failed to load starter pack member profile', { error, uid });
+              }
+              return null;
             }),
           );
-          setMembers(profiles);
+          setMembers(profiles.filter((profile): profile is MemberProfile => Boolean(profile)));
         }
       } catch {
         setError('Failed to load starter pack');
@@ -91,7 +102,7 @@ export default function StarterPackDetailScreen() {
         userIds.map((uid: string) => oxyServices.followUser(uid)),
       );
 
-      setPack((prev: any) =>
+      setPack((prev) =>
         prev ? { ...prev, useCount: result.useCount } : prev,
       );
       setFollowState('complete');
@@ -245,30 +256,33 @@ export default function StarterPackDetailScreen() {
                 Accounts in this pack
               </ThemedText>
               {members.map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  className="flex-row items-center py-3 border-b border-border gap-3"
-                  onPress={() => router.push(`/@${m.username}` as never)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${m.displayName || m.username}, @${m.username}`}>
-                  <Avatar source={m.avatar} size={44} />
-                  <View className="flex-1 gap-0.5">
-                    {m.displayName && (
+                  <TouchableOpacity
+                    key={m.id}
+                    className="flex-row items-center py-3 border-b border-border gap-3"
+                    onPress={() => {
+                      const handle = getNormalizedUserHandle({ username: m.username });
+                      if (handle) {
+                        router.push(`/@${handle}`);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${m.displayName}, @${m.username}`}>
+                    <Avatar source={m.avatar} size={44} />
+                    <View className="flex-1 gap-0.5">
                       <ThemedText
                         className="text-[15px] font-semibold"
                         numberOfLines={1}>
                         {m.displayName}
                       </ThemedText>
-                    )}
-                    <ThemedText
-                      className="text-sm text-muted-foreground"
-                      numberOfLines={1}>
-                      @{m.username}
-                    </ThemedText>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                      <ThemedText
+                        className="text-sm text-muted-foreground"
+                        numberOfLines={1}>
+                        @{m.username}
+                      </ThemedText>
+                    </View>
+                  </TouchableOpacity>
+                ))}
             </View>
           </ScrollView>
         ) : null}

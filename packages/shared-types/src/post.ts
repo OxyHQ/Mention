@@ -323,7 +323,6 @@ export interface PostActorSummary {
   id: string;
   handle: string;
   displayName: string;
-  name?: string;
   /**
    * Final, ready-to-render avatar URL. v2+ backends populate this (and the
    * `avatar` alias) with a FINAL URL resolved server-side — NOT a raw Oxy file

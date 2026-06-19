@@ -133,7 +133,7 @@ router.get('/following', async (req: AuthRequest, res: Response) => {
         handle: actor?.username || 'unknown',
         instance: actor?.domain || 'unknown',
         fullHandle: actor ? `@${actor.acct}` : f.remoteActorUri,
-        displayName: actor?.displayName || actor?.username || 'Unknown',
+        displayName: actor?.displayName ?? actor?.username ?? 'Unknown',
         avatarUrl: actor?.avatarUrl,
         isFollowing: f.status === 'accepted',
         isFollowPending: f.status === 'pending',
@@ -174,7 +174,7 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
         handle: actor?.username || 'unknown',
         instance: actor?.domain || 'unknown',
         fullHandle: actor ? `@${actor.acct}` : f.remoteActorUri,
-        displayName: actor?.displayName || actor?.username || 'Unknown',
+        displayName: actor?.displayName ?? actor?.username ?? 'Unknown',
         avatarUrl: actor?.avatarUrl,
       };
     });

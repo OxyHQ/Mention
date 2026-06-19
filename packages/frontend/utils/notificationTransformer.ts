@@ -4,7 +4,7 @@ import { NotificationType } from '@mention/shared-types';
 export interface NotificationActor {
   _id?: string;
   username?: string;
-  name?: string | { full: string };
+  displayName?: string;
   avatar?: string;
 }
 
@@ -23,7 +23,7 @@ export interface RawNotification {
     id?: string;
     user?: {
       id?: string;
-      name?: string;
+      displayName?: string;
       handle?: string;
       avatar?: string;
       verified?: boolean;
@@ -48,12 +48,6 @@ export interface TransformedNotification {
   metadata?: Record<string, any>;
 }
 
-function nameToString(name: NotificationActor['name']): string | undefined {
-  if (typeof name === 'string') return name;
-  if (name && typeof name === 'object' && 'full' in name) return name.full;
-  return undefined;
-}
-
 function isNotificationActor(value: unknown): value is NotificationActor {
   return typeof value === 'object' && value !== null;
 }
@@ -70,9 +64,9 @@ export const transformNotification = (
     ? rawNotification.actorId
     : undefined;
   const actorName =
-    nameToString(actorFromActorId?.name) ||
+    actorFromActorId?.displayName ||
     actorFromActorId?.username ||
-    nameToString(rawNotification.actorId_populated?.name) ||
+    rawNotification.actorId_populated?.displayName ||
     rawNotification.actorId_populated?.username ||
     'Someone';
 

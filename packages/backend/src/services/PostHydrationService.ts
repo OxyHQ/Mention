@@ -101,7 +101,6 @@ const DEFAULT_PRIVACY = {
 };
 
 export class PostHydrationService {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async hydratePosts(rawPosts: object[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
     if (!Array.isArray(rawPosts) || rawPosts.length === 0) {
       return [];
@@ -598,7 +597,7 @@ export class PostHydrationService {
           try {
             const userData: OxyUser = await defaultOxyClient.getUserById(userId);
             const username: string = String(userData?.username || userData?.handle || userId);
-            const displayName: string = String(userData?.name?.full || userData?.displayName || username || userId);
+            const displayName: string = userData.displayName;
             const rawAvatar: string | undefined = typeof userData?.avatar === 'string'
               ? userData.avatar
               : typeof (userData as Record<string, unknown>)?.profileImage === 'string'
@@ -612,8 +611,7 @@ export class PostHydrationService {
             userMap.set(userId, {
               id: String(userData?.id || userId),
               handle: username,
-              displayName: displayName,
-              name: displayName,
+              displayName,
               avatarUrl: avatarValue,
               avatar: avatarValue,
               badges: Array.isArray(userData.badges)
@@ -628,8 +626,7 @@ export class PostHydrationService {
             userMap.set(userId, {
               id: userId,
               handle: userId,
-              displayName: 'User',
-              name: 'User',
+              displayName: userId,
               avatarUrl: undefined,
               avatar: undefined,
               badges: undefined,
@@ -918,8 +915,7 @@ export class PostHydrationService {
     const user = userMap.get(authorId) ?? {
       id: authorId,
       handle: authorId,
-      displayName: 'User',
-      name: 'User',
+      displayName: authorId,
       avatarUrl: undefined,
       avatar: undefined,
       badges: undefined,
@@ -1279,18 +1275,6 @@ export class PostHydrationService {
           const userData = await defaultOxyClient.getUserById(mentionId);
           const username = userData.username || mentionId;
 
-          // Use proper full name fallback chain: name.full → name.first + name.last → displayName → username
-          let fullName: string;
-          if (userData.name?.full) {
-            fullName = userData.name.full;
-          } else if (userData.name?.first) {
-            fullName = `${userData.name.first} ${userData.name.last || ''}`.trim();
-          } else if (userData.displayName) {
-            fullName = typeof userData.displayName === 'string' ? userData.displayName : String(userData.displayName || username);
-          } else {
-            fullName = username;
-          }
-
           const rawAvatar = typeof userData.avatar === 'string'
             ? userData.avatar
             : (userData as Record<string, unknown>).profileImage as string | undefined ?? undefined;
@@ -1299,8 +1283,7 @@ export class PostHydrationService {
           mentionCache.set(mentionId, {
             id: userData.id || mentionId,
             handle: username,
-            displayName: fullName,
-            name: fullName,
+            displayName: userData.displayName,
             avatarUrl: avatarValue,
             avatar: avatarValue,
             badges: Array.isArray(userData.badges)
@@ -1315,8 +1298,7 @@ export class PostHydrationService {
           mentionCache.set(mentionId, {
             id: mentionId,
             handle: mentionId,
-            displayName: 'User',
-            name: 'User',
+            displayName: mentionId,
             avatarUrl: undefined,
             avatar: undefined,
             badges: undefined,
@@ -1343,4 +1325,3 @@ export class PostHydrationService {
 }
 
 export const postHydrationService = new PostHydrationService();
-

@@ -16,7 +16,6 @@ import {
   Platform,
 } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
 import type { OxyServices } from '@oxyhq/core';
 import { createScopedLogger } from '@/lib/logger';
 import { useAuth } from '@oxyhq/services';
@@ -57,7 +56,6 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
   oxyServices,
   size = 'small',
 }: StableFollowButtonInnerProps) {
-  const theme = useTheme();
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
@@ -119,21 +117,17 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
     styles.button,
     size === 'small' && styles.buttonSmall,
     size === 'large' && styles.buttonLarge,
-    {
-      backgroundColor: isFollowing ? theme.colors.primary : theme.colors.background,
-      borderColor: isFollowing ? theme.colors.primary : theme.colors.border,
-    },
   ];
 
   const textStyle = [
     styles.text,
     size === 'small' && styles.textSmall,
     size === 'large' && styles.textLarge,
-    { color: isFollowing ? '#FFFFFF' : theme.colors.text },
   ];
 
   return (
     <TouchableOpacity
+      className={isFollowing ? 'bg-primary border-primary' : 'bg-background border-border'}
       style={buttonStyle}
       onPress={handlePress}
       disabled={loading}
@@ -142,7 +136,10 @@ const StableFollowButtonInner = memo(function StableFollowButtonInner({
       {loading ? (
         <SpinnerIcon size={16} className={isFollowing ? "text-primary-foreground" : "text-primary"} />
       ) : (
-        <Text style={textStyle}>
+        <Text
+          className={isFollowing ? 'text-primary-foreground' : 'text-foreground'}
+          style={textStyle}
+        >
           {isFollowing ? 'Following' : 'Follow'}
         </Text>
       )}

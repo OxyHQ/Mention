@@ -17,7 +17,7 @@ import { logger } from '@/lib/logger';
 export interface MentionUser {
     id: string;
     username: string;
-    name: string;
+    displayName: string;
     avatar?: string;
     verified?: boolean;
 }
@@ -51,26 +51,27 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                 // Search for users via Oxy services
                 const { data: searchResults } = await oxyServices.searchProfiles(query, { limit: 10 });
 
-                const mappedUsers: MentionUser[] = (searchResults || []).map((profile: any) => {
-                    // Handle name object or string
-                    let displayName = profile.username || profile.handle;
-                    if (typeof profile.name === 'string') {
-                        displayName = profile.name;
-                    } else if (profile.name?.full) {
-                        displayName = profile.name.full;
-                    } else if (profile.name?.first) {
-                        displayName = `${profile.name.first} ${profile.name.last || ''}`.trim();
-                    } else if (profile.displayName) {
-                        displayName = profile.displayName;
+                const mappedUsers: MentionUser[] = (searchResults || []).flatMap((profile: {
+                    id?: string;
+                    _id?: string;
+                    username?: string;
+                    handle?: string;
+                    displayName?: string;
+                    avatar?: string;
+                    profilePicture?: string;
+                    verified?: boolean;
+                }) => {
+                    const username = profile.username || profile.handle || '';
+                    if (!username || !profile.displayName) {
+                        return [];
                     }
-
-                    return {
-                        id: profile.id || profile._id,
-                        username: profile.username || profile.handle,
-                        name: displayName,
+                    return [{
+                        id: profile.id || profile._id || username,
+                        username,
+                        displayName: profile.displayName,
                         avatar: profile.avatar || profile.profilePicture,
                         verified: profile.verified || false,
-                    };
+                    }];
                 });
 
                 setUsers(mappedUsers);
@@ -135,7 +136,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                                         style={styles.userName}
                                         numberOfLines={1}
                                     >
-                                        {item.name}
+                                        {item.displayName}
                                     </Text>
                                     {item.verified && (
                                         <Text style={styles.verifiedBadge}>✓</Text>

@@ -43,6 +43,7 @@ import {
 } from '@/db';
 import type { FeedItem, FeedMetaData } from '@/db';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
+import type { FeedFilters } from '@/utils/feedUtils';
 
 const logger = createScopedLogger('PostsStore');
 
@@ -116,8 +117,6 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   };
 
   const user = raw?.user ?? {};
-  const displayName = user.displayName || user.name || user.handle || 'User';
-  const avatarUrl = user.avatarUrl || user.avatar || '';
 
   const metadata = {
     ...raw?.metadata,
@@ -141,10 +140,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     linkPreview: raw?.linkPreview ?? null,
     user: {
       ...user,
-      displayName,
-      name: displayName,
-      avatarUrl,
-      avatar: avatarUrl,
+      avatar: user.avatarUrl ?? user.avatar,
       handle: user.handle || '',
       badges: user.badges,
       isVerified: user.isVerified,
@@ -224,7 +220,7 @@ interface FeedSliceUI {
   isLoading: boolean;
   error: string | null;
   lastUpdated: number;
-  filters?: Record<string, any>;
+  filters?: FeedFilters;
 }
 
 interface PostsStoreState {
@@ -243,8 +239,8 @@ interface PostsStoreState {
   fetchFeed: (request: FeedRequest) => Promise<void>;
   fetchUserFeed: (userId: string, request: FeedRequest) => Promise<{ pending: boolean }>;
   fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
-  refreshFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
-  loadMoreFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
+  refreshFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
+  loadMoreFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
 
   // Content creation
   createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
@@ -364,7 +360,7 @@ export const usePostsStore = create<PostsStoreState>()(
           nextCursor: response.nextCursor,
           totalCount: items.length,
           lastUpdated: Date.now(),
-          filters: request.filters as any,
+          filters: request.filters,
         });
 
         // Also persist related posts
@@ -378,7 +374,7 @@ export const usePostsStore = create<PostsStoreState>()(
           ...bumpVersion(s),
           feedUI: {
             ...s.feedUI,
-            [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now(), filters: request.filters as any },
+            [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now(), filters: request.filters },
           },
           lastRefresh: Date.now(),
         }));
@@ -412,6 +408,7 @@ export const usePostsStore = create<PostsStoreState>()(
       try {
         const response = await feedService.getUserFeed(userId, request);
         const items = response.items?.map((item) => transformToUIItem(item)) || [];
+        const isPendingEmptyInitialLoad = !request.cursor && response.pending === true && items.length === 0;
 
         // Prime the React Query actor cache (works web + native, no SQLite)
         precacheActorsFromPosts(items);
@@ -423,6 +420,10 @@ export const usePostsStore = create<PostsStoreState>()(
             nextCursor: response.nextCursor,
             totalCount: items.length,
           });
+        } else if (isPendingEmptyInitialLoad && dbGetFeedMeta(feedKey)?.lastUpdated) {
+          // Keep the visible cached profile feed while the backend finishes
+          // federated outbox sync. Replacing it with [] causes cold-boot profile
+          // feeds to appear wiped until the next successful poll.
         } else {
           // Replace mode
           dbSetFeedItems(feedKey, items, {
@@ -497,7 +498,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── refreshFeed ──────────────────────────────────────────
-    refreshFeed: async (type: FeedType, filters?: Record<string, any>) => {
+    refreshFeed: async (type: FeedType, filters?: FeedFilters) => {
       const feedKey = buildFeedKey(type);
       const ui = get().feedUI[feedKey];
       if (ui?.isLoading) return;
@@ -507,7 +508,7 @@ export const usePostsStore = create<PostsStoreState>()(
       }));
 
       try {
-        const response = await feedService.getFeed({ type, limit: 20, filters } as any);
+        const response = await feedService.getFeed({ type, limit: 20, filters });
         const items = response.items?.map((item) => transformToUIItem(item)) || [];
 
         // Prime the React Query actor cache (works web + native, no SQLite)
@@ -540,7 +541,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── loadMoreFeed ─────────────────────────────────────────
-    loadMoreFeed: async (type: FeedType, filters?: Record<string, any>) => {
+    loadMoreFeed: async (type: FeedType, filters?: FeedFilters) => {
       const feedKey = buildFeedKey(type);
       const ui = get().feedUI[feedKey];
       const meta = dbGetFeedMeta(feedKey);
@@ -565,7 +566,7 @@ export const usePostsStore = create<PostsStoreState>()(
       try {
         const cursorAtRequestTime = meta.nextCursor;
         const response = await feedService.getFeed(
-          { type, cursor: cursorAtRequestTime, limit: 20, filters } as any,
+          { type, cursor: cursorAtRequestTime, limit: 20, filters },
           { signal: abortController.signal }
         );
 

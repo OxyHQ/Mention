@@ -1,5 +1,5 @@
-import React, { memo, useMemo, useCallback } from 'react';
-import { View, TouchableOpacity, Pressable, Platform } from 'react-native';
+import React, { memo, useCallback } from 'react';
+import { View, TouchableOpacity, Pressable, Platform, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { FollowButton } from '@oxyhq/services';
@@ -9,10 +9,12 @@ import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import UserName from '@/components/UserName';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface SuggestedUserData {
   id: string;
   username?: string;
+  displayName: string;
   name?: { first?: string; last?: string; full?: string };
   avatar?: string;
   bio?: string;
@@ -37,28 +39,13 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   const router = useRouter();
   const cachedUser = useUserById(user.id);
 
-  const rawHandle = user.username || user.id;
-
-  // For federated users, the username may already contain the domain (e.g. "user@mastodon.social").
-  // Build the full handle without duplicating the domain.
-  const hasDomainInHandle = rawHandle.includes('@');
-  const handle = hasDomainInHandle ? rawHandle : (user.instance ? `${rawHandle}@${user.instance}` : rawHandle);
-
-  const displayName = useMemo(() => {
-    if (user.name?.full) return user.name.full;
-    if (user.name?.first) {
-      return `${user.name.first} ${user.name.last || ''}`.trim();
-    }
-    return user.username || 'Unknown';
-  }, [user.name?.full, user.name?.first, user.name?.last, user.username]);
+  const handle = getNormalizedUserHandle(user);
 
   const handlePress = useCallback(() => {
-    if (user.isFederated) {
+    if (handle) {
       router.push(`/@${handle}`);
-    } else {
-      router.push(`/@${rawHandle}`);
     }
-  }, [router, rawHandle, handle, user.isFederated]);
+  }, [router, handle]);
 
   const handleDismiss = useCallback(() => {
     onDismiss(user.id);
@@ -67,14 +54,15 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   return (
     <TouchableOpacity
       className="flex-row items-center py-3 px-4 border-b border-border"
-      style={Platform.select({ web: { cursor: 'pointer' as any } })}
+      style={Platform.select({ web: styles.webCursor })}
       onPress={handlePress}
+      disabled={!handle}
       activeOpacity={0.7}
     >
       <Avatar source={user.avatar || cachedUser?.avatar} size={40} />
       <View className="flex-1 ml-3 mr-3">
         <UserName
-          name={displayName}
+          name={user.displayName}
           isFederated={user.isFederated}
           isAgent={user.isAgent}
           isAutomated={user.isAutomated}
@@ -82,7 +70,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
           style={{ name: { fontSize: 15, lineHeight: 20 } }}
         />
         <ThemedText className="text-muted-foreground text-sm" style={{ lineHeight: 18, marginTop: 1 }} numberOfLines={1}>
-          @{handle}
+          {handle ? `@${handle}` : '@unknown'}
         </ThemedText>
         {user.bio ? (
           <ThemedText
@@ -109,3 +97,9 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
 });
 
 export type { SuggestedUserData };
+
+const styles = StyleSheet.create({
+  webCursor: {
+    cursor: 'pointer',
+  },
+});

@@ -23,6 +23,7 @@ import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import SEO from '@/components/SEO';
 import { pokeService } from '@/services/pokeService';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
@@ -103,7 +104,10 @@ export default function PokesScreen() {
     }, [refetchReceived, refetchSent, refetchSuggested]);
 
     const navigateToProfile = useCallback((username: string) => {
-        router.push(`/@${username}` as any);
+        const handle = getNormalizedUserHandle({ username });
+        if (handle) {
+            router.push(`/@${handle}`);
+        }
     }, [router]);
 
     const receivedPokes = receivedData?.pokes ?? [];
@@ -149,7 +153,7 @@ export default function PokesScreen() {
 
     const renderUserRow = useCallback((
         key: string,
-        user: { id: string; username: string; name: string; avatar?: string },
+        user: { id: string; username: string; displayName: string; avatar?: string },
         subtitle: React.ReactNode,
         buttonVariant: 'poke' | 'pokeBack' | 'undo',
     ) => (
@@ -162,7 +166,7 @@ export default function PokesScreen() {
                 <Avatar source={user.avatar || undefined} size={40} />
                 <View style={styles.userText}>
                     <ThemedText style={styles.userName} numberOfLines={1}>
-                        {user.name}
+                        {user.displayName}
                     </ThemedText>
                     <ThemedText className="text-muted-foreground" style={styles.userMeta} numberOfLines={1}>
                         {subtitle}

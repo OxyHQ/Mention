@@ -12,7 +12,7 @@
 
 - ✅ **Automatic fetching** - Fetches profile data when username changes
 - ✅ **Automatic appearance loading** - Loads customization settings automatically
-- ✅ **Unified design computation** - Computes `displayName`, `bannerUrl`, `avatar`, `minimalistMode` from profile data and profile design settings
+- ✅ **Unified design computation** - Uses the API-provided `displayName` plus profile design settings for `bannerUrl`, `avatar`, `minimalistMode`, and color
 - ✅ **Optimized re-renders** - Uses Zustand selectors to prevent unnecessary re-renders
 - ✅ **Type-safe** - Returns properly typed `ProfileData` with all computed fields
 
@@ -48,48 +48,9 @@
 
 - ✅ `ProfileScreen.tsx` - Correctly using `useProfileData`
 
-## Should Be Updated
+## Display Name Contract
 
-- ⚠️ `app/[username]/connections.tsx` - Currently manually fetching profile data (lines 62-80)
-  - Should use `useProfileData(cleanUsername)` instead
-  - This would give it access to `displayName`, `minimalistMode`, and other customization settings
-
-## Example Migration
-
-### Before (connections.tsx):
-```typescript
-const [profile, setProfile] = useState<any | null>(null);
-
-useEffect(() => {
-  const loadProfile = async () => {
-    try {
-      const userProfile = await useUsersStore.getState().ensureByUsername(
-        cleanUsername,
-        (u) => oxyServices.getProfileByUsername(u)
-      );
-      if (userProfile) {
-        setProfile(userProfile);
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
-  if (cleanUsername) {
-    loadProfile();
-  }
-}, [cleanUsername, oxyServices]);
-```
-
-### After:
-```typescript
-const { data: profileData, loading } = useProfileData(cleanUsername);
-// profileData now includes:
-// - profileData.design.displayName (customized display name)
-// - profileData.design.minimalistMode
-// - profileData.design.bannerUrl
-// - profileData.privacy.profileVisibility
-// - All original oxyProfile fields
-```
+`displayName` comes from the Oxy API as a required, already-resolved value. `useProfileData` may apply Mention profile customization when present, but it must not rebuild names from `name.first`, `name.last`, `name.full`, or `username`.
 
 ## API
 
@@ -114,7 +75,7 @@ interface ProfileData {
   
   // Computed design values
   design: {
-    displayName: string;        // Customized or fallback to name/username
+    displayName: string;        // API displayName, overridden only by profile customization
     bannerUrl?: string;        // Ready-to-render profile banner URL
     avatar?: string;           // Avatar URL
     coverPhotoEnabled: boolean;

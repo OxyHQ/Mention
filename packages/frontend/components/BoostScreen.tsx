@@ -156,7 +156,7 @@ const BoostScreen: React.FC = () => {
                         <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }} />
                         <View className="flex-1">
                             <UserName
-                                name={originalPost.user.name}
+                                name={originalPost.user.displayName}
                                 verified={originalPost.user.verified}
                                 variant="small"
                             />
@@ -178,7 +178,7 @@ const BoostScreen: React.FC = () => {
                         />
                         <View className="justify-center">
                             <Text className="text-foreground text-base font-bold mb-0.5">
-                                {user?.name?.full || user?.username}
+                                {user?.displayName}
                             </Text>
                             <Text className="text-muted-foreground text-sm">@{user?.username}</Text>
                         </View>

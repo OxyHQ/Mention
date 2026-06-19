@@ -34,7 +34,7 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
 
   const handleViewPress = useCallback(() => {
     if (community.id) {
-      router.push(`/community/${community.id}` as any);
+      router.push(`/community/${community.id}`);
     }
   }, [community.id]);
 

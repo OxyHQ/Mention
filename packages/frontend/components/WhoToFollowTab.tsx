@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { logger } from '@/lib/logger';
 import { isAuthError } from '@/utils/authErrors';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const APP_URL = 'https://mention.earth';
 
@@ -34,6 +35,11 @@ type RecommendedUser = Awaited<
   _id?: string;
   avatar?: string;
   bio?: string;
+  instance?: string;
+  isFederated?: boolean;
+  federation?: {
+    domain?: string;
+  };
 };
 
 /**
@@ -83,22 +89,17 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
   const [recommendations, setRecommendations] = useState<RecommendedUser[]>([]);
 
   const getInviteMessage = useCallback(() => {
-    const userName = user
-      ? typeof user.name === 'string'
-        ? user.name
-        : user.name?.full || user.name?.first || user.username
-      : 'Someone';
     const userHandle = user?.username || '';
 
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
-        name: userName,
+        name: user?.displayName ?? 'Someone',
         handle: userHandle,
         url: APP_URL,
       });
     }
     return t('settings.inviteContacts.shareMessage', {
-      name: userName,
+      name: user?.displayName ?? 'Someone',
       url: APP_URL,
     });
   }, [user, t]);
@@ -266,36 +267,38 @@ const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId:
   const router = useRouter();
   const cachedUser = useUserById(userId);
 
-  const displayName = useMemo(() => {
-    if (item.name?.full) return item.name.full;
-    if (item.name?.first) {
-      return `${item.name.first} ${item.name.last || ''}`.trim();
-    }
-    return item.username || 'Unknown User';
-  }, [item.name, item.username]);
-
-  const avatarUri = item.avatar || cachedUser?.avatar;
-  const username = item.username || userId;
+  const username = item.username || cachedUser?.username || '';
+  const instance = item.instance || item.federation?.domain;
+  const handle = getNormalizedUserHandle({
+    username,
+    instance,
+    isFederated: item.isFederated,
+  });
 
   const handlePress = useCallback(() => {
-    router.push(`/@${username}`);
-  }, [router, username]);
+    if (handle) {
+      router.push(`/@${handle}`);
+    }
+  }, [router, handle]);
 
   return (
     <View className="border-border" style={styles.row}>
       <TouchableOpacity
         style={styles.rowLeft}
         onPress={handlePress}
+        disabled={!handle}
         activeOpacity={0.7}
       >
-        <Avatar source={avatarUri} size={40} />
+        <Avatar source={item.avatar || cachedUser?.avatar} size={40} />
         <View style={styles.rowTextWrap}>
           <ThemedText className="text-foreground" style={styles.rowTitle}>
-            {displayName}
+            {item.displayName}
           </ThemedText>
-          <ThemedText className="text-muted-foreground" style={styles.rowSub}>
-            @{username}
-          </ThemedText>
+          {handle ? (
+            <ThemedText className="text-muted-foreground" style={styles.rowSub}>
+              @{handle}
+            </ThemedText>
+          ) : null}
           {item.bio ? (
             <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={1}>
               {item.bio}

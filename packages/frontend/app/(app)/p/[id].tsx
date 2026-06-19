@@ -30,6 +30,8 @@ import { useTranslation } from 'react-i18next';
 import { statisticsService } from '@/services/statisticsService';
 import SEO from '@/components/SEO';
 
+type PostDetailEntity = HydratedPost | Reply | Boost;
+
 const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
@@ -41,8 +43,8 @@ const PostDetailScreen: React.FC = () => {
     const { treeView, sortOrder } = useThreadPreferences();
     const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
 
-    const [post, setPost] = useState<HydratedPost | Reply | Boost | null>(null);
-    const [parentPost, setParentPost] = useState<HydratedPost | Reply | Boost | null>(null);
+    const [post, setPost] = useState<PostDetailEntity | null>(null);
+    const [parentPost, setParentPost] = useState<PostDetailEntity | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
@@ -79,17 +81,17 @@ const PostDetailScreen: React.FC = () => {
                 const cachedPost = usePostsStore.getState().getPostFromDb(id);
 
                 if (cachedPost) {
-                    setPost(cachedPost as any);
+                    setPost(cachedPost);
                     setLoading(false);
 
                     // Fetch parent post if this is a reply
-                    if ((cachedPost as any).parentPostId) {
-                        const cachedParent = usePostsStore.getState().getPostFromDb((cachedPost as any).parentPostId);
+                    if (cachedPost.parentPostId) {
+                        const cachedParent = usePostsStore.getState().getPostFromDb(cachedPost.parentPostId);
                         if (cachedParent) {
-                            setParentPost(cachedParent as any);
+                            setParentPost(cachedParent);
                         } else {
                             try {
-                                const parentResponse = await getPostById((cachedPost as any).parentPostId);
+                                const parentResponse = await getPostById(cachedPost.parentPostId);
                                 setParentPost(parentResponse);
                             } catch (parentErr) {
                                 // Silently ignore parent fetch errors
@@ -108,9 +110,9 @@ const PostDetailScreen: React.FC = () => {
                     setPost(response);
 
                     // Fetch parent post if this is a reply
-                    if (response && (response as any).parentPostId) {
+                    if (response?.parentPostId) {
                         try {
-                            const parentResponse = await getPostById((response as any).parentPostId);
+                            const parentResponse = await getPostById(response.parentPostId);
                             setParentPost(parentResponse);
                         } catch (parentErr) {
                             // Silently ignore parent fetch errors
@@ -139,19 +141,19 @@ const PostDetailScreen: React.FC = () => {
     // Generate SEO data for the post (must be before any early returns)
     const getPostImage = useCallback(() => {
         if (!post) return undefined;
-        const media = (post as any)?.content?.media || [];
-        const firstImage = media.find((m: any) => m?.type === 'image');
+        const media = post.content.media || [];
+        const firstImage = media.find((item) => item?.type === 'image');
         if (firstImage?.id && oxyServices?.getFileDownloadUrl) {
             return oxyServices.getFileDownloadUrl(firstImage.id);
         }
         return undefined;
     }, [post, oxyServices]);
 
-    const postText = (post as any)?.content?.text || '';
+    const postText = post?.content.text || '';
     const postDescription = postText.length > 200
         ? `${postText.substring(0, 197)}...`
         : postText || t('seo.post.description', { defaultValue: 'View this post on Mention' });
-    const postAuthor = (post as any)?.user?.name || (post as any)?.user?.handle || t('common.someone');
+    const postAuthor = post ? post.user.displayName : t('common.someone');
     const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
     const postImage = getPostImage();
 
@@ -160,7 +162,7 @@ const PostDetailScreen: React.FC = () => {
         if (!post) return null;
         return (
             <View>
-                {parentPost && (post as any)?.parentPostId && (
+                {parentPost && post.parentPostId && (
                     <View className="border-b pb-3 mb-2 border-border">
                         <Text className="text-sm px-4 py-2 font-medium text-muted-foreground">Replying to</Text>
                         <PostItem

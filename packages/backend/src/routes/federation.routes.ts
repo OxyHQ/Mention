@@ -100,7 +100,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
       id: actorUrl(username),
       type: 'Person',
       preferredUsername: username,
-      name: user.name?.full || user.displayName || username,
+      name: user.displayName,
       summary: user.bio || '',
       url: `https://${FEDERATION_DOMAIN}/@${username}`,
       inbox: inboxUrl(username),

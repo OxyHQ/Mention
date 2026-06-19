@@ -23,6 +23,34 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 
+type NotificationPost = React.ComponentProps<typeof PostItem>['post'];
+
+type ProfileLookupServices = {
+    getProfileById?: (id: string) => Promise<User | null | undefined>;
+    getProfile?: (id: string) => Promise<User | null | undefined>;
+    getUserById?: (id: string) => Promise<User | null | undefined>;
+    getUser?: (id: string) => Promise<User | null | undefined>;
+};
+
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+    return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function actorIdFrom(value: unknown): string {
+    if (typeof value === 'string') return value;
+    const object = objectValue(value);
+    return object ? stringValue(object._id) || stringValue(object.id) || '' : '';
+}
+
+function actorUsernameFrom(value: unknown): string {
+    const object = objectValue(value);
+    return object ? stringValue(object.username) || '' : '';
+}
+
 interface NotificationItemProps {
     notification: RawNotification;
     onMarkAsRead: (notificationId: string) => void;
@@ -43,8 +71,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     // Prime the users cache with any populated actor object present on the notification
     useEffect(() => {
         try {
-            const populated = (notification as any)?.actorId_populated;
-            const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
+            const populated = notification.actorId_populated;
+            const id = actorIdFrom(notification.actorId);
             if (populated && (id || populated.id || populated._id)) {
                 const merged = { ...(populated as Partial<User>), id: String(id || populated.id || populated._id) };
                 precacheProfileView(queryClient, merged);
@@ -65,24 +93,22 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
     const [actorName, setActorName] = useState<string>(initialName);
     const [actorAvatar, setActorAvatar] = useState<string | undefined>(() => {
-        const populated = (notification as any)?.actorId_populated;
-        return populated?.avatar;
+        return notification.actorId_populated?.avatar;
     });
 
     useEffect(() => {
         let cancelled = false;
-        const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
+        const id = actorIdFrom(notification.actorId);
         if (!id || actorName) return; // nothing to resolve
 
         // Try the shared users cache first for immediate value
         try {
             const cachedUser = queryClient.getQueryData<User>(queryKeys.users.detail(String(id)));
-            if (cachedUser?.name || cachedUser?.username) {
-                const cachedName = typeof cachedUser.name === 'string' ? cachedUser.name : cachedUser.name?.full;
-                const displayName = cachedName || cachedUser.username || String(id);
-                setActorName(String(displayName));
+            if (cachedUser) {
+                const resolvedName = cachedUser.displayName;
+                setActorName(resolvedName);
                 setActorAvatar(cachedUser.avatar);
-                actorCacheRef.current.set(String(id), { name: String(displayName), avatar: cachedUser.avatar });
+                actorCacheRef.current.set(String(id), { name: resolvedName, avatar: cachedUser.avatar });
                 return;
             }
         } catch { }
@@ -91,7 +117,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         const resolve = async () => {
             try {
                 if (!oxyServices) return;
-                const svc: any = oxyServices as any;
+                const svc = oxyServices as unknown as ProfileLookupServices;
                 const loader = (actorId: string) => {
                     if (typeof svc.getProfileById === 'function') return svc.getProfileById(actorId);
                     if (typeof svc.getProfile === 'function') return svc.getProfile(actorId);
@@ -104,13 +130,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     queryFn: () => loader(String(id)),
                     staleTime: 5 * 60 * 1000,
                 });
-                const profile = ensured || null;
-                const profileName = typeof profile?.name === 'string' ? profile.name : profile?.name?.full;
-                const displayName = profileName || profile?.username || String(id);
-                if (!cancelled && displayName) {
-                    actorCacheRef.current.set(String(id), { name: String(displayName), avatar: profile?.avatar });
-                    setActorName(String(displayName));
-                    setActorAvatar(profile?.avatar);
+                if (!cancelled && ensured) {
+                    actorCacheRef.current.set(String(id), { name: ensured.displayName, avatar: ensured.avatar });
+                    setActorName(ensured.displayName);
+                    setActorAvatar(ensured.avatar);
+                } else if (!cancelled) {
+                    actorCacheRef.current.set(String(id), { name: String(id), avatar: undefined });
+                    setActorName(String(id));
                 }
             } catch {
                 // Fallback: keep id or existing
@@ -203,15 +229,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             router.push(`/p/${String(notification.entityId)}`);
         } else if (notification.entityType === 'profile') {
             const rawActor = notification.actorId;
-            const id = typeof rawActor === 'string'
-                ? rawActor
-                : (rawActor && typeof rawActor === 'object' && '_id' in rawActor ? String((rawActor as { _id?: unknown })._id ?? '') : '');
+            const id = actorIdFrom(rawActor);
             const cachedUser = id ? queryClient.getQueryData<User>(queryKeys.users.detail(id)) : undefined;
-            const uname = cachedUser?.username || '';
+            const uname = cachedUser?.username || notification.actorId_populated?.username || actorUsernameFrom(rawActor);
             if (uname) {
                 router.push(`/@${uname}`);
-            } else if (id) {
-                router.push(`/${id}`);
             }
         }
     }, [notification, onMarkAsRead, router]);
@@ -285,17 +307,17 @@ const PostNotificationItem: React.FC<{
 }> = ({ notification, actorName, onMarkAsRead, handlePress }) => {
     const { t } = useTranslation();
     const { getPostById } = usePostsStore();
-    const embedded = (notification as any).post ? ZEmbeddedPost.safeParse((notification as any).post) : null;
-    const [post, setPost] = useState<any>(embedded?.success ? embedded.data : null);
-    const [loading, setLoading] = useState(!(notification as any).post);
+    const embedded = notification.post ? ZEmbeddedPost.safeParse(notification.post) : null;
+    const [post, setPost] = useState<NotificationPost | null>(embedded?.success ? embedded.data as NotificationPost : null);
+    const [loading, setLoading] = useState(!notification.post);
 
     useEffect(() => {
-        if ((notification as any).post) return; // Backend provided embedded post
+        if (notification.post) return; // Backend provided embedded post
         const loadPost = async () => {
             try {
                 if (notification.entityId && notification.entityType === 'post') {
                     const postData = await getPostById(String(notification.entityId));
-                    setPost(postData);
+                    setPost(postData as NotificationPost | null);
                 }
             } catch (error) {
                 logger.error('Error loading post for notification');

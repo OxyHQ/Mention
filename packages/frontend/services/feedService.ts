@@ -57,7 +57,7 @@ interface FeedDataEnvelope {
 }
 
 interface PostEngagementUsersResponse {
-  users: Array<{ id: string; name: string; handle: string; avatar: string; verified: boolean }>;
+  users: Array<{ id: string; displayName: string; handle: string; avatar?: string; verified: boolean }>;
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;
@@ -122,7 +122,6 @@ const makeViewerAwarePublicRead = async <T = unknown>(
 
 interface FeedServiceOptions {
   signal?: AbortSignal;
-  skipCache?: boolean;
 }
 
 // In-flight request deduplication (transient — stays in memory, not SQLite)
@@ -339,8 +338,21 @@ class FeedService {
    * Create a thread of posts
    */
   async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: unknown[] }> {
-    const response = await authenticatedClient.post<unknown[]>('/posts/thread', request);
-    return { success: true, posts: response.data };
+    const response = await authenticatedClient.post('/posts/thread', request);
+    const data = response?.data;
+
+    if (data && typeof data === 'object' && data !== null && 'posts' in data) {
+      return {
+        success: typeof (data as Record<string, unknown>).success === 'boolean'
+          ? (data as Record<string, boolean>).success
+          : true,
+        posts: Array.isArray((data as Record<string, unknown>).posts)
+          ? (data as Record<string, unknown[]>).posts
+          : []
+      };
+    }
+
+    return { success: true, posts: Array.isArray(data) ? data : [] };
   }
 
   /**

@@ -5,14 +5,14 @@ import { logger } from '@/lib/logger';
 export const ZActor = z.object({
   _id: z.string().optional(),
   username: z.string().optional(),
-  name: z.union([z.string(), z.object({ full: z.string() })]).optional(),
+  displayName: z.string().optional(),
   avatar: z.string().optional(),
 }).partial();
 
 // Embedded post user
 export const ZEmbeddedUser = z.object({
   id: z.string().optional(),
-  name: z.string().default("User"),
+  displayName: z.string(),
   handle: z.string().optional(),
   avatar: z.string().optional(),
   verified: z.boolean().optional(),

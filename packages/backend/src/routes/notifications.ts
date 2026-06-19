@@ -9,8 +9,21 @@ import PushToken from '../models/PushToken';
 import { sendPushToUser } from '../utils/push';
 import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
+import { postHydrationService } from '../services/PostHydrationService';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
+import type { User } from '@oxyhq/core';
 
 const router = express.Router();
+
+function toPopulatedActor(actor: Partial<User> & { _id?: string }, fallbackId: unknown) {
+  const id = String(actor?.id || actor?._id || fallbackId);
+  return {
+    _id: id,
+    username: actor?.username || id,
+    displayName: actor?.displayName ?? id,
+    avatar: resolveAvatarUrl(typeof actor?.avatar === 'string' ? actor.avatar : undefined),
+  };
+}
 
 // Helper function to emit notification event
 const emitNotification = async (req: Request, notification: any) => {
@@ -21,7 +34,7 @@ const emitNotification = async (req: Request, notification: any) => {
     if (notification.actorId && notification.actorId !== 'system') {
       actor = await oxy.getUserById(notification.actorId);
     } else if (notification.actorId === 'system') {
-      actor = { id: 'system', username: 'system', name: { full: 'System' }, avatar: undefined };
+      actor = { id: 'system', username: 'system', displayName: 'System', avatar: undefined };
     }
   } catch (e) {
     logger.warn('[Notifications] Failed to resolve actor profile:', e);
@@ -31,44 +44,16 @@ const emitNotification = async (req: Request, notification: any) => {
   let embeddedPost: any | undefined;
   try {
     if (notification.type === 'post' && notification.entityType === 'post' && notification.entityId) {
-      const post: any = await Post.findById(notification.entityId, {
-        _id: 1,
-        oxyUserId: 1,
-        content: 1,
-        stats: 1,
-        metadata: 1,
-        createdAt: 1
-      }).lean();
+      const post: any = await Post.findById(notification.entityId).lean();
       if (post) {
         const text: string = post?.content?.text || '';
         const trimmed = typeof text === 'string' ? text.trim() : '';
         preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-        try {
-          const profile = await oxy.getUserById(post.oxyUserId);
-          embeddedPost = {
-            id: String(post._id),
-            user: {
-              id: profile?.id || post.oxyUserId,
-              name: profile?.name?.full || profile?.name || profile?.username || 'User',
-              handle: profile?.username || 'user',
-              avatar: resolveAvatarUrl(typeof profile?.avatar === 'string' ? profile.avatar : undefined) ?? '',
-              verified: !!profile?.verified,
-            },
-            content: post.content || { text: '' },
-            date: post.createdAt,
-            engagement: {
-              replies: post?.stats?.commentsCount || 0,
-              boosts: post?.stats?.boostsCount || 0,
-              likes: post?.stats?.likesCount || 0,
-            },
-            isLiked: false,
-            isBoosted: false,
-            isSaved: false,
-            isThread: false,
-          };
-        } catch (e) {
-          logger.warn('[Notifications] Failed to resolve post author for embedded post:', e);
-        }
+        [embeddedPost] = await postHydrationService.hydratePosts([post], {
+          viewerId: String(notification.recipientId || ''),
+          maxDepth: 1,
+          includeLinkMetadata: true,
+        });
       }
     }
   } catch (e) {
@@ -78,12 +63,7 @@ const emitNotification = async (req: Request, notification: any) => {
     ...notification.toObject?.() || notification,
     preview,
     post: embeddedPost,
-    actorId_populated: actor ? {
-      _id: actor.id || actor._id || notification.actorId,
-      username: actor.username || notification.actorId,
-      name: actor.name?.full || actor.name || actor.username || notification.actorId,
-      avatar: resolveAvatarUrl(typeof actor.avatar === 'string' ? actor.avatar : undefined)
-    } : undefined
+    actorId_populated: actor ? toPopulatedActor(actor, notification.actorId) : undefined
   };
   notificationsNamespace.to(`user:${notification.recipientId}`).emit('notification', payload);
 };
@@ -148,7 +128,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     await Promise.all(uniqueActorIds.map(async (id: string) => {
       try {
         if (id === 'system') {
-          profilesMap.set(id, { id: 'system', username: 'system', name: { full: 'System' }, avatar: undefined });
+          profilesMap.set(id, { id: 'system', username: 'system', displayName: 'System', avatar: undefined });
         } else {
           const profile = await oxy.getUserById(id);
           profilesMap.set(id, profile);
@@ -192,50 +172,13 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           })
         );
 
-        // Resolve unique author profiles for posts, reusing profilesMap to avoid duplicate lookups
-        const authorIds = Array.from(new Set(posts.map((p: any) => p.oxyUserId).filter(Boolean)));
-        const authorMap = new Map<string, any>();
-        await Promise.all(authorIds.map(async (id: string) => {
-          // Reuse profile already resolved from actor resolution
-          if (profilesMap.has(id)) {
-            authorMap.set(id, profilesMap.get(id));
-            return;
-          }
-          try {
-            const profile = await oxy.getUserById(id);
-            authorMap.set(id, profile);
-            profilesMap.set(id, profile); // Cache for future reuse
-          } catch (e) {
-            logger.warn(`[Notifications] Failed to resolve post author ${id}:`, e);
-          }
-        }));
-
-        // Transform to UI post objects
-        posts.forEach((p: any) => {
-          const profile = authorMap.get(p.oxyUserId) || {};
-          const uiPost = {
-            id: String(p._id),
-            user: {
-              id: profile.id || p.oxyUserId,
-              name: profile?.name?.full || profile?.name || profile?.username || 'User',
-              handle: profile?.username || 'user',
-              avatar: resolveAvatarUrl(typeof profile?.avatar === 'string' ? profile.avatar : undefined) ?? '',
-              verified: !!profile?.verified,
-            },
-            content: p.content || { text: '' },
-            date: p.createdAt,
-            engagement: {
-              replies: p?.stats?.commentsCount || 0,
-              boosts: p?.stats?.boostsCount || 0,
-              likes: p?.stats?.likesCount || 0,
-            },
-            isLiked: false,
-            isBoosted: false,
-            isSaved: false,
-            isThread: false,
-          };
-          postMap.set(String(p._id), uiPost);
+        const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+          viewerId: userId,
+          oxyClient: createScopedOxyClient(req),
+          maxDepth: 1,
+          includeLinkMetadata: true,
         });
+        hydratedPosts.forEach((post) => postMap.set(post.id, post));
       } catch (e) {
         // Non-fatal; proceed without post embedding if query fails
       }
@@ -255,10 +198,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         preview,
         post: embeddedPost,
         actorId_populated: actor ? {
-          _id: actor.id || actor._id || n.actorId,
-          username: actor.username || n.actorId,
-          name: actor.name?.full || actor.name || actor.username || n.actorId,
-          avatar: resolveAvatarUrl(typeof actor.avatar === 'string' ? actor.avatar : undefined)
+          ...toPopulatedActor(actor, n.actorId),
         } : undefined
       };
     });
@@ -310,10 +250,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     const payload = {
       ...notification.toObject(),
       actorId_populated: actor ? {
-        _id: actor.id || actor._id || notification.actorId,
-        username: actor.username || notification.actorId,
-        name: actor.name?.full || actor.name || actor.username || notification.actorId,
-        avatar: resolveAvatarUrl(typeof actor.avatar === 'string' ? actor.avatar : undefined)
+        ...toPopulatedActor(actor, notification.actorId),
       } : undefined
     };
     res.status(201).json(payload);

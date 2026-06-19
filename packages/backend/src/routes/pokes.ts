@@ -4,12 +4,13 @@ import Poke from '../models/Poke';
 import { createNotification } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
 import { oxy } from '../../server';
+import type { User } from '@oxyhq/core';
 
 const router = Router();
 
 /** Resolve an array of Oxy user IDs into profile objects (best-effort). */
-async function resolveUsers(ids: string[]): Promise<Map<string, any>> {
-  const map = new Map<string, any>();
+async function resolveUsers(ids: string[]): Promise<Map<string, User>> {
+  const map = new Map<string, User>();
   await Promise.all(
     ids.map(async (id) => {
       try {
@@ -21,13 +22,12 @@ async function resolveUsers(ids: string[]): Promise<Map<string, any>> {
   return map;
 }
 
-function toUserSummary(user: any, id: string) {
+function toUserSummary(user: User | undefined, id: string) {
   return {
     id: user?.id || user?._id || id,
     username: user?.username || id,
-    name: user?.name?.full || user?.name || user?.username || id,
+    displayName: user?.displayName ?? id,
     avatar: user?.avatar,
-    bio: user?.profile?.bio || user?.bio,
   };
 }
 

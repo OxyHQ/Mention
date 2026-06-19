@@ -49,7 +49,7 @@ export function ListCard({
         if (onPress) {
             onPress();
         } else if (list.id) {
-            router.push(`/lists/${list.id}` as never);
+            router.push(`/lists/${list.id}`);
         }
     };
 
@@ -156,4 +156,3 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
     },
 });
-

@@ -28,6 +28,7 @@ interface RestrictedUser {
     id?: string;
     _id?: string;
     name?: string | { full?: string; first?: string; last?: string };
+    displayName: string;
     username?: string;
     handle?: string;
     avatar?: string;
@@ -407,10 +408,7 @@ export default function RestrictedUsersScreen() {
     };
 
     const getUserDisplayName = useCallback((user: RestrictedUser) => {
-        if (typeof user.name === 'string') return user.name;
-        if (user.name?.full) return user.name.full;
-        if (user.name?.first) return `${user.name.first} ${user.name.last || ''}`.trim();
-        return user.username || user.handle || '';
+        return user.displayName;
     }, []);
 
     const getUserHandle = useCallback((user: RestrictedUser) => {

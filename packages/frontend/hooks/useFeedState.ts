@@ -11,7 +11,6 @@ import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import {
     getFeedMemoryCache,
     setFeedMemoryCache,
-    clearFeedMemoryCache,
     subscribeToNewLocalPosts,
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
@@ -118,8 +117,6 @@ export function useFeedState({
         refreshFeed,
         loadMoreFeed,
         clearError: clearGlobalError,
-        clearFeed,
-        clearUserFeed,
     } = usePostsStore();
 
     // useMemoryFeed is true when:
@@ -439,7 +436,7 @@ export function useFeedState({
                     const resp = await withRetry(
                         () => userId
                             ? feedService.getUserFeed(userId, feedReq)
-                            : feedService.getFeed({ type, limit: 20, filters }, { signal, skipCache: forceRefresh }),
+                            : feedService.getFeed({ type, limit: 20, filters }, { signal }),
                         {
                             signal,
                             onRetry: (attempt) => {
@@ -461,6 +458,11 @@ export function useFeedState({
                     }
 
                     const uniqueItems = deduplicateItems(items, getItemKey);
+                    if (userId && resp.pending === true && uniqueItems.length === 0 && localItemsRef.current.length > 0) {
+                        applyPendingResult(true, false);
+                        return;
+                    }
+
                     // Prime the React Query actor cache so avatars/names render
                     // on web (no SQLite). This is the web feed's only actor source.
                     precacheActorsFromPosts(uniqueItems);
@@ -560,7 +562,7 @@ export function useFeedState({
                 const resp = await withRetry(
                     () => userId
                         ? feedService.getUserFeed(userId, feedReq)
-                        : feedService.getFeed({ type, limit: 20, filters }, { signal, skipCache: true }),
+                        : feedService.getFeed({ type, limit: 20, filters }, { signal }),
                     {
                         signal,
                         onRetry: (attempt) => {
@@ -582,6 +584,11 @@ export function useFeedState({
                 }
 
                 const uniqueItems = deduplicateItems(items, getItemKey);
+                if (userId && resp.pending === true && uniqueItems.length === 0 && localItemsRef.current.length > 0) {
+                    applyPendingResult(true, false);
+                    return;
+                }
+
                 // Prime the React Query actor cache (web feed's only actor source)
                 precacheActorsFromPosts(uniqueItems);
                 const refreshedSlices = resp.slices || undefined;
@@ -791,30 +798,19 @@ export function useFeedState({
             previousIdentity !== undefined && previousIdentity !== identity;
         previousIdentityRef.current = identity;
 
-        // When the viewer changes (anon→user, or user A→user B), the cached feed
-        // belongs to the previous identity and must not suppress the fresh fetch.
-        // Drop both the memory-mode retained slice and the SQLite cache for this
-        // feed so `fetchInitial` performs a real network load for the new viewer.
+        // When the viewer changes (anon→user, or user A→user B), bypass warm-start
+        // suppression and force a network refresh. Keep the current items on screen
+        // until the fresh result arrives so cold-boot auth restoration never flashes
+        // an empty profile/feed.
         if (identityChanged) {
             seededCacheRef.current = undefined;
-            if (useMemoryFeed) {
-                clearFeedMemoryCache(feedScrollKey);
-            } else if (!showOnlySaved) {
-                // Saved feeds are viewer-invariant (identity is constant 'saved'),
-                // so this branch only runs for the regular per-viewer feeds.
-                if (userId) {
-                    clearUserFeed(userId, type);
-                } else {
-                    clearFeed(type);
-                }
-            }
         }
 
         clearPendingPoll();
         pendingPollCountRef.current = 0;
         setPending(false);
 
-        fetchInitial(false);
+        fetchInitial(identityChanged);
     }, [type, userId, filters, useMemoryFeed, showOnlySaved, isAuthenticated, currentUserId]);
 
     // Return appropriate state based on which path is active.

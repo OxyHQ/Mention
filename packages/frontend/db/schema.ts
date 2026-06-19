@@ -102,8 +102,7 @@ export type FeedItem = HydratedPost & {
   isBoosted?: boolean;
   isSaved?: boolean;
   user: HydratedPost['user'] & {
-    name: string;
-    avatar: string;
+    avatar?: string;
   };
   media?: string[];
   mediaIds?: string[];
@@ -198,10 +197,11 @@ export function rowToFeedItem(row: PostRow): FeedItem {
   });
   const boost = safeJsonParse<HydratedBoostContext | null>(row.boost_json, null);
   const context = safeJsonParse<PostFeedContext | null>(row.context_json, null);
-  const user = safeJsonParse<any>(row.user_json, {});
-
-  const displayName = user.displayName || user.name || user.handle || 'User';
-  const avatarUrl = user.avatarUrl || user.avatar || '';
+  const user = safeJsonParse<HydratedPost['user']>(row.user_json, {
+    id: row.user_id,
+    handle: '',
+    displayName: '',
+  });
 
   const engagement: PostEngagementSummary = {
     likes: row.likes_count,
@@ -247,11 +247,8 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     linkPreview,
     user: {
       ...user,
-      displayName,
-      name: displayName,
-      avatarUrl,
-      avatar: avatarUrl,
-      handle: user.handle || '',
+      avatar: user.avatarUrl ?? user.avatar,
+      handle: user.handle,
       badges: user.badges,
       isVerified: user.isVerified,
       id: user.id || row.user_id,

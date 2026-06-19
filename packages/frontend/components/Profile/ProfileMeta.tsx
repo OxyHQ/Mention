@@ -7,6 +7,7 @@ import { LinkIcon } from '@/assets/icons/link-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import type { ProfileMetaProps } from './types';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * Profile metadata component
@@ -17,12 +18,14 @@ export const ProfileMeta = memo(function ProfileMeta({
   links,
   createdAt,
   username,
+  profileHandle,
 }: ProfileMetaProps) {
   const { t } = useTranslation();
 
   const hasLocation = Boolean(location);
   const hasLinks = links && links.length > 0;
   const hasJoinDate = Boolean(createdAt);
+  const targetHandle = getNormalizedUserHandle({ username: profileHandle || username });
 
   const formatJoinDate = useCallback((date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -69,7 +72,12 @@ export const ProfileMeta = memo(function ProfileMeta({
       {hasJoinDate && (
         <TouchableOpacity
           className="flex-row items-center mr-4 mb-1"
-          onPress={() => router.push(`/@${username}/about` as any)}
+          onPress={() => {
+            if (targetHandle) {
+              router.push(`/@${targetHandle}/about`);
+            }
+          }}
+          disabled={!targetHandle}
           activeOpacity={0.7}
         >
           <CalendarIcon size={16} className="text-muted-foreground" />

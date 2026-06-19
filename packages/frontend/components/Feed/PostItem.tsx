@@ -42,6 +42,7 @@ import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@/components/SubtleHover';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 import { show as toast } from '@oxyhq/bloom/toast';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -195,18 +196,14 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [router, viewPostId, isPostDetail]);
 
     const goToUser = useCallback(() => {
-        const handle = viewPost.user?.handle;
+        const handle = getNormalizedUserHandle({
+            handle: viewPost.user?.handle,
+            username: viewPost.user?.handle,
+        });
         if (handle) {
-            // Federated handles already contain the domain (e.g. alice@mastodon.social)
-            // so we only need to prepend @. Do NOT append @instance again.
             router.push(`/@${handle}`);
-            return;
         }
-        const id = viewPost.user?.id;
-        if (id) {
-            router.push(`/${id}`);
-        }
-    }, [router, viewPost.user?.handle, viewPost.user?.id]);
+    }, [router, viewPost.user?.handle]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
@@ -423,14 +420,14 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const boostedBy = viewPost.boost?.actor
         ? {
-            name: viewPost.boost.actor.displayName || viewPost.boost.actor.name || '',
+            displayName: viewPost.boost.actor.displayName,
             handle: viewPost.boost.actor.handle || '',
             verified: viewPost.boost.actor.isVerified,
             date: metadata.createdAt,
         }
         : undefined;
 
-    const postAuthor = viewPost.user?.name || viewPost.user?.displayName || viewPost.user?.handle || '';
+    const postAuthor = viewPost.user.displayName;
     const postTextSummary = content.text
         ? content.text.length > 80
             ? content.text.substring(0, 80) + '...'
@@ -511,7 +508,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 )}
                 <PostHeader
                     user={{
-                        name: viewPost.user.name || viewPost.user.displayName || '',
+                        displayName: viewPost.user.displayName,
                         handle: viewPost.user.handle || '',
                         verified: viewPost.user.isVerified,
                         isFederated: viewPost.user.isFederated,

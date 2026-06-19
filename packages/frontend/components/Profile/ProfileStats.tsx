@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useCallback } from 'react';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * Profile statistics component
@@ -17,20 +18,25 @@ export const ProfileStats = memo(function ProfileStats({
   boostsCount,
   repliesCount,
   profileUsername,
+  profileHandle,
   username,
   onPostsPress,
   onBoostsPress,
   onRepliesPress,
 }: ProfileStatsProps) {
   const { t } = useTranslation();
-  const displayUsername = profileUsername || username;
+  const displayUsername = getNormalizedUserHandle({ username: profileHandle || profileUsername || username });
 
   const handleFollowingPress = useCallback(() => {
-    router.push(`/@${displayUsername}/following` as any);
+    if (displayUsername) {
+      router.push(`/@${displayUsername}/following`);
+    }
   }, [displayUsername]);
 
   const handleFollowersPress = useCallback(() => {
-    router.push(`/@${displayUsername}/followers` as any);
+    if (displayUsername) {
+      router.push(`/@${displayUsername}/followers`);
+    }
   }, [displayUsername]);
 
   return (
@@ -38,6 +44,7 @@ export const ProfileStats = memo(function ProfileStats({
       <TouchableOpacity
         style={styles.statItem}
         onPress={handleFollowingPress}
+        disabled={!displayUsername}
       >
         <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(followingCount ?? 0)}
@@ -50,6 +57,7 @@ export const ProfileStats = memo(function ProfileStats({
       <TouchableOpacity
         style={styles.statItem}
         onPress={handleFollowersPress}
+        disabled={!displayUsername}
       >
         <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(followerCount ?? 0)}

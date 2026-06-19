@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
 interface GroupedNotificationItemProps {
   group: GroupedNotification;
   onMarkAsRead: (notificationId: string) => void;
@@ -35,12 +37,14 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
     if (lead.entityType === 'post' || lead.entityType === 'reply') {
       router.push(`/p/${group.entityId}`);
     } else if (lead.entityType === 'profile') {
-      const actorId = typeof lead.actorId === 'string' ? lead.actorId : (lead.actorId as any)?._id;
-      router.push(`/${actorId}`);
+      const username = group.actors[0]?.username;
+      if (username) {
+        router.push(`/@${username}`);
+      }
     }
   }, [group, onMarkAsRead, router]);
 
-  const getNotificationIcon = (type: string): string => {
+  const getNotificationIcon = (type: string): IoniconName => {
     switch (type) {
       case 'like': return 'heart';
       case 'boost': return 'repeat';
@@ -122,7 +126,7 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
       <View style={styles.avatarContainer}>
         <Avatar source={group.actors[0]?.avatar} size={40} />
         <View className="border-background" style={[styles.actionBadge, { backgroundColor: getNotificationColor(group.type) }]}>
-          <Ionicons name={getNotificationIcon(group.type) as any} size={12} color="#fff" />
+          <Ionicons name={getNotificationIcon(group.type)} size={12} color="#fff" />
         </View>
       </View>
 

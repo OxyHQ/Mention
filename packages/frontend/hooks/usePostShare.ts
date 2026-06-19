@@ -9,7 +9,7 @@ import { queryClient } from '@/lib/queryClient';
 interface SharePostUser {
     id?: string;
     _id?: string;
-    name?: string | { full?: string; first?: string; last?: string };
+    displayName?: string;
     username?: string;
     handle?: string;
 }
@@ -31,18 +31,7 @@ export function usePostShare(post: SharePost | null | undefined) {
             const contentText = content.text ?? post.text ?? '';
             const user: SharePostUser = post.user ?? {};
             const id = String(user.id ?? user._id ?? '');
-            const userName = user.name;
-            let resolvedName = '';
-            if (typeof userName === 'string') {
-                resolvedName = userName;
-            } else if (userName && typeof userName === 'object') {
-                if (userName.full) {
-                    resolvedName = userName.full;
-                } else if (userName.first) {
-                    resolvedName = `${userName.first} ${userName.last ?? ''}`.trim();
-                }
-            }
-            const name = resolvedName || user.username || user.handle || id || 'Someone';
+            const name = post.user ? post.user.displayName : 'Someone';
 
             let handle = user.handle || user.username || '';
             if (!handle && id) {
@@ -85,4 +74,3 @@ export function usePostShare(post: SharePost | null | undefined) {
 
     return sharePost;
 }
-

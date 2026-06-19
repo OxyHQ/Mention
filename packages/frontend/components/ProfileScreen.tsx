@@ -20,7 +20,7 @@ import { useAuth, useFollow } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
-import { APP_COLOR_PRESETS, BloomColorScope } from '@oxyhq/bloom/theme';
+import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
@@ -33,6 +33,7 @@ import { logger } from '@/lib/logger';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -180,13 +181,19 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     // Computed values
     const design = profileData?.design;
-    const displayName = design?.displayName || '';
     const avatarUri = design?.avatar;
     const bannerUri =
         design?.coverPhotoEnabled && design?.bannerUrl
             ? design.bannerUrl
             : undefined;
     const minimalistMode = design?.minimalistMode ?? false;
+    const profileHandle = useMemo(() => {
+        return getNormalizedUserHandle({
+            username: profileData?.username || username,
+            instance: profileData?.instance,
+            isFederated: profileData?.isFederated,
+        }) || username;
+    }, [profileData?.username, profileData?.instance, profileData?.isFederated, username]);
 
     // Memoized checks
     const isOwnProfile = useMemo(() => {
@@ -195,16 +202,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id, isFederated]);
 
-    const {
-        colorName: profileColorName,
-        backgroundColor: profileBgColor,
-    } = useProfileScreenColor({
+    const { colorName: profileColorName } = useProfileScreenColor({
         username,
         designColor: design?.color,
-        isOwnProfile,
     });
-
-    const profileFabBg = profileColorName ? APP_COLOR_PRESETS[profileColorName].hex : undefined;
 
     // User's profile color hex for passing to buttons
     const isPrivate = useMemo(
@@ -245,10 +246,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             setActiveTab(index);
             // Update URL silently for deep-linking / sharing without triggering navigation
             const tabName = TAB_NAMES[index];
-            const path = index === 0 ? `/@${username}` : `/@${username}/${tabName}`;
-            router.replace(path as any);
+            const path = index === 0 ? `/@${profileHandle}` : `/@${profileHandle}/${tabName}`;
+            router.replace(path);
         },
-        [username]
+        [username, profileHandle]
     );
 
     const handlePostsPress = useCallback(() => {
@@ -279,24 +280,24 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         if (!profileData) return;
 
         try {
-            const shareUrl = `https://mention.earth/@${profileData.username}`;
+            const shareUrl = `https://mention.earth/@${profileHandle}`;
             const shareMessage = t('profile.share.message', {
-                name: displayName || profileData.username,
-                defaultValue: `Check out ${displayName || profileData.username}'s profile on Mention!`,
+                name: profileData.design.displayName,
+                defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,
             });
 
             await Share.share({
                 message: `${shareMessage}\n\n${shareUrl}`,
                 url: shareUrl,
                 title: t('profile.share.title', {
-                    name: displayName || profileData.username,
-                    defaultValue: `${displayName || profileData.username} on Mention`,
+                    name: profileData.design.displayName,
+                    defaultValue: `${profileData.design.displayName} on Mention`,
                 }),
             });
         } catch (error) {
             logger.error('Error sharing profile');
         }
-    }, [profileData, displayName, t]);
+    }, [profileData, profileHandle, t]);
 
     // More options menu (block, mute, report)
     const handleMoreOptions = useCallback(() => {
@@ -405,8 +406,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     // DM button handler
     const handleDM = useCallback(() => {
         if (!profileData?.id) return;
-        // Navigate to DM conversation with this user
-        router.push(`/ai?userId=${profileData.id}&username=${profileData.username}` as any);
+        const params = new URLSearchParams({
+            userId: profileData.id,
+            username: profileData.username,
+        });
+        router.push(`/ai?${params.toString()}`);
     }, [profileData?.id, profileData?.username]);
 
     // Open on remote instance (federated only)
@@ -444,11 +448,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             extrapolate: 'clamp',
         });
     }, [scrollY, profileContentHeight]);
-
-    // SEO data
-    const profileDisplayName = displayName || profileData?.username || username;
-    const profileBio = profileData?.bio || '';
-    const profileImage = avatarUri || bannerUri;
 
     // Number of action icons rendered in the top-right cluster. Drives the right
     // boundary of the scrolled name overlay so a long display name truncates
@@ -491,35 +490,37 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     return (
         <>
-            <SEO
-                title={t('seo.profile.title', {
-                    name: profileDisplayName,
-                    username: username,
-                    defaultValue: `${profileDisplayName} (@${username}) on Mention`,
-                })}
-                description={
-                    profileBio
-                        ? t('seo.profile.description', {
-                            name: profileDisplayName,
-                            bio: profileBio,
-                            defaultValue: `View ${profileDisplayName}'s profile on Mention. ${profileBio}`,
-                        })
-                        : t('seo.profile.description', {
-                            name: profileDisplayName,
-                            bio: '',
-                            defaultValue: `View ${profileDisplayName}'s profile on Mention.`,
-                        })
-                }
-                image={profileImage}
-                type="profile"
-            />
+            {profileData ? (
+                <SEO
+                    title={t('seo.profile.title', {
+                        name: profileData.design.displayName,
+                        username,
+                        defaultValue: `${profileData.design.displayName} (@${username}) on Mention`,
+                    })}
+                    description={
+                        profileData.bio
+                            ? t('seo.profile.description', {
+                                name: profileData.design.displayName,
+                                bio: profileData.bio,
+                                defaultValue: `View ${profileData.design.displayName}'s profile on Mention. ${profileData.bio}`,
+                            })
+                            : t('seo.profile.description', {
+                                name: profileData.design.displayName,
+                                bio: '',
+                                defaultValue: `View ${profileData.design.displayName}'s profile on Mention.`,
+                            })
+                    }
+                    image={avatarUri || bannerUri}
+                    type="profile"
+                />
+            ) : null}
             <BloomColorScope colorPreset={profileColorName} asChild>
-            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container, profileBgColor ? { backgroundColor: profileBgColor } : undefined]}>
+            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
                 {loading ? (
                     <ProfileSkeleton />
-                ) : !profileData && profileError ? (
+                ) : !profileData ? (
                     <EmptyState
                         customIcon={<NoUpdatesIllustration width={200} height={200} />}
                         title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
@@ -574,15 +575,15 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             />
                             <View style={{ flex: 1, minWidth: 0 }}>
                                 <UserName
-                                    name={displayName}
-                                    verified={profileData?.verified}
+                                    name={profileData.design.displayName}
+                                    verified={profileData.verified}
                                     style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3 } }}
                                     unifiedColors={true}
                                 />
                                 <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
                                     {t('profile.postsCount', {
-                                        count: profileData?.postsCount ?? 0,
-                                        defaultValue: `${profileData?.postsCount ?? 0} posts`,
+                                        count: profileData.postsCount,
+                                        defaultValue: `${profileData.postsCount} posts`,
                                     })}
                                 </Text>
                             </View>
@@ -598,13 +599,12 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         style={{ height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }}
                                     />
                                     <Animated.View
-                                        className="absolute left-0 right-0 overflow-hidden"
+                                        className="absolute left-0 right-0 overflow-hidden bg-background"
                                         style={{
                                             height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
                                             top: 0,
                                             zIndex: 1,
                                             pointerEvents: 'none',
-                                            backgroundColor: profileBgColor || theme.colors.background,
                                             opacity: headerBackgroundOpacity,
                                         }}
                                     />
@@ -615,10 +615,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     style={{ height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }}
                                 >
                                     <Animated.View
+                                        className="bg-background"
                                         style={[
                                             StyleSheet.absoluteFill,
                                             {
-                                                backgroundColor: profileBgColor || theme.colors.background,
                                                 opacity: headerBackgroundOpacity,
                                             },
                                         ]}
@@ -643,25 +643,23 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         >
                             {/* Profile info + suggestions wrapper (keeps stickyHeaderIndices stable) */}
                             <View>
-                                {profileData && (
-                                    <ProfileContent
-                                        profileData={profileData}
-                                        avatarUri={avatarUri}
-                                        isOwnProfile={isOwnProfile}
-                                        isPrivate={isPrivate}
-                                        currentUsername={currentUser?.username}
-                                        followingCount={followingCount}
-                                        followerCount={followerCount}
-                                        username={username}
-                                        FollowButtonComponent={FollowButtonComponent}
-                                        showBottomSheet={showBottomSheet}
-                                        onPostsPress={handlePostsPress}
-                                        onBoostsPress={handleBoostsPress}
-                                        onRepliesPress={handleRepliesPress}
-                                        onLayout={setProfileContentHeight}
-                                    />
-                                )}
-                                {!isOwnProfile && profileData?.id && (
+                                <ProfileContent
+                                    profileData={profileData}
+                                    avatarUri={avatarUri}
+                                    isOwnProfile={isOwnProfile}
+                                    isPrivate={isPrivate}
+                                    currentUsername={currentUser?.username}
+                                    followingCount={followingCount}
+                                    followerCount={followerCount}
+                                    username={username}
+                                    FollowButtonComponent={FollowButtonComponent}
+                                    showBottomSheet={showBottomSheet}
+                                    onPostsPress={handlePostsPress}
+                                    onBoostsPress={handleBoostsPress}
+                                    onRepliesPress={handleRepliesPress}
+                                    onLayout={setProfileContentHeight}
+                                />
+                                {!isOwnProfile && (
                                     <SuggestedUsers
                                         visible={justFollowed}
                                         sourceUserId={profileData.id}
@@ -693,7 +691,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         <FAB
                             onPress={() => router.push('/compose')}
                             customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
-                            style={profileFabBg ? { backgroundColor: profileFabBg } : undefined}
                         />
 
                     </>

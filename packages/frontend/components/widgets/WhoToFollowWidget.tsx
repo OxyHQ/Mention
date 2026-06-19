@@ -16,10 +16,12 @@ import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
 import { getRecommendationFilters } from '@/lib/recommendationFilters';
 import { isAuthError } from '@/utils/authErrors';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface ProfileData {
   id: string;
   username?: string;
+  displayName: string;
   name?: {
     first?: string;
     last?: string;
@@ -188,41 +190,24 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
   const router = useRouter();
   const cachedUser = useUserById(profileData.id);
 
-  const displayName = useMemo(() => {
-    if (profileData.name?.full) return profileData.name.full;
-    if (profileData.name?.first) {
-      return `${profileData.name.first} ${profileData.name.last || ""}`.trim();
-    }
-    return profileData.username || "Unknown User";
-  }, [profileData.name, profileData.username]);
-
-  const avatarUri = profileData.avatar || cachedUser?.avatar;
-  const username = profileData.username || profileData.id;
-
-  // For federated users, the username may already contain the domain (e.g. "user@mastodon.social").
-  // Extract the local part for display and build the full handle without duplication.
-  const hasDomainInUsername = username.includes('@');
-  const displayHandle = hasDomainInUsername ? username : (profileData.instance ? `${username}@${profileData.instance}` : username);
+  const displayHandle = getNormalizedUserHandle(profileData);
 
   const handlePress = useCallback(() => {
-    if (profileData.isFederated) {
-      // Navigate using the full handle (user@domain), avoiding double-appending the domain
+    if (displayHandle) {
       router.push(`/@${displayHandle}`);
-    } else {
-      router.push(`/@${username}`);
     }
-  }, [router, username, displayHandle, profileData.isFederated]);
+  }, [router, displayHandle]);
 
   return (
     <View
       className="flex-row justify-between items-center border-border py-2"
       style={[styles.webCursor, showBorder && styles.itemBorder]}
     >
-      <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} activeOpacity={0.7}>
-        <Avatar source={avatarUri} size={34} placeholderColor={getUserPlaceholderColor(cachedUser)} />
+      <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} disabled={!displayHandle} activeOpacity={0.7}>
+        <Avatar source={profileData.avatar || cachedUser?.avatar} size={34} placeholderColor={getUserPlaceholderColor(cachedUser)} />
         <View className="ml-2.5 flex-1 mr-2">
           <UserName
-            name={displayName}
+            name={profileData.displayName}
             isFederated={profileData.isFederated}
             isAgent={profileData.isAgent}
             isAutomated={profileData.isAutomated}
@@ -230,7 +215,7 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
             style={{ name: { fontSize: 14 } }}
           />
           <ThemedText className="text-muted-foreground text-[12px]" numberOfLines={1}>
-            @{displayHandle}
+          {displayHandle ? `@${displayHandle}` : '@unknown'}
           </ThemedText>
         </View>
       </TouchableOpacity>

@@ -29,6 +29,7 @@ import { subscribeToListChanges } from '@/services/listMutations';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface ListOwner {
   _id?: string;
@@ -234,8 +235,9 @@ export default function ListDetailScreen() {
             </Text>
             <Pressable
               onPress={() => {
-                if (listOwner?.username && !isOwnList) {
-                  router.push(`/profile/${listOwner.username}`);
+                const handle = getNormalizedUserHandle({ username: listOwner?.username });
+                if (handle && !isOwnList) {
+                  router.push(`/@${handle}`);
                 }
               }}
               disabled={isOwnList || !listOwner?.username}
@@ -401,19 +403,17 @@ function ListMembers({
           <Text className="text-muted-foreground text-sm mb-2">
             {memberIds.length} {memberIds.length === 1 ? 'member' : 'members'}
           </Text>
-          {/* Member IDs are shown — a full member resolver would fetch user profiles */}
+          {/* Member IDs are shown until profiles are resolved elsewhere. */}
           {memberIds.map((memberId) => (
-            <TouchableOpacity
+            <View
               key={memberId}
               className="flex-row items-center gap-3 py-3 border-b border-border"
-              onPress={() => router.push(`/profile/${memberId}`)}
-              activeOpacity={0.7}
             >
               <Avatar size={40} />
               <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
                 {memberId}
               </Text>
-            </TouchableOpacity>
+            </View>
           ))}
         </View>
       )}
