@@ -55,7 +55,7 @@ packages/
 - **Backend**: Express 5, Mongoose 9, Redis 5, Socket.io, LiveKit Server SDK, Firebase Admin, AWS S3
 - **Feed System**: MTN protocol in `backend/src/mtn/` (ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners). `videos` descriptor (`packages/shared-types/src/mtn/feedDescriptor.ts`) is backed by `VideosFeed` (`packages/backend/src/mtn/feed/feeds/VideosFeed.ts`) — ranked feed of video posts (native + federated) powering the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400. Use `videos`.
 - **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain. Outbox sync uses the actor's advertised `outbox` URL (`fetchRemoteActor`), with `actorUri + '/outbox'` only as fallback — guessing breaks PeerTube/Lemmy/some Pleroma. Boosts (Announce) are imported as `type:'boost'` posts (mirroring native repost shape), deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill (`syncOutboxPosts`/`extractCandidates`) paths.
-- **Auth**: Oxy integration via @oxyhq/core + @oxyhq/services
+- **Auth**: Oxy integration via `@oxyhq/core ^3.4.13` + `@oxyhq/services ^10.2.10`
 
 ## Federated Media Cache
 
@@ -96,16 +96,18 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 
 ## Dependencies
 
-- `@oxyhq/core`, `@oxyhq/services` — Oxy platform SDK
-- `@oxyhq/bloom` — Shared UI component library
+- `@oxyhq/core ^3.4.13`, `@oxyhq/services ^10.2.10` — Oxy platform SDK
+- `@oxyhq/bloom ^0.8.5` — Shared UI component library
 
 ## Auth Cold-Boot Reactivity (Web)
 
 On web, the session restores asynchronously after mount — the `/sso` path can take 5–25s. The SDK auth state (`useAuth()` `isAuthenticated` / `user`) IS reactive, but consumers must treat it as such:
 
 - **Key data fetches on identity, not on the stable singleton.** React Query keys and `useEffect` deps must include `isAuthenticated` / `user?.id`. Keying on `oxyServices` or `[]` fetches once while anonymous and never recovers when the session lands. The feed (`useFeedState`) keys its initial-fetch effect on `isAuthenticated`/`currentUserId` and invalidates the cached anon feed on identity change. The home feed (`app/(app)/index.tsx`) remounts on the auth-identity key (`isAuthenticated && user?.id ? user.id : 'anon'`).
-- **SDK-owned private API readiness.** Use `useAuth().canUsePrivateApi` / `useAuth().isPrivateApiPending` from `@oxyhq/services ^10.2.5` to gate private endpoints (`/managed-accounts`, privacy lists, follow-status mutations, profile/settings, custom feeds). Do NOT add local auth hooks, token helpers, Axios auth interceptors, manual `Authorization` headers, or app-local refresh/session invalidation.
+- **SDK-owned private API readiness.** Use `useAuth().canUsePrivateApi` / `useAuth().isPrivateApiPending` from `@oxyhq/services ^10.2.10` to gate private endpoints (`/managed-accounts`, privacy lists, follow-status mutations, profile/settings, custom feeds). Do NOT add local auth hooks, token helpers, Axios auth interceptors, manual `Authorization` headers, or app-local refresh/session invalidation.
+- **SDK-owned SSO callback and cold boot.** The frontend uses `OxyProvider` with a registered `clientId`; SDK cold boot owns stored-session restore, FedCM/silent restore, `/sso` bounce, and `/__oxy/sso-callback` consumption. Do not add per-app callback routes or local SSO helper copies.
 - **Mention backend clients use linked SDK clients.** `packages/frontend/utils/api.ts` and `packages/agora/utils/api.ts` adapt `oxyServices.createLinkedClient({ baseURL: API_URL })` into the app's `{ data }` response shape. Refresh and invalidated-token sign-out belong to `@oxyhq/core`/`@oxyhq/services`, not the app.
+- **Backend auth middleware comes from core.** Backend APIs use `@oxyhq/core/server` (`createOxyAuthMiddleware`, `createOptionalOxyAuth`, `createOxyRateLimit`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`). Do not define local `AuthRequest`, `requireAuth`, `getUserId`, bearer parsers, or token-decoding middleware. Bearer-authenticated writes do not fetch app-local CSRF tokens; CSRF remains for ambient cookie credentials.
 - **Jest does not reproduce this class of bug.** The slow SSO restore only manifests on a real cold boot with a session. Verify in a real browser (foregrounded tab); the `/sso` bounce can take 20–30s.
 - **`usePrivacyControls` infinite-401-loop pattern:** `getBlockedUsers`/`getRestrictedUsers` MUST be gated on `canUsePrivateApi` — not just `isAuthenticated`. A 401 must fail quietly (no refetch, no state toggle). Never include `loading` in the auto-refresh effect deps — it self-retrigggers. Same root cause as the auth-cold-boot-reactivity issue above.
 

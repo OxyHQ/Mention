@@ -47,6 +47,7 @@ interface ListData {
   owner?: ListOwner;
   createdBy?: ListOwner;
   creator?: ListOwner;
+  ownerOxyUserId?: string;
   memberOxyUserIds?: string[];
 }
 
@@ -107,12 +108,7 @@ export default function ListDetailScreen() {
   }, [loadList]);
 
   const listOwner = list?.owner || list?.createdBy || list?.creator;
-  const isOwnList = Boolean(
-    user && listOwner && (
-      listOwner._id === user.id ||
-      listOwner.username === user.username
-    )
-  );
+  const isOwnList = Boolean(user?.id && list?.ownerOxyUserId === user.id);
   const memberCount = (list?.memberOxyUserIds || []).length;
   const listId = String(list?._id || list?.id || id);
 

@@ -3,6 +3,7 @@ import multer from 'multer';
 import Room, { IRoom, RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
 import House, { HouseMemberRole } from '../models/House';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { isAdmin } from '../middleware/admin';
 import { logger } from '../utils/logger';
 import {
   generateRoomToken,
@@ -41,11 +42,47 @@ const uploadMiddleware = multer({
 const router = Router();
 
 type CreatedIngress = Awaited<ReturnType<typeof createRoomUrlIngress>>;
+type RoomOwnershipFields = Pick<IRoom, 'host' | 'ownerType' | 'houseId'>;
 
 interface IngressReplacementResult {
   ingress: CreatedIngress;
   previousIngressId?: string;
   previousDeletedBeforeCreate: boolean;
+}
+
+async function canManageRoom(room: RoomOwnershipFields, userId: string): Promise<boolean> {
+  if (room.host === userId) {
+    return true;
+  }
+
+  if (room.ownerType === OwnerType.HOUSE) {
+    if (!room.houseId) {
+      return false;
+    }
+
+    const house = await House.findById(room.houseId);
+    return Boolean(house?.hasRole(userId, HouseMemberRole.ADMIN));
+  }
+
+  if (room.ownerType === OwnerType.AGORA) {
+    return isAdmin(userId);
+  }
+
+  return false;
+}
+
+async function sendForbiddenUnlessRoomManager(
+  room: RoomOwnershipFields,
+  userId: string,
+  res: Response,
+  message: string
+): Promise<boolean> {
+  if (await canManageRoom(room, userId)) {
+    return true;
+  }
+
+  res.status(403).json({ message });
+  return false;
 }
 
 function emitStreamStarted(roomId: string, room: Pick<IRoom, 'streamTitle' | 'streamImage' | 'streamDescription'>) {
@@ -531,8 +568,12 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    // Strip internal stream fields from non-host users
-    if (req.user?.id !== room.host) {
+    const userId = req.user?.id;
+    const canViewInternalStreamFields = userId
+      ? await canManageRoom(room, userId)
+      : false;
+
+    if (!canViewInternalStreamFields) {
       delete room.activeStreamUrl;
       delete room.activeIngressId;
       delete room.rtmpUrl;
@@ -550,7 +591,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Start a room (host only)
+ * Start a room (room manager only)
  * POST /api/rooms/:id/start
  */
 router.post('/:id/start', async (req: AuthRequest, res: Response) => {
@@ -568,9 +609,8 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    // Only host can start the room
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can start the room' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can start the room'))) {
+      return;
     }
 
     // Can only start scheduled rooms
@@ -580,9 +620,9 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // For broadcast rooms, ensure speakers array only contains the host
+    // For broadcast rooms, ensure speakers array only contains the primary host.
     if (room.type === RoomType.BROADCAST) {
-      room.speakers = [userId];
+      room.speakers = [room.host];
       room.speakerPermission = SpeakerPermission.INVITED;
     }
 
@@ -648,7 +688,7 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * End a room (host only)
+ * End a room (room manager only)
  * POST /api/rooms/:id/end
  */
 router.post('/:id/end', async (req: AuthRequest, res: Response) => {
@@ -666,9 +706,8 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    // Only host can end the room
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can end the room' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can end the room'))) {
+      return;
     }
 
     // Can only end live rooms
@@ -740,7 +779,7 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Stop a live session (host only) — returns room to scheduled status so it can
+ * Stop a live session (room manager only) — returns room to scheduled status so it can
  * be reused.  Cleans up LiveKit room and any active ingress, but does NOT
  * permanently end the room.
  * POST /api/rooms/:id/stop
@@ -760,8 +799,8 @@ router.post('/:id/stop', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can stop the room' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can stop the room'))) {
+      return;
     }
 
     if (room.status !== RoomStatus.LIVE) {
@@ -973,7 +1012,7 @@ router.post('/:id/leave', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Add speaker (host only)
+ * Add speaker (room manager only)
  * POST /api/rooms/:id/speakers
  */
 router.post('/:id/speakers', async (req: AuthRequest, res: Response) => {
@@ -996,9 +1035,8 @@ router.post('/:id/speakers', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    // Only host can add speakers
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can add speakers' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can add speakers'))) {
+      return;
     }
 
     // Broadcast rooms do not allow adding speakers
@@ -1045,7 +1083,7 @@ router.post('/:id/speakers', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Remove speaker (host only)
+ * Remove speaker (room manager only)
  * DELETE /api/rooms/:id/speakers/:userId
  */
 router.delete('/:id/speakers/:userId', async (req: AuthRequest, res: Response) => {
@@ -1063,9 +1101,8 @@ router.delete('/:id/speakers/:userId', async (req: AuthRequest, res: Response) =
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    // Only host can remove speakers
-    if (room.host !== currentUserId) {
-      return res.status(403).json({ message: 'Only the host can remove speakers' });
+    if (!(await sendForbiddenUnlessRoomManager(room, currentUserId, res, 'Only a room manager can remove speakers'))) {
+      return;
     }
 
     // Cannot remove host as speaker
@@ -1164,7 +1201,7 @@ router.post('/:id/token', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Start external live stream (host only)
+ * Start external live stream (room manager only)
  * POST /api/rooms/:id/stream
  * Body: { url: string, title?, image?, description? }
  */
@@ -1198,8 +1235,8 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can add a live stream' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can add a live stream'))) {
+      return;
     }
 
     if (room.status !== RoomStatus.LIVE) {
@@ -1250,7 +1287,7 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Stop external live stream (host only)
+ * Stop external live stream (room manager only)
  * DELETE /api/rooms/:id/stream
  */
 router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
@@ -1267,8 +1304,8 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can remove the stream' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can remove the stream'))) {
+      return;
     }
 
     if (!room.activeIngressId) {
@@ -1328,7 +1365,7 @@ const parseOptionalStreamText = (value: unknown, field: string): ParsedOptionalT
 };
 
 /**
- * Update stream metadata (host only)
+ * Update stream metadata (room manager only)
  * PATCH /api/rooms/:id/stream
  * Body: { url?, title?, image?, description? }
  */
@@ -1385,8 +1422,8 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can update stream info' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can update stream info'))) {
+      return;
     }
 
     if (!room.activeIngressId && nextStreamUrl === undefined) {
@@ -1440,7 +1477,7 @@ router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Generate RTMP stream key (host only)
+ * Generate RTMP stream key (room manager only)
  * POST /api/rooms/:id/stream/rtmp
  * Body: { title?, image?, description? }
  */
@@ -1459,8 +1496,8 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can configure streaming' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can configure streaming'))) {
+      return;
     }
 
     if (room.status !== RoomStatus.LIVE) {
@@ -1521,7 +1558,7 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Delete a room (host only)
+ * Delete a room (room manager only)
  * DELETE /api/rooms/:id
  */
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
@@ -1539,9 +1576,8 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    // Only host can delete the room
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can delete the room' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can delete the room'))) {
+      return;
     }
 
     // Cannot delete a live room
@@ -1564,7 +1600,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Archive/Unarchive a room (host only)
+ * Archive/Unarchive a room (room manager only)
  * PATCH /api/rooms/:id/archive
  */
 router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
@@ -1582,9 +1618,8 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    // Only host can archive the room
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can archive the room' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can archive the room'))) {
+      return;
     }
 
     // Cannot archive a live room
@@ -1613,7 +1648,7 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Start recording a live room (host only)
+ * Start recording a live room (room manager only)
  * POST /api/rooms/:id/recording/start
  */
 router.post('/:id/recording/start', async (req: AuthRequest, res: Response) => {
@@ -1630,8 +1665,8 @@ router.post('/:id/recording/start', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can start recording' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can start recording'))) {
+      return;
     }
 
     if (room.status !== RoomStatus.LIVE) {
@@ -1669,7 +1704,7 @@ router.post('/:id/recording/start', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Stop recording a live room (host only)
+ * Stop recording a live room (room manager only)
  * POST /api/rooms/:id/recording/stop
  */
 router.post('/:id/recording/stop', async (req: AuthRequest, res: Response) => {
@@ -1686,8 +1721,8 @@ router.post('/:id/recording/stop', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    if (room.host !== userId) {
-      return res.status(403).json({ message: 'Only the host can stop recording' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can stop recording'))) {
+      return;
     }
 
     if (!room.recordingEgressId) {
@@ -1724,15 +1759,17 @@ router.get('/:id/recordings', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    const isHost = userId === room.host;
+    const canManage = userId
+      ? await canManageRoom(room, userId)
+      : false;
 
     const query: Record<string, unknown> = {
       roomId: id,
       status: RecordingStatus.READY,
     };
 
-    // Non-hosts can only see public recordings or ones they participated in
-    if (!isHost && userId) {
+    // Non-managers can only see public recordings or ones they participated in.
+    if (!canManage && userId) {
       query.$or = [
         { access: RecordingAccess.PUBLIC },
         { access: RecordingAccess.PARTICIPANTS, participantIds: userId },
@@ -1790,7 +1827,9 @@ router.post('/:id/image', uploadMiddleware.single('file'), async (req: AuthReque
 
     const room = await Room.findById(id);
     if (!room) return res.status(404).json({ message: 'Room not found' });
-    if (room.host !== userId) return res.status(403).json({ message: 'Only the host can upload a room image' });
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can upload a room image'))) {
+      return;
+    }
 
     const { buffer, contentType } = await processImage(req.file.buffer, 'roomImage');
     const objectKey = getAgoraRoomImageKey(id as string);

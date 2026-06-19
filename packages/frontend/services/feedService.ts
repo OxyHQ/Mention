@@ -11,6 +11,8 @@ import {
   FeedType,
   FeedDescriptor,
   isValidFeedDescriptor,
+  HydratedPost,
+  UpdatePostRequest,
 } from '@mention/shared-types';
 
 // Feed responses may include slices for thread grouping
@@ -45,15 +47,76 @@ interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
   sort?: string;
 }
 
-// Helper function to make unauthenticated requests using publicClient
-const makePublicRequest = async (endpoint: string, params?: Record<string, unknown>): Promise<unknown> => {
+interface PublicReadRequestConfig {
+  params?: Record<string, unknown>;
+  signal?: AbortSignal;
+}
+
+interface FeedDataEnvelope {
+  data: FeedServiceResponse;
+}
+
+interface PostEngagementUsersResponse {
+  users: Array<{ id: string; name: string; handle: string; avatar: string; verified: boolean }>;
+  hasMore: boolean;
+  nextCursor?: string;
+  totalCount: number;
+}
+
+type FeedDataResponse = FeedServiceResponse | FeedDataEnvelope;
+
+interface PinnedPostResponse {
+  item?: HydratedPost | null;
+}
+
+interface MtnPeekResponse {
+  data?: HydratedPost | null;
+}
+
+function hasFeedDataEnvelope(response: FeedDataResponse): response is FeedDataEnvelope {
+  return typeof response === 'object' && response !== null && 'data' in response;
+}
+
+const makePublicRequest = async <T = unknown>(
+  endpoint: string,
+  config?: PublicReadRequestConfig
+): Promise<T> => {
   try {
-    const response = await publicClient.get(endpoint, { params });
+    const response = await publicClient.get<T>(endpoint, config);
     return response.data;
   } catch (error) {
     const { message } = normalizeApiError(error);
     // Preserve the original error (HTTP status, server payload) via `cause`.
     throw new Error(message, { cause: error });
+  }
+};
+
+const makeViewerAwarePublicRead = async <T = unknown>(
+  endpoint: string,
+  config?: PublicReadRequestConfig
+): Promise<T> => {
+  if (authDedupeMarker() === 'anon') {
+    return await makePublicRequest<T>(endpoint, config);
+  }
+
+  try {
+    const response = await authenticatedClient.get<T>(endpoint, config);
+    return response.data;
+  } catch (authError) {
+    const { status } = normalizeApiError(authError);
+    if (status === 401) {
+      try {
+        return await makePublicRequest<T>(endpoint, config);
+      } catch (publicError) {
+        logger.warn('Public feed fallback failed', {
+          endpoint,
+          ...normalizeApiError(publicError),
+        });
+        throw authError;
+      }
+    }
+
+    throw authError;
   }
 };
 
@@ -106,11 +169,10 @@ class FeedService {
             if (request.cursor) tagParams.cursor = request.cursor;
             if (request.limit) tagParams.limit = request.limit;
 
-            const response = await authenticatedClient.get(`/posts/hashtag/${tag}`, {
+            return await makeViewerAwarePublicRead<FeedServiceResponse>(`/posts/hashtag/${tag}`, {
               params: tagParams,
               signal: options?.signal,
             });
-            return response.data;
           }
 
           // Handle topic feed
@@ -120,11 +182,10 @@ class FeedService {
             if (request.cursor) topicParams.cursor = request.cursor;
             if (request.limit) topicParams.limit = request.limit;
 
-            const response = await authenticatedClient.get(`/posts/topic/${topic}`, {
+            return await makeViewerAwarePublicRead<FeedServiceResponse>(`/posts/topic/${topic}`, {
               params: topicParams,
               signal: options?.signal,
             });
-            return response.data;
           }
 
           // Handle custom feed
@@ -134,7 +195,7 @@ class FeedService {
             if (request.cursor) timelineParams.cursor = request.cursor;
             if (request.limit) timelineParams.limit = request.limit;
 
-            const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, {
+            const response = await authenticatedClient.get<FeedServiceResponse>(`/feeds/${feedId}/timeline`, {
               params: timelineParams,
               signal: options?.signal,
             });
@@ -152,7 +213,7 @@ class FeedService {
             if (request.limit) repliesParams.limit = request.limit;
             if (request.filters?.sort) repliesParams.sort = request.filters.sort;
 
-            const response = await authenticatedClient.get(`/feed/replies/${parentId}`, {
+            const response = await authenticatedClient.get<FeedServiceResponse>(`/feed/replies/${parentId}`, {
               params: repliesParams,
               signal: options?.signal,
             });
@@ -210,17 +271,16 @@ class FeedService {
       });
     }
 
-    const response = await authenticatedClient.get(`/feed/user/${userId}`, { params });
-    return response.data;
+    return await makeViewerAwarePublicRead<FeedServiceResponse>(`/feed/user/${userId}`, { params });
   }
 
   /**
    * Get pinned post for a user profile
    */
-  async getPinnedPost(userId: string): Promise<any | null> {
+  async getPinnedPost(userId: string): Promise<HydratedPost | null> {
     try {
-      const response = await publicClient.get(`/feed/user/${userId}/pinned`);
-      return response.data?.item || null;
+      const response = await publicClient.get<PinnedPostResponse>(`/feed/user/${userId}/pinned`);
+      return response.data.item ?? null;
     } catch (error) {
       // Absence of a pinned post is expected (404); log at debug so a real
       // server/network failure is still observable without being noisy.
@@ -279,7 +339,7 @@ class FeedService {
    * Create a thread of posts
    */
   async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: unknown[] }> {
-    const response = await authenticatedClient.post('/posts/thread', request);
+    const response = await authenticatedClient.post<unknown[]>('/posts/thread', request);
     return { success: true, posts: response.data };
   }
 
@@ -373,18 +433,17 @@ class FeedService {
   /**
    * Edit an existing post
    */
-  async editPost(postId: string, data: { content: { text: string; media?: any[] }; hashtags?: string[]; mentions?: string[] }): Promise<any> {
-    const response = await authenticatedClient.put(`/posts/${postId}`, data);
+  async editPost(postId: string, data: UpdatePostRequest): Promise<HydratedPost> {
+    const response = await authenticatedClient.put<HydratedPost>(`/posts/${postId}`, data);
     return response.data;
   }
 
   /**
    * Get post by ID
    */
-  async getPostById(postId: string): Promise<any> {
+  async getPostById(postId: string): Promise<HydratedPost> {
     try {
-      const transformed = await authenticatedClient.get(`/feed/item/${postId}`);
-      return transformed.data;
+      return await makeViewerAwarePublicRead<HydratedPost>(`/feed/item/${postId}`);
     } catch (error) {
       // The feed-item endpoint may legitimately 404 for non-feed posts; fall
       // back to the posts endpoint. Log so a non-404 failure is observable.
@@ -393,8 +452,7 @@ class FeedService {
         ...normalizeApiError(error),
       });
     }
-    const response = await authenticatedClient.get(`/posts/${postId}`);
-    return response.data;
+    return await makeViewerAwarePublicRead<HydratedPost>(`/posts/${postId}`);
   }
 
   /**
@@ -427,8 +485,7 @@ class FeedService {
     if (request.cursor) params.cursor = request.cursor;
     if (request.limit) params.limit = request.limit;
 
-    const response = await authenticatedClient.get(`/posts/hashtag/${hashtag}`, { params });
-    return response.data;
+    return await makeViewerAwarePublicRead<FeedResponse>(`/posts/hashtag/${hashtag}`, { params });
   }
 
   /**
@@ -439,39 +496,28 @@ class FeedService {
     if (request.cursor) params.cursor = request.cursor;
     if (request.limit) params.limit = request.limit;
 
-    const response = await authenticatedClient.get(`/posts/topic/${encodeURIComponent(topic)}`, { params });
-    return response.data;
+    return await makeViewerAwarePublicRead<FeedResponse>(`/posts/topic/${encodeURIComponent(topic)}`, { params });
   }
 
   /**
    * Get users who liked a post
    */
-  async getPostLikes(postId: string, cursor?: string, limit: number = 50): Promise<{
-    users: Array<{ id: string; name: string; handle: string; avatar: string; verified: boolean }>;
-    hasMore: boolean;
-    nextCursor?: string;
-    totalCount: number;
-  }> {
+  async getPostLikes(postId: string, cursor?: string, limit: number = 50): Promise<PostEngagementUsersResponse> {
     const params: Record<string, unknown> = { limit };
     if (cursor) params.cursor = cursor;
 
-    const response = await authenticatedClient.get(`/posts/${postId}/likes`, { params });
+    const response = await authenticatedClient.get<PostEngagementUsersResponse>(`/posts/${postId}/likes`, { params });
     return response.data;
   }
 
   /**
    * Get users who boosted a post
    */
-  async getPostBoosts(postId: string, cursor?: string, limit: number = 50): Promise<{
-    users: Array<{ id: string; name: string; handle: string; avatar: string; verified: boolean }>;
-    hasMore: boolean;
-    nextCursor?: string;
-    totalCount: number;
-  }> {
+  async getPostBoosts(postId: string, cursor?: string, limit: number = 50): Promise<PostEngagementUsersResponse> {
     const params: Record<string, unknown> = { limit };
     if (cursor) params.cursor = cursor;
 
-    const response = await authenticatedClient.get(`/posts/${postId}/boosts`, { params });
+    const response = await authenticatedClient.get<PostEngagementUsersResponse>(`/posts/${postId}/boosts`, { params });
     return response.data;
   }
 
@@ -510,30 +556,11 @@ class FeedService {
     }
 
     const fetchPromise = (async () => {
-      try {
-        const response = await authenticatedClient.get('/feed/mtn', {
-          params,
-          signal: options?.signal,
-        });
-        return response.data?.data || response.data;
-      } catch (authError) {
-        const { status } = normalizeApiError(authError);
-        if (status === 401 || status === 403) {
-          try {
-            return await makePublicRequest('/feed/mtn', params);
-          } catch (publicError) {
-            // Anonymous fallback also failed. Surface the original auth error
-            // (the more meaningful failure) while keeping the public-request
-            // failure logged so it isn't silently swallowed.
-            logger.warn('Anonymous MTN feed fallback failed', {
-              descriptor,
-              ...normalizeApiError(publicError),
-            });
-            throw authError;
-          }
-        }
-        throw authError;
-      }
+      const response = await makeViewerAwarePublicRead<FeedDataResponse>('/feed/mtn', {
+        params,
+        signal: options?.signal,
+      });
+      return hasFeedDataEnvelope(response) ? response.data : response;
     })();
 
     if (!canShare) {
@@ -551,12 +578,12 @@ class FeedService {
   /**
    * Peek at the latest item in a feed
    */
-  async peekMtnFeed(descriptor: FeedDescriptor): Promise<any | null> {
+  async peekMtnFeed(descriptor: FeedDescriptor): Promise<HydratedPost | null> {
     try {
-      const response = await authenticatedClient.get('/feed/mtn/peek', {
+      const response = await makeViewerAwarePublicRead<MtnPeekResponse>('/feed/mtn/peek', {
         params: { descriptor },
       });
-      return response.data?.data || null;
+      return response.data ?? null;
     } catch (error) {
       // Peek is a best-effort "new posts available" probe; a failure must not
       // surface to the user, but log it so it's not invisible.
@@ -591,12 +618,12 @@ class FeedService {
   // ────────────────────────────────────────────────────────────
 
   async followFederatedActor(actorUri: string): Promise<{ success: boolean; pending: boolean }> {
-    const response = await authenticatedClient.post('/federation/follow', { actorUri });
+    const response = await authenticatedClient.post<{ success: boolean; pending: boolean }>('/federation/follow', { actorUri });
     return response.data;
   }
 
   async unfollowFederatedActor(actorUri: string): Promise<{ success: boolean }> {
-    const response = await authenticatedClient.post('/federation/unfollow', { actorUri });
+    const response = await authenticatedClient.post<{ success: boolean }>('/federation/unfollow', { actorUri });
     return response.data;
   }
 }
