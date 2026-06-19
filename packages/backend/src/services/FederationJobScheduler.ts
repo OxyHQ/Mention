@@ -447,7 +447,11 @@ class FederationJobScheduler {
       },
     };
 
-    if (result.reason === 'non-empty-outbox-without-items') {
+    const permanentlyUnavailable = result.reason === 'non-empty-outbox-without-items'
+      || result.reason === 'outbox-http-404'
+      || result.reason === 'outbox-http-410';
+
+    if (permanentlyUnavailable) {
       Object.assign(update.$set, {
         'outboxBackfill.status': 'unavailable',
         'outboxBackfill.completedAt': new Date(),
