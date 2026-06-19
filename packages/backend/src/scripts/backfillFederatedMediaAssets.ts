@@ -54,6 +54,7 @@ async function main(): Promise<void> {
   let scannedPosts = 0;
   let updatedPosts = 0;
   let convertedMedia = 0;
+  let removedMedia = 0;
   let failedMedia = 0;
 
   while (true) {
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
         if (outcome.status === 'fulfilled') {
           updatedPosts += outcome.value.updatedPosts;
           convertedMedia += outcome.value.convertedMedia;
+          removedMedia += outcome.value.removedMedia;
           failedMedia += outcome.value.failedMedia;
         } else {
           failedMedia += 1;
@@ -89,6 +91,7 @@ async function main(): Promise<void> {
       scannedPosts,
       updatedPosts,
       convertedMedia,
+      removedMedia,
       failedMedia,
       lastId: String(afterId),
     });
@@ -100,6 +103,7 @@ async function main(): Promise<void> {
     scannedPosts,
     updatedPosts,
     convertedMedia,
+    removedMedia,
     failedMedia,
     remaining,
   });
@@ -122,4 +126,5 @@ main()
         reason: error instanceof Error ? error.message : 'unknown',
       });
     });
+    process.exit(process.exitCode ?? 0);
   });

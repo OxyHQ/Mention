@@ -56,7 +56,7 @@ interface DownloadResult {
 
 type DownloadOutcome =
   | { ok: true; download: DownloadResult }
-  | { ok: false; reason: 'not-media' | 'too-large' | 'upstream-error' | 'ssrf' };
+  | { ok: false; reason: 'not-media' | 'too-large' | 'upstream-error' | 'ssrf'; status?: number };
 
 type MediaUploader = (source: CachedMediaSource) => Promise<UploadedAsset>;
 
@@ -87,7 +87,7 @@ async function downloadToTempFile(remoteUrl: string, dir: string): Promise<Downl
   if (status !== HTTP_OK) {
     response.resume();
     logger.warn('[MediaCache] Worker upstream returned non-OK', { status });
-    return { ok: false, reason: 'upstream-error' };
+    return { ok: false, reason: 'upstream-error', status };
   }
 
   const contentType = contentTypeFamily(response.headers);
@@ -180,8 +180,8 @@ async function processEntry(remoteUrl: string): Promise<void> {
     const outcome = await downloadToTempFile(remoteUrl, dir);
 
     if (!outcome.ok) {
-      // not-media / too-large are permanent for this URL → mark failed (proxy-only).
-      if (outcome.reason === 'not-media' || outcome.reason === 'too-large') {
+      // not-media / too-large / gone media are permanent for this URL → mark failed (proxy-only).
+      if (isPermanentDownloadFailure(outcome)) {
         await FederatedMediaCache.updateOne(
           { remoteUrl },
           { $set: { state: 'failed' }, $unset: { nextAttemptAt: '' } },
@@ -291,26 +291,56 @@ export interface PersistedFederatedMedia {
   sizeBytes: number;
 }
 
+type FederatedMediaPersistFailureReason =
+  | Extract<DownloadOutcome, { ok: false }>['reason']
+  | 'disabled'
+  | 'store-unavailable'
+  | 'upload-failed';
+
+export type PersistFederatedMediaResult =
+  | { ok: true; media: PersistedFederatedMedia }
+  | {
+      ok: false;
+      reason: FederatedMediaPersistFailureReason;
+      status?: number;
+      permanent: boolean;
+    };
+
+function isPermanentDownloadFailure(outcome: Extract<DownloadOutcome, { ok: false }>): boolean {
+  if (outcome.reason === 'not-media' || outcome.reason === 'too-large') return true;
+  if (outcome.reason === 'upstream-error' && (outcome.status === 404 || outcome.status === 410)) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Download a remote ActivityPub media URL and persist it as a normal public Oxy
  * asset owned by the resolved federated Oxy user. This deliberately bypasses
  * `FederatedMediaCache`: persisted post media must not be evicted by the cache
  * TTL job while a Mention post still references its file id.
  */
-export async function persistRemoteMediaForFederatedOwner(
+export async function persistRemoteMediaForFederatedOwnerDetailed(
   remoteUrl: string,
   ownerUserId: string,
   metadata?: Record<string, unknown>,
-): Promise<PersistedFederatedMedia | null> {
+): Promise<PersistFederatedMediaResult> {
   if (!isMediaCacheEnabled()) {
     logger.debug('[MediaCache] Durable federation upload skipped — media writes disabled');
-    return null;
+    return { ok: false, reason: 'disabled', permanent: false };
   }
 
   const dir = await mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX));
   try {
     const outcome = await downloadToTempFile(remoteUrl, dir);
-    if (!outcome.ok) return null;
+    if (!outcome.ok) {
+      return {
+        ok: false,
+        reason: outcome.reason,
+        status: outcome.status,
+        permanent: isPermanentDownloadFailure(outcome),
+      };
+    }
 
     const { filePath, contentType, sizeBytes } = outcome.download;
     const media = await uploadFederatedMedia({
@@ -337,22 +367,26 @@ export async function persistRemoteMediaForFederatedOwner(
     }
 
     return {
-      oxyFileId: media.oxyFileId,
-      posterFileId,
-      contentType,
-      sizeBytes,
+      ok: true,
+      media: {
+        oxyFileId: media.oxyFileId,
+        posterFileId,
+        contentType,
+        sizeBytes,
+      },
     };
   } catch (error) {
     if (error instanceof MediaStoreUnavailableError) {
       logger.error('[MediaCache] Durable federation upload unavailable', {
         reason: error.message,
       });
+      return { ok: false, reason: 'store-unavailable', permanent: false };
     } else {
       logger.warn('[MediaCache] Durable federation upload failed', {
         reason: error instanceof Error ? error.message : 'unknown',
       });
+      return { ok: false, reason: 'upload-failed', permanent: false };
     }
-    return null;
   } finally {
     await rm(dir, { recursive: true, force: true }).catch((error: unknown) => {
       logger.warn('[MediaCache] Failed to remove durable upload temp dir', {
@@ -360,6 +394,15 @@ export async function persistRemoteMediaForFederatedOwner(
       });
     });
   }
+}
+
+export async function persistRemoteMediaForFederatedOwner(
+  remoteUrl: string,
+  ownerUserId: string,
+  metadata?: Record<string, unknown>,
+): Promise<PersistedFederatedMedia | null> {
+  const result = await persistRemoteMediaForFederatedOwnerDetailed(remoteUrl, ownerUserId, metadata);
+  return result.ok ? result.media : null;
 }
 
 /** Increment failCount and either schedule a backoff or mark `failed`. */

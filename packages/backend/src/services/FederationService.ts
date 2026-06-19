@@ -25,7 +25,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
 import { normalizeHashtag, normalizePostHashtags } from '../utils/textProcessing';
 import { recordAccessAndMaybeEnqueue } from './mediaCache/cacheStore';
-import { persistRemoteMediaForFederatedOwner } from './mediaCache/cacheWorker';
+import { persistRemoteMediaForFederatedOwnerDetailed } from './mediaCache/cacheWorker';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -210,6 +210,7 @@ class FederationService {
     if (media.length === 0) return { media, attachments };
 
     const idMap = new Map<string, string>();
+    const removedRemoteUrls = new Set<string>();
     const outputMedia: ExtractedMediaItem[] = [];
 
     for (const item of media) {
@@ -225,19 +226,29 @@ class FederationService {
         continue;
       }
 
-      const persisted = await persistRemoteMediaForFederatedOwner(remoteUrl, ownerOxyUserId, {
+      const persistedResult = await persistRemoteMediaForFederatedOwnerDetailed(remoteUrl, ownerOxyUserId, {
         remoteHost: getRemoteHost(remoteUrl),
         activityId: context.activityId,
         actorUri: context.actorUri,
         mediaType: item.type,
       });
 
-      if (!persisted) {
+      if (!persistedResult.ok) {
+        if (persistedResult.permanent) {
+          logger.info('[Federation] Dropping permanently unavailable remote media', {
+            remoteHost: getRemoteHost(remoteUrl),
+            status: persistedResult.status,
+            activityId: context.activityId,
+          });
+          removedRemoteUrls.add(remoteUrl);
+          continue;
+        }
         void recordAccessAndMaybeEnqueue(remoteUrl);
         outputMedia.push(item);
         continue;
       }
 
+      const persisted = persistedResult.media;
       idMap.set(remoteUrl, persisted.oxyFileId);
       outputMedia.push({
         ...item,
@@ -248,12 +259,14 @@ class FederationService {
       } as ExtractedMediaItem);
     }
 
-    if (idMap.size === 0) return { media: outputMedia, attachments };
+    if (idMap.size === 0 && removedRemoteUrls.size === 0) return { media: outputMedia, attachments };
 
-    const outputAttachments = attachments.map((attachment) => ({
-      ...attachment,
-      id: idMap.get(attachment.id) || attachment.id,
-    }));
+    const outputAttachments = attachments
+      .filter((attachment) => !removedRemoteUrls.has(attachment.id))
+      .map((attachment) => ({
+        ...attachment,
+        id: idMap.get(attachment.id) || attachment.id,
+      }));
 
     return { media: outputMedia, attachments: outputAttachments };
   }

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   postFind: vi.fn(),
   postUpdateOne: vi.fn(),
-  persistRemoteMediaForFederatedOwner: vi.fn(),
+  persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
   isMediaCacheEnabled: vi.fn(),
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
@@ -16,7 +16,7 @@ vi.mock('../../models/Post', () => ({
 }));
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
-  persistRemoteMediaForFederatedOwner: mocks.persistRemoteMediaForFederatedOwner,
+  persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMediaForFederatedOwnerDetailed,
 }));
 
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
@@ -46,10 +46,13 @@ beforeEach(() => {
 
   mocks.postFind.mockReturnValue(query);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.persistRemoteMediaForFederatedOwner.mockResolvedValue({
-    oxyFileId: 'oxy_file_default',
-    contentType: 'image/png',
-    sizeBytes: 1234,
+  mocks.persistRemoteMediaForFederatedOwnerDetailed.mockResolvedValue({
+    ok: true,
+    media: {
+      oxyFileId: 'oxy_file_default',
+      contentType: 'image/png',
+      sizeBytes: 1234,
+    },
   });
   mocks.isMediaCacheEnabled.mockReturnValue(true);
   mocks.recordAccessAndMaybeEnqueue.mockResolvedValue(true);
@@ -65,6 +68,7 @@ describe('runFederatedMediaBackfillOnce', () => {
       scannedPosts: 0,
       updatedPosts: 0,
       convertedMedia: 0,
+      removedMedia: 0,
       failedMedia: 0,
       disabled: true,
     });
@@ -89,11 +93,14 @@ describe('runFederatedMediaBackfillOnce', () => {
         },
       },
     ]);
-    mocks.persistRemoteMediaForFederatedOwner.mockResolvedValue({
-      oxyFileId: 'oxy_file_backfilled',
-      posterFileId: 'oxy_file_poster',
-      contentType: 'image/png',
-      sizeBytes: 1234,
+    mocks.persistRemoteMediaForFederatedOwnerDetailed.mockResolvedValue({
+      ok: true,
+      media: {
+        oxyFileId: 'oxy_file_backfilled',
+        posterFileId: 'oxy_file_poster',
+        contentType: 'image/png',
+        sizeBytes: 1234,
+      },
     });
 
     const result = await runFederatedMediaBackfillOnce();
@@ -105,7 +112,7 @@ describe('runFederatedMediaBackfillOnce', () => {
     });
     expect(query.limit).toHaveBeenCalledWith(20);
 
-    expect(mocks.persistRemoteMediaForFederatedOwner).toHaveBeenCalledWith(
+    expect(mocks.persistRemoteMediaForFederatedOwnerDetailed).toHaveBeenCalledWith(
       'https://remote.example/media/a.png',
       'federated_user_1',
       {
@@ -136,6 +143,7 @@ describe('runFederatedMediaBackfillOnce', () => {
       scannedPosts: 1,
       updatedPosts: 1,
       convertedMedia: 1,
+      removedMedia: 0,
       failedMedia: 0,
       disabled: false,
     });
@@ -153,7 +161,11 @@ describe('runFederatedMediaBackfillOnce', () => {
         },
       },
     ]);
-    mocks.persistRemoteMediaForFederatedOwner.mockResolvedValue(null);
+    mocks.persistRemoteMediaForFederatedOwnerDetailed.mockResolvedValue({
+      ok: false,
+      reason: 'upload-failed',
+      permanent: false,
+    });
 
     const result = await runFederatedMediaBackfillOnce();
 
@@ -163,7 +175,55 @@ describe('runFederatedMediaBackfillOnce', () => {
       scannedPosts: 1,
       updatedPosts: 0,
       convertedMedia: 0,
+      removedMedia: 0,
       failedMedia: 1,
+      disabled: false,
+    });
+  });
+
+  it('removes permanently unavailable remote media and matching descriptors', async () => {
+    query.lean.mockResolvedValue([
+      {
+        _id: 'post_3',
+        oxyUserId: 'federated_user_3',
+        federation: { activityId: 'https://remote.example/users/cora/statuses/3' },
+        content: {
+          media: [
+            { id: 'https://remote.example/media/missing.png', type: 'image' },
+            { id: 'oxy_file_existing', type: 'image' },
+          ],
+          attachments: [
+            { type: 'media', id: 'https://remote.example/media/missing.png', mediaType: 'image' },
+          ],
+        },
+      },
+    ]);
+    mocks.persistRemoteMediaForFederatedOwnerDetailed.mockResolvedValue({
+      ok: false,
+      reason: 'upstream-error',
+      status: 404,
+      permanent: true,
+    });
+
+    const result = await runFederatedMediaBackfillOnce();
+
+    expect(mocks.recordAccessAndMaybeEnqueue).not.toHaveBeenCalled();
+    expect(mocks.postUpdateOne).toHaveBeenCalledTimes(1);
+    const [filter, update] = mocks.postUpdateOne.mock.calls[0];
+    expect(filter).toEqual({
+      _id: 'post_3',
+      'content.media.id': { $in: ['https://remote.example/media/missing.png'] },
+    });
+    expect(update.$set['content.media']).toEqual([
+      { id: 'oxy_file_existing', type: 'image' },
+    ]);
+    expect(update.$set['content.attachments']).toEqual([]);
+    expect(result).toEqual({
+      scannedPosts: 1,
+      updatedPosts: 1,
+      convertedMedia: 0,
+      removedMedia: 1,
+      failedMedia: 0,
       disabled: false,
     });
   });

@@ -4,7 +4,7 @@ import type { Types } from 'mongoose';
 import { Post } from '../../models/Post';
 import { logger } from '../../utils/logger';
 import { recordAccessAndMaybeEnqueue } from './cacheStore';
-import { persistRemoteMediaForFederatedOwner, type PersistedFederatedMedia } from './cacheWorker';
+import { persistRemoteMediaForFederatedOwnerDetailed, type PersistedFederatedMedia } from './cacheWorker';
 import {
   FEDERATED_MEDIA_BACKFILL_BATCH_SIZE,
   FEDERATED_MEDIA_BACKFILL_CONCURRENCY,
@@ -38,6 +38,7 @@ export interface FederatedMediaBackfillPost {
 interface PostBackfillResult {
   updatedPosts: number;
   convertedMedia: number;
+  removedMedia: number;
   failedMedia: number;
 }
 
@@ -45,6 +46,7 @@ export interface FederatedMediaBackfillResult {
   scannedPosts: number;
   updatedPosts: number;
   convertedMedia: number;
+  removedMedia: number;
   failedMedia: number;
   disabled: boolean;
 }
@@ -78,11 +80,13 @@ function buildPersistedMediaItem(
 function rewriteMediaAttachments(
   attachments: PostAttachmentDescriptor[] | undefined,
   idMap: Map<string, string>,
+  removedRemoteUrls: Set<string>,
 ): PostAttachmentDescriptor[] | undefined {
-  if (!attachments || idMap.size === 0) return attachments;
+  if (!attachments || (idMap.size === 0 && removedRemoteUrls.size === 0)) return attachments;
 
-  return attachments.map((attachment) => {
+  return attachments.flatMap((attachment) => {
     if (attachment.type !== 'media' || !attachment.id) return attachment;
+    if (removedRemoteUrls.has(attachment.id)) return [];
     const mapped = idMap.get(attachment.id);
     return mapped ? { ...attachment, id: mapped } : attachment;
   });
@@ -94,12 +98,13 @@ export async function backfillFederatedMediaPost(
   const ownerUserId = post.oxyUserId;
   const media = Array.isArray(post.content?.media) ? post.content.media : [];
   if (!ownerUserId || media.length === 0) {
-    return { updatedPosts: 0, convertedMedia: 0, failedMedia: 0 };
+    return { updatedPosts: 0, convertedMedia: 0, removedMedia: 0, failedMedia: 0 };
   }
 
   const persistedByRemoteUrl = new Map<string, PersistedFederatedMedia | null>();
   const idMap = new Map<string, string>();
   const changedRemoteUrls: string[] = [];
+  const removedRemoteUrls = new Set<string>();
   const nextMedia: StoredMediaItem[] = [];
   let failedMedia = 0;
 
@@ -111,16 +116,27 @@ export async function backfillFederatedMediaPost(
     }
 
     if (!persistedByRemoteUrl.has(remoteUrl)) {
-      const persisted = await persistRemoteMediaForFederatedOwner(remoteUrl, ownerUserId, {
+      const persistedResult = await persistRemoteMediaForFederatedOwnerDetailed(remoteUrl, ownerUserId, {
         remoteHost: getRemoteHost(remoteUrl),
         activityId: post.federation?.activityId,
         postId: String(post._id),
         mediaType: item.type,
         backfill: true,
       });
+      const persisted = persistedResult.ok ? persistedResult.media : null;
       persistedByRemoteUrl.set(remoteUrl, persisted);
 
-      if (!persisted) {
+      if (!persistedResult.ok) {
+        if (persistedResult.permanent) {
+          removedRemoteUrls.add(remoteUrl);
+          logger.info('[MediaBackfill] Removing permanently unavailable remote media', {
+            postId: String(post._id),
+            remoteHost: getRemoteHost(remoteUrl),
+            status: persistedResult.status,
+            reason: persistedResult.reason,
+          });
+          continue;
+        }
         failedMedia += 1;
         void recordAccessAndMaybeEnqueue(remoteUrl).catch((error: unknown) => {
           logger.warn('[MediaBackfill] Failed to enqueue proxy cache fallback', {
@@ -132,6 +148,7 @@ export async function backfillFederatedMediaPost(
 
     const persisted = persistedByRemoteUrl.get(remoteUrl);
     if (!persisted) {
+      if (removedRemoteUrls.has(remoteUrl)) continue;
       nextMedia.push(item);
       continue;
     }
@@ -141,22 +158,23 @@ export async function backfillFederatedMediaPost(
     nextMedia.push(buildPersistedMediaItem(item, remoteUrl, persisted));
   }
 
-  if (idMap.size === 0 || changedRemoteUrls.length === 0) {
-    return { updatedPosts: 0, convertedMedia: 0, failedMedia };
+  if ((idMap.size === 0 || changedRemoteUrls.length === 0) && removedRemoteUrls.size === 0) {
+    return { updatedPosts: 0, convertedMedia: 0, removedMedia: 0, failedMedia };
   }
 
   const update: Record<string, unknown> = {
     'content.media': nextMedia,
   };
-  const nextAttachments = rewriteMediaAttachments(post.content?.attachments, idMap);
+  const nextAttachments = rewriteMediaAttachments(post.content?.attachments, idMap, removedRemoteUrls);
   if (Array.isArray(nextAttachments)) {
     update['content.attachments'] = nextAttachments;
   }
 
+  const matchRemoteUrls = [...changedRemoteUrls, ...removedRemoteUrls];
   const result = await Post.updateOne(
     {
       _id: post._id,
-      'content.media.id': { $in: changedRemoteUrls },
+      'content.media.id': { $in: matchRemoteUrls },
     },
     { $set: update },
   );
@@ -165,6 +183,7 @@ export async function backfillFederatedMediaPost(
   return {
     updatedPosts: modifiedCount > 0 ? 1 : 0,
     convertedMedia: modifiedCount > 0 ? idMap.size : 0,
+    removedMedia: modifiedCount > 0 ? removedRemoteUrls.size : 0,
     failedMedia,
   };
 }
@@ -177,7 +196,7 @@ export async function backfillFederatedMediaPost(
 export async function runFederatedMediaBackfillOnce(): Promise<FederatedMediaBackfillResult> {
   if (!isMediaCacheEnabled()) {
     logger.debug('[MediaBackfill] skipped — media writes disabled');
-    return { scannedPosts: 0, updatedPosts: 0, convertedMedia: 0, failedMedia: 0, disabled: true };
+    return { scannedPosts: 0, updatedPosts: 0, convertedMedia: 0, removedMedia: 0, failedMedia: 0, disabled: true };
   }
 
   const posts = await Post.find(FEDERATED_MEDIA_BACKFILL_MATCH)
@@ -187,7 +206,7 @@ export async function runFederatedMediaBackfillOnce(): Promise<FederatedMediaBac
     .lean<FederatedMediaBackfillPost[]>();
 
   if (posts.length === 0) {
-    return { scannedPosts: 0, updatedPosts: 0, convertedMedia: 0, failedMedia: 0, disabled: false };
+    return { scannedPosts: 0, updatedPosts: 0, convertedMedia: 0, removedMedia: 0, failedMedia: 0, disabled: false };
   }
 
   logger.info(`[MediaBackfill] Converting remote media for ${posts.length} historical federated posts`);
@@ -196,6 +215,7 @@ export async function runFederatedMediaBackfillOnce(): Promise<FederatedMediaBac
     scannedPosts: posts.length,
     updatedPosts: 0,
     convertedMedia: 0,
+    removedMedia: 0,
     failedMedia: 0,
     disabled: false,
   };
@@ -208,6 +228,7 @@ export async function runFederatedMediaBackfillOnce(): Promise<FederatedMediaBac
       if (outcome.status === 'fulfilled') {
         totals.updatedPosts += outcome.value.updatedPosts;
         totals.convertedMedia += outcome.value.convertedMedia;
+        totals.removedMedia += outcome.value.removedMedia;
         totals.failedMedia += outcome.value.failedMedia;
       } else {
         totals.failedMedia += 1;
@@ -222,6 +243,7 @@ export async function runFederatedMediaBackfillOnce(): Promise<FederatedMediaBac
     scannedPosts: totals.scannedPosts,
     updatedPosts: totals.updatedPosts,
     convertedMedia: totals.convertedMedia,
+    removedMedia: totals.removedMedia,
     failedMedia: totals.failedMedia,
   });
 
