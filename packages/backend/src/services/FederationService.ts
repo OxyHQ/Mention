@@ -602,7 +602,7 @@ class FederationService {
         const nonEmptyButNotInspectable = !hasInlineItems && !hasFirstPage && typeof remoteTotalItems === 'number' && remoteTotalItems > 0;
         return {
           syncedCount: 0,
-          shouldStampCooldown: !paginationFailed && !nonEmptyButNotInspectable,
+          shouldStampCooldown: !paginationFailed,
           reason: nonEmptyButNotInspectable ? 'non-empty-outbox-without-items' : 'no-candidates',
         };
       }

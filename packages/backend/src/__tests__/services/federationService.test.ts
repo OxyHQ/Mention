@@ -147,3 +147,32 @@ describe('federationService.fetchRemoteActor', () => {
     );
   });
 });
+
+describe('federationService.syncOutboxPostsDetailed', () => {
+  it('stamps cooldown for non-empty outboxes that expose no importable pages', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://www.threads.net/ap/users/mosseri/outbox/') {
+        return jsonResponse({
+          type: 'OrderedCollection',
+          totalItems: 2169,
+        });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await federationService.syncOutboxPostsDetailed({
+      uri: 'https://www.threads.net/ap/users/mosseri/',
+      acct: 'mosseri@threads.net',
+      outboxUrl: 'https://www.threads.net/ap/users/mosseri/outbox/',
+      oxyUserId: 'oxy_user_threads',
+    });
+
+    expect(result).toEqual({
+      syncedCount: 0,
+      shouldStampCooldown: true,
+      reason: 'non-empty-outbox-without-items',
+    });
+  });
+});

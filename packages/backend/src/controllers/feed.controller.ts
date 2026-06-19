@@ -860,8 +860,9 @@ class FeedController {
         if (cachedActor) {
           // Known federated user with no local posts yet → kick off background
           // outbox sync + actor refresh and tell the client the feed is being
-          // populated so it polls. No network I/O on the request path.
-          fedSyncPending = true;
+          // populated so it polls, unless a recent sync already proved there
+          // are no importable outbox items. No network I/O on the request path.
+          fedSyncPending = this.shouldShowFederatedSyncPending(cachedActor);
           this.runFederatedProfileSyncInBackground(syncUserId, cachedActor);
         } else {
           // No cached actor row. This is either a local user with a genuinely
@@ -1095,6 +1096,12 @@ class FeedController {
     if (typeof fetchedAt !== 'number') return true;
     if (fetchedAt <= 0) return true;
     return Date.now() - fetchedAt > FEDERATED_ACTOR_PROFILE_STALE_MS;
+  }
+
+  private shouldShowFederatedSyncPending(actor: IFederatedActor): boolean {
+    const lastSyncMs = actor.lastOutboxSyncAt?.getTime();
+    if (typeof lastSyncMs !== 'number') return true;
+    return Date.now() - lastSyncMs >= OUTBOX_SYNC_MIN_INTERVAL_MS;
   }
 
   /**
