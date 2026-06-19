@@ -49,6 +49,23 @@ function isNetworkError(error: any): boolean {
   );
 }
 
+function getErrorStatus(error: any): number | undefined {
+  const status = error?.status ?? error?.statusCode ?? error?.response?.status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+function isAuthContextError(error: any): boolean {
+  if (!error) return false;
+  const status = getErrorStatus(error);
+  if (status === 401 || status === 403) return true;
+
+  const code = typeof error.code === 'string' ? error.code.toUpperCase() : '';
+  if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN') return true;
+
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('authorization header') || message.includes('unauthorized');
+}
+
 /**
  * Get user IDs from Oxy privacy API (blocked or restricted users)
  * @param getUserList - Function to fetch the user list from Oxy API
@@ -65,6 +82,14 @@ async function getUserIdsFromPrivacyList(
       .map(extractUserIdFromBlockedRestricted)
       .filter((id): id is string => Boolean(id));
   } catch (error) {
+    if (isAuthContextError(error)) {
+      logger.debug(`[PostHydration] Skipping ${listType} users: authenticated Oxy privacy context unavailable`, {
+        status: getErrorStatus(error),
+        code: typeof (error as { code?: unknown })?.code === 'string' ? (error as { code: string }).code : undefined,
+      });
+      return [];
+    }
+
     // Network errors are transient and handled gracefully (returning empty array)
     // Log them at WARN level to reduce noise, other errors at ERROR level
     if (isNetworkError(error)) {
