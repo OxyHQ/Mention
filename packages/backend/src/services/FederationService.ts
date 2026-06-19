@@ -74,6 +74,16 @@ interface OutboxSyncOptions {
   startItemOffset?: number;
 }
 
+export const PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS = new Set([
+  'non-empty-outbox-without-items',
+  'outbox-http-404',
+  'outbox-http-410',
+]);
+
+export function isPermanentlyUnavailableOutboxReason(reason?: string): boolean {
+  return typeof reason === 'string' && PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS.has(reason);
+}
+
 function isAbsoluteHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
@@ -627,6 +637,36 @@ class FederationService {
     return result.syncedCount;
   }
 
+  async markOutboxBackfillUnavailable(
+    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct'> & { _id: unknown },
+    reason?: string,
+  ): Promise<void> {
+    if (!actor.outboxUrl) return;
+
+    await FederatedActor.updateOne(
+      { _id: String(actor._id) },
+      {
+        $set: {
+          'outboxBackfill.status': 'unavailable',
+          'outboxBackfill.outboxUrl': actor.outboxUrl,
+          'outboxBackfill.processedCount': 0,
+          'outboxBackfill.importedCount': 0,
+          'outboxBackfill.existingCount': 0,
+          'outboxBackfill.pageCount': 0,
+          'outboxBackfill.lastRunAt': new Date(),
+          'outboxBackfill.completedAt': new Date(),
+        },
+        $unset: {
+          'outboxBackfill.cursorUrl': '',
+          'outboxBackfill.lockedUntil': '',
+          'outboxBackfill.lastError': '',
+          lastOutboxSyncAt: '',
+        },
+      },
+    );
+    logger.info(`[FedSync] marked outbox unavailable for ${actor.acct}; reason=${reason ?? 'unknown'}`);
+  }
+
   async syncOutboxPostsDetailed(
     actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
@@ -766,10 +806,11 @@ class FederationService {
           && !hasFirstPage
           && typeof remoteTotalItems === 'number'
           && remoteTotalItems > 0;
+        const reason = nonEmptyButNotInspectable ? 'non-empty-outbox-without-items' : 'no-candidates';
         return {
           syncedCount: 0,
-          shouldStampCooldown: !paginationFailed,
-          reason: nonEmptyButNotInspectable ? 'non-empty-outbox-without-items' : 'no-candidates',
+          shouldStampCooldown: !paginationFailed && !isPermanentlyUnavailableOutboxReason(reason),
+          reason,
           candidateCount: 0,
           newPostCount: 0,
           existingCount: 0,

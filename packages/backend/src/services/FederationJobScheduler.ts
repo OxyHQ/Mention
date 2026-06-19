@@ -5,7 +5,7 @@ import FederatedActor, { type FederatedOutboxBackfillState } from '../models/Fed
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
-import { federationService } from './FederationService';
+import { federationService, isPermanentlyUnavailableOutboxReason } from './FederationService';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
 import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
@@ -447,11 +447,7 @@ class FederationJobScheduler {
       },
     };
 
-    const permanentlyUnavailable = result.reason === 'non-empty-outbox-without-items'
-      || result.reason === 'outbox-http-404'
-      || result.reason === 'outbox-http-410';
-
-    if (permanentlyUnavailable) {
+    if (isPermanentlyUnavailableOutboxReason(result.reason)) {
       Object.assign(update.$set, {
         'outboxBackfill.status': 'unavailable',
         'outboxBackfill.completedAt': new Date(),

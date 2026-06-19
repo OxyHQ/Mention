@@ -185,7 +185,7 @@ describe('federationService.fetchRemoteActor', () => {
 });
 
 describe('federationService.syncOutboxPostsDetailed', () => {
-  it('stamps cooldown for non-empty outboxes that expose no importable pages', async () => {
+  it('does not stamp cooldown for non-empty outboxes that expose no importable pages', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://www.threads.net/ap/users/mosseri/outbox/') {
         return jsonResponse({
@@ -207,7 +207,7 @@ describe('federationService.syncOutboxPostsDetailed', () => {
 
     expect(result).toMatchObject({
       syncedCount: 0,
-      shouldStampCooldown: true,
+      shouldStampCooldown: false,
       reason: 'non-empty-outbox-without-items',
       candidateCount: 0,
       reachedEnd: false,

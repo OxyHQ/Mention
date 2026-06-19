@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
-import { federationService } from '../services/FederationService';
+import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
 import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
@@ -46,6 +46,14 @@ function requireAuth(req: AuthRequest, res: Response): string | null {
     return null;
   }
   return userId;
+}
+
+function hasUnavailableCurrentOutbox(actor: { outboxUrl?: string; outboxBackfill?: { outboxUrl?: string; status?: string } }): boolean {
+  return Boolean(
+    actor.outboxUrl
+    && actor.outboxBackfill?.outboxUrl === actor.outboxUrl
+    && actor.outboxBackfill.status === 'unavailable',
+  );
 }
 
 // --- Routes ---
@@ -217,10 +225,20 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
 
     // If no local posts and no cursor (first page), trigger async sync
     if (posts.length === 0 && !parsed.data.cursor && actor.outboxUrl) {
+      if (hasUnavailableCurrentOutbox(actor)) {
+        return res.json({ posts: [], hasMore: false, syncing: false, syncUnavailable: true });
+      }
+
       // Fire-and-forget: sync in background, return syncing flag to client
-      federationService.syncOutboxPosts(actor, limit).catch((err) => {
-        logger.warn('Background outbox sync failed:', err);
-      });
+      federationService.syncOutboxPostsDetailed(actor, limit)
+        .then(async (result) => {
+          if (isPermanentlyUnavailableOutboxReason(result.reason)) {
+            await federationService.markOutboxBackfillUnavailable(actor, result.reason);
+          }
+        })
+        .catch((err) => {
+          logger.warn('Background outbox sync failed:', err);
+        });
       return res.json({ posts: [], hasMore: false, syncing: true });
     }
 

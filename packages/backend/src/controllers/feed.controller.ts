@@ -44,7 +44,7 @@ import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers'
 import type { User } from '@oxyhq/core';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
-import { federationService } from '../services/FederationService';
+import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
 import { FEDERATION_ENABLED } from '../utils/federation/constants';
 
 /**
@@ -1044,11 +1044,20 @@ class FeedController {
         federationService.refreshActorInBackground(actor.uri, actor);
 
         if (actor.outboxUrl) {
+          const outboxStatus = this.getCurrentOutboxBackfillStatus(actor);
+          if (outboxStatus === 'unavailable') {
+            logger.info(`[FedSync] outbox sync skipped (unavailable) for ${actor.acct}`);
+            return;
+          }
+
           // Cooldown: skip the (expensive) outbox re-fetch+dedupe if we synced
           // this actor's outbox within the cooldown window. Profile views are
           // frequent; the outbox rarely changes between back-to-back views.
           const lastSyncMs = actor.lastOutboxSyncAt?.getTime();
+          const shouldClassifyUntrackedOutbox =
+            !outboxStatus && typeof actor.postsCount === 'number' && actor.postsCount > 0;
           const syncedRecently = !refreshedActorForSync
+            && !shouldClassifyUntrackedOutbox
             && typeof lastSyncMs === 'number'
             && Date.now() - lastSyncMs < OUTBOX_SYNC_MIN_INTERVAL_MS;
           if (syncedRecently) {
@@ -1064,7 +1073,9 @@ class FeedController {
           const syncResult = await federationService.syncOutboxPostsDetailed(actor, this.FED_OUTBOX_SYNC_LIMIT);
           const syncedCount = syncResult.syncedCount;
           logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
-          if (syncResult.shouldStampCooldown) {
+          if (isPermanentlyUnavailableOutboxReason(syncResult.reason)) {
+            await federationService.markOutboxBackfillUnavailable(actor, syncResult.reason);
+          } else if (syncResult.shouldStampCooldown) {
             // Stamp the sync time so subsequent views honour the cooldown only
             // after a fetch that actually exposed an inspectable outbox.
             await FederatedActor.updateOne(
@@ -1097,7 +1108,17 @@ class FeedController {
     return Date.now() - fetchedAt > FEDERATED_ACTOR_PROFILE_STALE_MS;
   }
 
+  private getCurrentOutboxBackfillStatus(actor: IFederatedActor): string | undefined {
+    if (!actor.outboxUrl) return undefined;
+    if (actor.outboxBackfill?.outboxUrl !== actor.outboxUrl) return undefined;
+    return actor.outboxBackfill?.status;
+  }
+
   private shouldShowFederatedSyncPending(actor: IFederatedActor): boolean {
+    const outboxStatus = this.getCurrentOutboxBackfillStatus(actor);
+    if (outboxStatus === 'unavailable' || outboxStatus === 'complete') return false;
+    if (outboxStatus === 'pending') return true;
+
     const lastSyncMs = actor.lastOutboxSyncAt?.getTime();
     if (typeof lastSyncMs !== 'number') return true;
     return Date.now() - lastSyncMs >= OUTBOX_SYNC_MIN_INTERVAL_MS;
