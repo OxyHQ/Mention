@@ -460,6 +460,7 @@ class FederationJobScheduler {
         'outboxBackfill.status': 'failed',
         'outboxBackfill.lastError': result.reason ?? 'unknown',
       });
+      delete update.$unset['outboxBackfill.lastError'];
     } else if (processedCount >= OUTBOX_RECENT_BACKFILL_LIMIT || result.reachedEnd || !result.nextCursor) {
       Object.assign(update.$set, {
         'outboxBackfill.status': 'complete',
