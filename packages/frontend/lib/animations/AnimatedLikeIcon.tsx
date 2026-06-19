@@ -1,67 +1,24 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, {
-  Keyframe,
-  LayoutAnimationConfig,
+  Easing,
+  useAnimatedStyle,
   useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 
-const keyframe = new Keyframe({
-  0: {
-    transform: [{ scale: 1 }],
-  },
-  10: {
-    transform: [{ scale: 0.7 }],
-  },
-  40: {
-    transform: [{ scale: 1.2 }],
-  },
-  100: {
-    transform: [{ scale: 1 }],
-  },
-});
-
-const circle1Keyframe = new Keyframe({
-  0: {
-    opacity: 0,
-    transform: [{ scale: 0 }],
-  },
-  10: {
-    opacity: 0.4,
-  },
-  40: {
-    transform: [{ scale: 1.5 }],
-  },
-  95: {
-    opacity: 0.4,
-  },
-  100: {
-    opacity: 0,
-    transform: [{ scale: 1.5 }],
-  },
-});
-
-const circle2Keyframe = new Keyframe({
-  0: {
-    opacity: 0,
-    transform: [{ scale: 0 }],
-  },
-  10: {
-    opacity: 1,
-  },
-  40: {
-    transform: [{ scale: 0 }],
-  },
-  95: {
-    opacity: 1,
-  },
-  100: {
-    opacity: 0,
-    transform: [{ scale: 1.5 }],
-  },
-});
+const LIKE_ANIMATION_MS = 300;
+const easeOut = Easing.bezier(0.16, 1, 0.3, 1);
+const ringTiming = {
+  duration: LIKE_ANIMATION_MS,
+  easing: easeOut,
+};
 
 export function AnimatedLikeIcon({
   isLiked,
@@ -75,28 +32,83 @@ export function AnimatedLikeIcon({
   const theme = useTheme();
   const size = big ? 22 : 18;
   const likeColor = theme.colors.error;
-  const shouldAnimate = !useReducedMotion() && hasBeenToggled;
+  const reduceMotion = useReducedMotion();
+  const shouldAnimate = !reduceMotion && hasBeenToggled;
+  const iconScale = useSharedValue(1);
+  const outerRingOpacity = useSharedValue(0);
+  const outerRingScale = useSharedValue(0);
+  const innerRingOpacity = useSharedValue(0);
+  const innerRingScale = useSharedValue(0);
+
+  useEffect(() => {
+    if (!isLiked || !shouldAnimate) {
+      iconScale.value = 1;
+      outerRingOpacity.value = 0;
+      outerRingScale.value = 0;
+      innerRingOpacity.value = 0;
+      innerRingScale.value = 0;
+      return;
+    }
+
+    iconScale.value = withSequence(
+      withTiming(0.7, { duration: 30 }),
+      withTiming(1.2, { duration: 90, easing: easeOut }),
+      withTiming(1, { duration: 180, easing: easeOut }),
+    );
+    outerRingOpacity.value = withSequence(
+      withTiming(0.4, { duration: 30 }),
+      withDelay(255, withTiming(0, { duration: 15 })),
+    );
+    outerRingScale.value = withTiming(1.5, ringTiming);
+    innerRingOpacity.value = withSequence(
+      withTiming(1, { duration: 30 }),
+      withDelay(255, withTiming(0, { duration: 15 })),
+    );
+    innerRingScale.value = withSequence(
+      withTiming(0, { duration: 120 }),
+      withTiming(1.5, { duration: 180, easing: easeOut }),
+    );
+  }, [
+    iconScale,
+    innerRingOpacity,
+    innerRingScale,
+    isLiked,
+    outerRingOpacity,
+    outerRingScale,
+    shouldAnimate,
+  ]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: iconScale.value }],
+  }));
+
+  const outerRingStyle = useAnimatedStyle(() => ({
+    opacity: outerRingOpacity.value,
+    transform: [{ scale: outerRingScale.value }],
+  }));
+
+  const innerRingStyle = useAnimatedStyle(() => ({
+    opacity: innerRingOpacity.value,
+    transform: [{ scale: innerRingScale.value }],
+  }));
 
   return (
     <View>
-      <LayoutAnimationConfig skipEntering>
-        {isLiked ? (
+      {isLiked ? (
+        <Animated.View style={iconStyle}>
+          <HeartIconActive color={likeColor} size={size} />
+        </Animated.View>
+      ) : (
+        <HeartIcon
+          className="text-muted-foreground"
+          size={size}
+        />
+      )}
+      {isLiked && shouldAnimate ? (
+        <>
           <Animated.View
-            entering={shouldAnimate ? keyframe.duration(300) : undefined}>
-            <HeartIconActive color={likeColor} size={size} />
-          </Animated.View>
-        ) : (
-          <HeartIcon
-            className="text-muted-foreground"
-            size={size}
-            style={{ pointerEvents: 'none' } as any}
-          />
-        )}
-        {isLiked && shouldAnimate ? (
-          <>
-            <Animated.View
-              entering={circle1Keyframe.duration(300)}
-              style={{
+            style={[
+              {
                 position: 'absolute',
                 backgroundColor: likeColor,
                 top: 0,
@@ -106,11 +118,13 @@ export function AnimatedLikeIcon({
                 zIndex: -1,
                 pointerEvents: 'none',
                 borderRadius: size / 2,
-              }}
-            />
-            <Animated.View
-              entering={circle2Keyframe.duration(300)}
-              style={{
+              },
+              outerRingStyle,
+            ]}
+          />
+          <Animated.View
+            style={[
+              {
                 position: 'absolute',
                 backgroundColor: theme.colors.background,
                 top: 0,
@@ -120,11 +134,12 @@ export function AnimatedLikeIcon({
                 zIndex: -1,
                 pointerEvents: 'none',
                 borderRadius: size / 2,
-              }}
-            />
-          </>
-        ) : null}
-      </LayoutAnimationConfig>
+              },
+              innerRingStyle,
+            ]}
+          />
+        </>
+      ) : null}
     </View>
   );
 }

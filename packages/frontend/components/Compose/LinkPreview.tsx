@@ -6,7 +6,7 @@ import { LinkMetadata } from '../../stores/linksStore';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { useTranslation } from 'react-i18next';
-import { ScaleAndFadeIn, ScaleAndFadeOut } from '@/lib/animations/ScaleAndFade';
+import { composePreviewEnter, composePreviewExit } from '@/lib/animations/entryExit';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getApiOrigin } from '@/utils/api';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
@@ -65,7 +65,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
       if (supported) {
         await Linking.openURL(link.url);
       }
-    } catch (error) {
+    } catch {
       // Silently handle errors - user can manually open if needed
     }
   }, [link.url]);
@@ -83,7 +83,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
       if (!title) {
         title = urlObj.hostname;
       }
-    } catch (e) {
+    } catch {
       // Invalid URL, use fallback
       if (!siteName) {
         siteName = 'Link';
@@ -97,73 +97,73 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
   }, [link.title, link.siteName, link.description, link.url]);
 
   return (
-    <Animated.View entering={ScaleAndFadeIn} exiting={ScaleAndFadeOut}>
-    <TouchableOpacity
-      style={[
-        styles.container,
-        {
-          borderColor: theme.colors.border,
-          backgroundColor: theme.colors.backgroundSecondary,
-        },
-        style,
-      ]}
-      activeOpacity={0.85}
-      onPress={handlePress}
-    >
-      {link.image ? (
-        <Image
-          source={{ uri: fixImageUrl(link.image) }}
-          className="flex-1 w-full min-h-[50px] bg-[#EFEFEF]"
-          resizeMode="cover"
-          onError={() => {
-            // Image will just not display if it fails - silently handle
-          }}
-        />
-      ) : null}
-
-      <View className="p-3">
-        {displaySiteName ? (
-          <Text
-            className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
-            numberOfLines={1}
-          >
-            {displaySiteName}
-          </Text>
+    <Animated.View entering={composePreviewEnter} exiting={composePreviewExit}>
+      <TouchableOpacity
+        style={[
+          styles.container,
+          {
+            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.backgroundSecondary,
+          },
+          style,
+        ]}
+        activeOpacity={0.85}
+        onPress={handlePress}
+      >
+        {link.image ? (
+          <Image
+            source={{ uri: fixImageUrl(link.image) }}
+            className="flex-1 w-full min-h-[50px] bg-[#EFEFEF]"
+            resizeMode="cover"
+            onError={() => {
+              // Image will just not display if it fails - silently handle
+            }}
+          />
         ) : null}
 
-        {displayTitle ? (
-          <Text
-            className="text-[15px] font-semibold text-foreground mt-1"
-            numberOfLines={2}
-          >
-            {displayTitle}
-          </Text>
-        ) : null}
+        <View className="p-3">
+          {displaySiteName ? (
+            <Text
+              className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+              numberOfLines={1}
+            >
+              {displaySiteName}
+            </Text>
+          ) : null}
 
-        {displayDescription ? (
-          <Text
-            className="text-[13px] text-muted-foreground mt-1"
-            style={{ lineHeight: 18 }}
-            numberOfLines={2}
-          >
-            {displayDescription}
-          </Text>
-        ) : null}
-      </View>
+          {displayTitle ? (
+            <Text
+              className="text-[15px] font-semibold text-foreground mt-1"
+              numberOfLines={2}
+            >
+              {displayTitle}
+            </Text>
+          ) : null}
 
-      {onRemove && (
-        <TouchableOpacity
-          onPress={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <CloseIcon size={16} className="text-foreground" />
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
+          {displayDescription ? (
+            <Text
+              className="text-[13px] text-muted-foreground mt-1"
+              style={{ lineHeight: 18 }}
+              numberOfLines={2}
+            >
+              {displayDescription}
+            </Text>
+          ) : null}
+        </View>
+
+        {onRemove && (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <CloseIcon size={16} className="text-foreground" />
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     </Animated.View>
   );
 }, (prevProps, nextProps) => {

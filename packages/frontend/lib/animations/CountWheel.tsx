@@ -1,79 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  LayoutAnimationConfig,
-  useReducedMotion,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { LayoutAnimationConfig, useReducedMotion } from 'react-native-reanimated';
 
 import { useTheme } from '@oxyhq/bloom/theme';
+import {
+  countEnterFromAbove,
+  countEnterFromBelow,
+  countExitDown,
+  countExitUp,
+} from '@/lib/animations/entryExit';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
-const animationConfig = {
-  duration: 400,
-  easing: Easing.out(Easing.cubic),
-};
-
-function EnteringUp() {
-  'worklet';
-  const animations = {
-    opacity: withTiming(1, animationConfig),
-    transform: [{ translateY: withTiming(0, animationConfig) }],
-  };
-  const initialValues = {
-    opacity: 0,
-    transform: [{ translateY: 18 }],
-  };
-  return { animations, initialValues };
-}
-
-function EnteringDown() {
-  'worklet';
-  const animations = {
-    opacity: withTiming(1, animationConfig),
-    transform: [{ translateY: withTiming(0, animationConfig) }],
-  };
-  const initialValues = {
-    opacity: 0,
-    transform: [{ translateY: -18 }],
-  };
-  return { animations, initialValues };
-}
-
-function ExitingUp() {
-  'worklet';
-  const animations = {
-    opacity: withTiming(0, animationConfig),
-    transform: [{ translateY: withTiming(-18, animationConfig) }],
-  };
-  const initialValues = {
-    opacity: 1,
-    transform: [{ translateY: 0 }],
-  };
-  return { animations, initialValues };
-}
-
-function ExitingDown() {
-  'worklet';
-  const animations = {
-    opacity: withTiming(0, animationConfig),
-    transform: [{ translateY: withTiming(18, animationConfig) }],
-  };
-  const initialValues = {
-    opacity: 1,
-    transform: [{ translateY: 0 }],
-  };
-  return { animations, initialValues };
-}
-
 /**
- * Decides whether the count wheel should roll or just snap.
- * Roll when the formatted count actually changes (e.g., 999 -> 1K should snap, 5 -> 6 should roll).
+ * Roll only when the compact label keeps the same shape. Boundary changes like
+ * 999 -> 1K snap because the text width and suffix change.
  */
-function decideShouldRoll(isLiked: boolean, likeCount: number): boolean {
+function shouldAnimateCountRoll(isLiked: boolean, likeCount: number): boolean {
   const prev = isLiked ? likeCount - 1 : likeCount + 1;
-  return formatCompactNumber(prev) !== formatCompactNumber(likeCount);
+  return formatCompactNumber(prev) === formatCompactNumber(likeCount);
 }
 
 export function CountWheel({
@@ -89,7 +33,7 @@ export function CountWheel({
 }) {
   const theme = useTheme();
   const shouldAnimate = !useReducedMotion() && hasBeenToggled;
-  const shouldRoll = !decideShouldRoll(isLiked, likeCount);
+  const shouldRoll = shouldAnimateCountRoll(isLiked, likeCount);
 
   const [key, setKey] = useState(0);
   const [prevCount, setPrevCount] = useState(likeCount);
@@ -109,17 +53,17 @@ export function CountWheel({
     prevIsLiked.current = isLiked;
   }, [isLiked, likeCount]);
 
-  const enteringAnimation =
+  const currentCountAnimation =
     shouldAnimate && shouldRoll
       ? isLiked
-        ? EnteringUp
-        : EnteringDown
+        ? countEnterFromBelow
+        : countEnterFromAbove
       : undefined;
-  const exitingAnimation =
+  const previousCountAnimation =
     shouldAnimate && shouldRoll
       ? isLiked
-        ? ExitingUp
-        : ExitingDown
+        ? countExitUp
+        : countExitDown
       : undefined;
 
   const likeColor = theme.colors.error;
@@ -130,7 +74,7 @@ export function CountWheel({
     <LayoutAnimationConfig skipEntering skipExiting>
       {likeCount > 0 ? (
         <View style={{ justifyContent: 'center' }}>
-          <Animated.View entering={enteringAnimation} key={key}>
+          <Animated.View entering={currentCountAnimation} key={key}>
             <Text
               style={{
                 fontSize,
@@ -143,7 +87,7 @@ export function CountWheel({
           </Animated.View>
           {shouldAnimate && (likeCount > 1 || !isLiked) ? (
             <Animated.View
-              entering={exitingAnimation}
+              entering={previousCountAnimation}
               key={key + 2}
               style={{ position: 'absolute', width: 50, opacity: 0 }}
               aria-disabled={true}>

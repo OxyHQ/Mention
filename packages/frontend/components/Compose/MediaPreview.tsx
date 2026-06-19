@@ -6,7 +6,7 @@ import { CloseIcon } from "@/assets/icons/close-icon";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { ChevronRightIcon } from "@/assets/icons/chevron-right-icon";
 import { VideoPreview } from "./VideoPreview";
-import { ScaleAndFadeIn, ScaleAndFadeOut } from "@/lib/animations/ScaleAndFade";
+import { composePreviewEnter, composePreviewExit } from "@/lib/animations/entryExit";
 import { ComposerMediaItem, MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT } from "@/utils/composeUtils";
 import { cn } from "@/lib/utils";
 
@@ -44,8 +44,8 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                     return (
                         <Animated.View
                             key={mediaItem.id}
-                            entering={ScaleAndFadeIn}
-                            exiting={ScaleAndFadeOut}
+                            entering={composePreviewEnter}
+                            exiting={composePreviewExit}
                             style={[
                                 styles.mediaItem,
                                 {
