@@ -943,17 +943,38 @@ class FeedController {
       try {
         let actor: IFederatedActor | null = cachedActor ?? null;
         let refreshedActorForSync = false;
-        logger.info(`[FedSync] background sync userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
+        let oxyIdentity:
+          | { actorUri?: string; acctHint?: string }
+          | undefined;
 
-        if (!actor) {
+        const getOxyIdentity = async (): Promise<{ actorUri?: string; acctHint?: string }> => {
+          if (oxyIdentity) return oxyIdentity;
           // Federated profile lookup is public — use the service client so it
           // works for unauthenticated viewers and avoids per-request token setup.
           const oxyLookupClient = getServiceOxyClient();
           const oxyUser: User = await oxyLookupClient.getUserById(syncUserId);
-          const actorUri = typeof oxyUser.federation?.actorUri === 'string'
-            ? oxyUser.federation.actorUri
-            : undefined;
-          logger.info(`[FedSync] oxyUser.type=${oxyUser.type} federation.actorUri=${actorUri ?? 'missing'}`);
+          oxyIdentity = {
+            actorUri: typeof oxyUser.federation?.actorUri === 'string'
+              ? oxyUser.federation.actorUri
+              : undefined,
+            acctHint: typeof oxyUser.username === 'string' && oxyUser.username.includes('@')
+              ? oxyUser.username
+              : undefined,
+          };
+          logger.info(`[FedSync] oxyUser.type=${oxyUser.type} federation.actorUri=${oxyIdentity.actorUri ?? 'missing'} username=${oxyIdentity.acctHint ?? 'missing'}`);
+          return oxyIdentity;
+        };
+
+        const stampActorOxyUserId = async (): Promise<void> => {
+          if (!actor || actor.oxyUserId) return;
+          await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
+          actor.oxyUserId = syncUserId;
+        };
+
+        logger.info(`[FedSync] background sync userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
+
+        if (!actor) {
+          const { actorUri, acctHint } = await getOxyIdentity();
           if (!actorUri) {
             // Local user with an empty feed — nothing to sync.
             return;
@@ -965,9 +986,6 @@ class FeedController {
           // (PeerTube, Lemmy, some Pleroma) whose outbox lives elsewhere.
           // `fetchRemoteActor` upserts the FederatedActor with the canonical
           // `outboxUrl`/`inboxUrl` taken from `actor.outbox`/`actor.inbox`.
-          const acctHint = typeof oxyUser.username === 'string' && oxyUser.username.includes('@')
-            ? oxyUser.username
-            : undefined;
           actor = await federationService.fetchRemoteActor(actorUri, false, acctHint);
 
           if (!actor) {
@@ -976,7 +994,7 @@ class FeedController {
             // with a guessed outbox so the sync can still attempt Mastodon-style
             // layouts; the enqueued background refresh will correct it later.
             const domain = new URL(actorUri).hostname;
-            const username = (oxyUser.username || '').split('@')[0] || 'unknown';
+            const username = (acctHint || '').split('@')[0] || 'unknown';
             const acct = `${username}@${domain}`;
             const fallbackOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
             logger.info(`[FedSync] fetchRemoteActor failed for ${actorUri}; creating minimal FederatedActor with fallback outboxUrl=${fallbackOutboxUrl}`);
@@ -997,24 +1015,25 @@ class FeedController {
               },
               { upsert: true, returnDocument: 'after', lean: true },
             ) as IFederatedActor | null;
-          } else if (!actor.oxyUserId) {
-            // Stamp the resolved oxyUserId so the outbox sync attributes posts
-            // to the right author (fetchRemoteActor resolves it via Oxy, but
-            // make sure the local row carries the caller-supplied id too).
-            await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
-            actor.oxyUserId = syncUserId;
-          }
-        } else if (this.shouldRefreshActorBeforeOutboxSync(actor)) {
-          const refreshed = await federationService.fetchRemoteActor(actor.uri, false, actor.acct);
-          if (refreshed) {
-            actor = refreshed;
-            refreshedActorForSync = true;
-            if (!actor.oxyUserId) {
-              await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
-              actor.oxyUserId = syncUserId;
-            }
           } else {
-            logger.info(`[FedSync] cached actor refresh failed before outbox sync for ${actor.acct}; using cached outboxUrl=${actor.outboxUrl ?? 'none'}`);
+            await stampActorOxyUserId();
+          }
+        } else {
+          const { actorUri, acctHint } = await getOxyIdentity();
+          const actorUriChanged = Boolean(actorUri && actorUri !== actor.uri);
+          const actorAcctChanged = Boolean(acctHint && actor.acct?.toLowerCase() !== acctHint.toLowerCase());
+          if (actorUriChanged || actorAcctChanged || this.shouldRefreshActorBeforeOutboxSync(actor)) {
+            const refreshUri = actorUri || actor.uri;
+            const refreshAcct = acctHint || actor.acct;
+            logger.info(`[FedSync] refreshing cached actor before outbox sync for ${actor.acct}; actorUriChanged=${actorUriChanged} actorAcctChanged=${actorAcctChanged}`);
+            const refreshed = await federationService.fetchRemoteActor(refreshUri, false, refreshAcct);
+            if (refreshed) {
+              actor = refreshed;
+              refreshedActorForSync = true;
+              await stampActorOxyUserId();
+            } else {
+              logger.info(`[FedSync] cached actor refresh failed before outbox sync for ${actor.acct}; using cached outboxUrl=${actor.outboxUrl ?? 'none'}`);
+            }
           }
         }
 
