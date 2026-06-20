@@ -11,7 +11,9 @@ import {
 //
 // Single canonical recipe shared by the native (mergeHashtags) and federated
 // (FederationService.extractApHashtags) write paths: strip a leading #, trim,
-// lowercase. Empty/whitespace-only input normalizes to '' so callers can drop it.
+// lowercase, then strip every char that is not a unicode letter/number/_.
+// Empty/whitespace-only/all-invalid input normalizes to '' so callers can drop
+// it. International unicode tags are PRESERVED (not forced to ASCII).
 
 describe('normalizeHashtag', () => {
   it('strips a leading #', () => {
@@ -26,11 +28,46 @@ describe('normalizeHashtag', () => {
     expect(normalizeHashtag('  Painting  ')).toBe('painting');
   });
 
-  it('only strips a leading # (matching the original recipe order)', () => {
-    // The recipe is replace(/^#/, '').trim().toLowerCase(): the # is stripped
-    // before the trim, so leading whitespace shields the #. This is unchanged
-    // from the duplicated inline recipes and is not a real-world AP tag shape.
-    expect(normalizeHashtag('  #Cartoon  ')).toBe('#cartoon');
+  it('strips a # anywhere once disallowed chars are removed', () => {
+    // The recipe is strip-leading-# → trim → lowercase → remove disallowed
+    // chars. Leading whitespace shields the literal `#` from the leading-#
+    // strip, but the final disallowed-char pass removes it anyway, so a stray
+    // `#` never survives into stored data.
+    expect(normalizeHashtag('  #Cartoon  ')).toBe('cartoon');
+  });
+
+  it('collapses internal spaces into a single token (the bug)', () => {
+    expect(normalizeHashtag('the village and the hills')).toBe('thevillageandthehills');
+    expect(normalizeHashtag('#the village and the hills')).toBe('thevillageandthehills');
+  });
+
+  it('removes tabs and newlines', () => {
+    expect(normalizeHashtag('foo\tbar\nbaz')).toBe('foobarbaz');
+  });
+
+  it('removes punctuation', () => {
+    expect(normalizeHashtag('hello, world! (yes)')).toBe('helloworldyes');
+  });
+
+  it('removes an emoji used as a separator', () => {
+    expect(normalizeHashtag('save🌍earth')).toBe('saveearth');
+  });
+
+  it('keeps underscores and alphanumerics', () => {
+    expect(normalizeHashtag('#my_tag_2')).toBe('my_tag_2');
+  });
+
+  it('preserves a legitimate Japanese unicode hashtag', () => {
+    expect(normalizeHashtag('#東京')).toBe('東京');
+  });
+
+  it('preserves accented / non-ASCII Latin characters', () => {
+    expect(normalizeHashtag('#Café')).toBe('café');
+    expect(normalizeHashtag('niño')).toBe('niño');
+  });
+
+  it('preserves Cyrillic characters', () => {
+    expect(normalizeHashtag('#Привет')).toBe('привет');
   });
 
   it('returns an empty string for empty/whitespace-only input', () => {
@@ -39,8 +76,15 @@ describe('normalizeHashtag', () => {
     expect(normalizeHashtag('#')).toBe('');
   });
 
+  it('returns an empty string for all-invalid input (dropped by callers)', () => {
+    expect(normalizeHashtag('!!!')).toBe('');
+    expect(normalizeHashtag('   ---   ')).toBe('');
+    expect(normalizeHashtag('🚀🚀')).toBe('');
+  });
+
   it('is idempotent over already-normalized input', () => {
     expect(normalizeHashtag('humor')).toBe('humor');
+    expect(normalizeHashtag('東京')).toBe('東京');
   });
 });
 
@@ -70,6 +114,18 @@ describe('mergeHashtags', () => {
 
   it('drops empty user-provided tags', () => {
     expect(mergeHashtags('', ['', '   ', 'Funny'])).toEqual(['funny']);
+  });
+
+  it('collapses spaces in user-provided tags into a single token', () => {
+    expect(mergeHashtags('', ['the village and the hills'])).toEqual(['thevillageandthehills']);
+  });
+
+  it('drops user-provided tags that normalize to empty', () => {
+    expect(mergeHashtags('', ['!!!', '🚀', 'Real'])).toEqual(['real']);
+  });
+
+  it('preserves unicode user-provided tags', () => {
+    expect(mergeHashtags('', ['東京', 'Café'])).toEqual(['東京', 'café']);
   });
 
   it('returns an empty array when there is nothing to merge', () => {
@@ -218,5 +274,30 @@ describe('normalizePostHashtags', () => {
     const r = normalizePostHashtags('Intro #a #b #c #d and a closing thought');
     expect(r.content).toBe('Intro #a and a closing thought');
     expect(r.hashtags).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  // --- disallowed-char collapse in user-provided tags ------------------------
+
+  it('collapses space-containing user-provided tags into single tokens', () => {
+    const r = normalizePostHashtags('Plain text', ['the village and the hills', 'New York City']);
+    expect(r.content).toBe('Plain text');
+    expect(r.hashtags).toEqual(['thevillageandthehills', 'newyorkcity']);
+  });
+
+  it('drops user-provided tags that normalize to empty', () => {
+    const r = normalizePostHashtags('Plain text', ['!!!', '   ', '🚀', 'keep']);
+    expect(r.content).toBe('Plain text');
+    expect(r.hashtags).toEqual(['keep']);
+  });
+
+  it('preserves unicode user-provided tags', () => {
+    const r = normalizePostHashtags('Plain text', ['東京', 'Café', 'Привет']);
+    expect(r.content).toBe('Plain text');
+    expect(r.hashtags).toEqual(['東京', 'café', 'привет']);
+  });
+
+  it('strips punctuation/emoji from user-provided tags but keeps the rest', () => {
+    const r = normalizePostHashtags('Plain text', ['save🌍earth', 'hello,world']);
+    expect(r.hashtags).toEqual(['saveearth', 'helloworld']);
   });
 });

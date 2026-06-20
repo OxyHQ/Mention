@@ -17,17 +17,41 @@ export function extractHashtags(text: string): string[] {
 }
 
 /**
+ * Characters NOT allowed inside a stored hashtag. A canonical hashtag is a run
+ * of unicode letters (`\p{L}`), unicode numbers (`\p{N}`), and underscores;
+ * everything else — spaces, tabs, newlines, punctuation, emoji, ZWJ/separators —
+ * is stripped. The class is unicode-aware (`u` flag) so legitimate
+ * international tags federated instances send (Japanese, accented Latin,
+ * Cyrillic, etc.) are PRESERVED rather than mangled to ASCII.
+ */
+const HASHTAG_DISALLOWED_CHARS = /[^\p{L}\p{N}_]+/gu;
+
+/**
  * Canonical hashtag normalization.
  *
- * Strips a single leading `#`, trims surrounding whitespace, and lowercases so
- * that every write path stores tags in the same form the case-insensitive read
- * paths (`getPostsByHashtag`, the MTN `HashtagFeed`, the `$toLower` trending
- * aggregations) expect. Returns `''` for empty/whitespace-only input so callers
- * can filter out non-tags. This is the single source of truth for the recipe
- * that was previously duplicated across the native and federated write paths.
+ * Strips a single leading `#`, trims surrounding whitespace, lowercases, then
+ * removes every character that is not a unicode letter/number/underscore. This
+ * collapses a multi-word value like `"the village and the hills"` into a single
+ * Mastodon-style token (`thevillageandthehills`) and kills tabs, newlines,
+ * punctuation, and emoji separators, while keeping legitimate unicode tags
+ * intact (it is NOT restricted to ASCII).
+ *
+ * The result is the same form the case-insensitive read paths
+ * (`getPostsByHashtag`, the MTN `HashtagFeed`, the `$toLower` trending
+ * aggregations) expect. Returns `''` for empty/whitespace-only/all-invalid
+ * input so callers can filter out non-tags (every caller does — see
+ * `mergeHashtags` and `extractApHashtags`). This is the single source of truth
+ * for the recipe that was previously duplicated across the native and federated
+ * write paths.
+ *
+ * Order: strip leading `#` → trim → lowercase → remove disallowed chars.
  */
 export function normalizeHashtag(raw: string): string {
-  return raw.replace(/^#/, '').trim().toLowerCase();
+  return raw
+    .replace(/^#/, '')
+    .trim()
+    .toLowerCase()
+    .replace(HASHTAG_DISALLOWED_CHARS, '');
 }
 
 /**
