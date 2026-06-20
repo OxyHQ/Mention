@@ -25,6 +25,7 @@ import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
+import { fetchRecommendations } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
@@ -180,8 +181,7 @@ function ConnectionsContent({
   const loadRecommendations = useCallback(async () => {
     try {
       setError(null);
-      const response = await oxyServices.getProfileRecommendations();
-      const recommendationsList = Array.isArray(response) ? response : [];
+      const recommendationsList = await fetchRecommendations();
       setRecommendations(recommendationsList);
       precacheProfileViews(queryClient, recommendationsList);
     } catch (err) {

@@ -9,6 +9,7 @@ import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
 import { logger } from '@/lib/logger';
+import { fetchRecommendations, type ProfileData } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 
 interface SuggestedUsersProps {
@@ -20,15 +21,13 @@ interface SuggestedUsersProps {
 }
 
 /**
- * A recommended/similar profile as returned by the SDK. Derived from
- * `getProfileRecommendations` so it stays in lockstep with the source of truth;
- * it carries the SDK's index signature, which makes it assignable both to the
- * cache helpers (`precacheProfileViews` / `enrichMissingAvatars`) and to the
- * `SuggestedUserData` card shape.
+ * A recommended/similar profile. The shared {@link ProfileData} is the source
+ * of truth; its index signature keeps it assignable both to the cache helpers
+ * (`precacheProfileViews` / `enrichMissingAvatars`) and to the
+ * `SuggestedUserData` card shape, and also accommodates the looser `User`
+ * objects returned by the `getSimilarProfiles` similarity path.
  */
-type RecommendedUser = Awaited<
-  ReturnType<ReturnType<typeof useAuth>['oxyServices']['getProfileRecommendations']>
->[number];
+type RecommendedUser = ProfileData;
 
 const DEFAULT_MAX_CARDS = 10;
 
@@ -55,23 +54,26 @@ export const SuggestedUsers = memo(function SuggestedUsers({
 
     let mounted = true;
 
-    const fetchRecommendations = async () => {
+    const loadSuggestions = async () => {
       try {
         setLoading(true);
-        let response: unknown;
+        let users: RecommendedUser[];
         if (sourceUserId) {
           try {
-            response = await oxyServices.getSimilarProfiles(sourceUserId);
+            // `getSimilarProfiles` returns the SDK `User` shape (optional id);
+            // narrow through `unknown` to the looser `RecommendedUser`, the same
+            // erasure the recommendations path already produces.
+            const similar: unknown = await oxyServices.getSimilarProfiles(sourceUserId);
+            users = Array.isArray(similar) ? similar : [];
           } catch (error) {
             logger.warn('SuggestedUsers: getSimilarProfiles failed, falling back to recommendations', { error });
-            response = await oxyServices.getProfileRecommendations();
+            users = await fetchRecommendations();
           }
         } else {
-          response = await oxyServices.getProfileRecommendations();
+          users = await fetchRecommendations();
         }
         if (!mounted) return;
 
-        const users: RecommendedUser[] = Array.isArray(response) ? response : [];
         setRecommendations(users);
 
         if (users.length > 0) {
@@ -101,7 +103,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       }
     };
 
-    fetchRecommendations();
+    loadSuggestions();
 
     return () => {
       mounted = false;

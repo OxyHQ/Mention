@@ -70,6 +70,7 @@ import seriesRoutes from './src/routes/series.routes';
 import entityFollowRoutes from './src/routes/entity-follow.routes';
 import adminRoutes from './src/routes/admin';
 import mediaRoutes from './src/routes/media';
+import recommendationsRoutes from './src/routes/recommendations';
 
 // Federation (ActivityPub)
 import webfingerRoutes from './src/routes/webfinger.routes';
@@ -773,6 +774,7 @@ publicApiRouter.use("/topics", topicsRoutes); // Topic collection (no auth requi
 publicApiRouter.use("/federation", optionalAuth, federationApiRoutes); // Write endpoints enforce auth internally
 publicApiRouter.use("/feeds", optionalAuth, customFeedsRoutes); // Public feed discovery; write routes enforce auth internally
 publicApiRouter.use("/rooms", optionalAuth, roomsRoutes); // Public room discovery; write routes enforce auth internally
+publicApiRouter.use("/recommendations", optionalAuth, recommendationsRoutes); // Cross-app profile recommendations (personalized when authed)
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();

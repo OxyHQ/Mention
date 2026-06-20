@@ -45,3 +45,20 @@ const serviceClient: OxyServices = (() => {
 export function getServiceOxyClient(): OxyServices {
   return serviceClient;
 }
+
+/**
+ * Mention's Oxy `Application` `_id`. Sent as `clientId` on
+ * `POST /profiles/recommendations` so Oxy selects Mention's per-app weight
+ * profile when scoring recommendations (`REC_SCORING_V2`). When unset the Oxy
+ * endpoint falls back to its default weight profile, so the value is optional
+ * and the recommendation adapter simply omits `clientId` rather than failing.
+ *
+ * Provisioned alongside `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` (SSM
+ * `/oxy/mention/MENTION_OXY_CLIENT_ID`). It is the SAME Application that owns the
+ * `6a30ca4b5b15dc1bb793ad53` service credential; the credential id and the
+ * Application `_id` are distinct values.
+ */
+export function getMentionOxyClientId(): string | undefined {
+  const value = process.env.MENTION_OXY_CLIENT_ID?.trim();
+  return value && value.length > 0 ? value : undefined;
+}

@@ -14,26 +14,9 @@ import { enrichMissingAvatars } from "@/utils/userEnrichment";
 import { getUserPlaceholderColor } from "@/utils/userPlaceholderColor";
 import UserName from '@/components/UserName';
 import { logger } from '@/lib/logger';
-import { getRecommendationFilters } from '@/lib/recommendationFilters';
+import { fetchRecommendations, type ProfileData } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-
-interface ProfileData {
-  id: string;
-  username?: string;
-  name: {
-    displayName: string;
-    first?: string;
-    last?: string;
-    full?: string;
-  };
-  avatar?: string;
-  bio?: string;
-  isFederated?: boolean;
-  isAgent?: boolean;
-  isAutomated?: boolean;
-  instance?: string;
-}
 
 const MAX_DISPLAY_USERS = 5;
 
@@ -49,22 +32,14 @@ export function WhoToFollowWidget() {
   useEffect(() => {
     let mounted = true;
 
-    const fetchRecommendations = async () => {
+    const loadRecommendations = async () => {
       try {
         setLoading(true);
         setError(null);
-        const filters = await getRecommendationFilters();
-        const excludeTypes: Array<'federated' | 'agent' | 'automated'> = [];
-        if (!filters.showFederated) excludeTypes.push('federated');
-        if (!filters.showAgents) excludeTypes.push('agent');
-        if (!filters.showAutomated) excludeTypes.push('automated');
-        const response = await oxyServices.getProfileRecommendations(
-          excludeTypes.length > 0 ? { excludeTypes } : undefined
-        );
+        const users = await fetchRecommendations();
 
         if (!mounted) return;
 
-        const users = Array.isArray(response) ? response : [];
         setRecommendations(users);
 
         if (users.length > 0) {
@@ -97,7 +72,7 @@ export function WhoToFollowWidget() {
       }
     };
 
-    fetchRecommendations();
+    loadRecommendations();
 
     return () => {
       mounted = false;

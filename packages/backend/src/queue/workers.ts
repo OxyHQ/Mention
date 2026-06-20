@@ -131,6 +131,12 @@ async function processPeriodicJob(job: Job<PeriodicJobData>): Promise<void> {
     case 'runMediaCacheEviction':
       await federationJobScheduler.runMediaCacheEviction();
       break;
+    case 'computeInterestScores':
+      await federationJobScheduler.computeInterestScores();
+      break;
+    case 'flushEndorsementOutbox':
+      await federationJobScheduler.flushEndorsementOutbox();
+      break;
     default: {
       // Exhaustiveness guard: an unknown task is a programming error, not a
       // transient failure — fail permanently rather than retry forever.

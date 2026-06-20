@@ -31,7 +31,9 @@ export type PeriodicTaskName =
   | 'syncRecentOutboxBackfills'
   | 'backfillFederatedPostOxyUserIds'
   | 'runMediaCacheWorker'
-  | 'runMediaCacheEviction';
+  | 'runMediaCacheEviction'
+  | 'computeInterestScores'
+  | 'flushEndorsementOutbox';
 
 /** Payload for a periodic (repeatable) federation maintenance job. */
 export interface PeriodicJobData {

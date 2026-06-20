@@ -4,8 +4,21 @@ import AccountList, { IAccountList } from '../models/AccountList';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
+import { endorsementSignalService } from '../services/EndorsementSignalService';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
+
+/**
+ * Fire-and-forget endorsement re-sync for a list whose membership changed.
+ * Never blocks or fails the request — Oxy reputation signals are eventually
+ * consistent (the outbox retries on failure).
+ */
+function syncListEndorsements(listId: string): void {
+  void endorsementSignalService
+    .syncScope('accountList', listId)
+    .catch((error) => logger.warn(`[Lists] endorsement sync failed for ${listId}:`, error));
+}
 
 type LeanAccountList = Pick<
   IAccountList,
@@ -38,6 +51,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       memberOxyUserIds: Array.isArray(memberOxyUserIds) ? memberOxyUserIds : [],
     });
 
+    syncListEndorsements(String(list._id));
     res.status(201).json(list);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create list' });
@@ -88,6 +102,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (isPublic !== undefined) list.isPublic = !!isPublic;
     if (Array.isArray(memberOxyUserIds)) list.memberOxyUserIds = memberOxyUserIds;
     await list.save();
+    syncListEndorsements(String(list._id));
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update list' });
@@ -101,7 +116,14 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     const list = await AccountList.findById(req.params.id);
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
+    // Capture members BEFORE delete so we can retract their endorsements.
+    const ownerId = list.ownerOxyUserId;
+    const memberIds = [...(list.memberOxyUserIds || [])];
+    const listId = String(list._id);
     await list.deleteOne();
+    void endorsementSignalService
+      .syncScopeRemoval('accountList', listId, ownerId, memberIds)
+      .catch((error) => logger.warn(`[Lists] endorsement retraction failed for ${listId}:`, error));
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete list' });
@@ -119,6 +141,7 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     const set = new Set([...(list.memberOxyUserIds || []), ...(Array.isArray(userIds) ? userIds : [])]);
     list.memberOxyUserIds = Array.from(set);
     await list.save();
+    syncListEndorsements(String(list._id));
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add members' });
@@ -135,6 +158,7 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     const toRemove = new Set(Array.isArray(userIds) ? userIds : []);
     list.memberOxyUserIds = (list.memberOxyUserIds || []).filter(id => !toRemove.has(id));
     await list.save();
+    syncListEndorsements(String(list._id));
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: 'Failed to remove members' });

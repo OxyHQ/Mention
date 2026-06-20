@@ -109,6 +109,15 @@ export const PERIODIC_MEDIA_CACHE_WORKER = 'federation:media-cache-worker';
 export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
 
 /**
+ * Recommendation-signal scheduler ids. These pipe Mention curation + engagement
+ * into Oxy's cross-app recommendation graph (see EndorsementSignalService /
+ * InterestScoreService). They share the periodic queue + worker but are
+ * registered as their own repeatable jobs.
+ */
+export const PERIODIC_COMPUTE_INTEREST_SCORES = 'recommendations:compute-interest-scores';
+export const PERIODIC_FLUSH_ENDORSEMENT_OUTBOX = 'recommendations:flush-endorsement-outbox';
+
+/**
  * Cadences for the repeatable jobs. These reuse the exact intervals the legacy
  * in-process `FederationJobScheduler` used so behavior is unchanged — only the
  * scheduling transport moves to BullMQ. (Media-cache cadences come from
@@ -126,6 +135,20 @@ export const RECENT_OUTBOX_BACKFILL_INTERVAL_MS = 15 * MS_PER_MINUTE;
  * an empty result set), so a slow cadence keeps the safety net without cost.
  */
 export const BACKFILL_OXY_USER_IDS_INTERVAL_MS = 1 * MS_PER_HOUR;
+
+/**
+ * Interest-score recompute cadence. Engagement aggregation over a 30-day window
+ * is a heavyweight scan, and the score is a slow-moving signal, so a 6-hour
+ * cadence is plenty fresh while keeping the load light.
+ */
+export const COMPUTE_INTEREST_SCORES_INTERVAL_MS = 6 * MS_PER_HOUR;
+
+/**
+ * Endorsement-outbox drain cadence. Membership mutations attempt an immediate
+ * push; this drain is the safety net for rows left pending (Oxy down, transient
+ * error), so it runs every 2 minutes to keep the backlog small.
+ */
+export const FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS = 2 * MS_PER_MINUTE;
 
 /** Concurrency for the periodic worker. MUST be 1 so a repeatable job never overlaps itself. */
 export const PERIODIC_WORKER_CONCURRENCY = 1;

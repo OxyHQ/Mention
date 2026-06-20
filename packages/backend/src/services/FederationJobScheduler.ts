@@ -23,13 +23,19 @@ import {
   PERIODIC_BACKFILL_OXY_USER_IDS,
   PERIODIC_MEDIA_CACHE_WORKER,
   PERIODIC_MEDIA_CACHE_EVICTION,
+  PERIODIC_COMPUTE_INTEREST_SCORES,
+  PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
   REFRESH_STALE_ACTORS_INTERVAL_MS,
   SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
   RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
   BACKFILL_OXY_USER_IDS_INTERVAL_MS,
+  COMPUTE_INTEREST_SCORES_INTERVAL_MS,
+  FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS,
   DELIVERY_DRAIN_PAGE_SIZE,
 } from '../queue/constants';
 import type { PeriodicTaskName } from '../queue/types';
+import { interestScoreService } from './InterestScoreService';
+import { endorsementSignalService } from './EndorsementSignalService';
 import { oxy } from '../../server';
 
 /** Staleness threshold after which an actor profile is re-fetched. */
@@ -78,6 +84,8 @@ class FederationJobScheduler {
   private outboxBackfillInterval: ReturnType<typeof setInterval> | null = null;
   private mediaCacheWorkerInterval: ReturnType<typeof setInterval> | null = null;
   private mediaCacheEvictionInterval: ReturnType<typeof setInterval> | null = null;
+  private interestScoresInterval: ReturnType<typeof setInterval> | null = null;
+  private endorsementOutboxInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
   private backfillTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -90,6 +98,8 @@ class FederationJobScheduler {
   private isRetryFailedDeliveriesRunning = false;
   private isMediaCacheWorkerRunning = false;
   private isMediaCacheEvictionRunning = false;
+  private isComputeInterestScoresRunning = false;
+  private isFlushEndorsementOutboxRunning = false;
 
   /** True when this scheduler registered BullMQ repeatable jobs (queue mode). */
   private usingQueue = false;
@@ -178,6 +188,20 @@ class FederationJobScheduler {
 
     }
 
+    // Recommendation-signal jobs (interest-score recompute + endorsement-outbox
+    // drain). Always armed — they are not gated on the media cache.
+    this.interestScoresInterval = setInterval(() => {
+      this.computeInterestScores().catch((err) =>
+        logger.error('Interest score recompute job failed:', err)
+      );
+    }, COMPUTE_INTEREST_SCORES_INTERVAL_MS);
+
+    this.endorsementOutboxInterval = setInterval(() => {
+      this.flushEndorsementOutbox().catch((err) =>
+        logger.error('Endorsement outbox flush job failed:', err)
+      );
+    }, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS);
+
     // Stagger startup tasks to let DB connections warm up
     this.backfillTimeout = setTimeout(() => {
       this.backfillFederatedPostOxyUserIds().catch((err) =>
@@ -221,6 +245,8 @@ class FederationJobScheduler {
     await upsert(PERIODIC_SYNC_FOLLOWED_OUTBOX, SYNC_FOLLOWED_OUTBOX_INTERVAL_MS, 'syncFollowedActorsPosts');
     await upsert(PERIODIC_RECENT_OUTBOX_BACKFILL, RECENT_OUTBOX_BACKFILL_INTERVAL_MS, 'syncRecentOutboxBackfills');
     await upsert(PERIODIC_BACKFILL_OXY_USER_IDS, BACKFILL_OXY_USER_IDS_INTERVAL_MS, 'backfillFederatedPostOxyUserIds');
+    await upsert(PERIODIC_COMPUTE_INTEREST_SCORES, COMPUTE_INTEREST_SCORES_INTERVAL_MS, 'computeInterestScores');
+    await upsert(PERIODIC_FLUSH_ENDORSEMENT_OUTBOX, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS, 'flushEndorsementOutbox');
 
     if (isMediaCacheEnabled()) {
       await upsert(PERIODIC_MEDIA_CACHE_WORKER, MEDIA_CACHE_WORKER_INTERVAL_MS, 'runMediaCacheWorker');
@@ -334,6 +360,14 @@ class FederationJobScheduler {
       clearInterval(this.mediaCacheEvictionInterval);
       this.mediaCacheEvictionInterval = null;
     }
+    if (this.interestScoresInterval) {
+      clearInterval(this.interestScoresInterval);
+      this.interestScoresInterval = null;
+    }
+    if (this.endorsementOutboxInterval) {
+      clearInterval(this.endorsementOutboxInterval);
+      this.endorsementOutboxInterval = null;
+    }
     if (this.backfillTimeout) {
       clearTimeout(this.backfillTimeout);
       this.backfillTimeout = null;
@@ -360,6 +394,8 @@ class FederationJobScheduler {
       PERIODIC_BACKFILL_OXY_USER_IDS,
       PERIODIC_MEDIA_CACHE_WORKER,
       PERIODIC_MEDIA_CACHE_EVICTION,
+      PERIODIC_COMPUTE_INTEREST_SCORES,
+      PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
     ];
 
     await Promise.allSettled(ids.map((id) => queue.removeJobScheduler(id)));
@@ -887,6 +923,47 @@ class FederationJobScheduler {
       await runEvictionOnce();
     } finally {
       this.isMediaCacheEvictionRunning = false;
+    }
+  }
+
+  /**
+   * Recompute per-author interest scores from recent engagement and push the
+   * deltas to Oxy's recommendation graph. No-ops when there is nothing to score.
+   *
+   * Public so the BullMQ periodic worker can invoke it; also called by the
+   * legacy in-process interval path.
+   */
+  async computeInterestScores(): Promise<void> {
+    if (this.isComputeInterestScoresRunning) {
+      logger.debug('[InterestScore] recompute already running, skipping');
+      return;
+    }
+    this.isComputeInterestScoresRunning = true;
+    try {
+      await interestScoreService.run();
+    } finally {
+      this.isComputeInterestScoresRunning = false;
+    }
+  }
+
+  /**
+   * Drain pending endorsement-outbox rows (re-syncing each scope's current
+   * member set to Oxy). The safety net for membership pushes that failed their
+   * immediate attempt. No-ops when the outbox is empty.
+   *
+   * Public so the BullMQ periodic worker can invoke it; also called by the
+   * legacy in-process interval path.
+   */
+  async flushEndorsementOutbox(): Promise<void> {
+    if (this.isFlushEndorsementOutboxRunning) {
+      logger.debug('[EndorsementSignal] flush already running, skipping');
+      return;
+    }
+    this.isFlushEndorsementOutboxRunning = true;
+    try {
+      await endorsementSignalService.flushOutbox();
+    } finally {
+      this.isFlushEndorsementOutboxRunning = false;
     }
   }
 

@@ -6,6 +6,18 @@ import { escapeRegex } from '../utils/textProcessing';
 import { oxy } from '../../server';
 import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
+import { endorsementSignalService } from '../services/EndorsementSignalService';
+
+/**
+ * Fire-and-forget endorsement re-sync for a starter pack whose membership
+ * changed. Never blocks or fails the request — Oxy reputation signals are
+ * eventually consistent (the outbox retries on failure).
+ */
+function syncPackEndorsements(packId: string): void {
+  void endorsementSignalService
+    .syncScope('starterPack', packId)
+    .catch((error) => logger.warn(`[StarterPacks] endorsement sync failed for ${packId}:`, error));
+}
 
 const router = express.Router();
 
@@ -102,6 +114,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       memberOxyUserIds: members,
     });
 
+    syncPackEndorsements(String(pack._id));
     res.status(201).json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create starter pack' });
@@ -163,6 +176,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       pack.memberOxyUserIds = memberOxyUserIds;
     }
     await pack.save();
+    syncPackEndorsements(String(pack._id));
     res.json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update starter pack' });
@@ -176,7 +190,14 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
+    // Capture members BEFORE delete so we can retract their endorsements.
+    const ownerId = pack.ownerOxyUserId;
+    const memberIds = [...(pack.memberOxyUserIds || [])];
+    const packId = String(pack._id);
     await pack.deleteOne();
+    void endorsementSignalService
+      .syncScopeRemoval('starterPack', packId, ownerId, memberIds)
+      .catch((error) => logger.warn(`[StarterPacks] endorsement retraction failed for ${packId}:`, error));
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete starter pack' });
@@ -196,6 +217,7 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     if (set.size > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
     pack.memberOxyUserIds = Array.from(set);
     await pack.save();
+    syncPackEndorsements(String(pack._id));
     res.json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add members' });
@@ -214,6 +236,7 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     const toRemove = new Set(Array.isArray(userIds) ? userIds : []);
     pack.memberOxyUserIds = (pack.memberOxyUserIds || []).filter(id => !toRemove.has(id));
     await pack.save();
+    syncPackEndorsements(String(pack._id));
     res.json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to remove members' });

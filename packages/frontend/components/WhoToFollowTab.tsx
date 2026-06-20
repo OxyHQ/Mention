@@ -16,54 +16,20 @@ import { ThemedText } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { logger } from '@/lib/logger';
+import { fetchRecommendations, type ProfileData } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const APP_URL = 'https://mention.earth';
 
 /**
- * A single recommended profile.
- *
- * Derived from the SDK's `getProfileRecommendations` return type so it stays in
- * lockstep with the source of truth, intersected with the extra fields the API's
- * `formatProfileResult` actually returns (`avatar`) and the looser `_id`/`bio`
- * variants that may appear when items come from other actor sources.
+ * A single recommended profile from the Mention backend. The shared
+ * {@link ProfileData} is the source of truth; we keep the looser `_id` variant
+ * that may appear when items come from other actor sources.
  */
-type RecommendedUser = Awaited<
-  ReturnType<ReturnType<typeof useAuth>['oxyServices']['getProfileRecommendations']>
->[number] & {
+type RecommendedUser = ProfileData & {
   _id?: string;
-  avatar?: string;
-  bio?: string;
-  instance?: string;
-  isFederated?: boolean;
-  federation?: {
-    domain?: string;
-  };
 };
-
-/**
- * The `/profiles/recommendations` endpoint returns the standardized
- * `sendSuccess` envelope (`{ data: [...] }`), which the SDK's HttpService
- * unwraps to a bare array before it reaches us. We still normalize defensively
- * so the tab is correct regardless of whether the value arrives unwrapped, as a
- * `{ data }` envelope, or as a `{ recommendations }` envelope.
- */
-function extractRecommendations(response: unknown): RecommendedUser[] {
-  if (Array.isArray(response)) {
-    return response as RecommendedUser[];
-  }
-  if (response && typeof response === 'object') {
-    const record = response as Record<string, unknown>;
-    if (Array.isArray(record.data)) {
-      return record.data as RecommendedUser[];
-    }
-    if (Array.isArray(record.recommendations)) {
-      return record.recommendations as RecommendedUser[];
-    }
-  }
-  return [];
-}
 
 /** Resolve a user's id from either the canonical `id` or Mongo `_id`. */
 function getUserId(user: Pick<RecommendedUser, 'id' | '_id'>): string {
@@ -142,8 +108,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     try {
       setLoading(true);
       setError(null);
-      const response = await oxyServices.getProfileRecommendations();
-      const users = extractRecommendations(response).filter((u) => getUserId(u).length > 0);
+      const users = (await fetchRecommendations()).filter((u) => getUserId(u).length > 0);
       setRecommendations(users);
       if (users.length > 0) {
         precacheProfileViews(queryClient, users);
