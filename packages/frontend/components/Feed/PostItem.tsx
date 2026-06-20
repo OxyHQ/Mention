@@ -522,7 +522,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressUser={goToUser}
                     onPressAvatar={goToUser}
                     onPressMenu={openMenu}
-                    paddingHorizontal={HPAD}
+                    paddingHorizontal={isNested ? 0 : HPAD}
                 >
                     {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
                 </PostHeader>
