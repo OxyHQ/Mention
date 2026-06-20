@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
+import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
@@ -58,10 +59,12 @@ const PostActions: React.FC<Props> = ({
   isLiked,
   isDownvoted,
   isBoosted,
+  isSaved,
   onReply,
   onBoost,
   onLike,
   onDownvote,
+  onSave,
   onShare,
   onLikesPress,
   onBoostsPress,
@@ -164,6 +167,23 @@ const PostActions: React.FC<Props> = ({
           accessibilityLabel="Share"
         >
           <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
+        </PressableScale>
+
+        <PressableScale
+          style={styles.iconButton}
+          onPress={() => {
+            haptic('Light');
+            onSave();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={isSaved ? 'Remove from saved' : 'Save post'}
+        >
+          {isSaved ? (
+            <BookmarkActive size={ICON_SIZE} color={theme.colors.primary} />
+          ) : (
+            <Bookmark size={ICON_SIZE} className="text-muted-foreground" />
+          )}
         </PressableScale>
 
         {onTranslate && (
