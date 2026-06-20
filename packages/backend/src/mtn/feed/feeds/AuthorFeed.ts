@@ -35,7 +35,7 @@ export class AuthorFeed implements FeedAPI {
     const [hydrated] = await postHydrationService.hydratePosts([post], {
       viewerId: context.currentUserId,
       oxyClient: context.oxyClient,
-      maxDepth: 0,
+      maxDepth: 1,
     });
     return hydrated;
   }
@@ -79,7 +79,7 @@ export class AuthorFeed implements FeedAPI {
     const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
       viewerId: context.currentUserId,
       oxyClient: context.oxyClient,
-      maxDepth: 0,
+      maxDepth: 1,
       includeLinkMetadata: true,
     });
 
@@ -98,7 +98,7 @@ export class AuthorFeed implements FeedAPI {
     const hydrateOpts = {
       viewerId: context.currentUserId,
       oxyClient: context.oxyClient,
-      maxDepth: 0,
+      maxDepth: 1,
       includeLinkMetadata: true,
     };
 
