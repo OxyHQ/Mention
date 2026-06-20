@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { federationService } from '../services/FederationService';
-import { verifyHttpSignature, getKeyPair } from '../utils/federation/crypto';
+import { verifyHttpSignature, getPublicKey } from '../utils/federation/crypto';
 import { Post } from '../models/Post';
 import FederatedFollow from '../models/FederatedFollow';
 import {
@@ -50,6 +50,43 @@ function getUsername(req: Request): string {
   return typeof val === 'string' ? val : Array.isArray(val) ? val[0] : String(val);
 }
 
+/** Fields of the resolved Oxy user the actor document reads. */
+interface ActorUserView {
+  name?: { displayName?: string | null } | null;
+  bio?: string | null;
+  avatar?: string | null;
+  createdAt?: string | null;
+}
+
+/** Map common image extensions to a MIME type for the actor `icon.mediaType`. */
+const ICON_MEDIA_TYPE_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+};
+
+/**
+ * Build the actor `icon` (avatar) object. Derives `mediaType` from the avatar
+ * URL extension when recognizable; otherwise the `mediaType` is omitted rather
+ * than asserting a wrong type (a bare `Image` with `url` is spec-valid).
+ * Returns undefined when there is no avatar.
+ */
+function buildActorIcon(avatar: string | null | undefined): { type: 'Image'; url: string; mediaType?: string } | undefined {
+  if (!avatar) return undefined;
+  let extension: string | undefined;
+  try {
+    const pathname = new URL(avatar).pathname;
+    extension = pathname.split('.').pop()?.toLowerCase();
+  } catch {
+    extension = avatar.split('?')[0]?.split('.').pop()?.toLowerCase();
+  }
+  const mediaType = extension ? ICON_MEDIA_TYPE_BY_EXT[extension] : undefined;
+  return mediaType ? { type: 'Image', url: avatar, mediaType } : { type: 'Image', url: avatar };
+}
+
 /**
  * GET /ap/users/:username — ActivityPub Actor endpoint
  */
@@ -67,7 +104,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     // Instance actor: a special server-level actor used for signed fetches.
     // It has no Oxy user — serve it directly from the key pair collection.
     if (username === 'instance') {
-      const keyPair = await getKeyPair('instance');
+      const publicKey = await getPublicKey('instance');
       const actorObject = {
         '@context': AP_CONTEXT,
         id: actorUrl('instance'),
@@ -79,10 +116,12 @@ router.get('/users/:username', async (req: Request, res: Response) => {
         inbox: inboxUrl('instance'),
         outbox: outboxUrl('instance'),
         endpoints: { sharedInbox: sharedInboxUrl() },
+        manuallyApprovesFollowers: false,
+        discoverable: false,
         publicKey: {
-          id: keyPair.keyId,
+          id: publicKey.keyId,
           owner: actorUrl('instance'),
-          publicKeyPem: keyPair.publicKeyPem,
+          publicKeyPem: publicKey.publicKeyPem,
         },
       };
       res.set('Content-Type', AP_CONTENT_TYPE);
@@ -90,18 +129,23 @@ router.get('/users/:username', async (req: Request, res: Response) => {
       return res.json(actorObject);
     }
 
-    const user = await resolveOxyUser(username);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const resolved = await resolveOxyUser(username);
+    if (!resolved) return res.status(404).json({ error: 'User not found' });
+    const user = resolved as ActorUserView;
 
-    const userId = user._id || user.id;
-    const keyPair = await getKeyPair(username);
+    const publicKey = await getPublicKey(username);
 
-    const actorObject = {
+    // Canonical display name is owned by the Oxy API (`name.displayName`). Do not
+    // recompute it from first/last/full/username. Fall back to the username only
+    // if the API somehow omitted it, so `name` is never empty.
+    const displayName = user.name?.displayName || username;
+
+    const actorObject: Record<string, unknown> = {
       '@context': AP_CONTEXT,
       id: actorUrl(username),
       type: 'Person',
       preferredUsername: username,
-      name: user.displayName,
+      name: displayName,
       summary: user.bio || '',
       url: `https://${FEDERATION_DOMAIN}/@${username}`,
       inbox: inboxUrl(username),
@@ -109,17 +153,20 @@ router.get('/users/:username', async (req: Request, res: Response) => {
       followers: followersUrl(username),
       following: followingUrl(username),
       endpoints: { sharedInbox: sharedInboxUrl() },
-      icon: user.avatar ? {
-        type: 'Image',
-        mediaType: 'image/png',
-        url: user.avatar,
-      } : undefined,
+      discoverable: true,
+      manuallyApprovesFollowers: false,
+      icon: buildActorIcon(user.avatar),
       publicKey: {
-        id: keyPair.keyId,
+        id: publicKey.keyId,
         owner: actorUrl(username),
-        publicKeyPem: keyPair.publicKeyPem,
+        publicKeyPem: publicKey.publicKeyPem,
       },
     };
+
+    // `published` (account creation date) is advertised when the API provides it.
+    if (user.createdAt) {
+      actorObject.published = new Date(user.createdAt).toISOString();
+    }
 
     res.set('Content-Type', AP_CONTENT_TYPE);
     res.set('Cache-Control', 'max-age=1800');

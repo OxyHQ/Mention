@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  getKeyPair: vi.fn(),
+  getPublicKey: vi.fn(),
+  signViaOxy: vi.fn(),
   signRequest: vi.fn(),
   actorFind: vi.fn(),
   actorFindOne: vi.fn(),
@@ -24,7 +25,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/federation/crypto', () => ({
-  getKeyPair: mocks.getKeyPair,
+  getPublicKey: mocks.getPublicKey,
+  signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
 }));
 
@@ -124,12 +126,12 @@ function createNoteActivity(id: string, actorUri = 'https://mastodon.social/user
 beforeEach(() => {
   vi.clearAllMocks();
 
-  mocks.getKeyPair.mockResolvedValue({
-    keyId: 'https://oxy.so/ap/users/instance#main-key',
+  mocks.getPublicKey.mockResolvedValue({
+    keyId: 'https://mention.earth/ap/users/instance#main-key',
     publicKeyPem: 'public',
-    privateKeyPem: 'private',
   });
-  mocks.signRequest.mockReturnValue({
+  mocks.signViaOxy.mockResolvedValue('signature');
+  mocks.signRequest.mockResolvedValue({
     Host: 'www.threads.net',
     Date: 'Thu, 18 Jun 2026 00:00:00 GMT',
     Signature: 'signature',

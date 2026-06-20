@@ -2,7 +2,7 @@ import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
-import { signRequest, getKeyPair } from '../../utils/federation/crypto';
+import { signRequest, getPublicKey } from '../../utils/federation/crypto';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -41,9 +41,9 @@ export class FollowService {
     senderUsername: string,
   ): Promise<boolean> {
     try {
-      const keyPair = await getKeyPair(senderUsername);
+      const { keyId } = await getPublicKey(senderUsername);
       const body = JSON.stringify(activity);
-      const sigHeaders = signRequest(keyPair.privateKeyPem, keyPair.keyId, 'POST', targetInbox, body);
+      const sigHeaders = await signRequest(keyId, 'POST', targetInbox, body);
 
       const allHeaders: Record<string, string> = {
         'Content-Type': AP_CONTENT_TYPE,

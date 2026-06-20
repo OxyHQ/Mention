@@ -1,72 +1,132 @@
 import crypto from 'crypto';
 import { logger } from '../logger';
-import { OXY_API_URL, AP_CONTENT_TYPE } from './constants';
+import { AP_CONTENT_TYPE, FEDERATION_DOMAIN } from './constants';
 import { getServiceOxyClient } from '../oxyHelpers';
 
-interface KeyPairData {
+/**
+ * Public-key material for an actor, as advertised in its ActivityPub `publicKey`
+ * block. The private key NEVER leaves Oxy — Mention only ever sees the public
+ * key (to publish) and asks Oxy to sign on its behalf (see `signViaOxy`).
+ */
+export interface FederationPublicKey {
   keyId: string;
   publicKeyPem: string;
-  privateKeyPem: string;
 }
 
-// In-memory cache for key pairs fetched from Oxy
-const keyPairCache = new Map<string, { data: KeyPairData; fetchedAt: number }>();
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+interface OxyPublicKeyResponse {
+  keyId?: unknown;
+  publicKeyPem?: unknown;
+}
+
+interface OxySignResponse {
+  keyId?: unknown;
+  algorithm?: unknown;
+  signature?: unknown;
+}
+
+// In-memory cache for public keys fetched from Oxy. Keyed by username; the value
+// is mention.earth-scoped (keyId host is FEDERATION_DOMAIN) and stable, so a 1h
+// TTL is plenty and avoids a network round-trip per actor render.
+const publicKeyCache = new Map<string, { data: FederationPublicKey; fetchedAt: number }>();
+const PUBLIC_KEY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
 
 /**
- * Fetch a key pair from Oxy's federation API.
- * Oxy manages all key pairs; Mention uses them for signing.
- * The endpoint requires a valid service token (serviceAuthMiddleware).
+ * Fetch an actor's public key from Oxy's federation API.
+ *
+ * Oxy owns all federation key material. This returns the mention.earth-scoped
+ * keyId (`https://<FEDERATION_DOMAIN>/ap/users/<username>#main-key`) and the
+ * matching public key PEM, used to build the actor's `publicKey` block. The
+ * private key is never returned. Requires a valid service token with
+ * `federation:write`; the OxyServices client auto-acquires/refreshes it.
  */
-export async function getKeyPair(username: string): Promise<KeyPairData> {
-  const cached = keyPairCache.get(username);
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+export async function getPublicKey(username: string): Promise<FederationPublicKey> {
+  const cached = publicKeyCache.get(username);
+  if (cached && Date.now() - cached.fetchedAt < PUBLIC_KEY_CACHE_TTL_MS) {
     return cached.data;
   }
 
-  const url = `${OXY_API_URL}/federation/keypair/${encodeURIComponent(username)}`;
-  logger.debug(`[FedSync] fetching key pair from ${url}`);
-
-  // Obtain a service token via the OxyServices client (auto-acquires/refreshes)
-  const headers: Record<string, string> = {};
+  const path = `/federation/public-key/${encodeURIComponent(username)}?domain=${encodeURIComponent(FEDERATION_DOMAIN)}`;
+  let response: OxyPublicKeyResponse;
   try {
-    const serviceToken = await getServiceOxyClient().getServiceToken();
-    headers['Authorization'] = `Bearer ${serviceToken}`;
+    response = await getServiceOxyClient().makeServiceRequest<OxyPublicKeyResponse>('GET', path);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // A missing/invalid service credential is a hard operational failure: the
-    // keypair endpoint requires a service token, so without one the fetch below
-    // will 401 and all signed federation requests for this key fail. Surface it
-    // at error level so it is visible in production info-level logs.
+    // The public key drives the actor's advertised key material. Without it the
+    // actor doc is incomplete and remote servers cannot verify our signatures.
+    // Surface at error level — historically these failures were invisible.
     logger.error(
-      `[FedSync] Failed to acquire service token for keypair fetch (username=${username}, url=${url}); proceeding unauthenticated and the request will likely 401: ${message}`,
+      `[Federation] getPublicKey failed (username=${username}, domain=${FEDERATION_DOMAIN}): ${message}`,
     );
-    // Fall back to no auth (may work in dev if serviceAuthMiddleware is relaxed)
+    throw new Error(`Failed to fetch public key for ${username}: ${message}`);
   }
 
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Failed to fetch key pair for ${username}: ${res.status} ${body.slice(0, 200)}`);
+  if (!isNonEmptyString(response?.keyId) || !isNonEmptyString(response?.publicKeyPem)) {
+    logger.error(
+      `[Federation] getPublicKey returned malformed payload for username=${username}: ${JSON.stringify(response)?.slice(0, 200)}`,
+    );
+    throw new Error(`Malformed public-key response for ${username}`);
   }
 
-  const data = await res.json() as KeyPairData;
-  logger.debug(`[FedSync] key pair fetched for ${username}: keyId=${data.keyId}`);
-  keyPairCache.set(username, { data, fetchedAt: Date.now() });
+  const data: FederationPublicKey = { keyId: response.keyId, publicKeyPem: response.publicKeyPem };
+  publicKeyCache.set(username, { data, fetchedAt: Date.now() });
+  logger.debug(`[Federation] public key fetched for ${username}: keyId=${data.keyId}`);
   return data;
 }
 
 /**
- * Build the HTTP Signature header string per draft-cavage-http-signatures-12.
- * Signs (request-target), host, date, and optionally digest.
+ * Ask Oxy to sign an HTTP-Signature signing string with the private key that
+ * backs `keyId`. The private key never leaves Oxy. Returns the base64 RSA-SHA256
+ * signature. Requires a service token with `federation:write`; the keyId host
+ * must be Mention's authorized domain (enforced by Oxy).
  */
-export function signRequest(
-  privateKeyPem: string,
+export async function signViaOxy(keyId: string, signingString: string): Promise<string> {
+  let response: OxySignResponse;
+  try {
+    response = await getServiceOxyClient().makeServiceRequest<OxySignResponse>(
+      'POST',
+      '/federation/sign',
+      { keyId, signingString },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // A signing failure means every outbound signed request for this key fails.
+    // Surface at error level so the outage is observable in production.
+    logger.error(`[Federation] signViaOxy failed (keyId=${keyId}): ${message}`);
+    throw new Error(`Failed to sign via Oxy for keyId ${keyId}: ${message}`);
+  }
+
+  if (!isNonEmptyString(response?.signature)) {
+    logger.error(
+      `[Federation] signViaOxy returned malformed payload for keyId=${keyId}: ${JSON.stringify(response)?.slice(0, 200)}`,
+    );
+    throw new Error(`Malformed sign response for keyId ${keyId}`);
+  }
+
+  return response.signature;
+}
+
+/**
+ * Build the HTTP Signature header per draft-cavage-http-signatures-12 and sign it
+ * via Oxy (the private key never leaves Oxy).
+ *
+ * The spec-correct signing string is composed locally: (request-target), host,
+ * date, and — for body-bearing requests — digest and content-type. The composed
+ * string is sent to Oxy's `/federation/sign`, and the resulting signature is
+ * assembled into the `Signature:` header.
+ *
+ * Returns the headers to attach to the outbound request (Host, Date, optional
+ * Digest, and Signature). Content-Type is set by the deliverer's fetch.
+ */
+export async function signRequest(
   keyId: string,
   method: string,
   url: string,
   body?: string,
-): Record<string, string> {
+): Promise<Record<string, string>> {
   const parsedUrl = new URL(url);
   const date = new Date().toUTCString();
   const headers: Record<string, string> = {
@@ -92,10 +152,7 @@ export function signRequest(
   }
 
   const signingString = signingParts.join('\n');
-  const signer = crypto.createSign('sha256');
-  signer.update(signingString);
-  signer.end();
-  const signature = signer.sign(privateKeyPem, 'base64');
+  const signature = await signViaOxy(keyId, signingString);
 
   headers['Signature'] = [
     `keyId="${keyId}"`,

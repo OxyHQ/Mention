@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
-import { signRequest, getKeyPair } from '../../utils/federation/crypto';
+import { signRequest, getPublicKey } from '../../utils/federation/crypto';
 import {
   AP_CONTENT_TYPE,
   USER_AGENT,
@@ -102,8 +102,8 @@ export function domainFromAcct(acct: string): string | undefined {
  */
 export async function signedFetch(url: string, accept: string): Promise<Response> {
   const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
-  const keyPair = await getKeyPair('instance');
-  const sigHeaders = signRequest(keyPair.privateKeyPem, keyPair.keyId, 'GET', url);
+  const { keyId } = await getPublicKey('instance');
+  const sigHeaders = await signRequest(keyId, 'GET', url);
 
   const res = await fetch(url, {
     headers: {

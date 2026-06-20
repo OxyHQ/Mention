@@ -65,6 +65,15 @@ router.get('/webfinger', async (req: Request, res: Response) => {
           type: 'application/activity+json',
           href: actorUrl(username),
         },
+        {
+          rel: 'http://webfinger.net/rel/profile-page',
+          type: 'text/html',
+          href: `https://${FEDERATION_DOMAIN}/@${username}`,
+        },
+        // NOTE: the `http://ostatus.org/schema/1.0/subscribe` (remote-follow) rel
+        // is intentionally omitted — Mention has no authorize-interaction /
+        // remote-follow endpoint to point it at, and a dangling template would be
+        // worse than its absence. Add it here once that endpoint exists.
       ],
     };
 

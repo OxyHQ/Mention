@@ -1,21 +1,37 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import crypto from 'crypto';
 
-// crypto.ts imports getServiceOxyClient (only used by getKeyPair). Stub it so we
-// don't pull in the Oxy client graph for the pure sign/verify round-trip.
+const ACTOR_URI = 'https://mastodon.social/users/alice';
+const KEY_ID = `${ACTOR_URI}#main-key`;
+const INBOX_URL = 'https://mention.earth/ap/inbox';
+
+// crypto.ts signs via Oxy's `/federation/sign` (the private key never leaves
+// Oxy). Stub the service client so `signViaOxy` performs the RSA signature
+// locally with the test private key — preserving an end-to-end sign/verify
+// round-trip without pulling in the real Oxy client graph or network. Uses
+// `vi.hoisted` so the holder exists before the hoisted `vi.mock` factory runs;
+// `beforeAll` fills in the generated private key.
+const signing = vi.hoisted(() => ({ privateKeyPem: '' }));
+
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: vi.fn(),
+  getServiceOxyClient: () => ({
+    makeServiceRequest: async (_method: string, _url: string, data?: { signingString?: string }) => {
+      const signer = crypto.createSign('sha256');
+      signer.update(data?.signingString ?? '');
+      signer.end();
+      return {
+        keyId: KEY_ID,
+        algorithm: 'rsa-sha256',
+        signature: signer.sign(signing.privateKeyPem, 'base64'),
+      };
+    },
+  }),
 }));
 
 import { signRequest, verifyHttpSignature } from '../../utils/federation/crypto';
 import { AP_CONTENT_TYPE } from '../../utils/federation/constants';
 
-const ACTOR_URI = 'https://mastodon.social/users/alice';
-const KEY_ID = `${ACTOR_URI}#main-key`;
-const INBOX_URL = 'https://mention.earth/ap/inbox';
-
 let publicKeyPem: string;
-let privateKeyPem: string;
 
 /** Resolve the test key for the signing actor; null for any other keyId. */
 const fetchPublicKey = vi.fn(async (keyId: string) =>
@@ -46,13 +62,13 @@ beforeAll(() => {
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
   });
   publicKeyPem = publicKey;
-  privateKeyPem = privateKey;
+  signing.privateKeyPem = privateKey;
 });
 
 describe('verifyHttpSignature', () => {
   it('verifies a valid signature produced by signRequest and returns the actor URI', async () => {
     const body = JSON.stringify({ type: 'Create', id: 'https://remote/a/1' });
-    const signed = signRequest(privateKeyPem, KEY_ID, 'POST', INBOX_URL, body);
+    const signed = await signRequest(KEY_ID, 'POST', INBOX_URL, body);
 
     const result = await verifyHttpSignature(
       {
@@ -79,7 +95,7 @@ describe('verifyHttpSignature', () => {
 
   it('rejects when the public key cannot be fetched', async () => {
     const body = JSON.stringify({ type: 'Create' });
-    const signed = signRequest(privateKeyPem, 'https://other/key#main', 'POST', INBOX_URL, body);
+    const signed = await signRequest('https://other/key#main', 'POST', INBOX_URL, body);
 
     const result = await verifyHttpSignature(
       { method: 'POST', path: new URL(INBOX_URL).pathname, headers: lowerHeaders(signed), body },
@@ -91,7 +107,7 @@ describe('verifyHttpSignature', () => {
 
   it('rejects when the body is tampered after signing (digest mismatch)', async () => {
     const body = JSON.stringify({ type: 'Create', id: 'https://remote/a/1' });
-    const signed = signRequest(privateKeyPem, KEY_ID, 'POST', INBOX_URL, body);
+    const signed = await signRequest(KEY_ID, 'POST', INBOX_URL, body);
 
     const result = await verifyHttpSignature(
       {
@@ -108,7 +124,7 @@ describe('verifyHttpSignature', () => {
 
   it('rejects when the signed string does not match (verify-failed)', async () => {
     const body = JSON.stringify({ type: 'Create', id: 'https://remote/a/1' });
-    const signed = signRequest(privateKeyPem, KEY_ID, 'POST', INBOX_URL, body);
+    const signed = await signRequest(KEY_ID, 'POST', INBOX_URL, body);
 
     // Change the request path so the reconstructed (request-target) differs from
     // what was signed — digest still matches, but the RSA verification fails.
@@ -127,7 +143,7 @@ describe('verifyHttpSignature', () => {
 
   it('rejects when the Date header is outside the allowed skew', async () => {
     const body = JSON.stringify({ type: 'Create', id: 'https://remote/a/1' });
-    const signed = signRequest(privateKeyPem, KEY_ID, 'POST', INBOX_URL, body);
+    const signed = await signRequest(KEY_ID, 'POST', INBOX_URL, body);
     const stale = lowerHeaders(signed);
     stale.date = new Date(Date.now() - 30 * 60 * 1000).toUTCString(); // 30 min ago
 
