@@ -69,6 +69,23 @@ packages/
 - Profile routes use `getNormalizedUserHandle` from `@oxyhq/core` for local and federated handles. Do not add local profile-route helpers, manually append federated instances, navigate to raw ids, or generate `?username=` profile URLs.
 - Valid profile URLs are `/@username` and `/@username@domain`. Duplicate instance suffixes such as `/@user@domain@domain` are bugs in handle normalization and should be fixed at the source.
 
+## Fediverse Discovery of Mention Profiles
+
+Two independent resolution entry points; BOTH must work for full Mastodon compatibility.
+
+**By handle (`@user@mention.earth`):** webfinger `/.well-known/webfinger?resource=acct:...` → `self` link (`type: application/activity+json`) → fetch actor. Server-side route; works.
+
+**By profile URL (`https://mention.earth/@user`):** Mastodon GETs the URL with `Accept: application/activity+json` expecting an actor or a `<link rel=alternate type=application/activity+json>`. The Expo SPA returned HTML with neither → URL resolution failed. Fix: a Cloudflare Pages **Advanced-Mode `_worker.js`** at `packages/frontend/public/_worker.js` (Expo export copies `public/` → `dist/`, so it lands at `dist/_worker.js`, the deploy root for `wrangler pages deploy packages/frontend/dist`). It 302s requests matching `^/@<user>$` with AP Accept header → `https://api.mention.earth/ap/users/<user>` with `Vary: Accept`; all other requests → `env.ASSETS.fetch(request)` (honors the `_redirects` SPA fallback).
+
+**CRITICAL CF Pages gotcha:** a `functions/` directory placed INSIDE the deployed `dist/` is NOT compiled as Pages Functions when using `wrangler pages deploy <dir>` — it is served as a static asset / falls to the SPA. With direct-upload of a build output dir, you MUST use Advanced-Mode `_worker.js` at the output root, not file-based `functions/`. (We shipped `functions/` first; it silently did nothing in prod.)
+
+**Other verified discovery requirements (each was a real blocker):**
+- Actor `publicKey.id` host MUST equal the actor `id` host — cross-domain key causes Mastodon to reject the actor.
+- Actor `icon.url` must be an absolute, reachable URL.
+- `/.well-known/host-meta` must be PUBLIC — the route was missing and fell through to the authenticated catch-all `app.use("/", oxy.auth(), ...)`; returns 401. Fixed by adding public `host-meta` + `host-meta.json` routes in `webfinger.routes.ts`, mounted before auth middleware.
+
+**Diagnostic technique:** to rule out CF bot-blocking of Mastodon's datacenter fetchers, curl the actor/webfinger from an AWS us-west-2 Fargate one-shot using the exact Mastodon UA (`http.rb/5.2.0 (Mastodon/4.3.0; ...)`); 200 + `cf-mitigated: null` header proves not blocked. Note: `api.mention.earth` is DNS-only→ALB (no CF proxy); only the apex `mention.earth` is behind CF and serves `/ap/*` + `/.well-known/*` dynamic redirects (zone-level CF Dynamic Redirect rules, not in the repo). Also: Mastodon negative-caches failed resolutions for minutes/hours — after a fix, cache-bust by searching the full profile URL (different cache key than the acct handle).
+
 ## Federated Media Cache
 
 Remote/federated post media (images, video, audio) is proxied and cached through the backend:
@@ -80,6 +97,17 @@ Remote/federated post media (images, video, audio) is proxied and cached through
 - **Gated by env**: `FEDERATION_MEDIA_CACHE_WRITE_ENABLED=true` (set on the mention ECS task in `oxy-infra/terraform-uswest2/app-services-realtime.tf`). Unset = proxy works but nothing is written to S3.
 - **Post storage**: federated media URLs are stored RAW (remote) on the post (`content.media[].id`). The cache keys off the remote URL and never rewrites the post.
 - **SSM secrets**: `OXY_SERVICE_API_KEY` + `OXY_SERVICE_API_SECRET` are live in SSM at `/oxy/mention/OXY_SERVICE_API_KEY` and `/oxy/mention/OXY_SERVICE_API_SECRET`, wired into the ECS task definition.
+- **Error classification + negative cache (shipped 2026-06-21, tests 382/382):** upstream 4xx (deleted/protected media) were previously relayed as our 502, causing ~12% 5XX rate on the ALB target group. Fix: `classifyUpstreamStatus` in `routes/mediaProxyStatus.ts` maps upstream 4xx → our 404 (logged debug), genuine upstream 5xx + connection errors → 502, oversized body → 413. A **negative cache** (`services/mediaCache/negativeCache.ts`) backed by the existing Redis singleton (`mediaproxy:neg:<sha256(url)>`, client-error TTL 600s, connection-error TTL 60s, graceful no-op when `REDIS_URL` unset) short-circuits known-dead URLs to 404 with zero upstream fetch. First-byte/headers timeout tightened 10s→8s (`UPSTREAM_HEADERS_TIMEOUT_MS` in `safeUpstreamFetch.ts`); post-headers stream timers (`UPSTREAM_SOCKET_TIMEOUT_MS=30s` / `MAX_REQUEST_DURATION_MS=60s`) unchanged so large videos still stream.
+- **Perf context:** infra is NOT resource-bound (Mongo ~1%, Valkey ~0.5%, ECS CPU 1–4%); the 5XX + p99 tail were purely this endpoint's outbound-federation I/O + mislabeling. Do NOT scale instances for this.
+
+## Media CDN — Avatar URL Gap (OPEN)
+
+Public post media now serves via `cloud.oxy.so` (CloudFront over `oxy-oxy-api-media-usw2/public/*`); the `backfillPublicAssetsToCdn.ts` one-shot copies public assets under the `public/` prefix.
+
+**OPEN/UNRESOLVED — do not treat as done:**
+- Legacy user avatars (2026/03 era, ~735 of 768) are NOT being copied to `public/` by the backfill (scan misses them — root cause under investigation).
+- The Mention backend builds federated actor `icon.url` via `resolveAvatarUrl` → `https://api.oxy.so/assets/<fileId>/stream`, so it emits `api.oxy.so` regardless of S3 state.
+- **Correct fix direction:** Oxy's canonical user DTO emitting `cloud.oxy.so` avatar URLs (or `/assets/:id/stream` 302-ing to the CDN when a `public/` copy exists), consumed by Mention. Do NOT patch this in Mention — fix belongs in the Oxy API/backend DTO layer.
 
 ## Federation — Service Credential & Outbox Sync
 
