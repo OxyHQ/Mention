@@ -1,9 +1,11 @@
+import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import sanitizeHtml from 'sanitize-html';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
 import { Post } from '../models/Post';
+import Like from '../models/Like';
 import { signRequest, getKeyPair } from '../utils/federation/crypto';
 import {
   FEDERATION_DOMAIN,
@@ -16,6 +18,7 @@ import {
   actorUrl,
   isBlockedDomain,
   resolveOxyUser,
+  extractLocalPostIdFromApUri,
 } from '../utils/federation/constants';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
@@ -926,10 +929,15 @@ class FederationService {
           visibility: this.mapApVisibility(note.to, note.cc),
           hashtags,
           status: 'published',
+          // Engagement counters start at 0 and only ever move in lockstep with
+          // real native records (Like docs / boost Posts / reply Posts) created
+          // from inbound Like/Announce/Create activities. We never copy remote
+          // aggregate totals (`note.likes/shares/replies.totalItems`) — those are
+          // unverifiable foreign counts with no backing listable records here.
           stats: {
-            likesCount: typeof note.likes === 'object' ? (note.likes?.totalItems ?? 0) : 0,
-            boostsCount: typeof note.shares === 'object' ? (note.shares?.totalItems ?? 0) : 0,
-            commentsCount: typeof note.replies === 'object' ? (note.replies?.totalItems ?? 0) : 0,
+            likesCount: 0,
+            boostsCount: 0,
+            commentsCount: 0,
             viewsCount: 0,
             sharesCount: 0,
           },
@@ -1019,11 +1027,14 @@ class FederationService {
    * Post, then creates a boost Post attributed to the booster — mirroring the
    * native repost shape (`type: 'boost'`, `boostOf: <local note _id>`,
    * `oxyUserId: <booster>`). Idempotent: deduped by the Announce activity id via
-   * the `federation.activityId` unique sparse index.
+   * the `federation.activityId` unique sparse index. The boosted post's
+   * `stats.boostsCount` is moved +1 in lockstep only when a new boost Post is
+   * created.
    *
    * @param announceActivity the full Announce activity (for `published`).
    * @param announcedUri the URI of the announced (boosted) object.
-   * @param boosterOxyUserId the booster's resolved Oxy user id, or null.
+   * @param boosterOxyUserId the booster's resolved Oxy user id. Must be non-null:
+   *   federated boosts are only ever recorded against a real, listable user.
    * @returns true when a new boost Post was created.
    */
   private async importAnnounce(
@@ -1034,12 +1045,22 @@ class FederationService {
     const announceId = typeof announceActivity.id === 'string' ? announceActivity.id : undefined;
     if (!announceId) return false;
 
+    // A boost must be backed by a real, listable user. Without a resolved
+    // booster we neither create a record nor move the counter.
+    if (!boosterOxyUserId) {
+      logger.info(`[FedSync] skipping boost for announce ${announceId}: unresolved booster`);
+      return false;
+    }
+
     // Dedup the boost itself by the Announce activity id.
     const existingBoost = await Post.exists({ 'federation.activityId': announceId });
     if (existingBoost) return false;
 
-    // Ensure the boosted Note exists locally and get its local Post _id.
-    const originalPostId = await this.ensureFederatedNote(announcedUri);
+    // Resolve the boosted post's local _id. A local or already-imported post is
+    // resolved directly; otherwise fetch and store the remote Note. This also
+    // lets remote actors boost OUR posts (announcedUri = our AP note URI).
+    const originalPostId = (await this.resolvePostIdFromObjectUri(announcedUri))
+      ?? (await this.ensureFederatedNote(announcedUri));
     if (!originalPostId) {
       logger.info(`[FedSync] could not resolve boosted object ${announcedUri} for announce ${announceId}; skipping boost`);
       return false;
@@ -1048,7 +1069,7 @@ class FederationService {
     const published = typeof announceActivity.published === 'string' ? announceActivity.published : undefined;
 
     const { postCreationService } = require('./PostCreationService') as {
-      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
+      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<{ _id: unknown }> };
     };
 
     try {
@@ -1069,7 +1090,6 @@ class FederationService {
         skipFederationDelivery: true,
         ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
       });
-      return true;
     } catch (err) {
       // A duplicate-key error means a concurrent import already created the
       // boost — treat as already-imported, not a failure.
@@ -1078,6 +1098,11 @@ class FederationService {
       logger.warn(`[FedSync] failed to create boost for announce ${announceId}: ${message}`);
       return false;
     }
+
+    // A new boost Post was created — move the boosted post's counter +1 in
+    // lockstep so stats.boostsCount always equals the number of boost records.
+    await Post.updateOne({ _id: originalPostId }, { $inc: { 'stats.boostsCount': 1 } });
+    return true;
   }
 
   /**
@@ -1751,24 +1776,76 @@ class FederationService {
       await FederatedFollow.deleteOne(filter);
       logger.debug(`Undo follow from ${actorUri}`);
     } else if (objectType === 'Like') {
-      const likedObjectId = typeof object.object === 'string' ? object.object : object.object?.id;
-      if (likedObjectId) {
-        await Post.updateOne(
-          { 'federation.activityId': likedObjectId, 'stats.likesCount': { $gt: 0 } },
-          { $inc: { 'stats.likesCount': -1 } },
-        );
-        logger.debug(`Undo like from ${actorUri} on ${likedObjectId}`);
-      }
+      await this.handleUndoLike(object, actorUri);
     } else if (objectType === 'Announce') {
-      const announcedId = typeof object.object === 'string' ? object.object : object.object?.id;
-      if (announcedId) {
-        await Post.updateOne(
-          { 'federation.activityId': announcedId, 'stats.boostsCount': { $gt: 0 } },
-          { $inc: { 'stats.boostsCount': -1 } },
-        );
-        logger.debug(`Undo announce from ${actorUri} on ${announcedId}`);
+      await this.handleUndoAnnounce(object, actorUri);
+    }
+  }
+
+  /**
+   * Undo(Like): delete the native `Like` doc for the (federated user, post) pair
+   * and move `stats.likesCount` -1 ONLY when a doc was actually removed (floored
+   * at 0). Mirrors the native unlike path so the counter stays in lockstep with
+   * real records.
+   */
+  private async handleUndoLike(likeObject: Record<string, any>, actorUri: string): Promise<void> {
+    const likedObjectId = typeof likeObject.object === 'string' ? likeObject.object : likeObject.object?.id;
+    if (!likedObjectId || typeof likedObjectId !== 'string') return;
+
+    const postId = await this.resolvePostIdFromObjectUri(likedObjectId);
+    if (!postId) return;
+
+    const likerOxyUserId = await this.resolveActorOxyUserId(actorUri);
+    if (!likerOxyUserId) return;
+
+    const deleted = await Like.findOneAndDelete({ userId: likerOxyUserId, postId, value: 1 }).lean();
+    if (!deleted) return;
+
+    await Post.updateOne(
+      { _id: postId, 'stats.likesCount': { $gt: 0 } },
+      { $inc: { 'stats.likesCount': -1 } },
+    );
+    logger.debug(`[Federation] undo Like from ${actorUri} on ${postId}`);
+  }
+
+  /**
+   * Undo(Announce): delete the native boost `Post` (matched by the Announce
+   * `federation.activityId`, with the boosted-post fallback) and move
+   * `stats.boostsCount` -1 ONLY when a boost Post was actually removed (floored
+   * at 0).
+   */
+  private async handleUndoAnnounce(announceObject: Record<string, any>, actorUri: string): Promise<void> {
+    const announceId = typeof announceObject.id === 'string' ? announceObject.id : undefined;
+    const announcedUri = this.extractAnnouncedObjectUri(announceObject.object);
+
+    // Prefer the precise Announce-id match. Fall back to (boostOf, author) when
+    // the Undo omits the original Announce id but carries the announced object.
+    let boost: { _id: mongoose.Types.ObjectId; boostOf?: string } | null = null;
+    if (announceId) {
+      boost = await Post.findOne(
+        { 'federation.activityId': announceId, type: 'boost' },
+        { _id: 1, boostOf: 1 },
+      ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
+    }
+    if (!boost && announcedUri) {
+      const originalPostId = await this.resolvePostIdFromObjectUri(announcedUri);
+      const boosterOxyUserId = await this.resolveActorOxyUserId(actorUri);
+      if (originalPostId && boosterOxyUserId) {
+        boost = await Post.findOne(
+          { boostOf: originalPostId, oxyUserId: boosterOxyUserId, type: 'boost' },
+          { _id: 1, boostOf: 1 },
+        ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
       }
     }
+
+    if (!boost?.boostOf) return;
+
+    await Post.deleteOne({ _id: boost._id });
+    await Post.updateOne(
+      { _id: boost.boostOf, 'stats.boostsCount': { $gt: 0 } },
+      { $inc: { 'stats.boostsCount': -1 } },
+    );
+    logger.debug(`[Federation] undo Announce from ${actorUri} (boost ${String(boost._id)})`);
   }
 
   private async handleCreate(activity: Record<string, any>, actorUri: string): Promise<void> {
@@ -1855,44 +1932,100 @@ class FederationService {
     logger.debug(`Deleted federated post: ${objectId}`);
   }
 
-  private async handleLike(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
-    if (!objectId) return;
+  /**
+   * Resolve an ActivityPub object URI to a local Post `_id`, handling both:
+   *  - a local post (our own AP note URI → `<...>/posts/<postId>`), and
+   *  - an imported federated post (matched by `federation.activityId`).
+   *
+   * Returns the Post `_id` as a string, or null when no such post exists here.
+   */
+  private async resolvePostIdFromObjectUri(objectUri: string): Promise<string | null> {
+    const localPostId = extractLocalPostIdFromApUri(objectUri);
+    if (localPostId && mongoose.Types.ObjectId.isValid(localPostId)) {
+      const local = await Post.findById(localPostId, { _id: 1 }).lean();
+      if (local) return String(local._id);
+    }
 
-    // Try to find the local post being liked
-    await Post.updateOne(
-      { 'federation.activityId': objectId },
-      { $inc: { 'stats.likesCount': 1 } },
-    );
+    const imported = await Post.findOne(
+      { 'federation.activityId': objectUri },
+      { _id: 1 },
+    ).lean();
+    return imported ? String(imported._id) : null;
   }
 
+  /**
+   * Resolve a remote actor URI to its listable Oxy user id (the federated user
+   * the actor already resolves to). Returns null when the actor cannot be
+   * resolved to an Oxy user — callers must then skip, because federated
+   * engagement is only ever recorded against a real, listable user.
+   */
+  private async resolveActorOxyUserId(actorUri: string): Promise<string | null> {
+    const actor = await this.getOrFetchActor(actorUri);
+    return actor?.oxyUserId ?? null;
+  }
+
+  /**
+   * Inbound Like. Records the like with the SAME native structure as a local
+   * like (a `Like` doc) and keeps `stats.likesCount` in lockstep: the counter
+   * moves +1 only when a NEW Like doc is actually inserted. Redelivered Like
+   * activities are no-ops (the unique `{userId, postId}` index makes the insert
+   * idempotent). Skips entirely when the post or the federated user can't be
+   * resolved, so the count only ever reflects real, listable likers.
+   */
+  private async handleLike(activity: Record<string, any>, actorUri: string): Promise<void> {
+    const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+    if (!objectId || typeof objectId !== 'string') return;
+
+    const postId = await this.resolvePostIdFromObjectUri(objectId);
+    if (!postId) return;
+
+    const likerOxyUserId = await this.resolveActorOxyUserId(actorUri);
+    if (!likerOxyUserId) {
+      logger.info(`[Federation] skipping Like from ${actorUri} on ${objectId}: unresolved actor`);
+      return;
+    }
+
+    // Idempotent insert: a duplicate key means this actor already liked the post
+    // (redelivered activity) — do not move the counter again.
+    try {
+      await Like.create({ userId: likerOxyUserId, postId, value: 1 });
+    } catch (err) {
+      if (this.isDuplicateKeyError(err)) return;
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[Federation] failed to record Like from ${actorUri} on ${postId}: ${message}`);
+      return;
+    }
+
+    await Post.updateOne({ _id: postId }, { $inc: { 'stats.likesCount': 1 } });
+    logger.debug(`[Federation] recorded Like from ${actorUri} on ${postId}`);
+  }
+
+  /**
+   * Inbound Announce (boost). Records EVERY booster relationally as a native
+   * boost Post (`type:'boost'`, `boostOf:<local post _id>`, author = booster
+   * Oxy user), deduped by the Announce `federation.activityId`. `stats.boostsCount`
+   * moves +1 only when a NEW boost Post is created (no unconditional increment),
+   * so the counter always equals the number of real boost records. Skips when the
+   * booster or the boosted post can't be resolved.
+   *
+   * Feed visibility stays follow-gated naturally: feeds query `followingIds`, so
+   * creating a boost Post for a non-followed booster populates the boost list and
+   * count without flooding anyone's feed.
+   */
   private async handleAnnounce(activity: Record<string, any>, actorUri: string): Promise<void> {
     const announcedUri = this.extractAnnouncedObjectUri(activity.object);
     if (!announcedUri) return;
 
-    // Increment the boost count on the original post when we already know it
-    // locally (keeps engagement metrics accurate regardless of follow state).
-    await Post.updateOne(
-      { 'federation.activityId': announcedUri },
-      { $inc: { 'stats.boostsCount': 1 } },
-    );
+    // Record every booster as a real, listable user — resolve first and skip
+    // when unresolvable so we never move the counter without a backing record.
+    const boosterOxyUserId = await this.resolveActorOxyUserId(actorUri);
+    if (!boosterOxyUserId) {
+      logger.info(`[Federation] skipping Announce from ${actorUri} of ${announcedUri}: unresolved actor`);
+      return;
+    }
 
-    // Only import the boost into local feeds when the booster is followed by at
-    // least one local user — mirrors the follow gate in handleCreate so we don't
-    // ingest arbitrary remote content. Pushed boosts from followed actors should
-    // appear in their followers' feeds exactly like native reposts.
-    const hasFollower = await FederatedFollow.exists({
-      remoteActorUri: actorUri,
-      direction: 'outbound',
-      status: 'accepted',
-    });
-    if (!hasFollower) return;
-
-    // Resolve the booster's Oxy user id, then import the boost (ensures the
-    // boosted Note exists locally and creates a native-shaped boost Post).
-    const boosterActor = await this.getOrFetchActor(actorUri);
-    const boosterOxyUserId = boosterActor?.oxyUserId ?? null;
-
+    // importAnnounce creates the native boost Post (deduped by Announce id) and
+    // increments stats.boostsCount in lockstep only when a new boost is created.
     const created = await this.importAnnounce(activity, announcedUri, boosterOxyUserId);
     if (created) {
       logger.debug(`Imported boost from ${actorUri} of ${announcedUri}`);

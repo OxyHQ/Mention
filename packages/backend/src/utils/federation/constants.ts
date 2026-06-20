@@ -68,6 +68,31 @@ export function isBlockedDomain(domain: string): boolean {
 
 export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;
 
+/**
+ * Extract a local Post id from an ActivityPub object URI that points at one of
+ * our own posts. Local note URIs are minted as
+ * `https://<our-domain>/ap/users/<username>/posts/<postId>` (see
+ * `buildCreateNoteActivity` and the outbox route), so a remote Like/Announce
+ * that targets one of our posts carries that URI as its `object`.
+ *
+ * Returns the trailing `<postId>` segment only when the URI host is one of our
+ * own federation domains and the path matches the canonical scheme; otherwise
+ * returns null (the object is a remote/imported post, resolved by
+ * `federation.activityId` instead). Caller must still validate the id is a real
+ * ObjectId before querying.
+ */
+export function extractLocalPostIdFromApUri(objectUri: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(objectUri);
+  } catch {
+    return null;
+  }
+  if (!LOCAL_DOMAINS.has(parsed.host.toLowerCase())) return null;
+  const match = parsed.pathname.match(/^\/ap\/users\/[^/]+\/posts\/([^/]+)\/?$/);
+  return match ? match[1] : null;
+}
+
 /** Path segments that typically separate an actor path from a post ID in ActivityPub URIs. */
 const POST_PATH_SEGMENTS = new Set(['statuses', 'posts', 'notes', 'objects', 'activities']);
 
