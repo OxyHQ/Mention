@@ -250,7 +250,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     const hydrated = await postHydrationService.hydratePosts(sliced, {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
-      maxDepth: 0,
+      maxDepth: 1,
       includeLinkMetadata: false,
     });
 
