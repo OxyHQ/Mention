@@ -18,13 +18,13 @@ const MS_PER_HOUR = MS_PER_MINUTE * MINUTES_PER_HOUR;
 // --- Queue names ------------------------------------------------------------
 
 /** Inbound ActivityPub activities awaiting `processInboxActivity`. */
-export const FEDERATION_INBOX_QUEUE = 'federation:inbox';
+export const FEDERATION_INBOX_QUEUE = 'federation-inbox';
 
 /** Outbound ActivityPub deliveries (signed POST to a remote inbox). */
-export const FEDERATION_DELIVERY_QUEUE = 'federation:delivery';
+export const FEDERATION_DELIVERY_QUEUE = 'federation-delivery';
 
 /** Periodic federation maintenance jobs (cron-style repeatable jobs). */
-export const FEDERATION_PERIODIC_QUEUE = 'federation:periodic';
+export const FEDERATION_PERIODIC_QUEUE = 'federation-periodic';
 
 // --- Inbox worker tunables --------------------------------------------------
 
