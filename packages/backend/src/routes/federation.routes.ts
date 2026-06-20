@@ -21,6 +21,7 @@ import {
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { enqueueInboxActivity } from '../queue/producers';
+import { resolveAvatarUrl } from '../utils/mediaResolver';
 
 const router = Router();
 
@@ -68,23 +69,59 @@ const ICON_MEDIA_TYPE_BY_EXT: Record<string, string> = {
   avif: 'image/avif',
 };
 
+/** True when `value` is an absolute `http(s)` URL. */
+function isAbsoluteHttpUrl(value: string): boolean {
+  try {
+    return /^https?:$/i.test(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Build the actor `icon` (avatar) object. Derives `mediaType` from the avatar
- * URL extension when recognizable; otherwise the `mediaType` is omitted rather
- * than asserting a wrong type (a bare `Image` with `url` is spec-valid).
- * Returns undefined when there is no avatar.
+ * Build the actor `icon` (avatar) object for ActivityPub.
+ *
+ * The avatar reference stored on the Oxy user may be a raw Oxy file id (e.g.
+ * `69b80c09a08af16d4b871195`) or an absolute URL. ActivityPub consumers such as
+ * Mastodon validate that `icon.url` is an absolute URL and REJECT the entire
+ * actor document when it is not — so a raw file id here makes the account
+ * undiscoverable. We therefore resolve the reference through the same
+ * server-authoritative `resolveAvatarUrl` mechanism the rest of the API uses
+ * (Oxy file id → absolute Oxy asset stream URL; external URL → proxied through
+ * our own origin), and only emit `icon` when that yields a real absolute URL.
+ *
+ * Derives `mediaType` from the resolved URL extension when recognizable;
+ * otherwise the `mediaType` is omitted rather than asserting a wrong type (a
+ * bare `Image` with `url` is spec-valid).
+ *
+ * Returns undefined when there is no avatar or no absolute URL can be produced —
+ * Mastodon is fine with an avatar-less actor, but a non-absolute url breaks it.
  */
 function buildActorIcon(avatar: string | null | undefined): { type: 'Image'; url: string; mediaType?: string } | undefined {
   if (!avatar) return undefined;
+
+  // Resolve a raw Oxy file id (or external URL) to a final, absolute URL. If the
+  // reference was already an absolute http(s) URL, `resolveAvatarUrl` returns an
+  // absolute URL too (verbatim for our own origins, proxied for external CDNs).
+  const resolved = resolveAvatarUrl(avatar);
+
+  // Guard the absolute-URL invariant: if resolution failed or degraded to a
+  // non-absolute passthrough (e.g. an unresolvable id), OMIT `icon` entirely
+  // rather than emit a value that would make Mastodon reject the actor.
+  if (!resolved || !isAbsoluteHttpUrl(resolved)) {
+    logger.warn(`[Federation] Omitting actor icon — avatar did not resolve to an absolute URL (ref: ${avatar})`);
+    return undefined;
+  }
+
   let extension: string | undefined;
   try {
-    const pathname = new URL(avatar).pathname;
+    const pathname = new URL(resolved).pathname;
     extension = pathname.split('.').pop()?.toLowerCase();
   } catch {
-    extension = avatar.split('?')[0]?.split('.').pop()?.toLowerCase();
+    extension = resolved.split('?')[0]?.split('.').pop()?.toLowerCase();
   }
   const mediaType = extension ? ICON_MEDIA_TYPE_BY_EXT[extension] : undefined;
-  return mediaType ? { type: 'Image', url: avatar, mediaType } : { type: 'Image', url: avatar };
+  return mediaType ? { type: 'Image', url: resolved, mediaType } : { type: 'Image', url: resolved };
 }
 
 /**
