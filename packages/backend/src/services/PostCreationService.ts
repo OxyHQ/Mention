@@ -7,6 +7,7 @@ import {
 } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
+import { getPostFederator, registerPostCreator } from './serviceRegistry';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -244,24 +245,8 @@ class PostCreationService {
 
     if (!params.skipFederationDelivery && oxyUserId && params.senderUsername) {
       try {
-        // Lazy require avoids a circular dependency with FederationService
-        const { federationService } = require('./FederationService') as {
-          federationService: {
-            federateNewPost: (
-              post: {
-                _id: unknown;
-                content: { text?: string };
-                hashtags?: string[];
-                mentions?: string[];
-                visibility: string;
-                createdAt: string;
-              },
-              senderOxyUserId: string,
-              senderUsername: string,
-            ) => Promise<void>;
-          };
-        };
-        await federationService.federateNewPost(post, oxyUserId, params.senderUsername);
+        // Late-bound accessor avoids a circular import with FederationService.
+        await getPostFederator().federateNewPost(post, oxyUserId, params.senderUsername);
       } catch (fedError) {
         logger.error('PostCreationService: failed to federate post', fedError);
       }
@@ -272,3 +257,6 @@ class PostCreationService {
 }
 
 export const postCreationService = new PostCreationService();
+// Register with the late-bound service registry so FederationService can create
+// posts from federated notes/boosts without a circular import. See serviceRegistry.ts.
+registerPostCreator(postCreationService);

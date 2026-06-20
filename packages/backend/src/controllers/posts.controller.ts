@@ -1131,32 +1131,17 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     await post.save();
 
-    // Hydrate the updated post for consistent frontend response shape
-    try {
-      const hydrated = await postHydrationService.hydratePosts([post.toObject()], { viewerId: userId, oxyClient: createScopedOxyClient(req) });
-      if (hydrated.length > 0) {
-        return res.json(hydrated[0]);
-      }
-    } catch (hydrateError) {
-      logger.warn('Failed to hydrate edited post, falling back to raw transform', hydrateError);
+    // Hydrate the updated post for consistent frontend response shape.
+    // PostHydrationService is the single source of truth for post DTOs; we do NOT
+    // hand-build a `user` object here (that would leak the raw oxyUserId as the
+    // display name and break the profile-identity contract). If hydration fails
+    // for this just-saved, owner-scoped post, treat it as a server-side error.
+    const hydrated = await postHydrationService.hydratePosts([post.toObject()], { viewerId: userId, oxyClient: createScopedOxyClient(req) });
+    if (hydrated.length === 0) {
+      logger.error('Failed to hydrate edited post', { postId: String(post._id), userId });
+      return res.status(500).json({ message: 'Error updating post' });
     }
-
-    // Fallback: transform the response to match frontend expectations
-    const postObj = post.toObject();
-    const transformedPost = {
-      ...postObj,
-      user: {
-        id: postObj.oxyUserId,
-        displayName: postObj.oxyUserId,
-        handle: postObj.oxyUserId,
-        avatar: undefined,
-        avatarUrl: undefined,
-        isVerified: false,
-      },
-      oxyUserId: undefined,
-    };
-
-    res.json(transformedPost);
+    res.json(hydrated[0]);
   } catch (error) {
     logger.error('Error updating post', error);
     res.status(500).json({ message: 'Error updating post' });

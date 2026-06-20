@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
 import FederatedActor from '../models/FederatedActor';
@@ -38,14 +38,21 @@ function requireFederation(res: Response): boolean {
   return true;
 }
 
-/** Guard: return 401 if no authenticated user. Returns userId or null. */
-function requireAuth(req: AuthRequest, res: Response): string | null {
-  const userId = req.user?.id;
-  if (!userId) {
+/**
+ * Resolve the authenticated Oxy user id, or write a 401 and return null.
+ *
+ * Identity resolution is owned entirely by `@oxyhq/core/server`
+ * (`getRequiredOxyUserId`, which throws when unauthenticated). This wrapper only
+ * translates that into an HTTP 401 — these routes are mounted under `optionalAuth`,
+ * so the federation availability check (404) must run before this auth check.
+ */
+function resolveUserOr401(req: AuthRequest, res: Response): string | null {
+  try {
+    return getRequiredOxyUserId(req);
+  } catch {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
-  return userId;
 }
 
 function hasUnavailableCurrentOutbox(actor: { outboxUrl?: string; outboxBackfill?: { outboxUrl?: string; status?: string } }): boolean {
@@ -66,7 +73,7 @@ function hasUnavailableCurrentOutbox(actor: { outboxUrl?: string; outboxBackfill
  */
 router.post('/follow', async (req: AuthRequest, res: Response) => {
   if (!requireFederation(res)) return;
-  const userId = requireAuth(req, res);
+  const userId = resolveUserOr401(req, res);
   if (!userId) return;
 
   const parsed = actorUriSchema.safeParse(req.body);
@@ -95,7 +102,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
  */
 router.post('/unfollow', async (req: AuthRequest, res: Response) => {
   if (!requireFederation(res)) return;
-  const userId = requireAuth(req, res);
+  const userId = resolveUserOr401(req, res);
   if (!userId) return;
 
   const parsed = actorUriSchema.safeParse(req.body);
@@ -120,7 +127,7 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
  */
 router.get('/following', async (req: AuthRequest, res: Response) => {
   if (!requireFederation(res)) return;
-  const userId = requireAuth(req, res);
+  const userId = resolveUserOr401(req, res);
   if (!userId) return;
 
   try {
@@ -161,7 +168,7 @@ router.get('/following', async (req: AuthRequest, res: Response) => {
  */
 router.get('/followers', async (req: AuthRequest, res: Response) => {
   if (!requireFederation(res)) return;
-  const userId = requireAuth(req, res);
+  const userId = resolveUserOr401(req, res);
   if (!userId) return;
 
   try {

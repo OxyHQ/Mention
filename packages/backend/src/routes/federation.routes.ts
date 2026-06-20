@@ -157,7 +157,7 @@ async function handleInbox(req: Request, res: Response): Promise<Response> {
         method: req.method,
         path: req.originalUrl || req.path,
         headers: req.headers as Record<string, string | string[] | undefined>,
-        body: (req as any).rawBody ?? req.body,
+        body: req.rawBody ?? req.body,
       },
       (keyId) => federationService.fetchPublicKey(keyId),
     );

@@ -13,6 +13,9 @@ import {
 } from './constants';
 import type { InboxJobData, DeliveryJobData, PeriodicJobData, PeriodicTaskName } from './types';
 import { logger } from '../utils/logger';
+import { federationService } from '../services/FederationService';
+import { federationJobScheduler } from '../services/FederationJobScheduler';
+import { oxy } from '../../server';
 
 /**
  * BullMQ consumers (workers) for the federation queues.
@@ -53,11 +56,12 @@ function deliveryBackoff(attemptsMade: number): number {
 
 /**
  * Process one inbound activity. Delegates to the existing
- * `federationService.processInboxActivity`. Imported lazily to avoid a static
- * import cycle (FederationService → queue producers → workers).
+ * `federationService.processInboxActivity`.
+ *
+ * Exported for unit testing — the BullMQ Worker is constructed with this as its
+ * processor, so testing it directly avoids needing a live Redis connection.
  */
-async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
-  const { federationService } = await import('../services/FederationService');
+export async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
   const { activity, verifiedActorUri } = job.data;
   await federationService.processInboxActivity(activity, verifiedActorUri);
 }
@@ -67,17 +71,17 @@ async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
  * client, signs + POSTs via `federationService.deliverActivity`, and throws on
  * a soft failure so BullMQ retries with the custom backoff. A missing sender is
  * a PERMANENT failure (UnrecoverableError) — no retry.
+ *
+ * Exported for unit testing (see {@link processInboxJob}).
  */
-async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<void> {
-  const { federationService } = await import('../services/FederationService');
+export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<void> {
   const { activityJson, targetInbox, senderOxyUserId } = job.data;
 
   // The sender's username is needed to load the signing key. `oxy` is the
-  // service OxyServices singleton exported from server.ts. We import it lazily
-  // (the existing retry path used `require('../../server.js')`) because
-  // server.ts imports route modules that transitively touch the queue layer; a
-  // static import here would create a load-order cycle.
-  const { oxy } = await import('../../server');
+  // service OxyServices singleton exported from server.ts. The workers module is
+  // only loaded via `require('./src/queue/workers')` at server bootstrap (after
+  // `oxy` and the services are constructed), so these static imports are safe —
+  // the bindings are always live by the time a job runs.
   const user = await oxy.getUserById(senderOxyUserId);
   if (!user?.username) {
     logger.warn(
@@ -106,7 +110,6 @@ async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<void> {
  * to BullMQ.
  */
 async function processPeriodicJob(job: Job<PeriodicJobData>): Promise<void> {
-  const { federationJobScheduler } = await import('../services/FederationJobScheduler');
   const task: PeriodicTaskName = job.data.task;
 
   switch (task) {

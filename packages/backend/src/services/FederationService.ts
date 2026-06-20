@@ -30,6 +30,7 @@ import { normalizeHashtag, normalizePostHashtags } from '../utils/textProcessing
 import { recordAccessAndMaybeEnqueue } from './mediaCache/cacheStore';
 import { persistRemoteMediaForFederatedOwnerDetailed } from './mediaCache/cacheWorker';
 import { enqueueDelivery } from '../queue/producers';
+import { getPostCreator, registerPostFederator } from './serviceRegistry';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -42,6 +43,28 @@ const ACTOR_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
  * eligible for a (background) re-fetch.
  */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
+ * Keeps remote fan-out small so we don't hammer a single instance.
+ */
+const OUTBOX_ACTOR_RESOLVE_CONCURRENCY = 3;
+
+/**
+ * Per-actor wall-clock budget for `fetchRemoteActor` during outbox backfill.
+ * `fetchRemoteActor` can chain a direct fetch + WebFinger fallback + retry
+ * (each with its own request timeout), so one unresponsive remote could still
+ * stall a whole resolution batch. This caps the total time spent on any single
+ * actor so the batch always makes progress.
+ */
+const OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS = 20 * 1000; // 20 seconds
+
+/**
+ * Bounded concurrency for importing boosts (Announce) during outbox backfill.
+ * Each import may fetch the boosted Note from a remote instance, so this is
+ * parallelized in small batches rather than run strictly sequentially.
+ */
+const OUTBOX_BOOST_IMPORT_CONCURRENCY = 4;
 
 /**
  * A candidate extracted from a remote actor's outbox during backfill.
@@ -210,6 +233,24 @@ class FederationService {
    * running.
    */
   private readonly inFlightActorRefreshes = new Set<string>();
+
+  /**
+   * Race a promise against a wall-clock deadline. Resolves to `null` if the
+   * deadline elapses first, so a single hung remote operation can't stall a
+   * batch. The underlying work is not aborted (callers here are read-only and
+   * idempotent); it is simply abandoned for result purposes.
+   */
+  private async runWithTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), timeoutMs);
+    });
+    try {
+      return await Promise.race([work, timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
 
   /**
    * Extract candidate items from outbox items into the candidates array.
@@ -591,7 +632,7 @@ class FederationService {
                 const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
                 const buffer = await imgRes.arrayBuffer();
                 const blob = new Blob([buffer], { type: contentType });
-                const asset = await oxyClient.uploadProfileBanner(blob as any, oxyId);
+                const asset = await oxyClient.uploadProfileBanner(blob, oxyId);
                 const fileId = asset?.file?.id;
                 if (fileId) {
                   await UserSettings.updateOne(
@@ -700,7 +741,7 @@ class FederationService {
       }
 
       const collection = await res.json() as Record<string, any>;
-      logger.info(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
+      logger.debug(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
       const remoteTotalItems = typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
 
       const candidates: OutboxCandidate[] = [];
@@ -799,10 +840,10 @@ class FederationService {
         }
       }
 
-      logger.info(`[FedSync] collected ${candidates.length} candidates across ${pagesFetched} fetched pages for ${actor.acct}`);
+      logger.debug(`[FedSync] collected ${candidates.length} candidates across ${pagesFetched} fetched pages for ${actor.acct}`);
 
       if (candidates.length === 0) {
-        logger.info(`[FedSync] no candidate notes found for ${actor.acct}`);
+        logger.debug(`[FedSync] no candidate notes found for ${actor.acct}`);
         const hasInlineItems = inlineItems.length > 0;
         const hasFirstPage = Boolean(collection.first || collection.next);
         const nonEmptyButNotInspectable = !options.startPageUrl
@@ -865,12 +906,15 @@ class FederationService {
           if (a.oxyUserId) actorOxyMap.set(a.uri, a.oxyUserId);
         }
 
-        // Resolve missing actors with bounded concurrency to avoid fan-out
+        // Resolve missing actors with bounded concurrency to avoid fan-out.
+        // Each resolution is bounded by a per-actor timeout so one unresponsive
+        // remote instance can't stall the batch.
         const missingUris = [...actorUris].filter(uri => !actorOxyMap.has(uri));
-        const CONCURRENCY = 3;
-        for (let i = 0; i < missingUris.length; i += CONCURRENCY) {
-          const batch = missingUris.slice(i, i + CONCURRENCY);
-          const resolved = await Promise.all(batch.map(uri => this.fetchRemoteActor(uri)));
+        for (let i = 0; i < missingUris.length; i += OUTBOX_ACTOR_RESOLVE_CONCURRENCY) {
+          const batch = missingUris.slice(i, i + OUTBOX_ACTOR_RESOLVE_CONCURRENCY);
+          const resolved = await Promise.all(batch.map(uri =>
+            this.runWithTimeout(this.fetchRemoteActor(uri), OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS)
+          ));
           for (let j = 0; j < batch.length; j++) {
             const actor = resolved[j];
             if (actor?.oxyUserId) {
@@ -880,7 +924,7 @@ class FederationService {
         }
       }
 
-      logger.info(`[FedSync] ${candidates.length} candidates (${noteCandidates.length} notes, ${announceCandidates.length} announces), ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
+      logger.debug(`[FedSync] ${candidates.length} candidates (${noteCandidates.length} notes, ${announceCandidates.length} announces), ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
 
       // Build documents for batch insert
       const newDocs: any[] = [];
@@ -903,7 +947,7 @@ class FederationService {
         const actorUri = this.extractActorUri(note.attributedTo);
         const resolvedOxyUserId = actorUri ? actorOxyMap.get(actorUri) || null : null;
         if (!resolvedOxyUserId) {
-          logger.info(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
+          logger.debug(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
         }
         const { media, attachments } = await this.materializeFederatedMedia(
           extracted.media,
@@ -988,19 +1032,23 @@ class FederationService {
 
       // Import boosts (Announce) attributed to the outbox owner. Each announce
       // ensures the boosted Note exists locally, then creates a boost Post that
-      // mirrors native reposts (type=boost, boostOf=<local note _id>). Processed
-      // sequentially with the booster's resolved oxyUserId; deduped by the
-      // Announce activity id.
+      // mirrors native reposts (type=boost, boostOf=<local note _id>) with the
+      // booster's resolved oxyUserId; deduped by the Announce activity id.
+      // Each import may fetch the boosted Note from a remote instance, so they
+      // run with bounded concurrency rather than strictly sequentially.
       const boosterOxyUserId = actor.oxyUserId ?? actorOxyMap.get(actor.uri) ?? null;
+      const pendingAnnounces = announceCandidates.filter(a => !existingIds.has(a.activityId));
       let importedBoosts = 0;
-      for (const announce of announceCandidates) {
-        if (existingIds.has(announce.activityId)) continue;
-        const created = await this.importAnnounce(
-          announce.activity,
-          announce.announcedUri,
-          boosterOxyUserId,
-        );
-        if (created) importedBoosts++;
+      for (let i = 0; i < pendingAnnounces.length; i += OUTBOX_BOOST_IMPORT_CONCURRENCY) {
+        const batch = pendingAnnounces.slice(i, i + OUTBOX_BOOST_IMPORT_CONCURRENCY);
+        const results = await Promise.all(batch.map(announce =>
+          this.importAnnounce(
+            announce.activity,
+            announce.announcedUri,
+            boosterOxyUserId,
+          )
+        ));
+        importedBoosts += results.filter(Boolean).length;
       }
 
       const synced = existingIds.size + newDocs.length + importedBoosts;
@@ -1069,12 +1117,8 @@ class FederationService {
 
     const published = typeof announceActivity.published === 'string' ? announceActivity.published : undefined;
 
-    const { postCreationService } = require('./PostCreationService') as {
-      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<{ _id: unknown }> };
-    };
-
     try {
-      await postCreationService.create({
+      await getPostCreator().create({
         oxyUserId: boosterOxyUserId,
         boostOf: originalPostId,
         // A boost carries no content of its own — mirror native reposts which
@@ -1171,12 +1215,8 @@ class FederationService {
       { activityId: noteActivityId, actorUri: authorUri ?? undefined },
     );
 
-    const { postCreationService } = require('./PostCreationService') as {
-      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<{ _id: unknown }> };
-    };
-
     try {
-      const created = await postCreationService.create({
+      const created = await getPostCreator().create({
         oxyUserId: authorOxyUserId,
         federation: {
           activityId: noteActivityId,
@@ -1933,10 +1973,7 @@ class FederationService {
       { activityId: object.id, actorUri },
     );
 
-    const { postCreationService } = require('./PostCreationService') as {
-      postCreationService: { create: (params: import('./PostCreationService').CreatePostParams) => Promise<unknown> };
-    };
-    await postCreationService.create({
+    await getPostCreator().create({
       oxyUserId: actor.oxyUserId ?? null,
       federation: {
         activityId: object.id,
@@ -2222,4 +2259,7 @@ class FederationService {
 }
 
 export const federationService = new FederationService();
+// Register with the late-bound service registry so PostCreationService can
+// federate new posts without a circular import. See serviceRegistry.ts.
+registerPostFederator(federationService);
 export default federationService;
