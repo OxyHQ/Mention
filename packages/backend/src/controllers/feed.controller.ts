@@ -892,7 +892,7 @@ class FeedController {
       const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
         viewerId: currentUserId,
         oxyClient: createScopedOxyClient(req),
-        maxDepth: 0,
+        maxDepth: 1,
         includeLinkMetadata: true,
         includeFullArticleBody: false,
         includeFullMetadata: false,
