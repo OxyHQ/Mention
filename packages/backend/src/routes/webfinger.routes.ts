@@ -91,4 +91,49 @@ router.get('/webfinger', async (req: Request, res: Response) => {
   }
 });
 
+const HOST_META_CACHE_CONTROL = `max-age=${60 * 60 * 24}`; // 24h — host-meta is effectively static
+const WEBFINGER_TEMPLATE = `https://${FEDERATION_DOMAIN}/.well-known/webfinger?resource={uri}`;
+
+/**
+ * host-meta (XRD/XML) — public fediverse discovery document (RFC 6415).
+ * Advertises the WebFinger LRDD template so software that resolves accounts via
+ * host-meta (rather than hitting /.well-known/webfinger directly) can find it.
+ * GET /.well-known/host-meta
+ */
+router.get('/host-meta', (_req: Request, res: Response) => {
+  if (!FEDERATION_ENABLED) {
+    return res.status(404).json({ error: 'Federation is disabled' });
+  }
+  const xrd = `<?xml version="1.0" encoding="UTF-8"?>
+<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+  <Link rel="lrdd" type="application/jrd+json" template="${WEBFINGER_TEMPLATE}"/>
+</XRD>
+`;
+  res.set('Content-Type', 'application/xrd+xml; charset=utf-8');
+  res.set('Cache-Control', HOST_META_CACHE_CONTROL);
+  return res.send(xrd);
+});
+
+/**
+ * host-meta (JRD/JSON variant) — same LRDD template as the XML document, for
+ * clients that request the JSON representation.
+ * GET /.well-known/host-meta.json
+ */
+router.get('/host-meta.json', (_req: Request, res: Response) => {
+  if (!FEDERATION_ENABLED) {
+    return res.status(404).json({ error: 'Federation is disabled' });
+  }
+  res.set('Content-Type', 'application/jrd+json; charset=utf-8');
+  res.set('Cache-Control', HOST_META_CACHE_CONTROL);
+  return res.json({
+    links: [
+      {
+        rel: 'lrdd',
+        type: 'application/jrd+json',
+        template: WEBFINGER_TEMPLATE,
+      },
+    ],
+  });
+});
+
 export default router;
