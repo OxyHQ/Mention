@@ -24,8 +24,21 @@ import { assertSafePublicUrl } from './ssrfGuard';
  * the validated, non-redirect `IncomingMessage` returned here.
  */
 
-/** Time to wait for the upstream to send response headers before aborting. */
-export const UPSTREAM_HEADERS_TIMEOUT_MS = 10_000;
+/**
+ * Time-to-first-byte deadline: how long we wait for the upstream to ESTABLISH
+ * the connection and send its RESPONSE HEADERS before aborting.
+ *
+ * This is enforced via `req.setTimeout` on the `ClientRequest` inside
+ * {@link fetchOnce}, which fires on socket inactivity DURING the request phase
+ * (connect + waiting for the status line/headers). Once headers arrive,
+ * `fetchOnce` resolves with the `IncomingMessage` and the caller attaches its
+ * OWN, longer idle timeout to the response body — so this deadline governs only
+ * "is the remote alive and answering", NOT the streaming duration of a large
+ * video that has already started flowing. Kept tight (8s) so a slow/dead remote
+ * is abandoned quickly, collapsing the p99 latency tail, while big-file
+ * streaming is unaffected because it is past this point.
+ */
+export const UPSTREAM_HEADERS_TIMEOUT_MS = 8_000;
 
 /** Maximum number of HTTP redirects to follow; each hop is re-validated. */
 export const MAX_REDIRECTS = 3;

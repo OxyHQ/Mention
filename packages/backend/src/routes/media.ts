@@ -14,6 +14,8 @@ import { lookupCacheRow, bumpAccess, recordAccessAndMaybeEnqueue } from '../serv
 import { decideProxyServe } from '../services/mediaCache/policy';
 import { isAllowedMediaType } from '../services/mediaCache/mediaTypes';
 import { isMediaCacheEnabled, resolveOxyDownloadUrl } from '../services/mediaCache/oxyMediaStore';
+import { isNegativelyCached, markNegativelyCached } from '../services/mediaCache/negativeCache';
+import { classifyUpstreamStatus } from './mediaProxyStatus';
 
 const router = express.Router();
 
@@ -92,8 +94,9 @@ const HTTP_STATUS = {
   BAD_REQUEST: 400,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
-  RANGE_NOT_SATISFIABLE: 416,
   UNSUPPORTED_MEDIA_TYPE: 415,
+  PAYLOAD_TOO_LARGE: 413,
+  RANGE_NOT_SATISFIABLE: 416,
   BAD_GATEWAY: 502,
 } as const;
 
@@ -368,6 +371,16 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     return;
   }
 
+  // --- Negative cache short-circuit ---
+  // Deleted/forbidden/hotlink-protected remote media keeps being re-requested on
+  // every feed render. If a recent fetch of THIS url already failed with a
+  // client-class (4xx) or connection error, answer 404 immediately without
+  // re-hitting the dead upstream. Degrades to a normal fetch when Redis is down.
+  if (await isNegativelyCached(rawUrl)) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
+    return;
+  }
+
   // --- Activity-based cache front (only when the cache is enabled) ---
   // When the federated media cache is disabled it is COMPLETELY INERT: we touch
   // FederatedMediaCache ZERO times (no lookup, no access bump, no enqueue) and
@@ -427,9 +440,14 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
       res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
       return;
     }
+    // A connection/network failure (DNS, refused, reset, headers timeout). This
+    // is a genuine gateway problem → 502. Memo it under a SHORT TTL so a remote
+    // that is briefly unreachable isn't re-dialed on every feed render, while
+    // still recovering quickly if the blip was transient.
     logger.warn('[MediaProxy] Upstream fetch failed', {
       reason: error instanceof Error ? error.message : 'unknown',
     });
+    void markNegativelyCached(rawUrl, 'connection-error');
     res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
     return;
   }
@@ -439,9 +457,10 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
   // while streaming (the signal only aborts the request object, not the body).
   deadline.setActiveResponse(response);
   const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
+  const statusClass = classifyUpstreamStatus(upstreamStatus);
 
   // 304 from a conditional request: relay validators, no body.
-  if (upstreamStatus === HTTP_STATUS.NOT_MODIFIED) {
+  if (statusClass === 'not-modified') {
     response.resume();
     relayHeader(res, 'ETag', response.headers.etag);
     relayHeader(res, 'Last-Modified', response.headers['last-modified']);
@@ -451,15 +470,31 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     return;
   }
 
-  // Only 200/206 carry a media body we relay; anything else is an upstream error.
-  if (upstreamStatus !== HTTP_STATUS.OK && upstreamStatus !== HTTP_STATUS.PARTIAL_CONTENT) {
+  // 416 Range Not Satisfiable: relay the Content-Range so the client can adjust.
+  if (statusClass === 'range-not-satisfiable') {
     response.resume();
-    if (upstreamStatus === HTTP_STATUS.RANGE_NOT_SATISFIABLE) {
-      relayHeader(res, 'Content-Range', response.headers['content-range']);
-      res.status(HTTP_STATUS.RANGE_NOT_SATISFIABLE).end();
-      return;
-    }
-    logger.warn('[MediaProxy] Upstream returned non-media status', { status: upstreamStatus });
+    relayHeader(res, 'Content-Range', response.headers['content-range']);
+    res.status(HTTP_STATUS.RANGE_NOT_SATISFIABLE).end();
+    return;
+  }
+
+  // Client-class (4xx) upstream: the remote asset was deleted, made private, or
+  // is hotlink-protected. That is NOT a gateway fault — answer 404, log at debug
+  // (expected, high-volume), and negative-cache the URL so we stop re-fetching a
+  // known-dead asset on every feed render.
+  if (statusClass === 'client-error') {
+    response.resume();
+    logger.debug('[MediaProxy] Upstream returned client-error status', { status: upstreamStatus });
+    void markNegativelyCached(rawUrl, 'client-error');
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
+    return;
+  }
+
+  // Genuine upstream 5xx / unrelayable status: a real gateway problem → 502. NOT
+  // negative-cached because it may be transient.
+  if (statusClass !== 'media') {
+    response.resume();
+    logger.warn('[MediaProxy] Upstream returned server-error status', { status: upstreamStatus });
     res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
     return;
   }
@@ -474,11 +509,13 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
   }
 
   // Reject over-large declared bodies up front (streamed bytes are also capped).
+  // The upstream answered fine (200/206) — this is OUR policy rejecting an
+  // oversized body, so it is 413 Payload Too Large, not a 502 gateway error.
   const declaredLength = Number(response.headers['content-length']);
   if (Number.isFinite(declaredLength) && declaredLength > MAX_CONTENT_BYTES) {
     response.destroy();
     logger.warn('[MediaProxy] Upstream body exceeds cap', { declaredLength });
-    res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media too large' });
+    res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Upstream media too large' });
     return;
   }
 
