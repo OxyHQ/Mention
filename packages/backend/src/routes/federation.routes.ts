@@ -20,6 +20,7 @@ import {
 } from '../utils/federation/constants';
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../middleware/rateLimitStore';
+import { enqueueInboxActivity } from '../queue/producers';
 
 const router = Router();
 
@@ -178,10 +179,24 @@ async function handleInbox(req: Request, res: Response): Promise<Response> {
       return res.status(403).json({ error: 'Actor mismatch' });
     }
 
-    // Process asynchronously — return 202 Accepted immediately
-    federationService.processInboxActivity(activity, actorUri).catch((err) => {
-      logger.error('Error processing inbox activity:', err);
-    });
+    // Process asynchronously — return 202 Accepted immediately.
+    // Durable path: enqueue onto BullMQ keyed by the activity id (dedupe). When
+    // the queue is unavailable (Redis not configured) OR the activity has no
+    // stable id to dedupe on, fall back to inline fire-and-forget processing so
+    // the activity is never dropped.
+    let enqueued = false;
+    try {
+      enqueued = await enqueueInboxActivity({ activity, verifiedActorUri: actorUri });
+    } catch (err) {
+      logger.error('Failed to enqueue inbox activity — processing inline:', err);
+      enqueued = false;
+    }
+
+    if (!enqueued) {
+      federationService.processInboxActivity(activity, actorUri).catch((err) => {
+        logger.error('Error processing inbox activity:', err);
+      });
+    }
 
     return res.status(202).json({ status: 'accepted' });
   } catch (err) {

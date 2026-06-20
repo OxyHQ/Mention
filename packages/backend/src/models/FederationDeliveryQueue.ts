@@ -11,6 +11,12 @@ export interface IFederationDelivery extends Document {
   nextAttemptAt: Date;
   status: DeliveryStatus;
   error?: string;
+  /**
+   * Set when a legacy pending row has been migrated into the BullMQ delivery
+   * queue at startup. Migrated rows are excluded from re-draining so the same
+   * delivery is never enqueued twice across restarts.
+   */
+  migratedToBullmq?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +39,7 @@ const FederationDeliveryQueueSchema = new Schema<IFederationDelivery>({
   nextAttemptAt: { type: Date, required: true, index: true },
   status: { type: String, default: 'pending', enum: ['pending', 'delivered', 'failed'], index: true },
   error: { type: String },
+  migratedToBullmq: { type: Boolean, default: false },
 }, {
   timestamps: true,
 });

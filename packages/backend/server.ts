@@ -1091,6 +1091,19 @@ const bootServer = async () => {
   // cross-instance broadcasts work from the first connection
   await setupRedisAdapter();
 
+  // Start BullMQ federation queue workers on EVERY task (inbox + delivery
+  // throughput should scale with the fleet; BullMQ delivers each job to exactly
+  // one worker). No-op when Redis is not configured — federation then falls
+  // back to inline inbox processing + the in-process Mongo delivery scheduler.
+  // Periodic repeatable-job REGISTRATION is leader-only (FederationJobScheduler,
+  // driven by leaderElection); only the consuming workers run everywhere.
+  try {
+    const { startWorkers } = require("./src/queue/workers");
+    startWorkers();
+  } catch (error) {
+    logger.warn("Failed to start federation queue workers", error);
+  }
+
   // Register MTN Protocol feed implementations
   registerAllFeeds();
 
@@ -1115,9 +1128,20 @@ const gracefulShutdown = (signal: string): void => {
 
   // Release the scheduler lock + stop schedulers first so failover is fast.
   // leaderElection.stop() is safe to call even if this task was never leader.
+  // Then close the BullMQ workers + queue connections so no jobs are processed
+  // mid-shutdown and Redis connections drain cleanly. Both are best-effort and
+  // must not block the server from closing.
   void leaderElection
     .stop()
     .catch((error) => logger.error("Error stopping leader election", error))
+    .then(async () => {
+      try {
+        const { shutdownQueues } = require("./src/queue/workers");
+        await shutdownQueues();
+      } catch (error) {
+        logger.error("Error shutting down federation queues", error);
+      }
+    })
     .finally(() => {
       // Stop accepting new HTTP/socket connections.
       server.close(() => {

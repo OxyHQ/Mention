@@ -29,6 +29,7 @@ import UserSettings from '../models/UserSettings';
 import { normalizeHashtag, normalizePostHashtags } from '../utils/textProcessing';
 import { recordAccessAndMaybeEnqueue } from './mediaCache/cacheStore';
 import { persistRemoteMediaForFederatedOwnerDetailed } from './mediaCache/cacheWorker';
+import { enqueueDelivery } from '../queue/producers';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -1377,12 +1378,29 @@ class FederationService {
 
   /**
    * Queue an activity for delivery (with retries).
+   *
+   * Durable path: enqueue onto the BullMQ delivery queue (deduped per
+   * targetInbox + activity id). When the queue is unavailable (Redis not
+   * configured) fall back to the Mongo delivery queue, which the in-process
+   * scheduler retries. Either way the delivery is never lost.
    */
   async queueDelivery(
     activity: Record<string, unknown>,
     targetInbox: string,
     senderOxyUserId: string,
   ): Promise<void> {
+    const enqueued = await enqueueDelivery({
+      activityJson: activity,
+      targetInbox,
+      senderOxyUserId,
+    }).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[FedDeliver] enqueue failed for ${targetInbox}, falling back to Mongo: ${message}`);
+      return false;
+    });
+
+    if (enqueued) return;
+
     await FederationDeliveryQueue.create({
       activityJson: activity,
       targetInbox,
@@ -1411,19 +1429,47 @@ class FederationService {
     const actorUris = follows.map((f) => f.remoteActorUri);
     const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean();
 
-    // Group by shared inbox to avoid duplicate deliveries, then batch-insert
+    // Group by shared inbox to avoid duplicate deliveries.
     const seen = new Set<string>();
-    const deliveries: Array<{ activityJson: Record<string, unknown>; targetInbox: string; senderOxyUserId: string; nextAttemptAt: Date }> = [];
-    const now = new Date();
+    const inboxes: string[] = [];
     for (const actor of actors) {
       const inbox = actor.sharedInboxUrl || actor.inboxUrl;
-      if (!seen.has(inbox)) {
+      if (inbox && !seen.has(inbox)) {
         seen.add(inbox);
-        deliveries.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
+        inboxes.push(inbox);
       }
     }
-    if (deliveries.length > 0) {
-      await FederationDeliveryQueue.insertMany(deliveries, { ordered: false });
+    if (inboxes.length === 0) return;
+
+    // Durable path: enqueue one BullMQ delivery per shared inbox (deduped per
+    // inbox + activity id). When the queue is unavailable fall back to a single
+    // Mongo batch insert for the inboxes that were not enqueued.
+    const now = new Date();
+    const mongoFallback: Array<{
+      activityJson: Record<string, unknown>;
+      targetInbox: string;
+      senderOxyUserId: string;
+      nextAttemptAt: Date;
+    }> = [];
+
+    for (const inbox of inboxes) {
+      const enqueued = await enqueueDelivery({
+        activityJson: activity,
+        targetInbox: inbox,
+        senderOxyUserId,
+      }).catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`[FedDeliver] follower enqueue failed for ${inbox}, falling back to Mongo: ${message}`);
+        return false;
+      });
+
+      if (!enqueued) {
+        mongoFallback.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
+      }
+    }
+
+    if (mongoFallback.length > 0) {
+      await FederationDeliveryQueue.insertMany(mongoFallback, { ordered: false });
     }
   }
 
