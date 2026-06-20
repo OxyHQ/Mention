@@ -30,6 +30,7 @@ import {
   DELIVERY_DRAIN_PAGE_SIZE,
 } from '../queue/constants';
 import type { PeriodicTaskName } from '../queue/types';
+import { oxy } from '../../server';
 
 /** Staleness threshold after which an actor profile is re-fetched. */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -788,8 +789,12 @@ class FederationJobScheduler {
 
       for (const delivery of pending) {
         try {
-          // Need the sender's username to sign the request
-          const { oxy } = require('../../server.js');
+          // Need the sender's username to sign the request. `oxy` is the
+          // service OxyServices singleton exported from server.ts. This module
+          // is only loaded via `require('./src/services/FederationJobScheduler')`
+          // at server bootstrap (after `oxy` and the services are constructed),
+          // so the static import binding is always live by the time a retry runs
+          // — same rationale as the delivery worker in queue/workers.ts.
           const user = await oxy.getUserById(delivery.senderOxyUserId);
           if (!user?.username) {
             await FederationDeliveryQueue.updateOne(
