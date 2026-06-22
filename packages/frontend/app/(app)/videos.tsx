@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { StyleSheet, View, Text, Pressable, FlatList, ScrollView, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,6 +48,10 @@ const VIEWABILITY_CONFIG = {
 // When a `videos` page yields zero NEW posts but more pages exist, walk forward
 // up to this many extra pages so the reel never dead-ends prematurely.
 const MAX_AUTO_CONTINUE_PAGES = 3;
+
+// Web: pixels-from-bottom at which the native-style infinite scroll triggers a
+// `handleLoadMore`, so paging stays ahead of the viewer on the fixed scroller.
+const WEB_END_REACHED_PX = 1200;
 
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
@@ -705,6 +709,23 @@ export default function VideosScreen() {
         }
     }, []);
 
+    // Web scroll handler. The fixed scroll container owns its own overflow on web
+    // (it is its own `scroll-snap-type: y mandatory` scroller, NOT the document),
+    // so the active index and infinite-scroll trigger are derived directly from
+    // its scroll metrics rather than from FlatList viewability. Each slide is one
+    // viewport tall, so the nearest snapped index is `round(scrollTop / viewportH)`.
+    const handleWebScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+        const viewportH = layoutMeasurement.height;
+        if (viewportH > 0) {
+            const index = Math.round(contentOffset.y / viewportH);
+            setCurrentVisibleIndex(prev => (prev === index ? prev : index));
+        }
+        if (contentOffset.y + layoutMeasurement.height >= contentSize.height - WEB_END_REACHED_PX) {
+            handleLoadMore();
+        }
+    }, [handleLoadMore]);
+
     const handleLike = useCallback(async (postId: string, isLiked: boolean) => {
         try {
             if (isLiked) {
@@ -840,30 +861,73 @@ export default function VideosScreen() {
                 )}
 
                 {posts.length > 0 && (
-                    <FlatList
-                        ref={flatListRef}
-                        className="web:h-[100dvh] web:overflow-y-auto web:[scroll-snap-type:y_mandatory]"
-                        data={posts}
-                        renderItem={renderVideoItem}
-                        keyExtractor={keyExtractor}
-                        pagingEnabled
-                        snapToInterval={WINDOW_HEIGHT}
-                        snapToAlignment="start"
-                        decelerationRate="fast"
-                        onEndReached={handleLoadMore}
-                        onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
-                        onViewableItemsChanged={handleViewableItemsChanged}
-                        viewabilityConfig={VIEWABILITY_CONFIG}
-                        showsVerticalScrollIndicator={false}
-                        removeClippedSubviews
-                        maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
-                        windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
-                        initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
-                        style={styles.list}
-                        contentContainerStyle={styles.listContent}
-                        contentInsetAdjustmentBehavior="never"
-                        getItemLayout={getItemLayout}
-                    />
+                    Platform.OS === 'web' ? (
+                        // WEB: opt OUT of the document-scroll model. The shell is a
+                        // tree of auto-height Views (no fixed-height ancestor), so the
+                        // BODY is normally the scroller — and the body has no
+                        // scroll-snap. `web:fixed web:inset-0` (the same full-screen
+                        // overlay opt-out used by ZoomableImageGallery /
+                        // PostArticleModal) plus an explicit `100dvh` height makes THIS
+                        // ScrollView's own host element the real scroll container:
+                        // `overflow-y: scroll` + `scroll-snap-type: y mandatory` live on
+                        // the element that actually scrolls, and each slide carries
+                        // `scroll-snap-align: start` (CSS Scroll Snap matches any
+                        // snap-align descendant of the scroll container, so the
+                        // contentContainer wrapper is transparent to snapping). The
+                        // active index + infinite scroll are derived from this
+                        // scroller's own metrics via `handleWebScroll`.
+                        <ScrollView
+                            className="web:fixed web:inset-0 web:z-[60] web:h-[100dvh] web:overflow-y-scroll web:overflow-x-hidden web:overscroll-contain web:[scroll-snap-type:y_mandatory]"
+                            onScroll={handleWebScroll}
+                            scrollEventThrottle={16}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            {posts.map((item, index) => (
+                                <VideoItem
+                                    key={item.id}
+                                    item={item}
+                                    isActive={index === currentVisibleIndex}
+                                    isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS}
+                                    screenFocused={isFocused}
+                                    theme={theme}
+                                    onLike={handleLike}
+                                    onComment={handleComment}
+                                    onBoost={handleBoost}
+                                    onShare={handleShare}
+                                    formatCompactNumber={formatCompactNumber}
+                                    muted={globalMuted}
+                                    onMutedChange={handleMuteChange}
+                                    bottomBarHeight={bottomBarHeight}
+                                    t={t}
+                                    windowHeight={WINDOW_HEIGHT}
+                                />
+                            ))}
+                        </ScrollView>
+                    ) : (
+                        <FlatList
+                            ref={flatListRef}
+                            data={posts}
+                            renderItem={renderVideoItem}
+                            keyExtractor={keyExtractor}
+                            pagingEnabled
+                            snapToInterval={WINDOW_HEIGHT}
+                            snapToAlignment="start"
+                            decelerationRate="fast"
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
+                            onViewableItemsChanged={handleViewableItemsChanged}
+                            viewabilityConfig={VIEWABILITY_CONFIG}
+                            showsVerticalScrollIndicator={false}
+                            removeClippedSubviews
+                            maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
+                            windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
+                            initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
+                            style={styles.list}
+                            contentContainerStyle={styles.listContent}
+                            contentInsetAdjustmentBehavior="never"
+                            getItemLayout={getItemLayout}
+                        />
+                    )
                 )}
 
                 {!isLoading && posts.length === 0 && (
