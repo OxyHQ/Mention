@@ -108,6 +108,7 @@ async function backfillEndorsements(): Promise<void> {
     );
 
     await mongoose.disconnect();
+    process.exit(0);
   } catch (error) {
     logger.error('[backfillEndorsements] failed', error);
     await mongoose.disconnect();
