@@ -824,7 +824,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
 
                         {/* FAB */}
                         <Fab
-                            size="small"
+                            size={48}
                             onPress={() => router.push('/compose')}
                             offset={16}
                             icon={<ComposeIcon size={20} className="text-primary-foreground" />}

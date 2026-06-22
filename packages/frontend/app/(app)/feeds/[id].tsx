@@ -817,7 +817,7 @@ export default function CustomFeedTimelineScreen() {
       {/* FAB */}
       {!loading && !error && (
         <Fab
-          size="small"
+          size={48}
           onPress={() => router.push('/compose')}
           offset={16}
           icon={<ComposeIcon size={22} className="text-primary-foreground" />}

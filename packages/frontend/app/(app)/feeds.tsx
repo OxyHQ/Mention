@@ -307,7 +307,7 @@ const FeedsScreen: React.FC = () => {
 
         {/* FAB */}
         <Fab
-          size="small"
+          size={48}
           onPress={() => router.push('/feeds/create')}
           offset={16}
           icon={<Ionicons name="add" size={24} color="white" />}
