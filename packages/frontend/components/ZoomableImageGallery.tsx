@@ -7,7 +7,6 @@ import {
   Platform,
   ScrollView,
   useWindowDimensions,
-  ViewStyle,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -28,7 +27,6 @@ import {
 } from 'react-native-gesture-handler';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Portal } from '@oxyhq/bloom/portal';
-import { Z_INDEX } from '@/lib/constants';
 import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import {
   getAspectRatio,
@@ -61,12 +59,10 @@ const OPEN_SPRING = { damping: 18, stiffness: 400, mass: 0.4 } as const;
 const CLOSE_SPRING = { damping: 22, stiffness: 450, mass: 0.35 } as const;
 const SNAP_BACK_SPRING = { damping: 20, stiffness: 400, mass: 0.4 } as const;
 
-// Web-only interaction hints. Both `userSelect` and `cursor` are declared on
-// RN's `ViewStyle`; `cursor` only accepts `'auto' | 'pointer'`, so the zoom
-// surfaces use `'pointer'` (they are tap-to-dismiss).
-const webPointerStyle: ViewStyle | null = Platform.OS === 'web'
-  ? { userSelect: 'none', cursor: 'pointer' }
-  : null;
+// Web-only interaction hints in NativeWind classes (no inline web-only style):
+// the zoom surfaces are tap-to-dismiss (`cursor:pointer`) and must not select
+// text or drag the image. `web:`-gated, so a no-op on native.
+const WEB_POINTER_CLASS = 'web:[user-select:none] web:cursor-pointer';
 
 export interface GalleryImage {
   /** Source URI rendered both as the post thumbnail and the zoomed image. */
@@ -475,7 +471,10 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
   }, [SCREEN_WIDTH]);
 
   const renderContent = () => (
-    <GestureHandlerRootView style={styles.modalContainer}>
+    <GestureHandlerRootView
+      className="web:fixed web:inset-0 web:z-[10000]"
+      style={styles.modalContainer}
+    >
       <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss} hitSlop={0}>
         <AnimatedBlurView
           intensity={80}
@@ -491,6 +490,7 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
 
       <GestureDetector gesture={panGesture}>
         <Animated.View
+          className="web:[user-select:none]"
           style={[
             StyleSheet.absoluteFill,
             styles.zoomContainer,
@@ -499,7 +499,7 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
           pointerEvents="box-none"
         >
           {!pagerReady && (
-            <Pressable onPress={handleDismiss} style={webPointerStyle}>
+            <Pressable onPress={handleDismiss} className={WEB_POINTER_CLASS}>
               <AnimatedImage
                 source={{ uri: images[activeIndex]?.uri }}
                 contentFit="contain"
@@ -534,7 +534,8 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
                     <Pressable
                       key={`${img.uri}-${idx}`}
                       onPress={handleDismiss}
-                      style={[styles.page, { width: SCREEN_WIDTH, height: SCREEN_HEIGHT }, webPointerStyle]}
+                      className={WEB_POINTER_CLASS}
+                      style={[styles.page, { width: SCREEN_WIDTH, height: SCREEN_HEIGHT }]}
                     >
                       <Image
                         source={{ uri: img.uri }}
@@ -587,17 +588,12 @@ export const ZoomableImageGallery = ZoomableImageGalleryInner;
 
 const styles = StyleSheet.create({
   modalContainer: {
+    // WEB full-screen overlay positioning lives in NativeWind classes on the
+    // GestureHandlerRootView (`web:fixed web:inset-0 web:z-[10000]`).
+    justifyContent: 'center',
+    alignItems: 'center',
     ...Platform.select({
-      web: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: Z_INDEX.MODAL,
-        justifyContent: 'center',
-        alignItems: 'center',
-      },
+      web: {},
       default: {
         // Mounted through the Bloom Portal `Outlet` (which renders its content
         // inline at the app root on native, NOT wrapped in a full-screen view),
@@ -610,19 +606,14 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
         backgroundColor: 'transparent',
       },
     }),
   },
   zoomContainer: {
+    // WEB `user-select:none` lives in a NativeWind class on the zoom Animated.View.
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      web: { userSelect: 'none' },
-      default: {},
-    }),
   },
   page: {
     justifyContent: 'center',

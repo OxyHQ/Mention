@@ -59,9 +59,9 @@ const ConnectionStatus: React.FC = () => {
 
   return (
     <Animated.View
+      className="web:sticky"
       style={[
         styles.container,
-        Platform.select({ web: { position: 'sticky' } }),
         {
           backgroundColor,
           paddingTop: insets.top > 0 ? insets.top : 4,
@@ -76,7 +76,13 @@ const ConnectionStatus: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
+    // WEB pins via the `web:sticky` NativeWind class (no inline `position:
+    // 'sticky'` cast) so it sticks to the document viewport top while scrolling.
+    // NATIVE: absolute overlay at the top.
+    ...Platform.select({
+      web: {},
+      default: { position: 'absolute' as const },
+    }),
     top: 0,
     left: 0,
     right: 0,

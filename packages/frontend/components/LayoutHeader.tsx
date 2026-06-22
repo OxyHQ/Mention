@@ -41,15 +41,13 @@ export function HeaderOuter({
             className={cn(
                 "bg-background border-border",
                 !noBottomBorder && "border-b",
+                // WEB sticky lives in NativeWind classes (no inline `position:
+                // 'sticky'` cast): pin to the document viewport top while it scrolls.
+                sticky && "web:sticky web:top-0 web:z-[100]",
             )}
             style={[
                 styles.outer,
                 noBottomBorder ? { borderBottomWidth: 0 } : { borderBottomWidth: StyleSheet.hairlineWidth },
-                sticky && Platform.OS === 'web' ? {
-                    position: 'sticky' as const,
-                    top: 0,
-                    zIndex: 100,
-                } : {},
                 style,
             ]}>
             {children}

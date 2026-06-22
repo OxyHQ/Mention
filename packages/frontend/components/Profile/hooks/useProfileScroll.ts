@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect, useMemo } from 'react';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { Platform } from 'react-native';
+import { useLayoutScroll, extractOffsetY, type ScrollEvent } from '@/context/LayoutScrollContext';
 import { usePostsStore } from '@/stores/postsStore';
 import type { FeedType } from '@mention/shared-types';
 import { LAYOUT, type ProfileTab } from '../types';
@@ -14,6 +15,7 @@ interface ScrollSlice {
   nextCursor?: string;
   isLoading: boolean;
 }
+
 
 /**
  * Hook for managing profile scroll behavior
@@ -93,70 +95,85 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
   const profileIdRef = useRef(profileId);
   profileIdRef.current = profileId;
 
-  // Scroll event handler with throttling and infinite scroll
-  // Stable callback — uses refs for tab/profileId to avoid re-creating onScroll
-  const handleScrollEvent = useCallback((event: any) => {
+  // Shared near-bottom load-more trigger. Stable — reads tab/profileId from refs.
+  const maybeLoadMore = useCallback((distanceFromBottom: number) => {
+    if (distanceFromBottom >= LAYOUT.LOAD_MORE_THRESHOLD) return;
+    const pid = profileIdRef.current;
+    const tab = currentTabRef.current;
+    if (!pid || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
+      return;
+    }
+    const slice = getUserSliceRef.current(pid, tab as FeedType);
+    if (slice && slice.hasMore && !slice.isLoading) {
+      loadingMoreRef.current = true;
+      const fetchUserFeed = fetchUserFeedRef.current;
+      void (async () => {
+        try {
+          await fetchUserFeed(pid, {
+            type: tab as FeedType,
+            cursor: slice.nextCursor,
+            limit: LAYOUT.FEED_LIMIT,
+          });
+        } finally {
+          loadingMoreRef.current = false;
+        }
+      })();
+    }
+  }, []);
+
+  // NATIVE scroll event handler with throttling + infinite scroll. Stable
+  // callback — uses refs for tab/profileId to avoid re-creating onScroll.
+  const handleScrollEvent = useCallback((event: ScrollEvent) => {
     const now = Date.now();
     if (now - lastScrollCheckRef.current < LAYOUT.SCROLL_CHECK_THROTTLE) {
       return;
     }
     lastScrollCheckRef.current = now;
 
-    try {
-      const nativeEvent = event?.nativeEvent ?? {};
-      const contentOffset = nativeEvent.contentOffset ?? {};
-      const layoutMeasurement = nativeEvent.layoutMeasurement ?? {};
-      const contentSize = nativeEvent.contentSize ?? {};
+    const nativeEvent = event?.nativeEvent ?? {};
+    const layoutMeasurement = nativeEvent.layoutMeasurement as { height?: number } | undefined;
+    const contentSize = nativeEvent.contentSize as { height?: number } | undefined;
 
-      // Fallback for web
-      const fallbackY = typeof nativeEvent.target?.scrollTop === 'number'
-        ? nativeEvent.target.scrollTop
-        : typeof event?.target?.scrollTop === 'number'
-          ? event.target.scrollTop
-          : 0;
+    const y = extractOffsetY(event);
+    const viewHeight = layoutMeasurement?.height ?? 0;
+    const contentHeight = contentSize?.height ?? 0;
+    maybeLoadMore(contentHeight - (y + viewHeight));
+  }, [maybeLoadMore]);
 
-      const y = typeof contentOffset.y === 'number' ? contentOffset.y : fallbackY;
-      const viewHeight = layoutMeasurement?.height || 0;
-      const contentHeight = contentSize?.height || 0;
-      const distanceFromBottom = contentHeight - (y + viewHeight);
-
-      // Load more when near bottom
-      if (distanceFromBottom < LAYOUT.LOAD_MORE_THRESHOLD) {
-        const pid = profileIdRef.current;
-        const tab = currentTabRef.current;
-        if (!pid || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
-          return;
-        }
-
-        const slice = getUserSliceRef.current(pid, tab as FeedType);
-        if (slice && slice.hasMore && !slice.isLoading) {
-          loadingMoreRef.current = true;
-          void (async () => {
-            try {
-              await fetchUserFeedRef.current!(pid, {
-                type: tab as FeedType,
-                cursor: slice.nextCursor,
-                limit: LAYOUT.FEED_LIMIT,
-              });
-            } finally {
-              loadingMoreRef.current = false;
-            }
-          })();
-        }
-      }
-    } catch {
-      // Ignore scroll read errors
-    }
-  }, []);
-
-  // Create animated scroll handler
+  // Create animated scroll handler (native only — web uses the document scroll).
   const onScroll = useMemo(
     () => createAnimatedScrollHandler(handleScrollEvent),
     [createAnimatedScrollHandler, handleScrollEvent]
   );
 
-  // Scroll to specific position
+  // WEB infinite scroll: the profile renders in normal document flow (no inner
+  // ScrollView), so pagination is driven by the same shared `scrollY` the header
+  // animations consume — fed by LayoutScrollContext's window 'scroll' listener.
+  // This is an Animated.Value subscription (mirrors HomeScreen's `scrollY`
+  // listener), not a new DOM listener. No-op on native (`onScroll` handles it).
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const listenerId = scrollY.addListener(({ value }) => {
+      const y = typeof value === 'number' ? value : 0;
+      const docHeight = document.documentElement.scrollHeight;
+      const viewHeight = window.innerHeight;
+      maybeLoadMore(docHeight - (y + viewHeight));
+    });
+    return () => {
+      scrollY.removeListener(listenerId);
+    };
+  }, [scrollY, maybeLoadMore]);
+
+  // Scroll to specific position. WEB: the document is the scroller (the profile
+  // renders in normal flow, no inner ScrollView), so drive the window. NATIVE:
+  // the inner Animated.ScrollView owns the scroll.
   const scrollToContent = useCallback((offset: number) => {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: offset, behavior: 'smooth' });
+      }
+      return;
+    }
     scrollRef.current?.scrollTo?.({
       y: offset,
       animated: true,

@@ -30,7 +30,6 @@ import { useAuth } from '@oxyhq/services';
 import { useImageUrl } from '@/hooks/useImageUrl';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@oxyhq/bloom/portal';
-import { Z_INDEX } from '@/lib/constants';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const AnimatedImage = Animated.createAnimatedComponent(Image);
@@ -379,7 +378,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           collapsable={false}
         >
           <Animated.View
-            className={className}
+            className={`web:[user-select:none] web:[-webkit-user-drag:none] web:cursor-pointer${className ? ` ${className}` : ''}`}
             style={[
               styles.avatarContainer,
               { width: size, height: size, borderRadius: size / 2 },
@@ -416,7 +415,10 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         <>
           {Platform.OS === 'web' ? (
             <Portal>
-              <GestureHandlerRootView style={styles.modalContainer}>
+              <GestureHandlerRootView
+                className="web:fixed web:inset-0 web:z-[10000]"
+                style={styles.modalContainer}
+              >
                 <Pressable
                   style={StyleSheet.absoluteFill}
                   onPress={handleDismiss}
@@ -441,6 +443,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                 <GestureDetector gesture={panGesture}>
                   <Pressable
                     onPress={handleDismiss}
+                    className="web:[user-select:none] web:[-webkit-user-drag:none] web:cursor-grab"
                     style={[
                       StyleSheet.absoluteFill,
                       styles.zoomContainer,
@@ -557,50 +560,34 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
 
 const styles = StyleSheet.create({
   avatarContainer: {
+    // WEB interaction hints (`user-select:none`, `-webkit-user-drag:none`,
+    // `cursor:pointer`) live in NativeWind classes on the Animated.View — no
+    // inline web-only style object / `as any` cast.
     position: 'relative',
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      web: {
-        userSelect: 'none',
-        WebkitUserDrag: 'none',
-        cursor: 'pointer',
-      } as any,
-      default: {},
-    }),
   },
   modalContainer: {
-    ...Platform.select({
-      web: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: Z_INDEX.MODAL,
-        justifyContent: 'center',
-        alignItems: 'center',
-      },
-      default: {
-    flex: 1,
+    // WEB full-screen overlay positioning lives in NativeWind classes on the
+    // GestureHandlerRootView (`web:fixed web:inset-0 web:z-[10000]`). NATIVE: the
+    // Modal-mounted root fills via flex.
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    ...Platform.select({
+      web: {},
+      default: {
+        flex: 1,
+        backgroundColor: 'transparent',
       },
     }),
   },
   zoomContainer: {
+    // WEB interaction hints (`user-select:none`, `-webkit-user-drag:none`,
+    // `cursor:grab`) live in NativeWind classes on the web zoom Pressable — no
+    // inline web-only style object / `as any` cast.
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      web: {
-        userSelect: 'none',
-        WebkitUserDrag: 'none',
-        cursor: 'grab',
-      } as any,
-      default: {},
-    }),
   },
 });
 

@@ -26,7 +26,6 @@ import { IconButton } from '@/components/ui/Button';
 import { articleService } from '@/services/articleService';
 import LinkifiedText from '@/components/common/LinkifiedText';
 import { Portal } from '@oxyhq/bloom/portal';
-import { Z_INDEX } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
@@ -210,7 +209,10 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   }
 
   const modalContent = (
-    <GestureHandlerRootView style={styles.modalContainer}>
+    <GestureHandlerRootView
+      className="web:fixed web:inset-0 web:z-[10000]"
+      style={styles.modalContainer}
+    >
       <Pressable
         style={StyleSheet.absoluteFill}
         onPress={handleBackdropPress}
@@ -317,17 +319,13 @@ export default memo(PostArticleModal);
 
 const styles = StyleSheet.create({
   modalContainer: {
+    // WEB full-screen overlay positioning lives in NativeWind classes on the
+    // GestureHandlerRootView (`web:fixed web:inset-0 web:z-[10000]`). NATIVE: the
+    // Portal-mounted root fills via flex.
     ...Platform.select({
-      web: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: Z_INDEX.MODAL,
-      },
+      web: {},
       default: {
-    flex: 1,
+        flex: 1,
       },
     }),
   },

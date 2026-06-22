@@ -39,6 +39,17 @@ import { flattenStyleArray } from '@/styles/shared';
 import type { ButtonProps, ButtonVariant } from './types';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './types';
 
+const IS_WEB = Platform.OS === 'web';
+
+// WEB floating-FAB positioning lives in NativeWind classes (`web:fixed` pins the
+// FAB to the viewport; `web:right-6` = 24px; `web:z-[10000]` =
+// Z_INDEX.FLOATING_ACTION_BUTTON). The `bottom` inset is dynamic (bottom-bar +
+// safe-area aware) so it stays as a valid inline `ViewStyle` number. RN's
+// `ViewStyle` doesn't model `position: 'fixed'`, so web NEVER sets `position`
+// inline — the class owns it — and only native sets the inline `'absolute'`
+// (which IS a valid `ViewStyle` value). Net: zero casts.
+const FLOATING_WEB_CLASS = 'web:fixed web:right-6 web:z-[10000]';
+
 const SIZE_CONFIG = {
   small: {
     paddingVertical: 6,
@@ -125,15 +136,20 @@ const ButtonComponent: React.FC<ButtonProps> = ({
     onPress?.();
   }, [disabled, haptic, href, as, router, onPress]);
   
-  // Floating button positioning
+  // Floating button positioning. WEB pins to the VIEWPORT via the `web:fixed`
+  // NativeWind class (never an inline `position`) so the FAB never scrolls away
+  // under the document-scroll layout; the dynamic `bottom` inset stays inline.
+  // NATIVE sets the inline `position: 'absolute'` ('absolute' is a valid
+  // ViewStyle value — no cast) so the screen's ScrollView scrolls under the
+  // overlay. On web `right`/`zIndex` come from `FLOATING_WEB_CLASS`, so the
+  // inline values here only matter on native.
   const floatingStyles = useMemo<ViewStyle>(() => {
     if (!floating) return {};
 
-    const hasCustomPosition = style && typeof style === 'object' && 'position' in (style as ViewStyle);
-    if (hasCustomPosition && style) {
-      const flatStyle = (StyleSheet.flatten(style) ?? {}) as ViewStyle;
+    const flatStyle: ViewStyle = StyleSheet.flatten(style) ?? {};
+    if ('position' in flatStyle) {
       return {
-        position: flatStyle.position ?? 'absolute',
+        ...(IS_WEB ? {} : { position: flatStyle.position ?? 'absolute' }),
         bottom: flatStyle.bottom ?? bottomOffset,
         right: flatStyle.right ?? 24,
         left: flatStyle.left,
@@ -141,14 +157,14 @@ const ButtonComponent: React.FC<ButtonProps> = ({
         zIndex: flatStyle.zIndex ?? Z_INDEX.FLOATING_ACTION_BUTTON,
       };
     }
-    
+
     const bottomBarVisible = !isScreenNotMobile && !keyboardVisible;
     const bottomBarHeight = bottomBarVisible ? 60 : 0;
     const marginFromBottom = 16;
     const defaultBottom = bottomOffset ?? (bottomBarHeight + insets.bottom + marginFromBottom);
-    
+
     return {
-      position: 'absolute' as const,
+      ...(IS_WEB ? {} : { position: 'absolute' }),
       bottom: defaultBottom,
       right: 24,
       zIndex: Z_INDEX.FLOATING_ACTION_BUTTON,
@@ -244,17 +260,34 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   // Disabled styles
   const disabledStyles = disabled ? { opacity: 0.5 } : {};
   
-  // Combined styles
+  // A floating FAB that also animates (auto-hide drop) must keep its
+  // `position: fixed` (web) on the SAME element that carries the reanimated
+  // transform — the Animated.View wrapper. CSS makes any transformed ancestor the
+  // containing block for `fixed`/`absolute` descendants, so a `fixed` inner button
+  // inside a transformed wrapper would re-anchor to the (in-flow, scrolling)
+  // wrapper instead of the viewport. So when floating + animated, the floating
+  // position is HOISTED to the wrapper and excluded from the inner button.
+  const isAnimated = Boolean(animatedTranslateY || animatedOpacity);
+  const hoistFloatingToWrapper = floating && isAnimated;
+
+  // Combined styles for the inner button. The floating position is included here
+  // ONLY when it is NOT hoisted to the animated wrapper (the static-FAB case).
   const combinedStyles = useMemo(
     () => flattenStyleArray([
       baseStyles,
-      floating && floatingStyles,
+      floating && !hoistFloatingToWrapper && floatingStyles,
       style,
       disabledStyles,
       contentStyle,
     ]),
-    [baseStyles, floating, floatingStyles, style, disabledStyles, contentStyle]
+    [baseStyles, floating, hoistFloatingToWrapper, floatingStyles, style, disabledStyles, contentStyle]
   );
+
+  // The `web:fixed`/right/z floating position lives in a NativeWind class so web
+  // never needs an inline `position: 'fixed'` cast. It goes on whichever element
+  // owns the floating layout: the animated wrapper when hoisted (so `fixed`
+  // anchors to the viewport, not the transformed wrapper), else the inner button.
+  const floatingWebClassForButton = floating && !hoistFloatingToWrapper ? FLOATING_WEB_CLASS : undefined;
   
   // Animation styles
   // useAnimatedStyle must be called at top level, not inside useMemo
@@ -366,7 +399,7 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   
   // Regular button
   const iconBaseClass = effectiveVariant === 'icon' ? 'bg-background border border-border' : undefined;
-  const mergedClassName = [iconBaseClass, className].filter(Boolean).join(' ') || undefined;
+  const mergedClassName = [iconBaseClass, floatingWebClassForButton, className].filter(Boolean).join(' ') || undefined;
   const TouchableComponent = (
     <TouchableOpacity
       className={mergedClassName}
@@ -384,10 +417,17 @@ const ButtonComponent: React.FC<ButtonProps> = ({
     </TouchableOpacity>
   );
   
-  // Wrap in Animated.View if animations are provided
+  // Wrap in Animated.View if animations are provided. When this is a floating
+  // FAB, the floating position (web: `position: fixed`) lives HERE on the
+  // animated wrapper — the same element as the transform — so `fixed` anchors to
+  // the viewport and the auto-hide translate still works (see
+  // `hoistFloatingToWrapper`).
   if (animatedTranslateY || animatedOpacity) {
     return (
-      <Animated.View style={animatedStyle}>
+      <Animated.View
+        className={hoistFloatingToWrapper ? FLOATING_WEB_CLASS : undefined}
+        style={hoistFloatingToWrapper ? [floatingStyles, animatedStyle] : animatedStyle}
+      >
         {TouchableComponent}
       </Animated.View>
     );

@@ -67,6 +67,8 @@ import {
 } from './Profile';
 import { SuggestedUsers } from './suggestions/SuggestedUsers';
 
+const IS_WEB = Platform.OS === 'web';
+
 // Helper functions
 const isProfilePrivate = (
     profileData: ProfileData | null,
@@ -527,8 +529,12 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     />
                 ) : (
                     <>
-                        {/* Header actions */}
-                        <View className="absolute flex-row items-center gap-1" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING - 8 }, themedStyles.headerActions]}>
+                        {/* Header actions. WEB: `web:fixed` pins the icon cluster to
+                            the viewport top while the DOCUMENT scrolls (the screen
+                            no longer has an inner ScrollView on web). NATIVE keeps
+                            `absolute` over the non-scrolling root. The `web:fixed`
+                            variant overrides the `absolute` base on web only. */}
+                        <View className="absolute web:fixed flex-row items-center gap-1" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING - 8 }, themedStyles.headerActions]}>
                             {!isOwnProfile && (
                                 <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
                                     {subscribed ? (
@@ -558,10 +564,16 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             )}
                         </View>
 
-                        {/* Header name overlay (animated on scroll) */}
+                        {/* Header name overlay (animated on scroll). WEB: `web:fixed`
+                            pins it to the viewport top so it stays put as the
+                            document scrolls; its fade-in is driven by the window-fed
+                            `scrollY` shared value (same source as home). NATIVE keeps
+                            the inline `absolute` over the non-scrolling root. */}
                         <Animated.View
+                            className="web:fixed"
                             style={[
-                                { zIndex: 10, position: 'absolute', left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
+                                { zIndex: 10, left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
+                                IS_WEB ? null : { position: 'absolute' },
                                 themedStyles.headerNameOverlay,
                                 { opacity: headerNameOpacity },
                                 { pointerEvents: 'none' },
@@ -624,66 +636,134 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 </View>
                             ))}
 
-                        {/* Main scroll content */}
-                        <Animated.ScrollView
-                            ref={assignScrollRef}
-                            showsVerticalScrollIndicator={false}
-                            onScroll={onScroll}
-                            scrollEventThrottle={16}
-                            style={[{ zIndex: 3 }, themedStyles.scrollView]}
-                            contentContainerStyle={themedStyles.contentContainer}
-                            stickyHeaderIndices={[1]}
-                            nestedScrollEnabled={true}
-                            removeClippedSubviews={Platform.OS !== 'web'}
-                            disableIntervalMomentum={true}
-                            decelerationRate="normal"
-                            {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
-                        >
-                            {/* Profile info + suggestions wrapper (keeps stickyHeaderIndices stable) */}
-                            <View>
-                                <ProfileContent
-                                    profileData={profileData}
-                                    avatarUri={avatarUri}
-                                    isOwnProfile={isOwnProfile}
-                                    isPrivate={isPrivate}
-                                    currentUsername={currentUser?.username}
-                                    followingCount={followingCount}
-                                    followerCount={followerCount}
-                                    username={username}
-                                    FollowButtonComponent={FollowButtonComponent}
-                                    showBottomSheet={showBottomSheet}
-                                    onPostsPress={handlePostsPress}
-                                    onBoostsPress={handleBoostsPress}
-                                    onRepliesPress={handleRepliesPress}
-                                    onLayout={setProfileContentHeight}
-                                />
-                                {!isOwnProfile && (
-                                    <SuggestedUsers
-                                        visible={justFollowed}
-                                        sourceUserId={profileData.id}
+                        {/* Main scroll content.
+
+                            NATIVE: an inner `Animated.ScrollView` owns the scroll;
+                            its `onScroll` feeds the shared `scrollY` (animations +
+                            infinite scroll) and `stickyHeaderIndices={[1]}` pins the
+                            tab bar. Unchanged.
+
+                            WEB: the DOCUMENT scrolls (no inner ScrollView — that
+                            would break the document-scroll model the home/explore
+                            screens use). The body renders in normal flow inside a
+                            plain `View`; the header/banner/name-overlay animations
+                            read the same `scrollY` shared value, now fed by the
+                            window 'scroll' listener in LayoutScrollContext. The tab
+                            bar pins via `web:sticky` (its own `bg-background` keeps
+                            the feed from showing through). */}
+                        {IS_WEB ? (
+                            <View style={[{ zIndex: 3 }, themedStyles.scrollView, themedStyles.contentContainer]}>
+                                {/* Profile info + suggestions */}
+                                <View>
+                                    <ProfileContent
+                                        profileData={profileData}
+                                        avatarUri={avatarUri}
+                                        isOwnProfile={isOwnProfile}
+                                        isPrivate={isPrivate}
+                                        currentUsername={currentUser?.username}
+                                        followingCount={followingCount}
+                                        followerCount={followerCount}
+                                        username={username}
+                                        FollowButtonComponent={FollowButtonComponent}
+                                        showBottomSheet={showBottomSheet}
+                                        onPostsPress={handlePostsPress}
+                                        onBoostsPress={handleBoostsPress}
+                                        onRepliesPress={handleRepliesPress}
+                                        onLayout={setProfileContentHeight}
                                     />
-                                )}
+                                    {!isOwnProfile && (
+                                        <SuggestedUsers
+                                            visible={justFollowed}
+                                            sourceUserId={profileData.id}
+                                        />
+                                    )}
+                                </View>
+
+                                {/* Tabs — sticky to the viewport top while the
+                                    document scrolls (mirrors native's
+                                    stickyHeaderIndices). The `bg-background` on
+                                    AnimatedTabBar keeps the feed from showing
+                                    through. */}
+                                <View className="web:sticky web:top-0 web:z-[5]">
+                                    <AnimatedTabBar
+                                        tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
+                                        activeTabId={String(activeTab)}
+                                        onTabPress={(id) => onTabPress(parseInt(id))}
+                                        scrollEnabled={true}
+                                        instanceId={username || 'default'}
+                                    />
+                                </View>
+
+                                {/* Tab content */}
+                                <ProfileTabs
+                                    tab={TAB_NAMES[activeTab] || 'posts'}
+                                    profileId={profileData?.id}
+                                    isPrivate={isPrivate}
+                                    isOwnProfile={isOwnProfile}
+                                    isFederated={isFederated}
+                                    actorUri={profileData?.actorUri}
+                                />
                             </View>
+                        ) : (
+                            <Animated.ScrollView
+                                ref={assignScrollRef}
+                                showsVerticalScrollIndicator={false}
+                                onScroll={onScroll}
+                                scrollEventThrottle={16}
+                                style={[{ zIndex: 3 }, themedStyles.scrollView]}
+                                contentContainerStyle={themedStyles.contentContainer}
+                                stickyHeaderIndices={[1]}
+                                nestedScrollEnabled={true}
+                                removeClippedSubviews={true}
+                                disableIntervalMomentum={true}
+                                decelerationRate="normal"
+                            >
+                                {/* Profile info + suggestions wrapper (keeps stickyHeaderIndices stable) */}
+                                <View>
+                                    <ProfileContent
+                                        profileData={profileData}
+                                        avatarUri={avatarUri}
+                                        isOwnProfile={isOwnProfile}
+                                        isPrivate={isPrivate}
+                                        currentUsername={currentUser?.username}
+                                        followingCount={followingCount}
+                                        followerCount={followerCount}
+                                        username={username}
+                                        FollowButtonComponent={FollowButtonComponent}
+                                        showBottomSheet={showBottomSheet}
+                                        onPostsPress={handlePostsPress}
+                                        onBoostsPress={handleBoostsPress}
+                                        onRepliesPress={handleRepliesPress}
+                                        onLayout={setProfileContentHeight}
+                                    />
+                                    {!isOwnProfile && (
+                                        <SuggestedUsers
+                                            visible={justFollowed}
+                                            sourceUserId={profileData.id}
+                                        />
+                                    )}
+                                </View>
 
-                            {/* Tabs */}
-                            <AnimatedTabBar
-                                tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
-                                activeTabId={String(activeTab)}
-                                onTabPress={(id) => onTabPress(parseInt(id))}
-                                scrollEnabled={true}
-                                instanceId={username || 'default'}
-                            />
+                                {/* Tabs */}
+                                <AnimatedTabBar
+                                    tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
+                                    activeTabId={String(activeTab)}
+                                    onTabPress={(id) => onTabPress(parseInt(id))}
+                                    scrollEnabled={true}
+                                    instanceId={username || 'default'}
+                                />
 
-                            {/* Tab content */}
-                            <ProfileTabs
-                                tab={TAB_NAMES[activeTab] || 'posts'}
-                                profileId={profileData?.id}
-                                isPrivate={isPrivate}
-                                isOwnProfile={isOwnProfile}
-                                isFederated={isFederated}
-                                actorUri={profileData?.actorUri}
-                            />
-                        </Animated.ScrollView>
+                                {/* Tab content */}
+                                <ProfileTabs
+                                    tab={TAB_NAMES[activeTab] || 'posts'}
+                                    profileId={profileData?.id}
+                                    isPrivate={isPrivate}
+                                    isOwnProfile={isOwnProfile}
+                                    isFederated={isFederated}
+                                    actorUri={profileData?.actorUri}
+                                />
+                            </Animated.ScrollView>
+                        )}
 
                         {/* FAB */}
                         <FAB
