@@ -19,6 +19,8 @@ jobs:
         run: bun run --cwd packages/shared-types build
       - name: Lint frontend
         run: bun run --cwd packages/frontend lint
+      - name: Typecheck frontend
+        run: bun run --cwd packages/frontend typecheck
       - name: Build backend
         run: bun run --cwd packages/backend build
       - name: Build frontend

@@ -35,7 +35,8 @@ interface ListOwner {
   _id?: string;
   username?: string;
   displayName?: string;
-  avatar?: string;
+  // Populated from `MentionListOwner` (avatar is `string | null`).
+  avatar?: string | null;
 }
 
 interface ListData {

@@ -612,16 +612,17 @@ const ComposeScreen = () => {
         const post = await feedService.getPostById(editPostId);
         if (cancelled) return;
         // Pre-populate compose fields from existing post
-        const postText = post?.content?.text || post?.text || '';
-        setPostContent(postText);
-        if (post?.content?.media && post.content.media.length > 0) {
-          setMediaIds(post.content.media.map((m: any) => ({
-            id: m.id || m,
-            type: m.type || 'image',
+        setPostContent(post?.content?.text || '');
+        const media = post?.content?.media;
+        if (media && media.length > 0) {
+          setMediaIds(media.map((m): ComposerMediaItem => ({
+            id: m.id,
+            type: toComposerMediaType(m.type),
           })));
         }
-        if (post?.mentions && post.mentions.length > 0) {
-          setMentions(post.mentions.map((m: any) => (typeof m === 'string' ? { id: m, display: m } : m)));
+        const mentions = post?.metadata?.mentions;
+        if (mentions && mentions.length > 0) {
+          setMentions(mentions.map((m): MentionData => ({ userId: m, username: m, displayName: m })));
         }
       } catch (e) {
         logger.error('Failed to load post for editing', { error: e });
@@ -1430,7 +1431,7 @@ const ComposeScreen = () => {
                       handle: user?.username || '',
                       verified: Boolean(user?.verified)
                     }}
-                    avatarUri={user?.avatar}
+                    avatarUri={user?.avatar ?? undefined}
                     avatarSize={AVATAR_SIZE}
                     onPressUser={() => { }}
                     onPressAvatar={() => { }}
@@ -1758,7 +1759,7 @@ const ComposeScreen = () => {
                   isFocused={focusedItemId === item.id}
                   isPosting={isPosting}
                   postingMode={postingMode}
-                  userAvatar={user?.avatar}
+                  userAvatar={user?.avatar ?? undefined}
                   userVerified={Boolean(user?.verified)}
                   onTextChange={handleThreadTextChange}
                   onMentionsChange={handleThreadMentionsChange}

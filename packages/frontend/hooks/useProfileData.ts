@@ -4,6 +4,7 @@ import { useAuth, useUserByUsername, queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance } from '@/store/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
+import type { Community } from '@/components/Profile/types';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
@@ -50,7 +51,7 @@ export interface ProfileData {
     value?: string;
     verifiedAt?: string;
   }>;
-  communities?: unknown[];
+  communities?: Community[];
   federation?: {
     actorUri?: string;
     domain?: string;
@@ -80,7 +81,7 @@ function computeDesign(
   return {
     displayName: profile.name.displayName,
     bannerUrl: appearance?.profileHeaderImage,
-    avatar: profile.avatar,
+    avatar: profile.avatar ?? undefined,
     coverPhotoEnabled: appearance?.profileCustomization?.coverPhotoEnabled ?? true,
     minimalistMode: appearance?.profileCustomization?.minimalistMode ?? false,
     color:
@@ -160,11 +161,23 @@ export function useProfileData(username?: string): {
     const followingCount =
       profile._count?.following ??
       (typeof profile.followingCount === 'number' ? profile.followingCount : 0);
+    const communities = Array.isArray(profile.communities)
+      ? profile.communities.flatMap((entry): Community[] => {
+          if (entry && typeof entry === 'object' && typeof (entry as { name?: unknown }).name === 'string') {
+            const c = entry as { id?: string; name: string; description?: string; icon?: string; memberCount?: number };
+            return [{ id: c.id, name: c.name, description: c.description, icon: c.icon, memberCount: c.memberCount }];
+          }
+          return [];
+        })
+      : undefined;
 
     return {
       ...profile,
       id: profile.id || '',
+      communities,
       username: profile.username || '',
+      avatar: profile.avatar ?? undefined,
+      color: profile.color ?? undefined,
       postsCount: appearance?.postsCount,
       boostsCount: appearance?.boostsCount,
       repliesCount: appearance?.repliesCount,

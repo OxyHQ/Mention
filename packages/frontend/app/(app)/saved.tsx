@@ -17,6 +17,8 @@ import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@/lib/logger';
 
+type SavedPost = React.ComponentProps<typeof PostItem>['post'];
+
 const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const theme = useTheme();
@@ -24,7 +26,7 @@ const SavedPostsScreen: React.FC = () => {
     const { isAuthenticated, user } = useAuth();
     const viewerId = user?.id;
     const [searchQuery, setSearchQuery] = useState('');
-    const [posts, setPosts] = useState<any[]>([]);
+    const [posts, setPosts] = useState<SavedPost[]>([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
 
@@ -39,7 +41,7 @@ const SavedPostsScreen: React.FC = () => {
     // Fetch folders
     const fetchFolders = useCallback(async () => {
         try {
-            const response = await authenticatedClient.get('/posts/bookmarks/folders');
+            const response = await authenticatedClient.get<{ folders?: string[] }>('/posts/bookmarks/folders');
             setFolders(response.data?.folders || []);
         } catch (error) {
             logger.error('Error fetching bookmark folders', { error });
@@ -69,7 +71,7 @@ const SavedPostsScreen: React.FC = () => {
         const fetchSavedPosts = async () => {
             setLoading(true);
             try {
-                const params: any = {
+                const params: { page: number; limit: number; search?: string; folder?: string } = {
                     page: 1,
                     limit: 50,
                 };
@@ -79,7 +81,7 @@ const SavedPostsScreen: React.FC = () => {
                 if (selectedFolder) {
                     params.folder = selectedFolder;
                 }
-                const response = await authenticatedClient.get('/posts/saved', { params });
+                const response = await authenticatedClient.get<{ posts?: SavedPost[] }>('/posts/saved', { params });
                 setPosts(response.data?.posts || []);
                 setPage(1);
             } catch (error) {
@@ -241,10 +243,10 @@ const SavedPostsScreen: React.FC = () => {
 
                     {!loading && posts.length > 0 && (
                         <View className="flex-1">
-                            {posts.map((post: any) => (
+                            {posts.map((post) => (
                                 <Pressable
-                                    key={post.id || post._id}
-                                    onLongPress={() => handleLongPress(post.id || post._id)}
+                                    key={post.id}
+                                    onLongPress={() => handleLongPress(post.id)}
                                     delayLongPress={500}
                                 >
                                     <PostItem post={post} />

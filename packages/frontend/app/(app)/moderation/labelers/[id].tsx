@@ -44,7 +44,7 @@ interface LabelerDetail {
   isSubscribed?: boolean;
   createdBy?: {
     username?: string;
-    name?: { full?: string };
+    name?: { displayName?: string };
   };
   userPreferences?: Record<string, LabelAction>;
 }
@@ -242,7 +242,7 @@ const LabelerDetailScreen: React.FC = () => {
 
   const creatorName = useMemo(() => {
     if (!labeler?.createdBy) return null;
-    return labeler.createdBy.displayName;
+    return labeler.createdBy.name?.displayName ?? labeler.createdBy.username ?? null;
   }, [labeler]);
 
   const labelerId = labeler ? String(labeler._id || labeler.id) : '';

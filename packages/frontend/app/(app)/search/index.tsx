@@ -242,7 +242,7 @@ export default function SearchIndex() {
             username,
             name: user.name,
             avatar: user?.avatar || undefined,
-            verified: user.verified || false,
+            verified: Boolean(user.verified),
             description: user.bio,
             isFederated,
             instance,

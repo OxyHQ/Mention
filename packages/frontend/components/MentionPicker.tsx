@@ -57,7 +57,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                     username?: string;
                     handle?: string;
                     name?: { displayName?: string };
-                    avatar?: string;
+                    avatar?: string | null;
                     profilePicture?: string;
                     verified?: boolean;
                 }) => {
@@ -70,7 +70,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                         id: profile.id || profile._id || username,
                         username,
                         displayName,
-                        avatar: profile.avatar || profile.profilePicture,
+                        avatar: profile.avatar || profile.profilePicture || undefined,
                         verified: profile.verified || false,
                     }];
                 });

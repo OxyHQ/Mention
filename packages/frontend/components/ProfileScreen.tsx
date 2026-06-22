@@ -11,7 +11,7 @@ import {
     Platform,
 } from 'react-native';
 import { show as toast } from '@oxyhq/bloom/toast';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -244,7 +244,8 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
             setActiveTab(index);
             // Update URL silently for deep-linking / sharing without triggering navigation
             const tabName = TAB_NAMES[index];
-            const path = index === 0 ? `/@${profileHandle}` : `/@${profileHandle}/${tabName}`;
+            const path: Href =
+                index === 0 ? `/@${profileHandle}` : `/@${profileHandle}/${tabName}`;
             router.replace(path);
         },
         [username, profileHandle]

@@ -14,7 +14,8 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
-import { ZEmbeddedPost } from '../types/validation';
+import { ZEmbeddedPost, type TEmbeddedPost } from '../types/validation';
+import { PostVisibility } from '@mention/shared-types';
 import { queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 import { queryClient } from '@/lib/queryClient';
@@ -24,6 +25,57 @@ import { logger } from '@/lib/logger';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 
 type NotificationPost = React.ComponentProps<typeof PostItem>['post'];
+
+/**
+ * Normalize the loose embedded-post preview carried on a notification into the
+ * full hydrated shape `PostItem` renders. The embedded payload only carries a
+ * minimal preview, so the required hydration sub-objects (attachments, viewer
+ * state, permissions, metadata) are filled with safe defaults derived from the
+ * preview's engagement/flags.
+ */
+function normalizeEmbeddedPost(embedded: TEmbeddedPost): NotificationPost {
+    const content = embedded.content;
+    const text = typeof content === 'string' ? content : content?.text;
+    const engagement = embedded.engagement;
+    return {
+        id: embedded.id,
+        content: { text },
+        attachments: {},
+        linkPreview: null,
+        user: {
+            id: embedded.user.id ?? '',
+            handle: embedded.user.handle ?? '',
+            displayName: embedded.user.displayName,
+            avatar: embedded.user.avatar,
+            isVerified: embedded.user.verified,
+        },
+        engagement: {
+            likes: engagement?.likes ?? null,
+            downvotes: null,
+            boosts: engagement?.boosts ?? null,
+            replies: engagement?.replies ?? null,
+        },
+        viewerState: {
+            isOwner: false,
+            isLiked: Boolean(embedded.isLiked),
+            isDownvoted: false,
+            isBoosted: Boolean(embedded.isBoosted),
+            isSaved: Boolean(embedded.isSaved),
+        },
+        permissions: {
+            canReply: true,
+            canDelete: false,
+            canPin: false,
+            canViewSources: true,
+        },
+        metadata: {
+            visibility: PostVisibility.PUBLIC,
+            isThread: Boolean(embedded.isThread),
+            createdAt: typeof embedded.date === 'string' ? embedded.date : '',
+            updatedAt: typeof embedded.date === 'string' ? embedded.date : '',
+        },
+    };
+}
 
 type ProfileLookupServices = {
     getProfileById?: (id: string) => Promise<User | null | undefined>;
@@ -308,7 +360,7 @@ const PostNotificationItem: React.FC<{
     const { t } = useTranslation();
     const { getPostById } = usePostsStore();
     const embedded = notification.post ? ZEmbeddedPost.safeParse(notification.post) : null;
-    const [post, setPost] = useState<NotificationPost | null>(embedded?.success ? embedded.data as NotificationPost : null);
+    const [post, setPost] = useState<NotificationPost | null>(embedded?.success ? normalizeEmbeddedPost(embedded.data) : null);
     const [loading, setLoading] = useState(!notification.post);
 
     useEffect(() => {

@@ -86,7 +86,7 @@ interface VideoPost {
     id: string;
     user: {
         id: string;
-        name: string;
+        displayName: string;
         handle: string;
         avatar: string;
         verified: boolean;

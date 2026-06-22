@@ -74,7 +74,7 @@ export default function EditListMembersScreen() {
             id: profile.id,
             username: profile.username,
             name: profile.name,
-            avatar: profile.avatar,
+            avatar: profile.avatar ?? undefined,
           };
         }),
       );
@@ -112,7 +112,7 @@ export default function EditListMembersScreen() {
           id: profile.id,
           username: profile.username,
           name: profile.name,
-          avatar: profile.avatar,
+          avatar: profile.avatar ?? undefined,
         })));
       } catch (e) {
         logger.warn('searchProfiles failed', { error: e });

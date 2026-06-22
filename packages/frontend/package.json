@@ -20,6 +20,7 @@
     "build:ios": "eas build --platform ios --profile production",
     "build:preview": "eas build --platform android --profile preview",
     "test": "jest --watchAll=false",
+    "typecheck": "node ./scripts/typecheck.mjs",
     "lint": "expo lint",
     "clean": "rm -rf dist .expo",
     "analyze-bundle": "bun ./scripts/analyze-bundle.js"

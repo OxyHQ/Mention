@@ -4,7 +4,11 @@ import { logger } from '@/lib/logger';
 // Actor/profile coming from actorId_populated
 export const ZActor = z.object({
   _id: z.string().optional(),
+  id: z.string().optional(),
   username: z.string().optional(),
+  // Canonical resolved display name (profile-identity contract). The backend
+  // populates `name.displayName`; `displayName` is the legacy flat fallback.
+  name: z.object({ displayName: z.string().optional() }).partial().optional(),
   displayName: z.string().optional(),
   avatar: z.string().optional(),
 }).partial();

@@ -3,6 +3,7 @@ import { NotificationType } from '@mention/shared-types';
 
 export interface NotificationActor {
   _id?: string;
+  id?: string;
   username?: string;
   name?: {
     displayName?: string;

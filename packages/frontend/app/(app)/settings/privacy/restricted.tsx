@@ -30,7 +30,8 @@ interface RestrictedUser {
     name?: User['name'];
     username?: string;
     handle?: string;
-    avatar?: string;
+    // Populated from the SDK `User`/`SearchUserResult` (avatar is `string | null`).
+    avatar?: string | null;
 }
 
 interface OxyProfileService {
@@ -163,7 +164,7 @@ export default function RestrictedUsersScreen() {
                 userPromises.push(...batchPromises);
             }
 
-            const users = (await Promise.all(userPromises)).filter((user): user is RestrictedUser => Boolean(user));
+            const users = (await Promise.all(userPromises)).filter((user): user is User => Boolean(user));
             restrictedLogger.debug(`Loaded ${users.length} users`);
             setRestrictedUsers(users);
         } catch (error) {
@@ -221,11 +222,11 @@ export default function RestrictedUsersScreen() {
                 } catch (oxyError) {
                     restrictedLogger.warn('oxyServices.searchProfiles failed, falling back', { error: oxyError });
                     const fallbackResults = await searchService.searchUsers(query);
-                    results = fallbackResults.filter((user): user is RestrictedUser => Boolean(user.name));
+                    results = fallbackResults.filter((user) => Boolean(user.name));
                 }
             } else {
                 const fallbackResults = await searchService.searchUsers(query);
-                results = fallbackResults.filter((user): user is RestrictedUser => Boolean(user.name));
+                results = fallbackResults.filter((user) => Boolean(user.name));
             }
 
             if (abortController.signal.aborted) {

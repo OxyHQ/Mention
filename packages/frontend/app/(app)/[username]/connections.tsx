@@ -37,7 +37,8 @@ interface ConnectionUser {
   userID?: string;
   username?: string;
   handle?: string;
-  avatar?: string;
+  // Populated from the SDK `User` (avatar is `string | null`).
+  avatar?: string | null;
   profilePicture?: string;
   bio?: string;
   isFederated?: boolean;

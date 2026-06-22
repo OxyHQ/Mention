@@ -30,7 +30,8 @@ interface BlockedUser {
     name?: User['name'];
     username?: string;
     handle?: string;
-    avatar?: string;
+    // Populated from the SDK `User`/`SearchUserResult` (avatar is `string | null`).
+    avatar?: string | null;
 }
 
 interface OxyProfileService {
@@ -148,7 +149,7 @@ export default function BlockedUsersScreen() {
                 }
             });
 
-            const users = (await Promise.all(userPromises)).filter((user): user is BlockedUser => Boolean(user));
+            const users = (await Promise.all(userPromises)).filter((user): user is User => Boolean(user));
             blockedLogger.debug(`Loaded users: ${users.length}`);
             setBlockedUsers(users);
         } catch (error) {
@@ -185,7 +186,7 @@ export default function BlockedUsersScreen() {
             }
         }
         const results = await searchService.searchUsers(query);
-        return results.filter((user): user is BlockedUser => Boolean(user.name));
+        return results.filter((user) => Boolean(user.name));
     }, [oxyServices]);
 
     const handleSearch = useCallback(async (query: string) => {
