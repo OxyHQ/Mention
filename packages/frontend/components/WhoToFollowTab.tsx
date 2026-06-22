@@ -204,7 +204,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
       <LegendList
         data={recommendations}
         renderItem={renderUser}
-        keyExtractor={(item: RecommendedUser) => getUserId(item) || item.username}
+        keyExtractor={(item: RecommendedUser) => getUserId(item) || item.username || ''}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>

@@ -71,23 +71,23 @@ const publicClient = axios.create({
 // Authenticated API helpers (unwrap axios response)
 export const api = {
   async get<T = unknown>(endpoint: string, params?: Record<string, unknown>): Promise<{ data: T }> {
-    const response = await authenticatedClient.get(endpoint, { params });
+    const response = await authenticatedClient.get<T>(endpoint, { params });
     return { data: response.data };
   },
   async post<T = unknown>(endpoint: string, body?: unknown): Promise<{ data: T }> {
-    const response = await authenticatedClient.post(endpoint, body);
+    const response = await authenticatedClient.post<T>(endpoint, body);
     return { data: response.data };
   },
   async put<T = unknown>(endpoint: string, body?: unknown): Promise<{ data: T }> {
-    const response = await authenticatedClient.put(endpoint, body);
+    const response = await authenticatedClient.put<T>(endpoint, body);
     return { data: response.data };
   },
   async delete<T = unknown>(endpoint: string): Promise<{ data: T }> {
-    const response = await authenticatedClient.delete(endpoint);
+    const response = await authenticatedClient.delete<T>(endpoint);
     return { data: response.data };
   },
   async patch<T = unknown>(endpoint: string, body?: unknown): Promise<{ data: T }> {
-    const response = await authenticatedClient.patch(endpoint, body);
+    const response = await authenticatedClient.patch<T>(endpoint, body);
     return { data: response.data };
   },
 };
@@ -95,7 +95,7 @@ export const api = {
 // Public API helpers (no authentication)
 export const publicApi = {
   async get<T = unknown>(endpoint: string, params?: Record<string, unknown>): Promise<{ data: T }> {
-    const response = await publicClient.get(endpoint, { params });
+    const response = await publicClient.get<T>(endpoint, { params });
     return { data: response.data };
   },
 };

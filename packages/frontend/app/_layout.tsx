@@ -39,7 +39,7 @@ initLiveKit();
 
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
-import { Stack, useRouter } from "expo-router";
+import { Redirect, Slot, Stack, useRouter, useSegments } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
@@ -174,6 +174,7 @@ export default function RootLayout() {
 function AuthRouter() {
   const { isAuthenticated, isAuthResolved } = useAuth();
   const router = useRouter();
+  const segments = useSegments();
 
   useServerAppearanceSync();
 
@@ -183,6 +184,28 @@ function AuthRouter() {
 
   if (!isAuthResolved) {
     return null;
+  }
+
+  // WEB: render <Slot/> so the matched group/route flows in normal document
+  // flow (the BODY is the scroller). A native-stack <Stack> wraps each scene in
+  // a `position: absolute; inset: 0` container clamped to the viewport height,
+  // which sits above the (app) group and gives `position: sticky` no taller
+  // scroll container to pin within — the rails scroll away. <Slot/> avoids that
+  // absolute, viewport-clamped scene wrapper.
+  //
+  // The root <Stack> was the sole authority for the (auth)↔(app) swap via
+  // `redirect={isAuthenticated}` (an authenticated user can never sit on an
+  // (auth) route). We reproduce that EXACT behavior declaratively with
+  // <Redirect>: when authenticated AND currently inside the (auth) group, bounce
+  // to "/". Anonymous users are never redirected away from (app), so public
+  // browse keeps working. There is no competing child redirect on the same
+  // signal, so no cold-load race.
+  if (Platform.OS === 'web') {
+    const inAuthGroup = segments[0] === '(auth)';
+    if (isAuthenticated && inAuthGroup) {
+      return <Redirect href="/" />;
+    }
+    return <Slot />;
   }
 
   return (

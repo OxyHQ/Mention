@@ -23,7 +23,7 @@ class TrendingService {
       const params: Record<string, string | number> = { limit };
       if (type) params.type = type;
 
-      const res = await authenticatedClient.get("/trending", { params });
+      const res = await authenticatedClient.get<{ trending?: TrendingTopic[] }>("/trending", { params });
       return res.data.trending || [];
     } catch (error) {
       logger.warn("Failed fetching trending", { error });
@@ -37,7 +37,7 @@ class TrendingService {
     totalPages: number;
   }> {
     try {
-      const res = await authenticatedClient.get("/trending/history", {
+      const res = await authenticatedClient.get<{ days: TrendingDay[]; page: number; totalPages: number }>("/trending/history", {
         params: { page, limit },
       });
       return res.data;

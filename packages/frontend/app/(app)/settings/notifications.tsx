@@ -13,6 +13,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
+import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 interface NotificationPreferences {
@@ -59,7 +60,7 @@ export default function NotificationSettingsScreen() {
 
     const loadPreferences = async () => {
         try {
-            const response = await authenticatedClient.get('/profile/settings/me');
+            const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
             const settings = response.data;
             if (settings.notificationPreferences) {
                 setPrefs({ ...DEFAULT_PREFS, ...settings.notificationPreferences });

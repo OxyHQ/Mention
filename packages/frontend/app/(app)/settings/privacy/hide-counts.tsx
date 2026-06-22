@@ -11,7 +11,7 @@ import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
+import { updatePrivacySettingsCache, type UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { createScopedLogger } from '@/lib/logger';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
@@ -42,7 +42,7 @@ export default function HideCountsScreen() {
 
     const loadSettings = async () => {
         try {
-            const response = await authenticatedClient.get('/profile/settings/me');
+            const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
             const settings = response.data;
             setHideLikeCounts(settings.privacy?.hideLikeCounts || false);
             setHideShareCounts(settings.privacy?.hideShareCounts || false);
@@ -59,7 +59,7 @@ export default function HideCountsScreen() {
         try {
             let currentPrivacy = {};
             try {
-                const currentResponse = await authenticatedClient.get('/profile/settings/me');
+                const currentResponse = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
                 hideCountsLogger.debug('Could not load current privacy settings', { error: e });
@@ -87,7 +87,7 @@ export default function HideCountsScreen() {
         try {
             let currentPrivacy = {};
             try {
-                const currentResponse = await authenticatedClient.get('/profile/settings/me');
+                const currentResponse = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
                 hideCountsLogger.debug('Could not load current privacy settings', { error: e });

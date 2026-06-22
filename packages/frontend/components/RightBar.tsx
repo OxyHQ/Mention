@@ -71,6 +71,10 @@ const styles = StyleSheet.create({
         ...Platform.select({
             web: {
                 position: 'sticky' as any,
+                // `alignSelf: flex-start` keeps this column from being stretched
+                // to the tall shell row's height (default flex stretch), so the
+                // sticky box has room to pin while only the center feed scrolls.
+                alignSelf: 'flex-start',
                 top: 50,
                 bottom: 20,
             },

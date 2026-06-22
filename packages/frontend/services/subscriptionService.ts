@@ -2,17 +2,17 @@ import { authenticatedClient } from '../utils/api';
 
 class SubscriptionService {
   async getStatus(authorId: string): Promise<{ subscribed: boolean }> {
-    const resp = await authenticatedClient.get(`/subscriptions/${authorId}/status`);
+    const resp = await authenticatedClient.get<{ subscribed: boolean }>(`/subscriptions/${authorId}/status`);
     return resp.data;
   }
 
   async subscribe(authorId: string): Promise<{ subscribed: boolean }> {
-    const resp = await authenticatedClient.post(`/subscriptions/${authorId}`);
+    const resp = await authenticatedClient.post<{ subscribed: boolean }>(`/subscriptions/${authorId}`);
     return resp.data;
   }
 
   async unsubscribe(authorId: string): Promise<{ subscribed: boolean }> {
-    const resp = await authenticatedClient.delete(`/subscriptions/${authorId}`);
+    const resp = await authenticatedClient.delete<{ subscribed: boolean }>(`/subscriptions/${authorId}`);
     return resp.data;
   }
 }

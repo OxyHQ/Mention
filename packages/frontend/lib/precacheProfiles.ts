@@ -25,7 +25,9 @@ export interface CacheableUser {
   _id?: string;
   username?: string;
   name?: string | { first?: string; last?: string; full?: string; [key: string]: unknown };
-  avatar?: string;
+  // Mirrors the SDK `User.avatar` (`string | null`): the projected user whitelist
+  // stores avatar as a nullable column, so `null` is a legitimate cache value.
+  avatar?: string | null;
   [key: string]: unknown;
 }
 

@@ -43,8 +43,15 @@ type WebSidebarContainerStyle = Omit<ViewStyle, 'height' | 'position'> & {
     height?: ViewStyle['height'] | '100vh';
 };
 
+// Under document-scroll on web the shell row is a tall flex container. A flex
+// child defaults to `align-items: stretch`, which would stretch this column to
+// the row's full (scrollable) height — leaving the sticky box nowhere to move,
+// so it scrolls away with the document. `alignSelf: 'flex-start'` constrains the
+// box to its own `100vh` height, sitting at the top of the tall row, so
+// `position: sticky; top: 0` pins it while only the center feed scrolls.
 const webStickyContainerStyle: WebSidebarContainerStyle = {
     position: 'sticky',
+    alignSelf: 'flex-start',
     overflow: 'hidden',
     height: '100vh',
 };

@@ -12,6 +12,7 @@ import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
+import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 export default function OnlineStatusScreen() {
@@ -34,7 +35,7 @@ export default function OnlineStatusScreen() {
 
     const loadSettings = async () => {
         try {
-            const response = await authenticatedClient.get('/profile/settings/me');
+            const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
             const settings = response.data;
             setShowOnlineStatus(settings.privacy?.showOnlineStatus !== false);
             setLoading(false);
@@ -48,7 +49,7 @@ export default function OnlineStatusScreen() {
         try {
             let currentPrivacy = {};
             try {
-                const currentResponse = await authenticatedClient.get('/profile/settings/me');
+                const currentResponse = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
                 logger.debug('Could not load current privacy settings', { error: e });

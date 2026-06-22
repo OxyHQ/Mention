@@ -20,7 +20,7 @@ import {
     getRecommendationFilters,
     saveRecommendationFilters,
 } from '@/lib/recommendationFilters';
-import type { PrivacySettings } from '@/hooks/usePrivacySettings';
+import type { PrivacySettings, UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 const FILTER_TOGGLES: Array<{
@@ -80,7 +80,7 @@ export default function PrivacySettingsScreen() {
 
     const loadPrivacySettings = async () => {
         try {
-            const response = await authenticatedClient.get('/profile/settings/me');
+            const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
             const settings = response.data;
             setPrivacySettings(settings.privacy || { profileVisibility: 'public' });
             setLoading(false);

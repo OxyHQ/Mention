@@ -119,7 +119,7 @@ class StatisticsService {
    * Get user statistics (overall analytics)
    */
   async getUserStatistics(days: number = 30): Promise<UserStatistics> {
-    const response = await authenticatedClient.get('/statistics/user', {
+    const response = await authenticatedClient.get<UserStatistics>('/statistics/user', {
       params: { days }
     });
     return response.data;
@@ -129,7 +129,7 @@ class StatisticsService {
    * Get post-specific insights
    */
   async getPostInsights(postId: string): Promise<PostInsights> {
-    const response = await authenticatedClient.get(`/statistics/post/${postId}`);
+    const response = await authenticatedClient.get<PostInsights>(`/statistics/post/${postId}`);
     return response.data;
   }
 
@@ -137,7 +137,7 @@ class StatisticsService {
    * Track post view
    */
   async trackPostView(postId: string): Promise<{ success: boolean; viewsCount: number }> {
-    const response = await authenticatedClient.post(`/statistics/post/${postId}/view`);
+    const response = await authenticatedClient.post<{ success: boolean; viewsCount: number }>(`/statistics/post/${postId}/view`);
     return response.data;
   }
 
@@ -145,7 +145,7 @@ class StatisticsService {
    * Get follower changes over time
    */
   async getFollowerChanges(days: number = 30): Promise<FollowerChanges> {
-    const response = await authenticatedClient.get('/statistics/followers', {
+    const response = await authenticatedClient.get<FollowerChanges>('/statistics/followers', {
       params: { days }
     });
     return response.data;
@@ -155,7 +155,7 @@ class StatisticsService {
    * Get engagement ratios and performance metrics
    */
   async getEngagementRatios(days: number = 30): Promise<EngagementRatios> {
-    const response = await authenticatedClient.get('/statistics/engagement', {
+    const response = await authenticatedClient.get<EngagementRatios>('/statistics/engagement', {
       params: { days }
     });
     return response.data;
@@ -165,7 +165,7 @@ class StatisticsService {
    * Get AI-generated weekly summary
    */
   async getWeeklySummary(): Promise<WeeklySummary> {
-    const response = await authenticatedClient.get('/statistics/weekly-summary');
+    const response = await authenticatedClient.get<WeeklySummary>('/statistics/weekly-summary');
     return response.data;
   }
 }

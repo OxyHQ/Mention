@@ -93,7 +93,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
     const [actorName, setActorName] = useState<string>(initialName);
     const [actorAvatar, setActorAvatar] = useState<string | undefined>(() => {
-        return notification.actorId_populated?.avatar;
+        return notification.actorId_populated?.avatar ?? undefined;
     });
 
     useEffect(() => {
@@ -107,8 +107,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             if (cachedUser) {
                 const resolvedName = cachedUser.name.displayName;
                 setActorName(resolvedName);
-                setActorAvatar(cachedUser.avatar);
-                actorCacheRef.current.set(String(id), { name: resolvedName, avatar: cachedUser.avatar });
+                setActorAvatar(cachedUser.avatar ?? undefined);
+                actorCacheRef.current.set(String(id), { name: resolvedName, avatar: cachedUser.avatar ?? undefined });
                 return;
             }
         } catch { }
@@ -127,13 +127,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 };
                 const ensured = await queryClient.fetchQuery<User | null>({
                     queryKey: queryKeys.users.detail(String(id)),
-                    queryFn: () => loader(String(id)),
+                    queryFn: async () => (await loader(String(id))) ?? null,
                     staleTime: 5 * 60 * 1000,
                 });
                 if (!cancelled && ensured) {
-                    actorCacheRef.current.set(String(id), { name: ensured.name.displayName, avatar: ensured.avatar });
+                    actorCacheRef.current.set(String(id), { name: ensured.name.displayName, avatar: ensured.avatar ?? undefined });
                     setActorName(ensured.name.displayName);
-                    setActorAvatar(ensured.avatar);
+                    setActorAvatar(ensured.avatar ?? undefined);
                 } else if (!cancelled) {
                     actorCacheRef.current.set(String(id), { name: String(id), avatar: undefined });
                     setActorName(String(id));

@@ -9,28 +9,56 @@ export interface CreatePollRequest {
   isAnonymous?: boolean;
 }
 
+export interface PollOption {
+  _id: string;
+  text: string;
+  votes: string[]; // User IDs who voted for this option
+}
+
+export interface PollData {
+  _id: string;
+  question: string;
+  options: PollOption[];
+  postId?: string;
+  createdBy?: string;
+  endsAt?: string;
+  isMultipleChoice?: boolean;
+  isAnonymous?: boolean;
+  totalVotes?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Backend poll endpoints wrap the poll under `data`, but some return it raw. */
+interface PollEnvelope {
+  data?: PollData;
+}
+
+async function unwrap(request: Promise<{ data: PollData | PollEnvelope }>): Promise<{ success: boolean; data: PollData }> {
+  const response = await request;
+  const body = response.data;
+  const poll = (body as PollEnvelope).data ?? (body as PollData);
+  return { success: true, data: poll };
+}
+
 export const pollService = {
-  async getPoll(pollId: string): Promise<{ success: boolean; data: any }> {
-    const response = await authenticatedClient.get(`/polls/${pollId}`);
-    return { success: true, data: response.data?.data ?? response.data };
+  async getPoll(pollId: string): Promise<{ success: boolean; data: PollData }> {
+    return unwrap(authenticatedClient.get<PollData | PollEnvelope>(`/polls/${pollId}`));
   },
 
-  async getResults(pollId: string): Promise<{ success: boolean; data: any }> {
-    const response = await authenticatedClient.get(`/polls/${pollId}/results`);
-    return { success: true, data: response.data?.data ?? response.data };
-  },
-  async createPoll(req: CreatePollRequest): Promise<{ success: boolean; data: any }> {
-    const response = await authenticatedClient.post('/polls', req);
-    return { success: true, data: response.data?.data ?? response.data };
+  async getResults(pollId: string): Promise<{ success: boolean; data: PollData }> {
+    return unwrap(authenticatedClient.get<PollData | PollEnvelope>(`/polls/${pollId}/results`));
   },
 
-  async updatePollPostId(pollId: string, postId: string): Promise<{ success: boolean; data: any }> {
-    const response = await authenticatedClient.post(`/polls/${pollId}/update-post`, { postId });
-    return { success: true, data: response.data?.data ?? response.data };
+  async createPoll(req: CreatePollRequest): Promise<{ success: boolean; data: PollData }> {
+    return unwrap(authenticatedClient.post<PollData | PollEnvelope>('/polls', req));
   },
 
-  async vote(pollId: string, optionId: string): Promise<{ success: boolean; data: any }> {
-    const response = await authenticatedClient.post(`/polls/${pollId}/vote`, { optionId });
-    return { success: true, data: response.data?.data ?? response.data };
+  async updatePollPostId(pollId: string, postId: string): Promise<{ success: boolean; data: PollData }> {
+    return unwrap(authenticatedClient.post<PollData | PollEnvelope>(`/polls/${pollId}/update-post`, { postId }));
+  },
+
+  async vote(pollId: string, optionId: string): Promise<{ success: boolean; data: PollData }> {
+    return unwrap(authenticatedClient.post<PollData | PollEnvelope>(`/polls/${pollId}/vote`, { optionId }));
   },
 };

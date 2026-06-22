@@ -30,32 +30,32 @@ export interface SuggestedPoke {
 
 class PokeService {
   async getStatus(userId: string): Promise<{ poked: boolean }> {
-    const resp = await authenticatedClient.get(`/pokes/${userId}/status`);
+    const resp = await authenticatedClient.get<{ poked: boolean }>(`/pokes/${userId}/status`);
     return resp.data;
   }
 
   async poke(userId: string): Promise<{ poked: boolean }> {
-    const resp = await authenticatedClient.post(`/pokes/${userId}`);
+    const resp = await authenticatedClient.post<{ poked: boolean }>(`/pokes/${userId}`);
     return resp.data;
   }
 
   async unpoke(userId: string): Promise<{ poked: boolean }> {
-    const resp = await authenticatedClient.delete(`/pokes/${userId}`);
+    const resp = await authenticatedClient.delete<{ poked: boolean }>(`/pokes/${userId}`);
     return resp.data;
   }
 
   async getReceivedPokes(): Promise<{ pokes: ReceivedPoke[] }> {
-    const resp = await authenticatedClient.get('/pokes/received');
+    const resp = await authenticatedClient.get<{ pokes: ReceivedPoke[] }>('/pokes/received');
     return resp.data;
   }
 
   async getSentPokes(): Promise<{ pokes: SentPoke[] }> {
-    const resp = await authenticatedClient.get('/pokes/sent');
+    const resp = await authenticatedClient.get<{ pokes: SentPoke[] }>('/pokes/sent');
     return resp.data;
   }
 
   async getSuggested(): Promise<{ suggestions: SuggestedPoke[] }> {
-    const resp = await authenticatedClient.get('/pokes/suggested');
+    const resp = await authenticatedClient.get<{ suggestions: SuggestedPoke[] }>('/pokes/suggested');
     return resp.data;
   }
 }

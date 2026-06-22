@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import { useAuth } from '@oxyhq/services';
+import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
 export interface FeedSettings {
   diversity: {
@@ -57,7 +58,7 @@ export function useFeedSettings() {
     setLoading(true);
     setError(null);
     try {
-      const response = await authenticatedClient.get('/profile/settings/me');
+      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
       if (response.data?.feedSettings) {
         // Merge with defaults to ensure all fields are present
         setSettings({
@@ -101,10 +102,10 @@ export function useFeedSettings() {
     }
 
     try {
-      const response = await authenticatedClient.put('/profile/settings', {
+      const response = await authenticatedClient.put<UserSettingsResponse>('/profile/settings', {
         feedSettings: updates,
       });
-      
+
       if (response.data?.feedSettings) {
         setSettings({
           ...DEFAULT_FEED_SETTINGS,

@@ -64,6 +64,33 @@ html, body, #root {
   font-family: 'Inter', 'Inter-Regular', sans-serif;
 }
 
+/* Document-level scrolling. Expo / react-native-web automatically inject a
+   "recommended style reset" into the served HTML that locks
+   `html, body { height: 100%; overflow: hidden }` and `#root { height: 100% }`
+   for a native-like fixed viewport. (This is separate from <ScrollViewStyleReset />.)
+   These plain, UNLAYERED rules override it so the DOCUMENT scrolls: the body
+   grows with its content and scrolling works from anywhere, including over the
+   sticky SideBar / RightBar columns. `#root { min-height: 100vh }` is required
+   so the flex root does not collapse to 0 height when `height: auto` is applied.
+   No runtime JS. */
+/* NOTE: `overflow` MUST be `visible` on BOTH axes here. Setting one axis to
+   `hidden`/`clip`/`auto`/`scroll` triggers CSS "overflow promotion" — the other
+   `visible` axis computes to `auto`, turning body into a scroll container (so the
+   inner body scrolls and the DOCUMENT does not). Any wanted horizontal clipping
+   goes on a CHILD, never here. */
+html,
+body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+
+#root {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}
+
 @keyframes profileHoverCardFadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }

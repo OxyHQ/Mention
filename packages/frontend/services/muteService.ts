@@ -24,9 +24,9 @@ class MuteService {
     }
   }
 
-  async getMutedUsers(): Promise<any[]> {
+  async getMutedUsers(): Promise<unknown[]> {
     try {
-      const res = await authenticatedClient.get("/mute");
+      const res = await authenticatedClient.get<{ data?: unknown[]; mutedUsers?: unknown[] }>("/mute");
       return res.data.data || res.data.mutedUsers || [];
     } catch (error) {
       logger.warn("Failed to get muted users", { error });
@@ -36,7 +36,7 @@ class MuteService {
 
   async checkMuted(userId: string): Promise<boolean> {
     try {
-      const res = await authenticatedClient.get(`/mute/check/${userId}`);
+      const res = await authenticatedClient.get<{ isMuted?: boolean }>(`/mute/check/${userId}`);
       return res.data.isMuted || false;
     } catch (error) {
       return false;

@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';
 import { useAuth } from '@oxyhq/services';
+import type { FeedSettings } from '@/hooks/useFeedSettings';
 
 const logger = createScopedLogger('usePrivacySettings');
 
@@ -28,6 +29,39 @@ export interface PrivacySettings {
     hideSaveCounts?: boolean;
     hiddenWords?: string[];
     restrictedUsers?: string[];
+}
+
+export interface AppearanceSettings {
+    themeMode?: 'light' | 'dark' | 'system' | 'adaptive';
+    primaryColor?: string;
+}
+
+export interface NotificationPreferences {
+    pushEnabled?: boolean;
+    emailEnabled?: boolean;
+    likes?: boolean;
+    boosts?: boolean;
+    follows?: boolean;
+    mentions?: boolean;
+    replies?: boolean;
+    quotes?: boolean;
+}
+
+/**
+ * Wire shape returned by `GET /profile/settings/me` and
+ * `GET /profile/settings/:userId` — mirrors the backend `UserSettings`
+ * document. Every settings consumer types its `authenticatedClient.get`
+ * call with this so response fields are not `unknown`.
+ */
+export interface UserSettingsResponse {
+    oxyUserId?: string;
+    appearance?: AppearanceSettings;
+    profileHeaderImage?: string;
+    privacy?: PrivacySettings;
+    feedSettings?: FeedSettings;
+    notificationPreferences?: NotificationPreferences;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 /**
@@ -56,7 +90,7 @@ export function usePrivacySettings(userId?: string | null): PrivacySettings | nu
 
         const loadSettings = async () => {
             try {
-                const response = await authenticatedClient.get(`/profile/settings/${userId}`);
+                const response = await authenticatedClient.get<UserSettingsResponse>(`/profile/settings/${userId}`);
                 if (response.data?.privacy) {
                     setSettings(response.data.privacy);
                 } else {
@@ -139,7 +173,7 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
 
             // Then fetch fresh data from API
             try {
-                const response = await authenticatedClient.get('/profile/settings/me');
+                const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
                 if (response.data?.privacy) {
                     const freshSettings = response.data.privacy;
                     cachedPrivacySettings = freshSettings;

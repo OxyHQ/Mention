@@ -19,13 +19,13 @@ class NotificationService {
      */
     async getNotifications(cursor?: string, limit: number = 20): Promise<NotificationsResponse> {
         try {
-            const params: any = { limit };
+            const params: { limit: number; cursor?: string } = { limit };
 
             if (cursor) {
                 params.cursor = cursor;
             }
 
-            const response = await authenticatedClient.get('/notifications', { params });
+            const response = await authenticatedClient.get<Partial<NotificationsResponse>>('/notifications', { params });
 
             return {
                 notifications: response.data.notifications || [],
@@ -57,7 +57,7 @@ class NotificationService {
      */
     async markAllAsRead(): Promise<{ message: string }> {
         try {
-            const response = await authenticatedClient.patch('/notifications/read-all');
+            const response = await authenticatedClient.patch<{ message: string }>('/notifications/read-all');
             return response.data || { message: 'All notifications marked as read' };
         } catch (error) {
             logger.error('Error marking all notifications as read', { error });
@@ -70,7 +70,7 @@ class NotificationService {
      */
     async getUnreadCount(): Promise<number> {
         try {
-            const response = await authenticatedClient.get('/notifications/unread-count');
+            const response = await authenticatedClient.get<{ count?: number }>('/notifications/unread-count');
             return response.data.count || 0;
         } catch (error) {
             logger.error('Error fetching unread count', { error });

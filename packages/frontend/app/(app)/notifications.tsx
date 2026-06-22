@@ -1,11 +1,8 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
-    RefreshControl,
-    Platform,
     TouchableOpacity,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
@@ -21,10 +18,11 @@ import { createScopedLogger } from '@/lib/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
-import { validateNotifications, TRawNotification } from '@/types/validation';
+import { validateNotifications } from '@/types/validation';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { groupNotifications, GroupedNotification } from '@/utils/groupNotifications';
 import { GroupedNotificationItem } from '@/components/GroupedNotificationItem';
+import { NotificationsList } from '@/components/NotificationsList';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Header } from '@/components/Header';
@@ -49,9 +47,9 @@ const NotificationsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const [activeTab, setActiveTab] = useState<NotificationTab>('all');
-    const listRef = useRef<any>(null);
-    const unregisterScrollableRef = useRef<(() => void) | null>(null);
-    const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
+    // `scrollToTop` is platform-aware: web scrolls the document, native scrolls
+    // the registered FlashList (the NotificationsList registers itself).
+    const { scrollToTop } = useLayoutScroll();
 
     // Enable real-time notifications
     useRealtimeNotifications();
@@ -143,37 +141,31 @@ const NotificationsScreen: React.FC = () => {
         const tab = tabId as NotificationTab;
         if (tab === activeTab) {
             refetch();
-            if (listRef.current) {
-                try {
-                    if (typeof listRef.current.scrollToOffset === 'function') {
-                        listRef.current.scrollToOffset({ offset: 0, animated: true });
-                    } else if (typeof listRef.current.scrollTo === 'function') {
-                        listRef.current.scrollTo({ y: 0, animated: true });
-                    }
-                } catch { /* scroll errors are non-critical */ }
-            }
+            // Platform-aware: web scrolls the document, native scrolls the
+            // registered list back to the top.
+            scrollToTop();
         } else {
             setActiveTab(tab);
         }
-    }, [activeTab, refetch]);
+    }, [activeTab, refetch, scrollToTop]);
 
-    const validatedNotifications = useMemo(() => {
-        const raw: any[] = notificationsData?.notifications || [];
-        return validateNotifications(raw);
-    }, [notificationsData]);
+    const validatedNotifications = useMemo(
+        () => validateNotifications(notificationsData?.notifications ?? []),
+        [notificationsData]
+    );
 
     const filteredNotifications = useMemo(() => {
         switch (activeTab) {
             case 'mentions':
-                return validatedNotifications.filter((n: any) => n.type === 'mention' || n.type === 'reply');
+                return validatedNotifications.filter((n) => n.type === 'mention' || n.type === 'reply');
             case 'follows':
-                return validatedNotifications.filter((n: any) => n.type === 'follow');
+                return validatedNotifications.filter((n) => n.type === 'follow');
             case 'likes':
-                return validatedNotifications.filter((n: any) => n.type === 'like' || n.type === 'boost' || n.type === 'quote');
+                return validatedNotifications.filter((n) => n.type === 'like' || n.type === 'boost' || n.type === 'quote');
             case 'posts':
-                return validatedNotifications.filter((n: any) => n.type === 'post');
+                return validatedNotifications.filter((n) => n.type === 'post');
             case 'pokes':
-                return validatedNotifications.filter((n: any) => n.type === 'poke');
+                return validatedNotifications.filter((n) => n.type === 'poke');
             default:
                 return validatedNotifications;
         }
@@ -182,8 +174,6 @@ const NotificationsScreen: React.FC = () => {
     const groupedNotifications = useMemo(() => {
         return groupNotifications(filteredNotifications);
     }, [filteredNotifications]);
-
-    const getItemKey = useCallback((item: GroupedNotification) => item.key, []);
 
     const listItems = useMemo(() => {
         const seen = new Set<string>();
@@ -198,52 +188,11 @@ const NotificationsScreen: React.FC = () => {
         return out;
     }, [groupedNotifications]);
 
-    const clearScrollableRegistration = useCallback(() => {
-        if (unregisterScrollableRef.current) {
-            unregisterScrollableRef.current();
-            unregisterScrollableRef.current = null;
-        }
-    }, []);
-
-    const assignListRef = useCallback((node: any) => {
-        listRef.current = node;
-        clearScrollableRegistration();
-        if (node) {
-            unregisterScrollableRef.current = registerScrollable(node);
-        }
-    }, [clearScrollableRegistration, registerScrollable]);
-
-    useEffect(() => {
-        if (listRef.current && !unregisterScrollableRef.current) {
-            unregisterScrollableRef.current = registerScrollable(listRef.current);
-        }
-    }, [registerScrollable]);
-
-    useEffect(() => () => {
-        clearScrollableRegistration();
-    }, [clearScrollableRegistration]);
-
-    const handleScrollEvent = useCallback((event: any) => {
-        if (handleScroll) {
-            handleScroll(event);
-        }
-    }, [handleScroll]);
-
-    const handleWheelEvent = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-        if (forwardWheelEvent) {
-            forwardWheelEvent({
-                deltaY: event.deltaY,
-                preventDefault: () => event.preventDefault(),
-                target: event.target,
-            });
-        }
-    }, [forwardWheelEvent]);
-
     const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
         notificationLogger.error('Error caught by boundary', { error, errorInfo });
     }, []);
 
-    const renderNotification = ({ item }: { item: GroupedNotification }) => (
+    const renderNotification = useCallback((item: GroupedNotification) => (
         <ErrorBoundary
             title={t("error.boundary.title")}
             message={t("error.boundary.message")}
@@ -262,7 +211,7 @@ const NotificationsScreen: React.FC = () => {
                 />
             )}
         </ErrorBoundary>
-    );
+    ), [t, handleBoundaryError, handleMarkAsRead]);
 
     const emptyStateConfig = useMemo(() => {
         const iconBg = `${theme.colors.border}33`;
@@ -369,80 +318,54 @@ const NotificationsScreen: React.FC = () => {
             return renderErrorState();
         }
 
-        const webEventProps: Record<string, unknown> = Platform.OS === 'web'
-            ? { 'data-layoutscroll': 'true', onWheel: handleWheelEvent }
-            : {};
-        return (
-            <View
-                style={{ flex: 1, minHeight: 0 }}
-                {...webEventProps}
+        const pokesHeader = activeTab === 'pokes' ? (
+            <TouchableOpacity
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderBottomWidth: 1,
+                    borderBottomColor: theme.colors.border,
+                    gap: 12,
+                }}
+                onPress={() => router.push('/notifications/pokes')}
+                activeOpacity={0.7}
             >
-                <FlashList
-                    ref={assignListRef}
-                    data={listItems}
-                    keyExtractor={getItemKey}
-                    renderItem={renderNotification}
-                    getItemType={(item) => item.type}
-                    ListHeaderComponent={activeTab === 'pokes' ? (
-                        <TouchableOpacity
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingHorizontal: 16,
-                                paddingVertical: 14,
-                                borderBottomWidth: 1,
-                                borderBottomColor: theme.colors.border,
-                                gap: 12,
-                            }}
-                            onPress={() => router.push('/notifications/pokes')}
-                            activeOpacity={0.7}
-                        >
-                            <View
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 20,
-                                    backgroundColor: theme.colors.primary,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <FontAwesome5 name="hand-point-right" size={18} color="#fff" solid />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <ThemedText style={{ fontSize: 15, fontWeight: '600' }}>
-                                    {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
-                                </ThemedText>
-                                <ThemedText className="text-muted-foreground" style={{ fontSize: 13, marginTop: 1 }}>
-                                    {t('pokes.seeAllPokesSubtitle', { defaultValue: 'Suggested follows, poke history & more' })}
-                                </ThemedText>
-                            </View>
-                            <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                    ) : undefined}
-                    ListEmptyComponent={renderEmptyState}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            colors={[theme.colors.primary]}
-                            tintColor={theme.colors.primary}
-                        />
-                    }
-                    showsVerticalScrollIndicator={false}
-                    onScroll={handleScrollEvent}
-                    scrollEventThrottle={scrollEventThrottle}
-                    contentContainerStyle={{
-                        backgroundColor: theme.colors.background,
-                    }}
+                <View
                     style={{
-                        flex: 1,
-                        backgroundColor: theme.colors.background,
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: theme.colors.primary,
+                        alignItems: 'center',
+                        justifyContent: 'center',
                     }}
-                    drawDistance={400}
-                    key={`notifications-${activeTab}`}
-                />
-            </View>
+                >
+                    <FontAwesome5 name="hand-point-right" size={18} color="#fff" solid />
+                </View>
+                <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 15, fontWeight: '600' }}>
+                        {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
+                    </ThemedText>
+                    <ThemedText className="text-muted-foreground" style={{ fontSize: 13, marginTop: 1 }}>
+                        {t('pokes.seeAllPokesSubtitle', { defaultValue: 'Suggested follows, poke history & more' })}
+                    </ThemedText>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+        ) : null;
+
+        return (
+            <NotificationsList
+                items={listItems}
+                renderRow={renderNotification}
+                header={pokesHeader}
+                emptyState={renderEmptyState()}
+                tabKey={activeTab}
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+            />
         );
     };
 

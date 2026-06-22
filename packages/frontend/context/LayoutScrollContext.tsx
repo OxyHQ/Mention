@@ -1,5 +1,7 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform } from 'react-native';
+
+const IS_WEB = Platform.OS === 'web';
 
 export type ScrollEvent = {
     nativeEvent?: {
@@ -98,6 +100,28 @@ export function LayoutScrollProvider({
         scrollPositionRef.current = value;
     }, [scrollY]);
 
+    // WEB document-scroll model: the BODY is the scroller (no inner feed
+    // ScrollView), so a single window 'scroll' listener here is the source of
+    // truth for the shared scrollY. This replaces the per-feed onScroll →
+    // handleScroll path on web and keeps every consumer (BottomBar auto-hide,
+    // HomeScreen header/FAB) working unchanged. Subscribing to an external
+    // mutable store (window scroll) is a legitimate useEffect — same
+    // justification as useBottomBarVisibility's listener. No-op on native, which
+    // still drives scrollY through its inner FlashList via handleScroll.
+    useEffect(() => {
+        if (!IS_WEB || typeof window === 'undefined') return;
+        const onWindowScroll = () => {
+            setScrollY(window.scrollY || window.pageYOffset || 0);
+        };
+        // Prime once so a restored offset (or a non-zero cold-boot position) is
+        // reflected immediately rather than on the first user scroll.
+        onWindowScroll();
+        window.addEventListener('scroll', onWindowScroll, { passive: true });
+        return () => {
+            window.removeEventListener('scroll', onWindowScroll);
+        };
+    }, [setScrollY]);
+
     const handleScroll = useCallback((event: ScrollEvent) => {
         const offset = extractOffsetY(event);
         setScrollY(offset);
@@ -143,6 +167,12 @@ export function LayoutScrollProvider({
     );
 
     const registerScrollable = useCallback((ref: ScrollableRef | null) => {
+        // WEB: the document scrolls, so there is no inner scrollable to register
+        // for wheel forwarding. Keep the same signature (consumers call it and
+        // store the returned cleanup) but make it inert on web.
+        if (IS_WEB) {
+            return () => {};
+        }
         const id = ++registrationCounter.current;
         activeRegistrationId.current = id;
         scrollableRef.current = ref;
@@ -160,6 +190,10 @@ export function LayoutScrollProvider({
     // This was causing duplicate updates on every scroll event
 
     const forwardWheelEvent = useCallback((event: WheelLikeEvent) => {
+        // WEB document-scroll model: the body scrolls natively from anywhere, so
+        // there is nothing to forward — this is inert. Kept for API parity with
+        // the (now removed) onWheel bridge so no consumer signature changes.
+        if (IS_WEB) return;
         if (Platform.OS !== 'web') return;
         const scroller = scrollableRef.current;
         if (!scroller) return;
@@ -191,6 +225,13 @@ export function LayoutScrollProvider({
     }, []);
 
     const scrollToTop = useCallback(() => {
+        // WEB: scroll the document back to the top — the body is the scroller.
+        if (IS_WEB) {
+            if (typeof window !== 'undefined') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            return;
+        }
         const scroller = scrollableRef.current;
         if (!scroller) return;
         if (typeof scroller.scrollToOffset === 'function') {

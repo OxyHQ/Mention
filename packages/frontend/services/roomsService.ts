@@ -71,8 +71,8 @@ class RoomsService {
   async getRoom(id: string): Promise<Room | null> {
     if (!id) return null;
     try {
-      const res = await authenticatedClient.get(`/rooms/${id}`);
-      return res.data.room || res.data.data || res.data || null;
+      const res = await authenticatedClient.get<{ room?: Room; data?: Room }>(`/rooms/${id}`);
+      return res.data.room || res.data.data || null;
     } catch (error) {
       logger.warn("Failed to fetch room", { error });
       return null;
@@ -81,8 +81,8 @@ class RoomsService {
 
   async createRoom(data: { title: string; description?: string; topic?: string; scheduledStart?: string; speakerPermission?: 'everyone' | 'followers' | 'invited' }): Promise<Room | null> {
     try {
-      const res = await authenticatedClient.post("/rooms", data);
-      return res.data.room || res.data.data || res.data || null;
+      const res = await authenticatedClient.post<{ room?: Room; data?: Room }>("/rooms", data);
+      return res.data.room || res.data.data || null;
     } catch (error) {
       logger.warn("Failed to create room", { error });
       return null;
@@ -136,7 +136,7 @@ class RoomsService {
   async startStream(id: string, data: { url: string; title?: string; image?: string; description?: string }): Promise<{ ingressId: string; url: string } | null> {
     if (!id) return null;
     try {
-      const res = await authenticatedClient.post(`/rooms/${id}/stream`, data);
+      const res = await authenticatedClient.post<{ ingressId: string; url: string }>(`/rooms/${id}/stream`, data);
       return res.data;
     } catch (error) {
       logger.warn("Failed to start stream", { error });
@@ -146,7 +146,7 @@ class RoomsService {
 
   async generateStreamKey(id: string, data?: { title?: string; image?: string; description?: string }): Promise<{ rtmpUrl: string; streamKey: string } | null> {
     if (!id) return null;
-    const res = await authenticatedClient.post(`/rooms/${id}/stream/rtmp`, data || {});
+    const res = await authenticatedClient.post<{ rtmpUrl: string; streamKey: string }>(`/rooms/${id}/stream/rtmp`, data || {});
     return res.data;
   }
 

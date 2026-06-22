@@ -10,7 +10,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { alertDialog } from '@/utils/alerts';
-import { updatePrivacySettingsCache } from '@/hooks/usePrivacySettings';
+import { updatePrivacySettingsCache, type UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon, type IconName } from '@/lib/icons';
 import { logger } from '@/lib/logger';
@@ -48,7 +48,7 @@ export default function ProfileVisibilityScreen() {
 
     const loadSettings = async () => {
         try {
-            const response = await authenticatedClient.get('/profile/settings/me');
+            const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
             const settings = response.data;
             setProfileVisibility(settings.privacy?.profileVisibility || 'public');
             setLoading(false);
@@ -68,7 +68,7 @@ export default function ProfileVisibilityScreen() {
         try {
             let currentPrivacy = {};
             try {
-                const currentResponse = await authenticatedClient.get('/profile/settings/me');
+                const currentResponse = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
                 currentPrivacy = currentResponse.data?.privacy || {};
             } catch (e) {
                 logger.debug('Could not load current privacy settings', { error: e });
