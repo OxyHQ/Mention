@@ -323,6 +323,7 @@ const HomeScreen: React.FC = () => {
                     {/* Canonical Bloom <Fab>: persistent compose action. The old auto-hide + scroll-to-top icon-swap were dropped when standardizing on the Bloom FAB. */}
                     {canUsePrivateApi && (
                         <Fab
+                            size="small"
                             onPress={() => router.push('/compose')}
                             offset={16}
                             icon={<ComposeIcon size={22} className="text-primary-foreground" />}

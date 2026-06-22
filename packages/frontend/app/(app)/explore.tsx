@@ -185,6 +185,7 @@ const ExploreScreen: React.FC = () => {
           {/* Floating Action Button - Search. Bloom canonical FAB; web sticky
               anchors to the relative scroll column above. */}
           <Fab
+            size="small"
             onPress={() => router.push('/search')}
             offset={16}
             icon={<Search size={22} className="text-primary-foreground" />}
