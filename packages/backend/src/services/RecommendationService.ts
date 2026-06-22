@@ -23,8 +23,14 @@ import {
   oxyRankingClient,
   type OxyRankingClient,
   type RankedProfile,
+  type RecommendationBoostInput,
   type RecommendationExcludeType,
 } from './OxyRankingClient';
+import {
+  contentAffinityService,
+  type ContentAffinityService,
+  type ContentCandidate,
+} from './ContentAffinityService';
 import { getMentionOxyClientId } from '../utils/oxyHelpers';
 
 /** Default page size when the caller omits `limit`. */
@@ -73,8 +79,62 @@ function buildCacheKey(viewerId: string | undefined, limit: number, excludeTypes
   return `${CACHE_PREFIX}${viewerPart}:l:${limit}:t:${typesPart}`;
 }
 
+/**
+ * Group content-affinity candidates into a bounded set of boost tiers. Each tier
+ * shares one Oxy `appBoost` weight, so higher-affinity authors land in a
+ * stronger tier. Mention only emits a small, fixed integer weight range
+ * (1..{@link MAX_BOOST_TIER_WEIGHT}); Oxy clamps it to the app's profile anyway,
+ * but keeping it small here avoids ever asserting an outsized boost.
+ */
+const MAX_BOOST_TIER_WEIGHT = 3;
+
+/**
+ * Map ranked content candidates to the `boosts` wire shape. Splits candidates
+ * into {@link MAX_BOOST_TIER_WEIGHT} weight tiers by relative affinity (the top
+ * candidates get the highest tier) and emits one boost entry per non-empty tier.
+ * Returns `[]` for an empty candidate list.
+ */
+export function buildBoostsFromCandidates(candidates: ContentCandidate[]): RecommendationBoostInput[] {
+  if (candidates.length === 0) return [];
+
+  // Candidates arrive sorted by descending weight. The strongest weight defines
+  // the top of the range; tier = ceil(rank within range) so the highest-affinity
+  // authors get the strongest boost. Single-weight inputs collapse to one tier.
+  const maxWeight = candidates[0]?.weight ?? 0;
+  const minWeight = candidates[candidates.length - 1]?.weight ?? 0;
+  const span = maxWeight - minWeight;
+
+  const tiers = new Map<number, string[]>();
+  for (const candidate of candidates) {
+    if (!candidate.userId) continue;
+    let tier: number;
+    if (span <= 0) {
+      tier = MAX_BOOST_TIER_WEIGHT;
+    } else {
+      const ratio = (candidate.weight - minWeight) / span; // 0..1
+      tier = Math.max(1, Math.ceil(ratio * MAX_BOOST_TIER_WEIGHT));
+    }
+    const bucket = tiers.get(tier);
+    if (bucket) bucket.push(candidate.userId);
+    else tiers.set(tier, [candidate.userId]);
+  }
+
+  const boosts: RecommendationBoostInput[] = [];
+  // Emit strongest tiers first for readability/determinism.
+  for (const weight of [...tiers.keys()].sort((a, b) => b - a)) {
+    const userIds = tiers.get(weight);
+    if (userIds && userIds.length > 0) {
+      boosts.push({ userIds, weight, reason: 'content-affinity' });
+    }
+  }
+  return boosts;
+}
+
 export class RecommendationService {
-  constructor(private readonly rankingClient: OxyRankingClient = oxyRankingClient) {}
+  constructor(
+    private readonly rankingClient: OxyRankingClient = oxyRankingClient,
+    private readonly affinityService: ContentAffinityService = contentAffinityService,
+  ) {}
 
   /**
    * Resolve the viewer's exclusion set: every user they block, mute, or
@@ -135,6 +195,26 @@ export class RecommendationService {
   }
 
   /**
+   * Compute viewer-scoped content-affinity `boosts` for the ranking call.
+   * SOFT-FAIL: any error in candidate computation logs and yields `[]` so the
+   * recommendation still returns (boosts are purely additive). Logged-out callers
+   * have no content history, so this is a no-op for them.
+   */
+  private async resolveBoosts(viewerId: string | undefined): Promise<RecommendationBoostInput[]> {
+    if (!viewerId) return [];
+    try {
+      const candidates = await this.affinityService.getContentCandidates(viewerId);
+      return buildBoostsFromCandidates(candidates);
+    } catch (error) {
+      logger.warn(
+        `[RecommendationService] content-affinity boosts failed for ${viewerId}; proceeding with none:`,
+        error,
+      );
+      return [];
+    }
+  }
+
+  /**
    * Produce a ranked recommendation page for the viewer. Always resolves to a
    * valid {@link RecommendationsResult}; an Oxy/transport error logs and returns
    * an empty list rather than throwing.
@@ -150,7 +230,12 @@ export class RecommendationService {
       return { recommendations: cached };
     }
 
-    const excludeIds = viewerId ? await this.resolveExcludeIds(viewerId) : undefined;
+    // Exclusions and content-affinity boosts are independent and viewer-scoped;
+    // resolve them together. Both are individually soft-failing.
+    const [excludeIds, boosts] = await Promise.all([
+      viewerId ? this.resolveExcludeIds(viewerId) : Promise.resolve<string[] | undefined>(undefined),
+      this.resolveBoosts(viewerId),
+    ]);
 
     try {
       const recommendations = await this.rankingClient.rank({
@@ -159,6 +244,7 @@ export class RecommendationService {
         limit,
         excludeIds,
         excludeTypes,
+        boosts: boosts.length > 0 ? boosts : undefined,
       });
       await this.writeCache(cacheKey, recommendations);
       return { recommendations };
