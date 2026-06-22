@@ -186,7 +186,15 @@ export class FeedResponseBuilder {
     return {
       slices: slicesToReturn,
       items,
-      hasMore: slicesToReturn.length >= limit && nextCursor !== undefined,
+      // `hasMore` is the caller's authoritative post-overfetch result (resolved
+      // into the `hasMore` const above), NOT a slice-count comparison. Slices are
+      // post GROUPS produced by thread slicing, so `slicesToReturn.length` is
+      // always <= the post count and routinely drops below `limit` whenever any
+      // thread is grouped (e.g. explore returns 18 slices for 20 posts). Gating on
+      // `slicesToReturn.length >= limit` therefore reported `hasMore: false` on a
+      // full page that has more data — stalling infinite scroll after page 1. The
+      // real precondition for "there is more" is simply a valid advancing cursor.
+      hasMore: hasMore && nextCursor !== undefined,
       nextCursor,
       totalCount: items.length,
     };
