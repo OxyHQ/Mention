@@ -29,7 +29,7 @@
     "@mention/agora-shared": "*",
     "@oxyhq/bloom": "^0.8.6",
     "@oxyhq/core": "^3.7.1",
-    "@oxyhq/services": "^10.2.11",
+    "@oxyhq/services": "^10.5.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@tanstack/query-async-storage-persister": "^5.100.0",
     "@tanstack/react-query": "^5.100.0",
