@@ -25,7 +25,7 @@ import { subscribeToListChanges } from '@/services/listMutations';
 import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
-import { FloatingActionButton as FAB } from '@/components/ui/Button';
+import { Fab } from '@oxyhq/bloom/fab';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { getData, storeData } from '@/utils/storage';
@@ -769,7 +769,7 @@ export default function CustomFeedTimelineScreen() {
   }, [feed, tabBar]);
 
   return (
-    <ThemedView className="flex-1">
+    <ThemedView className="flex-1 relative flex-col">
       {/* Compact Bluesky-style header */}
       {feed ? (
         <FeedHeaderBar
@@ -816,9 +816,11 @@ export default function CustomFeedTimelineScreen() {
 
       {/* FAB */}
       {!loading && !error && (
-        <FAB
+        <Fab
           onPress={() => router.push('/compose')}
-          customIcon={<ComposeIcon size={22} className="text-primary-foreground" />}
+          offset={16}
+          icon={<ComposeIcon size={22} className="text-primary-foreground" />}
+          accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
         />
       )}
 

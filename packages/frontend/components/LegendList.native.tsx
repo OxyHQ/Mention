@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef } from 'react';
-import { FlatList as RNFlatList, Platform } from 'react-native';
+import { FlatList as RNFlatList } from 'react-native';
 import { LegendList as RL } from '@legendapp/list';
 import LayoutScrollContext from '@/context/LayoutScrollContext';
 
@@ -58,24 +58,10 @@ const LegendList = (props: any, ref: any) => {
         }
     }, [handleScroll, propOnScroll, scrollEnabled]);
 
-    const handleWheelEvent = useCallback((event: any) => {
-        if (layoutScroll?.forwardWheelEvent) {
-            layoutScroll.forwardWheelEvent(event);
-        }
-        if (typeof propOnWheel === 'function') {
-            propOnWheel(event);
-        }
-    }, [layoutScroll?.forwardWheelEvent, propOnWheel]);
-
     const effectiveScrollEventThrottle = useMemo(() => {
         if (propScrollEventThrottle != null) return propScrollEventThrottle;
         return layoutScroll?.scrollEventThrottle;
     }, [layoutScroll?.scrollEventThrottle, propScrollEventThrottle]);
-
-    const datasetForWeb = useMemo(() => {
-        if (Platform.OS !== 'web') return dataSet;
-        return { ...(dataSet || {}), layoutscroll: 'true' };
-    }, [dataSet]);
 
     if (RL) {
         const defaults = {
@@ -89,8 +75,8 @@ const LegendList = (props: any, ref: any) => {
             refreshControl,
             scrollEnabled,
             onScroll: layoutScroll ? mergedOnScroll : propOnScroll,
-            dataSet: datasetForWeb,
-            onWheel: Platform.OS === 'web' ? handleWheelEvent : propOnWheel,
+            dataSet,
+            onWheel: propOnWheel,
         } as any;
 
         if (effectiveScrollEventThrottle != null) {
@@ -105,8 +91,8 @@ const LegendList = (props: any, ref: any) => {
         refreshControl,
         scrollEnabled,
         onScroll: layoutScroll ? mergedOnScroll : propOnScroll,
-        dataSet: datasetForWeb,
-        onWheel: Platform.OS === 'web' ? handleWheelEvent : propOnWheel,
+        dataSet,
+        onWheel: propOnWheel,
     };
     if (effectiveScrollEventThrottle != null) {
         fallbackProps.scrollEventThrottle = effectiveScrollEventThrottle;

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Platform, RefreshControl, View } from 'react-native';
+import { RefreshControl, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListRef } from '@shopify/flash-list';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -34,7 +34,7 @@ export function NotificationsList({
     const theme = useTheme();
     const listRef = useRef<FlashListRef<GroupedNotification> | null>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
-    const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
+    const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
 
     const clearScrollableRegistration = useCallback(() => {
         if (unregisterScrollableRef.current) {
@@ -67,29 +67,12 @@ export function NotificationsList({
         }
     }, [handleScroll]);
 
-    const handleWheelEvent = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-        if (forwardWheelEvent) {
-            forwardWheelEvent({
-                deltaY: event.deltaY,
-                preventDefault: () => event.preventDefault(),
-                target: event.target,
-            });
-        }
-    }, [forwardWheelEvent]);
-
     const renderItem = useCallback(({ item }: { item: GroupedNotification }) => renderRow(item), [renderRow]);
     const getItemKey = useCallback((item: GroupedNotification) => item.key, []);
     const getItemType = useCallback((item: GroupedNotification) => item.type, []);
 
-    const webEventProps: Record<string, unknown> = Platform.OS === 'web'
-        ? { 'data-layoutscroll': 'true', onWheel: handleWheelEvent }
-        : {};
-
     return (
-        <View
-            style={{ flex: 1, minHeight: 0 }}
-            {...webEventProps}
-        >
+        <View style={{ flex: 1, minHeight: 0 }}>
             <FlashList
                 ref={assignListRef}
                 data={items}

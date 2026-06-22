@@ -13,7 +13,7 @@ import { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useLayoutScroll, type ScrollEvent, type WheelLikeEvent } from '@/context/LayoutScrollContext';
+import { useLayoutScroll, type ScrollEvent } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
 import { useRouter, useIsFocused } from 'expo-router';
 import { useScrollRestoration } from '@oxyhq/bloom/scroll';
@@ -63,8 +63,6 @@ const DEFAULT_FEED_PROPS = {
     scrollEnabled: true,
     showOnlySaved: false,
 } as const;
-
-const WEB_DATA_SET = { layoutscroll: 'true' } as const;
 
 // FlashList v2 auto-measures every row, so no estimate is needed. `drawDistance`
 // is the one render-ahead lever that still applies: keep it modest so we don't
@@ -168,7 +166,7 @@ const Feed = ((props: FeedProps) => {
     // embedded feeds, which don't own scrolling — the parent ScrollView does.
     useScrollRestoration(flatListRef, { enabled: scrollEnabled !== false });
     const [refreshing, setRefreshing] = useState(false);
-    const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
+    const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
 
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
@@ -269,10 +267,10 @@ const Feed = ((props: FeedProps) => {
     }, [clearScrollableRegistration, registerScrollable, scrollEnabled, isFocused]);
 
     // Reconcile the registration with focus + scroll ownership. On focus (with a
-    // mounted list and scrolling enabled) register so web `forwardWheelEvent`
-    // targets this feed; on blur clear it so a background feed never steals wheel
-    // targeting or moves the shared scrollY. `registerScrollable` returns a
-    // counter-guarded cleanup, so the unmount effect below remains correct.
+    // mounted list and scrolling enabled) register this feed as the active
+    // scrollable; on blur clear it so a background feed never moves the shared
+    // scrollY. `registerScrollable` returns a counter-guarded cleanup, so the
+    // unmount effect below remains correct.
     useEffect(() => {
         if (scrollEnabled === false || !isFocused) {
             clearScrollableRegistration();
@@ -300,16 +298,6 @@ const Feed = ((props: FeedProps) => {
             handleScroll(event);
         }
     }, [handleScroll, scrollEnabled, isFocused]);
-
-    // Handle wheel events
-    const handleWheelEvent = useCallback((event: WheelLikeEvent) => {
-        if (forwardWheelEvent) {
-            forwardWheelEvent(event);
-        }
-    }, [forwardWheelEvent]);
-
-    // Web-specific dataSet for scroll detection
-    const dataSetForWeb = Platform.OS === 'web' ? WEB_DATA_SET : undefined;
 
     // Memoize RefreshControl to prevent recreation on every render
     const refreshControl = useMemo(() => {
@@ -411,7 +399,6 @@ const Feed = ((props: FeedProps) => {
             <View
                 className={scrollEnabled === false ? "bg-background" : "flex-1 bg-background"}
                 style={[{ minHeight: 0 }, scrollEnabled !== false && containerStyle]}
-                {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
                 <FlashList
                     ref={assignListRef}
@@ -432,7 +419,6 @@ const Feed = ((props: FeedProps) => {
                     keyboardShouldPersistTaps="handled"
                     onScroll={scrollEnabled === false ? undefined : handleScrollEvent}
                     scrollEventThrottle={scrollEnabled === false ? undefined : scrollEventThrottle}
-                    {...(Platform.OS === 'web' ? { onWheel: handleWheelEvent } : {})}
                     contentContainerStyle={listContentStyle}
                     style={listStyle}
                     // FlashList v2 perf levers. v2 auto-measures rows (no

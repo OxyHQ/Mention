@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedView } from '@/components/ThemedView';
@@ -13,14 +13,12 @@ import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
-import Animated, { useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
-import { FloatingActionButton as FAB } from '@/components/ui/Button';
+import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import { Fab } from '@oxyhq/bloom/fab';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
-import { ArrowUp } from '@/assets/icons/arrow-up-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { LogoIcon } from '@/assets/logo';
@@ -45,13 +43,6 @@ interface FeedReference {
 }
 
 const PINNED_KEY = 'mention.pinnedFeeds';
-const FAB_ICON_SIZE = 22;
-
-// When the bottom bar hides, the FAB stays fully visible and simply drops into the
-// space the bar vacated. The drop distance equals the bar-clearance the FAB reserves
-// above the bar at rest (FloatingActionButton uses bottomBarHeight = 60), so the FAB
-// ends up where the bar was instead of sliding off-screen.
-const FAB_BAR_HIDDEN_DROP = 60;
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -61,39 +52,17 @@ const HomeScreen: React.FC = () => {
     const { open: openDrawer } = useDrawer();
     const isScreenNotMobile = useIsScreenNotMobile();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
-    const { scrollY, scrollToTop } = useLayoutScroll();
-    const [isScrolledDown, setIsScrolledDown] = useState(false);
-    const isScrolledDownRef = useRef(false);
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const headerHeight = 48;
-    const fabTransition = useSharedValue(0);
 
-    // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header and
-    // the FAB both derive their motion from this one value so they stay in lock-step
-    // with the bottom bar — no per-screen duplicate scroll listener.
+    // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header
+    // derives its motion from this one value so it stays in lock-step with the
+    // bottom bar — no per-screen duplicate scroll listener.
     const bottomBarHidden = useBottomBarVisibility();
     const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
     const headerOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
-    // The FAB stays fully visible: it drops DOWN into the bar's vacated spot when the
-    // bar hides (no opacity fade), and rises back above the bar when it returns.
-    const fabTranslateY = useDerivedValue(() => bottomBarHidden.value * FAB_BAR_HIDDEN_DROP);
-
-    useEffect(() => {
-        fabTransition.value = withTiming(isScrolledDown ? 1 : 0, { duration: 200 });
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- fabTransition is a stable shared value ref
-    }, [isScrolledDown]);
-
-    const fabComposeStyle = useAnimatedStyle(() => ({
-        opacity: 1 - fabTransition.value,
-        transform: [{ scale: 1 - fabTransition.value * 0.3 }],
-    }));
-
-    const fabArrowStyle = useAnimatedStyle(() => ({
-        opacity: fabTransition.value,
-        transform: [{ scale: 0.7 + fabTransition.value * 0.3 }],
-    }));
 
     const loadFeeds = React.useCallback(async () => {
         if (!canUsePrivateApi) return;
@@ -167,24 +136,6 @@ const HomeScreen: React.FC = () => {
             unregisterHomeRefreshHandler();
         };
     }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
-
-    // Track only the "scrolled deep" threshold that flips the FAB between its
-    // compose and scroll-to-top affordances (React-rendered + drives onPress). The
-    // header / FAB / bottom-bar hide animation is handled by useBottomBarVisibility.
-    useEffect(() => {
-        const listenerId = scrollY.addListener(({ value }) => {
-            const currentScrollY = typeof value === 'number' ? value : 0;
-            const nowScrolledDown = currentScrollY > 200;
-            if (nowScrolledDown !== isScrolledDownRef.current) {
-                isScrolledDownRef.current = nowScrolledDown;
-                setIsScrolledDown(nowScrolledDown);
-            }
-        });
-
-        return () => {
-            scrollY.removeListener(listenerId);
-        };
-    }, [scrollY]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
@@ -290,7 +241,7 @@ const HomeScreen: React.FC = () => {
                 gutter ring never clips them. The feed below them stays at z-0,
                 still masked. No effect on native. */}
             <SafeAreaView className="flex-1 bg-background web:z-auto" edges={["top"]}>
-                <ThemedView className="flex-1 web:z-auto">
+                <ThemedView className="flex-1 web:z-auto relative flex-col">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     {/* Header - animated. On web it carries the panel's opaque
@@ -369,24 +320,13 @@ const HomeScreen: React.FC = () => {
                     {/* Content */}
                     {renderContent()}
 
-                    {/* Floating Action Button — compose or scroll-to-top. Stays
-                        fully visible at all times: rests above the bottom bar and
-                        drops into the bar's vacated spot when the bar auto-hides on
-                        scroll (shared visibility signal). No opacity fade. */}
+                    {/* Canonical Bloom <Fab>: persistent compose action. The old auto-hide + scroll-to-top icon-swap were dropped when standardizing on the Bloom FAB. */}
                     {canUsePrivateApi && (
-                        <FAB
-                            onPress={isScrolledDown ? scrollToTop : () => router.push('/compose')}
-                            animatedTranslateY={fabTranslateY}
-                            customIcon={
-                                <View style={{ width: FAB_ICON_SIZE, height: FAB_ICON_SIZE }}>
-                                    <Animated.View style={[fabComposeStyle, StyleSheet.absoluteFill, styles.fabIconLayer]} pointerEvents="none">
-                                        <ComposeIcon size={FAB_ICON_SIZE} className="text-primary-foreground" />
-                                    </Animated.View>
-                                    <Animated.View style={[fabArrowStyle, StyleSheet.absoluteFill, styles.fabIconLayer]} pointerEvents="none">
-                                        <ArrowUp size={FAB_ICON_SIZE} className="text-primary-foreground" />
-                                    </Animated.View>
-                                </View>
-                            }
+                        <Fab
+                            onPress={() => router.push('/compose')}
+                            offset={16}
+                            icon={<ComposeIcon size={22} className="text-primary-foreground" />}
+                            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
                         />
                     )}
                 </ThemedView>
@@ -433,10 +373,6 @@ const styles = StyleSheet.create({
             },
         }),
         zIndex: 100,
-    },
-    fabIconLayer: {
-        alignItems: 'center',
-        justifyContent: 'center',
     },
 });
 

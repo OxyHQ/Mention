@@ -16,7 +16,8 @@ import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 
 import { Header } from '@/components/Header';
-import { IconButton, FloatingActionButton as FAB } from '@/components/ui/Button';
+import { IconButton } from '@/components/ui/Button';
+import { Fab } from '@oxyhq/bloom/fab';
 import { ThemedView } from '@/components/ThemedView';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
@@ -211,7 +212,7 @@ const FeedsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
-      <SafeAreaView className="flex-1 bg-background">
+      <SafeAreaView className="flex-1 bg-background relative flex-col">
         <Header
           options={{
             title: t('Feeds'),
@@ -305,9 +306,11 @@ const FeedsScreen: React.FC = () => {
         </ScrollView>
 
         {/* FAB */}
-        <FAB
+        <Fab
           onPress={() => router.push('/feeds/create')}
-          icon="add"
+          offset={16}
+          icon={<Ionicons name="add" size={24} color="white" />}
+          accessibilityLabel={t('feeds.create', { defaultValue: 'Create feed' })}
         />
       </SafeAreaView>
     </>

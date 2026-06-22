@@ -12,7 +12,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
 import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
-import { FloatingActionButton as FAB } from '@/components/ui/Button';
+import { Fab } from '@oxyhq/bloom/fab';
 import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
 import { StarterPacksTab } from '@/components/StarterPacksTab';
@@ -23,12 +23,6 @@ import { TrendingList } from '@/components/trending/TrendingList';
 import { useTrendsStore } from '@/store/trendsStore';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'people' | 'starter-packs';
-
-// When the bottom bar hides, the FAB stays fully visible and drops into the space
-// the bar vacated. The drop equals the bar-clearance the FAB reserves above the bar
-// at rest (FloatingActionButton uses bottomBarHeight = 60), so it lands where the bar
-// was instead of sliding off-screen.
-const FAB_BAR_HIDDEN_DROP = 60;
 
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -43,10 +37,6 @@ const ExploreScreen: React.FC = () => {
   const hidden = useBottomBarVisibility();
   const headerTranslateY = useDerivedValue(() => hidden.value * -(headerHeight + insets.top));
   const headerOpacity = useDerivedValue(() => 1 - hidden.value);
-  // The FAB stays fully visible: it drops DOWN into the bar's vacated spot when the
-  // bar hides (no opacity fade), and rises back above the bar when it returns. The
-  // drop equals the bar-clearance the FAB reserves above the bar (bottomBarHeight = 60).
-  const fabTranslateY = useDerivedValue(() => hidden.value * FAB_BAR_HIDDEN_DROP);
 
   // Trending tab reads from the same store as TrendsWidget — single data source
   const trends = useTrendsStore(state => state.trends);
@@ -134,7 +124,7 @@ const ExploreScreen: React.FC = () => {
           never clips them. The feed stays at z-0, still masked. Mirrors
           `app/(app)/index.tsx`. No effect on native. */}
       <SafeAreaView className="flex-1 bg-background web:z-auto" edges={["top"]}>
-        <ThemedView className="flex-1 web:z-auto">
+        <ThemedView className="flex-1 web:z-auto relative flex-col">
           <StatusBar style={theme.isDark ? "light" : "dark"} />
 
           {/* Header - animated. On web it carries the panel's opaque surface
@@ -192,13 +182,13 @@ const ExploreScreen: React.FC = () => {
           {/* Content */}
           {renderContent()}
 
-          {/* Floating Action Button - Search. Stays fully visible: rests above the
-              bottom bar and drops into the bar's vacated spot when the bar auto-hides
-              on scroll (shared visibility signal). No opacity fade. */}
-          <FAB
+          {/* Floating Action Button - Search. Bloom canonical FAB; web sticky
+              anchors to the relative scroll column above. */}
+          <Fab
             onPress={() => router.push('/search')}
-            customIcon={<Search className="text-background" size={24} />}
-            animatedTranslateY={fabTranslateY}
+            offset={16}
+            icon={<Search size={22} className="text-primary-foreground" />}
+            accessibilityLabel={t('Search')}
           />
         </ThemedView>
       </SafeAreaView>

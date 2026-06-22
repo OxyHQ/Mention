@@ -317,7 +317,10 @@ const VideoItem = memo<VideoItemProps>(({
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
 
     return (
-        <View style={[styles.videoContainer, { height: windowHeight }]}>
+        <View
+            className="web:h-[100dvh] web:[scroll-snap-align:start]"
+            style={[styles.videoContainer, Platform.OS === 'web' ? null : { height: windowHeight }]}
+        >
             {canRenderPlayer ? (
                 <ActiveVideoSurface
                     videoUrl={item.videoUrl}
@@ -839,6 +842,7 @@ export default function VideosScreen() {
                 {posts.length > 0 && (
                     <FlatList
                         ref={flatListRef}
+                        className="web:h-[100dvh] web:overflow-y-auto web:[scroll-snap-type:y_mandatory]"
                         data={posts}
                         renderItem={renderVideoItem}
                         keyExtractor={keyExtractor}

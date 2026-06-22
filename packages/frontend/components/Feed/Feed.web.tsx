@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState, memo } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { FeedType } from '@mention/shared-types';
@@ -107,20 +107,20 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
         threadPostId,
     }), [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
 
-    // On web, an anonymous viewer must NEVER be auto-redirected to sign-in while
-    // scrolling: web `signIn()` resolves to `signInWithRedirect` (a top-level
-    // bounce to auth.<apex>/sso), and the window virtualizer reaches the end
-    // almost immediately on a short anonymous page — so calling it here would
-    // hijack public browse the instant the feed mounts. Anonymous pagination is
-    // simply a no-op; the passive "Sign in to see more" footer (rendered via
-    // `showFooter` below) is the ONLY sign-in affordance and fires `signIn()`
-    // exclusively on user tap. (Native opens a modal, so its Feed.native.tsx
-    // can keep the eager prompt; this divergence is intentional and web-only.)
+    // Infinite scroll for EVERYONE, anonymous included — public browse must keep
+    // paginating as you scroll. The ONLY web-specific divergence from native is
+    // that an anonymous viewer is never auto-redirected to sign-in here: web
+    // `signIn()` resolves to `signInWithRedirect` (a top-level bounce to
+    // auth.<apex>/sso) and the window virtualizer reaches the end almost
+    // instantly on a short page, so an eager `signIn()` would hijack public
+    // browse. The passive "Sign in to see more" footer (rendered via `showFooter`
+    // below) is the ONLY sign-in affordance and fires `signIn()` exclusively on
+    // user tap. Pagination itself runs for anon and authed alike (gated only by
+    // `hasMore`/`isLoading`, debounced inside the hook).
     const handleLoadMore = useCallback(() => {
-        if (!isAuthenticated) return;
         if (!feedState.hasMore || feedState.isLoading) return;
         feedLoadMore();
-    }, [feedState.hasMore, feedState.isLoading, feedLoadMore, isAuthenticated]);
+    }, [feedState.hasMore, feedState.isLoading, feedLoadMore]);
 
     const handleRetry = useCallback(async () => {
         feedClearError();
@@ -255,18 +255,21 @@ function VirtualizedWebFeed(props: FeedProps) {
     const virtualItems = virtualizer.getVirtualItems();
     const totalSize = virtualizer.getTotalSize();
 
-    // Infinite pagination: when the last rendered virtual row is within the
-    // threshold of the end, request the next page. Guarded inside handleLoadMore
-    // (hasMore / isLoading / auth), so calling it eagerly is safe.
+    // Infinite pagination: when the last MOUNTED virtual row reaches within the
+    // threshold of the data end, request the next page. The virtualizer re-runs
+    // `getVirtualItems()` on every window scroll, so `lastVirtualIndex` advances
+    // as the user nears the bottom of the document. Firing from a `useEffect`
+    // keyed on that index (rather than as a side effect during render) is the
+    // correct React pattern for reacting to the external scroll position, and it
+    // re-fires for each new page once `count` grows. `handleLoadMore` is guarded
+    // (hasMore / isLoading) and debounced in the hook, so eager calls are safe.
     const lastVirtualIndex = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : 0;
     const nearEnd = count > 0 && lastVirtualIndex >= count - END_REACHED_ROW_THRESHOLD;
-    const prevNearEndRef = useRef(false);
-    if (nearEnd && !prevNearEndRef.current) {
-        prevNearEndRef.current = true;
-        handleLoadMore();
-    } else if (!nearEnd && prevNearEndRef.current) {
-        prevNearEndRef.current = false;
-    }
+    useEffect(() => {
+        if (nearEnd) {
+            handleLoadMore();
+        }
+    }, [nearEnd, lastVirtualIndex, count, handleLoadMore]);
 
     // Scroll restoration against the document scroller (per-route window offset).
     useScrollRestoration('window', { enabled: true });

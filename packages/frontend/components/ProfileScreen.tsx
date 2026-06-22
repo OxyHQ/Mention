@@ -48,7 +48,7 @@ import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
-import { FloatingActionButton as FAB } from '@/components/ui/Button';
+import { Fab } from '@oxyhq/bloom/fab';
 import { IconButton } from '@/components/ui/Button';
 import SEO from '@/components/SEO';
 
@@ -515,7 +515,16 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     type="profile"
                 />
             ) : null}
-            <View className="flex-1 bg-background" style={[{ overflow: 'visible' }, themedStyles.container]}>
+            {/* WEB: `web:z-auto` stops this screen wrapper from being its own
+                stacking context (RN-web otherwise renders every View as
+                `position:relative; z-index:0`, which would TRAP the sticky header
+                chrome below it). With `z-index:auto` the profile chrome (banner
+                z-1, action cluster + compact name z-101) competes directly in the
+                rounded panel's stacking context, so the action/name chrome paints
+                ABOVE the bleed-mask overlay (z-30) and the feed (z-3) but below the
+                panel border frame (z-120) — exactly like the home header. No effect
+                on native. */}
+            <View className="flex-1 bg-background web:z-auto relative flex-col" style={[{ overflow: 'visible' }, themedStyles.container]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
                 {loading ? (
@@ -529,100 +538,48 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     />
                 ) : (
                     <>
-                        {/* Header actions. WEB: `web:fixed` pins the icon cluster to
-                            the viewport top while the DOCUMENT scrolls (the screen
-                            no longer has an inner ScrollView on web). NATIVE keeps
-                            `absolute` over the non-scrolling root. The `web:fixed`
-                            variant overrides the `absolute` base on web only. */}
-                        <View className="absolute web:fixed flex-row items-center gap-1" style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING - 8 }, themedStyles.headerActions]}>
-                            {!isOwnProfile && (
-                                <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
-                                    {subscribed ? (
-                                        <BellActive size={18} className="text-primary" />
-                                    ) : (
-                                        <Bell size={18} className="text-foreground" />
-                                    )}
-                                </IconButton>
-                            )}
-                            {!isOwnProfile && (
-                                <IconButton variant="icon" onPress={handleDM}>
-                                    <MailIcon size={18} className="text-foreground" />
-                                </IconButton>
-                            )}
-                            {isFederated && (
-                                <IconButton variant="icon" onPress={handleOpenOnInstance}>
-                                    <ExternalLinkIcon size={18} className="text-foreground" />
-                                </IconButton>
-                            )}
-                            <IconButton variant="icon" onPress={handleShare}>
-                                <ShareIcon size={18} className="text-foreground" />
-                            </IconButton>
-                            {!isOwnProfile && (
-                                <IconButton variant="icon" onPress={handleMoreOptions}>
-                                    <MoreIcon size={18} className="text-foreground" />
-                                </IconButton>
-                            )}
-                        </View>
-
-                        {/* Header name overlay (animated on scroll). WEB: `web:fixed`
-                            pins it to the viewport top so it stays put as the
-                            document scrolls; its fade-in is driven by the window-fed
-                            `scrollY` shared value (same source as home). NATIVE keeps
-                            the inline `absolute` over the non-scrolling root. */}
-                        <Animated.View
-                            className="web:fixed"
-                            style={[
-                                { zIndex: 10, left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
-                                IS_WEB ? null : { position: 'absolute' },
-                                themedStyles.headerNameOverlay,
-                                { opacity: headerNameOpacity },
-                                { pointerEvents: 'none' },
-                            ]}
-                        >
-                            <Avatar
-                                source={avatarUri}
-                                size={32}
-                            />
-                            <View style={{ flex: 1, minWidth: 0 }}>
-                                <UserName
-                                    name={profileData.design.displayName}
-                                    verified={profileData.verified}
-                                    style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3 } }}
-                                    unifiedColors={true}
-                                />
-                                <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
-                                    {t('profile.postsCount', {
-                                        count: profileData.postsCount,
-                                        defaultValue: `${profileData.postsCount} posts`,
-                                    })}
-                                </Text>
-                            </View>
-                        </Animated.View>
-
-                        {/* Banner */}
+                        {/* Banner. NATIVE: `absolute left-0 right-0 top:0`
+                            (height 170, zIndex 1) over the NON-scrolling root — the
+                            content scrolls OVER it, and the `bg-background` overlay
+                            fades it out over the first 120px via
+                            `headerBackgroundOpacity`. WEB: there is no inner
+                            ScrollView (the DOCUMENT scrolls), so an `absolute` banner
+                            would scroll away. Instead it is `web:sticky web:top-2`
+                            (pinned to the rounded panel's 8px top-gutter inset —
+                            sticky's containing block is the panel column, so it stays
+                            INSIDE the panel, never viewport-fixed). The negative
+                            bottom margin (`-170px`) cancels its flow height so the
+                            content's own `marginTop + paddingTop` offset is NOT
+                            double-counted — the banner occupies 0 net flow and the
+                            content still starts ~170px down and scrolls over it, then
+                            the banner fades to the background, exactly as on native.
+                            Its `web:z-[1]` keeps it BELOW the content (`zIndex: 3`),
+                            preserving native's content-over-banner layering. */}
                         {!minimalistMode &&
                             (bannerUri ? (
-                                <>
+                                <View
+                                    className="left-0 right-0 overflow-hidden web:sticky web:top-2 web:z-[1] web:[margin-bottom:-170px]"
+                                    style={[webStickyChrome.banner, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
+                                >
                                     <ImageBackground
                                         source={{ uri: bannerUri }}
-                                        className="absolute left-0 right-0 overflow-hidden"
+                                        className="absolute left-0 right-0 top-0 overflow-hidden"
                                         style={{ height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }}
                                     />
                                     <Animated.View
-                                        className="absolute left-0 right-0 overflow-hidden bg-background"
+                                        className="absolute left-0 right-0 top-0 overflow-hidden bg-background"
                                         style={{
                                             height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
-                                            top: 0,
                                             zIndex: 1,
                                             pointerEvents: 'none',
                                             opacity: headerBackgroundOpacity,
                                         }}
                                     />
-                                </>
+                                </View>
                             ) : (
                                 <View
-                                    className="absolute left-0 right-0 overflow-hidden bg-primary/[0.125]"
-                                    style={{ height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }}
+                                    className="left-0 right-0 overflow-hidden bg-primary/[0.125] web:sticky web:top-2 web:z-[1] web:[margin-bottom:-170px]"
+                                    style={[webStickyChrome.banner, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
                                 >
                                     <Animated.View
                                         className="bg-background"
@@ -635,6 +592,98 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     />
                                 </View>
                             ))}
+
+                        {/* Header actions cluster (subscribe / DM / open-instance /
+                            share / more). NATIVE: `absolute`, `top: insets.top+6`,
+                            `right: DEFAULT_PADDING-8`, zIndex 10 — pinned at the top
+                            of the non-scrolling root. WEB: the cluster lives inside a
+                            full-width `web:sticky web:top-2` wrapper pinned to the
+                            panel's top-gutter inset (same pattern as the home
+                            header, which is `web:sticky web:top-2` on a full-width
+                            block — sticky's containing block is the panel column, so
+                            the cluster stays INSIDE the panel, never viewport-fixed).
+                            The wrapper has 0 flow height (its only child is
+                            `absolute`) and is `pointer-events-none` so it never blocks
+                            the feed; the cluster itself re-enables pointer events. Its
+                            `web:z-[101]` matches the home header so it paints above
+                            the feed/content (z-3) and the bleed mask (z-30) but below
+                            the panel's border frame (z-120). */}
+                        <View className="left-0 right-0 web:sticky web:top-2 web:z-[101] web:pointer-events-none" style={webStickyChrome.chromeAnchor}>
+                            <View
+                                className="absolute flex-row items-center gap-1 web:pointer-events-auto"
+                                style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING - 8 }, themedStyles.headerActions]}
+                            >
+                                {!isOwnProfile && (
+                                    <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
+                                        {subscribed ? (
+                                            <BellActive size={18} className="text-primary" />
+                                        ) : (
+                                            <Bell size={18} className="text-foreground" />
+                                        )}
+                                    </IconButton>
+                                )}
+                                {!isOwnProfile && (
+                                    <IconButton variant="icon" onPress={handleDM}>
+                                        <MailIcon size={18} className="text-foreground" />
+                                    </IconButton>
+                                )}
+                                {isFederated && (
+                                    <IconButton variant="icon" onPress={handleOpenOnInstance}>
+                                        <ExternalLinkIcon size={18} className="text-foreground" />
+                                    </IconButton>
+                                )}
+                                <IconButton variant="icon" onPress={handleShare}>
+                                    <ShareIcon size={18} className="text-foreground" />
+                                </IconButton>
+                                {!isOwnProfile && (
+                                    <IconButton variant="icon" onPress={handleMoreOptions}>
+                                        <MoreIcon size={18} className="text-foreground" />
+                                    </IconButton>
+                                )}
+                            </View>
+                        </View>
+
+                        {/* Compact name overlay (avatar + name + posts-count), fades
+                            in via `headerNameOpacity` once the real name scrolls past.
+                            NATIVE: `absolute`, `top: insets.top+6`, `left:
+                            DEFAULT_PADDING`, `right: headerOverlayRight` (truncates
+                            before the action icons), zIndex 10. WEB: same full-width
+                            `web:sticky web:top-2` wrapper as the actions cluster, so
+                            it pins to the panel's top-gutter inset INSIDE the panel
+                            (never viewport-fixed). The fade is driven by the same
+                            window-fed `scrollY` interpolation as native. The overlay
+                            is `pointer-events-none` (matching native), and the wrapper
+                            consumes 0 net flow height. */}
+                        <View className="left-0 right-0 web:sticky web:top-2 web:z-[101] web:pointer-events-none" style={webStickyChrome.chromeAnchor}>
+                            <Animated.View
+                                className="absolute"
+                                style={[
+                                    { zIndex: 10, left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
+                                    themedStyles.headerNameOverlay,
+                                    { opacity: headerNameOpacity },
+                                    { pointerEvents: 'none' },
+                                ]}
+                            >
+                                <Avatar
+                                    source={avatarUri}
+                                    size={32}
+                                />
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                    <UserName
+                                        name={profileData.design.displayName}
+                                        verified={profileData.verified}
+                                        style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3 } }}
+                                        unifiedColors={true}
+                                    />
+                                    <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
+                                        {t('profile.postsCount', {
+                                            count: profileData.postsCount,
+                                            defaultValue: `${profileData.postsCount} posts`,
+                                        })}
+                                    </Text>
+                                </View>
+                            </Animated.View>
+                        </View>
 
                         {/* Main scroll content.
 
@@ -679,12 +728,20 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     )}
                                 </View>
 
-                                {/* Tabs — sticky to the viewport top while the
-                                    document scrolls (mirrors native's
-                                    stickyHeaderIndices). The `bg-background` on
-                                    AnimatedTabBar keeps the feed from showing
-                                    through. */}
-                                <View className="web:sticky web:top-0 web:z-[5]">
+                                {/* Tabs — sticky at the rounded panel's 8px
+                                    top-gutter inset (`web:top-2`) while the document
+                                    scrolls (mirrors native's `stickyHeaderIndices={[1]}`
+                                    pinning at the scroll-viewport top). `web:top-2`
+                                    aligns the pinned tab bar flush with the panel top
+                                    — the same inset the banner and header chrome pin
+                                    to — instead of poking into the gutter ring that
+                                    the bleed mask paints over. It lives inside the
+                                    z-3 content wrapper, so `web:z-[5]` keeps it above
+                                    the feed content (which scrolls under it); the
+                                    `bg-background` on AnimatedTabBar keeps the feed
+                                    from showing through, and the pinned tab bar paints
+                                    over the lower-z banner that sits behind it. */}
+                                <View className="web:sticky web:top-2 web:z-[5]">
                                     <AnimatedTabBar
                                         tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
                                         activeTabId={String(activeTab)}
@@ -766,9 +823,11 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                         )}
 
                         {/* FAB */}
-                        <FAB
+                        <Fab
                             onPress={() => router.push('/compose')}
-                            customIcon={<ComposeIcon size={20} className="text-primary-foreground" />}
+                            offset={16}
+                            icon={<ComposeIcon size={20} className="text-primary-foreground" />}
+                            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
                         />
 
                     </>
@@ -777,6 +836,31 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         </>
     );
 };
+
+// WEB vs NATIVE positioning for the profile header chrome (banner, action
+// cluster, compact-name overlay). NATIVE pins each piece `absolute` to the top
+// of the NON-scrolling root (the content scrolls over them inside the inner
+// Animated.ScrollView). WEB has no inner ScrollView — the DOCUMENT scrolls — so
+// each piece pins via `web:sticky web:top-2` (the rounded panel's 8px top-gutter
+// inset). `position: sticky` keeps the panel column as its containing block, so
+// the chrome stays INSIDE the rounded center panel (never viewport-fixed, unlike
+// the prior `web:fixed`), mirroring the home header (`web:sticky web:top-2`). The
+// web `position`/`top`/`z` live in NativeWind classes; this StyleSheet only
+// supplies the native `absolute` anchor (web entries are empty so the classes win).
+const webStickyChrome = StyleSheet.create({
+    banner: {
+        ...Platform.select({
+            web: {},
+            default: { position: 'absolute' as const, top: 0, zIndex: 1 },
+        }),
+    },
+    chromeAnchor: {
+        ...Platform.select({
+            web: {},
+            default: { position: 'absolute' as const, top: 0, zIndex: 10 },
+        }),
+    },
+});
 
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
@@ -793,7 +877,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     return (
         <BloomColorScope colorPreset={profileColorName} asChild>
-            <View className="flex-1 bg-background">
+            {/* `web:z-auto` so this profile wrapper does not become its own
+                stacking context and trap the sticky header chrome below the
+                panel's bleed-mask/border overlays (see MentionProfileContent's
+                root for the full rationale). No effect on native. */}
+            <View className="flex-1 bg-background web:z-auto">
                 <MentionProfileContent
                     tab={tab}
                     username={username}

@@ -3,16 +3,14 @@
  */
 
 import { ViewStyle, TextStyle, StyleProp } from 'react-native';
-import { SharedValue } from 'react-native-reanimated';
 import type { Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-export type ButtonVariant = 
-  | 'primary' 
-  | 'secondary' 
-  | 'icon' 
-  | 'floating' 
-  | 'link' 
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'icon'
+  | 'link'
   | 'ghost'
   | 'text';
 
@@ -41,15 +39,7 @@ export interface ButtonProps {
   iconPosition?: 'left' | 'right';
   iconSize?: number;
   customIcon?: React.ReactNode;
-  
-  // Floating button specific
-  floating?: boolean;
-  bottomOffset?: number;
-  
-  // Animation support
-  animatedTranslateY?: SharedValue<number>;
-  animatedOpacity?: SharedValue<number>;
-  
+
   // Responsive support (SideBar button pattern)
   renderText?: ({ state }: { state: 'desktop' | 'tablet' }) => React.ReactNode;
   renderIcon?: ({ state }: { state: 'desktop' | 'tablet' }) => React.ReactNode;

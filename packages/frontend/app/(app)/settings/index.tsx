@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useMemo } from "react";
-import { View, Text, Platform, Animated, ScrollView } from "react-native";
+import { View, Text, Animated, ScrollView } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
@@ -96,7 +96,6 @@ export default function SettingsScreen() {
                 showsVerticalScrollIndicator={false}
                 onScroll={onScroll}
                 scrollEventThrottle={scrollEventThrottle}
-                {...(Platform.OS === 'web' ? { dataSet: { layoutscroll: 'true' } } : {}) as Record<string, unknown>}
             >
                 {isAuthenticated && !currentUserProfile ? (
                     <View className="items-center py-4">

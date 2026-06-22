@@ -5,12 +5,10 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 /**
  * WEB LegendList: a window-virtualized list under the DOCUMENT scroller.
  *
- * The native LegendList wraps `@legendapp/list` and injects the LayoutScroll
- * wheel bridge (`forwardWheelEvent` / `registerScrollable` / `data-layoutscroll`
- * + an inner overflow lock). Under the web document-scroll model none of that
- * exists — the BODY scrolls from anywhere — so this variant drops the bridge
- * entirely and simply flows its rows in the document while keeping the DOM
- * bounded via `useWindowVirtualizer`.
+ * The native LegendList wraps `@legendapp/list` and registers its inner
+ * scrollable with LayoutScroll. Under the web document-scroll model the BODY
+ * scrolls from anywhere, so this variant simply flows its rows in the document
+ * while keeping the DOM bounded via `useWindowVirtualizer`.
  *
  * All three consumers (connections, WhoToFollowTab, StarterPacksTab) render this
  * as the scroll-owning content of their screen (never embedded inside a parent

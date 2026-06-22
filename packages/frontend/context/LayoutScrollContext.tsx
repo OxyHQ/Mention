@@ -13,17 +13,6 @@ export type ScrollEvent = {
     [key: string]: any;
 };
 
-export type WheelLikeEvent = {
-    deltaY?: number;
-    preventDefault?: () => void;
-    target?: any;
-    nativeEvent?: {
-        deltaY?: number;
-        preventDefault?: () => void;
-        target?: any;
-    };
-};
-
 type ScrollableRef = {
     scrollToOffset?: (params: { offset: number; animated?: boolean }) => void;
     scrollTo?: (params: { x?: number; y?: number; animated?: boolean }) => void;
@@ -50,10 +39,6 @@ type LayoutScrollContextValue = {
      * Register the component that should respond to global wheel/scroll gestures (web only).
      */
     registerScrollable: (ref: ScrollableRef | null) => () => void;
-    /**
-     * Forward wheel events captured outside the main scroll view so the registered scrollable keeps control.
-     */
-    forwardWheelEvent: (event: WheelLikeEvent) => void;
     /**
      * Scroll the registered scrollable back to the top.
      */
@@ -90,7 +75,6 @@ export function LayoutScrollProvider({
 }: LayoutScrollProviderProps) {
     const scrollY = useRef(new Animated.Value(0)).current;
     const scrollableRef = useRef<ScrollableRef | null>(null);
-    const scrollElementRef = useRef<HTMLElement | null>(null);
     const scrollPositionRef = useRef(0);
     const activeRegistrationId = useRef<number | null>(null);
     const registrationCounter = useRef(0);
@@ -125,16 +109,6 @@ export function LayoutScrollProvider({
     const handleScroll = useCallback((event: ScrollEvent) => {
         const offset = extractOffsetY(event);
         setScrollY(offset);
-        // Optimize web DOM queries - only check if we don't have a registered element
-        if (Platform.OS === 'web' && !scrollElementRef.current) {
-            const target = (event?.nativeEvent as any)?.target ?? (event as any)?.target;
-            if (target && typeof target.closest === 'function') {
-                const owner = target.closest('[data-layoutscroll="true"]') as HTMLElement | null;
-                if (owner) {
-                    scrollElementRef.current = owner;
-                }
-            }
-        }
     }, [setScrollY]);
 
     const createAnimatedScrollHandler = useCallback(
@@ -176,52 +150,12 @@ export function LayoutScrollProvider({
         const id = ++registrationCounter.current;
         activeRegistrationId.current = id;
         scrollableRef.current = ref;
-        scrollElementRef.current = null;
         return () => {
             if (activeRegistrationId.current === id) {
                 scrollableRef.current = null;
-                scrollElementRef.current = null;
                 activeRegistrationId.current = null;
             }
         };
-    }, []);
-
-    // Remove redundant listener - setScrollY already updates scrollPositionRef
-    // This was causing duplicate updates on every scroll event
-
-    const forwardWheelEvent = useCallback((event: WheelLikeEvent) => {
-        // WEB document-scroll model: the body scrolls natively from anywhere, so
-        // there is nothing to forward — this is inert. Kept for API parity with
-        // the (now removed) onWheel bridge so no consumer signature changes.
-        if (IS_WEB) return;
-        if (Platform.OS !== 'web') return;
-        const scroller = scrollableRef.current;
-        if (!scroller) return;
-        const deltaY = typeof event.deltaY === 'number'
-            ? event.deltaY
-            : typeof event.nativeEvent?.deltaY === 'number'
-                ? event.nativeEvent?.deltaY
-                : 0;
-        if (deltaY === 0) return;
-        const target = (event.nativeEvent?.target ?? event.target) as HTMLElement | null;
-        if (target && scrollElementRef.current && typeof target.closest === 'function') {
-            const owner = target.closest('[data-layoutscroll="true"]');
-            if (owner && owner === scrollElementRef.current) {
-                // Let the scrollable itself handle native wheel events.
-                return;
-            }
-        }
-
-        // Don't call preventDefault() - modern browsers use passive wheel listeners by default
-        // We'll handle scrolling programmatically below, which works fine even without preventDefault
-        // Calling preventDefault() in a passive listener causes console warnings
-
-        const nextOffset = Math.max(0, scrollPositionRef.current + deltaY);
-        if (typeof scroller.scrollToOffset === 'function') {
-            scroller.scrollToOffset({ offset: nextOffset, animated: false });
-        } else if (typeof scroller.scrollTo === 'function') {
-            scroller.scrollTo({ y: nextOffset, animated: false });
-        }
     }, []);
 
     const scrollToTop = useCallback(() => {
@@ -248,9 +182,8 @@ export function LayoutScrollProvider({
         createAnimatedScrollHandler,
         setScrollY,
         registerScrollable,
-        forwardWheelEvent,
         scrollToTop,
-    }), [createAnimatedScrollHandler, forwardWheelEvent, handleScroll, registerScrollable, scrollEventThrottle, scrollToTop, scrollY, setScrollY]);
+    }), [createAnimatedScrollHandler, handleScroll, registerScrollable, scrollEventThrottle, scrollToTop, scrollY, setScrollY]);
 
     return (
         <LayoutScrollContext.Provider value={value}>
