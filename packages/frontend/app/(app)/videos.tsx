@@ -23,6 +23,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { useOptimizedMediaQuery } from '@/hooks/useOptimizedMediaQuery';
+import { cn } from '@/lib/utils';
 
 // ── Tuning constants ─────────────────────────────────────────────
 // One-screen vertical pager: keep the live-player window tight so only the
@@ -50,8 +52,44 @@ const VIEWABILITY_CONFIG = {
 const MAX_AUTO_CONTINUE_PAGES = 3;
 
 // Web: pixels-from-bottom at which the native-style infinite scroll triggers a
-// `handleLoadMore`, so paging stays ahead of the viewer on the fixed scroller.
+// `handleLoadMore`, so paging stays ahead of the viewer on its own bounded
+// scroller.
 const WEB_END_REACHED_PX = 1200;
+
+// Tailwind's default `md` breakpoint (px). The desktop rounded panel's 8px
+// top/bottom gutter is applied via the `md:p-2` CSS gate in
+// `app/(app)/_layout.tsx`, so the videos scroller must switch its height at the
+// SAME width to stay in lockstep with that gutter.
+const PANEL_GUTTER_BREAKPOINT = 768;
+
+// Web scroller + slide heights, spelled out as LITERAL class strings so the
+// NativeWind compiler can see them (it scans source text — interpolated arbitrary
+// values like `h-[calc(100dvh-${n}px)]` are NOT picked up; same reason
+// PanelChrome.tsx spells out its sticky-top classes).
+//
+// The scroller is IN-FLOW (`web:relative`) inside the central column so the
+// SideBar and right rail stay visible at the sides — unlike the previous
+// `web:fixed web:inset-0`, which yanked it out of flow to cover the whole
+// viewport. Its height is CLAMPED (an explicit value, never `flexGrow`) so the
+// host element itself is the bounded snap scroller: `overflow-y: scroll` +
+// `scroll-snap-type: y mandatory` live on the element that actually scrolls, the
+// body stays at viewport height (it never scrolls), and snap is preserved
+// WITHOUT `fixed`.
+//
+// Inside the desktop rounded panel the available height is `100dvh - 16px`: the
+// panel already insets its content by 8px top + 8px bottom via the `md:p-2`
+// gutter in `app/(app)/_layout.tsx` (matching PANEL_TOP_INSET +
+// PANEL_BOTTOM_INSET in components/shell/PanelChrome.tsx), so a `calc(100dvh-16px)`
+// in-flow scroller lands flush inside that already-padded box — no extra
+// `web:top-2` (the padding IS the inset; adding sticky `top-2` would double it).
+// Below `md` the column is full-bleed (no gutter) so the scroller is the full
+// `100dvh`. The scroller and each slide MUST use the SAME height at a given width
+// so `scroll-snap-align: start` lands each slide flush against the scroller's
+// clientHeight.
+const WEB_SCROLLER_HEIGHT_CLASS_DESKTOP = 'web:relative web:h-[calc(100dvh-16px)]';
+const WEB_SCROLLER_HEIGHT_CLASS_MOBILE = 'web:relative web:h-[100dvh]';
+const WEB_SLIDE_HEIGHT_CLASS_DESKTOP = 'web:h-[calc(100dvh-16px)]';
+const WEB_SLIDE_HEIGHT_CLASS_MOBILE = 'web:h-[100dvh]';
 
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
@@ -137,6 +175,11 @@ interface VideoItemProps {
     bottomBarHeight: number;
     t: (key: string) => string;
     windowHeight: number;
+    // Web-only: the slide's height class. Must equal the web scroller's own
+    // clientHeight so `scroll-snap-align: start` lands each slide flush — full
+    // `100dvh` below `md`, `calc(100dvh-16px)` inside the desktop panel gutter.
+    // No-op on native (height comes from the inline `windowHeight` style).
+    webSlideHeightClass: string;
 }
 
 // ── Active player surface ────────────────────────────────────────
@@ -298,6 +341,7 @@ const VideoItem = memo<VideoItemProps>(({
     bottomBarHeight,
     t,
     windowHeight,
+    webSlideHeightClass,
 }) => {
     const router = useRouter();
     const [videoError, setVideoError] = useState(false);
@@ -322,7 +366,7 @@ const VideoItem = memo<VideoItemProps>(({
 
     return (
         <View
-            className="web:h-[100dvh] web:[scroll-snap-align:start]"
+            className={cn(webSlideHeightClass, 'web:[scroll-snap-align:start]')}
             style={[styles.videoContainer, Platform.OS === 'web' ? null : { height: windowHeight }]}
         >
             {canRenderPlayer ? (
@@ -505,6 +549,16 @@ export default function VideosScreen() {
         () => Platform.OS === 'web' ? 60 : 60 + insets.bottom,
         [insets.bottom]
     );
+
+    // Web: the desktop rounded panel reserves an 8px top/bottom gutter (applied
+    // via `md:p-2` in `app/(app)/_layout.tsx`). At `md`+ the videos scroller must
+    // be `100dvh - 16px` and pinned at the gutter inset so it lives INSIDE the
+    // central column (sidebars/rail visible) rather than covering the viewport;
+    // below `md` the column is full-bleed so it is the full `100dvh`. Driven by a
+    // JS media query at the SAME width as the `md:` gutter so the two never drift.
+    const isPanelGuttered = useOptimizedMediaQuery({ minWidth: PANEL_GUTTER_BREAKPOINT });
+    const webScrollerHeightClass = isPanelGuttered ? WEB_SCROLLER_HEIGHT_CLASS_DESKTOP : WEB_SCROLLER_HEIGHT_CLASS_MOBILE;
+    const webSlideHeightClass = isPanelGuttered ? WEB_SLIDE_HEIGHT_CLASS_DESKTOP : WEB_SLIDE_HEIGHT_CLASS_MOBILE;
 
     // Resolve a playable absolute URL. The backend now returns a FINAL `url`
     // (our CDN/media-proxy or remote), so we use it directly. Fall back to the
@@ -709,11 +763,14 @@ export default function VideosScreen() {
         }
     }, []);
 
-    // Web scroll handler. The fixed scroll container owns its own overflow on web
-    // (it is its own `scroll-snap-type: y mandatory` scroller, NOT the document),
-    // so the active index and infinite-scroll trigger are derived directly from
-    // its scroll metrics rather than from FlatList viewability. Each slide is one
-    // viewport tall, so the nearest snapped index is `round(scrollTop / viewportH)`.
+    // Web scroll handler. The bounded in-flow ScrollView owns its own overflow on
+    // web (it is its own `scroll-snap-type: y mandatory` scroller, NOT the
+    // document), so the active index and infinite-scroll trigger are derived
+    // directly from its scroll metrics rather than from FlatList viewability. Each
+    // slide is exactly one scroller-clientHeight tall, and `layoutMeasurement.height`
+    // IS that clientHeight, so the nearest snapped index is
+    // `round(scrollTop / clientHeight)` — height-agnostic, correct whether the
+    // scroller is `100dvh` (mobile-web) or `calc(100dvh-16px)` (desktop panel).
     const handleWebScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
         const viewportH = layoutMeasurement.height;
@@ -824,8 +881,9 @@ export default function VideosScreen() {
             bottomBarHeight={bottomBarHeight}
             t={t}
             windowHeight={WINDOW_HEIGHT}
+            webSlideHeightClass={webSlideHeightClass}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, webSlideHeightClass]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -862,22 +920,27 @@ export default function VideosScreen() {
 
                 {posts.length > 0 && (
                     Platform.OS === 'web' ? (
-                        // WEB: opt OUT of the document-scroll model. The shell is a
-                        // tree of auto-height Views (no fixed-height ancestor), so the
-                        // BODY is normally the scroller — and the body has no
-                        // scroll-snap. `web:fixed web:inset-0` (the same full-screen
-                        // overlay opt-out used by ZoomableImageGallery /
-                        // PostArticleModal) plus an explicit `100dvh` height makes THIS
-                        // ScrollView's own host element the real scroll container:
-                        // `overflow-y: scroll` + `scroll-snap-type: y mandatory` live on
-                        // the element that actually scrolls, and each slide carries
-                        // `scroll-snap-align: start` (CSS Scroll Snap matches any
-                        // snap-align descendant of the scroll container, so the
-                        // contentContainer wrapper is transparent to snapping). The
-                        // active index + infinite scroll are derived from this
-                        // scroller's own metrics via `handleWebScroll`.
+                        // WEB: a bounded, IN-FLOW snap scroller. The app uses a
+                        // document-scroll model (the BODY is normally the scroller),
+                        // and the body has no scroll-snap. Rather than yank this out of
+                        // flow with `web:fixed web:inset-0` (which covered the whole
+                        // viewport on top of the SideBar + right rail), the ScrollView
+                        // host stays IN the central column (`web:relative`) and CLAMPS
+                        // its own height (`webScrollerHeightClass`, never `flexGrow`) so
+                        // ITS host element is the real scroll container: `overflow-y:
+                        // scroll` + `scroll-snap-type: y mandatory` live on the element
+                        // that actually scrolls, each slide carries `scroll-snap-align:
+                        // start` (CSS Scroll Snap matches any snap-align descendant of
+                        // the scroll container, so the contentContainer wrapper is
+                        // transparent to snapping), and the body stays at viewport
+                        // height (it never scrolls). The active index + infinite scroll
+                        // are derived from this scroller's own metrics via
+                        // `handleWebScroll`. The clamped height equals each slide's
+                        // height (see `webSlideHeightClass`) so snapped slides land
+                        // flush inside the rounded panel on desktop / full column on
+                        // mobile-web.
                         <ScrollView
-                            className="web:fixed web:inset-0 web:z-[60] web:h-[100dvh] web:overflow-y-scroll web:overflow-x-hidden web:overscroll-contain web:[scroll-snap-type:y_mandatory]"
+                            className={cn(webScrollerHeightClass, 'web:overflow-y-scroll web:overflow-x-hidden web:overscroll-contain web:[scroll-snap-type:y_mandatory]')}
                             onScroll={handleWebScroll}
                             scrollEventThrottle={16}
                             showsVerticalScrollIndicator={false}
@@ -900,6 +963,7 @@ export default function VideosScreen() {
                                     bottomBarHeight={bottomBarHeight}
                                     t={t}
                                     windowHeight={WINDOW_HEIGHT}
+                                    webSlideHeightClass={webSlideHeightClass}
                                 />
                             ))}
                         </ScrollView>
