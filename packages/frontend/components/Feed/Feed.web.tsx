@@ -60,13 +60,14 @@ const ESTIMATED_ROW_HEIGHT = 140;
 // the DOM never holds the whole feed — the whole point of virtualizing on web.
 const OVERSCAN_ROWS = 8;
 
-// Pull the next page when the last few rows enter the virtual window.
-const END_REACHED_ROW_THRESHOLD = 6;
+// The load-more sentinel is observed `rootMargin` px before it actually enters
+// the viewport, so the next page is requested slightly ahead of the user
+// hitting the literal end of the document (smoother infinite scroll).
+const LOAD_MORE_ROOT_MARGIN = '600px';
 
 /**
- * Shared data wiring used by both the virtualized (scroll-owning) and embedded
- * web feeds. Returns the live row set plus the load-more / retry handlers, so
- * the two render paths never diverge on data behavior.
+ * Shared data wiring for the web feed. Returns the live row set plus the
+ * load-more / retry handlers.
  */
 function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> & FeedProps) {
     const {
@@ -111,11 +112,10 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
     // paginating as you scroll. The ONLY web-specific divergence from native is
     // that an anonymous viewer is never auto-redirected to sign-in here: web
     // `signIn()` resolves to `signInWithRedirect` (a top-level bounce to
-    // auth.<apex>/sso) and the window virtualizer reaches the end almost
-    // instantly on a short page, so an eager `signIn()` would hijack public
-    // browse. The passive "Sign in to see more" footer (rendered via `showFooter`
-    // below) is the ONLY sign-in affordance and fires `signIn()` exclusively on
-    // user tap. Pagination itself runs for anon and authed alike (gated only by
+    // auth.<apex>/sso), so an eager `signIn()` would hijack public browse. The
+    // passive "Sign in to see more" footer (rendered via `showFooter` below) is
+    // the ONLY sign-in affordance and fires `signIn()` exclusively on user tap.
+    // Pagination itself runs for anon and authed alike (gated only by
     // `hasMore`/`isLoading`, debounced inside the hook).
     const handleLoadMore = useCallback(() => {
         if (!feedState.hasMore || feedState.isLoading) return;
@@ -155,10 +155,22 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
 
 /**
  * EMBEDDED web feed (scrollEnabled === false): a non-virtualized plain list that
- * composes inside a parent scroller (e.g. the profile tab inside the profile
- * page's scroll view, or a list-detail ScrollView). Window-virtualizing an
- * embedded feed is wrong — it would track the document scroll, not the parent.
- * Mirrors native's embedded mode.
+ * composes inside a PARENT scroller. Window-virtualizing here would be WRONG —
+ * `useWindowVirtualizer` measures and paginates against the document (`window`)
+ * scroll, but an embedded feed's scroll happens in its parent (an inner
+ * `overflow:auto` container on web), so the window virtualizer would mount only
+ * the first viewport and never paginate. Mirrors native's embedded FlashList
+ * mode (`scrollEnabled={false}` → renderScrollComponent).
+ *
+ * After the feed unification NO web screen currently passes `scrollEnabled=false`
+ * (the profile screen, `lists/[id]` posts, and `feeds/[id]` recent all now own
+ * the document scroll via the virtualized path). This component is retained
+ * deliberately so the shared `Feed` `scrollEnabled` contract is honored
+ * symmetrically on web and native: native's embedded mode is still used (e.g.
+ * `ProfileTabs` on native), and a web caller that opts into `scrollEnabled=false`
+ * must compose correctly rather than silently window-virtualize inside a parent
+ * scroller. Prefer the virtualized document-scroll path; only reach for this when
+ * a genuine inner-scroll parent makes document scroll impossible.
  */
 function EmbeddedWebFeed(props: FeedProps) {
     const merged = { ...DEFAULT_FEED_PROPS, ...props };
@@ -200,8 +212,11 @@ function EmbeddedWebFeed(props: FeedProps) {
 /**
  * SCROLL-OWNING web feed (scrollEnabled !== false): virtualized against the
  * DOCUMENT scroller via `useWindowVirtualizer`. The body scrolls (so scrolling
- * works from anywhere, including over the sticky side columns); only the rows
- * in the virtual window are mounted, so the DOM stays bounded.
+ * works from anywhere, including over the sticky side columns); only the rows in
+ * the virtual window are mounted, so the DOM stays bounded. This is the PRIMARY
+ * web feed render path — embedded (non-scroll-owning) feeds compose by passing
+ * their page header/tab bar as `listHeaderComponent`, so the document scroll
+ * still owns the one virtualized list (mirrors native's `ListHeaderComponent`).
  */
 function VirtualizedWebFeed(props: FeedProps) {
     const merged = { ...DEFAULT_FEED_PROPS, ...props };
@@ -273,21 +288,38 @@ function VirtualizedWebFeed(props: FeedProps) {
     const lastItemEnd = lastItem ? lastItem.start + lastItem.size - virtualizer.options.scrollMargin : 0;
     const spacerHeight = Math.max(totalSize, lastItemEnd);
 
-    // Infinite pagination: when the last MOUNTED virtual row reaches within the
-    // threshold of the data end, request the next page. The virtualizer re-runs
-    // `getVirtualItems()` on every window scroll, so `lastVirtualIndex` advances
-    // as the user nears the bottom of the document. Firing from a `useEffect`
-    // keyed on that index (rather than as a side effect during render) is the
-    // correct React pattern for reacting to the external scroll position, and it
-    // re-fires for each new page once `count` grows. `handleLoadMore` is guarded
-    // (hasMore / isLoading) and debounced in the hook, so eager calls are safe.
-    const lastVirtualIndex = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : 0;
-    const nearEnd = count > 0 && lastVirtualIndex >= count - END_REACHED_ROW_THRESHOLD;
+    // Infinite pagination via an IntersectionObserver on a 1px sentinel at the
+    // END of the measured spacer, observed against the DOCUMENT viewport
+    // (root: null). The previous trigger compared the last MOUNTED virtual row
+    // index to `count`, which STALLS in production: when no row has measured yet
+    // `getTotalSize()` is 0 and `getVirtualItems()` can return an empty set, so
+    // `lastVirtualIndex` never advances and the next page is never requested. The
+    // sentinel is a real DOM node, so the observer fires purely on geometry —
+    // independent of the virtualizer's measurement state — and re-fires for each
+    // new page as the (re-positioned) sentinel re-enters the rootMargin band.
+    // `handleLoadMore` is guarded (hasMore / isLoading) and debounced in the
+    // hook, so repeated intersections are safe. Subscribing to a browser observer
+    // is a legitimate effect (an external event source), not derived state. The
+    // live `handleLoadMore` is read through a ref so the observer is rebuilt only
+    // when the data-end gate (`count`/`hasMore`) actually changes.
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+    const loadMoreRef = useRef(handleLoadMore);
+    loadMoreRef.current = handleLoadMore;
+    const hasMore = feedState.hasMore;
     useEffect(() => {
-        if (nearEnd) {
-            handleLoadMore();
-        }
-    }, [nearEnd, lastVirtualIndex, count, handleLoadMore]);
+        const node = sentinelRef.current;
+        if (!node || count === 0 || !hasMore) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    loadMoreRef.current();
+                }
+            },
+            { root: null, rootMargin: LOAD_MORE_ROOT_MARGIN }
+        );
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [count, hasMore]);
 
     // Scroll restoration against the document scroller (per-route window offset).
     useScrollRestoration('window', { enabled: true });
@@ -356,6 +388,15 @@ function VirtualizedWebFeed(props: FeedProps) {
                                     </div>
                                 );
                             })}
+                            {/* Load-more sentinel: a 1px probe pinned to the END of
+                                the spacer. Observed against the document viewport
+                                with a forward rootMargin so the next page loads just
+                                before the user reaches the bottom. */}
+                            <div
+                                ref={sentinelRef}
+                                aria-hidden
+                                style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 1 }}
+                            />
                         </div>
                     </div>
                 )}

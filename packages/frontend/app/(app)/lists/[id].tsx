@@ -72,7 +72,10 @@ export default function ListDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('posts');
 
-  const TABS = TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) }));
+  // Stable across renders so the posts-tab Feed's `listHeaderComponent`
+  // (which embeds this tab bar) keeps a stable element identity and the
+  // memoized Feed does not re-render every parent render.
+  const TABS = useMemo(() => TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) })), [t]);
 
   const loadList = useCallback(async () => {
     if (!id) return;
@@ -131,6 +134,109 @@ export default function ListDetailScreen() {
     if (listOwner?.username) return `List by @${listOwner.username}`;
     return 'List';
   }, [isOwnList, listOwner, t]);
+
+  // Subheader (avatar + title + byline + stats + follow) and the tab bar are the
+  // list page's scroll-away chrome. On the `posts` tab they are handed to the
+  // scroll-owning <Feed> as its `listHeaderComponent` so the single virtualized
+  // list owns the document scroll on web (mirrors `feeds/[id].tsx` and native's
+  // `ListHeaderComponent`); on the `members` tab the same chrome renders inside
+  // that tab's own <ScrollView>. Declared after the data so it can read `list`.
+  const renderSubheader = useCallback(() => (
+    <View className="px-4 pt-3 pb-2 bg-background">
+      <View className="flex-row items-start gap-3">
+        <Avatar
+          source={list?.avatar || undefined}
+          size={58}
+          style={{ borderRadius: 12 }}
+        />
+        <View className="flex-1 justify-center">
+          <Text
+            className="text-foreground text-[22px] font-bold leading-[26px]"
+            numberOfLines={4}
+          >
+            {list?.title || 'Untitled List'}
+          </Text>
+          <Pressable
+            onPress={() => {
+              const handle = getNormalizedUserHandle({ username: listOwner?.username });
+              if (handle && !isOwnList) {
+                router.push(`/@${handle}`);
+              }
+            }}
+            disabled={isOwnList || !listOwner?.username}
+          >
+            <Text className="text-muted-foreground text-sm mt-0.5">
+              {bylineText}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Description */}
+      {list?.description ? (
+        <Text className="text-foreground text-[15px] leading-[20px] mt-3">
+          {list.description}
+        </Text>
+      ) : null}
+
+      {/* Stats row */}
+      <View className="flex-row items-center gap-4 mt-3 mb-1">
+        <View className="flex-row items-center gap-1">
+          <Text className="text-foreground text-sm font-semibold">
+            {memberCount}
+          </Text>
+          <Text className="text-muted-foreground text-sm">
+            {memberCount === 1 ? 'member' : 'members'}
+          </Text>
+        </View>
+        <View className="flex-row items-center gap-1">
+          <Text className="text-foreground text-sm font-semibold">
+            {subscriberCount}
+          </Text>
+          <Text className="text-muted-foreground text-sm">
+            {subscriberCount === 1
+              ? t('lists.subscriberSingular', { defaultValue: 'subscriber' })
+              : t('lists.subscriberPlural', { defaultValue: 'subscribers' })}
+          </Text>
+        </View>
+        <View className="flex-row items-center gap-1">
+          <Ionicons
+            name={list?.isPublic ? 'globe-outline' : 'lock-closed-outline'}
+            size={14}
+            color={theme.colors.textSecondary}
+          />
+          <Text className="text-muted-foreground text-sm">
+            {list?.isPublic ? 'Public' : 'Private'}
+          </Text>
+        </View>
+        {!isOwnList ? (
+          <View className="ml-auto">
+            <EntityFollowButton
+              entityType="list"
+              entityId={listId}
+              label={t('lists.followList', { defaultValue: 'Follow list' })}
+              followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
+              size="sm"
+            />
+          </View>
+        ) : null}
+      </View>
+    </View>
+  ), [list?.avatar, list?.title, list?.description, list?.isPublic, listOwner?.username, isOwnList, bylineText, memberCount, subscriberCount, listId, theme.colors.textSecondary, t]);
+
+  // Chrome (subheader + tab bar) handed to the posts-tab Feed as its
+  // listHeaderComponent. A single element so the Feed treats it as one header.
+  const postsTabHeader = useMemo(() => (
+    <View>
+      {renderSubheader()}
+      <AnimatedTabBar
+        tabs={TABS}
+        activeTabId="posts"
+        onTabPress={setActiveTab}
+        instanceId={`list-${listId}`}
+      />
+    </View>
+  ), [renderSubheader, TABS, listId]);
 
   const headerRightComponents = useMemo(() => [
     <IconButton variant="icon" key="share" onPress={handleShare}>
@@ -221,109 +327,34 @@ export default function ListDetailScreen() {
         disableSticky
       />
 
-      {/* Subheader: Avatar + Title + Byline */}
-      <View className="px-4 pt-3 pb-2 bg-background">
-        <View className="flex-row items-start gap-3">
-          <Avatar
-            source={list.avatar || undefined}
-            size={58}
-            style={{ borderRadius: 12 }}
-          />
-          <View className="flex-1 justify-center">
-            <Text
-              className="text-foreground text-[22px] font-bold leading-[26px]"
-              numberOfLines={4}
-            >
-              {list.title || 'Untitled List'}
-            </Text>
-            <Pressable
-              onPress={() => {
-                const handle = getNormalizedUserHandle({ username: listOwner?.username });
-                if (handle && !isOwnList) {
-                  router.push(`/@${handle}`);
-                }
-              }}
-              disabled={isOwnList || !listOwner?.username}
-            >
-              <Text className="text-muted-foreground text-sm mt-0.5">
-                {bylineText}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Description */}
-        {list.description ? (
-          <Text className="text-foreground text-[15px] leading-[20px] mt-3">
-            {list.description}
-          </Text>
-        ) : null}
-
-        {/* Stats row */}
-        <View className="flex-row items-center gap-4 mt-3 mb-1">
-          <View className="flex-row items-center gap-1">
-            <Text className="text-foreground text-sm font-semibold">
-              {memberCount}
-            </Text>
-            <Text className="text-muted-foreground text-sm">
-              {memberCount === 1 ? 'member' : 'members'}
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-1">
-            <Text className="text-foreground text-sm font-semibold">
-              {subscriberCount}
-            </Text>
-            <Text className="text-muted-foreground text-sm">
-              {subscriberCount === 1
-                ? t('lists.subscriberSingular', { defaultValue: 'subscriber' })
-                : t('lists.subscriberPlural', { defaultValue: 'subscribers' })}
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-1">
-            <Ionicons
-              name={list.isPublic ? 'globe-outline' : 'lock-closed-outline'}
-              size={14}
-              color={theme.colors.textSecondary}
-            />
-            <Text className="text-muted-foreground text-sm">
-              {list.isPublic ? 'Public' : 'Private'}
-            </Text>
-          </View>
-          {!isOwnList ? (
-            <View className="ml-auto">
-              <EntityFollowButton
-                entityType="list"
-                entityId={listId}
-                label={t('lists.followList', { defaultValue: 'Follow list' })}
-                followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
-                size="sm"
-              />
-            </View>
-          ) : null}
-        </View>
-      </View>
-
-      {/* Tab bar */}
-      <AnimatedTabBar
-        tabs={TABS}
-        activeTabId={activeTab}
-        onTabPress={setActiveTab}
-        instanceId={`list-${listId}`}
-      />
-
-      {/* Tab content */}
+      {/* Tab content.
+          `posts` is the ONLY feed tab and it is the scroll-owning virtualized
+          <Feed> (no `scrollEnabled={false}`): on web it owns the document scroll
+          via the window virtualizer, with the subheader + tab bar handed to it as
+          its `listHeaderComponent` (so they scroll away with the content and the
+          shell mask/rails/insets still apply); on native the Feed owns its own
+          scroll + pull-to-refresh. The `members` tab renders NON-feed content
+          inside its own <ScrollView>, so no feed is embedded in a nested scroller
+          anywhere here. Mirrors `feeds/[id].tsx`. */}
       {activeTab === 'posts' ? (
-        <ScrollView
-          className="flex-1"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.colors.primary}
+        memberCount === 0 ? (
+          <ScrollView
+            className="flex-1"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.primary}
+              />
+            }
+          >
+            {renderSubheader()}
+            <AnimatedTabBar
+              tabs={TABS}
+              activeTabId={activeTab}
+              onTabPress={setActiveTab}
+              instanceId={`list-${listId}`}
             />
-          }
-        >
-          {memberCount === 0 ? (
             <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
               <Ionicons name="newspaper-outline" size={48} color={theme.colors.textSecondary} />
               <Text className="text-muted-foreground text-base font-medium text-center">
@@ -335,15 +366,15 @@ export default function ListDetailScreen() {
                 })}
               </Text>
             </View>
-          ) : (
-            <Feed
-              type="mixed"
-              filters={{ authors: (list.memberOxyUserIds || []).join(',') }}
-              hideHeader
-              scrollEnabled={false}
-            />
-          )}
-        </ScrollView>
+          </ScrollView>
+        ) : (
+          <Feed
+            type="mixed"
+            filters={{ authors: (list.memberOxyUserIds || []).join(',') }}
+            hideHeader
+            listHeaderComponent={postsTabHeader}
+          />
+        )
       ) : (
         <ListMembers
           listId={listId}
@@ -351,6 +382,17 @@ export default function ListDetailScreen() {
           isOwnList={isOwnList}
           refreshing={refreshing}
           onRefresh={onRefresh}
+          header={
+            <View>
+              {renderSubheader()}
+              <AnimatedTabBar
+                tabs={TABS}
+                activeTabId={activeTab}
+                onTabPress={setActiveTab}
+                instanceId={`list-${listId}`}
+              />
+            </View>
+          }
         />
       )}
     </ThemedView>
@@ -367,12 +409,14 @@ function ListMembers({
   isOwnList,
   refreshing,
   onRefresh,
+  header,
 }: {
   listId: string;
   memberIds: string[];
   isOwnList: boolean;
   refreshing: boolean;
   onRefresh: () => void;
+  header?: React.ReactNode;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -388,6 +432,7 @@ function ListMembers({
       }
       contentContainerStyle={{ paddingBottom: 100 }}
     >
+      {header}
       {isOwnList && (
         <TouchableOpacity
           className="flex-row items-center gap-3 px-4 py-3 border-b border-border"

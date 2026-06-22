@@ -804,6 +804,11 @@ export default function CustomFeedTimelineScreen() {
           <Text className="text-muted-foreground">Loading...</Text>
         </View>
       ) : activeTab === 'recent' ? (
+        // `recent` is the ONLY feed tab and it is the virtualized, scroll-owning
+        // Feed (NOT scrollEnabled={false}) — it owns the document scroll on web
+        // (window virtualizer) with the tab bar passed as its listHeaderComponent.
+        // The other tabs (profiles/topics/reviews) render NON-feed content inside
+        // their own <ScrollView>, so the feed is not embedded anywhere here.
         <Feed type="mixed" filters={feedFilters} listHeaderComponent={listHeader} />
       ) : (
         <ScrollView stickyHeaderIndices={[0]}>

@@ -34,6 +34,7 @@ import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Bell } from '@/assets/icons/bell-icon';
+import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 
 const notificationLogger = createScopedLogger('Notifications');
 
@@ -379,44 +380,56 @@ const NotificationsScreen: React.FC = () => {
                 <ThemedView className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                    <Header
-                        options={{
-                            title: t('Notifications'),
-                            showBackButton: false,
-                            rightComponents: [
-                                unreadCount > 0 ? (
-                                    <IconButton variant="icon"
-                                        key="mark-all"
-                                        onPress={handleMarkAllAsRead}
-                                        disabled={markAllAsReadMutation.isPending}
-                                        accessibilityLabel={t('notification.mark_all_read')}
-                                    >
-                                        <Ionicons
-                                            name="checkmark-done-outline"
-                                            size={22}
-                                            color={theme.colors.primary}
-                                        />
-                                    </IconButton>
-                                ) : null,
-                            ].filter(Boolean),
-                        }}
-                        hideBottomBorder={isAuthenticated}
-                    />
+                    {/* Header chrome pinned inside the rounded panel via
+                        PanelStickyHeader. The notifications list is document-scroll
+                        on web (window virtualizer), so the header/tab bar must pin
+                        at PANEL_TOP_INSET (not top:0, where the bleed mask would clip
+                        them). `disableSticky` hands sticky ownership to
+                        PanelStickyHeader. When the tab bar is shown it stacks as
+                        level={1} below the header. */}
+                    <PanelStickyHeader level={0}>
+                        <Header
+                            options={{
+                                title: t('Notifications'),
+                                showBackButton: false,
+                                rightComponents: [
+                                    unreadCount > 0 ? (
+                                        <IconButton variant="icon"
+                                            key="mark-all"
+                                            onPress={handleMarkAllAsRead}
+                                            disabled={markAllAsReadMutation.isPending}
+                                            accessibilityLabel={t('notification.mark_all_read')}
+                                        >
+                                            <Ionicons
+                                                name="checkmark-done-outline"
+                                                size={22}
+                                                color={theme.colors.primary}
+                                            />
+                                        </IconButton>
+                                    ) : null,
+                                ].filter(Boolean),
+                            }}
+                            hideBottomBorder={isAuthenticated}
+                            disableSticky
+                        />
+                    </PanelStickyHeader>
 
                     {isAuthenticated && (
-                        <AnimatedTabBar
-                            tabs={[
-                                { id: 'all', label: t('notifications.tabs.all') },
-                                { id: 'mentions', label: t('notifications.tabs.mentions') },
-                                { id: 'follows', label: t('notifications.tabs.follows') },
-                                { id: 'likes', label: t('notifications.tabs.likes') },
-                                { id: 'posts', label: t('notifications.tabs.posts') },
-                                { id: 'pokes', label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }) },
-                            ]}
-                            activeTabId={activeTab}
-                            onTabPress={handleTabPress}
-                            scrollEnabled={true}
-                        />
+                        <PanelStickyHeader level={1} zIndex={100}>
+                            <AnimatedTabBar
+                                tabs={[
+                                    { id: 'all', label: t('notifications.tabs.all') },
+                                    { id: 'mentions', label: t('notifications.tabs.mentions') },
+                                    { id: 'follows', label: t('notifications.tabs.follows') },
+                                    { id: 'likes', label: t('notifications.tabs.likes') },
+                                    { id: 'posts', label: t('notifications.tabs.posts') },
+                                    { id: 'pokes', label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }) },
+                                ]}
+                                activeTabId={activeTab}
+                                onTabPress={handleTabPress}
+                                scrollEnabled={true}
+                            />
+                        </PanelStickyHeader>
                     )}
 
                     {renderContent()}

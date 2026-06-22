@@ -11,6 +11,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import SEO from '@/components/SEO';
+import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 
 export default function TrendScreen() {
     const { name, description, type } = useLocalSearchParams<{
@@ -57,16 +58,23 @@ export default function TrendScreen() {
                     defaultValue: `Posts about ${topicName} on Mention`,
                 })}
             />
-            <Header
-                options={{
-                    title: topicName,
-                    leftComponents: [
-                        <IconButton key="back" variant="icon" onPress={safeBack}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-            />
+            {/* PanelStickyHeader owns the web sticky position/inset + opaque
+                panel surface; `disableSticky` on the inner <Header> hands sticky
+                ownership to PanelStickyHeader so the header pins at PANEL_TOP_INSET
+                (inside the panel) instead of top:0 (clipped by the bleed mask). */}
+            <PanelStickyHeader level={0}>
+                <Header
+                    options={{
+                        title: topicName,
+                        leftComponents: [
+                            <IconButton key="back" variant="icon" onPress={safeBack}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    disableSticky
+                />
+            </PanelStickyHeader>
             <Feed
                 type="topic"
                 filters={filters}

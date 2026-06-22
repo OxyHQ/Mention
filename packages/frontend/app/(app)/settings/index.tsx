@@ -76,6 +76,12 @@ export default function SettingsScreen() {
 
     return (
         <ThemedView className="flex-1">
+            {/* NOT wrapped in <PanelStickyHeader>: settings uses an inner
+                Animated.ScrollView (registered to LayoutScroll), NOT the
+                document-scroll model the feed screens use, and its header is
+                already `disableSticky` (non-sticky, in flow above the inner
+                scroller). Adopting PanelStickyHeader here would require changing
+                the scroll model, so it is intentionally left as-is. */}
             <Header
                 options={{
                     title: t("settings.title"),

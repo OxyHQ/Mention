@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedView } from '@/components/ThemedView';
@@ -27,6 +27,7 @@ import { useDrawer } from '@/context/DrawerContext';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
+import { PanelStickyHeader, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -55,7 +56,7 @@ const HomeScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
-    const headerHeight = 48;
+    const headerHeight = PANEL_HEADER_HEIGHT;
 
     // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header
     // derives its motion from this one value so it stays in lock-step with the
@@ -244,13 +245,13 @@ const HomeScreen: React.FC = () => {
                 <ThemedView className="flex-1 web:z-auto relative flex-col">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                    {/* Header - animated. On web it carries the panel's opaque
-                        surface (`bg-card`) + top rounded corners so it sits inside
-                        the rounded panel and masks the feed's top-edge bleed. It
-                        has NO border of its own — the single continuous rounded
-                        border is owned by the frame overlay (in the (app) layout),
-                        painted ABOVE this header. */}
-                    <Animated.View style={[styles.headerContainer, headerAnimatedStyle]} className="web:bg-card web:rounded-t-[28px] web:sticky web:top-2">
+                    {/* Header - animated. <PanelStickyHeader> owns the web sticky
+                        position/inset, the opaque `bg-card` surface, the top
+                        rounded corners (masking the feed's top-edge bleed), and the
+                        z-index. The screen still supplies the reanimated auto-hide
+                        translate via `style`. NATIVE: PanelStickyHeader becomes the
+                        absolute top overlay. */}
+                    <PanelStickyHeader level={0} style={headerAnimatedStyle}>
                         <Header
                             options={{
                                 titlePosition: 'center',
@@ -281,29 +282,20 @@ const HomeScreen: React.FC = () => {
                             hideBottomBorder={true}
                             disableSticky={true}
                         />
-                    </Animated.View>
+                    </PanelStickyHeader>
 
                     {/* Spacer for header */}
                     <Animated.View style={tabBarSpacerStyle} />
 
-                    {/* Tab Navigation - sticky. On web it carries the panel's
-                        OPAQUE surface (`bg-card`) so the feed is never visible
-                        behind it during the header auto-hide slide — without an
-                        opaque bg, the few-ms slide exposed the feed in the gap
-                        between the header row and the tabs (the transparent-gap
-                        flicker). Header + tabs both translate by the same
-                        `headerTranslateY`, so they move in lock-step. It ALSO
-                        carries the panel's top rounded corners (`rounded-t-[28px]`):
-                        when the header auto-hides and the tab bar rises to the
-                        panel's top inset, its rounded top corners mask the feed's
-                        top-edge bleed in the rounded-corner triangles (the header
-                        does this while visible). A square-cornered tab bar at the
-                        top would expose feed content in the panel's rounded corners
-                        — the bleed mask (z-30) sits BELOW the tab bar and cannot
-                        cover there. While the header is visible the tab bar sits
-                        flush below it over the same `bg-card` panel surface, so the
-                        rounded top is invisible (same color behind it). */}
-                    <Animated.View style={[styles.stickyTabBar, tabBarStickyAnimatedStyle]} className="web:bg-card web:rounded-t-[28px] web:sticky web:top-[56px]">
+                    {/* Tab Navigation - sticky. <PanelStickyHeader level={1}> pins
+                        it directly below the level-0 header (at PANEL_TOP_INSET +
+                        PANEL_HEADER_HEIGHT) with the same opaque `bg-card` surface
+                        and top rounded corners, so the feed is never exposed in the
+                        auto-hide gap and the rounded corners keep masking the feed's
+                        top-edge bleed when the tab bar rises to the panel top.
+                        zIndex 100 keeps it one below the header (101). Header + tabs
+                        translate by the same `headerTranslateY`, in lock-step. */}
+                    <PanelStickyHeader level={1} zIndex={100} style={tabBarStickyAnimatedStyle}>
                         <AnimatedTabBar
                             tabs={[
                                 { id: 'for_you', label: t('For You') },
@@ -315,7 +307,7 @@ const HomeScreen: React.FC = () => {
                             onTabPress={handleTabPress}
                             scrollEnabled={canUsePrivateApi && pinnedFeeds.length > 0}
                         />
-                    </Animated.View>
+                    </PanelStickyHeader>
 
                     {/* Content */}
                     {renderContent()}
@@ -335,46 +327,5 @@ const HomeScreen: React.FC = () => {
         </>
     );
 };
-
-const styles = StyleSheet.create({
-    headerContainer: {
-        // WEB sticky + top inset live in NativeWind classes on the Animated.View
-        // (`web:sticky web:top-2`): the header pins to the document viewport's top
-        // (8px panel gutter inset, NOT top:0 — the bleed-mask's 40px gutter
-        // box-shadow covers the top 8px and would clip a header at top:0) and the
-        // reanimated translate (driven by window.scrollY) hides it on scroll. The
-        // opaque `web:bg-card` class paints the panel surface so the header masks
-        // the feed's top-edge bleed. NATIVE: absolute overlay over the inner
-        // ScrollView, transparent (the screen owns its background).
-        ...Platform.select({
-            web: {},
-            default: {
-                position: 'absolute' as const,
-                top: 0,
-                backgroundColor: 'transparent',
-            },
-        }),
-        left: 0,
-        right: 0,
-        zIndex: 101,
-    },
-    stickyTabBar: {
-        // WEB sticky + top inset live in NativeWind classes on the Animated.View
-        // (`web:sticky web:top-[56px]`): sit just below the sticky header (8px
-        // panel gutter + 48px header height) so both stay pinned while the
-        // document scrolls. The opaque `web:bg-card` class owns the surface so the
-        // feed is never exposed in the auto-hide gap. NATIVE: relative,
-        // transparent so the screen background shows through.
-        ...Platform.select({
-            web: {},
-            default: {
-                position: 'relative' as const,
-                top: 0,
-                backgroundColor: 'transparent',
-            },
-        }),
-        zIndex: 100,
-    },
-});
 
 export default HomeScreen;

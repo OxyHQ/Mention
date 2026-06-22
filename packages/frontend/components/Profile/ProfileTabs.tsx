@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -18,6 +18,8 @@ import { listsService } from '@/services/listsService';
 import type { FeedType, HydratedPost } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 import { logger } from '@/lib/logger';
+
+const IS_WEB = Platform.OS === 'web';
 
 const PinnedPostItem = React.lazy(() => import('@/components/Feed/PostItem'));
 
@@ -132,7 +134,17 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Unified feed for posts, replies, likes, boosts — works for both native and federated
+  // Unified feed for posts, replies, likes, boosts — works for both native and federated.
+  //
+  // WEB: the profile page scrolls the DOCUMENT (no inner ScrollView — see the
+  // `IS_WEB` branch in ProfileScreen), so the Feed runs its virtualized,
+  // scroll-owning path. `scrollEnabled` is left at its default (true): the
+  // window virtualizer measures its wrapper's offset under the sticky
+  // banner/tabs (via `scrollMargin`) and keeps the mounted-row count bounded
+  // while the body scrolls. NATIVE: the profile's inner Animated.ScrollView owns
+  // the scroll, so the feed must NOT scroll itself — pass `scrollEnabled={false}`
+  // there so FlashList composes inside the parent scroller (renders via the
+  // non-scrolling component). The pinned post stays above the feed either way.
   return (
     <View>
       {/* Pinned post - only show on posts tab */}
@@ -145,7 +157,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         type={tab as FeedType}
         userId={profileId}
         hideHeader={true}
-        scrollEnabled={false}
+        scrollEnabled={IS_WEB ? undefined : false}
         contentContainerStyle={{ paddingBottom: 100 }}
       />
     </View>

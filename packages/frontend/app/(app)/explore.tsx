@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedView } from '@/components/ThemedView';
@@ -21,6 +21,7 @@ import { IconButton } from '@/components/ui/Button';
 import { TrendsWidget } from '@/components/widgets/TrendsWidget';
 import { TrendingList } from '@/components/trending/TrendingList';
 import { useTrendsStore } from '@/store/trendsStore';
+import { PanelStickyHeader, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'people' | 'starter-packs';
 
@@ -29,7 +30,7 @@ const ExploreScreen: React.FC = () => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
-  const headerHeight = 48;
+  const headerHeight = PANEL_HEADER_HEIGHT;
 
   // Shared auto-hide signal (0 = visible, 1 = hidden) — the same hook the bottom
   // bar uses, so the header and the FAB stay in lock-step with the bar instead of
@@ -127,12 +128,11 @@ const ExploreScreen: React.FC = () => {
         <ThemedView className="flex-1 web:z-auto relative flex-col">
           <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-          {/* Header - animated. On web it carries the panel's opaque surface
-              (`bg-card`) + top rounded corners so it sits inside the rounded panel
-              and masks the feed's top-edge bleed. It has NO border of its own —
-              the single continuous rounded border is owned by the frame overlay
-              (in the (app) layout), painted ABOVE this header. */}
-          <Animated.View style={[styles.headerContainer, headerAnimatedStyle]} className="web:bg-card web:rounded-t-[28px] web:sticky web:top-2">
+          {/* Header - animated. <PanelStickyHeader> owns the web sticky
+              position/inset, opaque `bg-card` surface, top rounded corners, and
+              z-index; the screen supplies the reanimated auto-hide translate.
+              NATIVE: PanelStickyHeader becomes the absolute top overlay. */}
+          <PanelStickyHeader level={0} style={headerAnimatedStyle}>
             <Header
               options={{
                 title: t('Explore'),
@@ -148,23 +148,20 @@ const ExploreScreen: React.FC = () => {
               hideBottomBorder={true}
               disableSticky={true}
             />
-          </Animated.View>
+          </PanelStickyHeader>
 
           {/* Spacer for header */}
           <Animated.View style={tabBarSpacerStyle} />
 
           {/* Tab Navigation - sticky. The trending strip is rendered as the
-              feed's ListHeaderComponent so it scrolls away with the content
-              while the tab bar stays pinned at the top. On web it carries the
-              panel's OPAQUE `bg-card` surface so the feed is never visible behind
-              it during the header auto-hide slide (no transparent-gap flicker);
-              header + tabs translate by the same value, in lock-step. It ALSO
-              carries the panel's top rounded corners (`rounded-t-[28px]`): when the
-              header auto-hides and the tab bar rises to the panel's top inset, its
-              rounded top corners mask the feed's top-edge bleed in the rounded
-              corner triangles (a square-cornered tab bar would expose feed content
-              there — the bleed mask sits below it). Mirrors `app/(app)/index.tsx`. */}
-          <Animated.View style={[styles.stickyTabBar, tabBarStickyAnimatedStyle]} className="web:bg-card web:rounded-t-[28px] web:sticky web:top-[56px]">
+              feed's ListHeaderComponent so it scrolls away with the content while
+              the tab bar stays pinned. <PanelStickyHeader level={1}> pins it
+              directly below the level-0 header with the same opaque `bg-card`
+              surface + top rounded corners (so the feed is never exposed in the
+              auto-hide gap and the rounded corners keep masking the feed's
+              top-edge bleed); zIndex 100 keeps it one below the header.
+              Mirrors `app/(app)/index.tsx`. */}
+          <PanelStickyHeader level={1} zIndex={100} style={tabBarStickyAnimatedStyle}>
             <AnimatedTabBar
               tabs={[
                 { id: 'all', label: t('All') },
@@ -177,7 +174,7 @@ const ExploreScreen: React.FC = () => {
               onTabPress={handleTabPress}
               scrollEnabled={true}
             />
-          </Animated.View>
+          </PanelStickyHeader>
 
           {/* Content */}
           {renderContent()}
@@ -196,44 +193,5 @@ const ExploreScreen: React.FC = () => {
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  headerContainer: {
-    // WEB sticky + top inset live in NativeWind classes on the Animated.View
-    // (`web:sticky web:top-2`): the header pins to the document viewport at the
-    // panel's 8px gutter inset (NOT top:0 — the bleed-mask's 40px gutter
-    // box-shadow covers the top 8px and would clip it) and the auto-hide translate
-    // (driven by window.scrollY) hides it. The opaque `web:bg-card` class paints
-    // the panel surface so the header masks the feed's top-edge bleed. NATIVE:
-    // transparent absolute overlay over the scrollable content.
-    ...Platform.select({
-      web: {},
-      default: {
-        position: 'absolute' as const,
-        top: 0,
-        backgroundColor: 'transparent',
-      },
-    }),
-    left: 0,
-    right: 0,
-    zIndex: 101,
-  },
-  stickyTabBar: {
-    // WEB sticky + top inset live in NativeWind classes on the Animated.View
-    // (`web:sticky web:top-[56px]`): sit just below the sticky header (8px panel
-    // gutter + 48px header). The opaque `web:bg-card` class owns the surface so
-    // the feed is never exposed in the auto-hide gap. NATIVE: relative,
-    // transparent so the screen background shows through.
-    ...Platform.select({
-      web: {},
-      default: {
-        position: 'relative' as const,
-        top: 0,
-        backgroundColor: 'transparent',
-      },
-    }),
-    zIndex: 100,
-  },
-});
 
 export default ExploreScreen;

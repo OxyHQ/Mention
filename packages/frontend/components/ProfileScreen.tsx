@@ -34,6 +34,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { panelStickyTopInset } from '@/components/shell/PanelChrome';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -544,9 +545,11 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             fades it out over the first 120px via
                             `headerBackgroundOpacity`. WEB: there is no inner
                             ScrollView (the DOCUMENT scrolls), so an `absolute` banner
-                            would scroll away. Instead it is `web:sticky web:top-2`
-                            (pinned to the rounded panel's 8px top-gutter inset —
-                            sticky's containing block is the panel column, so it stays
+                            would scroll away. Instead it is `web:sticky` +
+                            `panelStickyTopInset` (pinned to the rounded panel's
+                            PANEL_TOP_INSET top-gutter inset — from the single shared
+                            constant, no literal `top-2` here — and sticky's
+                            containing block is the panel column, so it stays
                             INSIDE the panel, never viewport-fixed). The negative
                             bottom margin (`-170px`) cancels its flow height so the
                             content's own `marginTop + paddingTop` offset is NOT
@@ -558,8 +561,8 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                         {!minimalistMode &&
                             (bannerUri ? (
                                 <View
-                                    className="left-0 right-0 overflow-hidden web:sticky web:top-2 web:z-[1] web:[margin-bottom:-170px]"
-                                    style={[webStickyChrome.banner, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
+                                    className="left-0 right-0 overflow-hidden web:sticky web:z-[1] web:[margin-bottom:-170px]"
+                                    style={[webStickyChrome.banner, panelStickyTopInset, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
                                 >
                                     <ImageBackground
                                         source={{ uri: bannerUri }}
@@ -578,8 +581,8 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 </View>
                             ) : (
                                 <View
-                                    className="left-0 right-0 overflow-hidden bg-primary/[0.125] web:sticky web:top-2 web:z-[1] web:[margin-bottom:-170px]"
-                                    style={[webStickyChrome.banner, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
+                                    className="left-0 right-0 overflow-hidden bg-primary/[0.125] web:sticky web:z-[1] web:[margin-bottom:-170px]"
+                                    style={[webStickyChrome.banner, panelStickyTopInset, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
                                 >
                                     <Animated.View
                                         className="bg-background"
@@ -597,10 +600,10 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             share / more). NATIVE: `absolute`, `top: insets.top+6`,
                             `right: DEFAULT_PADDING-8`, zIndex 10 — pinned at the top
                             of the non-scrolling root. WEB: the cluster lives inside a
-                            full-width `web:sticky web:top-2` wrapper pinned to the
-                            panel's top-gutter inset (same pattern as the home
-                            header, which is `web:sticky web:top-2` on a full-width
-                            block — sticky's containing block is the panel column, so
+                            full-width `web:sticky` + `panelStickyTopInset` wrapper
+                            pinned to the panel's PANEL_TOP_INSET top-gutter inset
+                            (same pattern as the PanelStickyHeader the home header
+                            uses — sticky's containing block is the panel column, so
                             the cluster stays INSIDE the panel, never viewport-fixed).
                             The wrapper has 0 flow height (its only child is
                             `absolute`) and is `pointer-events-none` so it never blocks
@@ -608,7 +611,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             `web:z-[101]` matches the home header so it paints above
                             the feed/content (z-3) and the bleed mask (z-30) but below
                             the panel's border frame (z-120). */}
-                        <View className="left-0 right-0 web:sticky web:top-2 web:z-[101] web:pointer-events-none" style={webStickyChrome.chromeAnchor}>
+                        <View className="left-0 right-0 web:sticky web:z-[101] web:pointer-events-none" style={[webStickyChrome.chromeAnchor, panelStickyTopInset]}>
                             <View
                                 className="absolute flex-row items-center gap-1 web:pointer-events-auto"
                                 style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING - 8 }, themedStyles.headerActions]}
@@ -648,13 +651,14 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             NATIVE: `absolute`, `top: insets.top+6`, `left:
                             DEFAULT_PADDING`, `right: headerOverlayRight` (truncates
                             before the action icons), zIndex 10. WEB: same full-width
-                            `web:sticky web:top-2` wrapper as the actions cluster, so
-                            it pins to the panel's top-gutter inset INSIDE the panel
-                            (never viewport-fixed). The fade is driven by the same
+                            `web:sticky` + `panelStickyTopInset` wrapper as the
+                            actions cluster, so it pins to the panel's PANEL_TOP_INSET
+                            top-gutter inset INSIDE the panel (never viewport-fixed).
+                            The fade is driven by the same
                             window-fed `scrollY` interpolation as native. The overlay
                             is `pointer-events-none` (matching native), and the wrapper
                             consumes 0 net flow height. */}
-                        <View className="left-0 right-0 web:sticky web:top-2 web:z-[101] web:pointer-events-none" style={webStickyChrome.chromeAnchor}>
+                        <View className="left-0 right-0 web:sticky web:z-[101] web:pointer-events-none" style={[webStickyChrome.chromeAnchor, panelStickyTopInset]}>
                             <Animated.View
                                 className="absolute"
                                 style={[
@@ -728,20 +732,21 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     )}
                                 </View>
 
-                                {/* Tabs — sticky at the rounded panel's 8px
-                                    top-gutter inset (`web:top-2`) while the document
-                                    scrolls (mirrors native's `stickyHeaderIndices={[1]}`
-                                    pinning at the scroll-viewport top). `web:top-2`
-                                    aligns the pinned tab bar flush with the panel top
-                                    — the same inset the banner and header chrome pin
-                                    to — instead of poking into the gutter ring that
-                                    the bleed mask paints over. It lives inside the
+                                {/* Tabs — sticky at the rounded panel's
+                                    PANEL_TOP_INSET top-gutter inset (`web:sticky` +
+                                    `panelStickyTopInset`) while the document scrolls
+                                    (mirrors native's `stickyHeaderIndices={[1]}`
+                                    pinning at the scroll-viewport top). That shared
+                                    inset aligns the pinned tab bar flush with the
+                                    panel top — the same inset the banner and header
+                                    chrome pin to — instead of poking into the gutter
+                                    ring that the bleed mask paints over. It lives inside the
                                     z-3 content wrapper, so `web:z-[5]` keeps it above
                                     the feed content (which scrolls under it); the
                                     `bg-background` on AnimatedTabBar keeps the feed
                                     from showing through, and the pinned tab bar paints
                                     over the lower-z banner that sits behind it. */}
-                                <View className="web:sticky web:top-2 web:z-[5]">
+                                <View className="web:sticky web:z-[5]" style={panelStickyTopInset}>
                                     <AnimatedTabBar
                                         tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
                                         activeTabId={String(activeTab)}
@@ -842,12 +847,17 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
 // cluster, compact-name overlay). NATIVE pins each piece `absolute` to the top
 // of the NON-scrolling root (the content scrolls over them inside the inner
 // Animated.ScrollView). WEB has no inner ScrollView — the DOCUMENT scrolls — so
-// each piece pins via `web:sticky web:top-2` (the rounded panel's 8px top-gutter
-// inset). `position: sticky` keeps the panel column as its containing block, so
-// the chrome stays INSIDE the rounded center panel (never viewport-fixed, unlike
-// the prior `web:fixed`), mirroring the home header (`web:sticky web:top-2`). The
-// web `position`/`top`/`z` live in NativeWind classes; this StyleSheet only
-// supplies the native `absolute` anchor (web entries are empty so the classes win).
+// each piece pins via `web:sticky` + the shared `panelStickyTopInset` style
+// (the rounded panel's PANEL_TOP_INSET top-gutter inset, from the single
+// PanelChrome source of truth — no literal `top-2` here). `position: sticky`
+// keeps the panel column as its containing block, so the chrome stays INSIDE the
+// rounded center panel (never viewport-fixed), mirroring the home header's
+// PanelStickyHeader. These bespoke overlapping layers keep their own `web:z-[…]`,
+// negative margins and pointer-events, so they consume `panelStickyTopInset`
+// rather than the full <PanelStickyHeader> wrapper (which would flatten their
+// z-layout and break the banner/name fades). The web `position`/`z` live in
+// NativeWind classes; this StyleSheet only supplies the native `absolute` anchor
+// (web entries are empty so the classes win).
 const webStickyChrome = StyleSheet.create({
     banner: {
         ...Platform.select({
