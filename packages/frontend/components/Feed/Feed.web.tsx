@@ -255,6 +255,24 @@ function VirtualizedWebFeed(props: FeedProps) {
     const virtualItems = virtualizer.getVirtualItems();
     const totalSize = virtualizer.getTotalSize();
 
+    // The measured spacer height MUST contain every absolutely-positioned row,
+    // otherwise the rows overflow it. Because the rows are `position: absolute`,
+    // an overflow does NOT grow the spacer — so the feed column (and the flex row
+    // that is the side rails' sticky containing block) stays at its pre-overflow
+    // height while the document grows past it. Once the user scrolls beyond that
+    // stale height the sticky rails hit the bottom of their containing block and
+    // scroll away. This happens whenever the rows' real extent diverges from
+    // `getTotalSize()` — e.g. `scrollMargin` is momentarily stale after content
+    // above the window grows (async media load) so `virtualRow.start` (computed
+    // against the new measurements) and `getTotalSize()` disagree. Sizing the
+    // spacer to the MAX of `totalSize` and the rows' real extent (in spacer
+    // space) guarantees the spacer always contains its rows, so the feed column
+    // — and the rails' containing block — always grows to the full content
+    // height and the rails stay pinned.
+    const lastItem = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1] : undefined;
+    const lastItemEnd = lastItem ? lastItem.start + lastItem.size - virtualizer.options.scrollMargin : 0;
+    const spacerHeight = Math.max(totalSize, lastItemEnd);
+
     // Infinite pagination: when the last MOUNTED virtual row reaches within the
     // threshold of the data end, request the next page. The virtualizer re-runs
     // `getVirtualItems()` on every window scroll, so `lastVirtualIndex` advances
@@ -317,7 +335,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                     <div style={contentContainerCss}>
                         <div
                             ref={wrapperRef}
-                            style={{ height: totalSize, width: '100%', position: 'relative' }}
+                            style={{ height: spacerHeight, width: '100%', position: 'relative' }}
                         >
                             {virtualItems.map((virtualRow) => {
                                 const row = feedRows[virtualRow.index];
