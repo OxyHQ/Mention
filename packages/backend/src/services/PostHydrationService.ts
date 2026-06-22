@@ -7,6 +7,7 @@ import Bookmark from '../models/Bookmark';
 import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { linkMetadataService } from './linkMetadataService';
+import { readPreviews, storePreview, markNoPreview } from './linkPreviewCache';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { resolveAvatarUrl, resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
@@ -99,6 +100,14 @@ const DEFAULT_PRIVACY = {
   hideReplyCounts: false,
   hideSaveCounts: false,
 };
+
+/**
+ * URLs currently being resolved in the background by {@link PostHydrationService.warmLinkPreviews}.
+ * Single-flight guard so concurrent feed requests never fetch the same remote
+ * page more than once. Process-local (sufficient — entries are short-lived and
+ * the cache itself is shared via Redis); cleared in the warm task's `finally`.
+ */
+const linkPreviewWarmInflight = new Set<string>();
 
 export class PostHydrationService {
   async hydratePosts(rawPosts: object[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
@@ -641,6 +650,25 @@ export class PostHydrationService {
     return userMap;
   }
 
+  /**
+   * Build the per-post link-preview map for a batch of posts.
+   *
+   * CRITICAL — this runs on the `/feed/*` response path and MUST NOT block on
+   * remote network I/O. Resolving a link preview requires fetching the remote
+   * HTML page (a multi-second round trip); doing that synchronously here caused
+   * federated/external-link-heavy feeds to block for minutes when remote hosts
+   * were slow or timed out.
+   *
+   * Strategy:
+   *  - READ resolved previews from the Redis-backed {@link linkPreviewCache}
+   *    under a hard time budget (no remote fetch, bounded).
+   *  - Cache MISSES are warmed FIRE-AND-FORGET in the background (single-flight
+   *    deduped per URL) so subsequent feed renders get the preview. The current
+   *    response returns immediately with whatever was already cached.
+   *
+   * Net effect: the first time a URL appears it has no preview (warming in the
+   * background); every subsequent render serves it instantly from cache.
+   */
   private async buildLinkPreviewMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostLinkPreview>> {
     const previewMap = new Map<string, PostLinkPreview>();
 
@@ -665,32 +693,83 @@ export class PostHydrationService {
     }
 
     const uniqueUrls = Array.from(urlToPosts.keys());
-    
-    // Limit concurrent link metadata fetches to avoid overwhelming the service
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < uniqueUrls.length; i += BATCH_SIZE) {
-      const batch = uniqueUrls.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        batch.map(async (url) => {
-          try {
-            const metadata = await linkMetadataService.fetchMetadata(url);
-            const preview: PostLinkPreview = {
-              url: metadata.url,
-              title: metadata.title || undefined,
-              description: metadata.description || undefined,
-              image: metadata.image || undefined,
-              siteName: metadata.siteName || undefined,
-            };
+    if (uniqueUrls.length === 0) return previewMap;
 
-            urlToPosts.get(url)?.forEach((postId) => previewMap.set(postId, preview));
-          } catch (error) {
-            logger.warn('[PostHydration] Failed to fetch link metadata for', url, error);
-          }
-        }),
-      );
+    // Read-only, bounded lookup of already-resolved previews. Never fetches.
+    const { previews, toWarm } = await readPreviews(uniqueUrls);
+
+    for (const [url, preview] of previews) {
+      urlToPosts.get(url)?.forEach((postId) => previewMap.set(postId, preview));
+    }
+
+    // Warm cache misses in the background — does NOT gate this response.
+    if (toWarm.length > 0) {
+      this.warmLinkPreviews(toWarm);
     }
 
     return previewMap;
+  }
+
+  /**
+   * Resolve link previews for the given URLs and write them to the cache.
+   *
+   * Runs entirely off the response path (fire-and-forget). De-duped per URL via
+   * {@link linkPreviewWarmInflight} so concurrent feed requests don't fetch the
+   * same remote page more than once, and capped concurrency so a burst of cold
+   * URLs can't overwhelm outbound bandwidth. Failures are recorded as negative
+   * cache markers so a dead/preview-less URL is not re-fetched every render.
+   */
+  private warmLinkPreviews(urls: string[]): void {
+    const pending = urls.filter((url) => !linkPreviewWarmInflight.has(url));
+    if (pending.length === 0) return;
+
+    for (const url of pending) {
+      linkPreviewWarmInflight.add(url);
+    }
+
+    void (async () => {
+      const WARM_CONCURRENCY = 5;
+      for (let i = 0; i < pending.length; i += WARM_CONCURRENCY) {
+        const batch = pending.slice(i, i + WARM_CONCURRENCY);
+        await Promise.all(
+          batch.map(async (url) => {
+            try {
+              const metadata = await linkMetadataService.fetchMetadata(url);
+              const hasContent = Boolean(
+                metadata.title || metadata.description || metadata.image,
+              );
+              if (!hasContent) {
+                await markNoPreview(url);
+                return;
+              }
+              const preview: PostLinkPreview = {
+                url: metadata.url,
+                title: metadata.title || undefined,
+                description: metadata.description || undefined,
+                image: metadata.image || undefined,
+                siteName: metadata.siteName || undefined,
+              };
+              await storePreview(url, preview);
+            } catch (error) {
+              // Mark as no-preview so we don't re-fetch a failing URL every render.
+              await markNoPreview(url);
+              logger.debug('[PostHydration] Background link-preview warm failed', {
+                url,
+                reason: error instanceof Error ? error.message : 'unknown',
+              });
+            } finally {
+              linkPreviewWarmInflight.delete(url);
+            }
+          }),
+        );
+      }
+    })().catch((error: unknown) => {
+      // Defensive — the inner loop already swallows per-URL errors.
+      logger.debug('[PostHydration] Link-preview warm batch failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+      for (const url of pending) linkPreviewWarmInflight.delete(url);
+    });
   }
 
   private extractFirstUrl(text: string): string | null {

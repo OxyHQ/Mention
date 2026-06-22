@@ -18,7 +18,11 @@ export interface LinkMetadataResult {
  * Uses url-metadata library for reliable extraction
  */
 class LinkMetadataService {
-  private readonly TIMEOUT_MS = 10000; // 10 seconds
+  // Tight timeout for the remote page fetch. This now runs exclusively OFF the
+  // feed response path (background preview warming in PostHydrationService), so
+  // a slow host can never gate a feed render — but a tight bound still prevents
+  // background warm tasks from piling up on cold/unreachable hosts.
+  private readonly TIMEOUT_MS = Number(process.env.LINK_METADATA_TIMEOUT_MS ?? 6000);
 
   /**
    * Fetch metadata for a URL

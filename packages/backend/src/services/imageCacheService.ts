@@ -32,7 +32,11 @@ export interface ImageProcessingOptions {
 }
 
 class ImageCacheService {
-  private readonly TIMEOUT_MS = 10000; // 10 seconds for image downloads
+  // Tight timeout for image downloads. Caching runs OFF the response path
+  // (background preview warming / fire-and-forget), but a bounded timeout still
+  // prevents background tasks from piling up on slow/unreachable external hosts
+  // (e.g. cold-cache federated images). Socket is destroyed on timeout below.
+  private readonly TIMEOUT_MS = Number(process.env.IMAGE_CACHE_TIMEOUT_MS ?? 6000);
   private readonly USER_AGENT = 'MentionBot/1.0 (+https://mention.earth)';
 
   /**
