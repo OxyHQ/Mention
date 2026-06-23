@@ -165,6 +165,16 @@ function fallbackSummary(userId: string): CachedUserSummary {
 }
 
 /**
+ * Whether a summary is the {@link fallbackSummary} produced when a user could
+ * not be resolved from Oxy (handle === displayName === id). Mentions that only
+ * resolve to a fallback must be left as their raw placeholder rather than
+ * rendered with the raw id as a name. Kept in lockstep with `fallbackSummary`.
+ */
+function isFallbackUserSummary(userId: string, summary: PostActorSummary): boolean {
+  return summary.handle === userId && summary.displayName === userId;
+}
+
+/**
  * Resolve {@link CachedUserSummary} for a set of Oxy user ids, collapsing the
  * classic feed M+1 (one `getUserById` per unique author) into:
  *   1. a single batched read of the Redis user-summary cache, then
@@ -1433,8 +1443,9 @@ export class PostHydrationService {
       return text;
     }
 
-    // Normalize mention IDs and collect uncached ones that have placeholders in text
-    const normalizedIds: string[] = [];
+    // Normalize mention IDs and collect those whose placeholder is present in
+    // the text but not yet in the per-request cache. Only placeholders that
+    // actually appear are worth resolving.
     const uncachedIds: string[] = [];
     for (const mentionIdRaw of mentions) {
       let mentionId: string;
@@ -1446,68 +1457,40 @@ export class PostHydrationService {
       } else {
         mentionId = String(mentionIdRaw || '');
       }
-      normalizedIds.push(mentionId);
       if (mentionId && text.includes(`[mention:${mentionId}]`) && !mentionCache.has(mentionId)) {
         uncachedIds.push(mentionId);
       }
     }
 
-    // Fetch all uncached mentions in parallel instead of sequentially
+    // Resolve the uncached ids through the shared user-summary resolver: ONE
+    // batched Redis read + ONE bulk service-token Oxy fetch for the misses, and
+    // it writes the resolved summaries back to the Redis cache. A user who is
+    // both a post author and a mention is already warm from `buildUserMap`, so
+    // this never re-fetches them. Ids that only resolve to a fallback summary
+    // (handle === displayName === id, i.e. the lookup failed) are treated as
+    // unresolved and left as the original placeholder.
     if (uncachedIds.length > 0) {
-      await Promise.all(uncachedIds.map(async (mentionId) => {
-        try {
-          const userData = await defaultOxyClient.getUserById(mentionId);
-          const username = userData.username || mentionId;
-
-          const profileImage = (userData as { profileImage?: unknown }).profileImage;
-          const rawAvatar = typeof userData.avatar === 'string'
-            ? userData.avatar
-            : typeof profileImage === 'string'
-              ? profileImage
-              : undefined;
-          const avatarValue = resolveAvatarUrl(rawAvatar);
-
-          mentionCache.set(mentionId, {
-            id: userData.id || mentionId,
-            handle: username,
-            displayName: userData.name.displayName,
-            avatarUrl: avatarValue,
-            avatar: avatarValue,
-            badges: Array.isArray(userData.badges)
-              ? (userData.badges as unknown[])
-                  .map((badge: unknown): string | undefined => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined))
-                  .filter((b: string | undefined): b is string => typeof b === 'string')
-              : undefined,
-            isVerified: Boolean(userData.verified || userData.isVerified),
-          });
-        } catch (error) {
-          logger.warn(`[PostHydration] Failed to resolve mention ${mentionId}:`, error);
-          mentionCache.set(mentionId, {
-            id: mentionId,
-            handle: mentionId,
-            displayName: mentionId,
-            avatarUrl: undefined,
-            avatar: undefined,
-            badges: undefined,
-            isVerified: false,
-          });
+      const resolved = await resolveUserSummaries(uncachedIds);
+      for (const mentionId of uncachedIds) {
+        const value = resolved.get(mentionId);
+        if (!value || isFallbackUserSummary(mentionId, value.summary)) {
+          continue;
         }
-      }));
-    }
-
-    // Replace all placeholders from cache
-    let result = text;
-    for (const mentionId of normalizedIds) {
-      if (!mentionId || !result.includes(`[mention:${mentionId}]`)) continue;
-      const mentionUser = mentionCache.get(mentionId);
-      if (mentionUser) {
-        const placeholder = `[mention:${mentionId}]`;
-        const replacement = `[@${mentionUser.displayName}](${mentionUser.handle})`;
-        result = result.split(placeholder).join(replacement);
+        mentionCache.set(mentionId, value.summary);
       }
     }
 
-    return result;
+    // Single-pass replacement: build the placeholder→replacement map, then run
+    // ONE regex over the text. An unresolved mention (absent from the map) is
+    // left as its original placeholder.
+    const replacements = new Map<string, string>();
+    for (const [mentionId, mentionUser] of mentionCache) {
+      replacements.set(mentionId, `[@${mentionUser.displayName}](${mentionUser.handle})`);
+    }
+
+    return text.replace(/\[mention:([^\]]+)\]/g, (placeholder, mentionId: string) => {
+      return replacements.get(mentionId) ?? placeholder;
+    });
   }
 }
 

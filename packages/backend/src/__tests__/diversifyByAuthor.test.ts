@@ -287,11 +287,21 @@ describe('diversify BEFORE truncate (the real feed application: pool → diversi
       score -= 1;
     }
 
+    // The reranker MUST key raw slices off the raw `oxyUserId` (the hydrated
+    // `user.id` is not populated yet at this stage) — guard that directly.
+    expect(sliceAuthorKey(pool[0])).toBe('X');
+    expect(pool[0].items[0].post.user).toBeUndefined();
+
     // Real feed flow: diversify the WHOLE pool, THEN take the first `limit`.
     const diversified = diversifyByAuthor(pool, sliceAuthorKey);
     const page = diversified.slice(0, limit);
 
+    // The page handed to hydration is exactly `limit` slices — NOT the whole
+    // ~30-slice pool. This is the efficiency guarantee: the feed calls
+    // `hydrateSlices(pageSlices)` where `pageSlices = diversified.slice(0, limit)`,
+    // so hydration cost stays at one page regardless of pool size.
     expect(page).toHaveLength(limit);
+    expect(page.length).toBeLessThan(pool.length);
 
     // X contributes at most the per-author cap to the PAGE (excess fell past the
     // page boundary — it is NOT dumped at the tail).

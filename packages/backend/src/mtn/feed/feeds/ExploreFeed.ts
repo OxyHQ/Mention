@@ -23,14 +23,15 @@ export class ExploreFeed implements FeedAPI {
 
   async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
     const trendingCutoff = new Date(Date.now() - MtnConfig.feed.trendingWindowMs);
-    const post = await Post.findOne({
+    const match: Record<string, unknown> = {
       visibility: 'public',
-      createdAt: { $gte: trendingCutoff } as any,
+      createdAt: { $gte: trendingCutoff },
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ],
-    })
+    };
+    const post = await Post.findOne(match)
       .select(FEED_FIELDS)
       .sort({ createdAt: -1 })
       .lean();
