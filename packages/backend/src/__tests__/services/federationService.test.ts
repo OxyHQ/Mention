@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
+  followExists: vi.fn(),
 }));
 
 vi.mock('../../utils/federation/crypto', () => ({
@@ -40,7 +41,9 @@ vi.mock('../../models/FederatedActor', () => ({
 }));
 
 vi.mock('../../models/FederatedFollow', () => ({
-  default: {},
+  default: {
+    exists: mocks.followExists,
+  },
 }));
 
 vi.mock('../../models/FederationDeliveryQueue', () => ({
@@ -162,6 +165,7 @@ beforeEach(() => {
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   mocks.postExists.mockResolvedValue(null);
+  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.likeCreate.mockResolvedValue({ _id: 'like_1' });
   mocks.likeFindOneAndDelete.mockReturnValue({
     lean: vi.fn().mockResolvedValue(null),
@@ -326,6 +330,15 @@ describe('federationService.syncOutboxPostsDetailed', () => {
       ]),
       { ordered: false },
     );
+    // Each raw-inserted note carries its ORIGINAL AP `published` date as
+    // createdAt/updatedAt (not the sync time), so feeds order by author time.
+    const insertedNotes = mocks.postInsertMany.mock.calls[0][0] as Array<Record<string, unknown>>;
+    const note1 = insertedNotes.find(
+      (d) => (d.federation as { activityId?: string }).activityId === 'https://mastodon.social/users/alice/statuses/1',
+    );
+    expect(note1?.createdAt).toBeInstanceOf(Date);
+    expect((note1?.createdAt as Date).toISOString()).toBe('2026-06-18T00:00:01.000Z');
+    expect((note1?.updatedAt as Date).toISOString()).toBe('2026-06-18T00:00:01.000Z');
   });
 
   it('continues from a stored page cursor and offset', async () => {
@@ -516,7 +529,13 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
     mocks.postExists.mockResolvedValue(null); // no existing boost
 
     await federationService.processInboxActivity(
-      { type: 'Announce', id: announceId, actor: actorUri, object: announcedUri },
+      {
+        type: 'Announce',
+        id: announceId,
+        actor: actorUri,
+        object: announcedUri,
+        published: '2026-06-18T09:30:00Z',
+      },
       actorUri,
     );
 
@@ -526,6 +545,9 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
         oxyUserId: 'oxy_bob',
         boostOf: 'local_post_2',
         federation: expect.objectContaining({ activityId: announceId }),
+        // The boost Post's date reflects when the boost (Announce) happened.
+        createdAt: new Date('2026-06-18T09:30:00Z'),
+        updatedAt: new Date('2026-06-18T09:30:00Z'),
       }),
     );
     expect(mocks.postUpdateOne).toHaveBeenCalledWith(
@@ -558,6 +580,70 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
 
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('federationService.processInboxActivity → handleCreate', () => {
+  const actorUri = 'https://mastodon.social/users/bob';
+  const noteId = 'https://mastodon.social/users/bob/statuses/300';
+  const activityId = 'https://mastodon.social/users/bob/statuses/300/activity';
+
+  function createActivity(notePublished?: string, activityPublished?: string) {
+    const object: Record<string, unknown> = {
+      id: noteId,
+      type: 'Note',
+      attributedTo: actorUri,
+      content: '<p>hello from the past</p>',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+    };
+    if (notePublished) object.published = notePublished;
+    const activity: Record<string, unknown> = { type: 'Create', id: activityId, actor: actorUri, object };
+    if (activityPublished) activity.published = activityPublished;
+    return activity;
+  }
+
+  it('stores the ORIGINAL Note published date as the post createdAt (not sync time)', async () => {
+    stubResolvedActor('oxy_bob');
+    mocks.postExists.mockResolvedValue(null); // not a duplicate
+
+    await federationService.processInboxActivity(
+      createActivity('2022-03-10T14:00:00Z'),
+      actorUri,
+    );
+
+    expect(mocks.postCreatorCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        federation: expect.objectContaining({ activityId: noteId }),
+        createdAt: new Date('2022-03-10T14:00:00Z'),
+        updatedAt: new Date('2022-03-10T14:00:00Z'),
+      }),
+    );
+  });
+
+  it('falls back to the Create activity published when the Note omits one', async () => {
+    stubResolvedActor('oxy_bob');
+    mocks.postExists.mockResolvedValue(null);
+
+    await federationService.processInboxActivity(
+      createActivity(undefined, '2021-12-01T00:00:00Z'),
+      actorUri,
+    );
+
+    expect(mocks.postCreatorCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ createdAt: new Date('2021-12-01T00:00:00Z') }),
+    );
+  });
+
+  it('omits createdAt (schema default = now) when no valid published date is present', async () => {
+    stubResolvedActor('oxy_bob');
+    mocks.postExists.mockResolvedValue(null);
+
+    await federationService.processInboxActivity(createActivity(), actorUri);
+
+    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
+    const params = mocks.postCreatorCreate.mock.calls[0][0] as Record<string, unknown>;
+    expect(params).not.toHaveProperty('createdAt');
+    expect(params).not.toHaveProperty('updatedAt');
   });
 });
 

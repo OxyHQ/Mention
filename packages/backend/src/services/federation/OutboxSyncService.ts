@@ -33,6 +33,7 @@ import {
   extractApHashtags,
   getRemoteHost,
   mapApVisibility,
+  parseApPublished,
   resolvePostIdFromObjectUri,
   materializeFederatedMedia,
 } from './sharedFederationHelpers';
@@ -479,7 +480,12 @@ export class OutboxSyncService {
         // from the visible text and merge inline tags with the AP `tag` array
         // tags (passed as userProvided so non-inline federated tags survive).
         const { content: text, hashtags } = normalizePostHashtags(rawText, extractApHashtags(note));
-        const published = note.published || activity.published;
+        // Preserve the ORIGINAL remote publish date (validated) so the post is
+        // ordered by when it was authored, not when we backfilled it. The raw
+        // `insertMany` below bypasses Mongoose timestamps, so a valid date is
+        // written directly; an invalid/missing date leaves createdAt/updatedAt
+        // off the doc and the schema default (now) applies.
+        const published = parseApPublished(note.published ?? activity.published);
 
         // Resolve author's Oxy User ID
         const actorUri = extractActorUri(note.attributedTo);
@@ -551,7 +557,7 @@ export class OutboxSyncService {
           // fields are populated here while `status` stays `pending` so the async
           // AI batch still enriches the post exactly like locally created posts.
           postClassification: baseline,
-          ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
+          ...(published ? { createdAt: published, updatedAt: published } : {}),
         });
       }
 
@@ -738,7 +744,10 @@ export class OutboxSyncService {
       return false;
     }
 
-    const published = typeof announceActivity.published === 'string' ? announceActivity.published : undefined;
+    // The boost Post's date reflects when the BOOST happened (the Announce's
+    // `published`), while the embedded original keeps its own date via its own
+    // post — matching the native repost shape. Validated/falls back to now.
+    const published = parseApPublished(announceActivity.published);
 
     try {
       await getPostCreator().create({
@@ -756,7 +765,7 @@ export class OutboxSyncService {
         skipNotifications: true,
         skipSocketEmit: true,
         skipFederationDelivery: true,
-        ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
+        ...(published ? { createdAt: published, updatedAt: published } : {}),
       });
     } catch (err) {
       // A duplicate-key error means a concurrent import already created the
@@ -829,7 +838,8 @@ export class OutboxSyncService {
     const text = htmlToPlainText(rawContent);
     const extracted = extractApMedia(note);
     const hashtags = extractApHashtags(note);
-    const published = typeof note.published === 'string' ? note.published : undefined;
+    // The boosted original keeps its OWN publish date (validated/falls back to now).
+    const published = parseApPublished(note.published);
     const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
     const { media, attachments } = await materializeFederatedMedia(
       extracted.media,
@@ -864,7 +874,7 @@ export class OutboxSyncService {
         skipNotifications: true,
         skipSocketEmit: true,
         skipFederationDelivery: true,
-        ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
+        ...(published ? { createdAt: published, updatedAt: published } : {}),
       });
       return String(created._id);
     } catch (err) {

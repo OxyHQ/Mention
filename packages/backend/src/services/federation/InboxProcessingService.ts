@@ -22,6 +22,7 @@ import {
   isDuplicateKeyError,
   mapApVisibility,
   materializeFederatedMedia,
+  parseApPublished,
   resolvePostIdFromObjectUri,
 } from './sharedFederationHelpers';
 
@@ -246,6 +247,16 @@ export class InboxProcessingService {
       { activityId: object.id, actorUri },
     );
 
+    // Preserve the ORIGINAL publish date so a federated post reflects when it
+    // was authored remotely, not when our inbox happened to receive it. The Note
+    // carries its own `published`; fall back to the Create activity's `published`
+    // (mirrors the outbox-backfill path). Mongoose 9's timestamps plugin honors a
+    // `createdAt` supplied on a NEW document (it only fills the default when the
+    // value is absent), so threading `createdAt`/`updatedAt` through
+    // PostCreationService persists the real date without disabling timestamps.
+    // Missing/invalid/future → undefined → schema timestamps fall back to now.
+    const originalCreatedAt = parseApPublished(object.published ?? activity.published);
+
     await getPostCreator().create({
       oxyUserId: actor.oxyUserId ?? null,
       federation: {
@@ -272,6 +283,7 @@ export class InboxProcessingService {
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
+      ...(originalCreatedAt ? { createdAt: originalCreatedAt, updatedAt: originalCreatedAt } : {}),
     });
 
     logger.debug(`Stored federated post from ${actorUri}: ${object.id}`);

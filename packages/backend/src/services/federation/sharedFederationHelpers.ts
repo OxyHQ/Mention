@@ -77,6 +77,39 @@ export function getRemoteHost(remoteUrl: string): string | undefined {
   }
 }
 
+/**
+ * Tolerance window for a federated post's `published` date being slightly ahead
+ * of our clock. A small skew between instances is normal; anything beyond this
+ * is treated as a bogus future date and rejected (fall back to now).
+ */
+const AP_PUBLISHED_MAX_FUTURE_SKEW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Parse an ActivityPub `published` value (ISO 8601, e.g. `"2023-04-01T12:00:00Z"`)
+ * into a `Date` suitable for use as a federated post's `createdAt`.
+ *
+ * Returns `undefined` — so callers fall back to the schema's default timestamp
+ * (now) — when the value is missing, not a string, unparseable, or implausibly
+ * far in the future. Used by BOTH federation ingest paths (inbox `handleCreate`
+ * and outbox backfill / boost import) so a federated post always reflects its
+ * ORIGINAL remote publish date rather than our sync time.
+ */
+export function parseApPublished(published: unknown): Date | undefined {
+  if (typeof published !== 'string') return undefined;
+  const trimmed = published.trim();
+  if (!trimmed) return undefined;
+
+  const parsed = new Date(trimmed);
+  const ms = parsed.getTime();
+  if (Number.isNaN(ms)) return undefined;
+
+  // Reject clearly-bogus future timestamps so a misconfigured remote can't
+  // push a post permanently to the top of time-ordered feeds.
+  if (ms > Date.now() + AP_PUBLISHED_MAX_FUTURE_SKEW_MS) return undefined;
+
+  return parsed;
+}
+
 export function normalizeFederatedAcct(acct: string | undefined): string | undefined {
   if (!acct) return undefined;
   const cleaned = acct.trim().replace(/^acct:/i, '').replace(/^@/, '');
