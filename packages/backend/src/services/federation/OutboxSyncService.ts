@@ -37,6 +37,12 @@ import {
   resolvePostIdFromObjectUri,
   materializeFederatedMedia,
 } from './sharedFederationHelpers';
+import {
+  parseOrderedCollection,
+  parseOrderedCollectionPage,
+  parseInboundActivity,
+  parseNote,
+} from './apSchemas';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
@@ -87,6 +93,7 @@ export type OutboxSyncFailureReason =
   | 'non-empty-outbox-without-items'
   | 'no-candidates'
   | 'pagination-failed'
+  | 'invalid-collection'
   | 'exception'
   | OutboxHttpFailureReason;
 
@@ -279,7 +286,24 @@ export class OutboxSyncService {
         return { syncedCount: 0, shouldStampCooldown: false, reason: `outbox-http-${res.status}` };
       }
 
-      const collection = await res.json() as Record<string, any>;
+      const rawCollection = await res.json();
+      // The outbox collection comes from an arbitrary remote server. Validate its
+      // shape with zod before reading any field; a malformed collection (e.g.
+      // `orderedItems` not an array, `totalItems` not a number, `first` not a
+      // string/object) aborts THIS sync gracefully — we never trust raw remote
+      // JSON. `.loose()` keeps unknown extension fields, so only genuinely
+      // malformed shapes fail. Not a permanent failure and cooldown is not
+      // stamped, so a transient bad response is retried on the next view.
+      const collectionParse = parseOrderedCollection(rawCollection);
+      if (!collectionParse.ok) {
+        logger.warn(
+          `[FedSync] outbox collection failed validation for ${actor.acct} (${actor.outboxUrl}); aborting sync: ${collectionParse.error.message}`,
+        );
+        return { syncedCount: 0, shouldStampCooldown: false, reason: 'invalid-collection' };
+      }
+      // Keep reading raw fields below so every existing field access (including
+      // `.loose()` passthrough extensions) behaves identically to before.
+      const collection = rawCollection as Record<string, any>;
       logger.debug(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
       const remoteTotalItems = typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
 
@@ -338,7 +362,23 @@ export class OutboxSyncService {
           }
 
           pagesFetched++;
-          const pageData = await pageRes.json() as Record<string, any>;
+          const rawPage = await pageRes.json();
+          // Each outbox page is untrusted remote JSON. Validate its collection
+          // shape before reading items/pagination links; a malformed page aborts
+          // pagination gracefully (same control flow as a page fetch failure)
+          // instead of trusting raw property access. `.loose()` keeps extension
+          // fields, so only genuinely malformed pages fail.
+          const pageParse = parseOrderedCollectionPage(rawPage);
+          if (!pageParse.ok) {
+            logger.warn(
+              `[FedSync] outbox page failed validation for ${actor.acct} at ${pageUrl}; stopping pagination: ${pageParse.error.message}`,
+            );
+            paginationFailed = true;
+            nextCursor = undefined;
+            return;
+          }
+          // Keep reading raw fields so every existing access is unchanged.
+          const pageData = rawPage as Record<string, any>;
           await processPage(pageData, pageUrl, startItemOffset);
         } catch (pageErr) {
           logger.debug(`[FedSync] outbox pagination error: ${pageErr}`);
@@ -655,7 +695,25 @@ export class OutboxSyncService {
       const activity = await this.resolveOutboxActivity(items[index]);
       if (!activity) continue;
 
+      // Each outbox item is untrusted remote JSON: it is either a wrapping
+      // activity (Create/Announce/...) OR a bare Note/Article. Validate the
+      // resolved record with zod before extracting anything — accept it if it
+      // parses as a known inbound activity OR as a content object. One malformed
+      // item is SKIPPED (debug log) and the rest of the backfill continues, so a
+      // single bad post never aborts the whole sync. The validated activity is
+      // still read via its raw shape below to keep all existing field access
+      // (and `.loose()` extension passthrough) identical.
+      const activityValid = parseInboundActivity(activity).ok || parseNote(activity).ok;
+      if (!activityValid) {
+        logger.debug(
+          `[FedSync] skipping malformed outbox item ${index} for ${(activity as { id?: unknown }).id ?? '<no id>'} — failed activity/note validation`,
+        );
+        continue;
+      }
+
       // Announce (boost) — capture the announced object URI for later import.
+      // Raw `===` on `type` preserves the prior behavior exactly (array-typed
+      // `type` values were already not matched here).
       if (activity.type === 'Announce') {
         const activityId = activity.id;
         const announcedUri = extractAnnouncedObjectUri(activity.object);
@@ -666,6 +724,15 @@ export class OutboxSyncService {
 
       const note = await this.extractOutboxNote(activity);
       if (!note) continue;
+      // The note may have been FETCHED from a remote URL (Create with a string
+      // `object`), so it is independently untrusted — validate it too. A
+      // malformed note is skipped, never trusted.
+      if (!parseNote(note).ok) {
+        logger.debug(
+          `[FedSync] skipping malformed outbox note ${(note as { id?: unknown }).id ?? '<no id>'} — failed note validation`,
+        );
+        continue;
+      }
       if (note.type !== 'Note' && note.type !== 'Article') continue;
       if (note.inReplyTo) continue;
 
