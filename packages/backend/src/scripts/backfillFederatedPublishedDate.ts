@@ -29,6 +29,14 @@
  *
  * Requires the federation service credential (`OXY_SERVICE_API_KEY/SECRET`) so
  * `signedFetch` can sign outbound GETs to authorized-fetch instances.
+ *
+ * Safety controls (env vars, read once at start):
+ *   - `DRY_RUN` (`'true'`/`'1'`): perform the full read-only scan + remote
+ *     re-fetch + drift comparison, but write NOTHING. Each post that WOULD be
+ *     corrected is logged (`_id`, type, stored createdAt → resolved published);
+ *     the summary reports `wouldCorrect` and states nothing was written.
+ *   - `BACKFILL_LIMIT` (optional positive integer): stop after SCANNING that
+ *     many federated posts (canary cap). Non-numeric / ≤0 values are ignored.
  */
 
 import mongoose from 'mongoose';
@@ -48,6 +56,39 @@ const FETCH_CONCURRENCY = 4;
  * before we rewrite it. Guards against churn from sub-second timestamp rounding.
  */
 const DATE_DRIFT_TOLERANCE_MS = 1000;
+
+/**
+ * Resolved, validated run-mode controls read once from the environment at start.
+ * `dryRun` performs the full read-only scan (remote re-fetch + drift comparison)
+ * but writes nothing. `limit` caps the number of federated posts SCANNED (canary).
+ */
+interface RunOptions {
+  dryRun: boolean;
+  limit: number | null;
+}
+
+/**
+ * `DRY_RUN` is truthy when set to `'true'` or `'1'` (case-insensitive, trimmed).
+ * Anything else (unset, `'false'`, `'0'`, empty) means a real, writing run.
+ */
+export function parseDryRun(raw: string | undefined): boolean {
+  if (typeof raw !== 'string') return false;
+  const normalized = raw.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1';
+}
+
+/**
+ * `BACKFILL_LIMIT` is an optional positive integer scan cap. Non-numeric, ≤0, or
+ * non-integer values are ignored (treated as no limit).
+ */
+export function parseLimit(raw: string | undefined): number | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
 
 interface FederatedPostRow {
   _id: mongoose.Types.ObjectId;
@@ -93,6 +134,16 @@ async function backfillFederatedPublishedDate(): Promise<void> {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
+  const options: RunOptions = {
+    dryRun: parseDryRun(process.env.DRY_RUN),
+    limit: parseLimit(process.env.BACKFILL_LIMIT),
+  };
+
+  logger.info(
+    `[backfillFederatedPublishedDate] mode: ${options.dryRun ? 'DRY RUN (read-only, no writes)' : 'LIVE (writes enabled)'}; ` +
+      `scan limit: ${options.limit === null ? 'none (full scan)' : String(options.limit)}`,
+  );
+
   try {
     await mongoose.connect(mongoUri, { dbName });
     logger.info(`[backfillFederatedPublishedDate] connected to MongoDB (${dbName})`);
@@ -109,11 +160,16 @@ async function backfillFederatedPublishedDate(): Promise<void> {
     }
 
     let scanned = 0;
+    // In a live run this counts posts whose date we rewrote; in a dry run it stays
+    // 0 and `wouldCorrect` carries the count of posts that WOULD be rewritten.
     let corrected = 0;
+    let wouldCorrect = 0;
     let skipped = 0;
     let lastId: mongoose.Types.ObjectId | null = null;
 
     for (;;) {
+      if (options.limit !== null && scanned >= options.limit) break;
+
       const pageFilter: Record<string, unknown> = {
         'federation.activityId': { $exists: true, $ne: null },
       };
@@ -121,9 +177,14 @@ async function backfillFederatedPublishedDate(): Promise<void> {
         pageFilter._id = { $gt: lastId };
       }
 
+      // Cap the page so we never fetch a full extra page beyond the scan limit.
+      const pageLimit = options.limit !== null
+        ? Math.min(PAGE_SIZE, options.limit - scanned)
+        : PAGE_SIZE;
+
       const page = await Post.find(pageFilter, { _id: 1, type: 1, createdAt: 1, 'federation.activityId': 1 })
         .sort({ _id: 1 })
-        .limit(PAGE_SIZE)
+        .limit(pageLimit)
         .lean<FederatedPostRow[]>();
 
       if (page.length === 0) break;
@@ -146,6 +207,17 @@ async function backfillFederatedPublishedDate(): Promise<void> {
             continue;
           }
 
+          if (options.dryRun) {
+            // Read-only: report what WOULD change without touching the document.
+            const storedIso = row.createdAt ? row.createdAt.toISOString() : 'unknown';
+            logger.info(
+              `[backfillFederatedPublishedDate] would correct ${row._id.toString()} ` +
+                `(type=${row.type ?? 'unknown'}): createdAt ${storedIso} → published ${original.toISOString()}`,
+            );
+            wouldCorrect++;
+            continue;
+          }
+
           // Raw collection write bypasses the Mongoose timestamps plugin so we
           // can set BOTH createdAt and updatedAt to the original date without the
           // plugin overwriting updatedAt with the current time.
@@ -160,13 +232,17 @@ async function backfillFederatedPublishedDate(): Promise<void> {
       scanned += page.length;
       lastId = page[page.length - 1]._id;
       logger.info(
-        `[backfillFederatedPublishedDate] progress: scanned ${scanned}/${totalCount}, corrected ${corrected}, skipped ${skipped}`,
+        options.dryRun
+          ? `[backfillFederatedPublishedDate] progress: scanned ${scanned}/${totalCount}, wouldCorrect ${wouldCorrect}, skipped ${skipped}`
+          : `[backfillFederatedPublishedDate] progress: scanned ${scanned}/${totalCount}, corrected ${corrected}, skipped ${skipped}`,
       );
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[backfillFederatedPublishedDate] done: scanned ${scanned}, corrected ${corrected}, skipped ${skipped} (${elapsedSeconds}s)`,
+      options.dryRun
+        ? `[backfillFederatedPublishedDate] DRY RUN done: scanned ${scanned}, wouldCorrect ${wouldCorrect}, skipped ${skipped} — NOTHING was written (${elapsedSeconds}s)`
+        : `[backfillFederatedPublishedDate] done: scanned ${scanned}, corrected ${corrected}, skipped ${skipped} (${elapsedSeconds}s)`,
     );
 
     await mongoose.disconnect();
