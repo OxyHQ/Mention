@@ -163,6 +163,17 @@ function supportsBulkUserFetch(client: unknown): client is BulkUserFetcher {
   return typeof (client as { getUsersByIds?: unknown })?.getUsersByIds === 'function';
 }
 
+/**
+ * Kill-switch for the bulk `POST /users/by-ids` hydration path. Defaults OFF.
+ *
+ * The bulk endpoint on oxy-api currently rejects Mention's service-token call
+ * with a CSRF `403`, which stalled the whole feed (hydration could not resolve
+ * authors). The per-id `getUserById` fan-out (the prior, proven path) is kept as
+ * the default until oxy-api exempts the service-token POST from CSRF; flip
+ * `BULK_USER_FETCH_ENABLED=true` to re-enable the batch fetch with no redeploy.
+ */
+const BULK_USER_FETCH_ENABLED = process.env.BULK_USER_FETCH_ENABLED === 'true';
+
 /** A minimal, safe summary used when an author cannot be resolved from Oxy. */
 function fallbackSummary(userId: string): CachedUserSummary {
   return {
@@ -216,7 +227,7 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
   // 2. Resolve misses from Oxy. Prefer the bulk endpoint; fall back to per-id.
   const freshlyResolved = new Map<string, CachedUserSummary>();
 
-  if (supportsBulkUserFetch(defaultOxyClient)) {
+  if (BULK_USER_FETCH_ENABLED && supportsBulkUserFetch(defaultOxyClient)) {
     try {
       const users = await defaultOxyClient.getUsersByIds(missIds);
       const byId = new Map<string, OxyUser>();
