@@ -56,10 +56,31 @@ const DrawerOverlay = memo(function DrawerOverlay() {
 
   if (!hasOpened) return null;
 
+  // POSITIONING: on NATIVE the backdrop + drawer panel pin via the inline
+  // `position: 'absolute'` + inset values in `styles` below. On WEB the app
+  // uses a DOCUMENT-scroll model (the window is the scroller), so
+  // `position: absolute` resolves against the tall document's initial
+  // containing block and the overlay SINKS to the bottom of the document
+  // instead of covering the viewport. WEB therefore pins to the viewport via
+  // the `web:fixed` NativeWind classes — full-viewport `web:inset-0` for the
+  // backdrop scrim, and `web:fixed` pinned to the left edge for the sliding
+  // panel. The `web:fixed` MUST live on the SAME elements that carry the
+  // opacity / translateX transforms: a transformed ancestor becomes the
+  // containing block for any `position: fixed` descendant (it would re-trap
+  // it), so the fixed element has to be the transformed one — the translateX
+  // then just offsets the already-fixed panel for the slide-in. Mirrors
+  // BottomBar.tsx (`web:fixed web:inset-x-4 web:bottom-3`) and the live-room
+  // dock. No inline `position: 'fixed'` cast.
   return (
-    <Animated.View style={[styles.backdrop, backdropStyle]}>
+    <Animated.View
+      className="web:fixed web:inset-0 web:z-[2000]"
+      style={[styles.backdrop, backdropStyle]}
+    >
       <Pressable style={styles.backdropPressable} onPress={close} />
-      <Animated.View style={[styles.drawer, drawerStyle]}>
+      <Animated.View
+        className="web:fixed web:left-0 web:top-0 web:bottom-0 web:z-[2001]"
+        style={[styles.drawer, drawerStyle]}
+      >
         <SideBar asDrawer onNavigate={close} />
       </Animated.View>
     </Animated.View>
@@ -296,13 +317,13 @@ export default function AppLayout() {
 
 const styles = StyleSheet.create({
   backdrop: {
+    // NATIVE pins the scrim with this absolute overlay. WEB pins to the
+    // viewport via the `web:fixed web:inset-0 web:z-[2000]` classes on the
+    // element (no inline `position: 'fixed'` cast). The shared inset/z values
+    // are harmless on web (the web classes own positioning there).
     ...Platform.select({
-      web: {
-        position: 'fixed' as any,
-      },
-      default: {
-        position: 'absolute',
-      },
+      web: {},
+      default: { position: 'absolute' as const },
     }),
     top: 0,
     left: 0,
@@ -315,7 +336,13 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   drawer: {
-    position: 'absolute',
+    // NATIVE pins the sliding panel with this absolute overlay. WEB pins to
+    // the viewport-left edge via the `web:fixed web:left-0 web:top-0
+    // web:bottom-0 web:z-[2001]` classes on the (transformed) panel element.
+    ...Platform.select({
+      web: {},
+      default: { position: 'absolute' as const },
+    }),
     top: 0,
     left: 0,
     bottom: 0,
