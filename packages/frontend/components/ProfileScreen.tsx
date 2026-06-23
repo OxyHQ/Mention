@@ -34,7 +34,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-import { panelStickyTopInset, panelStickyTabsTopInset } from '@/components/shell/PanelChrome';
+import { panelStickyTopInset, panelStickyTabsTopInset, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -595,6 +595,40 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     />
                                 </View>
                             ))}
+
+                        {/* Pinned header-band surface (WEB only). When the header
+                            chrome is pinned in contact with the tab bar, the action
+                            cluster + compact-name overlay are 0-flow-height anchors
+                            with NO background of their own — so the scrolling feed
+                            (z-3) would show THROUGH the header band while the opaque
+                            tabs (`bg-background`) sit right below, reading as an
+                            incoherent transparent-header / opaque-tabs split. This
+                            sticky surface fills the 48px header band (PANEL_TOP_INSET
+                            .. PANEL_TOP_INSET + PANEL_HEADER_HEIGHT, i.e. flush with
+                            the tabs at top:56) with the SAME `bg-background` token the
+                            tab bar uses, so header + tabs read as ONE cohesive opaque
+                            bar. Its opacity is driven by the SAME
+                            `headerBackgroundOpacity` as the banner fade: 0 when
+                            expanded (the banner shows through — restored parallax
+                            preserved) → 1 once scrolled (opaque, matching the tabs).
+                            `web:z-[100]` paints it ABOVE the feed content (z-3) and the
+                            tabs (z-5) but BELOW the chrome icons/name overlay (z-101),
+                            so the icons stay on top. `pointer-events-none` + the
+                            `-48px` bottom margin (cancels its flow height, like the
+                            banner's `-170px`) keep it a pure 0-flow overlay. Empty on
+                            native, where the chrome is an absolute overlay over the
+                            non-scrolling root. */}
+                        {IS_WEB && (
+                            <View
+                                className="left-0 right-0 web:sticky web:z-[100] web:pointer-events-none web:[margin-bottom:-48px]"
+                                style={[panelStickyTopInset, { height: PANEL_HEADER_HEIGHT }]}
+                            >
+                                <Animated.View
+                                    className="bg-background"
+                                    style={[StyleSheet.absoluteFill, { opacity: headerBackgroundOpacity }]}
+                                />
+                            </View>
+                        )}
 
                         {/* Header actions cluster (subscribe / DM / open-instance /
                             share / more). NATIVE: `absolute`, `top: insets.top+6`,
