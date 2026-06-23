@@ -5,7 +5,11 @@
  * AT Protocol equivalent: app.bsky.feed.sendInteractions
  */
 
+import mongoose from 'mongoose';
+import { MtnConfig } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
+import { recordDedupedView } from '../../services/feedViewCounter';
+import { userPreferenceService } from '../../services/UserPreferenceService';
 
 export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
 
@@ -38,6 +42,44 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
     // Non-critical — log and move on
     logger.warn('[FeedInteractionTracker] Failed to record interaction', error);
   }
+
+  // An impression carries TWO derived signals beyond the raw analytics row:
+  //   1. a deduped increment of the post's real view count (ranking input), and
+  //   2. a UserBehavior learning signal — a genuine `view` when the post was
+  //      dwelled on, or a negative `skip` when it was scrolled past quickly.
+  // Both are best-effort and MUST NOT fail the interaction record above, so they
+  // run after it and swallow-then-log their own errors.
+  if (interaction.event === 'impression') {
+    applyImpressionSignals(interaction).catch((error) => {
+      logger.warn('[FeedInteractionTracker] Failed to apply impression signals', error);
+    });
+  }
+}
+
+/**
+ * Apply the deduped view-count increment and the UserBehavior learning signal
+ * for a feed impression. `postUri` is the local post id (Mongo `_id` string);
+ * federated/non-local uris that are not valid ObjectIds are skipped.
+ */
+async function applyImpressionSignals(interaction: FeedInteractionData): Promise<void> {
+  const postId = interaction.postUri;
+  if (!postId || !mongoose.isValidObjectId(postId)) {
+    return; // Not a local post id — nothing to count or learn from.
+  }
+
+  // 1. Deduped real view count (no-op without Redis / on duplicate).
+  await recordDedupedView(postId, interaction.userId);
+
+  // 2. UserBehavior signal. A short dwell is a SKIP (negative); a real dwell is
+  //    a VIEW (mild positive). The frontend only reports impressions that passed
+  //    its visibility gate, so `durationMs` is the accrued visible time. The
+  //    originating feed is forwarded as the attribution surface so a video-feed
+  //    view is attributed to video content, not the author.
+  const dwellMs = interaction.durationMs ?? 0;
+  const signal = dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
+  await userPreferenceService.recordInteraction(interaction.userId, postId, signal, {
+    surface: interaction.feedDescriptor,
+  });
 }
 
 /**

@@ -371,14 +371,21 @@ class FeedService {
   }
 
   /**
-   * Create a boost
+   * Create a boost.
+   *
+   * `source` (optional) is the originating feed descriptor (e.g. 'videos',
+   * 'for_you', 'author|<id>'). The backend uses it for surface-aware engagement
+   * attribution — a boost from the Videos feed signals interest in the video
+   * content, not the author. Omitted from the payload when absent so the request
+   * stays byte-identical for non-feed callers.
    */
-  async createBoost(request: CreateBoostRequest): Promise<{ success: boolean; boost: unknown }> {
+  async createBoost(request: CreateBoostRequest, source?: string): Promise<{ success: boolean; boost: unknown }> {
     const backendRequest = {
       originalPostId: request.originalPostId,
       content: request.content?.text || '',
       mentions: request.mentions || [],
-      hashtags: request.hashtags || []
+      hashtags: request.hashtags || [],
+      ...(source ? { source } : {}),
     };
 
     const response = await authenticatedClient.post('/feed/boost', backendRequest);
@@ -386,10 +393,16 @@ class FeedService {
   }
 
   /**
-   * Vote on a post (like = 1, downvote = -1)
+   * Vote on a post (like = 1, downvote = -1).
+   *
+   * `source` (optional) is the originating feed descriptor for surface-aware
+   * engagement attribution; omitted from the payload when absent.
    */
-  async voteItem(postId: string, value: 1 | -1): Promise<{ success: boolean; data: unknown }> {
-    const response = await authenticatedClient.post(`/posts/${postId}/like`, { value });
+  async voteItem(postId: string, value: 1 | -1, source?: string): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.post(`/posts/${postId}/like`, {
+      value,
+      ...(source ? { source } : {}),
+    });
     return { success: true, data: response.data };
   }
 
@@ -402,10 +415,16 @@ class FeedService {
   }
 
   /**
-   * Save a post
+   * Save a post.
+   *
+   * `source` (optional) is the originating feed descriptor for surface-aware
+   * engagement attribution; omitted from the body when absent.
    */
-  async saveItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
-    const response = await authenticatedClient.post(`/posts/${request.postId}/save`);
+  async saveItem(request: { postId: string }, source?: string): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.post(
+      `/posts/${request.postId}/save`,
+      source ? { source } : undefined,
+    );
     return { success: true, data: response.data };
   }
 

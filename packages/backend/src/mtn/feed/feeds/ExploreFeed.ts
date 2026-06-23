@@ -78,6 +78,10 @@ export class ExploreFeed implements FeedAPI {
     }
 
     const cfg = MtnConfig.ranking.engagement;
+    // Half-life of the exponential recency decay, in hours, sourced from the
+    // shared ranking config so Explore decays consistently with ForYou.
+    const halfLifeHours = MtnConfig.ranking.recency.halfLifeMs / (1000 * 60 * 60);
+    const now = Date.now();
 
     const pipeline: any[] = [
       { $match: match },
@@ -90,21 +94,42 @@ export class ExploreFeed implements FeedAPI {
       },
       {
         $addFields: {
-          engagementScore: {
+          // Raw weighted engagement (likes/boosts/comments), then log-scaled
+          // below so a runaway-popular post can't dominate the discovery feed.
+          rawEngagement: {
             $add: [
               { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, cfg.likeWeight] },
               { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, cfg.boostWeight] },
               { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, cfg.commentWeight] },
             ],
           },
-          recencyBoost: {
-            $divide: [{ $subtract: ['$createdAt', trendingCutoff] }, MtnConfig.feed.trendingWindowMs],
+          // Age in hours = (now - createdAt) / 3,600,000 ms.
+          ageHours: {
+            $divide: [{ $subtract: [now, '$createdAt'] }, 1000 * 60 * 60],
           },
         },
       },
       {
         $addFields: {
-          finalScore: { $add: ['$engagementScore', { $multiply: ['$recencyBoost', 10] }] },
+          // MULTIPLICATIVE exponential recency decay: 0.5 ^ (age / halfLife),
+          // equivalent to ForYou's `Math.pow(0.5, ageHours / halfLife)`. Replaces
+          // the old ADDITIVE `engagement + recencyBoost*10` that let a brand-new
+          // zero-engagement post outrank genuinely trending content.
+          recencyDecay: {
+            $pow: [0.5, { $divide: ['$ageHours', halfLifeHours] }],
+          },
+          // Log-scaled engagement with a POPULARITY FLOOR (+1): the floor keeps
+          // recency meaningful for low/zero-engagement posts (so the discovery
+          // feed isn't empty of fresh content) while engagement still lifts
+          // posts that are actually resonating.
+          engagementBase: {
+            $add: [1, { $ln: { $add: [1, '$rawEngagement'] } }],
+          },
+        },
+      },
+      {
+        $addFields: {
+          finalScore: { $multiply: ['$engagementBase', '$recencyDecay'] },
         },
       },
     ];

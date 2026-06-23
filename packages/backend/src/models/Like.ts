@@ -4,6 +4,14 @@ export interface ILike extends Document {
   userId: string;
   postId: mongoose.Types.ObjectId;
   value: 1 | -1;
+  /**
+   * Originating feed surface (feed-descriptor string, e.g. `videos`, `for_you`,
+   * `author|<id>`) the like happened on. Persisted for SURFACE-AWARE
+   * recommendation attribution: a like from the reels surface contributes weakly
+   * to "follow this author" candidates. Optional — absent on legacy likes and
+   * on likes with no surface context (treated as a normal-surface like).
+   */
+  source?: string;
 }
 
 const LikeSchema: Schema = new Schema(
@@ -11,6 +19,7 @@ const LikeSchema: Schema = new Schema(
     userId: { type: String, required: true },
     postId: { type: mongoose.Types.ObjectId, ref: "Post", required: true },
     value: { type: Number, enum: [1, -1], default: 1 },
+    source: { type: String },
   },
   { timestamps: true }
 );

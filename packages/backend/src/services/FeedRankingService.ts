@@ -47,6 +47,45 @@ export class FeedRankingService {
     this.redis = getRedisClient();
   }
 
+  /**
+   * Resolve `authorId → followerCount` for the unique authors of a candidate
+   * post set, used by the author-authority signal. Backed by the shared
+   * Redis user-summary cache + a single bulk Oxy fetch for cold authors, so the
+   * common case (warm cache) is one Redis round trip with no Oxy call. Authors
+   * whose follower count is unavailable are simply absent from the map and fall
+   * back to a neutral authority multiplier.
+   */
+  private async resolveAuthorFollowerCounts(posts: any[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+
+    const authorIds = Array.from(
+      new Set(
+        posts
+          .map((p) => (p?.oxyUserId ? String(p.oxyUserId) : ''))
+          .filter((id): id is string => id.length > 0),
+      ),
+    );
+    if (authorIds.length === 0) {
+      return counts;
+    }
+
+    try {
+      // Lazy import to avoid any module-load ordering coupling between the
+      // ranking and hydration services.
+      const { resolveUserSummaries } = await import('./PostHydrationService.js');
+      const resolved = await resolveUserSummaries(authorIds);
+      for (const [authorId, value] of resolved) {
+        if (typeof value.followerCount === 'number') {
+          counts.set(authorId, value.followerCount);
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to resolve author follower counts for authority signal:', error);
+    }
+
+    return counts;
+  }
+
   private buildBehaviorSets(userBehavior: any): BehaviorSets | undefined {
     if (!userBehavior) return undefined;
     return {
@@ -119,6 +158,8 @@ export class FeedRankingService {
       recentAuthorsSet?: Set<string>;
       recentTopicsSet?: Set<string>;
       behaviorSets?: BehaviorSets;
+      /** Oxy authorId → follower count, for the author-authority signal. */
+      authorFollowerCounts?: Map<string, number>;
     } = {}
   ): Promise<number> {
     // Helper to guard each sub-score against NaN/Infinity
@@ -152,6 +193,13 @@ export class FeedRankingService {
       userId,
       followingIdsSet,
       context.userBehavior
+    ));
+
+    // Author authority score (follower-count based, viewer-independent). Neutral
+    // (1.0) when the author's follower count is unavailable, so it never crashes
+    // or penalizes posts whose authors we couldn't resolve.
+    const authorityScore = safe(this.calculateAuthorityScore(
+      context.authorFollowerCounts?.get(String(post.oxyUserId)),
     ));
 
     // Personalization score
@@ -193,6 +241,7 @@ export class FeedRankingService {
     const finalScore = engagementScore
       * recencyScore
       * authorScore
+      * authorityScore
       * personalizationScore
       * qualityScore
       * trendingBoost
@@ -206,7 +255,9 @@ export class FeedRankingService {
     // Attach ranking factor breakdowns for RankingExplainer
     post._rankEngagement = engagementScore;
     post._rankRecency = recencyScore;
-    post._rankRelationship = authorScore;
+    // Relationship breakdown folds in the viewer-independent authority signal so
+    // the explainer reflects the full author contribution to the score.
+    post._rankRelationship = authorScore * authorityScore;
     post._rankPersonalization = personalizationScore;
     post._rankQuality = qualityScore * trendingBoost * timeOfDayScore * threadBoost;
     post._rankDiversity = diversityPenalty * negativePenalty;
@@ -331,6 +382,31 @@ export class FeedRankingService {
   }
 
   /**
+   * Calculate author-authority score from the author's follower count.
+   *
+   * Philosophy: a POPULARITY FLOOR, not domination. Small creators (and authors
+   * whose follower count we couldn't resolve) sit at ~1.0 — no penalty — while
+   * established accounts get a MODEST, logarithmically-bounded lift. The log
+   * curve means going from 0→1k followers matters far more than 100k→101k, so a
+   * handful of mega-accounts never crowd out everyone else.
+   *
+   * Shape: `1 + k * log1p(followers)`, clamped to `[min, max]`.
+   *
+   * @param followerCount - author's follower count, or `undefined` when unknown.
+   * @returns a multiplier in `[min, max]`; exactly `1.0` (neutral) when unknown.
+   */
+  public calculateAuthorityScore(followerCount: number | undefined): number {
+    // Unknown follower count → neutral. Never penalize an unresolved author.
+    if (typeof followerCount !== 'number' || !Number.isFinite(followerCount) || followerCount < 0) {
+      return 1.0;
+    }
+
+    const { logScale, min, max } = this.R.authority;
+    const raw = 1 + logScale * Math.log1p(followerCount);
+    return Math.min(max, Math.max(min, raw));
+  }
+
+  /**
    * Calculate personalization score based on user preferences
    */
   private async calculatePersonalizationScore(
@@ -402,8 +478,8 @@ export class FeedRankingService {
    */
   private calculateQualityScore(post: any): number {
     const stats = post.stats || {};
-    const viewsCount = stats.viewsCount || 1; // Avoid division by zero
-    
+    const viewsCount = stats.viewsCount || 0;
+
     // Calculate raw engagement (before log scaling for rate calculation)
     const rawEngagement = (
       (stats.likesCount || 0) * this.R.engagement.likeWeight +
@@ -413,31 +489,40 @@ export class FeedRankingService {
       (stats.sharesCount || 0) * this.SHARE_WEIGHT
     );
 
-    // Calculate engagement rate (engagement per view)
-    const engagementRate = rawEngagement / viewsCount;
-    
-    // Calculate engagement velocity (recent engagement vs total)
-    // Posts with recent engagement are more relevant
+    // Engagement velocity: posts with recent engagement are more relevant.
     const createdAtMs = new Date(post.createdAt).getTime();
     const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
-    const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0; // Boost for very recent posts
-    
+    const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0;
+
+    // ROBUST engagement rate at low view counts: a post with only a few views
+    // must not be promoted to "high quality" off a tiny denominator (2 views,
+    // 1 like = rate 0.5). Below `minViewsForRate` we cannot trust the rate at
+    // all, so quality is neutral (only velocity applies). At/above it we divide
+    // by the ACTUAL view count.
+    const minViewsForRate = this.R.quality.minViewsForRate;
+    if (viewsCount < minViewsForRate) {
+      return 1.0 * velocityBoost; // Not enough views to judge quality — neutral.
+    }
+
+    const engagementRate = rawEngagement / viewsCount;
+
     // High engagement rate = quality content
     if (engagementRate > 0.5) {
       return this.R.quality.highEngagement * velocityBoost;
     }
-    
+
     // Medium engagement rate = decent quality
     if (engagementRate > 0.2) {
       return 1.0 * velocityBoost;
     }
-    
-    // Low engagement rate = lower quality (only penalize if post has significant views)
-    if (engagementRate < 0.1 && viewsCount > 100) {
+
+    // Low engagement rate = lower quality (only once the post has enough views
+    // to make that judgment — the gate was lowered 100 → config.lowEngagementMinViews).
+    if (engagementRate < 0.1 && viewsCount > this.R.quality.lowEngagementMinViews) {
       return this.R.quality.lowEngagement;
     }
-    
-    return 1.0; // Neutral for posts with few views
+
+    return 1.0;
   }
 
   /**
@@ -625,6 +710,13 @@ export class FeedRankingService {
       followingIds?: string[]; // Array of Oxy user IDs
       userBehavior?: any;
       feedSettings?: any; // User feed settings
+      /**
+       * Oxy authorId → follower count for the author-authority signal. When
+       * omitted, it is resolved here from the candidate posts' authors (cache +
+       * bulk fetch). Pass it explicitly to reuse counts already in hand and
+       * avoid the resolution round trip.
+       */
+      authorFollowerCounts?: Map<string, number>;
     } = {}
   ): Promise<any[]> {
     const rankingStartTime = Date.now();
@@ -661,6 +753,12 @@ export class FeedRankingService {
     // Pre-compute Sets for O(1) lookups in scoring loop
     const followingIdsSet = new Set(followingIds || []);
     const behaviorSets = this.buildBehaviorSets(userBehavior);
+
+    // Resolve author follower counts ONCE for the authority signal (unless the
+    // caller already supplied them). Cache-backed + bulk-fetched, so this is a
+    // single batched round trip for the cold authors only.
+    const authorFollowerCounts = context.authorFollowerCounts
+      ?? await this.resolveAuthorFollowerCounts(posts);
 
     // Pre-calculate engagement scores with caching (batch load from cache)
     const engagementScoreCache = new Map<string, number>();
@@ -708,6 +806,7 @@ export class FeedRankingService {
           engagementScoreCache,
           followingIdsSet,
           behaviorSets,
+          authorFollowerCounts,
         });
         return { post, score, originalIndex };
       })

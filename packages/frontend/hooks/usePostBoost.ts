@@ -2,7 +2,11 @@ import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
 import { logger } from '@/lib/logger';
 
-export function usePostBoost(postId: string | undefined, isBoosted: boolean) {
+/**
+ * @param source Optional originating feed descriptor for surface-aware
+ *   engagement attribution; attached to the BOOST write, ignored on unboost.
+ */
+export function usePostBoost(postId: string | undefined, isBoosted: boolean, source?: string) {
     const { boostPost, unboostPost } = usePostsStore();
     const pendingRef = useRef(false);
 
@@ -13,7 +17,7 @@ export function usePostBoost(postId: string | undefined, isBoosted: boolean) {
         try {
             const action = isBoosted
                 ? unboostPost({ postId })
-                : boostPost({ postId });
+                : boostPost({ postId }, source);
 
             await action;
         } catch (error) {
@@ -21,7 +25,7 @@ export function usePostBoost(postId: string | undefined, isBoosted: boolean) {
         } finally {
             pendingRef.current = false;
         }
-    }, [postId, isBoosted, boostPost, unboostPost]);
+    }, [postId, isBoosted, boostPost, unboostPost, source]);
 
     return toggleBoost;
 }

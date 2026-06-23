@@ -22,7 +22,7 @@ import { IAccountList } from '../models/AccountList';
 import { io } from '../../server';
 import { oxy as oxyClient } from '../../server';
 import { feedCacheService } from '../services/FeedCacheService';
-import { userPreferenceService } from '../services/UserPreferenceService';
+import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { postHydrationService } from '../services/PostHydrationService';
 import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
@@ -1270,6 +1270,7 @@ class FeedController {
     try {
       const { originalPostId, content, mentions, hashtags } = req.body as CreateBoostRequest;
       const currentUserId = req.user?.id;
+      const surface = readInteractionSurface(req.body);
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -1321,7 +1322,7 @@ class FeedController {
 
       // Record interaction for user preference learning
       try {
-        await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'boost');
+        await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'boost', { surface });
         // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
@@ -1359,6 +1360,7 @@ class FeedController {
     try {
       const { postId, type } = req.body as LikeRequest;
       const currentUserId = req.user?.id;
+      const surface = readInteractionSurface(req.body);
 
       logger.debug(`[Like] Like request received: userId=${currentUserId}, postId=${postId}`);
 
@@ -1384,7 +1386,7 @@ class FeedController {
         logger.debug(`[Like] Post ${postId} already liked by user ${currentUserId}`);
         // Still record the interaction even if already liked (user expressed interest)
         try {
-          await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
+          await userPreferenceService.recordInteraction(currentUserId, postId, 'like', { surface });
           logger.debug(`[Like] Recorded interaction for already-liked post`);
         } catch (error) {
           logger.warn(`[Like] Failed to record interaction for already-liked post`, error);
@@ -1400,7 +1402,7 @@ class FeedController {
       logger.debug(`[Like] User ${currentUserId} liking post ${postId} (not already liked)`);
 
       // Create like record in Like collection (single source of truth)
-      await Like.create({ userId: currentUserId, postId });
+      await Like.create({ userId: currentUserId, postId, source: surface });
 
       // Update post like count only (don't store in metadata.likedBy - too much data)
       const updateResult = await Post.findByIdAndUpdate(
@@ -1418,7 +1420,7 @@ class FeedController {
       // Record interaction for user preference learning
       logger.debug(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);
       try {
-        await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
+        await userPreferenceService.recordInteraction(currentUserId, postId, 'like', { surface });
         logger.debug(`[Like] Successfully recorded interaction`);
         // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
@@ -1597,6 +1599,7 @@ class FeedController {
     try {
       const postId = req.params.postId as string;
       const currentUserId = req.user?.id;
+      const surface = readInteractionSurface(req.body);
 
       logger.debug(`[Save] Save request received: userId=${currentUserId}, postId=${postId}`);
 
@@ -1621,7 +1624,7 @@ class FeedController {
         logger.debug(`[Save] Post ${postId} already saved by user ${currentUserId}`);
         // Still record the interaction even if already saved (user expressed interest)
         try {
-          await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
+          await userPreferenceService.recordInteraction(currentUserId, postId, 'save', { surface });
           logger.debug(`[Save] Recorded interaction for already-saved post`);
         } catch (error) {
           logger.warn(`[Save] Failed to record interaction for already-saved post`, error);
@@ -1652,7 +1655,7 @@ class FeedController {
       // Record interaction for user preference learning
       logger.debug(`[Save] Recording interaction for user ${currentUserId}, post ${postId}`);
       try {
-        await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
+        await userPreferenceService.recordInteraction(currentUserId, postId, 'save', { surface });
         logger.debug(`[Save] Successfully recorded interaction`);
         // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);

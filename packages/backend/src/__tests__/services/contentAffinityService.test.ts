@@ -24,6 +24,16 @@ vi.mock('../../utils/redis', () => ({
   getRedisClient: mocks.getRedisClient,
 }));
 
+// The authority blend dynamically imports these; stub them so the blend is a
+// deterministic NEUTRAL no-op (every candidate gets multiplier 1.0). This
+// isolates the surface-discount assertions from follower-count resolution.
+vi.mock('../../services/PostHydrationService', () => ({
+  resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
+}));
+vi.mock('../../services/FeedRankingService', () => ({
+  feedRankingService: { calculateAuthorityScore: vi.fn().mockReturnValue(1.0) },
+}));
+
 import { ContentAffinityService } from '../../services/ContentAffinityService';
 
 /** Build a chainable lean-find mock supporting .limit().sort().lean(). */
@@ -127,6 +137,57 @@ describe('ContentAffinityService.getContentCandidates', () => {
     const boost = result.find((c) => c.userId === 'author_boost')?.weight ?? 0;
     expect(boost).toBeGreaterThan(reply);
     expect(reply).toBeGreaterThan(like);
+  });
+
+  it('discounts a video-surface like vs a normal-surface like for AUTHOR candidates', async () => {
+    // Two authors, each engaged via exactly one like. author_normal's like came
+    // from the home feed (full author weight); author_video's like came from the
+    // reels surface (source='videos' → discounted author weight). The video like
+    // must yield a STRICTLY LOWER author-candidate weight.
+    mocks.likeFind.mockImplementation(leanQuery([
+      { postId: 'p_normal', source: 'for_you' },
+      { postId: 'p_video', source: 'videos' },
+    ]));
+    mocks.postFind.mockImplementation((match: Record<string, unknown>) => {
+      if (match.type === 'boost') return leanQuery([])();
+      if (match.parentPostId) return leanQuery([])();
+      return leanQuery([
+        { _id: 'p_normal', oxyUserId: 'author_normal' },
+        { _id: 'p_video', oxyUserId: 'author_video' },
+      ])();
+    });
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    const normal = result.find((c) => c.userId === 'author_normal')?.weight ?? 0;
+    const video = result.find((c) => c.userId === 'author_video')?.weight ?? 0;
+    expect(normal).toBeGreaterThan(0);
+    expect(video).toBeGreaterThan(0);
+    expect(video).toBeLessThan(normal);
+  });
+
+  it('treats a like with no source (legacy) as a full-weight, non-video like', async () => {
+    mocks.likeFind.mockImplementation(leanQuery([
+      { postId: 'p_legacy' }, // no `source`
+      { postId: 'p_video', source: 'videos' },
+    ]));
+    mocks.postFind.mockImplementation((match: Record<string, unknown>) => {
+      if (match.type === 'boost') return leanQuery([])();
+      if (match.parentPostId) return leanQuery([])();
+      return leanQuery([
+        { _id: 'p_legacy', oxyUserId: 'author_legacy' },
+        { _id: 'p_video', oxyUserId: 'author_video' },
+      ])();
+    });
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    const legacy = result.find((c) => c.userId === 'author_legacy')?.weight ?? 0;
+    const video = result.find((c) => c.userId === 'author_video')?.weight ?? 0;
+    // Legacy (no source) keeps the full like weight; video is discounted below it.
+    expect(video).toBeLessThan(legacy);
   });
 
   it('engagement affinity outranks hashtag affinity for the same author', async () => {

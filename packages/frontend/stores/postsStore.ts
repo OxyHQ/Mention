@@ -247,16 +247,30 @@ interface PostsStoreState {
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<void>;
   createBoost: (request: CreateBoostRequest) => Promise<void>;
-  boostPost: (request: { postId: string }) => Promise<void>;
+  // `source` (optional) is the originating feed descriptor for surface-aware
+  // engagement attribution. Threaded only through the POSITIVE actions (boost,
+  // like, save) — the undo actions carry no interest signal.
+  boostPost: (request: { postId: string }, source?: string) => Promise<void>;
   unboostPost: (request: { postId: string }) => Promise<void>;
 
   // Engagement
-  likePost: (request: LikeRequest) => Promise<void>;
+  likePost: (request: LikeRequest, source?: string) => Promise<void>;
   unlikePost: (request: UnlikeRequest) => Promise<void>;
   downvotePost: (request: { postId: string; type: string }) => Promise<void>;
-  savePost: (request: { postId: string }) => Promise<void>;
+  savePost: (request: { postId: string }, source?: string) => Promise<void>;
   unsavePost: (request: { postId: string }) => Promise<void>;
   getPostById: (postId: string) => Promise<any>;
+  // Always fetch a single post from the network and upsert it into the shared
+  // cache (stale-while-revalidate). Unlike `getPostById`, this does NOT short-
+  // circuit on a cache hit — it refreshes engagement/viewer state for an
+  // already-cached post (e.g. when the post-detail screen opens from the feed).
+  revalidatePostById: (postId: string) => Promise<FeedItem | null>;
+  // Upsert post objects into the shared cache WITHOUT touching feed ordering.
+  // Used by the memory-mode feed path (web without SQLite, and scoped feeds),
+  // which owns its own ordering in local React state but must still seed the
+  // shared post cache so the post-detail screen can render instantly from
+  // `getPostFromDb(id)` instead of issuing a cold blocking fetch on open.
+  cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => void;
 
   // Local state updates
   updatePostLocally: (postId: string, updates: Partial<FeedItem>) => void;
@@ -765,7 +779,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── boostPost ────────────────────────────────────────────
-    boostPost: async (request: { postId: string }) => {
+    boostPost: async (request: { postId: string }, source?: string) => {
       const postId = request.postId;
       let previousPost: FeedItem | null = null;
 
@@ -782,7 +796,7 @@ export const usePostsStore = create<PostsStoreState>()(
           }));
         }
 
-        const response = await feedService.createBoost({ originalPostId: postId, mentions: [], hashtags: [] });
+        const response = await feedService.createBoost({ originalPostId: postId, mentions: [], hashtags: [] }, source);
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to boost');
@@ -827,7 +841,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── likePost ─────────────────────────────────────────────
-    likePost: async (request: LikeRequest) => {
+    likePost: async (request: LikeRequest, source?: string) => {
       const postId = request.postId;
       const engagementKey = getEngagementKey(postId, 'like');
       let previousPost: FeedItem | null = null;
@@ -850,7 +864,7 @@ export const usePostsStore = create<PostsStoreState>()(
           }
         }
 
-        const response = await feedService.voteItem(postId, 1);
+        const response = await feedService.voteItem(postId, 1, source);
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to like');
@@ -953,7 +967,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── savePost ─────────────────────────────────────────────
-    savePost: async (request: { postId: string }) => {
+    savePost: async (request: { postId: string }, source?: string) => {
       const postId = request.postId;
       let previousPost: FeedItem | null = null;
 
@@ -969,7 +983,7 @@ export const usePostsStore = create<PostsStoreState>()(
           }));
         }
 
-        const response = await feedService.saveItem(request);
+        const response = await feedService.saveItem(request, source);
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to save');
@@ -1032,6 +1046,45 @@ export const usePostsStore = create<PostsStoreState>()(
         set({ error: errorMessage });
         throw error;
       }
+    },
+
+    // ── revalidatePostById ───────────────────────────────────
+    revalidatePostById: async (postId: string) => {
+      if (!postId) return null;
+      try {
+        const response = await feedService.getPostById(postId);
+        const item = transformToUIItem(response);
+        if (!isValidId(item.id)) return null;
+        dbUpsertPost(item);
+        if (item.original?.id) dbUpsertPost(item.original);
+        if (item.quoted?.id) dbUpsertPost(item.quoted);
+        set((s) => bumpVersion(s));
+        return item;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to revalidate post';
+        logger.debug('revalidatePostById failed', { postId, error: errorMessage });
+        return null;
+      }
+    },
+
+    // ── cachePosts ───────────────────────────────────────────
+    // Seed the shared post cache from the memory-mode feed path. Transforms raw
+    // feed items into the canonical UI shape (so the detail screen reads the same
+    // shape the SQLite path produces) and upserts them — plus any embedded
+    // original/quoted posts — without writing feed_items, so memory mode's own
+    // ordering in local React state is untouched.
+    cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => {
+      if (!posts || posts.length === 0) return;
+
+      const transformed = posts.map((p) => transformToUIItem(p)).filter((p) => isValidId(p.id));
+      if (transformed.length === 0) return;
+
+      dbUpsertPosts(transformed);
+      for (const item of transformed) {
+        if (item.original?.id) dbUpsertPost(item.original);
+        if (item.quoted?.id) dbUpsertPost(item.quoted);
+      }
+      set((s) => bumpVersion(s));
     },
 
     // ── updatePostLocally ────────────────────────────────────
