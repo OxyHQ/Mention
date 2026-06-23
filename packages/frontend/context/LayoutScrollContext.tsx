@@ -90,7 +90,7 @@ export function LayoutScrollProvider({
     // handleScroll path on web and keeps every consumer (BottomBar auto-hide,
     // HomeScreen header/FAB) working unchanged. Subscribing to an external
     // mutable store (window scroll) is a legitimate useEffect — same
-    // justification as useBottomBarVisibility's listener. No-op on native, which
+    // justification as the BottomBarVisibility listener. No-op on native, which
     // still drives scrollY through its inner FlashList via handleScroll.
     useEffect(() => {
         if (!IS_WEB || typeof window === 'undefined') return;

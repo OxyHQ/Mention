@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
+import { BottomBarVisibilityProvider } from '@/context/BottomBarVisibilityContext';
 import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
 import { ScreenColorProvider, useScreenColor } from '@/context/ScreenColorContext';
 import { VideosRailProvider } from '@/context/VideosRailContext';
@@ -99,9 +100,12 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
   // wrapper below so the last scrollable item of EVERY route clears the bar
   // instead of hiding behind it. Only when the bar actually renders
   // (authenticated mobile-web); 0 on desktop and native (native pins the bar in
-  // its own overlay and screens own their own bottom spacing).
+  // its own overlay and screens own their own bottom spacing). The immersive
+  // Reels viewer (/videos) is excluded: its slides are full-viewport with
+  // scroll-snap and it manages its own bottom spacing, so a shell tail would add
+  // a snap-breaking gap after the last slide.
   const mobileWebBottomInset =
-    IS_WEB && !isScreenNotMobile && isAuthenticated
+    IS_WEB && !isScreenNotMobile && isAuthenticated && pathname !== '/videos'
       ? BOTTOM_BAR_RESERVED_SPACE + insets.bottom
       : 0;
 
@@ -265,6 +269,11 @@ export default function AppLayout() {
     <ScreenColorProvider>
     <VideosRailProvider>
     <DrawerProvider>
+    {/* One shared bottom-bar auto-hide signal for the whole (app) group — the
+        BottomBar, the screen FABs and the home/explore headers all read it, and
+        it is pinned visible on /videos. Wraps both MainLayout (screens) and the
+        BottomBar so every consumer sees the same animated value. */}
+    <BottomBarVisibilityProvider>
       <ConnectionStatus />
       <RealtimePostsBridge />
       <MainLayout isScreenNotMobile={isScreenNotMobile} isAuthenticated={isAuthenticated} isAuthResolved={isAuthResolved} />
@@ -278,6 +287,7 @@ export default function AppLayout() {
           onClose={handleCloseHelpModal}
         />
       )}
+    </BottomBarVisibilityProvider>
     </DrawerProvider>
     </VideosRailProvider>
     </ScreenColorProvider>

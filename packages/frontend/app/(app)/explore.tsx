@@ -10,10 +10,9 @@ import { router } from 'expo-router';
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
-import { useFabOffset } from '@/hooks/useFabOffset';
+import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
-import { Fab } from '@oxyhq/bloom/fab';
+import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
 import { StarterPacksTab } from '@/components/StarterPacksTab';
@@ -30,14 +29,13 @@ const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const fabOffset = useFabOffset();
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
   const headerHeight = PANEL_HEADER_HEIGHT;
 
-  // Shared auto-hide signal (0 = visible, 1 = hidden) — the same hook the bottom
-  // bar uses, so the header and the FAB stay in lock-step with the bar instead of
+  // Shared auto-hide signal (0 = visible, 1 = hidden) — the same value the bottom
+  // bar and FAB read, so the header stays in lock-step with the bar instead of
   // running a duplicate scroll listener here.
-  const hidden = useBottomBarVisibility();
+  const hidden = useBottomBarHidden();
   const headerTranslateY = useDerivedValue(() => hidden.value * -(headerHeight + insets.top));
   const headerOpacity = useDerivedValue(() => 1 - hidden.value);
 
@@ -181,12 +179,9 @@ const ExploreScreen: React.FC = () => {
           {/* Content */}
           {renderContent()}
 
-          {/* Floating Action Button - Search. Bloom canonical FAB; web sticky
-              anchors to the relative scroll column above. */}
-          <Fab
-            size={48}
+          {/* Search FAB that rides the BottomBar's show/hide (web mobile). */}
+          <BottomBarAwareFab
             onPress={() => router.push('/search')}
-            offset={fabOffset}
             icon={<Search size={22} className="text-primary-foreground" />}
             accessibilityLabel={t('Search')}
           />

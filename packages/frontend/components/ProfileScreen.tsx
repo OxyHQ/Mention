@@ -49,8 +49,7 @@ import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
-import { Fab } from '@oxyhq/bloom/fab';
-import { useFabOffset } from '@/hooks/useFabOffset';
+import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { IconButton } from '@/components/ui/Button';
 import SEO from '@/components/SEO';
 
@@ -125,7 +124,6 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const fabOffset = useFabOffset();
     const bottomSheet = useContext(BottomSheetContext);
 
     // Component references
@@ -829,11 +827,9 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             </Animated.ScrollView>
                         )}
 
-                        {/* FAB */}
-                        <Fab
-                            size={48}
+                        {/* FAB that rides the BottomBar's show/hide (web mobile). */}
+                        <BottomBarAwareFab
                             onPress={() => router.push('/compose')}
-                            offset={fabOffset}
                             icon={<ComposeIcon size={20} className="text-primary-foreground" />}
                             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
                         />

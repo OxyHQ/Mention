@@ -13,10 +13,9 @@ import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
-import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
-import { useFabOffset } from '@/hooks/useFabOffset';
+import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
-import { Fab } from '@oxyhq/bloom/fab';
+import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -54,7 +53,6 @@ const HomeScreen: React.FC = () => {
     const { open: openDrawer } = useDrawer();
     const isScreenNotMobile = useIsScreenNotMobile();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
-    const fabOffset = useFabOffset();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -63,7 +61,7 @@ const HomeScreen: React.FC = () => {
     // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header
     // derives its motion from this one value so it stays in lock-step with the
     // bottom bar — no per-screen duplicate scroll listener.
-    const bottomBarHidden = useBottomBarVisibility();
+    const bottomBarHidden = useBottomBarHidden();
     const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
     const headerOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
 
@@ -314,12 +312,10 @@ const HomeScreen: React.FC = () => {
                     {/* Content */}
                     {renderContent()}
 
-                    {/* Canonical Bloom <Fab>: persistent compose action. The old auto-hide + scroll-to-top icon-swap were dropped when standardizing on the Bloom FAB. */}
+                    {/* Compose FAB that rides the BottomBar's show/hide (web mobile). */}
                     {canUsePrivateApi && (
-                        <Fab
-                            size={48}
+                        <BottomBarAwareFab
                             onPress={() => router.push('/compose')}
-                            offset={fabOffset}
                             icon={<ComposeIcon size={22} className="text-primary-foreground" />}
                             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
                         />

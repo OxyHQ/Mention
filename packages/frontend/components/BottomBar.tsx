@@ -8,7 +8,7 @@ import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
-import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
+import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -80,8 +80,9 @@ export const BottomBar = () => {
     const { triggerHomeRefresh } = useHomeRefresh();
     const { t } = useTranslation();
     // Shared auto-hide signal (0 = visible, 1 = hidden). The FAB reads the same
-    // hook so it slides away in lock-step with this bar.
-    const hidden = useBottomBarVisibility();
+    // value so it slides away in lock-step with this bar. Pinned to 0 on /videos
+    // (the provider disables auto-hide there).
+    const hidden = useBottomBarHidden();
 
     // The Reels (/videos) screen floats this bar over dark video content, so it
     // always renders against a forced-dark surface regardless of the app theme.
