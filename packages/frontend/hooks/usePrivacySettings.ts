@@ -15,6 +15,7 @@ const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
     hideShareCounts: false,
     hideReplyCounts: false,
     hideSaveCounts: false,
+    showSensitiveContent: false,
 };
 
 export interface PrivacySettings {
@@ -27,6 +28,7 @@ export interface PrivacySettings {
     hideShareCounts?: boolean;
     hideReplyCounts?: boolean;
     hideSaveCounts?: boolean;
+    showSensitiveContent?: boolean;
     hiddenWords?: string[];
     restrictedUsers?: string[];
 }

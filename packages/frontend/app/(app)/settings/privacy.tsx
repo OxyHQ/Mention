@@ -20,7 +20,7 @@ import {
     getRecommendationFilters,
     saveRecommendationFilters,
 } from '@/lib/recommendationFilters';
-import type { PrivacySettings, UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import { updatePrivacySettingsCache, type PrivacySettings, type UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 const FILTER_TOGGLES: Array<{
@@ -95,6 +95,19 @@ export default function PrivacySettingsScreen() {
         const updated = { ...recFilters, [key]: value };
         setRecFilters(updated);
         saveRecommendationFilters(updated);
+    };
+
+    const updatePrivacyToggle = async (field: 'showSensitiveContent', value: boolean) => {
+        const previous = privacySettings;
+        const updated = { ...privacySettings, [field]: value };
+        setPrivacySettings(updated);
+        try {
+            await authenticatedClient.put('/profile/settings', { privacy: updated });
+            await updatePrivacySettingsCache(updated);
+        } catch (error) {
+            logger.error('Error updating privacy setting', { error, field });
+            setPrivacySettings(previous);
+        }
     };
 
     const getProfileVisibilityText = () => {
@@ -240,6 +253,21 @@ export default function PrivacySettingsScreen() {
                         title={t('settings.privacy.hideLikeShareCounts')}
                         description={t('settings.privacy.hideLikeShareCountsDesc', { defaultValue: 'Hide engagement counts on posts' })}
                         onPress={() => router.push('/settings/privacy/hide-counts')}
+                    />
+                </SettingsListGroup>
+
+                <SettingsListGroup title={t('settings.privacy.content')}>
+                    <SettingsListItem
+                        icon={<RowIcon name="alert-circle-outline" />}
+                        title={t('settings.privacy.showSensitiveContent')}
+                        description={t('settings.privacy.showSensitiveContentDesc', { defaultValue: 'Show posts marked sensitive/NSFW in your feeds' })}
+                        showChevron={false}
+                        rightElement={
+                            <Switch
+                                value={privacySettings.showSensitiveContent ?? false}
+                                onValueChange={(value) => updatePrivacyToggle('showSensitiveContent', value)}
+                            />
+                        }
                     />
                 </SettingsListGroup>
 
