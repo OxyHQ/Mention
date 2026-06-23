@@ -14,6 +14,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
+import { useFabOffset } from '@/hooks/useFabOffset';
 import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { Fab } from '@oxyhq/bloom/fab';
 import { Search } from '@/assets/icons/search-icon';
@@ -53,6 +54,7 @@ const HomeScreen: React.FC = () => {
     const { open: openDrawer } = useDrawer();
     const isScreenNotMobile = useIsScreenNotMobile();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
+    const fabOffset = useFabOffset();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -317,7 +319,7 @@ const HomeScreen: React.FC = () => {
                         <Fab
                             size={48}
                             onPress={() => router.push('/compose')}
-                            offset={16}
+                            offset={fabOffset}
                             icon={<ComposeIcon size={22} className="text-primary-foreground" />}
                             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
                         />

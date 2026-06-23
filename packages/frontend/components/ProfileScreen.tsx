@@ -50,6 +50,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { Fab } from '@oxyhq/bloom/fab';
+import { useFabOffset } from '@/hooks/useFabOffset';
 import { IconButton } from '@/components/ui/Button';
 import SEO from '@/components/SEO';
 
@@ -124,6 +125,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
+    const fabOffset = useFabOffset();
     const bottomSheet = useContext(BottomSheetContext);
 
     // Component references
@@ -831,7 +833,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                         <Fab
                             size={48}
                             onPress={() => router.push('/compose')}
-                            offset={16}
+                            offset={fabOffset}
                             icon={<ComposeIcon size={20} className="text-primary-foreground" />}
                             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
                         />

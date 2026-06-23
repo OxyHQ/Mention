@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { Fab } from '@oxyhq/bloom/fab';
+import { useFabOffset } from '@/hooks/useFabOffset';
 import { ThemedView } from '@/components/ThemedView';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
@@ -139,6 +140,7 @@ const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const fabOffset = useFabOffset();
   const [pinned, setPinned] = useState<string[]>([]);
   const [myFeeds, setMyFeeds] = useState<FeedItem[]>([]);
   const [publicFeeds, setPublicFeeds] = useState<FeedItem[]>([]);
@@ -309,7 +311,7 @@ const FeedsScreen: React.FC = () => {
         <Fab
           size={48}
           onPress={() => router.push('/feeds/create')}
-          offset={16}
+          offset={fabOffset}
           icon={<Ionicons name="add" size={24} color="white" />}
           accessibilityLabel={t('feeds.create', { defaultValue: 'Create feed' })}
         />

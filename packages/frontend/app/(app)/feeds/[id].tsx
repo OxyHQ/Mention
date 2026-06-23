@@ -26,6 +26,7 @@ import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { Fab } from '@oxyhq/bloom/fab';
+import { useFabOffset } from '@/hooks/useFabOffset';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { getData, storeData } from '@/utils/storage';
@@ -596,6 +597,7 @@ export default function CustomFeedTimelineScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
+  const fabOffset = useFabOffset();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [feed, setFeed] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -824,7 +826,7 @@ export default function CustomFeedTimelineScreen() {
         <Fab
           size={48}
           onPress={() => router.push('/compose')}
-          offset={16}
+          offset={fabOffset}
           icon={<ComposeIcon size={22} className="text-primary-foreground" />}
           accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
         />

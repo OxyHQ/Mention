@@ -11,6 +11,7 @@ import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useBottomBarVisibility } from '@/hooks/useBottomBarVisibility';
+import { useFabOffset } from '@/hooks/useFabOffset';
 import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { Fab } from '@oxyhq/bloom/fab';
 import { Search } from '@/assets/icons/search-icon';
@@ -29,6 +30,7 @@ const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const fabOffset = useFabOffset();
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
   const headerHeight = PANEL_HEADER_HEIGHT;
 
@@ -184,7 +186,7 @@ const ExploreScreen: React.FC = () => {
           <Fab
             size={48}
             onPress={() => router.push('/search')}
-            offset={16}
+            offset={fabOffset}
             icon={<Search size={22} className="text-primary-foreground" />}
             accessibilityLabel={t('Search')}
           />

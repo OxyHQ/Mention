@@ -6,7 +6,7 @@ import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } f
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 
-import { BottomBar } from "@/components/BottomBar";
+import { BottomBar, BOTTOM_BAR_RESERVED_SPACE } from "@/components/BottomBar";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
@@ -17,6 +17,7 @@ import { ThemedView } from "@/components/ThemedView";
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 import ConnectionStatus from '@/components/common/ConnectionStatus';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
@@ -85,10 +86,24 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
   const { screenColor } = useScreenColor();
   const theme = useTheme();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const onProfileRoute = isProfileRoute(pathname);
 
   const activeScreenColor: AppColorName | undefined =
     onProfileRoute && screenColor && APP_COLOR_PRESETS[screenColor] ? screenColor : undefined;
+
+  // Mobile-web only: the BottomBar is `position: fixed` to the viewport bottom
+  // (see BottomBar.tsx), so it no longer takes layout space in the document
+  // scroll. Reserve its footprint (pill height + gap + breathing room + the
+  // safe-area bottom inset) as `paddingBottom` on the single shared feed-content
+  // wrapper below so the last scrollable item of EVERY route clears the bar
+  // instead of hiding behind it. Only when the bar actually renders
+  // (authenticated mobile-web); 0 on desktop and native (native pins the bar in
+  // its own overlay and screens own their own bottom spacing).
+  const mobileWebBottomInset =
+    IS_WEB && !isScreenNotMobile && isAuthenticated
+      ? BOTTOM_BAR_RESERVED_SPACE + insets.bottom
+      : 0;
 
   // The center column content is identical on both platforms; only its host
   // differs. WEB uses <Slot/> so the matched route flows in normal document
@@ -224,6 +239,7 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
                 "flex-1",
                 IS_WEB && isScreenNotMobile && "md:rounded-[28px] web:overflow-x-clip",
               )}
+              style={mobileWebBottomInset ? { paddingBottom: mobileWebBottomInset } : undefined}
             >
               {centerContent}
             </View>

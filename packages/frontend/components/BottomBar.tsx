@@ -46,6 +46,20 @@ const SPRING_CONFIG = {
 const TAB_COUNT = 5;
 const ICON_SIZE = 22;
 
+/** Height (px) of the floating bar pill. */
+const BOTTOM_BAR_HEIGHT = 56;
+/** Gap (px) between the floating bar and the viewport bottom (matches `web:bottom-3` / native `bottom: 12`). */
+const BOTTOM_BAR_OFFSET = 12;
+
+/**
+ * Vertical space (px) the floating bar occupies above the (safe-area) viewport
+ * bottom — the pill height + its bottom gap + a small breathing margin so the
+ * last scrollable item clears the bar instead of sitting flush against it. The
+ * mobile-web shell reserves this much `paddingBottom` (plus the safe-area inset)
+ * below the document-scroll content so nothing hides BEHIND the fixed bar.
+ */
+export const BOTTOM_BAR_RESERVED_SPACE = BOTTOM_BAR_HEIGHT + BOTTOM_BAR_OFFSET + BOTTOM_BAR_OFFSET;
+
 // Distance (px) the bar slides downward when fully hidden — enough to clear the
 // bar height + bottom offset + its shadow so nothing peeks above the edge.
 const BOTTOM_BAR_OFFSCREEN_TRAVEL = 100;
@@ -150,12 +164,16 @@ export const BottomBar = () => {
     // reactive to the Bloom preset/mode; on the Reels screen they are overridden
     // inline with the forced-dark palette. `colors.shadow` is already a valid
     // `rgba(...)` string from the Bloom theme (no NativeWind equivalent).
+    //
+    // POSITIONING: on NATIVE the bar pins via the inline `position: 'absolute'`
+    // + inset values below. On WEB the app uses a DOCUMENT-scroll model (the
+    // window is the scroller), so `position: absolute` would resolve against the
+    // tall document's containing block and scroll out of view. WEB therefore
+    // pins to the viewport via the `web:fixed web:inset-x-4 web:bottom-3`
+    // NativeWind classes on the container (12px bottom / 16px sides) — no inline
+    // `position: 'fixed'` cast, mirroring ConnectionStatus / the sticky overlays.
     const containerStyle = useMemo<ViewStyle>(() => ({
-        position: 'absolute',
-        bottom: 12,
-        left: 16,
-        right: 16,
-        height: 56,
+        height: BOTTOM_BAR_HEIGHT,
         borderRadius: 28,
         overflow: 'hidden',
         zIndex: 1000,
@@ -163,6 +181,10 @@ export const BottomBar = () => {
         ...(Platform.OS === 'web' ? {
             boxShadow: `0 2px 16px ${theme.colors.shadow}`,
         } : {
+            position: 'absolute',
+            bottom: BOTTOM_BAR_OFFSET,
+            left: 16,
+            right: 16,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
@@ -270,8 +292,18 @@ export const BottomBar = () => {
     }), [containerStyle, isVideosScreen]);
 
     if (Platform.OS === 'web') {
+        // The `web:fixed web:inset-x-4 web:bottom-3` classes pin the bar to the
+        // VIEWPORT bottom (12px up, 16px sides) in the document-scroll model so it
+        // stays visible while the document scrolls. They live on the SAME element
+        // that carries the slide/opacity transform: a transformed ancestor becomes
+        // the containing block for any `position: fixed` descendant (it would trap
+        // it), so the fixed element MUST be the transformed one — the translateY
+        // then just offsets the already-fixed bar for the auto-hide slide.
         return (
-            <Animated.View style={bottomBarAnimatedStyle}>
+            <Animated.View
+                className="web:fixed web:inset-x-4 web:bottom-3 web:z-[1000]"
+                style={bottomBarAnimatedStyle}
+            >
                 <View
                     className={cn('border', isVideosScreen ? undefined : 'border-border bg-card/80')}
                     style={webContainerStyle}
