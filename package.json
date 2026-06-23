@@ -38,7 +38,7 @@
     "@oxyhq/bloom": "^0.13.0",
     "@oxyhq/core": "^3.8.1",
     "@oxyhq/services": "^10.5.0",
-    "@react-native/js-polyfills": "^0.85.3",
+    "@react-native/js-polyfills": "^0.86.0",
     "array.prototype.map": "^1.0.8",
     "react-native-worklets": "0.8.3",
     "react-native-worklets-core": "^1.6.3"
