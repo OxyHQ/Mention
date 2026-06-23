@@ -117,8 +117,8 @@ describe('TrendingService.aggregateTopics — NSFW/sensitive exclusion', () => {
   });
 });
 
-describe('TrendingService.aggregateTopics — canonical topicRefs source with extracted fallback', () => {
-  it('prefers postClassification.topicRefs and falls back to extracted.topics per post', async () => {
+describe('TrendingService.aggregateTopics — canonical topicRefs source with slug-topics fallback', () => {
+  it('prefers postClassification.topicRefs and falls back to postClassification.topics per post', async () => {
     mocks.postAggregate.mockResolvedValue([]);
 
     await svc.aggregateTopics();
@@ -129,16 +129,22 @@ describe('TrendingService.aggregateTopics — canonical topicRefs source with ex
     const firstMatch = pipeline.find((s: Record<string, unknown>) => '$match' in s).$match;
     expect(firstMatch.$or).toEqual([
       { 'postClassification.topicRefs': { $exists: true, $ne: [] } },
-      { 'extracted.topics': { $exists: true, $ne: [] } },
+      { 'postClassification.topics': { $exists: true, $ne: [] } },
     ]);
     // The window is keyed on the post createdAt (shared time basis for both sources).
     expect(firstMatch.createdAt).toHaveProperty('$gte');
 
     // An $addFields stage computes the unified `_topicSource`: topicRefs when
-    // non-empty, else extracted.topics.
+    // non-empty, else the slug-only `postClassification.topics` mapped to `{ name }`.
     const addFields = pipeline.find((s: Record<string, unknown>) => '$addFields' in s).$addFields;
     expect(addFields._topicSource.$cond[1]).toBe('$postClassification.topicRefs');
-    expect(addFields._topicSource.$cond[2]).toEqual({ $ifNull: ['$extracted.topics', []] });
+    expect(addFields._topicSource.$cond[2]).toEqual({
+      $map: {
+        input: { $ifNull: ['$postClassification.topics', []] },
+        as: 'name',
+        in: { name: '$$name' },
+      },
+    });
 
     // The unwind + group read the unified source, defaulting absent type/relevance.
     const unwind = pipeline.find((s: Record<string, unknown>) => '$unwind' in s).$unwind;

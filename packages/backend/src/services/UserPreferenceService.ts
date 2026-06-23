@@ -20,16 +20,15 @@ export interface InteractionContext {
  * The (lean) post fields {@link UserPreferenceService.recordInteraction} reads
  * when attributing an interaction. A structural subset of the `Post` document so
  * a lean query result is assignable without coupling to the full Mongoose
- * `Document` type. `postClassification`/`extracted` are kept loosely typed to
- * match {@link UserPreferenceService['getCanonicalTopics']}'s tolerant reader.
+ * `Document` type. `postClassification` is kept loosely typed to match
+ * {@link UserPreferenceService['getCanonicalTopics']}'s tolerant reader.
  */
 interface InteractionPost {
   oxyUserId?: string;
   type?: string;
   language?: string;
   hashtags?: string[];
-  postClassification?: { topicRefs?: unknown };
-  extracted?: { topics?: unknown };
+  postClassification?: { topicRefs?: unknown; topics?: unknown };
 }
 
 /**
@@ -230,7 +229,7 @@ export class UserPreferenceService {
 
     // Update topic preferences from classified topics (richer signal). Prefer
     // the canonical `postClassification.topicRefs` (registry-linked), falling
-    // back to legacy `extracted.topics`. Canonical refs may carry no relevance
+    // back to `postClassification.topics`. Canonical refs may carry no relevance
     // (AI topics are slug-only), so an absent relevance scales by the full
     // content weight (relevance factor 1) rather than zeroing the signal.
     if (isPositiveSignal) {
@@ -427,22 +426,23 @@ export class UserPreferenceService {
   }
 
   /**
-   * The canonical classified topics for a post, PREFERRING the new
-   * `postClassification.topicRefs` (registry-linked) and FALLING BACK to the
-   * legacy `extracted.topics`. Returns `[]` when neither exists so a topic-less
-   * post contributes no topic preference. Each entry exposes `name`, optional
-   * `topicId`, and optional `relevance` (canonical refs may omit relevance).
+   * The canonical classified topics for a post, PREFERRING the registry-linked
+   * `postClassification.topicRefs` and FALLING BACK to the slug-only
+   * `postClassification.topics` (each slug normalized to `{ name }`). Returns `[]`
+   * when neither exists so a topic-less post contributes no topic preference. Each
+   * entry exposes `name`; only `topicRefs` carries the optional `topicId` and
+   * `relevance` (the slug list is name-only, so it learns preferences by name).
    */
   private getCanonicalTopics(
-    post: { postClassification?: { topicRefs?: unknown }; extracted?: { topics?: unknown } },
+    post: { postClassification?: { topicRefs?: unknown; topics?: unknown } },
   ): Array<{ name?: unknown; topicId?: string; relevance?: number }> {
     const refs = post.postClassification?.topicRefs;
     if (Array.isArray(refs) && refs.length > 0) {
       return refs;
     }
-    const extracted = post.extracted?.topics;
-    if (Array.isArray(extracted) && extracted.length > 0) {
-      return extracted;
+    const topics = post.postClassification?.topics;
+    if (Array.isArray(topics) && topics.length > 0) {
+      return topics.map((name: unknown) => ({ name }));
     }
     return [];
   }

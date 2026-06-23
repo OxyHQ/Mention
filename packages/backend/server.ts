@@ -966,14 +966,6 @@ function startSchedulers(): void {
     logger.warn("Failed to initialize trending service", error);
   }
 
-  // Topic Extraction Service (5-min interval)
-  try {
-    const { topicExtractionService } = require("./src/services/TopicExtractionService");
-    topicExtractionService.start();
-  } catch (error) {
-    logger.warn("Failed to start topic extraction service", error);
-  }
-
   // Post Classification Service (5-min interval; no-ops unless enabled + Alia configured)
   try {
     const { postClassificationService } = require("./src/services/PostClassificationService");
@@ -1029,13 +1021,6 @@ function stopSchedulers(): void {
     trendingService.cleanup();
   } catch (error) {
     logger.warn("Failed to stop trending service", error);
-  }
-
-  try {
-    const { topicExtractionService } = require("./src/services/TopicExtractionService");
-    topicExtractionService.stop();
-  } catch (error) {
-    logger.warn("Failed to stop topic extraction service", error);
   }
 
   try {

@@ -483,7 +483,7 @@ describe('FeedRankingService deterministic-baseline scores (P3d) — honored via
   });
 });
 
-describe('FeedRankingService canonical topics (postClassification.topicRefs) — prefer / fallback / neutral', () => {
+describe('FeedRankingService canonical topics (postClassification.topicRefs → topics) — prefer / fallback / neutral', () => {
   const VIEWER = 'viewer-1';
 
   /** behaviorSets with one preferred topicId and one hidden topic name. */
@@ -521,34 +521,30 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs) —
     expect(await scoreAsViewer(matched)).toBeGreaterThan(await scoreAsViewer(unmatched));
   });
 
-  it('PERSONALIZATION — FALLS BACK to extracted.topics when topicRefs is absent', async () => {
-    const matchedViaLegacy = makePost({
-      // No topicRefs → reader falls back to extracted.topics for the topicId match.
-      extracted: { topics: [{ name: 'basketball', type: 'topic', relevance: 9, topicId: 'topic-basketball' }] },
+  it('PERSONALIZATION — slug-only postClassification.topics carry no topicId, so they do not trigger the topicId boost', async () => {
+    // The slug fallback yields `{ name }` only — no `topicId` — so topicId-based
+    // personalization is a documented graceful no-op for slug-only posts. A post
+    // whose slug name equals the preferred topic gets NO topicId boost.
+    const slugOnly = makePost({
+      postClassification: { status: 'baseline', topics: ['basketball'] },
+    });
+    const noTopics = makePost({ postClassification: { status: 'baseline', topics: [] } });
+    expect(await scoreAsViewer(slugOnly)).toBeCloseTo(await scoreAsViewer(noTopics), 10);
+  });
+
+  it('PERSONALIZATION — PREFERS topicRefs over the slug list for the topicId match', async () => {
+    // topicRefs carries the preferred id and must drive the match. The same post
+    // also has a non-matching slug list, proving topicRefs is the source used.
+    const prefersRefs = makePost({
+      postClassification: { status: 'classified', topics: ['cooking'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
     });
     const unmatched = makePost({
-      extracted: { topics: [{ name: 'cooking', type: 'topic', relevance: 9, topicId: 'topic-cooking' }] },
+      postClassification: { status: 'classified', topics: ['basketball'], topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }] },
     });
-    expect(await scoreAsViewer(matchedViaLegacy)).toBeGreaterThan(await scoreAsViewer(unmatched));
+    expect(await scoreAsViewer(prefersRefs)).toBeGreaterThan(await scoreAsViewer(unmatched));
   });
 
-  it('PERSONALIZATION — PREFERS topicRefs over extracted.topics when both exist', async () => {
-    // topicRefs has the preferred id; extracted has a different id. The canonical
-    // topicRefs must win (so this matches), proving preference order.
-    const prefersRefs = makePost({
-      postClassification: { status: 'classified', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
-      extracted: { topics: [{ name: 'cooking', type: 'topic', relevance: 9, topicId: 'topic-cooking' }] },
-    });
-    // Inverse: topicRefs has the non-preferred id, extracted has the preferred id.
-    // Since topicRefs is PREFERRED, extracted's preferred id must be IGNORED → no match.
-    const ignoresExtractedWhenRefsPresent = makePost({
-      postClassification: { status: 'classified', topics: ['cooking'], topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }] },
-      extracted: { topics: [{ name: 'basketball', type: 'topic', relevance: 9, topicId: 'topic-basketball' }] },
-    });
-    expect(await scoreAsViewer(prefersRefs)).toBeGreaterThan(await scoreAsViewer(ignoresExtractedWhenRefsPresent));
-  });
-
-  it('PERSONALIZATION — NEUTRAL when neither topicRefs nor extracted.topics is present', async () => {
+  it('PERSONALIZATION — NEUTRAL when neither topicRefs nor postClassification.topics is present', async () => {
     const noTopics = makePost({ postClassification: { status: 'baseline', topics: [] } });
     const noClassification = makePost();
     // Both topic-less → identical personalization (no topic-match boost either way).
@@ -565,14 +561,14 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs) —
     expect(await scoreAsViewer(hidden)).toBeLessThan(await scoreAsViewer(visible));
   });
 
-  it('HIDDEN-TOPIC — FALLS BACK to extracted.topics name when topicRefs is absent', async () => {
-    const hiddenViaLegacy = makePost({
-      extracted: { topics: [{ name: 'politics', type: 'topic', relevance: 8 }] },
+  it('HIDDEN-TOPIC — FALLS BACK to the slug-only postClassification.topics name when topicRefs is absent', async () => {
+    const hiddenViaSlug = makePost({
+      postClassification: { status: 'baseline', topics: ['politics'] },
     });
-    const visibleViaLegacy = makePost({
-      extracted: { topics: [{ name: 'basketball', type: 'topic', relevance: 8 }] },
+    const visibleViaSlug = makePost({
+      postClassification: { status: 'baseline', topics: ['basketball'] },
     });
-    expect(await scoreAsViewer(hiddenViaLegacy)).toBeLessThan(await scoreAsViewer(visibleViaLegacy));
+    expect(await scoreAsViewer(hiddenViaSlug)).toBeLessThan(await scoreAsViewer(visibleViaSlug));
   });
 
   it('HIDDEN-TOPIC — NEUTRAL when a topic-less post cannot be matched against hidden topics', async () => {

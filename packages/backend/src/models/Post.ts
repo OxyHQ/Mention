@@ -50,10 +50,6 @@ export interface IPost extends Document {
   };
   status?: 'draft' | 'published' | 'scheduled';
   scheduledFor?: Date;
-  extracted?: {
-    topics?: Array<{ name: string; type: 'topic' | 'entity'; relevance: number; topicId?: string }>;
-    extractedAt?: Date;
-  };
   // Internal AI-inferred classification metadata. Separate from `hashtags`.
   // Defaults to a `pending` status on creation so the async classification batch
   // job picks it up; the AI provider/model is never stored here.
@@ -331,9 +327,9 @@ const PostClassificationSchema = new Schema({
   // The same canonical topics resolved into the Topic registry: each carries the
   // slug `name`, plus `topicId` when the name resolved to a Topic document, and
   // the discovered `relevance`/`type` (AI path only). This is the relational read
-  // form consumed by ranking/personalization/trending/topic-pages — it replaces
-  // the legacy `extracted.topics` subdoc. `topicId` is stored as a string (the
-  // Topic registry lives in Oxy; this is the resolved id, not a local ref).
+  // form consumed by ranking/personalization/trending/topic-pages, alongside the
+  // slug-only `topics` list above. `topicId` is stored as a string (the Topic
+  // registry lives in Oxy; this is the resolved id, not a local ref).
   topicRefs: {
     type: [{
       name: { type: String, required: true },
@@ -461,16 +457,6 @@ const PostSchema = new Schema<IPost>({
     // Optional address string for display purposes
     address: { type: String, required: false }
   },
-  extracted: {
-    topics: [{
-      name: { type: String, required: true },
-      type: { type: String, enum: ['topic', 'entity'], required: true },
-      relevance: { type: Number, required: true, min: 1, max: 10 },
-      topicId: { type: Schema.Types.ObjectId, ref: 'Topic', required: false },
-      _id: false,
-    }],
-    extractedAt: { type: Date },
-  },
   // Internal AI classification metadata. Defaults to a `pending` subdoc so EVERY
   // document-based creation path (composer/API via PostCreationService,
   // createThread, replies, single federated ingest, MCP) yields a post the
@@ -560,10 +546,9 @@ PostSchema.index({ boostOf: 1, createdAt: -1 });
 PostSchema.index({ quoteOf: 1, createdAt: -1 });
 PostSchema.index({ 'content.media': 1, createdAt: -1 });
 PostSchema.index({ createdAt: -1 }); // Default sort order
-PostSchema.index({ 'extracted.extractedAt': 1, createdAt: -1 }); // Topic extraction queue
-PostSchema.index({ 'extracted.topics.name': 1, createdAt: -1 }); // Topic name lookup (legacy)
 // Canonical topic-page lookup: getPostsByTopic matches the canonical
-// postClassification.topicRefs.name (with extracted.topics.name as fallback).
+// postClassification.topicRefs.name (with the slug-only postClassification.topics
+// compound index below as the fallback branch).
 PostSchema.index({ 'postClassification.topicRefs.name': 1, createdAt: -1 });
 PostSchema.index({ 'postClassification.status': 1, createdAt: 1 }); // Classification batch queue
 // Stage-A baseline signal lookups (used by For You candidate filtering, P3).

@@ -68,9 +68,8 @@ class TopicService {
   /**
    * Resolve a post's canonical topic slugs into {@link ClassificationTopicRef}
    * entries — the single place that links `postClassification.topics` into the
-   * Topic registry (mirroring what {@link TopicExtractionService} did for the
-   * legacy `extracted.topics`). Used by the Stage-A ingest wiring and the
-   * Stage-B AI enrich path so both stages produce registry-linked topics.
+   * Topic registry. Used by the Stage-A ingest wiring and the Stage-B AI enrich
+   * path so both stages produce registry-linked topics.
    *
    * Resilient by design: a name that resolves to a Topic document carries its
    * `topicId`; a name that does NOT resolve (or when the registry is unreachable)

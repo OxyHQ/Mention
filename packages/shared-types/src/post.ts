@@ -198,7 +198,7 @@ export type PostClassificationStatus = 'pending' | 'baseline' | 'classified' | '
  *
  * `topicId` is absent when the name could not be resolved to a Topic document
  * (e.g. the registry was unreachable at write time); readers that need an id
- * simply skip those entries, exactly as they did for legacy `extracted.topics`.
+ * simply skip those entries and treat the topic as name-only.
  */
 export interface ClassificationTopicRef {
   /** Lowercase topic slug — the same value stored in {@link PostClassification.topics}. */
@@ -247,9 +247,9 @@ export interface PostClassification {
    * of {@link PostClassification.topics} (same names, plus `topicId` and
    * discovered `relevance`/`type`). This is the single source of truth for the
    * algorithms (personalization topic-match by `topicId`, hidden-topic
-   * suppression by `name`, trending aggregation, topic-page lookups), replacing
-   * the legacy `extracted.topics`. Absent on legacy/not-yet-backfilled posts;
-   * readers fall back to `extracted.topics` then treat the post as topic-less.
+   * suppression by `name`, trending aggregation, topic-page lookups). Absent
+   * until the Stage-B AI batch resolves them; readers fall back to the slug-only
+   * {@link PostClassification.topics} then treat the post as topic-less.
    */
   topicRefs?: ClassificationTopicRef[];
   /**

@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 /**
  * Unit coverage for {@link buildPostsByTopicFilter} — the topic-page query the
  * `getPostsByTopic` controller runs. It must match a post whose CANONICAL
- * `postClassification.topicRefs.name` OR legacy `extracted.topics.name` equals
- * the lowercased topic, always scoped to `status: 'published'`.
+ * registry-linked `postClassification.topicRefs.name` OR slug-only
+ * `postClassification.topics` equals the lowercased topic, always scoped to
+ * `status: 'published'`.
  *
  * The controller pulls in the server bootstrap; stub it (and the OxyServices
  * client it constructs) so importing the controller stays pure/no-network.
@@ -18,13 +19,13 @@ vi.mock('../../../server', () => ({
 
 import { buildPostsByTopicFilter } from '../../controllers/posts.controller';
 
-describe('buildPostsByTopicFilter — canonical topicRefs OR legacy extracted match', () => {
-  it('matches the canonical topicRefs.name AND the legacy extracted.topics.name (lowercased)', () => {
+describe('buildPostsByTopicFilter — canonical topicRefs.name OR slug topics match', () => {
+  it('matches the canonical topicRefs.name AND the slug-only postClassification.topics (lowercased)', () => {
     const filter = buildPostsByTopicFilter('Basketball');
 
     expect(filter.$or).toEqual([
       { 'postClassification.topicRefs.name': 'basketball' },
-      { 'extracted.topics.name': 'basketball' },
+      { 'postClassification.topics': 'basketball' },
     ]);
     expect(filter.status).toBe('published');
     // No cursor → no _id range clause.
@@ -36,7 +37,7 @@ describe('buildPostsByTopicFilter — canonical topicRefs OR legacy extracted ma
     expect(filter._id).toEqual({ $lt: 'cursor-123' });
     expect(filter.$or).toEqual([
       { 'postClassification.topicRefs.name': 'tech' },
-      { 'extracted.topics.name': 'tech' },
+      { 'postClassification.topics': 'tech' },
     ]);
   });
 });

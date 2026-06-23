@@ -11,11 +11,12 @@ import type { ClassificationTopicRef } from '@mention/shared-types';
 /**
  * AI-powered post classification service.
  *
- * Mirrors {@link TopicExtractionService}: a leader-gated batch processor that
- * finds unclassified posts, sends them to the Alia AI gateway for strict
- * structured-JSON classification, validates the response with zod, and persists
- * internal `postClassification` metadata (topics, sentiment, intent,
- * quality/safety scores).
+ * A leader-gated batch processor that finds unclassified posts, sends them to the
+ * Alia AI gateway for strict structured-JSON classification, validates the
+ * response with zod, and persists internal `postClassification` metadata (topics,
+ * topicRefs, sentiment, intent, quality/safety scores). This is the ONE topic
+ * system: it refines the canonical `postClassification.topics`/`topicRefs` list
+ * seeded synchronously by the Stage-A baseline classifier at ingest.
  *
  * Design contracts:
  * - Classification is asynchronous and NEVER blocks post creation. New posts are
@@ -250,9 +251,8 @@ class PostClassificationService {
     const now = new Date();
 
     // Resolve every AI-refined topic across the batch into the Topic registry in
-    // ONE pass (single Oxy round trip), then build per-post `topicRefs`. This is
-    // the SAME registry linkage the legacy TopicExtractionService did for
-    // `extracted.topics` — it keeps personalization (topicId match) and trending
+    // ONE pass (single Oxy round trip), then build per-post `topicRefs`. This
+    // registry linkage keeps personalization (topicId match) and trending
     // (TopicStats) working off the canonical `postClassification` list.
     const topicRefsByIndex = await this.resolveBatchTopicRefs(results);
 

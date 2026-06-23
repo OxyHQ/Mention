@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Unit coverage for {@link UserPreferenceService} topic-preference learning off
  * the CANONICAL classified topics. The service must PREFER
- * `postClassification.topicRefs` (registry-linked), FALL BACK to legacy
- * `extracted.topics`, and learn NO topic when neither is present.
+ * `postClassification.topicRefs` (registry-linked), FALL BACK to the slug-only
+ * `postClassification.topics`, and learn NO topic when neither is present.
  *
  * The Post and UserBehavior models are mocked (no DB). We drive a single positive
  * `like` interaction and assert the topic-preference entries written onto the
- * in-memory UserBehavior — specifically the topic `name`, the resolved `topicId`,
- * and that an absent relevance scales by the full weight (factor 1).
+ * in-memory UserBehavior — specifically the topic `name`, the resolved `topicId`
+ * (only `topicRefs` carries one), and that an absent relevance scales by the full
+ * weight (factor 1).
  */
 
 interface TopicPref {
@@ -84,7 +85,7 @@ function prefByTopic(name: string): TopicPref | undefined {
   return behavior.preferredTopics.find(t => t.topic === name);
 }
 
-describe('UserPreferenceService — canonical topic learning (topicRefs prefer / extracted fallback / neutral)', () => {
+describe('UserPreferenceService — canonical topic learning (topicRefs prefer / slug-topics fallback / neutral)', () => {
   it('learns topics from postClassification.topicRefs with the resolved topicId', async () => {
     mocks.findById.mockResolvedValue({
       _id: 'p1',
@@ -108,23 +109,28 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
     expect(behavior.save).toHaveBeenCalledTimes(1);
   });
 
-  it('FALLS BACK to extracted.topics (with relevance + topicId) when topicRefs is absent', async () => {
+  it('FALLS BACK to the slug-only postClassification.topics (name only, no topicId) when topicRefs is absent', async () => {
     mocks.findById.mockResolvedValue({
       _id: 'p2',
       oxyUserId: 'author-1',
       type: 'text',
       hashtags: [],
-      extracted: {
-        topics: [{ name: 'cooking', type: 'topic', relevance: 8, topicId: 'topic-cooking' }],
+      postClassification: {
+        status: 'baseline',
+        topics: ['cooking'],
       },
     });
 
     await userPreferenceService.recordInteraction('viewer-1', 'p2', 'like');
 
-    expect(prefByTopic('cooking')?.topicId).toBe('topic-cooking');
+    // The slug list is name-only: the preference is learned by name, with no
+    // resolved topicId (only topicRefs carry one).
+    const pref = prefByTopic('cooking');
+    expect(pref).toBeDefined();
+    expect(pref?.topicId).toBeUndefined();
   });
 
-  it('PREFERS topicRefs over extracted.topics when both are present', async () => {
+  it('PREFERS topicRefs over the slug list when both are present', async () => {
     mocks.findById.mockResolvedValue({
       _id: 'p3',
       oxyUserId: 'author-1',
@@ -132,17 +138,15 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
       hashtags: [],
       postClassification: {
         status: 'classified',
-        topics: ['basketball'],
+        topics: ['basketball', 'cooking'],
         topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }],
-      },
-      extracted: {
-        topics: [{ name: 'cooking', type: 'topic', relevance: 9, topicId: 'topic-cooking' }],
       },
     });
 
     await userPreferenceService.recordInteraction('viewer-1', 'p3', 'like');
 
-    // Only the canonical topicRefs topic is learned; the extracted one is ignored.
+    // Only the canonical topicRefs topic is learned; the extra slug-only topic
+    // (`cooking`, present in `topics` but not `topicRefs`) is ignored.
     expect(prefByTopic('basketball')).toBeDefined();
     expect(prefByTopic('cooking')).toBeUndefined();
   });
@@ -169,7 +173,7 @@ describe('UserPreferenceService — canonical topic learning (topicRefs prefer /
     expect(pref?.interactionCount).toBeGreaterThan(0);
   });
 
-  it('learns NO classified topic when neither topicRefs nor extracted.topics is present', async () => {
+  it('learns NO classified topic when neither topicRefs nor postClassification.topics is present', async () => {
     mocks.findById.mockResolvedValue({
       _id: 'p5',
       oxyUserId: 'author-1',

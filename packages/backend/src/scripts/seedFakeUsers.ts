@@ -134,7 +134,6 @@ function makePostDoc(userId: string, text: string, type: string, createdAt: Date
       likedBy: [] as string[],
       savedBy: [],
     },
-    extracted: { topics: [] },
     translations: [],
     createdAt,
     updatedAt: createdAt,

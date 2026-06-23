@@ -8,7 +8,7 @@ import { logger } from '../utils/logger';
  * (cron-style background jobs) run on EXACTLY ONE backend task at a time.
  *
  * Why: the Mention backend runs several unconditional per-process schedulers
- * (FeedJobScheduler, TrendingService, TopicExtractionService, TopicService,
+ * (FeedJobScheduler, TrendingService, PostClassificationService, TopicService,
  * FederationJobScheduler, RecordingCleanupService, plus the media-cache worker
  * and eviction jobs owned by FederationJobScheduler). When the backend runs at
  * 2+ ECS tasks for HA / zero-downtime deploys, those schedulers would all

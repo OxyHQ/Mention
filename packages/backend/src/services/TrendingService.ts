@@ -90,7 +90,7 @@ class TrendingService {
   }
 
   /**
-   * Main calculation: aggregate hashtags + topics from extracted post data, then save as a batch.
+   * Main calculation: aggregate hashtags + topics from classified post data, then save as a batch.
    */
   public async calculateTrending(): Promise<void> {
     try {
@@ -207,10 +207,12 @@ class TrendingService {
    * Aggregate trending topics from per-post classified topics.
    *
    * Reads the canonical `postClassification.topicRefs` when present and FALLS
-   * BACK to the legacy `extracted.topics` per post (`$ifNull` on a non-empty
-   * topicRefs array). The window is keyed on the post's `createdAt` so both
-   * sources share one time basis. Canonical refs may omit `relevance`/`type`
-   * (AI topics are slug-only), so missing relevance contributes
+   * BACK to the slug-only `postClassification.topics` per post (`$ifNull` on a
+   * non-empty topicRefs array). The slug list is the rule-based Stage-A baseline
+   * every classified post carries; each slug string is normalized to
+   * `{ name: <slug> }` so the unwind/group reads `name` uniformly. The window is
+   * keyed on the post's `createdAt` so both sources share one time basis. Slug
+   * topics carry no `relevance`/`type`, so missing relevance contributes
    * {@link TrendingService.DEFAULT_TOPIC_RELEVANCE} and missing type defaults to
    * a TOPIC — never an `entity`. Posts with neither topic source contribute
    * nothing (the unified source is `[]`).
@@ -229,22 +231,30 @@ class TrendingService {
           // At least one topic source must be present.
           $or: [
             { 'postClassification.topicRefs': { $exists: true, $ne: [] } },
-            { 'extracted.topics': { $exists: true, $ne: [] } },
+            { 'postClassification.topics': { $exists: true, $ne: [] } },
           ],
           // Sensitive/NSFW-flagged posts never feed trending topics.
           ...SENSITIVE_EXCLUDE_MATCH,
         },
       },
       {
-        // Prefer the canonical topicRefs; fall back to legacy extracted.topics.
-        // `$ifNull` returns the first non-null operand, and the size guard makes
-        // an empty topicRefs array fall through to extracted.topics.
+        // Prefer the canonical topicRefs; fall back to the slug-only
+        // `postClassification.topics`, mapping each slug string to a `{ name }`
+        // shape so the downstream unwind/group reads `name` uniformly. `$ifNull`
+        // returns the first non-null operand, and the size guard makes an empty
+        // topicRefs array fall through to the slug list.
         $addFields: {
           _topicSource: {
             $cond: [
               { $gt: [{ $size: { $ifNull: ['$postClassification.topicRefs', []] } }, 0] },
               '$postClassification.topicRefs',
-              { $ifNull: ['$extracted.topics', []] },
+              {
+                $map: {
+                  input: { $ifNull: ['$postClassification.topics', []] },
+                  as: 'name',
+                  in: { name: '$$name' },
+                },
+              },
             ],
           },
         },

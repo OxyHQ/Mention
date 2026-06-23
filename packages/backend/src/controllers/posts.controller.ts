@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { Post } from '../models/Post';
+import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
+import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
@@ -1017,9 +1018,36 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       post.content.text = text;
       // Re-extract hashtags when text changes
       post.hashtags = mergeHashtags(text || '', hashtags || post.hashtags);
-      // Reset topic extraction so the service re-processes this post
-      post.extracted = undefined;
-      post.markModified('extracted');
+      // Re-classify the post for its new text. The deterministic Stage-A
+      // classifier is pure/synchronous, so it refreshes the canonical
+      // `postClassification.topics` slug list (plus language/region/scores/
+      // sensitive) inline; stale Stage-B `topicRefs` from the old text are
+      // cleared and `status` is reset to `pending` so the AI batch re-refines
+      // this post on its next cycle (a no-op when the AI batch is disabled —
+      // the refreshed Stage-A slugs remain the canonical list).
+      const signals = baselineContentClassifier.classify({
+        text: post.content.text,
+        hashtags: post.hashtags,
+        language: post.language,
+        sensitive: post.federation?.sensitive ?? post.metadata?.isSensitive,
+        isFederated: post.federation != null,
+      });
+      // Replace the whole subdoc: a fresh Stage-A baseline with status reset to
+      // `pending`. Omitted paths (`topicRefs`, `attempts`, the Stage-B AI fields)
+      // fall back to their schema defaults on cast — clearing stale AI topicRefs
+      // and resetting the retry counter — so the AI batch reprocesses cleanly.
+      post.postClassification = {
+        status: POST_CLASSIFICATION_PENDING,
+        topics: signals.topics,
+        language: signals.language,
+        region: signals.region,
+        hashtagsNorm: signals.hashtagsNorm,
+        sensitive: signals.sensitive,
+        scores: signals.scores,
+        version: signals.version,
+        classifiedAt: new Date(signals.classifiedAt),
+      };
+      post.markModified('postClassification');
     }
     if (media !== undefined) {
       const normalizedMedia = normalizeMediaItems(media);
@@ -1819,11 +1847,12 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
 
 /**
  * Build the topic-page query filter. Matches a published post whose canonical
- * `postClassification.topicRefs.name` OR legacy `extracted.topics.name` equals
- * the normalized (lowercased) topic — so posts on either classification system
- * surface during the transition. Topics are stored lowercase, so the lookup is
- * lowercased for index efficiency. Exported for unit testing the canonical /
- * legacy `$or` contract without booting the controller's server import chain.
+ * registry-linked `postClassification.topicRefs.name` OR slug-only
+ * `postClassification.topics` equals the normalized (lowercased) topic — the two
+ * forms of the one canonical topic list (Stage-B AI refs and the Stage-A
+ * rule-based slug baseline). Topics are stored lowercase, so the lookup is
+ * lowercased for index efficiency. Exported for unit testing the canonical `$or`
+ * contract without booting the controller's server import chain.
  */
 export function buildPostsByTopicFilter(
   topicName: string,
@@ -1833,7 +1862,7 @@ export function buildPostsByTopicFilter(
   const filter: Record<string, unknown> = {
     $or: [
       { 'postClassification.topicRefs.name': normalizedTopic },
-      { 'extracted.topics.name': normalizedTopic },
+      { 'postClassification.topics': normalizedTopic },
     ],
     status: 'published',
   };
