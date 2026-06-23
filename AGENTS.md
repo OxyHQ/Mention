@@ -57,7 +57,7 @@ packages/
 - **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain. Outbox sync uses the actor's advertised `outbox` URL (`fetchRemoteActor`), with `actorUri + '/outbox'` only as fallback — guessing breaks PeerTube/Lemmy/some Pleroma. Boosts (Announce) are imported as `type:'boost'` posts (mirroring native repost shape), deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill (`syncOutboxPosts`/`extractCandidates`) paths. Likes/boosts from federated actors are stored as NATIVE records (Like doc / boost Post) — `FederationService` no longer copies remote aggregate counts (those were fake numbers with no records); counts only move ±1 in lockstep with real records. `handleLike` resolves the actor to a federated Oxy user and creates a native `Like` doc; `handleAnnounce` creates a native `type:'boost'` Post for ALL boosters. Undo Like/Announce deletes the record + decrements. Added a `Like.postId` index. Reconciliation script: `packages/backend/src/scripts/recomputeFederatedEngagement.ts` (run once via Fargate one-shot: `bun packages/backend/dist/src/scripts/recomputeFederatedEngagement.js`).
 - **Boost hydration gotcha:** A `type:'boost'` post has an intentionally EMPTY content body and relies on `boostOf` for hydration. `PostHydrationService` only embeds the boosted original when hydrated at `maxDepth >= 1`. Any endpoint/feed that INCLUDES boosts MUST pass `maxDepth:1` or boosts render blank. Affected: `routes/federation.api.routes.ts` and `mtn/feed/feeds/AuthorFeed.ts` (profile page). Native feeds (ForYou/posts via `feedQueryBuilder`) avoid this by EXCLUDING boosts from their query.
 - **Background jobs (BullMQ):** Federation inbound activities are enqueued (inbox 202s fast); `FederationJobScheduler` repeatable jobs replaced setInterval timers; outbound delivery uses BullMQ instead of Mongo `FederationDeliveryQueue`. All env-gated on `REDIS_URL`. BullMQ queue names MUST NOT contain `:` — use `-` (e.g. `federation-inbox`). See global AGENTS.md BullMQ section for the ioredis isolated-linker gotcha.
-- **Auth**: Oxy integration via `@oxyhq/core ^3.7.1` + `@oxyhq/services ^10.3.3`
+- **Auth**: Oxy integration via `@oxyhq/core ^3.8.0` + `@oxyhq/services ^10.3.3`
 - **Starter Packs**: tool for the VIEWER to follow pack members — one-by-one (per-member `FollowButton`) or all at once ("Follow all" via the multi-user `FollowButton`). There is NO "follow the pack" concept. "Follow all" also calls `starterPacksService.use(id)` to record usage/increment useCount. Detail screen: `app/(app)/starter-packs/[id].tsx` (SDK `FollowButton` multi for follow-all, single per member; Bloom `AvatarGroup` as hero). List rows: backend `GET /starter-packs` enriches each item with `memberAvatars: string[]` (≤8 server-resolved URLs) + `memberCount`; frontend list cards use Bloom `AvatarGroup` (rocket icon as zero-avatar fallback). Owner edit flow: `app/(app)/starter-packs/[id]/edit.tsx` (SearchInput + member rows; 150-member cap; delete pack). Backend supports PUT + POST/DELETE `/starter-packs/:id/members` + DELETE.
 - **Lists (subscriptions)**: following a list = SUBSCRIBING (via `EntityFollow` entityType `'list'`) so the viewer sees members' posts WITHOUT following those members individually. `AccountList` has `subscriberCount: number`, maintained by `src/services/ListSubscriptionService.ts` on follow/unfollow; included in list DTOs. Followed-list members' posts are merged into the main feed via `feed.controller.ts` `mergeSubscribedListMemberIds()` (unions subscribed members into `context.followingIds`). Caps: `MAX_SUBSCRIBED_LISTS_FOR_FEED=200`, `MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED=5000` (warns when hit). Frontend: `app/(app)/lists.tsx` shows a "Followed lists" section alongside "Your lists"; subscribe button reads "Follow list / Following".
 
@@ -107,7 +107,7 @@ The canonical Oxy media URL is **`https://cloud.oxy.so/<fileId>?variant=<v>`**. 
 - **Do NOT** build per-app `resolveAvatarUrl` helpers, per-DTO `avatarUrl` fields, or `enrichAvatarUrls` serializers — that was tried and reverted (Mention commits e066a531 reverted 91f06b51).
 - Mention backend `utils/mediaResolver.ts` builds federated actor `icon.url` via `getFileDownloadUrl` → `https://cloud.oxy.so/<id>?variant=thumb` (verified live).
 - CloudFront `cloud.oxy.so` default behavior = `media-api` custom origin (api.oxy.so, OriginPath `/cdn`); `cloud.oxy.so/<id>` → oxy-api `GET /cdn/:id` (`packages/api/src/routes/cdn.ts`, public, no auth) → 302 → `cloud.oxy.so/<key>` for public assets, 404 for private/unknown; edge-cached 1h. `api.oxy.so/assets/:id/stream` also 302s public media to CDN (commit 4434ce8c). Public bytes live under the S3 `public/` prefix.
-- Mention pins `@oxyhq/core ^3.7.1` (root override; commit cf9f1c11) — no other app source change needed.
+- Mention pins `@oxyhq/core ^3.8.0` (root override 3.8.0, commit bb580b2e) — no other app source change needed.
 
 ## Federation — Service Credential & Outbox Sync
 
@@ -136,7 +136,7 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 
 ## Dependencies
 
-- `@oxyhq/core ^3.7.1` (root override pinned to 3.7.1, commit cf9f1c11), `@oxyhq/services ^10.3.3` — Oxy platform SDK
+- `@oxyhq/core ^3.8.0` (root override 3.8.0, commit bb580b2e), `@oxyhq/services ^10.3.3` — Oxy platform SDK
 - `@oxyhq/bloom ^0.9.1` — Shared UI component library (`AvatarGroup` at `@oxyhq/bloom/avatar-group`, `UserHoverCard` at `@oxyhq/bloom/user-hover-card`)
 
 ## Auth Cold-Boot Reactivity (Web)
@@ -194,6 +194,26 @@ On web, the session restores asynchronously after mount — the `/sso` path can 
 - **`EmbeddedWebFeed`** — kept ONLY for genuinely nested sub-lists (e.g. a replies list inside a modal). Do NOT use it for top-level feed screens.
 
 Panel chrome insets are centralized in `packages/frontend/components/shell/PanelChrome.tsx` (`PANEL_TOP_INSET` constant, `<PanelStickyHeader>`, `<PanelStickyFooter>`). Do NOT add per-page `web:top-2` or custom inset padding to individual feed screens — compose `PanelChrome` primitives so sticky chrome stays clear of the bleed-mask.
+
+## Feed Performance & Ranking
+
+### Hydration author-batch (M+1 fix)
+`PostHydrationService.buildUserMap` batch-resolves post authors via `oxyServices.getUsersByIds` (feature-detected; per-id fallback). New `services/userSummaryCache.ts` caches `PostActorSummary` + followerCount in Redis (key `usersummary:v1:<id>`, 10m TTL; mirrors `linkPreviewCache` pattern; no-op without `REDIS_URL`).
+
+### Real view counts
+Feed impressions increment `Post.stats.viewsCount` deduped per (viewer, post) via `services/feedViewCounter.ts` (Redis SET NX EX, key `viewseen:<postId>:<viewerId>`). Frontend reports impression/dwell/click via `feedService.sendFeedInteraction` (was unwired) — see `utils/feedTelemetry.ts`.
+
+### Ranking config (`packages/shared-types/src/mtn/config.ts`)
+- `viewWeight` 0.1 → 0.3; diversity `sameAuthorPenalty` 0.95 → 0.85, `sameTopicPenalty` 0.92 → 0.80.
+- Quality gate: `views > 100` → `> 20` with robust low-view rate.
+- New `ranking.authority { logScale, min, max }` — author follower-count authority signal, bounded ~[0.9, 1.4] with popularity floor; consumed by `FeedRankingService.calculateAuthorityScore`.
+- `ExploreFeed`: additive recency replaced with multiplicative exponential decay.
+
+### Surface-aware engagement attribution
+A like/save/boost from the Videos/reels feed (`source`/`feedContext` = feed descriptor) dampens AUTHOR affinity (`videoSurfaceAuthorAffinityFactor=0.25`, applied to the final `preferredAuthors[].weight` in `UserPreferenceService.updateAuthorPreference`) while keeping/boosting topic + post-type affinity (`videoSurfaceContentBoost=1.3`). Config block: `preferences.engagementContext` + exported `isVideoSurface()` in shared-types config. `Like.source` is persisted; `ContentAffinityService` discounts video-surface likes in the 30-day author-candidate scan. Frontend threads `source` on like/save/boost (incl. the `videos.tsx` reels viewer).
+
+### Instant post-detail open
+Memory-mode feeds (web + scoped) seed the shared post cache (`postsStore.cachePosts`) in `useFeedState`; `app/(app)/p/[id].tsx` paints from cache + background-revalidates (`revalidatePostById`) instead of cold-fetching.
 
 ## Theming
 
