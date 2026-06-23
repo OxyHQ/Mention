@@ -57,7 +57,7 @@ packages/
 - **Federation**: ActivityPub protocol — federated users in Oxy (type: 'federated'), posts in Mention, linked by oxyUserId. HTTP signatures on all outbound requests. Local dev: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to tunnel domain. Outbox sync uses the actor's advertised `outbox` URL (`fetchRemoteActor`), with `actorUri + '/outbox'` only as fallback — guessing breaks PeerTube/Lemmy/some Pleroma. Boosts (Announce) are imported as `type:'boost'` posts (mirroring native repost shape), deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill (`syncOutboxPosts`/`extractCandidates`) paths. Likes/boosts from federated actors are stored as NATIVE records (Like doc / boost Post) — `FederationService` no longer copies remote aggregate counts (those were fake numbers with no records); counts only move ±1 in lockstep with real records. `handleLike` resolves the actor to a federated Oxy user and creates a native `Like` doc; `handleAnnounce` creates a native `type:'boost'` Post for ALL boosters. Undo Like/Announce deletes the record + decrements. Added a `Like.postId` index. Reconciliation script: `packages/backend/src/scripts/recomputeFederatedEngagement.ts` (run once via Fargate one-shot: `bun packages/backend/dist/src/scripts/recomputeFederatedEngagement.js`).
 - **Boost hydration gotcha:** A `type:'boost'` post has an intentionally EMPTY content body and relies on `boostOf` for hydration. `PostHydrationService` only embeds the boosted original when hydrated at `maxDepth >= 1`. Any endpoint/feed that INCLUDES boosts MUST pass `maxDepth:1` or boosts render blank. Affected: `routes/federation.api.routes.ts` and `mtn/feed/feeds/AuthorFeed.ts` (profile page). Native feeds (ForYou/posts via `feedQueryBuilder`) avoid this by EXCLUDING boosts from their query.
 - **Background jobs (BullMQ):** Federation inbound activities are enqueued (inbox 202s fast); `FederationJobScheduler` repeatable jobs replaced setInterval timers; outbound delivery uses BullMQ instead of Mongo `FederationDeliveryQueue`. All env-gated on `REDIS_URL`. BullMQ queue names MUST NOT contain `:` — use `-` (e.g. `federation-inbox`). See global AGENTS.md BullMQ section for the ioredis isolated-linker gotcha.
-- **Auth**: Oxy integration via `@oxyhq/core ^3.8.0` + `@oxyhq/services ^10.3.3`
+- **Auth**: Oxy integration via `@oxyhq/core ^3.8.1` + `@oxyhq/services ^10.3.3`
 - **Starter Packs**: tool for the VIEWER to follow pack members — one-by-one (per-member `FollowButton`) or all at once ("Follow all" via the multi-user `FollowButton`). There is NO "follow the pack" concept. "Follow all" also calls `starterPacksService.use(id)` to record usage/increment useCount. Detail screen: `app/(app)/starter-packs/[id].tsx` (SDK `FollowButton` multi for follow-all, single per member; Bloom `AvatarGroup` as hero). List rows: backend `GET /starter-packs` enriches each item with `memberAvatars: string[]` (≤8 server-resolved URLs) + `memberCount`; frontend list cards use Bloom `AvatarGroup` (rocket icon as zero-avatar fallback). Owner edit flow: `app/(app)/starter-packs/[id]/edit.tsx` (SearchInput + member rows; 150-member cap; delete pack). Backend supports PUT + POST/DELETE `/starter-packs/:id/members` + DELETE.
 - **Lists (subscriptions)**: following a list = SUBSCRIBING (via `EntityFollow` entityType `'list'`) so the viewer sees members' posts WITHOUT following those members individually. `AccountList` has `subscriberCount: number`, maintained by `src/services/ListSubscriptionService.ts` on follow/unfollow; included in list DTOs. Followed-list members' posts are merged into the main feed via `feed.controller.ts` `mergeSubscribedListMemberIds()` (unions subscribed members into `context.followingIds`). Caps: `MAX_SUBSCRIBED_LISTS_FOR_FEED=200`, `MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED=5000` (warns when hit). Frontend: `app/(app)/lists.tsx` shows a "Followed lists" section alongside "Your lists"; subscribe button reads "Follow list / Following".
 
@@ -107,7 +107,7 @@ The canonical Oxy media URL is **`https://cloud.oxy.so/<fileId>?variant=<v>`**. 
 - **Do NOT** build per-app `resolveAvatarUrl` helpers, per-DTO `avatarUrl` fields, or `enrichAvatarUrls` serializers — that was tried and reverted (Mention commits e066a531 reverted 91f06b51).
 - Mention backend `utils/mediaResolver.ts` builds federated actor `icon.url` via `getFileDownloadUrl` → `https://cloud.oxy.so/<id>?variant=thumb` (verified live).
 - CloudFront `cloud.oxy.so` default behavior = `media-api` custom origin (api.oxy.so, OriginPath `/cdn`); `cloud.oxy.so/<id>` → oxy-api `GET /cdn/:id` (`packages/api/src/routes/cdn.ts`, public, no auth) → 302 → `cloud.oxy.so/<key>` for public assets, 404 for private/unknown; edge-cached 1h. `api.oxy.so/assets/:id/stream` also 302s public media to CDN (commit 4434ce8c). Public bytes live under the S3 `public/` prefix.
-- Mention pins `@oxyhq/core ^3.8.0` (root override 3.8.0, commit bb580b2e) — no other app source change needed.
+- Mention pins `@oxyhq/core ^3.8.1` (root override; adds `getUsersByIds` bulk fetch) — no other app source change needed.
 
 ## Federation — Service Credential & Outbox Sync
 
@@ -136,7 +136,7 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 
 ## Dependencies
 
-- `@oxyhq/core ^3.8.0` (root override 3.8.0, commit bb580b2e), `@oxyhq/services ^10.3.3` — Oxy platform SDK
+- `@oxyhq/core ^3.8.1` (root override; adds `getUsersByIds` bulk fetch), `@oxyhq/services ^10.3.3` — Oxy platform SDK
 - `@oxyhq/bloom ^0.9.1` — Shared UI component library (`AvatarGroup` at `@oxyhq/bloom/avatar-group`, `UserHoverCard` at `@oxyhq/bloom/user-hover-card`)
 
 ## Auth Cold-Boot Reactivity (Web)
@@ -203,17 +203,65 @@ Panel chrome insets are centralized in `packages/frontend/components/shell/Panel
 ### Real view counts
 Feed impressions increment `Post.stats.viewsCount` deduped per (viewer, post) via `services/feedViewCounter.ts` (Redis SET NX EX, key `viewseen:<postId>:<viewerId>`). Frontend reports impression/dwell/click via `feedService.sendFeedInteraction` (was unwired) — see `utils/feedTelemetry.ts`.
 
-### Ranking config (`packages/shared-types/src/mtn/config.ts`)
-- `viewWeight` 0.1 → 0.3; diversity `sameAuthorPenalty` 0.95 → 0.85, `sameTopicPenalty` 0.92 → 0.80.
-- Quality gate: `views > 100` → `> 20` with robust low-view rate.
-- New `ranking.authority { logScale, min, max }` — author follower-count authority signal, bounded ~[0.9, 1.4] with popularity floor; consumed by `FeedRankingService.calculateAuthorityScore`.
-- `ExploreFeed`: additive recency replaced with multiplicative exponential decay.
-
-### Surface-aware engagement attribution
-A like/save/boost from the Videos/reels feed (`source`/`feedContext` = feed descriptor) dampens AUTHOR affinity (`videoSurfaceAuthorAffinityFactor=0.25`, applied to the final `preferredAuthors[].weight` in `UserPreferenceService.updateAuthorPreference`) while keeping/boosting topic + post-type affinity (`videoSurfaceContentBoost=1.3`). Config block: `preferences.engagementContext` + exported `isVideoSurface()` in shared-types config. `Like.source` is persisted; `ContentAffinityService` discounts video-surface likes in the 30-day author-candidate scan. Frontend threads `source` on like/save/boost (incl. the `videos.tsx` reels viewer).
-
 ### Instant post-detail open
 Memory-mode feeds (web + scoped) seed the shared post cache (`postsStore.cachePosts`) in `useFeedState`; `app/(app)/p/[id].tsx` paints from cache + background-revalidates (`revalidatePostById`) instead of cold-fetching.
+
+## Feed Ranking, Content Classification & Safety
+
+### Unified Content Classification (two-stage hybrid)
+
+All posts — native AND federated — go through the same classification pipeline at ingest.
+
+**Stage A — deterministic baseline (`services/BaselineContentClassifier.ts`, pure/sync):**
+Runs at ALL ingest chokepoints: `PostCreationService`, `feed.controller` reply path, `OutboxSyncService.insertMany`, `InboxProcessingService`. Writes a `postClassification` subdoc containing:
+- `language` — tinyld detection + Mastodon AP `language` field (`utils/federation/apLanguage.ts`)
+- `region` — best-effort
+- normalized hashtags
+- rule-based topics via the pluggable `TopicClassifier` interface (`services/contentClassification/TopicClassifier.ts`)
+- `sensitive`, `spam`, `quality`, and `toxicity` scores (`services/contentClassification/spamQuality.ts`)
+- status set to `'pending'` (waiting for Stage B)
+
+`BASELINE_CLASSIFIER_VERSION` gates the idempotent backfill script `scripts/backfillContentClassification.ts` — run as a Fargate one-shot on new classifier versions; self-exits when done.
+
+**Stage B — async AI enrichment (`PostClassificationService`, Alia):**
+Uses a DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwrite (that would wipe Stage A fields). Topics are canonical via `postClassification.topicRefs` (`{name, topicId}`) resolved through `TopicService.resolveTopicRefs`. Readers (`FeedRankingService`, `UserPreferenceService`, `TrendingService`, `getPostsByTopic`) prefer `topicRefs`, fall back to legacy `extracted.topics`, then to neutral.
+
+**CRITICAL GOTCHA — Alia AI layer is INERT in prod:** `ALIA_API_KEY` is NOT in SSM. `POST_CLASSIFICATION_ENABLED=true` is set in the ECS task but does nothing without the key. Only the deterministic Stage-A rule layer is live. `extracted.topics` + its `TopicExtractionService` batch still exist and are slated for removal once Stage B is wired.
+
+**GOTCHA — never honor default-zero scores:** Ranking is gated on `status === 'classified' OR version >= BASELINE_CLASSIFIER_VERSION` before trusting quality/spam/toxicity values. The schema's default all-zeros scores must never be counted as real signal.
+
+### Centralized Feed Safety Gating
+
+`mtn/feed/feedSafety.ts` is the SINGLE source of truth for sensitive/NSFW filtering. Exports:
+- `SENSITIVE_EXCLUDE_MATCH` / `NSFW_HASHTAG_EXCLUDE_MATCH` / `DISCOVERY_SAFE_MATCH` — reusable Mongo query clauses
+- `isSensitivePost` / `isSfw` / `isDiscoverable` / `filterDiscoverable` — composing primitives from `services/contentClassification/nsfw.ts`
+
+EVERY feed and surface imports from `feedSafety.ts` — ForYou + `fetchPopular`, `forYouCandidateSources`, `ExploreFeed`, `TrendingService`, `FeedRankingService`. NEVER re-implement the sensitive/NSFW check inline in a feed (a missing copy in `fetchPopular` was the NSFW-in-For-You leak that prompted this centralization).
+
+Per-user `privacy.showSensitiveContent` (default `false`, `UserSettings` + `PUT /profile/settings`) makes gating viewer-conditional. Anon/unset/Videos/Media surfaces default to SFW.
+
+### For You Ranking (`FeedRankingService.rankPosts`)
+
+`rankPosts` is the ONE ranking path for ForYou, Explore, Videos, and Media feeds.
+
+**Candidate generation** (`mtn/feed/feeds/forYouCandidateSources.ts`): multi-source, bounded, parallel — following, affinity, topic/language/region match, trending, and global discovery (discovery sources are always SFW). Replaced the old "rank the 60 newest global posts" approach.
+
+**Ranking signals (config in `packages/shared-types/src/mtn/config.ts`):**
+- Author authority: bounded follower-count log-scale signal (`ranking.authority { logScale, min, max }`), roughly ~[0.9, 1.4] with a popularity floor
+- AI + deterministic quality/spam/toxicity via `ranking.aiQuality` — provenance-gated (neutral when scores absent per the zero-default rule above)
+- Recalibrated weights: `viewWeight` 0.1 → 0.3; diversity `sameAuthorPenalty` 0.95 → 0.85, `sameTopicPenalty` 0.92 → 0.80
+- `ExploreFeed`: additive recency replaced with multiplicative exponential decay
+- Author-diversity rerank: `diversifyByAuthor` runs BEFORE page truncation; only the page window is hydrated
+
+**`userBehavior` context wired:** `feed.controller` now loads `userBehavior` into context on every ForYou request — affinity and preferred-topic signals were previously dead because this was never populated.
+
+**Never-blank fallback:** when the unseen pool is exhausted (seen-set 1000 cap / 30-min TTL), ForYou falls back to `fetchPopular`.
+
+### Key Gotchas
+
+- **Explore aggregation `$subtract` type mismatch:** `$subtract` with `Date.now()` (JS number) instead of a `Date` object causes a MongoDB `TypeMismatch` 500 on the Explore aggregation pipeline. The operand must be `new Date()`, not `Date.now()`.
+- **Run backend tests from the package root:** `cd packages/backend && bun run test`. Running vitest from the repo root picks up stale `.dist` test copies → false failures. Always run from `packages/backend`.
+- **Surface-aware engagement attribution:** a like/save/boost from the Videos/reels feed (`source` / `feedContext` = feed descriptor) dampens author affinity (`videoSurfaceAuthorAffinityFactor=0.25`) while boosting topic + post-type affinity (`videoSurfaceContentBoost=1.3`). `Like.source` is persisted; `ContentAffinityService` discounts video-surface likes in the 30-day author-candidate scan. Frontend threads `source` on like/save/boost including the `videos.tsx` reels viewer. Config: `preferences.engagementContext` + exported `isVideoSurface()` in shared-types config.
 
 ## Theming
 
