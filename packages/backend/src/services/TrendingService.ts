@@ -7,6 +7,21 @@ import { getRedisClient } from '../utils/redis';
 import { emitTrendsUpdated } from '../utils/socket';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { topicService } from './TopicService';
+import { isNsfwHashtag } from './contentClassification/nsfw';
+
+/**
+ * Aggregation `$match` clause that excludes sensitive/NSFW-flagged posts from
+ * trending. A post is treated as sensitive when ANY of the three independent
+ * flags is set: the unified classifier verdict (`postClassification.sensitive`),
+ * the legacy content-warning flag (`metadata.isSensitive`), or the federated
+ * actor's own sensitivity flag (`federation.sensitive`). Keeping this as one
+ * named clause guarantees the hashtag and topic pipelines stay in lockstep.
+ */
+const EXCLUDE_SENSITIVE_MATCH: Readonly<Record<string, unknown>> = {
+  'postClassification.sensitive': { $ne: true },
+  'metadata.isSensitive': { $ne: true },
+  'federation.sensitive': { $ne: true },
+};
 
 interface TrendItem {
   type: TrendingType;
@@ -149,6 +164,8 @@ class TrendingService {
         $match: {
           createdAt: { $gte: oneDayAgo },
           hashtags: { $exists: true, $ne: [] },
+          // Sensitive/NSFW-flagged posts never feed trending counts.
+          ...EXCLUDE_SENSITIVE_MATCH,
         },
       },
       { $unwind: '$hashtags' },
@@ -163,23 +180,27 @@ class TrendingService {
       },
     ]);
 
-    const trends: TrendItem[] = hashtagCounts.map(item => {
-      const hashtagName = item._id.toLowerCase();
-      const volume24h = item.count24h;
-      const volume6h = item.count6h;
+    const trends: TrendItem[] = hashtagCounts
+      // Drop blocklisted NSFW/adult hashtags even if they appear on
+      // non-sensitive posts (case-insensitive, normalized in isNsfwHashtag).
+      .filter(item => !isNsfwHashtag(item._id))
+      .map(item => {
+        const hashtagName = item._id.toLowerCase();
+        const volume24h = item.count24h;
+        const volume6h = item.count6h;
 
-      const momentum = volume24h > 0 ? (volume6h * 4) / volume24h : 0;
-      const score = volume24h * (1 + momentum * 0.5);
+        const momentum = volume24h > 0 ? (volume6h * 4) / volume24h : 0;
+        const score = volume24h * (1 + momentum * 0.5);
 
-      return {
-        type: TrendingType.HASHTAG,
-        name: hashtagName,
-        description: '',
-        score,
-        volume: volume24h,
-        momentum: Math.min(momentum, 1),
-      };
-    });
+        return {
+          type: TrendingType.HASHTAG,
+          name: hashtagName,
+          description: '',
+          score,
+          volume: volume24h,
+          momentum: Math.min(momentum, 1),
+        };
+      });
 
     trends.sort((a, b) => b.score - a.score);
     return trends;
@@ -201,6 +222,8 @@ class TrendingService {
           'extracted.topics': { $exists: true, $ne: [] },
           status: 'published',
           boostOf: { $exists: false },
+          // Sensitive/NSFW-flagged posts never feed trending topics.
+          ...EXCLUDE_SENSITIVE_MATCH,
         },
       },
       { $unwind: '$extracted.topics' },
@@ -222,21 +245,24 @@ class TrendingService {
       },
     ]);
 
-    const trends: TrendItem[] = topicCounts.map(item => {
-      const momentum = item.postCount > 0
-        ? Math.min((item.recentCount * 4) / item.postCount, 1)
-        : 0;
-      const score = item.totalRelevance * (1 + momentum * 0.5);
+    const trends: TrendItem[] = topicCounts
+      // Drop blocklisted NSFW/adult topic slugs from trending topics.
+      .filter(item => !isNsfwHashtag(item._id.name))
+      .map(item => {
+        const momentum = item.postCount > 0
+          ? Math.min((item.recentCount * 4) / item.postCount, 1)
+          : 0;
+        const score = item.totalRelevance * (1 + momentum * 0.5);
 
-      return {
-        type: item._id.type === 'topic' ? TrendingType.TOPIC : TrendingType.ENTITY,
-        name: item._id.name,
-        description: '',
-        score,
-        volume: item.postCount,
-        momentum,
-      };
-    });
+        return {
+          type: item._id.type === 'topic' ? TrendingType.TOPIC : TrendingType.ENTITY,
+          name: item._id.name,
+          description: '',
+          score,
+          volume: item.postCount,
+          momentum,
+        };
+      });
 
     trends.sort((a, b) => b.score - a.score);
     return trends.slice(0, 15);
