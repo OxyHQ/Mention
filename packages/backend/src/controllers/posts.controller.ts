@@ -1817,24 +1817,40 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get posts by extracted topic or entity name
+/**
+ * Build the topic-page query filter. Matches a published post whose canonical
+ * `postClassification.topicRefs.name` OR legacy `extracted.topics.name` equals
+ * the normalized (lowercased) topic — so posts on either classification system
+ * surface during the transition. Topics are stored lowercase, so the lookup is
+ * lowercased for index efficiency. Exported for unit testing the canonical /
+ * legacy `$or` contract without booting the controller's server import chain.
+ */
+export function buildPostsByTopicFilter(
+  topicName: string,
+  cursor?: string,
+): Record<string, unknown> {
+  const normalizedTopic = topicName.toLowerCase();
+  const filter: Record<string, unknown> = {
+    $or: [
+      { 'postClassification.topicRefs.name': normalizedTopic },
+      { 'extracted.topics.name': normalizedTopic },
+    ],
+    status: 'published',
+  };
+  if (cursor) {
+    filter._id = { $lt: cursor };
+  }
+  return filter;
+}
+
+// Get posts by classified topic or entity name
 export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
   try {
     const topicName = String(req.params.topic);
     const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    // Lowercase match for index efficiency (topics are stored lowercase)
-    const normalizedTopic = topicName.toLowerCase();
-
-    const filter: Record<string, unknown> = {
-      'extracted.topics.name': normalizedTopic,
-      status: 'published',
-    };
-
-    if (cursor) {
-      filter._id = { $lt: cursor };
-    }
+    const filter = buildPostsByTopicFilter(topicName, cursor);
 
     const posts = await Post.find(filter)
       .sort({ createdAt: -1 })

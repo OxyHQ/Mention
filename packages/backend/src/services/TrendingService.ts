@@ -40,6 +40,14 @@ class TrendingService {
   private readonly CLEANUP_DAYS = 30; // Remove trends older than 30 days
 
   /**
+   * Relevance contributed by a canonical topic ref that carries no `relevance`
+   * (AI/rule topics are slug-only). Mid-scale on the 1..10 relevance axis so a
+   * slug-only topic counts toward trending without dominating the relevance-aware
+   * scoring; matches the neutral "present but unweighted" intent.
+   */
+  private static readonly DEFAULT_TOPIC_RELEVANCE = 5;
+
+  /**
    * Initialize the service and start periodic calculations.
    */
   public initialize(): void {
@@ -207,8 +215,16 @@ class TrendingService {
   }
 
   /**
-   * Aggregate trending topics from pre-extracted post data.
-   * Uses the `extracted.topics` subdocument on each Post.
+   * Aggregate trending topics from per-post classified topics.
+   *
+   * Reads the canonical `postClassification.topicRefs` when present and FALLS
+   * BACK to the legacy `extracted.topics` per post (`$ifNull` on a non-empty
+   * topicRefs array). The window is keyed on the post's `createdAt` so both
+   * sources share one time basis. Canonical refs may omit `relevance`/`type`
+   * (AI topics are slug-only), so missing relevance contributes
+   * {@link TrendingService.DEFAULT_TOPIC_RELEVANCE} and missing type defaults to
+   * a TOPIC — never an `entity`. Posts with neither topic source contribute
+   * nothing (the unified source is `[]`).
    */
   private async aggregateTopics(): Promise<TrendItem[]> {
     const now = new Date();
@@ -218,25 +234,48 @@ class TrendingService {
     const topicCounts = await Post.aggregate([
       {
         $match: {
-          'extracted.extractedAt': { $gte: oneDayAgo },
-          'extracted.topics': { $exists: true, $ne: [] },
+          createdAt: { $gte: oneDayAgo },
           status: 'published',
           boostOf: { $exists: false },
+          // At least one topic source must be present.
+          $or: [
+            { 'postClassification.topicRefs': { $exists: true, $ne: [] } },
+            { 'extracted.topics': { $exists: true, $ne: [] } },
+          ],
           // Sensitive/NSFW-flagged posts never feed trending topics.
           ...EXCLUDE_SENSITIVE_MATCH,
         },
       },
-      { $unwind: '$extracted.topics' },
+      {
+        // Prefer the canonical topicRefs; fall back to legacy extracted.topics.
+        // `$ifNull` returns the first non-null operand, and the size guard makes
+        // an empty topicRefs array fall through to extracted.topics.
+        $addFields: {
+          _topicSource: {
+            $cond: [
+              { $gt: [{ $size: { $ifNull: ['$postClassification.topicRefs', []] } }, 0] },
+              '$postClassification.topicRefs',
+              { $ifNull: ['$extracted.topics', []] },
+            ],
+          },
+        },
+      },
+      { $unwind: '$_topicSource' },
       {
         $group: {
           _id: {
-            name: '$extracted.topics.name',
-            type: '$extracted.topics.type',
+            name: '$_topicSource.name',
+            // Canonical refs may omit `type`; default to 'topic' (never entity).
+            type: { $ifNull: ['$_topicSource.type', 'topic'] },
           },
-          totalRelevance: { $sum: '$extracted.topics.relevance' },
+          // Canonical refs may omit `relevance`; default to a neutral value so a
+          // slug-only topic still contributes to the trending volume/score.
+          totalRelevance: {
+            $sum: { $ifNull: ['$_topicSource.relevance', TrendingService.DEFAULT_TOPIC_RELEVANCE] },
+          },
           postCount: { $sum: 1 },
           recentCount: {
-            $sum: { $cond: [{ $gte: ['$extracted.extractedAt', sixHoursAgo] }, 1, 0] },
+            $sum: { $cond: [{ $gte: ['$createdAt', sixHoursAgo] }, 1, 0] },
           },
         },
       },

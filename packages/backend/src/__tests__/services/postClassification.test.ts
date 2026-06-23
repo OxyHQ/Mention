@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ClassificationTopicRef } from '@mention/shared-types';
 
 /**
  * Unit coverage for the AI post-classification batch service.
@@ -68,6 +69,27 @@ vi.mock('../../models/Post', () => ({
   },
 }));
 
+// --- Mock TopicService registry resolution (no Oxy network). ---
+// By default each slug resolves to a deterministic `topicId` (`topic:<name>`) so
+// the canonical `topicRefs` carry registry linkage; individual tests can override
+// to assert the name-only fallback when resolution returns no id.
+const resolveTopicRefs = vi.fn(
+  async (
+    topics: Array<{ name: string; relevance?: number; type?: 'topic' | 'entity' }>,
+  ): Promise<ClassificationTopicRef[]> =>
+    topics.map(t => ({
+      name: t.name,
+      topicId: `topic:${t.name}`,
+      ...(typeof t.relevance === 'number' ? { relevance: t.relevance } : {}),
+      ...(t.type ? { type: t.type } : {}),
+    })),
+);
+vi.mock('../../services/TopicService', () => ({
+  topicService: {
+    resolveTopicRefs: (topics: Array<{ name: string }>) => resolveTopicRefs(topics),
+  },
+}));
+
 // Imported AFTER the mocks so the singleton wires to the mocked deps.
 import { postClassificationService } from '../../services/PostClassificationService';
 
@@ -107,6 +129,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   isAliaEnabled.mockReturnValue(true);
   findResult.docs = [];
+  resolveTopicRefs.mockImplementation(
+    async (topics: Array<{ name: string; relevance?: number; type?: 'topic' | 'entity' }>) =>
+      topics.map(t => ({
+        name: t.name,
+        topicId: `topic:${t.name}`,
+        ...(typeof t.relevance === 'number' ? { relevance: t.relevance } : {}),
+        ...(t.type ? { type: t.type } : {}),
+      })),
+  );
 });
 
 describe('PostClassificationService — category classification', () => {
@@ -300,7 +331,7 @@ describe('PostClassificationService — provider/model isolation', () => {
     }
     // Only the product-facing fields are written (plus the internal attempts counter).
     expect(Object.keys(classification).sort()).toEqual(
-      ['attempts', 'classifiedAt', 'confidence', 'intent', 'scores', 'sentiment', 'status', 'topics'].sort(),
+      ['attempts', 'classifiedAt', 'confidence', 'intent', 'scores', 'sentiment', 'status', 'topics', 'topicRefs'].sort(),
     );
   });
 
@@ -361,6 +392,7 @@ describe('PostClassificationService — Stage-A baseline preservation', () => {
     expect(Object.keys(set ?? {}).sort()).toEqual(
       [
         'postClassification.topics',
+        'postClassification.topicRefs',
         'postClassification.sentiment',
         'postClassification.intent',
         'postClassification.scores',
@@ -385,6 +417,105 @@ describe('PostClassificationService — Stage-A baseline preservation', () => {
     expect(classification?.status).toBe('classified');
     expect(classification?.sentiment).toBe('positive');
     expect(classification?.topics).toEqual(['mention', 'feed', 'product_feedback']);
+  });
+});
+
+describe('PostClassificationService — canonical topicRefs resolution', () => {
+  it('resolves AI-refined topics into registry-linked topicRefs (preserving topicId linkage)', async () => {
+    findResult.docs = [post('refs_post', 'A post about basketball and the lakers.')];
+    aliaJSON.mockResolvedValue([
+      {
+        postIndex: 0,
+        topics: ['basketball', 'lakers'],
+        sentiment: 'positive',
+        intent: 'opinion',
+        scores: { toxicity: 0, constructiveness: 0.4, spam: 0, quality: 0.6, controversy: 0, negativity: 0 },
+        confidence: 0.8,
+      },
+    ]);
+
+    await postClassificationService.processQueue();
+
+    // The registry resolver was called once for the batch with the unique slugs.
+    expect(resolveTopicRefs).toHaveBeenCalledTimes(1);
+    expect(resolveTopicRefs.mock.calls[0][0]).toEqual([{ name: 'basketball' }, { name: 'lakers' }]);
+
+    // The canonical topicRefs carry the same names AND the resolved topicIds, in
+    // order — the linkage personalization/trending depend on.
+    const set = setFor('refs_post');
+    expect(set?.['postClassification.topicRefs']).toEqual([
+      { name: 'basketball', topicId: 'topic:basketball' },
+      { name: 'lakers', topicId: 'topic:lakers' },
+    ]);
+    // The lightweight slug list mirrors the same topics.
+    expect(set?.['postClassification.topics']).toEqual(['basketball', 'lakers']);
+  });
+
+  it('falls back to name-only topicRefs when the registry resolves no id', async () => {
+    findResult.docs = [post('refs_noid', 'A post about an obscure niche topic.')];
+    aliaJSON.mockResolvedValue([
+      {
+        postIndex: 0,
+        topics: ['obscure_topic'],
+        sentiment: 'neutral',
+        intent: 'other',
+        scores: { toxicity: 0, constructiveness: 0.2, spam: 0, quality: 0.3, controversy: 0, negativity: 0 },
+        confidence: 0.5,
+      },
+    ]);
+    // Registry returns the name without a topicId (unresolved slug).
+    resolveTopicRefs.mockResolvedValueOnce([{ name: 'obscure_topic' }]);
+
+    await postClassificationService.processQueue();
+
+    const set = setFor('refs_noid');
+    expect(set?.['postClassification.topicRefs']).toEqual([{ name: 'obscure_topic' }]);
+  });
+
+  it('stores name-only topicRefs when registry resolution throws (never drops the canonical list)', async () => {
+    findResult.docs = [post('refs_throw', 'A post about coffee and espresso.')];
+    aliaJSON.mockResolvedValue([
+      {
+        postIndex: 0,
+        topics: ['coffee', 'espresso'],
+        sentiment: 'positive',
+        intent: 'opinion',
+        scores: { toxicity: 0, constructiveness: 0.3, spam: 0, quality: 0.5, controversy: 0, negativity: 0 },
+        confidence: 0.7,
+      },
+    ]);
+    resolveTopicRefs.mockRejectedValueOnce(new Error('registry unreachable'));
+
+    await postClassificationService.processQueue();
+
+    // The post is still classified and the topicRefs preserve the names (no id).
+    const set = setFor('refs_throw');
+    expect(set?.['postClassification.status']).toBe('classified');
+    expect(set?.['postClassification.topicRefs']).toEqual([
+      { name: 'coffee' },
+      { name: 'espresso' },
+    ]);
+  });
+
+  it('writes an empty topicRefs list when the AI returns no topics', async () => {
+    findResult.docs = [post('refs_empty', 'gm everyone')];
+    aliaJSON.mockResolvedValue([
+      {
+        postIndex: 0,
+        topics: [],
+        sentiment: 'neutral',
+        intent: 'personal_update',
+        scores: { toxicity: 0, constructiveness: 0.1, spam: 0, quality: 0.2, controversy: 0, negativity: 0 },
+        confidence: 0.4,
+      },
+    ]);
+
+    await postClassificationService.processQueue();
+
+    // No topics → resolver not called, topicRefs is an empty list.
+    expect(resolveTopicRefs).not.toHaveBeenCalled();
+    const set = setFor('refs_empty');
+    expect(set?.['postClassification.topicRefs']).toEqual([]);
   });
 });
 

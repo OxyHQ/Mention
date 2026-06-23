@@ -145,6 +145,28 @@ export class FeedRankingService {
   }
 
   /**
+   * The canonical resolved topics for a post, PREFERRING the new
+   * `postClassification.topicRefs` (registry-linked, the single source of truth)
+   * and FALLING BACK to the legacy `extracted.topics` for posts that predate the
+   * canonical list. Returns `[]` when neither is present so every topic signal is
+   * NEUTRAL for a topic-less post — the feed never empties when topics are absent.
+   *
+   * Both shapes expose the same fields readers need (`topicId`, `name`), so this
+   * is a single normalization point: the rest of the ranking code reads one list.
+   */
+  private getCanonicalTopics(post: any): Array<{ topicId?: unknown; name?: unknown }> {
+    const refs = post?.postClassification?.topicRefs;
+    if (Array.isArray(refs) && refs.length > 0) {
+      return refs;
+    }
+    const extracted = post?.extracted?.topics;
+    if (Array.isArray(extracted) && extracted.length > 0) {
+      return extracted;
+    }
+    return [];
+  }
+
+  /**
    * AI SAFETY penalty from the classified spam / toxicity scores.
    *
    * Returns a multiplier in `(0, 1]`: exactly `1.0` (neutral) when there is no
@@ -526,11 +548,12 @@ export class FeedRankingService {
         ).length;
       }
 
-      // Match via AI-extracted topic IDs (richer signal)
+      // Match via classified topic IDs (richer signal). Prefer the canonical
+      // `postClassification.topicRefs`, falling back to legacy `extracted.topics`.
       const prefTopicIds = behaviorSets?.preferredTopicIds;
-      if (post.extracted?.topics && post.extracted.topics.length > 0 && prefTopicIds && prefTopicIds.size > 0) {
-        matchCount += post.extracted.topics.filter(
-          (et: any) => et.topicId && prefTopicIds.has(et.topicId.toString()),
+      if (prefTopicIds && prefTopicIds.size > 0) {
+        matchCount += this.getCanonicalTopics(post).filter(
+          (t: any) => t.topicId && prefTopicIds.has(t.topicId.toString()),
         ).length;
       }
 
@@ -803,17 +826,19 @@ export class FeedRankingService {
       return 0; // Completely hide
     }
 
-    // Check if topic is hidden (via hashtags or extracted topic names)
+    // Check if topic is hidden (via hashtags or canonical classified topic
+    // names). Topic names come from the canonical `postClassification.topicRefs`,
+    // falling back to legacy `extracted.topics`.
     if (sets.hiddenTopics.size > 0) {
       const hasHiddenHashtag = post.hashtags?.some((tag: string) =>
         sets.hiddenTopics.has(tag.toLowerCase())
       );
 
-      const hasHiddenExtractedTopic = post.extracted?.topics?.some(
-        (et: any) => sets.hiddenTopics.has(et.name?.toLowerCase()),
+      const hasHiddenClassifiedTopic = this.getCanonicalTopics(post).some(
+        (t: any) => typeof t.name === 'string' && sets.hiddenTopics.has(t.name.toLowerCase()),
       );
 
-      if (hasHiddenHashtag || hasHiddenExtractedTopic) {
+      if (hasHiddenHashtag || hasHiddenClassifiedTopic) {
         return 0.5 * aiSafetyPenalty; // Reduce visibility (composes with AI safety)
       }
     }

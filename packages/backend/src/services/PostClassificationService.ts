@@ -5,6 +5,8 @@ import type { PostClassificationScores } from '@mention/shared-types';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
 import { config } from '../config';
+import { topicService } from './TopicService';
+import type { ClassificationTopicRef } from '@mention/shared-types';
 
 /**
  * AI-powered post classification service.
@@ -247,6 +249,13 @@ class PostClassificationService {
     const resultByIndex = new Map(results.map(r => [r.postIndex, r]));
     const now = new Date();
 
+    // Resolve every AI-refined topic across the batch into the Topic registry in
+    // ONE pass (single Oxy round trip), then build per-post `topicRefs`. This is
+    // the SAME registry linkage the legacy TopicExtractionService did for
+    // `extracted.topics` — it keeps personalization (topicId match) and trending
+    // (TopicStats) working off the canonical `postClassification` list.
+    const topicRefsByIndex = await this.resolveBatchTopicRefs(results);
+
     const bulkOps: AnyBulkWriteOperation<IPost>[] = posts.map((post, index) => {
       const result = resultByIndex.get(index);
 
@@ -259,13 +268,15 @@ class PostClassificationService {
       // overwrite (`$set: { postClassification }`) would wipe the Stage-A
       // deterministic fields (language, region, hashtagsNorm, version, sensitive)
       // populated at ingest, so the two stages must merge, not replace. `topics`
-      // is shared and intentionally refined here by the AI.
+      // is shared and intentionally refined here by the AI; `topicRefs` is its
+      // registry-resolved form (the canonical list readers consume).
       return {
         updateOne: {
           filter: { _id: post._id },
           update: {
             $set: {
               'postClassification.topics': result.topics,
+              'postClassification.topicRefs': topicRefsByIndex.get(index) ?? [],
               'postClassification.sentiment': result.sentiment,
               'postClassification.intent': result.intent,
               'postClassification.scores': this.normalizeScores(result.scores),
@@ -283,6 +294,45 @@ class PostClassificationService {
 
     const classifiedCount = posts.filter((_, i) => resultByIndex.has(i)).length;
     logger.info(`[PostClassification] Classified ${classifiedCount}/${posts.length} posts`);
+  }
+
+  /**
+   * Resolve the AI-refined topics of every result in a batch into registry-linked
+   * {@link ClassificationTopicRef} lists, keyed by `postIndex`. Resolution is
+   * batched across the whole AI batch (one Oxy round trip via
+   * {@link TopicService.resolveTopicRefs}) for efficiency.
+   *
+   * Best-effort: if registry resolution throws (e.g. Oxy unreachable), every
+   * topic still yields a `name`-only ref so the canonical list is preserved —
+   * readers that need a `topicId` simply skip those entries. AI topics carry no
+   * relevance/type, so refs hold the slug + (when resolved) `topicId` only.
+   */
+  private async resolveBatchTopicRefs(
+    results: ClassificationResult[],
+  ): Promise<Map<number, ClassificationTopicRef[]>> {
+    const byIndex = new Map<number, ClassificationTopicRef[]>();
+
+    // Unique slugs across the batch for a single resolution call.
+    const uniqueNames = [...new Set(results.flatMap(r => r.topics))];
+    if (uniqueNames.length === 0) {
+      return byIndex;
+    }
+
+    let refByName = new Map<string, ClassificationTopicRef>();
+    try {
+      const refs = await topicService.resolveTopicRefs(uniqueNames.map(name => ({ name })));
+      refByName = new Map(refs.map(ref => [ref.name, ref]));
+    } catch (error) {
+      logger.warn('[PostClassification] Topic registry resolution failed; storing name-only topicRefs', error);
+    }
+
+    for (const result of results) {
+      byIndex.set(
+        result.postIndex,
+        result.topics.map(name => refByName.get(name) ?? { name }),
+      );
+    }
+    return byIndex;
   }
 
   /** Persist a retry/expire update for every post in a wholesale-failed batch. */

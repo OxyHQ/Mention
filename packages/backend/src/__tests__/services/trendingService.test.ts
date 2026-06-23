@@ -116,3 +116,38 @@ describe('TrendingService.aggregateTopics — NSFW/sensitive exclusion', () => {
     expect(result).toHaveLength(2);
   });
 });
+
+describe('TrendingService.aggregateTopics — canonical topicRefs source with extracted fallback', () => {
+  it('prefers postClassification.topicRefs and falls back to extracted.topics per post', async () => {
+    mocks.postAggregate.mockResolvedValue([]);
+
+    await svc.aggregateTopics();
+
+    const pipeline = mocks.postAggregate.mock.calls[0][0];
+
+    // The match requires at least one of the two topic sources to be present.
+    const firstMatch = pipeline.find((s: Record<string, unknown>) => '$match' in s).$match;
+    expect(firstMatch.$or).toEqual([
+      { 'postClassification.topicRefs': { $exists: true, $ne: [] } },
+      { 'extracted.topics': { $exists: true, $ne: [] } },
+    ]);
+    // The window is keyed on the post createdAt (shared time basis for both sources).
+    expect(firstMatch.createdAt).toHaveProperty('$gte');
+
+    // An $addFields stage computes the unified `_topicSource`: topicRefs when
+    // non-empty, else extracted.topics.
+    const addFields = pipeline.find((s: Record<string, unknown>) => '$addFields' in s).$addFields;
+    expect(addFields._topicSource.$cond[1]).toBe('$postClassification.topicRefs');
+    expect(addFields._topicSource.$cond[2]).toEqual({ $ifNull: ['$extracted.topics', []] });
+
+    // The unwind + group read the unified source, defaulting absent type/relevance.
+    const unwind = pipeline.find((s: Record<string, unknown>) => '$unwind' in s).$unwind;
+    expect(unwind).toBe('$_topicSource');
+    const group = pipeline.find((s: Record<string, unknown>) => '$group' in s).$group;
+    expect(group._id.name).toBe('$_topicSource.name');
+    expect(group._id.type).toEqual({ $ifNull: ['$_topicSource.type', 'topic'] });
+    // Slug-only refs (no relevance) contribute the neutral default relevance.
+    expect(group.totalRelevance.$sum.$ifNull[0]).toBe('$_topicSource.relevance');
+    expect(typeof group.totalRelevance.$sum.$ifNull[1]).toBe('number');
+  });
+});

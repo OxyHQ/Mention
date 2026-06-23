@@ -161,6 +161,29 @@ export interface PostClassificationScores {
 export type PostClassificationStatus = 'pending' | 'baseline' | 'classified' | 'failed';
 
 /**
+ * A single canonical topic on a post, resolved into the Topic registry. This is
+ * the relational form of {@link PostClassification.topics}: it carries the same
+ * topic `name` (slug) plus the registry `topicId` (when the name resolved to a
+ * Topic document) and the discovered `relevance`/`type`. Personalization and
+ * trending consume `topicId`; hidden-topic suppression and topic-page lookups
+ * consume `name`.
+ *
+ * `topicId` is absent when the name could not be resolved to a Topic document
+ * (e.g. the registry was unreachable at write time); readers that need an id
+ * simply skip those entries, exactly as they did for legacy `extracted.topics`.
+ */
+export interface ClassificationTopicRef {
+  /** Lowercase topic slug — the same value stored in {@link PostClassification.topics}. */
+  name: string;
+  /** Topic-registry id when the name resolved to a Topic document; absent otherwise. */
+  topicId?: string;
+  /** Discovered relevance 1..10 (AI-extracted); absent for rule-based baseline topics. */
+  relevance?: number;
+  /** Whether this is an abstract topic or a named entity; absent for baseline topics. */
+  type?: 'topic' | 'entity';
+}
+
+/**
  * Internal classification metadata for a post — the single content-intelligence
  * object used for ranking, search, recommendations, and moderation. It is
  * populated in two stages that coexist on this one object:
@@ -185,9 +208,22 @@ export type PostClassificationStatus = 'pending' | 'baseline' | 'classified' | '
 export interface PostClassification {
   /**
    * Topics/tags (lowercase, normalized slugs). Distinct from hashtags. Seeded by
-   * Stage-A rule-based classification and refined/merged by Stage-B AI.
+   * Stage-A rule-based classification and refined/merged by Stage-B AI. This is
+   * the lightweight, multikey-indexable slug form used for candidate fetching;
+   * {@link PostClassification.topicRefs} carries the same topics enriched with
+   * registry linkage for ranking/trending.
    */
   topics: string[];
+  /**
+   * The canonical topics resolved into the Topic registry — the relational form
+   * of {@link PostClassification.topics} (same names, plus `topicId` and
+   * discovered `relevance`/`type`). This is the single source of truth for the
+   * algorithms (personalization topic-match by `topicId`, hidden-topic
+   * suppression by `name`, trending aggregation, topic-page lookups), replacing
+   * the legacy `extracted.topics`. Absent on legacy/not-yet-backfilled posts;
+   * readers fall back to `extracted.topics` then treat the post as topic-less.
+   */
+  topicRefs?: ClassificationTopicRef[];
   /**
    * Stage-A. Best-effort ISO 639-1 language code (e.g. `'en'`, `'es'`). Absent
    * when it could not be determined (too-short or undetectable content).

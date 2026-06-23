@@ -49,7 +49,10 @@ export interface FeedAPI {
  *
  * Includes the minimal `postClassification` projection ranking needs to read the
  * AI quality/safety signals: `scores` + `status` (consumed by FeedRankingService),
- * plus `topics`/`language` (used by topic/locale ranking & candidate generation).
- * Ranking treats an absent / non-`classified` classification as NEUTRAL.
+ * plus `topics`/`language` (used by topic/locale ranking & candidate generation)
+ * and `topicRefs` (registry-linked canonical topics for personalization /
+ * hidden-topic suppression). `extracted.topics` is the legacy fallback ranking
+ * reads when a post predates `topicRefs`. Ranking treats an absent /
+ * non-`classified` classification as NEUTRAL.
  */
-export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.topics postClassification.language';
+export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.topics postClassification.topicRefs postClassification.language extracted.topics';

@@ -324,8 +324,26 @@ const PostClassificationScoresSchema = new Schema({
 
 const PostClassificationSchema = new Schema({
   // Canonical topic slugs. Seeded by the Stage-A deterministic classifier and
-  // refined/merged by the Stage-B AI batch — one shared list.
+  // refined/merged by the Stage-B AI batch — one shared list. Lightweight,
+  // multikey-indexed form used for candidate fetching.
   topics: { type: [String], default: [] },
+
+  // The same canonical topics resolved into the Topic registry: each carries the
+  // slug `name`, plus `topicId` when the name resolved to a Topic document, and
+  // the discovered `relevance`/`type` (AI path only). This is the relational read
+  // form consumed by ranking/personalization/trending/topic-pages — it replaces
+  // the legacy `extracted.topics` subdoc. `topicId` is stored as a string (the
+  // Topic registry lives in Oxy; this is the resolved id, not a local ref).
+  topicRefs: {
+    type: [{
+      name: { type: String, required: true },
+      topicId: { type: String, required: false },
+      relevance: { type: Number, required: false, min: 1, max: 10 },
+      type: { type: String, enum: ['topic', 'entity'], required: false },
+      _id: false,
+    }],
+    default: undefined,
+  },
 
   // --- Stage-A deterministic baseline (synchronous at ingest) ---
   // Filled cheaply for EVERY post (native + federated) with no AI/network. All
@@ -543,7 +561,10 @@ PostSchema.index({ quoteOf: 1, createdAt: -1 });
 PostSchema.index({ 'content.media': 1, createdAt: -1 });
 PostSchema.index({ createdAt: -1 }); // Default sort order
 PostSchema.index({ 'extracted.extractedAt': 1, createdAt: -1 }); // Topic extraction queue
-PostSchema.index({ 'extracted.topics.name': 1, createdAt: -1 }); // Topic name lookup
+PostSchema.index({ 'extracted.topics.name': 1, createdAt: -1 }); // Topic name lookup (legacy)
+// Canonical topic-page lookup: getPostsByTopic matches the canonical
+// postClassification.topicRefs.name (with extracted.topics.name as fallback).
+PostSchema.index({ 'postClassification.topicRefs.name': 1, createdAt: -1 });
 PostSchema.index({ 'postClassification.status': 1, createdAt: 1 }); // Classification batch queue
 // Stage-A baseline signal lookups (used by For You candidate filtering, P3).
 PostSchema.index({ 'postClassification.language': 1, createdAt: -1 });

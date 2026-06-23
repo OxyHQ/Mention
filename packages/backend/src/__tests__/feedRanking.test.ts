@@ -316,6 +316,114 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
   });
 });
 
+describe('FeedRankingService canonical topics (postClassification.topicRefs) — prefer / fallback / neutral', () => {
+  const VIEWER = 'viewer-1';
+
+  /** behaviorSets with one preferred topicId and one hidden topic name. */
+  function behaviorSets(): NonNullable<Parameters<FeedRankingService['calculatePostScore']>[2]>['behaviorSets'] {
+    return {
+      hiddenAuthors: new Set<string>(),
+      mutedAuthors: new Set<string>(),
+      blockedAuthors: new Set<string>(),
+      hiddenTopics: new Set<string>(['politics']),
+      preferredTopicIds: new Set<string>(['topic-basketball']),
+    };
+  }
+
+  /** Score a post AS the viewer with a userBehavior that has a preferred topic. */
+  async function scoreAsViewer(post: Record<string, unknown>): Promise<number> {
+    const engagementScoreCache = new Map<string, number>([[String(post._id), 1]]);
+    return service.calculatePostScore(post, VIEWER, {
+      userBehavior: {
+        // preferredTopics drives the personalization topic-match gate; the actual
+        // id match is via behaviorSets.preferredTopicIds.
+        preferredTopics: [{ topic: 'basketball', weight: 0.9, topicId: 'topic-basketball' }],
+      },
+      behaviorSets: behaviorSets(),
+      engagementScoreCache,
+    });
+  }
+
+  it('PERSONALIZATION — boosts a post whose topicRefs carry a preferred topicId', async () => {
+    const matched = makePost({
+      postClassification: { status: 'baseline', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+    });
+    const unmatched = makePost({
+      postClassification: { status: 'baseline', topics: ['cooking'], topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }] },
+    });
+    expect(await scoreAsViewer(matched)).toBeGreaterThan(await scoreAsViewer(unmatched));
+  });
+
+  it('PERSONALIZATION — FALLS BACK to extracted.topics when topicRefs is absent', async () => {
+    const matchedViaLegacy = makePost({
+      // No topicRefs → reader falls back to extracted.topics for the topicId match.
+      extracted: { topics: [{ name: 'basketball', type: 'topic', relevance: 9, topicId: 'topic-basketball' }] },
+    });
+    const unmatched = makePost({
+      extracted: { topics: [{ name: 'cooking', type: 'topic', relevance: 9, topicId: 'topic-cooking' }] },
+    });
+    expect(await scoreAsViewer(matchedViaLegacy)).toBeGreaterThan(await scoreAsViewer(unmatched));
+  });
+
+  it('PERSONALIZATION — PREFERS topicRefs over extracted.topics when both exist', async () => {
+    // topicRefs has the preferred id; extracted has a different id. The canonical
+    // topicRefs must win (so this matches), proving preference order.
+    const prefersRefs = makePost({
+      postClassification: { status: 'classified', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+      extracted: { topics: [{ name: 'cooking', type: 'topic', relevance: 9, topicId: 'topic-cooking' }] },
+    });
+    // Inverse: topicRefs has the non-preferred id, extracted has the preferred id.
+    // Since topicRefs is PREFERRED, extracted's preferred id must be IGNORED → no match.
+    const ignoresExtractedWhenRefsPresent = makePost({
+      postClassification: { status: 'classified', topics: ['cooking'], topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }] },
+      extracted: { topics: [{ name: 'basketball', type: 'topic', relevance: 9, topicId: 'topic-basketball' }] },
+    });
+    expect(await scoreAsViewer(prefersRefs)).toBeGreaterThan(await scoreAsViewer(ignoresExtractedWhenRefsPresent));
+  });
+
+  it('PERSONALIZATION — NEUTRAL when neither topicRefs nor extracted.topics is present', async () => {
+    const noTopics = makePost({ postClassification: { status: 'baseline', topics: [] } });
+    const noClassification = makePost();
+    // Both topic-less → identical personalization (no topic-match boost either way).
+    expect(await scoreAsViewer(noTopics)).toBeCloseTo(await scoreAsViewer(noClassification), 10);
+  });
+
+  it('HIDDEN-TOPIC — suppresses a post whose topicRefs name is hidden', async () => {
+    const hidden = makePost({
+      postClassification: { status: 'baseline', topics: ['politics'], topicRefs: [{ name: 'politics' }] },
+    });
+    const visible = makePost({
+      postClassification: { status: 'baseline', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+    });
+    expect(await scoreAsViewer(hidden)).toBeLessThan(await scoreAsViewer(visible));
+  });
+
+  it('HIDDEN-TOPIC — FALLS BACK to extracted.topics name when topicRefs is absent', async () => {
+    const hiddenViaLegacy = makePost({
+      extracted: { topics: [{ name: 'politics', type: 'topic', relevance: 8 }] },
+    });
+    const visibleViaLegacy = makePost({
+      extracted: { topics: [{ name: 'basketball', type: 'topic', relevance: 8 }] },
+    });
+    expect(await scoreAsViewer(hiddenViaLegacy)).toBeLessThan(await scoreAsViewer(visibleViaLegacy));
+  });
+
+  it('HIDDEN-TOPIC — NEUTRAL when a topic-less post cannot be matched against hidden topics', async () => {
+    // A post with neither source must NOT be suppressed by hidden-topic logic.
+    const topicLess = makePost({ postClassification: { status: 'baseline', topics: [] } });
+    const visible = makePost({
+      postClassification: { status: 'baseline', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+    });
+    // topicLess gets no topic-match boost AND no hidden penalty; visible gets the
+    // basketball preference boost, so visible should score higher — but crucially
+    // topicLess is NOT pushed below an unranked baseline (no suppression).
+    const topicLessScore = await scoreAsViewer(topicLess);
+    const baseline = await scoreAsViewer(makePost());
+    expect(topicLessScore).toBeCloseTo(baseline, 10);
+    expect(await scoreAsViewer(visible)).toBeGreaterThan(topicLessScore);
+  });
+});
+
 describe('FeedRankingService recalibrated diversity penalties', () => {
   it('uses the strengthened same-author / same-topic penalties from config', () => {
     // Guard the recalibration itself: these are the values the ranking reads.

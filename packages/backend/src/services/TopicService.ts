@@ -1,5 +1,5 @@
 import { TopicType } from '@mention/shared-types';
-import type { TopicData } from '@mention/shared-types';
+import type { TopicData, ClassificationTopicRef } from '@mention/shared-types';
 import TopicStats from '../models/TopicStats';
 import { logger } from '../utils/logger';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
@@ -63,6 +63,48 @@ class TopicService {
       logger.error('[TopicService] Failed to resolve topic names via Oxy API:', error);
       return new Map();
     }
+  }
+
+  /**
+   * Resolve a post's canonical topic slugs into {@link ClassificationTopicRef}
+   * entries — the single place that links `postClassification.topics` into the
+   * Topic registry (mirroring what {@link TopicExtractionService} did for the
+   * legacy `extracted.topics`). Used by the Stage-A ingest wiring and the
+   * Stage-B AI enrich path so both stages produce registry-linked topics.
+   *
+   * Resilient by design: a name that resolves to a Topic document carries its
+   * `topicId`; a name that does NOT resolve (or when the registry is unreachable)
+   * is still returned WITHOUT a `topicId`. The returned list therefore always
+   * mirrors the input slugs 1:1 in order — the canonical topic list is never
+   * dropped just because the registry could not be reached. Personalization /
+   * trending readers simply skip entries that lack a `topicId`, exactly as they
+   * did with legacy data.
+   *
+   * @param topics canonical slugs plus optional discovered `relevance`/`type`.
+   *   `type` defaults to {@link TopicType.TOPIC} for registry resolution.
+   * @returns one {@link ClassificationTopicRef} per input topic, order preserved.
+   */
+  async resolveTopicRefs(
+    topics: Array<{ name: string; relevance?: number; type?: 'topic' | 'entity' }>,
+  ): Promise<ClassificationTopicRef[]> {
+    if (topics.length === 0) return [];
+
+    const resolveType = (t: 'topic' | 'entity' | undefined): TopicType =>
+      t === 'entity' ? TopicType.ENTITY : TopicType.TOPIC;
+
+    const topicMap = await this.resolveNames(
+      topics.map(t => ({ name: t.name, type: resolveType(t.type) })),
+    );
+
+    return topics.map(t => {
+      const topicId = topicMap.get(t.name)?._id?.toString();
+      return {
+        name: t.name,
+        ...(topicId ? { topicId } : {}),
+        ...(typeof t.relevance === 'number' ? { relevance: t.relevance } : {}),
+        ...(t.type ? { type: t.type } : {}),
+      };
+    });
   }
 
   async getCategories(locale?: string): Promise<TopicData[]> {

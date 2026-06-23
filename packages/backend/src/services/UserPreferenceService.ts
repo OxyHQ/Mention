@@ -155,14 +155,21 @@ export class UserPreferenceService {
         }
       }
 
-      // Update topic preferences from AI-extracted topics (richer signal)
-      if (isPositiveSignal && post.extracted?.topics && post.extracted.topics.length > 0) {
-        for (const extractedTopic of post.extracted.topics) {
+      // Update topic preferences from classified topics (richer signal). Prefer
+      // the canonical `postClassification.topicRefs` (registry-linked), falling
+      // back to legacy `extracted.topics`. Canonical refs may carry no relevance
+      // (AI topics are slug-only), so an absent relevance scales by the full
+      // content weight (relevance factor 1) rather than zeroing the signal.
+      if (isPositiveSignal) {
+        for (const topic of this.getCanonicalTopics(post)) {
+          if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
+          const relevanceFactor =
+            typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
           this.updateTopicPreference(
             userBehavior,
-            extractedTopic.name.toLowerCase(),
-            contentWeight * (extractedTopic.relevance / 10), // Scale weight by relevance
-            extractedTopic.topicId,
+            topic.name.toLowerCase(),
+            contentWeight * relevanceFactor,
+            topic.topicId,
           );
         }
       }
@@ -333,6 +340,27 @@ export class UserPreferenceService {
     authorPref.lastInteractionAt = new Date();
 
     userBehavior.markModified('preferredAuthors');
+  }
+
+  /**
+   * The canonical classified topics for a post, PREFERRING the new
+   * `postClassification.topicRefs` (registry-linked) and FALLING BACK to the
+   * legacy `extracted.topics`. Returns `[]` when neither exists so a topic-less
+   * post contributes no topic preference. Each entry exposes `name`, optional
+   * `topicId`, and optional `relevance` (canonical refs may omit relevance).
+   */
+  private getCanonicalTopics(
+    post: { postClassification?: { topicRefs?: unknown }; extracted?: { topics?: unknown } },
+  ): Array<{ name?: unknown; topicId?: string; relevance?: number }> {
+    const refs = post.postClassification?.topicRefs;
+    if (Array.isArray(refs) && refs.length > 0) {
+      return refs;
+    }
+    const extracted = post.extracted?.topics;
+    if (Array.isArray(extracted) && extracted.length > 0) {
+      return extracted;
+    }
+    return [];
   }
 
   /**
