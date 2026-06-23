@@ -80,7 +80,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             />
             {user.handle ? (
               <Text className="text-muted-foreground text-[15px]">
-                @{user.isFederated && user.handle.includes('@') ? user.handle.split('@')[0] : user.handle}
+                @{user.handle}
               </Text>
             ) : null}
             {user.isFederated ? (
