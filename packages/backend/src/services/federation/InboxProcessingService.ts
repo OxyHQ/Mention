@@ -25,6 +25,25 @@ import {
   parseApPublished,
   resolvePostIdFromObjectUri,
 } from './sharedFederationHelpers';
+import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
+import type { z } from 'zod';
+
+/**
+ * Compact, log-safe summary of a `ZodError` — the first few issues rendered as
+ * `path: message`, capped so a hostile payload can't blow up a log line. Used to
+ * explain why an inbound activity was dropped without dumping the raw error tree.
+ */
+function summarizeZodError(error: z.ZodError): string {
+  const MAX_ISSUES = 3;
+  const parts = error.issues.slice(0, MAX_ISSUES).map((issue) => {
+    const at = issue.path.length > 0 ? issue.path.join('.') : '(root)';
+    return `${at}: ${issue.message}`;
+  });
+  if (error.issues.length > MAX_ISSUES) {
+    parts.push(`(+${error.issues.length - MAX_ISSUES} more)`);
+  }
+  return parts.join('; ');
+}
 
 /**
  * Processing of inbound ActivityPub activities (Follow / Undo / Create / Delete
@@ -45,7 +64,34 @@ export class InboxProcessingService {
     activity: Record<string, any>,
     verifiedActorUri: string,
   ): Promise<void> {
-    const type = activity.type;
+    // Inbound JSON arrives from arbitrary, UNTRUSTED remote servers. Validate
+    // the whole activity against the zod inbound schema BEFORE any handler reads
+    // it via raw property access. The parse helper never throws, so a malformed
+    // or hostile payload is rejected cleanly here rather than crashing or being
+    // partially processed downstream.
+    const parsed = parseInboundActivity(activity);
+    if (!parsed.ok) {
+      // Drop invalid activities (match the existing fast-ack inbox semantics: no
+      // throw, no retry-loop). Surface enough context to diagnose the source
+      // without trusting/dumping the raw payload.
+      const rawType =
+        typeof activity?.type === 'string'
+          ? activity.type
+          : Array.isArray(activity?.type)
+            ? activity.type.join(',')
+            : 'unknown';
+      const rawId = typeof activity?.id === 'string' ? activity.id : 'unknown';
+      logger.warn(
+        `[Federation] dropping invalid inbound activity from ${verifiedActorUri} (type=${rawType}, id=${rawId}): ${summarizeZodError(parsed.error)}`,
+      );
+      return;
+    }
+
+    // The schema permits `type` to be a single string OR an array (some servers
+    // send an array); normalize to the primary string for dispatch. The handlers
+    // continue to read the RAW activity so the original-publish-date mapping and
+    // all other side effects stay byte-for-byte identical to the prior behavior.
+    const type = primaryApType(parsed.data.type);
 
     switch (type) {
       case 'Follow':
@@ -212,6 +258,17 @@ export class InboxProcessingService {
     const object = activity.object;
     if (!object || typeof object !== 'object') return;
     if (object.type !== 'Note' && object.type !== 'Article') return;
+
+    // Validate the embedded content object before reading its fields by raw
+    // access. A Note/Article that fails validation (e.g. missing id) is skipped
+    // with a warn rather than processed from a malformed shape.
+    const parsedNote = parseNote(object);
+    if (!parsedNote.ok) {
+      logger.warn(
+        `[Federation] skipping Create from ${actorUri}: invalid embedded ${object.type}: ${summarizeZodError(parsedNote.error)}`,
+      );
+      return;
+    }
 
     // Only process if the actor is followed by at least one local user
     const hasFollower = await FederatedFollow.exists({
@@ -440,6 +497,16 @@ export class InboxProcessingService {
     if (!object || typeof object !== 'object') return;
 
     if (object.type === 'Note' || object.type === 'Article') {
+      // Validate the edited content object before reading its fields by raw
+      // access; skip a malformed edit with a warn.
+      const parsedNote = parseNote(object);
+      if (!parsedNote.ok) {
+        logger.warn(
+          `[Federation] skipping Update from ${actorUri}: invalid embedded ${object.type}: ${summarizeZodError(parsedNote.error)}`,
+        );
+        return;
+      }
+
       const objectId = object.id;
       if (!objectId) return;
 
