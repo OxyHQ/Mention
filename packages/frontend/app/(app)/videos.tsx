@@ -68,6 +68,22 @@ const WEB_END_REACHED_PX = 1200;
 // text — interpolated arbitrary values are NOT picked up).
 const WEB_SLIDE_HEIGHT_CLASS = 'web:h-[100dvh]';
 
+// Web: the "For You" / "Following" pill tabs must stay pinned at the top while the
+// document scrolls (TikTok / Reels), so on web they use `position: sticky` instead
+// of the native `position: absolute`. Sticky keeps them in the document flow, which
+// confines them horizontally to the central column's containing block (no
+// viewport-wide `position: fixed` bleed over the sidebars / right rail) while
+// sticking them to the viewport top once scrolled. They carry a negative bottom
+// margin equal to their own height (`TABS_ROW_HEIGHT`) so they contribute ZERO net
+// layout height — the first `100dvh` slide is not pushed down and scroll-snap
+// boundaries stay on clean `innerHeight` multiples. Same overlay-pinning technique
+// the desktop frame + profile chrome use in `app/(app)/_layout.tsx` /
+// `components/ProfileScreen.tsx`. Spelled out as LITERAL class strings so the
+// NativeWind compiler picks them up (it scans source text). Native keeps the
+// StyleSheet `position: absolute` (the native container IS the fixed scene).
+const TABS_ROW_HEIGHT = 34;
+const WEB_TABS_STICKY_CLASS = 'web:sticky web:[margin-bottom:-34px]';
+
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
 const GRADIENT_COLORS = ['transparent', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)', '#000000'] as const;
@@ -1174,7 +1190,10 @@ export default function VideosScreen() {
             if (isLiked) {
                 await unlikePost({ postId, type: 'post' });
             } else {
-                await likePost({ postId, type: 'post' });
+                // Attribute the like to the active Reels surface ('videos' /
+                // 'following') so the backend reads it as interest in the video
+                // content. The tab value is itself a valid feed descriptor.
+                await likePost({ postId, type: 'post' }, activeFeedRef.current);
             }
             setPosts(prev => prev.map(p =>
                 p.id === postId
@@ -1195,7 +1214,8 @@ export default function VideosScreen() {
             if (isBoosted) {
                 await unboostPost({ postId });
             } else {
-                await boostPost({ postId });
+                // Attribute the boost to the active Reels surface (see handleLike).
+                await boostPost({ postId }, activeFeedRef.current);
             }
             setPosts(prev => prev.map(p =>
                 p.id === postId
@@ -1349,8 +1369,17 @@ export default function VideosScreen() {
                 )}
 
                 {/* Immersive pill tabs over the video — top-center, respecting the
-                    safe-area inset. Following is gated on the private API (auth). */}
-                <View style={[styles.tabsRow, { top: insets.top + 12 }]} pointerEvents="box-none">
+                    safe-area inset. On web they pin to the viewport top via
+                    `position: sticky` (WEB_TABS_STICKY_CLASS) so they stay visible
+                    while the document scrolls, staying confined to the central
+                    column (not full-bleed over the sidebars / right rail). Native
+                    keeps the StyleSheet `position: absolute`. Following is gated on
+                    the private API (auth). */}
+                <View
+                    className={WEB_TABS_STICKY_CLASS}
+                    style={[styles.tabsRow, { top: insets.top + 12 }]}
+                    pointerEvents="box-none"
+                >
                     <FeedTab
                         label={t('For You')}
                         active={activeFeed === 'videos'}
@@ -1817,6 +1846,11 @@ const styles = StyleSheet.create<VideosStyles>({
         justifyContent: 'center',
         gap: 8,
         zIndex: 12,
+        // Web only: a fixed row height so the `position: sticky` overlay's
+        // negative bottom margin (WEB_TABS_STICKY_CLASS, -TABS_ROW_HEIGHT) nets to
+        // exactly zero layout height. Native sizes to content and stays
+        // `position: absolute` with no layout footprint.
+        ...Platform.select({ web: { height: TABS_ROW_HEIGHT }, default: {} }),
     },
     tabPill: {
         paddingHorizontal: 16,
@@ -1831,6 +1865,10 @@ const styles = StyleSheet.create<VideosStyles>({
     },
     tabLabel: {
         fontSize: 15,
+        // Explicit line height makes the pill height deterministic
+        // (paddingVertical 7×2 + 20 = TABS_ROW_HEIGHT) so the web sticky overlay's
+        // negative bottom margin nets to zero.
+        lineHeight: 20,
         ...TEXT_SHADOW_STRONG,
     },
     tabLabelActive: {
