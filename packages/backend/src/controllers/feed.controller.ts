@@ -30,6 +30,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
 import { FeedResponseBuilder } from '../utils/FeedResponseBuilder';
+import { ChronoCursor } from '../mtn/feed/CursorBuilder';
 import {
   validateAndNormalizeLimit,
   parseFeedFilters,
@@ -899,10 +900,24 @@ class FeedController {
         includeFullMetadata: false,
       });
 
+      // Build the next cursor from the LAST raw post of the capped page so the
+      // cursor is a chronological keyset (`<ms>:<id>`) matching the
+      // `createdAt: -1` sort and the ChronoCursor filter in
+      // `buildUserProfileQuery`. Using the bare anchor-post `_id` (the
+      // `buildSlicedResponse` default) reintroduces the sort/cursor mismatch
+      // that silently drops federated boosts. Only set when there is another
+      // page and the page is non-empty.
+      let cursorFromLastSlice: string | undefined;
+      if (hasMore && postsToSlice.length > 0) {
+        const lastPost = postsToSlice[postsToSlice.length - 1];
+        cursorFromLastSlice = ChronoCursor.build(String(lastPost._id), lastPost.createdAt);
+      }
+
       const response = FeedResponseBuilder.buildSlicedResponse({
         slices: hydratedSlices,
         limit,
         previousCursor: cursor,
+        cursorFromLastSlice,
         hasMore,
       });
 

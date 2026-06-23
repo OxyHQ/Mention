@@ -8,6 +8,7 @@ import { FeedType, PostType, PostVisibility } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { ContentLabel } from '../models/ContentLabel';
 import { parseFeedCursor } from './feedUtils';
+import { ChronoCursor } from '../mtn/feed/CursorBuilder';
 
 export interface FeedQueryOptions {
   type: FeedType;
@@ -526,10 +527,15 @@ export class FeedQueryBuilder {
       query.boostOf = { $ne: null };
     }
 
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      query._id = { $lt: cursorId };
-    }
+    // Apply a chronological keyset cursor that matches the `createdAt: -1` sort
+    // used by `getUserProfileFeed`. A bare `_id < cursor` filter (the old
+    // behavior) silently dropped federated posts whose `createdAt` is OLD but
+    // whose import-time `_id` is LARGE than the cursor anchor — they fell on the
+    // wrong side of the `_id` boundary relative to their `createdAt` position.
+    // `ChronoCursor.applyToQuery` emits a compound `createdAt`/`_id` keyset for
+    // `<ts>:<id>` cursors and falls back to `_id < id` for legacy bare-ObjectId
+    // cursors (backward compatible with in-flight clients).
+    ChronoCursor.applyToQuery(query, cursor);
 
     return query;
   }
