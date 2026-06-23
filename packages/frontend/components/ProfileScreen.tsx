@@ -34,7 +34,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-import { panelStickyTopInset } from '@/components/shell/PanelChrome';
+import { panelStickyTopInset, panelStickyTabsTopInset } from '@/components/shell/PanelChrome';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -732,21 +732,27 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     )}
                                 </View>
 
-                                {/* Tabs — sticky at the rounded panel's
-                                    PANEL_TOP_INSET top-gutter inset (`web:sticky` +
-                                    `panelStickyTopInset`) while the document scrolls
-                                    (mirrors native's `stickyHeaderIndices={[1]}`
-                                    pinning at the scroll-viewport top). That shared
-                                    inset aligns the pinned tab bar flush with the
-                                    panel top — the same inset the banner and header
-                                    chrome pin to — instead of poking into the gutter
-                                    ring that the bleed mask paints over. It lives inside the
-                                    z-3 content wrapper, so `web:z-[5]` keeps it above
-                                    the feed content (which scrolls under it); the
+                                {/* Tabs — sticky in the SECOND tier, pinned flush
+                                    BELOW the header chrome band (`web:sticky` +
+                                    `panelStickyTabsTopInset` = PANEL_TOP_INSET +
+                                    PANEL_HEADER_HEIGHT, the same 56px offset the home
+                                    screen's `level={1}` tab bar uses). The banner
+                                    fade, action cluster and compact-name overlay above
+                                    all pin at the FIRST tier (`panelStickyTopInset`,
+                                    PANEL_TOP_INSET); pinning the tab bar at that same
+                                    inset made the two bands occupy the same vertical
+                                    space and OVERLAP. Stacking the tabs one header
+                                    height down lands them directly under the header
+                                    chrome — header on top, tabs flush below — while
+                                    the document scrolls (mirrors native's
+                                    `stickyHeaderIndices={[1]}` pinning below the
+                                    absolute header overlay). It lives inside the z-3
+                                    content wrapper, so `web:z-[5]` keeps it above the
+                                    feed content (which scrolls under it); the
                                     `bg-background` on AnimatedTabBar keeps the feed
                                     from showing through, and the pinned tab bar paints
                                     over the lower-z banner that sits behind it. */}
-                                <View className="web:sticky web:z-[5]" style={panelStickyTopInset}>
+                                <View className="web:sticky web:z-[5]" style={panelStickyTabsTopInset}>
                                     <AnimatedTabBar
                                         tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
                                         activeTabId={String(activeTab)}

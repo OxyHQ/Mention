@@ -58,10 +58,28 @@ function pushScroll(value: number) {
     });
 }
 
+// Web layout-growth simulation: the provider reads
+// `document.documentElement.scrollHeight` to distinguish a gesture from a
+// document that grew/shifted under the viewport. The jest-expo (native preset)
+// environment has no real `document`, so we install a minimal stub whose
+// scrollHeight we control per step.
+const documentStub = { documentElement: { scrollHeight: 2000 } };
+function setScrollHeight(h: number) {
+    documentStub.documentElement.scrollHeight = h;
+}
+
+beforeAll(() => {
+    (globalThis as { document?: unknown }).document = documentStub;
+});
+afterAll(() => {
+    delete (globalThis as { document?: unknown }).document;
+});
+
 describe('BottomBarVisibilityProvider', () => {
     beforeEach(() => {
         mockScrollY.setValue(0);
         mockPathname = '/';
+        setScrollHeight(2000);
     });
 
     it('hides the bar on downward scroll on a normal route', () => {
@@ -125,6 +143,54 @@ describe('BottomBarVisibilityProvider', () => {
         const getHidden = renderWithPath('/');
         pushScroll(0);   // baseline
         pushScroll(150); // a fast single-frame fling, still a real gesture
+        expect(getHidden().value).toBe(1);
+    });
+
+    // ── Regression: GRADUAL layout growth (explore / profile). The virtualized
+    // feed measures rows + images load AFTER mount, so `document.scrollHeight`
+    // grows over time and the document re-settles `scrollY` in SMALL steps
+    // (<200px/frame) for seconds. Each step passed the magnitude guard and was
+    // read as a "downward gesture" → the bar misfired/stuck partway → it poked
+    // below the viewport. Each of these steps is accompanied by a scrollHeight
+    // CHANGE, which the fix uses to classify them as layout, not gesture.
+    it('does NOT hide on gradual layout-growth steps (scrollHeight changing each step)', () => {
+        const getHidden = renderWithPath('/explore');
+        setScrollHeight(2000);
+        pushScroll(0); // baseline at top
+        // Document grows in small steps; each <200px but scrollHeight changes.
+        setScrollHeight(2400); pushScroll(60);
+        setScrollHeight(2900); pushScroll(130);
+        setScrollHeight(3500); pushScroll(190);
+        setScrollHeight(4200); pushScroll(250);
+        // No real user gesture happened — the bar must stay fully visible.
+        expect(getHidden().value).toBe(0);
+    });
+
+    it('still hides on a real gesture AFTER layout growth settles (scrollHeight stable)', () => {
+        const getHidden = renderWithPath('/explore');
+        setScrollHeight(2000);
+        pushScroll(0);
+        // Growth phase (scrollHeight changing) — ignored.
+        setScrollHeight(3000); pushScroll(120);
+        setScrollHeight(4000); pushScroll(200);
+        // Layout settled: scrollHeight stable, now a genuine downward gesture.
+        pushScroll(260); // delta +60, same scrollHeight → real scroll
+        pushScroll(330); // continue down
+        expect(getHidden().value).toBe(1);
+    });
+
+    it('still hides during a real downward gesture even with intermittent infinite-scroll growth', () => {
+        // A genuine continuous downward scroll where a new page loads partway
+        // (scrollHeight bumps once). The frames with stable scrollHeight still
+        // register the downward gesture, so the bar hides.
+        const getHidden = renderWithPath('/explore');
+        setScrollHeight(4000);
+        pushScroll(0);        // baseline
+        pushScroll(80);       // gesture, stable height → down
+        pushScroll(160);      // gesture, stable height → down
+        setScrollHeight(6000); pushScroll(230); // a page loads (height bump) → ignored
+        pushScroll(300);      // gesture resumes, stable height → down
+        pushScroll(380);      // down
         expect(getHidden().value).toBe(1);
     });
 });

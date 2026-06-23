@@ -39,6 +39,17 @@ export const BOTTOM_BAR_HIDE_DURATION = 200;
  */
 const NO_AUTO_HIDE_ROUTES = new Set<string>(['/videos']);
 
+/**
+ * Current document scroll height (web) — used to tell a layout shift (the
+ * virtualized feed measuring rows / images loading) apart from a real gesture.
+ * Returns `0` off the web (native has no `document` and drives `scrollY` from
+ * its own inner scroller, so the layout-growth guard is inert there).
+ */
+function readScrollHeight(): number {
+    if (typeof document === 'undefined') return 0;
+    return document.documentElement?.scrollHeight ?? 0;
+}
+
 const BottomBarVisibilityContext = createContext<SharedValue<number> | null>(null);
 
 /**
@@ -87,12 +98,33 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
         // animation, leaving the bar parked at a partial translateY that pokes
         // below the viewport. Home starts at 0 so it never hit this; profile did.
         let hasBaseline = false;
+        // Web layout-growth tracker: explore/profile feeds virtualize rows and
+        // load images AFTER mount, so `document.scrollHeight` grows for seconds
+        // and the document re-settles `scrollY` in small (<threshold) steps. Each
+        // such step is a LAYOUT shift, not a gesture — detected by the document
+        // height changing since the previous event. Seeded to the current height
+        // so the first real event compares against the right baseline.
+        let lastScrollHeight = readScrollHeight();
 
         const listenerId = scrollY.addListener(({ value }) => {
             const currentScrollY = typeof value === 'number' ? value : 0;
 
             if (!hasBaseline) {
                 hasBaseline = true;
+                lastKnownScrollY = currentScrollY;
+                lastScrollHeight = readScrollHeight();
+                return;
+            }
+
+            // Layout-growth guard (web): if the document height changed since the
+            // last event, this `scrollY` delta is the document re-settling under
+            // the viewport (virtualized rows measuring, images loading), NOT a
+            // user gesture. Re-baseline both trackers and leave `hidden` alone so
+            // gradual growth never hides (or half-hides) the bar. Catches the
+            // small-step reflows the magnitude guard below lets through.
+            const currentScrollHeight = readScrollHeight();
+            if (currentScrollHeight !== lastScrollHeight) {
+                lastScrollHeight = currentScrollHeight;
                 lastKnownScrollY = currentScrollY;
                 return;
             }

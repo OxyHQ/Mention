@@ -61,6 +61,22 @@ const CHROME_Z_INDEX = 101;
  */
 export const panelStickyTopInset: ViewStyle = IS_WEB ? { top: PANEL_TOP_INSET } : {};
 
+/**
+ * Web-only `top` offset (px) for the SECOND tier of bespoke sticky chrome — a
+ * row that must pin directly BELOW a `panelStickyTopInset` header band so the
+ * two stack instead of overlapping. This is the `level={1}` analogue of
+ * `panelStickyTopInset` for layers that can't use the full <PanelStickyHeader>
+ * wrapper (e.g. the profile tab bar, which pins flush under the profile's
+ * 0-flow-height header chrome — banner fade + action cluster + compact name).
+ * Derived from the SAME constants as the home `level={1}` header
+ * (`PANEL_TOP_INSET + PANEL_HEADER_HEIGHT` = `web:top-[56px]`), so the stacked
+ * offset has one source of truth. Empty on native, where the header chrome is
+ * an absolute overlay and the tab bar pins via `stickyHeaderIndices`.
+ */
+export const panelStickyTabsTopInset: ViewStyle = IS_WEB
+    ? { top: PANEL_TOP_INSET + PANEL_HEADER_HEIGHT }
+    : {};
+
 type ChromeLevel = 0 | 1;
 
 interface PanelStickyHeaderProps {
