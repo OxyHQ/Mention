@@ -168,6 +168,154 @@ describe('FeedRankingService recalibrated quality behavior', () => {
   });
 });
 
+describe('FeedRankingService AI content-classification signals (P3a)', () => {
+  /** Build a fully-classified post with explicit AI scores. */
+  function classified(
+    scores: Partial<{
+      toxicity: number;
+      constructiveness: number;
+      spam: number;
+      quality: number;
+      controversy: number;
+      negativity: number;
+    }>,
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return makePost({
+      postClassification: {
+        status: 'classified',
+        topics: [],
+        scores: {
+          toxicity: 0,
+          constructiveness: 0.5,
+          spam: 0,
+          quality: 0.5,
+          controversy: 0,
+          negativity: 0,
+          ...scores,
+        },
+      },
+      ...overrides,
+    });
+  }
+
+  it('(a) SAFETY CASE — an UNSCORED post is scored NEUTRALLY (no penalty, no boost)', async () => {
+    // The critical safety guarantee: a baseline/pending/failed/no-scores post must
+    // be identical to a post with no classification at all. None of the AI signals
+    // may fire.
+    const unclassified = makePost();
+    const pending = makePost({
+      postClassification: { status: 'pending', topics: [] },
+    });
+    const baseline = makePost({
+      postClassification: { status: 'baseline', topics: [], language: 'en' },
+    });
+    const failed = makePost({
+      postClassification: { status: 'failed', topics: [] },
+    });
+    // A post stuck in 'baseline' that even carries a malformed/partial scores
+    // object must still be neutral — only status==='classified' with a valid
+    // scores object is honored.
+    const baselineWithStaleScores = makePost({
+      postClassification: {
+        status: 'baseline',
+        topics: [],
+        scores: { spam: 0.99, toxicity: 0.99, quality: 0.0 },
+      },
+    });
+
+    const base = await scoreWith(unclassified, {});
+    expect(await scoreWith(pending, {})).toBeCloseTo(base, 10);
+    expect(await scoreWith(baseline, {})).toBeCloseTo(base, 10);
+    expect(await scoreWith(failed, {})).toBeCloseTo(base, 10);
+    // The high spam/toxicity scores are IGNORED because status !== 'classified'.
+    expect(await scoreWith(baselineWithStaleScores, {})).toBeCloseTo(base, 10);
+  });
+
+  it('(a) SAFETY CASE — a classified post with malformed/out-of-range scores is treated as NEUTRAL', async () => {
+    const base = await scoreWith(makePost(), {});
+    // out-of-range / non-finite values disqualify the whole scores object.
+    const badRange = classified({ spam: 1.5, toxicity: -0.2, quality: 2 });
+    const nan = classified({ spam: Number.NaN, quality: Number.NaN, toxicity: Number.NaN });
+    expect(await scoreWith(badRange, {})).toBeCloseTo(base, 10);
+    expect(await scoreWith(nan, {})).toBeCloseTo(base, 10);
+  });
+
+  it('(b) a classified HIGH-SPAM post is strongly downranked vs a neutral classified post', async () => {
+    const { spamThreshold, highRiskPenalty } = MtnConfig.ranking.aiQuality.safety;
+    const neutral = classified({ spam: 0, toxicity: 0, quality: 0.5 });
+    const spammy = classified({ spam: spamThreshold, toxicity: 0, quality: 0.5 });
+
+    const neutralScore = await scoreWith(neutral, {});
+    const spammyScore = await scoreWith(spammy, {});
+
+    expect(spammyScore).toBeLessThan(neutralScore);
+    // Strong: the spam penalty multiplier is exactly the configured highRiskPenalty.
+    expect(spammyScore / neutralScore).toBeCloseTo(highRiskPenalty, 5);
+  });
+
+  it('(b) a classified HIGH-TOXICITY post is strongly downranked vs a neutral classified post', async () => {
+    const { toxicityThreshold, highRiskPenalty } = MtnConfig.ranking.aiQuality.safety;
+    const neutral = classified({ spam: 0, toxicity: 0, quality: 0.5 });
+    const toxic = classified({ spam: 0, toxicity: toxicityThreshold, quality: 0.5 });
+
+    const neutralScore = await scoreWith(neutral, {});
+    const toxicScore = await scoreWith(toxic, {});
+
+    expect(toxicScore).toBeLessThan(neutralScore);
+    expect(toxicScore / neutralScore).toBeCloseTo(highRiskPenalty, 5);
+  });
+
+  it('(c) a classified HIGH-QUALITY post is boosted above a LOW-QUALITY one', async () => {
+    const { highThreshold, lowThreshold, highBoost, lowPenalty } = MtnConfig.ranking.aiQuality.quality;
+    const high = classified({ quality: highThreshold, spam: 0, toxicity: 0 });
+    const low = classified({ quality: lowThreshold, spam: 0, toxicity: 0 });
+
+    const highScore = await scoreWith(high, {});
+    const lowScore = await scoreWith(low, {});
+
+    expect(highScore).toBeGreaterThan(lowScore);
+    // The ONLY differing factor is the AI quality multiplier, so the ratio equals
+    // highBoost / lowPenalty.
+    expect(highScore / lowScore).toBeCloseTo(highBoost / lowPenalty, 5);
+  });
+
+  it('(c) AI quality REPLACES the engagement-rate heuristic when classified', async () => {
+    // A post with strong engagement-rate "quality" but a LOW AI quality score is
+    // downranked — the AI signal overrides the noisy engagement ratio.
+    const minViews = MtnConfig.ranking.quality.minViewsForRate;
+    const strongEngagement = {
+      likesCount: minViews,
+      boostsCount: minViews,
+      commentsCount: 0,
+      viewsCount: minViews,
+    };
+    const aiLowDespiteEngagement = classified(
+      { quality: MtnConfig.ranking.aiQuality.quality.lowThreshold },
+      { stats: { ...strongEngagement } },
+    );
+    const unclassifiedSameEngagement = makePost({ stats: { ...strongEngagement } });
+
+    const aiScore = await scoreWith(aiLowDespiteEngagement, {});
+    const engagementScore = await scoreWith(unclassifiedSameEngagement, {});
+    expect(aiScore).toBeLessThan(engagementScore);
+  });
+
+  it('(d) thresholds & multipliers come from MtnConfig.ranking.aiQuality (no magic numbers)', () => {
+    const ai = MtnConfig.ranking.aiQuality;
+    expect(ai.safety.spamThreshold).toBeGreaterThan(0);
+    expect(ai.safety.spamThreshold).toBeLessThanOrEqual(1);
+    expect(ai.safety.toxicityThreshold).toBeGreaterThan(0);
+    expect(ai.safety.toxicityThreshold).toBeLessThanOrEqual(1);
+    expect(ai.safety.highRiskPenalty).toBeGreaterThan(0);
+    expect(ai.safety.highRiskPenalty).toBeLessThan(1);
+    expect(ai.quality.highThreshold).toBeGreaterThan(ai.quality.lowThreshold);
+    expect(ai.quality.highBoost).toBeGreaterThan(1);
+    expect(ai.quality.lowPenalty).toBeLessThan(1);
+    expect(ai.quality.lowPenalty).toBeGreaterThan(0);
+  });
+});
+
 describe('FeedRankingService recalibrated diversity penalties', () => {
   it('uses the strengthened same-author / same-topic penalties from config', () => {
     // Guard the recalibration itself: these are the values the ranking reads.

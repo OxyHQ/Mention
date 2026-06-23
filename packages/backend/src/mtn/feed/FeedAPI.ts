@@ -44,5 +44,12 @@ export interface FeedAPI {
   fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse>;
 }
 
-/** Standard fields to select from Post collection */
-export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language';
+/**
+ * Standard fields to select from Post collection.
+ *
+ * Includes the minimal `postClassification` projection ranking needs to read the
+ * AI quality/safety signals: `scores` + `status` (consumed by FeedRankingService),
+ * plus `topics`/`language` (used by topic/locale ranking & candidate generation).
+ * Ranking treats an absent / non-`classified` classification as NEUTRAL.
+ */
+export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.topics postClassification.language';

@@ -89,6 +89,56 @@ export const MtnConfig = {
       min: 0.9, // floor (a 0-follower / unknown-but-present author)
       max: 1.4, // ceiling (a very large account)
     },
+    /**
+     * AI content-classification signals (`postClassification.scores`, each 0..1)
+     * folded into ranking — see `FeedRankingService`. These ONLY apply when a
+     * post is fully AI-classified (`postClassification.status === 'classified'`
+     * AND `scores` present). Unscored / baseline / pending / failed posts are
+     * treated as NEUTRAL (every multiplier below collapses to exactly 1.0), so
+     * the feed never empties when AI scores are absent.
+     *
+     * SAFETY (spam + toxicity) folds into the negative penalty; QUALITY folds
+     * into / augments the engagement-rate quality score. All effects are bounded.
+     */
+    aiQuality: {
+      /**
+       * SAFETY downrank — spam & toxicity. A score AT OR ABOVE the threshold is
+       * "high" and earns the strong multiplicative penalty. Both signals share
+       * the same penalty (the worse of the two dominates, since penalties
+       * multiply). The penalty is strong enough to push a flagged post out of
+       * the feed without hard-deleting it (multiplicative, not a filter).
+       */
+      safety: {
+        /** spam score ≥ this → high-spam → strong downrank. */
+        spamThreshold: 0.7,
+        /** toxicity score ≥ this → high-toxicity → strong downrank. */
+        toxicityThreshold: 0.7,
+        /**
+         * Multiplier applied to a high-spam OR high-toxicity post. ~0.1 pushes
+         * it ~10x down — effectively out of the visible feed — while keeping the
+         * model multiplicative (no special-case exclusion).
+         */
+        highRiskPenalty: 0.1,
+      },
+      /**
+       * QUALITY adjustment from the AI `quality` score (0..1). At/above
+       * `highThreshold` → modest boost; at/below `lowThreshold` → modest
+       * downrank; in between → neutral (1.0). Bounded, so a single AI signal
+       * never dominates the multiplicative score. When the AI quality score is
+       * present it REPLACES the engagement-rate quality heuristic; otherwise the
+       * engagement-rate behavior is preserved unchanged.
+       */
+      quality: {
+        /** quality score ≥ this → high quality → modest boost. */
+        highThreshold: 0.7,
+        /** quality score ≤ this → low quality → modest downrank. */
+        lowThreshold: 0.3,
+        /** Multiplier for a high-quality (AI) post. */
+        highBoost: 1.3,
+        /** Multiplier for a low-quality (AI) post. */
+        lowPenalty: 0.7,
+      },
+    },
   },
 
   // --- Feed parameters ---

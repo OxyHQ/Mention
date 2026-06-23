@@ -2,6 +2,7 @@ import { Post } from '../models/Post';
 import UserBehavior from '../models/UserBehavior';
 import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
+import type { PostClassificationScores } from '@mention/shared-types';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
@@ -99,6 +100,98 @@ export class FeedRankingService {
           .map((t: any) => t.topicId.toString()),
       ),
     };
+  }
+
+  /**
+   * Resolve a post's AI content-classification scores ONLY when they are safe to
+   * use for ranking — i.e. the post reached the `classified` stage AND carries a
+   * complete `scores` object with finite, in-range (0..1) numbers.
+   *
+   * This is the SINGLE neutral-when-absent guard for the whole AI-ranking path:
+   * every caller (safety penalty + quality boost) treats a `null` return as
+   * "no AI signal" and contributes exactly 1.0 (neutral). A post that is
+   * `pending` / `baseline` / `failed`, has no `scores`, or has malformed scores
+   * therefore is NEVER penalized or boosted by the AI signals — the feed cannot
+   * empty just because most posts aren't AI-classified yet.
+   *
+   * @returns the validated scores, or `null` when the AI signal must be ignored.
+   */
+  private getClassifiedScores(post: any): PostClassificationScores | null {
+    const classification = post?.postClassification;
+    if (!classification || classification.status !== 'classified') {
+      return null;
+    }
+
+    const scores = classification.scores;
+    if (!scores || typeof scores !== 'object') {
+      return null;
+    }
+
+    // Validate every field we rank on: finite and within the documented 0..1
+    // range. A single bad value disqualifies the whole object (treated as
+    // absent → neutral) rather than letting a malformed score skew ranking.
+    const inUnitRange = (value: unknown): value is number =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+
+    if (
+      !inUnitRange(scores.spam) ||
+      !inUnitRange(scores.toxicity) ||
+      !inUnitRange(scores.quality)
+    ) {
+      return null;
+    }
+
+    return scores as PostClassificationScores;
+  }
+
+  /**
+   * AI SAFETY penalty from the classified spam / toxicity scores.
+   *
+   * Returns a multiplier in `(0, 1]`: exactly `1.0` (neutral) when there is no
+   * usable AI signal, or when neither spam nor toxicity crosses its configured
+   * threshold; the strong `highRiskPenalty` (~0.1) when EITHER is high, pushing
+   * the flagged post effectively out of the feed without hard-excluding it. This
+   * is folded INTO the existing negative penalty, so it composes multiplicatively
+   * with hidden/muted/blocked/hidden-topic penalties.
+   */
+  private calculateAiSafetyPenalty(post: any): number {
+    const scores = this.getClassifiedScores(post);
+    if (!scores) {
+      return 1.0; // No usable AI signal → neutral.
+    }
+
+    const { spamThreshold, toxicityThreshold, highRiskPenalty } = this.R.aiQuality.safety;
+    if (scores.spam >= spamThreshold || scores.toxicity >= toxicityThreshold) {
+      return highRiskPenalty;
+    }
+
+    return 1.0;
+  }
+
+  /**
+   * AI QUALITY multiplier from the classified `quality` score (0..1).
+   *
+   * Returns `null` when there is no usable AI signal so the caller falls back to
+   * the engagement-rate quality heuristic. When present: a modest `highBoost`
+   * for quality ≥ `highThreshold`, a modest `lowPenalty` for quality ≤
+   * `lowThreshold`, and neutral `1.0` in between. Bounded by config, so the AI
+   * quality signal nudges — never dominates — the multiplicative score.
+   */
+  private calculateAiQualityMultiplier(post: any): number | null {
+    const scores = this.getClassifiedScores(post);
+    if (!scores) {
+      return null; // No usable AI signal → defer to engagement-rate quality.
+    }
+
+    const { highThreshold, lowThreshold, highBoost, lowPenalty } = this.R.aiQuality.quality;
+    if (scores.quality >= highThreshold) {
+      return highBoost;
+    }
+    if (scores.quality <= lowThreshold) {
+      return lowPenalty;
+    }
+
+    return 1.0;
   }
 
   /**
@@ -473,12 +566,38 @@ export class FeedRankingService {
   }
 
   /**
-   * Calculate content quality score with improved metrics
-   * Considers engagement rate, engagement velocity, and view-to-engagement ratio
+   * Calculate content quality score with improved metrics.
+   *
+   * Combines two orthogonal factors, both bounded:
+   * 1. CONTENT quality — the AI `quality` score when the post is classified
+   *    ({@link calculateAiQualityMultiplier}); otherwise the engagement-rate
+   *    heuristic preserved below (rewarding genuine high-rate posts, penalizing
+   *    high-view/no-engagement ones). An unscored post falls back to the exact
+   *    prior engagement-rate behavior — it is never penalized for lacking AI.
+   * 2. VELOCITY — recent engagement is more relevant (freshness multiplier).
+   *
+   * VELOCITY always applies; the AI quality signal, when present, REPLACES the
+   * engagement-rate tier (they measure the same thing — content quality — so we
+   * trust the AI judgment over the noisy engagement ratio rather than stacking
+   * them).
    */
   private calculateQualityScore(post: any): number {
     const stats = post.stats || {};
     const viewsCount = stats.viewsCount || 0;
+
+    // Engagement velocity: posts with recent engagement are more relevant.
+    const createdAtMs = new Date(post.createdAt).getTime();
+    const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
+    const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0;
+
+    // Prefer the AI content-quality signal when this post is classified. It is
+    // bounded by config and replaces the engagement-rate tier (same concept,
+    // higher-fidelity signal). `null` → no usable AI signal → fall through to the
+    // engagement-rate heuristic below so unscored posts behave exactly as before.
+    const aiQuality = this.calculateAiQualityMultiplier(post);
+    if (aiQuality !== null) {
+      return aiQuality * velocityBoost;
+    }
 
     // Calculate raw engagement (before log scaling for rate calculation)
     const rawEngagement = (
@@ -488,11 +607,6 @@ export class FeedRankingService {
       (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.R.engagement.saveWeight +
       (stats.sharesCount || 0) * this.SHARE_WEIGHT
     );
-
-    // Engagement velocity: posts with recent engagement are more relevant.
-    const createdAtMs = new Date(post.createdAt).getTime();
-    const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
-    const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0;
 
     // ROBUST engagement rate at low view counts: a post with only a few views
     // must not be promoted to "high quality" off a tiny denominator (2 views,
@@ -651,7 +765,16 @@ export class FeedRankingService {
   }
 
   /**
-   * Calculate negative signals penalty (hidden, muted, blocked)
+   * Calculate negative signals penalty.
+   *
+   * Combines two kinds of penalty, multiplicatively:
+   * 1. VIEWER negative signals — hidden / muted / blocked authors and hidden
+   *    topics (require a logged-in viewer with behavior data).
+   * 2. CONTENT AI-safety penalty — high spam / toxicity from the classified
+   *    scores ({@link calculateAiSafetyPenalty}). This is viewer-INDEPENDENT, so
+   *    it applies on EVERY path (including anonymous) — but it is exactly `1.0`
+   *    (neutral) for any post that isn't AI-classified with high-risk scores, so
+   *    the feed never empties when AI scores are absent.
    */
   private async calculateNegativePenalty(
     post: any,
@@ -659,8 +782,11 @@ export class FeedRankingService {
     userBehavior: any,
     behaviorSets?: BehaviorSets
   ): Promise<number> {
+    // Content-level AI safety penalty applies regardless of viewer/behavior.
+    const aiSafetyPenalty = this.calculateAiSafetyPenalty(post);
+
     if (!userId || !userBehavior) {
-      return 1.0;
+      return aiSafetyPenalty;
     }
 
     const authorId = post.oxyUserId;
@@ -688,11 +814,11 @@ export class FeedRankingService {
       );
 
       if (hasHiddenHashtag || hasHiddenExtractedTopic) {
-        return 0.5; // Reduce visibility
+        return 0.5 * aiSafetyPenalty; // Reduce visibility (composes with AI safety)
       }
     }
 
-    return 1.0;
+    return aiSafetyPenalty;
   }
 
   /**
