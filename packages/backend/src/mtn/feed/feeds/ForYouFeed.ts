@@ -115,6 +115,16 @@ export class ForYouFeed implements FeedAPI {
     }
     const deduped = Array.from(uniqueMap.values());
 
+    // Never blank: when the viewer has exhausted unseen ranked content — the
+    // seen-posts set excludes everything recent (it caps at 1000 with a 30-min
+    // TTL, so a heavy scrolling session can drain the unseen pool) or simply no
+    // candidate matched — fall back to popular discovery instead of returning an
+    // empty For You. fetchPopular does NOT exclude seen posts, so it always has
+    // content to show.
+    if (deduped.length === 0) {
+      return this.fetchPopular(cursor, limit, context);
+    }
+
     // Thread slicing on the FULL ranked candidate pool (not just the top-limit),
     // so a multi-post thread by one author is grouped into a SINGLE slice before
     // any author spacing. Slicing is cheap (grouping + one bounded thread-children
