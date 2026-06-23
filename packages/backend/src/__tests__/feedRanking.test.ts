@@ -358,6 +358,51 @@ describe('FeedRankingService sensitive/NSFW hard exclusion (belt-and-suspenders)
   });
 });
 
+describe('FeedRankingService sensitive/NSFW exclusion is VIEWER-CONDITIONAL (showSensitiveContent)', () => {
+  it('does NOT zero a classifier-flagged sensitive post when the viewer opted in', async () => {
+    const sensitive = makePost({ postClassification: { status: 'baseline', topics: [], sensitive: true } });
+    expect(await scoreWith(sensitive, { showSensitiveContent: true })).toBeGreaterThan(0);
+  });
+
+  it('does NOT zero a metadata.isSensitive post when the viewer opted in', async () => {
+    const sensitive = makePost({ metadata: { isSensitive: true } });
+    expect(await scoreWith(sensitive, { showSensitiveContent: true })).toBeGreaterThan(0);
+  });
+
+  it('does NOT zero a federation.sensitive post when the viewer opted in', async () => {
+    const sensitive = makePost({ federation: { sensitive: true } });
+    expect(await scoreWith(sensitive, { showSensitiveContent: true })).toBeGreaterThan(0);
+  });
+
+  it('does NOT zero an NSFW-hashtag post when the viewer opted in', async () => {
+    const nsfw = makePost({ hashtags: ['nsfw'] });
+    expect(await scoreWith(nsfw, { showSensitiveContent: true })).toBeGreaterThan(0);
+  });
+
+  it('STILL zeroes a sensitive post when showSensitiveContent is explicitly false', async () => {
+    const nsfw = makePost({ hashtags: ['nsfw'] });
+    expect(await scoreWith(nsfw, { showSensitiveContent: false })).toBe(0);
+  });
+
+  it('STILL zeroes a sensitive post when showSensitiveContent is omitted (default SFW)', async () => {
+    const nsfw = makePost({ hashtags: ['nsfw'] });
+    expect(await scoreWith(nsfw, {})).toBe(0);
+  });
+
+  it('ranks a sensitive post normally in a batch when the viewer opted in (score > 0)', async () => {
+    // userId is `undefined` to keep the batch on the pure compute path (a real
+    // userId would lazy-load following/behavior from the server singleton); the
+    // sensitive zeroing depends on showSensitiveContent, not on userId.
+    const stats = { likesCount: 10, boostsCount: 5, commentsCount: 3, viewsCount: 100 };
+    const clean = makePost({ _id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
+    const nsfw = makePost({ _id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
+    const ranked = await service.rankPosts([clean, nsfw], undefined, { showSensitiveContent: true });
+    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p._id), p.finalScore as number]));
+    expect(byId.get('nsfw-1') ?? 0).toBeGreaterThan(0);
+    expect(byId.get('clean-1') ?? 0).toBeGreaterThan(0);
+  });
+});
+
 describe('FeedRankingService deterministic-baseline scores (P3d) — honored via the version marker', () => {
   /** A non-classified (pending) post carrying deterministic-baseline scores at the current version. */
   function baselineScored(

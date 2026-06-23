@@ -64,44 +64,14 @@ function normalizeHashtagSlug(hashtag: string | null | undefined): string {
 /**
  * Whether a hashtag is on the NSFW/adult blocklist. Accepts any case and an
  * optional leading `#`; normalization is handled internally.
+ *
+ * This module owns the low-level blocklist PRIMITIVES ({@link NSFW_HASHTAGS} +
+ * this predicate). The higher-level feed-safety gating — the post-level
+ * sensitivity predicate (`isSfw`/`isSensitivePost`) and the canonical Mongo
+ * exclusion clauses — lives in `mtn/feed/feedSafety.ts`, which composes these
+ * primitives. Import feed safety from there, not from here.
  */
 export function isNsfwHashtag(hashtag: string | null | undefined): boolean {
   const slug = normalizeHashtagSlug(hashtag);
   return slug.length > 0 && NSFW_HASHTAGS.has(slug);
-}
-
-/**
- * The minimal post shape this module reads to decide sensitivity. A lean Mongo
- * document carrying any of the sensitive flags and/or `hashtags` satisfies it;
- * every field is optional so it works for native, federated, baselined, and
- * not-yet-classified posts alike.
- */
-export interface SensitivePostShape {
-  hashtags?: string[];
-  postClassification?: { sensitive?: boolean | null };
-  metadata?: { isSensitive?: boolean | null };
-  federation?: { sensitive?: boolean | null };
-}
-
-/**
- * Whether a post is sensitive/NSFW and therefore must be kept OUT of the curated
- * For You feed and the ranked discovery surfaces. A post is sensitive when ANY
- * of these hold:
- *   - the deterministic/AI classifier flagged it (`postClassification.sensitive`),
- *   - the app metadata flag is set (`metadata.isSensitive`),
- *   - the federating source flagged it (`federation.sensitive`), or
- *   - it carries an NSFW/adult hashtag ({@link isNsfwHashtag}).
- *
- * This is the single in-memory counterpart to the Mongo `$ne:true` exclusions, so
- * every surface (candidate merge, popular fallback, ranking guard) agrees on what
- * "sensitive" means. NEUTRAL by default: a clean post returns `false`.
- */
-export function isSensitivePost(post: SensitivePostShape | null | undefined): boolean {
-  if (!post) return false;
-  if (post.postClassification?.sensitive === true) return true;
-  if (post.metadata?.isSensitive === true) return true;
-  if (post.federation?.sensitive === true) return true;
-  const tags = post.hashtags;
-  if (Array.isArray(tags) && tags.some(isNsfwHashtag)) return true;
-  return false;
 }

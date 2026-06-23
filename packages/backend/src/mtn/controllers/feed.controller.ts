@@ -19,6 +19,7 @@ import { extractFollowingIds } from '../../utils/privacyHelpers';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
 import { MuteWord } from '../../models/MuteWord';
+import UserSettings from '../../models/UserSettings';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 import type { TunerContext } from '../feed/FeedTuner';
@@ -42,6 +43,27 @@ async function loadMuteWordsForUser(userId: string | undefined): Promise<MutePre
   } catch (error) {
     logger.warn('[MtnFeedController] Failed to load muted words', error);
     return [];
+  }
+}
+
+/**
+ * Load the viewer's "show sensitive/NSFW content" preference from their
+ * UserSettings. Returns `false` (safe-for-work — today's behavior) for an
+ * anonymous viewer, a viewer with no settings doc yet, or on any load failure:
+ * a settings lookup error must never relax the sensitivity gate. Only an
+ * explicit stored `true` opts the viewer in.
+ */
+async function loadShowSensitiveContent(userId: string | undefined): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const doc = await UserSettings.findOne(
+      { oxyUserId: userId },
+      { 'privacy.showSensitiveContent': 1 },
+    ).lean();
+    return doc?.privacy?.showSensitiveContent === true;
+  } catch (error) {
+    logger.warn('[MtnFeedController] Failed to load showSensitiveContent preference', error);
+    return false;
   }
 }
 
@@ -130,6 +152,9 @@ class MtnFeedController {
       // (For You multi-source) and ranking; it soft-fails to undefined.
       let followingIds: string[] = [];
       let userBehavior: unknown;
+      // The viewer's sensitive-content opt-in. Anonymous → false; loaded
+      // soft-failing to false below so a settings error never relaxes the gate.
+      let showSensitiveContent = false;
       const privacyState = currentUserId
         ? await UserPrivacyManager.loadPrivacyState(currentUserId)
         : null;
@@ -159,6 +184,8 @@ class MtnFeedController {
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load user behavior', error);
         }
+
+        showSensitiveContent = await loadShowSensitiveContent(currentUserId);
       }
 
       // Build context
@@ -167,6 +194,7 @@ class MtnFeedController {
         followingIds,
         userBehavior,
         oxyClient,
+        showSensitiveContent,
       };
 
       // Resolve feed

@@ -44,7 +44,7 @@ import mongoose from 'mongoose';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../models/Post';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
-import { isSensitivePost } from '../../../services/contentClassification/nsfw';
+import { SENSITIVE_EXCLUDE_MATCH, isSensitivePost } from '../feedSafety';
 import { logger } from '../../../utils/logger';
 import { FEED_FIELDS } from '../FeedAPI';
 import { RankedCandidate } from '../rankedCandidate';
@@ -66,6 +66,13 @@ export interface GatherForYouCandidatesParams {
   userBehavior?: CandidateUserBehavior;
   /** Post ids already seen this session — excluded from every source. */
   seenPostIds: string[];
+  /**
+   * Whether the viewer opted in to sensitive/NSFW content. When `true`, the
+   * per-source discovery sensitivity filter and the merged-pool sensitive/NSFW
+   * guard are skipped so sensitive posts are eligible. Defaults to `false`
+   * (safe-for-work — every source excludes sensitive/NSFW).
+   */
+  showSensitiveContent?: boolean;
   /** Injectable for testing; defaults to the shared singleton. */
   contentAffinityService?: Pick<ContentAffinityService, 'getContentCandidates'>;
 }
@@ -111,17 +118,17 @@ function buildBaseMatch(
 }
 
 /**
- * Add the DISCOVERY safety filter to a match: exclude classifier-flagged
- * sensitive content (`postClassification.sensitive`, `metadata.isSensitive`,
- * `federation.sensitive`). NSFW-hashtag exclusion is applied in code after the
- * fetch (a hashtag blocklist is awkward to express as an index-served query and
- * the pool is already bounded).
+ * Add the DISCOVERY sensitive filter to a match by spreading the SHARED
+ * {@link SENSITIVE_EXCLUDE_MATCH} clause into its `$and` (so it composes with the
+ * base match's own `$and` entries). NSFW-hashtag exclusion is applied to the
+ * merged pool in code via the shared {@link isSensitivePost} predicate (it covers
+ * every source uniformly, and the pool is already bounded).
  */
 function withDiscoverySafety(match: Record<string, unknown>): Record<string, unknown> {
   const and = match.$and as Record<string, unknown>[];
-  and.push({ 'postClassification.sensitive': { $ne: true } });
-  and.push({ 'metadata.isSensitive': { $ne: true } });
-  and.push({ 'federation.sensitive': { $ne: true } });
+  for (const [field, condition] of Object.entries(SENSITIVE_EXCLUDE_MATCH)) {
+    and.push({ [field]: condition });
+  }
   return match;
 }
 
@@ -216,6 +223,15 @@ export async function gatherForYouCandidates(
 
   const affinityAuthorIds = await resolveAffinityAuthorIds(params);
 
+  // Viewer-conditional discovery safety: SFW viewers (the default, incl.
+  // undefined) get the sensitive/NSFW exclusion on every DISCOVERY source AND the
+  // merged-pool guard below; a viewer who opted in skips both, so sensitive posts
+  // are eligible. The centralized predicate/clause is unchanged — only its
+  // APPLICATION is conditional here.
+  const allowSensitive = params.showSensitiveContent === true;
+  const applyDiscoverySafety = (match: Record<string, unknown>): Record<string, unknown> =>
+    allowSensitive ? match : withDiscoverySafety(match);
+
   // --- FOLLOWING: posts from followed authors (sensitive allowed). ---
   const followingSource: Promise<CandidatePost[]> = followingIds.length > 0
     ? runSource('following', {
@@ -232,25 +248,25 @@ export async function gatherForYouCandidates(
       }, cfg.perSource.affinity)
     : Promise.resolve([]);
 
-  // --- TOPICS (DISCOVERY): classification-topic match, sensitive excluded. ---
+  // --- TOPICS (DISCOVERY): classification-topic match, sensitive excluded (SFW). ---
   const topicsSource: Promise<CandidatePost[]> = preferredTopics.length > 0
-    ? runSource('topics', withDiscoverySafety({
+    ? runSource('topics', applyDiscoverySafety({
         ...buildBaseMatch(seenObjectIds, since),
         'postClassification.topics': { $in: preferredTopics },
       }), cfg.perSource.topics)
     : Promise.resolve([]);
 
-  // --- LANGUAGE (DISCOVERY): preferred-language match, sensitive excluded. ---
+  // --- LANGUAGE (DISCOVERY): preferred-language match, sensitive excluded (SFW). ---
   const languageSource: Promise<CandidatePost[]> = preferredLanguages.length > 0
-    ? runSource('language', withDiscoverySafety({
+    ? runSource('language', applyDiscoverySafety({
         ...buildBaseMatch(seenObjectIds, since),
         'postClassification.language': { $in: preferredLanguages },
       }), cfg.perSource.language)
     : Promise.resolve([]);
 
-  // --- REGION (DISCOVERY): region match, sensitive excluded. ---
+  // --- REGION (DISCOVERY): region match, sensitive excluded (SFW). ---
   const regionSource: Promise<CandidatePost[]> = region
-    ? runSource('region', withDiscoverySafety({
+    ? runSource('region', applyDiscoverySafety({
         ...buildBaseMatch(seenObjectIds, since),
         'postClassification.region': region,
       }), cfg.perSource.region)
@@ -262,7 +278,7 @@ export async function gatherForYouCandidates(
   const trendingSource: Promise<CandidatePost[]> = (async () => {
     try {
       const eng = MtnConfig.ranking.engagement;
-      const match = withDiscoverySafety(buildBaseMatch(seenObjectIds, since));
+      const match = applyDiscoverySafety(buildBaseMatch(seenObjectIds, since));
       match.parentPostId = { $in: [null, undefined] };
       return (await Post.aggregate([
         { $match: match },
@@ -287,10 +303,10 @@ export async function gatherForYouCandidates(
     }
   })();
 
-  // --- GLOBAL (DISCOVERY): recent public, small cap, sensitive excluded. ---
+  // --- GLOBAL (DISCOVERY): recent public, small cap, sensitive excluded (SFW). ---
   const globalSource: Promise<CandidatePost[]> = runSource(
     'global',
-    withDiscoverySafety(buildBaseMatch(seenObjectIds, since)),
+    applyDiscoverySafety(buildBaseMatch(seenObjectIds, since)),
     cfg.perSource.global,
   );
 
@@ -308,11 +324,13 @@ export async function gatherForYouCandidates(
   // content) first, then DISCOVERY. A full `maxPool` clamp therefore keeps the
   // viewer's chosen content over pure discovery.
   //
-  // SFW GUARD: For You is the curated algorithmic feed and must be uniformly SFW,
-  // so a single sensitive/NSFW filter ({@link isSensitivePost}) is applied to the
+  // SFW GUARD: For a safe-for-work viewer, For You must be uniformly SFW, so a
+  // single sensitive/NSFW filter ({@link isSensitivePost}) is applied to the
   // merged pool covering EVERY source — including following and affinity — on top
-  // of the per-source discovery query filter. (The separate chronological
-  // Following feed does not pass through here, so it is unaffected.)
+  // of the per-source discovery query filter. When the viewer opted in
+  // (`allowSensitive`), this guard is skipped so sensitive posts from any source
+  // remain eligible. (The separate chronological Following feed does not pass
+  // through here, so it is unaffected either way.)
   const sources: CandidatePost[][] = [
     following,
     affinity,
@@ -329,8 +347,8 @@ export async function gatherForYouCandidates(
       if (merged.size >= cfg.maxPool) break;
       const id = post?._id?.toString();
       if (!id || merged.has(id)) continue;
-      // Uniform SFW guard: drop sensitive/NSFW from ALL sources (For You is SFW).
-      if (isSensitivePost(post)) continue;
+      // SFW guard: drop sensitive/NSFW from ALL sources unless the viewer opted in.
+      if (!allowSensitive && isSensitivePost(post)) continue;
       merged.set(id, post);
     }
     if (merged.size >= cfg.maxPool) break;

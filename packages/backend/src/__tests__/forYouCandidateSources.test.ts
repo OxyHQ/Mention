@@ -249,6 +249,100 @@ describe('gatherForYouCandidates — discovery safety', () => {
   });
 });
 
+describe('gatherForYouCandidates — viewer opted in (showSensitiveContent)', () => {
+  it('does NOT add the discovery sensitive exclusion to any source when opted in', async () => {
+    findRouter = (match) => {
+      const src = sourceOf(match);
+      if (src === 'authors') return [makePost(oid(20), 'follow-1')];
+      return [];
+    };
+
+    await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: ['follow-1'],
+      userBehavior: { preferredTopics: [{ topic: 'tech', weight: 1 }] },
+      seenPostIds: [],
+      showSensitiveContent: true,
+      contentAffinityService: affinityStub(['affinity-1']),
+    });
+
+    const hasSensitiveExclusion = (match: Record<string, unknown>): boolean => {
+      const and = match.$and as Array<Record<string, unknown>> | undefined;
+      return Array.isArray(and) && and.some((c) => 'postClassification.sensitive' in c);
+    };
+
+    // With the viewer opted in, NO source (discovery or author) carries the
+    // sensitive exclusion clause.
+    expect(findCalls.length).toBeGreaterThan(0);
+    for (const m of findCalls) expect(hasSensitiveExclusion(m)).toBe(false);
+  });
+
+  it('keeps NSFW-hashtag + flagged-sensitive posts in the merged pool when opted in', async () => {
+    findRouter = (match) => {
+      const src = sourceOf(match);
+      if (src === 'authors') {
+        const ids = (match.oxyUserId as { $in: string[] }).$in;
+        if (ids.includes('follow-1')) {
+          return [
+            makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
+            makePost(oid(40), 'follow-1', { postClassification: { sensitive: true } }),
+            makePost(oid(43), 'follow-1', {}), // clean
+          ];
+        }
+        return [];
+      }
+      if (src === 'global') {
+        return [makePost(oid(31), 'global-author', { hashtags: ['NSFW'] })];
+      }
+      return [];
+    };
+
+    const pool = await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: ['follow-1'],
+      userBehavior: {},
+      seenPostIds: [],
+      showSensitiveContent: true,
+      contentAffinityService: affinityStub([]),
+    });
+
+    const ids = pool.map((p) => p._id.toString());
+    expect(ids).toContain(new mongoose.Types.ObjectId(oid(30)).toString()); // NSFW followed kept
+    expect(ids).toContain(new mongoose.Types.ObjectId(oid(40)).toString()); // flagged followed kept
+    expect(ids).toContain(new mongoose.Types.ObjectId(oid(43)).toString()); // clean kept
+    expect(ids).toContain(new mongoose.Types.ObjectId(oid(31)).toString()); // NSFW discovery kept
+  });
+
+  it('still excludes sensitive content when showSensitiveContent is false (explicit SFW)', async () => {
+    findRouter = (match) => {
+      const src = sourceOf(match);
+      if (src === 'authors') {
+        const ids = (match.oxyUserId as { $in: string[] }).$in;
+        if (ids.includes('follow-1')) {
+          return [
+            makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
+            makePost(oid(43), 'follow-1', {}), // clean — kept
+          ];
+        }
+      }
+      return [];
+    };
+
+    const pool = await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: ['follow-1'],
+      userBehavior: {},
+      seenPostIds: [],
+      showSensitiveContent: false,
+      contentAffinityService: affinityStub([]),
+    });
+
+    const ids = pool.map((p) => p._id.toString());
+    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(30)).toString());
+    expect(ids).toContain(new mongoose.Types.ObjectId(oid(43)).toString());
+  });
+});
+
 describe('gatherForYouCandidates — caps and exclusions', () => {
   it('clamps the merged pool to maxPool', async () => {
     const cap = MtnConfig.feed.candidateSources.maxPool;

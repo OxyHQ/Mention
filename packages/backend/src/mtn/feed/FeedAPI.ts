@@ -27,6 +27,14 @@ export interface FeedContext {
   userBehavior?: any;
   feedSettings?: any;
   oxyClient?: any;
+  /**
+   * Whether THIS viewer has opted in to seeing sensitive / NSFW content. When
+   * `true`, discovery surfaces (For You, Explore) and ranking do NOT exclude or
+   * zero sensitive posts for this viewer; the posts still carry their sensitive
+   * flag for client-side blur / content warnings. Defaults to `false`
+   * (safe-for-work) for anonymous viewers and on any load failure.
+   */
+  showSensitiveContent?: boolean;
 }
 
 export interface FeedAPI {

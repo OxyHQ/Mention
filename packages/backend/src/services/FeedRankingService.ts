@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 import type { PostClassificationScores } from '@mention/shared-types';
 import { BASELINE_CLASSIFIER_VERSION } from './BaselineContentClassifier';
-import { isSensitivePost } from './contentClassification/nsfw';
+import { isSensitivePost } from '../mtn/feed/feedSafety';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
@@ -307,6 +307,12 @@ export class FeedRankingService {
       behaviorSets?: BehaviorSets;
       /** Oxy authorId → follower count, for the author-authority signal. */
       authorFollowerCounts?: Map<string, number>;
+      /**
+       * Whether the viewer opted in to sensitive/NSFW content. When true, the
+       * sensitive/NSFW hard-zero in the negative penalty is skipped so sensitive
+       * posts rank normally for this viewer. Defaults to false (SFW).
+       */
+      showSensitiveContent?: boolean;
     } = {}
   ): Promise<number> {
     // Helper to guard each sub-score against NaN/Infinity
@@ -378,7 +384,8 @@ export class FeedRankingService {
       post,
       userId,
       context.userBehavior,
-      context.behaviorSets
+      context.behaviorSets,
+      context.showSensitiveContent === true,
     ));
 
     // Thread boost: thread roots with replies get a bump (encourages thread engagement)
@@ -826,10 +833,14 @@ export class FeedRankingService {
    * 1. SENSITIVE/NSFW hard exclusion — a sensitive/NSFW post
    *    ({@link isSensitivePost}: classifier/metadata/federation flag OR an
    *    NSFW-blocklisted hashtag) returns `0`, fully removing it from the ranked
-   *    feeds. Viewer-INDEPENDENT (applies to anonymous too). This is the
-   *    belt-and-suspenders guard: even if a sensitive post slips into the
-   *    candidate pool, it can never surface in a ranked feed. NEUTRAL for clean
-   *    posts, so normal ranking is unchanged.
+   *    feeds. VIEWER-CONDITIONAL: applied only when the viewer is in safe-for-work
+   *    mode (`showSensitiveContent` is false/undefined — the default, including
+   *    anonymous viewers). When the viewer has opted in (`showSensitiveContent`
+   *    is true), a sensitive post is NOT zeroed and ranks normally (still carrying
+   *    its sensitive flag for client-side blur / content warnings). This is the
+   *    belt-and-suspenders guard for SFW viewers: even if a sensitive post slips
+   *    into the candidate pool, it can never surface in their ranked feed. NEUTRAL
+   *    for clean posts, so normal ranking is unchanged.
    * 2. VIEWER negative signals — hidden / muted / blocked authors and hidden
    *    topics (require a logged-in viewer with behavior data).
    * 3. CONTENT AI-safety penalty — high spam / toxicity from the classified
@@ -842,12 +853,15 @@ export class FeedRankingService {
     post: any,
     userId: string | undefined,
     userBehavior: any,
-    behaviorSets?: BehaviorSets
+    behaviorSets?: BehaviorSets,
+    showSensitiveContent: boolean = false,
   ): Promise<number> {
     // Sensitive/NSFW is a HARD exclusion from ranked feeds (For You / Explore /
-    // Videos / Media), regardless of viewer. Short-circuit to 0 so the post can
-    // never surface no matter how strong its other signals are.
-    if (isSensitivePost(post)) {
+    // Videos / Media) for safe-for-work viewers — short-circuit to 0 so the post
+    // can never surface no matter how strong its other signals are. When the
+    // viewer has explicitly opted in to sensitive content, skip this guard so the
+    // post ranks normally (it keeps its sensitive flag for client-side blur/CW).
+    if (!showSensitiveContent && isSensitivePost(post)) {
       return 0;
     }
 
@@ -914,6 +928,13 @@ export class FeedRankingService {
        * avoid the resolution round trip.
        */
       authorFollowerCounts?: Map<string, number>;
+      /**
+       * Whether the viewer opted in to sensitive/NSFW content. Threaded into
+       * per-post scoring so the sensitive/NSFW hard-zero is applied ONLY for
+       * safe-for-work viewers. Defaults to false (SFW), so anonymous and
+       * default viewers behave exactly as before.
+       */
+      showSensitiveContent?: boolean;
     } = {}
   ): Promise<any[]> {
     const rankingStartTime = Date.now();
@@ -1004,6 +1025,7 @@ export class FeedRankingService {
           followingIdsSet,
           behaviorSets,
           authorFollowerCounts,
+          showSensitiveContent: context.showSensitiveContent,
         });
         return { post, score, originalIndex };
       })

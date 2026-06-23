@@ -25,7 +25,7 @@ import {
 } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
 import { gatherForYouCandidates, CandidateUserBehavior } from './forYouCandidateSources';
-import { NSFW_HASHTAGS, isSensitivePost } from '../../../services/contentClassification/nsfw';
+import { DISCOVERY_SAFE_MATCH, filterDiscoverable } from '../feedSafety';
 import mongoose from 'mongoose';
 
 export class ForYouFeed implements FeedAPI {
@@ -86,13 +86,16 @@ export class ForYouFeed implements FeedAPI {
       followingIds: context.followingIds ?? [],
       userBehavior: context.userBehavior as CandidateUserBehavior | undefined,
       seenPostIds,
+      showSensitiveContent: context.showSensitiveContent === true,
     });
 
-    // Rank posts
+    // Rank posts. Thread the viewer's sensitive-content opt-in so the ranking
+    // sensitive/NSFW hard-zero is applied ONLY for safe-for-work viewers.
     const rankedPosts = (await feedRankingService.rankPosts(candidatePosts, currentUserId, {
       followingIds: context.followingIds,
       userBehavior: context.userBehavior,
       feedSettings: context.feedSettings,
+      showSensitiveContent: context.showSensitiveContent === true,
     })) as RankedCandidate[];
 
     // Sort by score descending with stable id tie-breaking.
@@ -217,16 +220,16 @@ export class ForYouFeed implements FeedAPI {
   }
 
   private async fetchPopular(cursor: string | undefined, limit: number, context: FeedContext): Promise<FeedAPIResponse> {
-    // For You (incl. the never-blank fallback AND the anonymous path) must be
-    // uniformly SFW: exclude classifier/metadata/federation-flagged sensitive
-    // content and drop NSFW-hashtag posts at the query level so the overfetch
-    // counts only SFW posts (keeping `hasMore` accurate).
+    // For You (incl. the never-blank fallback AND the anonymous path) is
+    // uniformly SFW for safe-for-work viewers. The shared `DISCOVERY_SAFE_MATCH`
+    // is the single source of truth for the sensitive/NSFW exclusion, applied at
+    // the query level so the overfetch counts only SFW posts (keeping `hasMore`
+    // accurate). When the viewer has opted in (`showSensitiveContent`), the
+    // exclusion is skipped so sensitive/NSFW posts are eligible.
+    const allowSensitive = context.showSensitiveContent === true;
     const match: Record<string, unknown> = {
       visibility: 'public',
-      'postClassification.sensitive': { $ne: true },
-      'metadata.isSensitive': { $ne: true },
-      'federation.sensitive': { $ne: true },
-      hashtags: { $nin: Array.from(NSFW_HASHTAGS) },
+      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };
 
@@ -260,13 +263,15 @@ export class ForYouFeed implements FeedAPI {
       { $limit: limit + 1 },
     ]).option({ maxTimeMS: 5000 });
 
-    // Belt-and-suspenders in-code guard: the query above already excludes
-    // sensitive/NSFW, so this is a no-op in practice, but it guarantees no
-    // sensitive post can ever reach For You even if the query is later changed.
-    const sfwPosts = posts.filter((post) => !isSensitivePost(post));
+    // Belt-and-suspenders in-code guard via the SAME shared predicate: for SFW
+    // viewers the query above already excludes sensitive/NSFW, so this is a no-op
+    // in practice, but it guarantees no sensitive post can ever reach For You even
+    // if the query is later changed. Skipped when the viewer opted in, so
+    // sensitive/NSFW posts pass through.
+    const eligiblePosts = allowSensitive ? posts : filterDiscoverable(posts);
 
-    const hasMore = sfwPosts.length > limit;
-    const postsToReturn = hasMore ? sfwPosts.slice(0, limit) : sfwPosts;
+    const hasMore = eligiblePosts.length > limit;
+    const postsToReturn = hasMore ? eligiblePosts.slice(0, limit) : eligiblePosts;
     const nextCursor =
       hasMore && postsToReturn.length > 0
         ? postsToReturn[postsToReturn.length - 1]._id.toString()

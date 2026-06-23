@@ -8,20 +8,9 @@ import { emitTrendsUpdated } from '../utils/socket';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { topicService } from './TopicService';
 import { isNsfwHashtag } from './contentClassification/nsfw';
-
-/**
- * Aggregation `$match` clause that excludes sensitive/NSFW-flagged posts from
- * trending. A post is treated as sensitive when ANY of the three independent
- * flags is set: the unified classifier verdict (`postClassification.sensitive`),
- * the legacy content-warning flag (`metadata.isSensitive`), or the federated
- * actor's own sensitivity flag (`federation.sensitive`). Keeping this as one
- * named clause guarantees the hashtag and topic pipelines stay in lockstep.
- */
-const EXCLUDE_SENSITIVE_MATCH: Readonly<Record<string, unknown>> = {
-  'postClassification.sensitive': { $ne: true },
-  'metadata.isSensitive': { $ne: true },
-  'federation.sensitive': { $ne: true },
-};
+// Trending shares the SINGLE canonical sensitive-exclusion clause with every
+// feed (For You, Explore, ranking). Adding a new gate updates trending too.
+import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
 
 interface TrendItem {
   type: TrendingType;
@@ -173,7 +162,7 @@ class TrendingService {
           createdAt: { $gte: oneDayAgo },
           hashtags: { $exists: true, $ne: [] },
           // Sensitive/NSFW-flagged posts never feed trending counts.
-          ...EXCLUDE_SENSITIVE_MATCH,
+          ...SENSITIVE_EXCLUDE_MATCH,
         },
       },
       { $unwind: '$hashtags' },
@@ -243,7 +232,7 @@ class TrendingService {
             { 'extracted.topics': { $exists: true, $ne: [] } },
           ],
           // Sensitive/NSFW-flagged posts never feed trending topics.
-          ...EXCLUDE_SENSITIVE_MATCH,
+          ...SENSITIVE_EXCLUDE_MATCH,
         },
       },
       {

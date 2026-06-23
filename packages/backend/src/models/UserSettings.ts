@@ -28,6 +28,14 @@ export interface PrivacySettings {
   hideShareCounts?: boolean;
   hideReplyCounts?: boolean;
   hideSaveCounts?: boolean;
+  /**
+   * Whether the viewer opts IN to seeing sensitive / NSFW content in discovery
+   * surfaces (For You, Explore) and ranked feeds. Default `false` keeps every
+   * feed safe-for-work; when `true` the centralized sensitivity gate is relaxed
+   * for this viewer so flagged posts surface (still carrying their sensitive flag
+   * so clients can blur / show a content warning).
+   */
+  showSensitiveContent?: boolean;
   hiddenWords?: string[];
   restrictedUsers?: string[]; // Users who can see limited content
   labelPreferences?: LabelPreferences;
@@ -111,6 +119,7 @@ const PrivacySchema = new Schema<PrivacySettings>({
   hideShareCounts: { type: Boolean, default: false },
   hideReplyCounts: { type: Boolean, default: false },
   hideSaveCounts: { type: Boolean, default: false },
+  showSensitiveContent: { type: Boolean, default: false },
   hiddenWords: [{ type: String }],
   restrictedUsers: [{ type: String }],
   labelPreferences: { type: LabelPreferencesSchema },

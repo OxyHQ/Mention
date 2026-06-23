@@ -233,3 +233,104 @@ describe('ForYouFeed.fetchPopular — SFW (never-blank fallback + anon)', () => 
     expect(returnedIds).not.toContain(oid(103).toString());
   });
 });
+
+describe('ForYouFeed.fetchPopular — viewer opted in (showSensitiveContent)', () => {
+  it('does NOT add the sensitive/NSFW query exclusion when the viewer opted in', async () => {
+    gatherMock.mockResolvedValue([]); // empty union → never-blank fetchPopular
+    rankMock.mockResolvedValue([]);
+    aggregateMock.mockResolvedValue([{ _id: oid(100), oxyUserId: 'popular-author' }]);
+    hydratePostsMock.mockResolvedValue([{ id: oid(100).toString() }]);
+
+    const feed = new ForYouFeed();
+    await feed.fetch(
+      { cursor: undefined, limit: 30 },
+      { currentUserId: 'viewer', followingIds: [], showSensitiveContent: true },
+    );
+
+    const match = popularMatch();
+    // None of the sensitive/NSFW exclusion clauses are present.
+    expect(match['postClassification.sensitive']).toBeUndefined();
+    expect(match['metadata.isSensitive']).toBeUndefined();
+    expect(match['federation.sensitive']).toBeUndefined();
+    expect(match.hashtags).toBeUndefined();
+    // The non-safety constraints are still applied.
+    expect(match.visibility).toBe('public');
+  });
+
+  it('does NOT drop sensitive posts from the aggregate result when the viewer opted in', async () => {
+    aggregateMock.mockResolvedValue([
+      { _id: oid(101), oxyUserId: 'clean-author' },
+      { _id: oid(102), oxyUserId: 'nsfw-author', hashtags: ['nsfw'] },
+      { _id: oid(103), oxyUserId: 'flagged-author', postClassification: { sensitive: true } },
+    ]);
+    hydratePostsMock.mockImplementation((posts: Array<{ _id: { toString(): string } }>) =>
+      Promise.resolve(posts.map((p) => ({ id: p._id.toString() }))),
+    );
+
+    const feed = new ForYouFeed();
+    const res = await feed.fetch(
+      { cursor: undefined, limit: 30 },
+      { currentUserId: 'viewer', followingIds: [], showSensitiveContent: true },
+    );
+
+    const returnedIds = res.items.map((item) => item.id);
+    expect(returnedIds).toContain(oid(101).toString());
+    expect(returnedIds).toContain(oid(102).toString());
+    expect(returnedIds).toContain(oid(103).toString());
+  });
+
+  it('threads showSensitiveContent=true into gatherForYouCandidates for an authed viewer', async () => {
+    gatherMock.mockResolvedValue([]);
+    rankMock.mockResolvedValue([]);
+    aggregateMock.mockResolvedValue([]);
+    hydratePostsMock.mockResolvedValue([]);
+
+    const feed = new ForYouFeed();
+    await feed.fetch(
+      { cursor: undefined, limit: 30 },
+      { currentUserId: 'viewer', followingIds: ['follow-1'], showSensitiveContent: true },
+    );
+
+    expect(gatherMock).toHaveBeenCalledOnce();
+    const arg = gatherMock.mock.calls[0][0] as { showSensitiveContent: boolean };
+    expect(arg.showSensitiveContent).toBe(true);
+  });
+
+  it('threads showSensitiveContent=true into rankPosts context for an authed viewer', async () => {
+    const gathered = [{ _id: oid(1), oxyUserId: 'follow-1' }];
+    gatherMock.mockResolvedValue(gathered);
+    rankMock.mockResolvedValue(gathered.map((p) => ({ ...p, finalScore: 5 })));
+    sliceFeedMock.mockResolvedValue({
+      slices: gathered.map((p) => ({ items: [{ post: { ...p, id: p._id.toString(), finalScore: 5 } }] })),
+    });
+    hydrateSlicesMock.mockResolvedValue([{ items: [{ post: { id: oid(1).toString() } }] }]);
+
+    const feed = new ForYouFeed();
+    await feed.fetch(
+      { cursor: undefined, limit: 30 },
+      { currentUserId: 'viewer', followingIds: ['follow-1'], showSensitiveContent: true },
+    );
+
+    expect(rankMock).toHaveBeenCalledOnce();
+    const rankContext = rankMock.mock.calls[0][2] as { showSensitiveContent: boolean };
+    expect(rankContext.showSensitiveContent).toBe(true);
+  });
+
+  it('defaults to SFW (excludes sensitive) when showSensitiveContent is absent', async () => {
+    gatherMock.mockResolvedValue([]);
+    rankMock.mockResolvedValue([]);
+    aggregateMock.mockResolvedValue([{ _id: oid(100), oxyUserId: 'popular-author' }]);
+    hydratePostsMock.mockResolvedValue([{ id: oid(100).toString() }]);
+
+    const feed = new ForYouFeed();
+    await feed.fetch(
+      { cursor: undefined, limit: 30 },
+      { currentUserId: 'viewer', followingIds: [] },
+    );
+
+    const match = popularMatch();
+    expect(match['postClassification.sensitive']).toEqual({ $ne: true });
+    const arg = gatherMock.mock.calls[0][0] as { showSensitiveContent: boolean };
+    expect(arg.showSensitiveContent).toBe(false);
+  });
+});
