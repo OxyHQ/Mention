@@ -233,13 +233,19 @@ export function feedRowType(row: FeedRow): string {
 export interface RenderFeedRowDeps {
     router: ReturnType<typeof useRouter>;
     primaryColor: string;
+    /**
+     * Descriptor of the feed this row belongs to. Threaded into `PostItem` so a
+     * tap that opens the post detail reports a `click` interaction attributed to
+     * the originating feed. Absent for non-feed renders (e.g. embedded lists).
+     */
+    feedDescriptor?: string;
 }
 
 /**
  * Render a single feed row (PostItem + thread/slice affordances). Shared by both
  * platform Feed implementations so the row markup never diverges.
  */
-export function renderFeedRow(row: FeedRow, { router, primaryColor }: RenderFeedRowDeps): React.ReactElement | null {
+export function renderFeedRow(row: FeedRow, { router, primaryColor, feedDescriptor }: RenderFeedRowDeps): React.ReactElement | null {
     const post = row.item;
     if (!post || !post.id) {
         logger.warn('Invalid post item', { post });
@@ -268,6 +274,7 @@ export function renderFeedRow(row: FeedRow, { router, primaryColor }: RenderFeed
                 isThreadChild={row.isThreadChild}
                 isThreadLastChild={row.isThreadLastChild}
                 nestingDepth={row.nestingDepth}
+                feedDescriptor={feedDescriptor}
             />
             {showThreadLink && (
                 <Pressable

@@ -2,7 +2,11 @@ import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
 import { logger } from '@/lib/logger';
 
-export function usePostSave(postId: string | undefined, isSaved: boolean) {
+/**
+ * @param source Optional originating feed descriptor for surface-aware
+ *   engagement attribution; attached to the SAVE write, ignored on unsave.
+ */
+export function usePostSave(postId: string | undefined, isSaved: boolean, source?: string) {
     const { savePost, unsavePost } = usePostsStore();
     const pendingRef = useRef(false);
 
@@ -13,7 +17,7 @@ export function usePostSave(postId: string | undefined, isSaved: boolean) {
         try {
             const action = isSaved
                 ? unsavePost({ postId })
-                : savePost({ postId });
+                : savePost({ postId }, source);
 
             await action;
         } catch (error) {
@@ -21,7 +25,7 @@ export function usePostSave(postId: string | undefined, isSaved: boolean) {
         } finally {
             pendingRef.current = false;
         }
-    }, [postId, isSaved, savePost, unsavePost]);
+    }, [postId, isSaved, savePost, unsavePost, source]);
 
     return toggleSave;
 }

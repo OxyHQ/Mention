@@ -13,6 +13,7 @@ import { resolveAvatarUrl, resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import type { User as OxyUser } from '@oxyhq/core';
 import { assignThreadState } from './ThreadSlicingService';
+import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
 
 import { PostContent, PostMetadata } from '@mention/shared-types';
 
@@ -108,6 +109,165 @@ const DEFAULT_PRIVACY = {
  * the cache itself is shared via Redis); cleared in the warm task's `finally`.
  */
 const linkPreviewWarmInflight = new Set<string>();
+
+/**
+ * Build the ready-to-render {@link CachedUserSummary} (author summary + follower
+ * count) from a raw Oxy user. Centralized so the per-id fallback path and the
+ * bulk path produce IDENTICAL output, and so the same shape is what we cache.
+ */
+function summaryFromOxyUser(userId: string, userData: OxyUser): CachedUserSummary {
+  const username: string = String(userData?.username || userData?.handle || userId);
+  const displayName: string = userData.name.displayName;
+  const profileImage = (userData as { profileImage?: unknown }).profileImage;
+  const rawAvatar: string | undefined = typeof userData?.avatar === 'string'
+    ? userData.avatar
+    : typeof profileImage === 'string'
+      ? profileImage
+      : undefined;
+  const avatarValue = resolveAvatarUrl(rawAvatar);
+
+  const isFederated = Boolean((userData as Record<string, unknown>)?.isFederated);
+  const federation = (userData as Record<string, unknown>)?.federation as { domain?: string } | undefined;
+  const followerCount = userData._count?.followers;
+
+  return {
+    summary: {
+      id: String(userData?.id || userId),
+      handle: username,
+      displayName,
+      avatarUrl: avatarValue,
+      avatar: avatarValue,
+      badges: Array.isArray(userData.badges)
+        ? userData.badges.map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined)).filter((b): b is string => typeof b === 'string')
+        : undefined,
+      isVerified: Boolean(userData.verified || userData.isVerified),
+      isFederated: isFederated || undefined,
+      instance: isFederated ? federation?.domain : undefined,
+    },
+    followerCount: typeof followerCount === 'number' ? followerCount : undefined,
+  };
+}
+
+/**
+ * Optional bulk-fetch surface of the Oxy client. The method ships in a newer
+ * `@oxyhq/core` than may currently be installed, so we describe it locally and
+ * feature-detect it at runtime rather than depending on the published type. This
+ * lets the bulk path activate automatically once the SDK is bumped, with NO code
+ * change here and without an `as any` cast.
+ */
+interface BulkUserFetcher {
+  getUsersByIds(ids: string[]): Promise<OxyUser[]>;
+}
+
+function supportsBulkUserFetch(client: unknown): client is BulkUserFetcher {
+  return typeof (client as { getUsersByIds?: unknown })?.getUsersByIds === 'function';
+}
+
+/** A minimal, safe summary used when an author cannot be resolved from Oxy. */
+function fallbackSummary(userId: string): CachedUserSummary {
+  return {
+    summary: {
+      id: userId,
+      handle: userId,
+      displayName: userId,
+      avatarUrl: undefined,
+      avatar: undefined,
+      badges: undefined,
+      isVerified: false,
+    },
+  };
+}
+
+/**
+ * Resolve {@link CachedUserSummary} for a set of Oxy user ids, collapsing the
+ * classic feed M+1 (one `getUserById` per unique author) into:
+ *   1. a single batched read of the Redis user-summary cache, then
+ *   2. a single bulk Oxy fetch for the MISSES (via `getUsersByIds` when the SDK
+ *      exposes it — feature-detected so this works both before and after that
+ *      method ships — otherwise the prior per-id `getUserById` fan-out), then
+ *   3. a single batched write of the freshly-resolved summaries back to cache.
+ *
+ * Cache hits never touch Oxy. Misses that error fall back to a minimal summary
+ * (and are NOT cached, so they re-resolve next time). Shared by hydration
+ * ({@link PostHydrationService.buildUserMap}) and the ranking authority signal.
+ */
+export async function resolveUserSummaries(userIds: string[]): Promise<Map<string, CachedUserSummary>> {
+  const resolved = new Map<string, CachedUserSummary>();
+  if (userIds.length === 0) {
+    return resolved;
+  }
+
+  // 1. Batched cache read.
+  const cached = await mgetUserSummaries(userIds);
+  const missIds: string[] = [];
+  for (const userId of userIds) {
+    const hit = cached.get(userId);
+    if (hit) {
+      resolved.set(userId, hit);
+    } else {
+      missIds.push(userId);
+    }
+  }
+
+  if (missIds.length === 0) {
+    return resolved;
+  }
+
+  // 2. Resolve misses from Oxy. Prefer the bulk endpoint; fall back to per-id.
+  const freshlyResolved = new Map<string, CachedUserSummary>();
+
+  if (supportsBulkUserFetch(defaultOxyClient)) {
+    try {
+      const users = await defaultOxyClient.getUsersByIds(missIds);
+      const byId = new Map<string, OxyUser>();
+      for (const user of users) {
+        const id = String((user as { id?: unknown }).id ?? '');
+        if (id) byId.set(id, user);
+      }
+      for (const userId of missIds) {
+        const userData = byId.get(userId);
+        if (userData) {
+          freshlyResolved.set(userId, summaryFromOxyUser(userId, userData));
+        } else {
+          // Bulk endpoint returned no match for this id — minimal summary, not cached.
+          resolved.set(userId, fallbackSummary(userId));
+        }
+      }
+    } catch (error) {
+      logger.warn('[PostHydration] Bulk user fetch failed, using fallback summaries', {
+        count: missIds.length,
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+      for (const userId of missIds) {
+        if (!freshlyResolved.has(userId) && !resolved.has(userId)) {
+          resolved.set(userId, fallbackSummary(userId));
+        }
+      }
+    }
+  } else {
+    await Promise.all(
+      missIds.map(async (userId) => {
+        try {
+          const userData: OxyUser = await defaultOxyClient.getUserById(userId);
+          freshlyResolved.set(userId, summaryFromOxyUser(userId, userData));
+        } catch (error) {
+          logger.warn(`[PostHydration] Failed to load user ${userId}:`, error);
+          resolved.set(userId, fallbackSummary(userId));
+        }
+      }),
+    );
+  }
+
+  // 3. Merge fresh results and write them back to cache (only real resolutions).
+  for (const [userId, value] of freshlyResolved) {
+    resolved.set(userId, value);
+  }
+  if (freshlyResolved.size > 0) {
+    await msetUserSummaries(freshlyResolved);
+  }
+
+  return resolved;
+}
 
 export class PostHydrationService {
   async hydratePosts(rawPosts: object[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
@@ -581,8 +741,6 @@ export class PostHydrationService {
     nodes: HydratedGraphNode[],
     extraLocalUserIds?: Set<string>,
   ): Promise<Map<string, PostActorSummary>> {
-    const userMap = new Map<string, PostActorSummary>();
-
     const localUserIds = new Set<string>();
 
     for (const { post } of nodes) {
@@ -598,55 +756,12 @@ export class PostHydrationService {
       }
     }
 
-    // Fetch Oxy users
-    const userIds = [...localUserIds];
-    if (userIds.length > 0) {
-      await Promise.all(
-        userIds.map(async (userId) => {
-          try {
-            const userData: OxyUser = await defaultOxyClient.getUserById(userId);
-            const username: string = String(userData?.username || userData?.handle || userId);
-            const displayName: string = userData.name.displayName;
-            const profileImage = (userData as { profileImage?: unknown }).profileImage;
-            const rawAvatar: string | undefined = typeof userData?.avatar === 'string'
-              ? userData.avatar
-              : typeof profileImage === 'string'
-                ? profileImage
-                : undefined;
-            const avatarValue = resolveAvatarUrl(rawAvatar);
+    const resolved = await resolveUserSummaries([...localUserIds]);
 
-            const isFederated = Boolean((userData as Record<string, unknown>)?.isFederated);
-            const federation = (userData as Record<string, unknown>)?.federation as { domain?: string } | undefined;
-
-            userMap.set(userId, {
-              id: String(userData?.id || userId),
-              handle: username,
-              displayName,
-              avatarUrl: avatarValue,
-              avatar: avatarValue,
-              badges: Array.isArray(userData.badges)
-                ? userData.badges.map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined)).filter((b): b is string => typeof b === 'string')
-                : undefined,
-              isVerified: Boolean(userData.verified || userData.isVerified),
-              isFederated: isFederated || undefined,
-              instance: isFederated ? federation?.domain : undefined,
-            });
-          } catch (error) {
-            logger.warn(`[PostHydration] Failed to load user ${userId}:`, error);
-            userMap.set(userId, {
-              id: userId,
-              handle: userId,
-              displayName: userId,
-              avatarUrl: undefined,
-              avatar: undefined,
-              badges: undefined,
-              isVerified: false,
-            });
-          }
-        }),
-      );
+    const userMap = new Map<string, PostActorSummary>();
+    for (const [userId, value] of resolved) {
+      userMap.set(userId, value.summary);
     }
-
     return userMap;
   }
 

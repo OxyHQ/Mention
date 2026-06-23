@@ -36,16 +36,36 @@ const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const safeBack = useSafeBack();
-    const { getPostById } = usePostsStore();
+    const { getPostById, revalidatePostById } = usePostsStore();
     const { user, oxyServices } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const { treeView, sortOrder } = useThreadPreferences();
     const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
 
-    const [post, setPost] = useState<PostDetailEntity | null>(null);
+    // Reactive store version — re-reads the cached post whenever the shared cache
+    // mutates (background revalidation, optimistic like/boost, etc.).
+    const dataVersion = usePostsStore((s) => s.dataVersion);
+
+    // The cached post for this id, read reactively from the shared cache. Seeded
+    // by the feed when the post was already visible, so the detail screen paints
+    // instantly instead of issuing a cold blocking fetch on open.
+    const cachedPost = useMemo<PostDetailEntity | null>(
+        () => (id ? usePostsStore.getState().getPostFromDb(String(id)) : null),
+        [id, dataVersion],
+    );
+
+    // `post` holds either the cached post (instant) or a network-fetched post
+    // (cache miss). When the cache has the post, it is the source of truth and
+    // stays in sync via `cachedPost`; on a cache miss we fall back to the fetched
+    // value held in `fetchedPost`.
+    const [fetchedPost, setFetchedPost] = useState<PostDetailEntity | null>(null);
+    const post = cachedPost ?? fetchedPost;
+
     const [parentPost, setParentPost] = useState<PostDetailEntity | null>(null);
-    const [loading, setLoading] = useState(true);
+    // Only block first paint when there is no cached post to render. A cache hit
+    // paints immediately and revalidates in the background (stale-while-revalidate).
+    const [loading, setLoading] = useState(() => !cachedPost);
     const [error, setError] = useState<string | null>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
 
@@ -65,74 +85,76 @@ const PostDetailScreen: React.FC = () => {
         if (id) router.push(`/compose?replyToPostId=${id}`);
     }, [id]);
 
-    // Load post instantly from cache, fetch from API only if not cached
+    // Load the post. When the feed already cached it, the post is rendered
+    // synchronously above (`cachedPost`) and this effect only revalidates it in
+    // the background (stale-while-revalidate) — no spinner, no blocking fetch.
+    // On a true cache miss it does a single blocking fetch.
     useEffect(() => {
-        const loadPost = async () => {
-            if (!id) {
-                setError('Post ID is required');
-                setLoading(false);
+        if (!id) {
+            setError('Post ID is required');
+            setLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        const postId = String(id);
+        const hadCache = !!usePostsStore.getState().getPostFromDb(postId);
+
+        // Track view in background (non-blocking) regardless of cache state.
+        if (user) {
+            statisticsService.trackPostView(postId).catch(() => {});
+        }
+
+        const loadParent = async (parentPostId: string | undefined) => {
+            if (!parentPostId) return;
+            const cachedParent = usePostsStore.getState().getPostFromDb(parentPostId);
+            if (cachedParent) {
+                if (!cancelled) setParentPost(cachedParent);
                 return;
             }
-
             try {
-                setError(null);
-
-                // Check cache first for instant loading (offline support)
-                const cachedPost = usePostsStore.getState().getPostFromDb(id);
-
-                if (cachedPost) {
-                    setPost(cachedPost);
-                    setLoading(false);
-
-                    // Fetch parent post if this is a reply
-                    if (cachedPost.parentPostId) {
-                        const cachedParent = usePostsStore.getState().getPostFromDb(cachedPost.parentPostId);
-                        if (cachedParent) {
-                            setParentPost(cachedParent);
-                        } else {
-                            try {
-                                const parentResponse = await getPostById(cachedPost.parentPostId);
-                                setParentPost(parentResponse);
-                            } catch (parentErr) {
-                                // Silently ignore parent fetch errors
-                            }
-                        }
-                    }
-
-                    // Track view in background (non-blocking)
-                    if (user) {
-                        statisticsService.trackPostView(String(id)).catch(() => {});
-                    }
-                } else {
-                    // Post not in cache - fetch from API
-                    setLoading(true);
-                    const response = await getPostById(id);
-                    setPost(response);
-
-                    // Fetch parent post if this is a reply
-                    if (response?.parentPostId) {
-                        try {
-                            const parentResponse = await getPostById(response.parentPostId);
-                            setParentPost(parentResponse);
-                        } catch (parentErr) {
-                            // Silently ignore parent fetch errors
-                        }
-                    }
-
-                    // Track post view
-                    if (user) {
-                        statisticsService.trackPostView(String(id)).catch(() => {});
-                    }
-                }
-            } catch (err) {
-                setError('Failed to load post');
-            } finally {
-                setLoading(false);
+                const parentResponse = await getPostById(parentPostId);
+                if (!cancelled) setParentPost(parentResponse);
+            } catch {
+                // A missing/deleted parent is non-fatal — render the post alone.
             }
         };
 
-        loadPost();
-    }, [id, getPostById, user]);
+        const run = async () => {
+            setError(null);
+
+            if (hadCache) {
+                // Instant paint already happened from `cachedPost`. Revalidate in
+                // the background so engagement/viewer state is fresh; the reactive
+                // store read (`cachedPost`) picks up the refreshed post.
+                const cached = usePostsStore.getState().getPostFromDb(postId);
+                loadParent(cached?.parentPostId);
+                revalidatePostById(postId).then((fresh) => {
+                    if (!cancelled && fresh?.parentPostId) loadParent(fresh.parentPostId);
+                });
+                return;
+            }
+
+            // Cache miss — blocking fetch, then load the parent (if any).
+            try {
+                setLoading(true);
+                const response = await getPostById(postId);
+                if (cancelled) return;
+                setFetchedPost(response);
+                loadParent(response?.parentPostId);
+            } catch {
+                if (!cancelled) setError('Failed to load post');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        run();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id, getPostById, revalidatePostById, user]);
 
     const handleBack = () => {
         safeBack();

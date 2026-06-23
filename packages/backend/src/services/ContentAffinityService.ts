@@ -30,7 +30,7 @@
  */
 
 import type { QueryFilter } from 'mongoose';
-import { PostType } from '@mention/shared-types';
+import { PostType, MtnConfig, isVideoSurface } from '@mention/shared-types';
 import Like from '../models/Like';
 import { Post, type IPost } from '../models/Post';
 import { EntityFollow } from '../models/EntityFollow';
@@ -55,10 +55,13 @@ const MAX_CONTENT_CANDIDATE_LIMIT = 50;
  * capped so the per-request cost stays predictable no matter how active the
  * viewer is or how many people post under a followed hashtag.
  */
-const MAX_FOLLOWED_HASHTAGS = 25;
+// Widened modestly so a very active viewer's history is less likely to be
+// truncated before it can produce candidates, while staying bounded for a
+// predictable per-request cost (every query below is index-served).
+const MAX_FOLLOWED_HASHTAGS = 40; // was 25
 const MAX_AUTHORS_PER_HASHTAG = 200;
-const MAX_LIKES_SCANNED = 300;
-const MAX_VIEWER_INTERACTIONS_SCANNED = 300;
+const MAX_LIKES_SCANNED = 500; // was 300
+const MAX_VIEWER_INTERACTIONS_SCANNED = 500; // was 300
 
 /** Per-viewer Redis cache TTL (seconds). Short so affinity stays fresh. */
 const CACHE_TTL_SECONDS = 120;
@@ -156,6 +159,11 @@ export class ContentAffinityService {
       return [];
     }
 
+    // Blend in a MODEST author-authority lift (follower count + reach), with a
+    // popularity floor: content affinity stays the dominant signal, established
+    // candidates get a small bounded boost, and small creators stay ~neutral.
+    await this.applyAuthorityBlend(merged);
+
     const candidates: ContentCandidate[] = Array.from(merged.entries())
       .map(([userId, acc]) => ({
         userId,
@@ -168,6 +176,42 @@ export class ContentAffinityService {
 
     await this.writeCache(cacheKey, candidates);
     return candidates;
+  }
+
+  /**
+   * Multiply each merged candidate's affinity weight by a MODEST author-authority
+   * factor derived from the candidate's follower count (a proxy for reach). The
+   * factor is the shared, bounded `calculateAuthorityScore` (floor ~0.9, ceiling
+   * ~1.4), so:
+   *   - content affinity remains the dominant ranking signal,
+   *   - established/high-reach candidates get a small lift, and
+   *   - small creators and authors whose follower count is unknown stay ~neutral
+   *     (popularity FLOOR philosophy — never zeroed, never dominating).
+   *
+   * Follower counts come from the shared, cache-backed user-summary resolver, so
+   * this is one batched Redis read + at most one bulk Oxy fetch for cold authors.
+   * SOFT-FAIL: any error leaves the weights as the pure content-affinity values.
+   */
+  private async applyAuthorityBlend(merged: Map<string, AuthorAccumulator>): Promise<void> {
+    const authorIds = Array.from(merged.keys());
+    if (authorIds.length === 0) return;
+
+    try {
+      // Lazy imports to avoid any module-load ordering coupling.
+      const [{ resolveUserSummaries }, { feedRankingService }] = await Promise.all([
+        import('./PostHydrationService.js'),
+        import('./FeedRankingService.js'),
+      ]);
+
+      const resolved = await resolveUserSummaries(authorIds);
+      for (const [authorId, acc] of merged) {
+        const followerCount = resolved.get(authorId)?.followerCount;
+        const authority = feedRankingService.calculateAuthorityScore(followerCount);
+        acc.weight *= authority;
+      }
+    } catch (error) {
+      logger.warn('[ContentAffinity] authority blend failed; using pure content affinity:', error);
+    }
   }
 
   /**
@@ -292,10 +336,10 @@ export class ContentAffinityService {
   ): Promise<Map<string, AuthorAccumulator>> {
     const result = new Map<string, AuthorAccumulator>();
 
-    // (a) Likes → liked post ids. (b) Viewer's own reply/boost posts → engaged
-    // post ids. Both bounded + index-served; run in parallel.
-    const [likedPostIds, replyTargetIds, boostTargetIds] = await Promise.all([
-      this.collectLikedPostIds(viewerId, since),
+    // (a) Likes → liked posts (carrying the originating surface). (b) Viewer's
+    // own reply/boost posts → engaged post ids. Both bounded + index-served.
+    const [likes, replyTargetIds, boostTargetIds] = await Promise.all([
+      this.collectLikes(viewerId, since),
       this.collectViewerInteractionTargets(viewerId, since, 'reply'),
       this.collectViewerInteractionTargets(viewerId, since, 'boost'),
     ]);
@@ -303,7 +347,7 @@ export class ContentAffinityService {
     // Resolve every engaged post id to its author in ONE batched query, then
     // re-attribute the weight per signal. Map keeps post id → author.
     const allIds = new Set<string>([
-      ...likedPostIds,
+      ...likes.map((l) => l.postId),
       ...replyTargetIds,
       ...boostTargetIds,
     ]);
@@ -312,40 +356,70 @@ export class ContentAffinityService {
     const postAuthor = await this.resolvePostAuthors(Array.from(allIds));
     if (postAuthor.size === 0) return result;
 
+    const addWeight = (authorId: string, weight: number, reason: string): void => {
+      const existing = result.get(authorId);
+      if (existing) {
+        existing.weight += weight;
+        existing.reasons.add(reason);
+      } else {
+        result.set(authorId, { weight, reasons: new Set([reason]) });
+      }
+    };
+
     const apply = (postIds: string[], weightPer: number, reason: string): void => {
       for (const postId of postIds) {
         const authorId = postAuthor.get(postId);
         if (!authorId || authorId === viewerId) continue;
-        const existing = result.get(authorId);
-        if (existing) {
-          existing.weight += weightPer;
-          existing.reasons.add(reason);
-        } else {
-          result.set(authorId, { weight: weightPer, reasons: new Set([reason]) });
-        }
+        addWeight(authorId, weightPer, reason);
       }
     };
 
-    apply(likedPostIds, ENGAGEMENT_LIKE_WEIGHT, 'engagement');
+    // SURFACE-AWARE likes: a like from a video-first surface (reels) is mostly
+    // about the CONTENT, not the author, so it contributes only a fraction of the
+    // normal like weight toward this author becoming a FOLLOW candidate. Non-video
+    // likes contribute the full weight (prior behavior). The popularity-floor
+    // factor (~0.25) is the same shared constant used in UserBehavior attribution.
+    const videoLikeFactor = MtnConfig.preferences.engagementContext.videoSurfaceAuthorAffinityFactor;
+    for (const like of likes) {
+      const authorId = postAuthor.get(like.postId);
+      if (!authorId || authorId === viewerId) continue;
+      const weight = like.fromVideoSurface
+        ? ENGAGEMENT_LIKE_WEIGHT * videoLikeFactor
+        : ENGAGEMENT_LIKE_WEIGHT;
+      addWeight(authorId, weight, 'engagement');
+    }
+
     apply(replyTargetIds, ENGAGEMENT_REPLY_WEIGHT, 'engagement');
     apply(boostTargetIds, ENGAGEMENT_BOOST_WEIGHT, 'engagement');
 
     return result;
   }
 
-  /** Collect post ids the viewer liked within the window. */
-  private async collectLikedPostIds(viewerId: string, since: string): Promise<string[]> {
+  /**
+   * Collect the posts the viewer liked within the window, each carrying whether
+   * the like originated on a video-first surface (from the Like doc's `source`),
+   * so the engagement-affinity author scan can discount reels likes. Legacy likes
+   * with no `source` are treated as non-video (full weight), preserving prior
+   * behavior.
+   */
+  private async collectLikes(
+    viewerId: string,
+    since: string,
+  ): Promise<Array<{ postId: string; fromVideoSurface: boolean }>> {
     try {
       const likes = await Like.find(
         { userId: viewerId, value: 1, createdAt: { $gte: since } },
-        { postId: 1, _id: 0 },
+        { postId: 1, source: 1, _id: 0 },
       )
         .sort({ createdAt: -1 })
         .limit(MAX_LIKES_SCANNED)
         .lean();
       return likes
-        .map((l) => (l.postId ? String(l.postId) : ''))
-        .filter((id) => id.length > 0);
+        .map((l) => ({
+          postId: l.postId ? String(l.postId) : '',
+          fromVideoSurface: isVideoSurface(typeof l.source === 'string' ? l.source : undefined),
+        }))
+        .filter((l) => l.postId.length > 0);
     } catch (error) {
       logger.warn(`[ContentAffinity] liked-post collection failed for ${viewerId}:`, error);
       return [];

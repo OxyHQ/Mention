@@ -43,6 +43,7 @@ import { SubtleHover } from '@/components/SubtleHover';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { reportFeedInteraction } from '@/utils/feedTelemetry';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -59,6 +60,12 @@ interface PostItemProps {
     isThreadParent?: boolean;
     isThreadChild?: boolean;
     isThreadLastChild?: boolean;
+    /**
+     * When this item is rendered inside a feed, the feed's descriptor. Opening
+     * the post detail from the feed reports a `click` interaction attributed to
+     * this feed. Absent for non-feed renders (post detail, nested previews).
+     */
+    feedDescriptor?: string;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -71,6 +78,7 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadParent = false,
     isThreadChild = false,
     isThreadLastChild = false,
+    feedDescriptor,
 }) => {
     const { oxyServices, user: authUser } = useAuth();
     const isPremium = (authUser as { premium?: { isPremium?: boolean } } | null)?.premium?.isPremium ?? false;
@@ -191,9 +199,15 @@ const PostItem: React.FC<PostItemProps> = ({
     const isPostDetail = (pathname || '').startsWith('/p/');
     const goToPost = useCallback(() => {
         if (!isPostDetail && viewPostId) {
+            // Best-effort feed-ranking signal: opening a post from a feed is a
+            // strong positive interaction. No-op when not rendered in a feed
+            // (feedDescriptor undefined) or for federated previews without an id.
+            if (feedDescriptor) {
+                reportFeedInteraction(feedDescriptor, viewPostId, 'click');
+            }
             router.push(`/p/${viewPostId}`);
         }
-    }, [router, viewPostId, isPostDetail]);
+    }, [router, viewPostId, isPostDetail, feedDescriptor]);
 
     const goToUser = useCallback(() => {
         const handle = getNormalizedUserHandle({
@@ -205,10 +219,14 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     }, [router, viewPost.user?.handle]);
 
-    const handleLike = usePostLike(viewPostId, isLiked);
+    // Pass the originating feed descriptor as the engagement `source` so the
+    // backend can attribute a like/save/boost to the surface it happened on
+    // (e.g. a like in the Videos feed = interest in the video, not the author).
+    // Undefined outside a feed (post detail / nested) → normal, unattributed write.
+    const handleLike = usePostLike(viewPostId, isLiked, feedDescriptor);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
-    const handleSave = usePostSave(viewPostId, isSaved);
-    const handleBoost = usePostBoost(viewPostId, isBoosted);
+    const handleSave = usePostSave(viewPostId, isSaved, feedDescriptor);
+    const handleBoost = usePostBoost(viewPostId, isBoosted, feedDescriptor);
     const handleShare = usePostShare(viewPost);
 
     const handleReply = useCallback(() => {
@@ -740,6 +758,7 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prevProps.nestingDepth === nextProps.nestingDepth &&
         prevProps.isThreadParent === nextProps.isThreadParent &&
         prevProps.isThreadChild === nextProps.isThreadChild &&
-        prevProps.isThreadLastChild === nextProps.isThreadLastChild
+        prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
+        prevProps.feedDescriptor === nextProps.feedDescriptor
     );
 });

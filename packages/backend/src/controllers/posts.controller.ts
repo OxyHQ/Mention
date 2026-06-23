@@ -9,7 +9,7 @@ import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent } from '@mention/shared-types';
-import { userPreferenceService } from '../services/UserPreferenceService';
+import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
 import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
@@ -1291,6 +1291,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id as string;
     const value: 1 | -1 = req.body?.value === -1 ? -1 : 1;
+    const surface = readInteractionSurface(req.body);
 
     logger.debug(`Vote request received: userId=${userId}, postId=${postId}, value=${value}`);
 
@@ -1317,12 +1318,12 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       // Switching vote direction: atomic update to avoid race condition
       const updated = await Like.findOneAndUpdate(
         { userId, postId },
-        { value },
+        { value, ...(surface ? { source: surface } : {}) },
         { new: true }
       );
       if (!updated) {
         // Document was deleted between findOne and findOneAndUpdate — create fresh
-        await Like.create({ userId, postId, value });
+        await Like.create({ userId, postId, value, source: surface });
       }
 
       const statsUpdate = value === 1
@@ -1334,7 +1335,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
 
       try {
-        await userPreferenceService.recordInteraction(userId, postId, 'like');
+        await userPreferenceService.recordInteraction(userId, postId, 'like', { surface });
         await feedCacheService.invalidateUserCache(userId);
       } catch (error) {
         logger.error('Failed to record interaction for vote switch', error);
@@ -1351,7 +1352,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
     // No existing vote — create new
     logger.debug(`User ${userId} voting ${value} on post ${postId}`);
-    await Like.create({ userId, postId, value });
+    await Like.create({ userId, postId, value, source: surface });
 
     const statField = value === 1 ? 'stats.likesCount' : 'stats.downvotesCount';
     const likedPost = await Post.findByIdAndUpdate(
@@ -1362,7 +1363,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
     // Record interaction for user preference learning
     try {
-      await userPreferenceService.recordInteraction(userId, postId, 'like');
+      await userPreferenceService.recordInteraction(userId, postId, 'like', { surface });
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
       logger.error('Failed to record interaction for preferences', error);
@@ -1463,6 +1464,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = req.params.id as string;
+    const surface = readInteractionSurface(req.body);
 
     logger.debug(`Save request received: userId=${userId}, postId=${postId}`);
 
@@ -1470,15 +1472,15 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     const existingSave = await Bookmark.findOne({ userId, postId });
     if (existingSave) {
       logger.debug(`Post ${postId} already saved by user ${userId}`);
-      
+
       // Still record the interaction even if already saved (user expressed interest)
       try {
-        await userPreferenceService.recordInteraction(userId, postId, 'save');
+        await userPreferenceService.recordInteraction(userId, postId, 'save', { surface });
         logger.debug('Recorded interaction for already-saved post');
       } catch (error) {
         logger.warn('Failed to record interaction for already-saved post', error);
       }
-      
+
       return res.json({ message: 'Post already saved' });
     }
 
@@ -1498,7 +1500,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     // Record interaction for user preference learning
     logger.debug(`Recording interaction for user ${userId}, post ${postId}`);
     try {
-      await userPreferenceService.recordInteraction(userId, postId, 'save');
+      await userPreferenceService.recordInteraction(userId, postId, 'save', { surface });
       logger.debug('Successfully recorded interaction');
       // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
@@ -1561,6 +1563,7 @@ export const boostPost = async (req: AuthRequest, res: Response) => {
     }
 
   const boostId = req.params.id as string;
+    const surface = readInteractionSurface(req.body);
     const originalPost = await Post.findById(boostId);
     if (!originalPost) {
       return res.status(404).json({ message: 'Original post not found' });
@@ -1577,7 +1580,7 @@ export const boostPost = async (req: AuthRequest, res: Response) => {
 
     // Record interaction for user preference learning
     try {
-      await userPreferenceService.recordInteraction(userId, boostId, 'boost');
+      await userPreferenceService.recordInteraction(userId, boostId, 'boost', { surface });
       logger.debug('Successfully recorded boost interaction');
       // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
