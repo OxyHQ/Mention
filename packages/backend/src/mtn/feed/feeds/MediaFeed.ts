@@ -11,11 +11,11 @@
  * or a `media` item in `content.attachments`. Posts with no media are excluded.
  *
  * Ranking blends engagement rate, recency/freshness and author affinity (via
- * FeedRankingService, same signals as ForYou). A diversity rerank then caps
- * back-to-back posts from the same author so the grid stays varied.
+ * FeedRankingService, same signals as ForYou). The shared author-diversity
+ * rerank then spaces same-author slices and caps per-author slices per page so
+ * the grid stays varied.
  */
 
-import mongoose from 'mongoose';
 import { HydratedPost, MtnConfig } from '@mention/shared-types';
 import { Post } from '../../../models/Post';
 import { feedRankingService } from '../../../services/FeedRankingService';
@@ -26,94 +26,15 @@ import { FeedQueryBuilder } from '../../../utils/feedQueryBuilder';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } from '../FeedAPI';
 import { ScoreCursor, didCursorAdvance } from '../CursorBuilder';
+import { diversifyByAuthor } from '../diversifyByAuthor';
+import {
+  RankedCandidate,
+  readCandidateId,
+  readCandidateScore,
+  sliceAuthorKey,
+  sliceCursorAnchor,
+} from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
-
-/**
- * Maximum number of consecutive posts allowed from the same author before the
- * diversity rerank pushes the next same-author post further down the stream.
- * A value of 1 means: never two posts from the same author back-to-back.
- */
-const MAX_CONSECUTIVE_SAME_AUTHOR = 1;
-
-/**
- * A ranked candidate post. Lean Mongo documents are decorated with `finalScore`
- * by FeedRankingService; this shape captures only the fields the feed reads
- * directly so we avoid `any` while leaving the rich post body opaque.
- */
-interface RankedCandidate {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string;
-  finalScore?: number;
-}
-
-function readId(post: RankedCandidate): string {
-  return post._id.toString();
-}
-
-function readScore(post: RankedCandidate): number {
-  return post.finalScore ?? 0;
-}
-
-/**
- * Diversity rerank: greedily reorder ranked posts so no more than
- * MAX_CONSECUTIVE_SAME_AUTHOR posts from the same author appear consecutively.
- * Preserves overall score order as closely as possible by only deferring a post
- * when its author would exceed the consecutive cap, then re-inserting it at the
- * next legal position. Stable for posts with no author conflict.
- */
-function diversifyByAuthor(posts: RankedCandidate[]): RankedCandidate[] {
-  if (posts.length <= 2) return posts;
-
-  const result: RankedCandidate[] = [];
-  const deferred: RankedCandidate[] = [];
-  let lastAuthor: string | undefined;
-  let runLength = 0;
-
-  const pushPost = (post: RankedCandidate): void => {
-    const author = post.oxyUserId;
-    if (author && author === lastAuthor) {
-      runLength += 1;
-    } else {
-      lastAuthor = author;
-      runLength = 1;
-    }
-    result.push(post);
-  };
-
-  for (const post of posts) {
-    const author = post.oxyUserId;
-    const wouldExceed = Boolean(author) && author === lastAuthor && runLength >= MAX_CONSECUTIVE_SAME_AUTHOR;
-
-    if (wouldExceed) {
-      deferred.push(post);
-      continue;
-    }
-
-    pushPost(post);
-
-    // After placing a post, drain any deferred posts whose author no longer
-    // conflicts with the current tail — preserves their relative score order.
-    for (let i = 0; i < deferred.length; i += 1) {
-      const candidate = deferred[i];
-      const candidateAuthor = candidate.oxyUserId;
-      const stillConflicts =
-        Boolean(candidateAuthor) && candidateAuthor === lastAuthor && runLength >= MAX_CONSECUTIVE_SAME_AUTHOR;
-      if (!stillConflicts) {
-        deferred.splice(i, 1);
-        pushPost(candidate);
-        i = -1; // restart scan: placing one may unblock others
-      }
-    }
-  }
-
-  // Any posts still deferred (all remaining share the tail author) append in
-  // score order — better to show them than to drop them from the stream.
-  for (const post of deferred) {
-    result.push(post);
-  }
-
-  return result;
-}
 
 export class MediaFeed implements FeedAPI {
   readonly descriptor = 'media' as const;
@@ -173,9 +94,9 @@ export class MediaFeed implements FeedAPI {
 
     // Sort by score descending with stable id tie-breaking.
     const sortedPosts = rankedPosts.sort((a, b) => {
-      const diff = readScore(b) - readScore(a);
+      const diff = readCandidateScore(b) - readCandidateScore(a);
       if (Math.abs(diff) < MtnConfig.feed.scoreEpsilon) {
-        return readId(b).localeCompare(readId(a));
+        return readCandidateId(b).localeCompare(readCandidateId(a));
       }
       return diff;
     });
@@ -184,8 +105,8 @@ export class MediaFeed implements FeedAPI {
     let posts = sortedPosts;
     if (parsedCursor && parsedCursor.score !== Infinity) {
       posts = sortedPosts.filter((post) => {
-        const postScore = readScore(post);
-        const postId = readId(post);
+        const postScore = readCandidateScore(post);
+        const postId = readCandidateId(post);
         if (postScore < parsedCursor.score - MtnConfig.feed.scoreEpsilon) return true;
         if (Math.abs(postScore - parsedCursor.score) < MtnConfig.feed.scoreEpsilon) {
           return postId < parsedCursor.id;
@@ -197,38 +118,32 @@ export class MediaFeed implements FeedAPI {
     // Deduplicate by id.
     const uniqueMap = new Map<string, RankedCandidate>();
     for (const post of posts) {
-      const id = readId(post);
+      const id = readCandidateId(post);
       if (id && !uniqueMap.has(id)) uniqueMap.set(id, post);
     }
     const deduped = Array.from(uniqueMap.values());
 
-    // Diversity rerank: no back-to-back posts from the same author.
-    const diversified = diversifyByAuthor(deduped);
-
-    const hasMore = diversified.length > limit;
-    const postsToReturn = hasMore ? diversified.slice(0, limit) : diversified;
-
-    // Build next cursor from the last returned post's score.
-    let nextCursor: string | undefined;
-    if (postsToReturn.length > 0 && hasMore) {
-      const last = postsToReturn[postsToReturn.length - 1];
-      nextCursor = ScoreCursor.build(readScore(last), readId(last));
-      if (!didCursorAdvance(nextCursor, cursor)) {
-        logger.warn('[MediaFeed] Cursor did not advance', { cursor, nextCursor });
-        nextCursor = undefined;
-      }
-    }
-
     // Thread slicing keeps multi-post media threads grouped; reply context off
-    // (media posts are standalone, not conversation threads).
-    const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+    // (media posts are standalone, not conversation threads). Runs on the FULL
+    // ranked pool so a thread is one slice before author spacing; hydration
+    // (expensive) runs only on the emitted page below.
+    const { slices: rawSlices } = await threadSlicingService.sliceFeed(deduped, {
       enableThreadGrouping: true,
       enableReplyContext: false,
       maxSliceSize: MtnConfig.feed.maxSliceSize,
       viewerId: currentUserId,
     });
 
-    const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+    // Shared author-diversity rerank over the WHOLE pool BEFORE truncating: a
+    // prolific author's capped/over-gap excess falls PAST `limit` (other authors
+    // backfill) instead of clustering at the page tail, so the grid stays varied.
+    // Threads stay intact — a thread is one slice / one unit.
+    const diversifiedSlices = diversifyByAuthor(rawSlices, sliceAuthorKey);
+
+    const hasMore = diversifiedSlices.length > limit;
+    const pageSlices = hasMore ? diversifiedSlices.slice(0, limit) : diversifiedSlices;
+
+    const hydratedSlices = await postHydrationService.hydrateSlices(pageSlices, {
       viewerId: currentUserId,
       oxyClient: context.oxyClient,
       maxDepth: 0,
@@ -249,15 +164,27 @@ export class MediaFeed implements FeedAPI {
       });
     }
 
-    // Recompute the cursor from the last slice's anchor so pagination lines up
-    // with what was actually returned after slicing.
+    // Next cursor = MINIMUM finalScore among the EMITTED page slices (the score
+    // watermark). The next page filters score < this min, so no emitted slice is
+    // re-shown; deferred excess scored above the cursor is intentionally dropped.
     let sliceCursor: string | undefined;
-    if (hydratedSlices.length > 0 && hasMore) {
-      const lastSlice = hydratedSlices[hydratedSlices.length - 1];
-      const anchorPost = lastSlice.items[0]?.post;
-      const rawAnchor = postsToReturn.find((p) => readId(p) === anchorPost?.id);
-      if (rawAnchor) {
-        sliceCursor = ScoreCursor.build(readScore(rawAnchor), readId(rawAnchor));
+    if (pageSlices.length > 0 && hasMore) {
+      let anchorScore = Infinity;
+      let anchorId: string | undefined;
+      for (const slice of pageSlices) {
+        const anchor = sliceCursorAnchor(slice);
+        if (!anchor) continue;
+        if (anchor.score < anchorScore) {
+          anchorScore = anchor.score;
+          anchorId = anchor.id;
+        }
+      }
+      if (anchorId && anchorScore !== Infinity) {
+        sliceCursor = ScoreCursor.build(anchorScore, anchorId);
+        if (!didCursorAdvance(sliceCursor, cursor)) {
+          logger.warn('[MediaFeed] Cursor did not advance', { cursor, nextCursor: sliceCursor });
+          sliceCursor = undefined;
+        }
       }
     }
 
@@ -265,7 +192,7 @@ export class MediaFeed implements FeedAPI {
       slices: hydratedSlices,
       limit,
       previousCursor: cursor,
-      cursorFromLastSlice: sliceCursor ?? nextCursor,
+      cursorFromLastSlice: sliceCursor,
       hasMore,
     });
   }

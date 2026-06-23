@@ -5,7 +5,7 @@
  * Replaces ForYouFeedStrategy.
  */
 
-import { FeedResponse, HydratedPost } from '@mention/shared-types';
+import { HydratedPost } from '@mention/shared-types';
 import { MtnConfig } from '@mention/shared-types';
 import { Post } from '../../../models/Post';
 import { feedRankingService } from '../../../services/FeedRankingService';
@@ -16,6 +16,14 @@ import { FeedQueryBuilder } from '../../../utils/feedQueryBuilder';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } from '../FeedAPI';
 import { ScoreCursor, didCursorAdvance } from '../CursorBuilder';
+import { diversifyByAuthor } from '../diversifyByAuthor';
+import {
+  RankedCandidate,
+  readCandidateId,
+  readCandidateScore,
+  sliceAuthorKey,
+  sliceCursorAnchor,
+} from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
 import mongoose from 'mongoose';
 
@@ -70,19 +78,17 @@ export class ForYouFeed implements FeedAPI {
       .lean();
 
     // Rank posts
-    const rankedPosts = await feedRankingService.rankPosts(candidatePosts, currentUserId, {
+    const rankedPosts = (await feedRankingService.rankPosts(candidatePosts, currentUserId, {
       followingIds: context.followingIds,
       userBehavior: context.userBehavior,
       feedSettings: context.feedSettings,
-    });
+    })) as RankedCandidate[];
 
-    // Sort by score descending
+    // Sort by score descending with stable id tie-breaking.
     const sortedPosts = rankedPosts.sort((a, b) => {
-      const scoreA = (a as any).finalScore ?? 0;
-      const scoreB = (b as any).finalScore ?? 0;
-      const diff = scoreB - scoreA;
+      const diff = readCandidateScore(b) - readCandidateScore(a);
       if (Math.abs(diff) < MtnConfig.feed.scoreEpsilon) {
-        return b._id.toString().localeCompare(a._id.toString());
+        return readCandidateId(b).localeCompare(readCandidateId(a));
       }
       return diff;
     });
@@ -91,8 +97,8 @@ export class ForYouFeed implements FeedAPI {
     let posts = sortedPosts;
     if (parsedCursor && parsedCursor.score !== Infinity) {
       posts = sortedPosts.filter((post) => {
-        const postScore = (post as any).finalScore ?? 0;
-        const postId = post._id.toString();
+        const postScore = readCandidateScore(post);
+        const postId = readCandidateId(post);
         if (postScore < parsedCursor.score - MtnConfig.feed.scoreEpsilon) return true;
         if (Math.abs(postScore - parsedCursor.score) < MtnConfig.feed.scoreEpsilon) {
           return postId < parsedCursor.id;
@@ -102,36 +108,36 @@ export class ForYouFeed implements FeedAPI {
     }
 
     // Deduplicate
-    const uniqueMap = new Map<string, any>();
+    const uniqueMap = new Map<string, RankedCandidate>();
     for (const post of posts) {
-      const id = post._id?.toString() || '';
+      const id = readCandidateId(post);
       if (id && !uniqueMap.has(id)) uniqueMap.set(id, post);
     }
     const deduped = Array.from(uniqueMap.values());
 
-    const hasMore = deduped.length > limit;
-    const postsToReturn = hasMore ? deduped.slice(0, limit) : deduped;
-
-    // Build next cursor
-    let nextCursor: string | undefined;
-    if (postsToReturn.length > 0 && hasMore) {
-      const last = postsToReturn[postsToReturn.length - 1];
-      nextCursor = ScoreCursor.build((last as any).finalScore ?? 0, last._id.toString());
-      if (!didCursorAdvance(nextCursor, cursor)) {
-        logger.warn('[ForYouFeed] Cursor did not advance', { cursor, nextCursor });
-        nextCursor = undefined;
-      }
-    }
-
-    // Thread slicing
-    const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+    // Thread slicing on the FULL ranked candidate pool (not just the top-limit),
+    // so a multi-post thread by one author is grouped into a SINGLE slice before
+    // any author spacing. Slicing is cheap (grouping + one bounded thread-children
+    // query); the expensive hydration below runs only on the page we emit.
+    const { slices: rawSlices } = await threadSlicingService.sliceFeed(deduped, {
       enableThreadGrouping: true,
       enableReplyContext: true,
       maxSliceSize: MtnConfig.feed.maxSliceSize,
       viewerId: currentUserId,
     });
 
-    const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+    // Author-diversity rerank at the SLICE level over the WHOLE pool, BEFORE
+    // truncating to the page. Spacing/capping then DROPS a prolific author's
+    // excess past `limit` (other authors backfill from the pool) instead of
+    // dumping it consecutively at the page tail. Operating on slices keeps
+    // threads intact — a thread is one slice / one unit, never split.
+    const diversifiedSlices = diversifyByAuthor(rawSlices, sliceAuthorKey);
+
+    // Take the page from the diversified order, then hydrate ONLY those slices.
+    const hasMore = diversifiedSlices.length > limit;
+    const pageSlices = hasMore ? diversifiedSlices.slice(0, limit) : diversifiedSlices;
+
+    const hydratedSlices = await postHydrationService.hydrateSlices(pageSlices, {
       viewerId: currentUserId,
       oxyClient: context.oxyClient,
       maxDepth: 0,
@@ -152,14 +158,31 @@ export class ForYouFeed implements FeedAPI {
       });
     }
 
-    // Recalculate cursor from last slice's anchor
+    // Build the next cursor from the MINIMUM finalScore among the slices actually
+    // EMITTED on this page (the score watermark). The next page filters
+    // score < this min, so no emitted slice is ever re-shown. The reranker may
+    // defer higher-scored excess (capped / over-gap) PAST the page; that excess
+    // is intentionally not carried forward — the cap is the user's "fewer of this
+    // author" preference doing its job. Scored against the RAW pre-hydration
+    // slices so the score is available regardless of hydration.
     let sliceCursor: string | undefined;
-    if (hydratedSlices.length > 0 && hasMore) {
-      const lastSlice = hydratedSlices[hydratedSlices.length - 1];
-      const anchorPost = lastSlice.items[0]?.post;
-      const rawAnchor = postsToReturn.find((p) => p._id?.toString() === anchorPost?.id);
-      if (rawAnchor) {
-        sliceCursor = ScoreCursor.build((rawAnchor as any).finalScore ?? 0, rawAnchor._id.toString());
+    if (pageSlices.length > 0 && hasMore) {
+      let anchorScore = Infinity;
+      let anchorId: string | undefined;
+      for (const slice of pageSlices) {
+        const anchor = sliceCursorAnchor(slice);
+        if (!anchor) continue;
+        if (anchor.score < anchorScore) {
+          anchorScore = anchor.score;
+          anchorId = anchor.id;
+        }
+      }
+      if (anchorId && anchorScore !== Infinity) {
+        sliceCursor = ScoreCursor.build(anchorScore, anchorId);
+        if (!didCursorAdvance(sliceCursor, cursor)) {
+          logger.warn('[ForYouFeed] Cursor did not advance', { cursor, nextCursor: sliceCursor });
+          sliceCursor = undefined;
+        }
       }
     }
 

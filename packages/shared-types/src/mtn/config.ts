@@ -57,6 +57,25 @@ export const MtnConfig = {
       // avoids a single prolific author or trending tag dominating a session.
       sameAuthorPenalty: 0.85, // was 0.95
       sameTopicPenalty: 0.80, // was 0.92
+      /**
+       * Minimum number of OTHER items that must appear between two items by the
+       * same author in the emitted page. The soft multiplicative `sameAuthorPenalty`
+       * above only nudges scores and a high-scoring author easily overpowers it,
+       * producing the "5 posts in a row from one user" clustering. This is the HARD
+       * spacing the post-ranking diversity rerank enforces.
+       *
+       * 1 = never two consecutive items by the same author.
+       * 2 = at least one different author must sit between two same-author items.
+       */
+      authorMinGap: 2,
+      /**
+       * Hard cap on how many items a single author may contribute to one rendered
+       * page. Prevents a prolific author from filling the page even with spacing.
+       * The reranker never DROPS items — it defers an author's overflow items to
+       * the tail of the page (so they appear after everyone else, or roll to the
+       * next page via pagination) rather than removing them.
+       */
+      maxPerAuthorPerPage: 3,
     },
     /**
      * Author authority (follower-count) signal. A bounded multiplier that gives

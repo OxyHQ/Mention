@@ -154,6 +154,59 @@ describe('FeedImpressionTracker', () => {
         expect(mockSendFeedInteraction).toHaveBeenCalledTimes(1);
     });
 
+    it('stops the safety timer after a bounded number of flushes when nothing qualifies', () => {
+        const setIntervalSpy = jest.spyOn(globalThis, 'setInterval');
+        const clearIntervalSpy = jest.spyOn(globalThis, 'clearInterval');
+        const t = new FeedImpressionTracker('for_you');
+
+        // Track a post then immediately hide it (visible 0ms → never qualifies,
+        // never sent). It stays unsent forever, which used to keep the timer
+        // running indefinitely. The bounded budget must now stop it.
+        t.setVisible('p1');
+        t.setHidden('p1');
+        expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+
+        // Advance well past MAX_SAFETY_FLUSHES * SAFETY_FLUSH_INTERVAL_MS. The
+        // timer must stop itself even though p1 is permanently unsent.
+        jest.advanceTimersByTime(5000 * 8);
+        expect(clearIntervalSpy).toHaveBeenCalled();
+        expect(mockSendFeedInteraction).not.toHaveBeenCalled();
+
+        t.dispose();
+        setIntervalSpy.mockRestore();
+        clearIntervalSpy.mockRestore();
+    });
+
+    it('re-arms the safety timer on a new visibility change after the budget is spent', () => {
+        const setIntervalSpy = jest.spyOn(globalThis, 'setInterval');
+        const t = new FeedImpressionTracker('for_you');
+
+        // p1 enters but is hidden immediately (unsent) → timer arms then spends
+        // its budget and stops.
+        t.setVisible('p1');
+        t.setHidden('p1');
+        expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+        jest.advanceTimersByTime(5000 * 8);
+        const armsAfterFirstBudget = setIntervalSpy.mock.calls.length;
+
+        // A genuinely new visibility change (p2 enters) must re-arm the timer and
+        // ultimately report p2 once it qualifies.
+        jest.setSystemTime(5000 * 8);
+        t.setVisible('p2');
+        expect(setIntervalSpy.mock.calls.length).toBe(armsAfterFirstBudget + 1);
+
+        // Advance one full safety interval: the re-armed timer fires and reports
+        // p2 (visible the whole interval → well past the 1s qualification gate).
+        jest.advanceTimersByTime(5000);
+        expect(mockSendFeedInteraction).toHaveBeenCalledTimes(1);
+        expect(mockSendFeedInteraction).toHaveBeenCalledWith(
+            expect.objectContaining({ postUri: 'p2', event: 'impression' }),
+        );
+
+        t.dispose();
+        setIntervalSpy.mockRestore();
+    });
+
     it('syncVisible reconciles the viewable set (native path)', () => {
         const t = new FeedImpressionTracker('for_you');
         // p1 and p2 enter view.

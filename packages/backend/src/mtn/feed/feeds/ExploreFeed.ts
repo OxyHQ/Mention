@@ -13,6 +13,8 @@ import { threadSlicingService } from '../../../services/ThreadSlicingService';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } from '../FeedAPI';
 import { ScoreCursor, didCursorAdvance } from '../CursorBuilder';
+import { diversifyByAuthor } from '../diversifyByAuthor';
+import { RankedCandidate, sliceAuthorKey, sliceCursorAnchor } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
 import mongoose from 'mongoose';
 
@@ -151,38 +153,64 @@ export class ExploreFeed implements FeedAPI {
       });
     }
 
-    pipeline.push({ $sort: { finalScore: -1, _id: -1 } }, { $limit: limit + 1 });
+    // Overfetch a candidate POOL (not just limit+1) so the author-diversity
+    // rerank below has other authors to backfill with when it caps/spaces a
+    // prolific author — same candidateMultiplier ForYou uses.
+    const candidatePoolSize = limit * MtnConfig.feed.candidateMultiplier;
+    pipeline.push({ $sort: { finalScore: -1, _id: -1 } }, { $limit: candidatePoolSize + 1 });
 
-    const posts = await Post.aggregate(pipeline).option({ maxTimeMS: 5000 });
+    const posts = (await Post.aggregate(pipeline).option({ maxTimeMS: 5000 })) as RankedCandidate[];
 
-    const hasMore = posts.length > limit;
-    const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-
-    // Build cursor
-    let nextCursor: string | undefined;
-    if (postsToReturn.length > 0 && hasMore) {
-      const last = postsToReturn[postsToReturn.length - 1];
-      nextCursor = ScoreCursor.build(last.finalScore ?? 0, last._id.toString());
-      if (!didCursorAdvance(nextCursor, cursor)) {
-        logger.warn('[ExploreFeed] Cursor did not advance', { cursor, nextCursor });
-        nextCursor = undefined;
-      }
-    }
-
-    // Thread slicing (self-thread grouping only for explore)
-    const { slices: rawSlices } = await threadSlicingService.sliceFeed(postsToReturn, {
+    // Thread slicing (self-thread grouping only for explore) on the FULL pool, so
+    // a thread is one slice before author spacing. Slicing is cheap; hydration
+    // (expensive) runs only on the emitted page below.
+    const { slices: rawSlices } = await threadSlicingService.sliceFeed(posts, {
       enableThreadGrouping: true,
       enableReplyContext: false,
       maxSliceSize: MtnConfig.feed.maxSliceSize,
       viewerId: currentUserId,
     });
 
-    const hydratedSlices = await postHydrationService.hydrateSlices(rawSlices, {
+    // Author-diversity rerank over the WHOLE pool BEFORE truncating to the page,
+    // so a prolific author's capped/over-gap excess falls PAST `limit` (other
+    // authors backfill) instead of clustering at the page tail. Threads stay
+    // intact — a thread is one slice / one unit, never split.
+    const diversifiedSlices = diversifyByAuthor(rawSlices, sliceAuthorKey);
+
+    const hasMore = diversifiedSlices.length > limit;
+    const pageSlices = hasMore ? diversifiedSlices.slice(0, limit) : diversifiedSlices;
+
+    const hydratedSlices = await postHydrationService.hydrateSlices(pageSlices, {
       viewerId: currentUserId,
       oxyClient: context.oxyClient,
       maxDepth: 0,
       includeLinkMetadata: true,
     });
+
+    // Next cursor = MINIMUM finalScore among the EMITTED page slices (the score
+    // watermark). The next page filters score < this min, so no emitted slice is
+    // re-shown; deferred excess scored above the cursor is intentionally dropped
+    // (the cap is the "fewer of this author" preference doing its job).
+    let nextCursor: string | undefined;
+    if (pageSlices.length > 0 && hasMore) {
+      let anchorScore = Infinity;
+      let anchorId: string | undefined;
+      for (const slice of pageSlices) {
+        const anchor = sliceCursorAnchor(slice);
+        if (!anchor) continue;
+        if (anchor.score < anchorScore) {
+          anchorScore = anchor.score;
+          anchorId = anchor.id;
+        }
+      }
+      if (anchorId && anchorScore !== Infinity) {
+        nextCursor = ScoreCursor.build(anchorScore, anchorId);
+        if (!didCursorAdvance(nextCursor, cursor)) {
+          logger.warn('[ExploreFeed] Cursor did not advance', { cursor, nextCursor });
+          nextCursor = undefined;
+        }
+      }
+    }
 
     return FeedResponseBuilder.buildSlicedResponse({
       slices: hydratedSlices,
