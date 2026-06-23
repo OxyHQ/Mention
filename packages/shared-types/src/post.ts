@@ -19,6 +19,21 @@ export enum PostVisibility {
   PRIVATE = 'private'
 }
 
+/**
+ * Oxy asset IMAGE variant names that the central asset service actually
+ * generates (`packages/api/src/services/variantService.ts` `imageVariants`):
+ * `thumb`(256) / `w320` / `w640` / `w1280` / `w2048`. `small`/`medium`/`large`/
+ * `original` do NOT exist server-side and 404 on the CDN.
+ *
+ * These are the SINGLE source of truth for which variant each render context
+ * requests, shared by the backend resolver (`utils/mediaResolver.ts`) and the
+ * frontend (post media card / lightbox fallback) so the server-resolved and
+ * client-fallback URL paths always agree.
+ */
+export const MEDIA_VARIANT_THUMB = 'w640';
+export const MEDIA_VARIANT_FULL = 'w2048';
+export const MEDIA_VARIANT_AVATAR = 'thumb';
+
 export interface MediaItem {
   id: string;
   type: 'image' | 'video' | 'gif';
@@ -35,6 +50,14 @@ export interface MediaItem {
    * mirrors `thumbUrl`.
    */
   posterUrl?: string;
+  /**
+   * Final, ready-to-render LARGE display URL for the fullscreen image viewer
+   * (lightbox), when a large variant can be derived. Sized for the on-open
+   * upgrade, not the raw original. Only present for native Oxy images;
+   * federated/proxied media has no variant system, so this is omitted and the
+   * viewer falls back to `url`.
+   */
+  fullUrl?: string;
 }
 
 export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'space';

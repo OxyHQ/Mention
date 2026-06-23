@@ -1,4 +1,9 @@
-import type { MediaItem } from '@mention/shared-types';
+import {
+  type MediaItem,
+  MEDIA_VARIANT_THUMB,
+  MEDIA_VARIANT_FULL,
+  MEDIA_VARIANT_AVATAR,
+} from '@mention/shared-types';
 import { config } from '../config';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
@@ -27,16 +32,40 @@ import { logger } from './logger';
 
 /** Final resolved URLs for a single media reference. */
 export interface ResolvedMedia {
-  /** The primary, ready-to-render URL. Empty string when the ref is falsy. */
+  /**
+   * The primary, ready-to-render URL. Empty string when the ref is falsy. For
+   * an Oxy image this is the no-variant ORIGINAL (full resolution); display
+   * paths should prefer `thumbUrl`/`fullUrl` and only fall back to this. For a
+   * video this is the playable source (no image variant). For federated media
+   * it is the proxied URL.
+   */
   url: string;
   /** Thumbnail variant URL, when one can be derived. */
   thumbUrl?: string;
   /** Poster/still-frame URL (videos); mirrors `thumbUrl` for images. */
   posterUrl?: string;
+  /**
+   * Large display variant URL for fullscreen viewers (the lightbox) when one can
+   * be derived. Sized for the on-open upgrade, NOT the raw original. Only emitted
+   * for Oxy file ids — federated/proxied media has no variant system.
+   */
+  fullUrl?: string;
 }
 
-/** Oxy asset variant requested for thumbnails. */
-const THUMB_VARIANT = 'thumb';
+/**
+ * Oxy asset IMAGE variant taxonomy lives in `@mention/shared-types`
+ * (`MEDIA_VARIANT_*`) as the single source of truth shared with the frontend.
+ * The asset service (`packages/api/src/services/variantService.ts`
+ * `imageVariants`) generates only `thumb`(256) / `w320` / `w640` / `w1280` /
+ * `w2048`; `small`/`medium`/`large`/`original` 404 on the CDN. Verified live
+ * scale: `thumb`~2.6KB, `w640`~6.7KB, `w2048`~25.2KB, raw original ~77KB. Each
+ * render context maps to a real, existing variant instead of the 256px thumb or
+ * the raw original.
+ *
+ *  - thumbnail (post media card / profile grid) → {@link MEDIA_VARIANT_THUMB}.
+ *  - fullscreen lightbox (upgrade on open)      → {@link MEDIA_VARIANT_FULL}.
+ *  - avatars (small, square crop)               → {@link MEDIA_VARIANT_AVATAR}.
+ */
 
 /** Backend route that proxies remote media through our own origin. */
 const MEDIA_PROXY_PATH = '/media/proxy';
@@ -115,11 +144,16 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
     }
 
     // Treat anything else as an Oxy file id. `getFileDownloadUrl` is synchronous
-    // pure URL construction (no network), with a `thumb` variant for thumbnails.
+    // pure URL construction (no network). Emit display-sized image variants so
+    // thumbnails don't render the 256px crop (too small) and the lightbox can
+    // upgrade to a large variant instead of reusing the thumb or pulling the raw
+    // original. `url` stays the no-variant original (also the playable source for
+    // videos, where these image variants are simply ignored by the player).
     const client = getServiceOxyClient();
     const url = client.getFileDownloadUrl(ref);
-    const thumbUrl = client.getFileDownloadUrl(ref, THUMB_VARIANT);
-    return { url, thumbUrl, posterUrl: thumbUrl };
+    const thumbUrl = client.getFileDownloadUrl(ref, MEDIA_VARIANT_THUMB);
+    const fullUrl = client.getFileDownloadUrl(ref, MEDIA_VARIANT_FULL);
+    return { url, thumbUrl, posterUrl: thumbUrl, fullUrl };
   } catch (error) {
     logger.warn('[mediaResolver] Failed to resolve media ref; falling back to passthrough:', error);
     return { url: ref };
@@ -127,21 +161,34 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
 }
 
 /**
- * Resolve an avatar reference to a FINAL URL (thumbnail variant when derivable).
- * Returns `undefined` when the reference is empty so callers can omit the field.
+ * Resolve an avatar reference to a FINAL URL. For an Oxy file id this is the
+ * small square `thumb` (256px) crop — avatars are rendered tiny and circular, so
+ * the square crop is correct (unlike post media, which uses wider variants). For
+ * federated/proxied avatars it is the proxied URL. Returns `undefined` when the
+ * reference is empty so callers can omit the field.
  */
 export function resolveAvatarUrl(ref?: string | null): string | undefined {
   if (!ref || typeof ref !== 'string') {
     return undefined;
   }
-  const resolved = resolveMediaRef(ref);
-  const value = resolved.thumbUrl || resolved.url;
-  return value || undefined;
+  try {
+    if (isAbsoluteHttpUrl(ref)) {
+      // Defer to the shared resolver for own-origin passthrough / proxy wrapping.
+      const resolved = resolveMediaRef(ref);
+      return (resolved.thumbUrl || resolved.url) || undefined;
+    }
+    // Oxy file id → square avatar crop.
+    return getServiceOxyClient().getFileDownloadUrl(ref, MEDIA_VARIANT_AVATAR) || undefined;
+  } catch (error) {
+    logger.warn('[mediaResolver] Failed to resolve avatar ref; falling back to passthrough:', error);
+    return ref;
+  }
 }
 
 /**
- * Enrich a list of {@link MediaItem}s with final `url`/`thumbUrl`/`posterUrl`,
- * preserving each item's `id` and `type`. Items without an `id` are dropped.
+ * Enrich a list of {@link MediaItem}s with final `url`/`thumbUrl`/`posterUrl`/
+ * `fullUrl`, preserving each item's `id` and `type`. Items without an `id` are
+ * dropped.
  */
 export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaItem[] {
   if (!Array.isArray(items) || items.length === 0) {
@@ -157,6 +204,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
         url: resolved.url || undefined,
         thumbUrl: resolved.thumbUrl,
         posterUrl: resolved.posterUrl,
+        fullUrl: resolved.fullUrl,
       };
     });
 }

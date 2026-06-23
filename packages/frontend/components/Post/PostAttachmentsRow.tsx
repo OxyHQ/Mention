@@ -1,7 +1,13 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, View, ViewStyle } from 'react-native';
 import { useAuth } from '@oxyhq/services';
-import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
+import {
+  GeoJSONPoint,
+  PostAttachmentDescriptor,
+  PostSourceLink,
+  MEDIA_VARIANT_THUMB,
+  MEDIA_VARIANT_FULL,
+} from '@mention/shared-types';
 import { useRouter } from 'expo-router';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import {
@@ -22,13 +28,15 @@ import {
 } from './Attachments';
 
 // Runtime media reference. The server now resolves final URLs (`url`, `thumbUrl`,
-// `posterUrl`); `id` remains for the legacy fallback path (old cached responses).
+// `posterUrl`, `fullUrl`); `id` remains for the legacy fallback path (old cached
+// responses).
 interface MediaObj {
   id: string;
   type: 'image' | 'video' | 'gif';
   url?: string;
   thumbUrl?: string;
   posterUrl?: string;
+  fullUrl?: string;
 }
 interface Props {
   media?: MediaObj[];
@@ -60,7 +68,7 @@ type AttachmentItem =
   | { type: 'room' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
   | { type: 'video'; mediaId: string; src: string; poster?: string }
-  | { type: 'image'; mediaId: string; src: string; mediaType: 'image' | 'gif' };
+  | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif' };
 
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
@@ -93,18 +101,33 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
   const hasLink = useMemo(() => Boolean(linkMetadata?.url), [linkMetadata]);
 
-  // Prefer the server-resolved final URL: `url` for full-size (video/image) and
-  // `thumbUrl` for thumbnails. Fall back to the legacy client resolver only when
-  // the new field is absent (old in-memory/cached responses during the transition).
-  const resolveMediaSrc = useCallback((mediaItem: MediaObj, variant: 'thumb' | 'full') => {
-    const serverUrl = variant === 'full'
-      ? (mediaItem.url || mediaItem.thumbUrl)
-      : (mediaItem.thumbUrl || mediaItem.url);
-    if (serverUrl) return serverUrl;
+  // Resolve a media reference to a final render URL for a given context:
+  //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).
+  //  - `large`: the fullscreen lightbox image (server `fullUrl`, falling back to
+  //    `url`) — a larger variant than the thumb, NOT the raw original.
+  //  - `playable`: the video source (server `url`).
+  // Prefers the server-resolved final URLs; the legacy client resolver is only a
+  // fallback for old in-memory/cached responses missing the new fields, and it
+  // requests the SAME variant the server now uses for that context so the two
+  // paths agree (the `MEDIA_VARIANT_*` taxonomy in `@mention/shared-types`).
+  const resolveMediaSrc = useCallback((mediaItem: MediaObj, context: 'thumb' | 'large' | 'playable') => {
+    if (context === 'playable') {
+      const serverUrl = mediaItem.url || mediaItem.thumbUrl;
+      if (serverUrl) return serverUrl;
+    } else if (context === 'large') {
+      const serverUrl = mediaItem.fullUrl || mediaItem.url || mediaItem.thumbUrl;
+      if (serverUrl) return serverUrl;
+    } else {
+      const serverUrl = mediaItem.thumbUrl || mediaItem.url;
+      if (serverUrl) return serverUrl;
+    }
     const id = String(mediaItem.id || '');
     if (!id) return '';
+    const fallbackVariant = context === 'playable'
+      ? undefined
+      : (context === 'large' ? MEDIA_VARIANT_FULL : MEDIA_VARIANT_THUMB);
     try {
-      return getCachedFileDownloadUrlSync(oxyServices, id, variant);
+      return getCachedFileDownloadUrlSync(oxyServices, id, fallbackVariant);
     } catch {
       return id;
     }
@@ -128,17 +151,21 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (!mediaItem) return;
       usedMedia.add(id);
       const resolvedType = explicitType || mediaItem.type || 'image';
-      const variant = resolvedType === 'video' ? 'full' : 'thumb';
-      const src = resolveMediaSrc(mediaItem, variant);
-      if (!src) return;
       if (resolvedType === 'video') {
+        const src = resolveMediaSrc(mediaItem, 'playable');
+        if (!src) return;
         // Poster: prefer the server-resolved final `posterUrl`; fall back to the
         // legacy client resolver from the RAW media id when absent (old data).
         const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
         results.push({ type: 'video', mediaId: id, src, poster });
       } else {
+        // Thumbnail for the in-feed card; a larger variant for the lightbox so
+        // opening fullscreen upgrades the image instead of reusing the thumb.
+        const src = resolveMediaSrc(mediaItem, 'thumb');
+        if (!src) return;
+        const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
         const kind = resolvedType === 'gif' ? 'gif' : 'image';
-        results.push({ type: 'image', mediaId: id, src, mediaType: kind });
+        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: kind });
       }
     };
 
@@ -272,11 +299,13 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   // Images-only subset (in render order) powering the zoom gallery. Each entry's
   // position is the index the gallery opens at when its thumbnail is tapped;
-  // `imageIndexByMediaId` maps a tapped media id to that position.
+  // `imageIndexByMediaId` maps a tapped media id to that position. The gallery
+  // renders `fullSrc` (a large variant) so opening fullscreen UPGRADES the image
+  // rather than reusing the small in-feed thumbnail (`src`).
   const galleryImages = useMemo<GalleryImage[]>(
     () => mediaItems
       .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
-      .map(item => ({ uri: item.src })),
+      .map(item => ({ uri: item.fullSrc })),
     [mediaItems]
   );
 
