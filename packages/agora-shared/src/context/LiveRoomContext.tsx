@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { StyleSheet, Pressable, useWindowDimensions, Platform } from 'react-native';
+import { StyleSheet, Pressable, useWindowDimensions, Platform, type ViewStyle } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -40,6 +40,25 @@ const defaultUseIsDesktop = () => false;
 export function LiveRoomProvider({ children }: { children: React.ReactNode }) {
   const config = useAgoraConfig();
   const theme = config.useTheme();
+  // NativeWind class the host supplies to pin the dock to the viewport on web
+  // (e.g. `"web:fixed"` for the document-scroll shell). Undefined on hosts with
+  // the default fixed-viewport model and on native (no-op there).
+  const dockClassName = config.dockClassName;
+  // Inline `position`, resolved per-platform/host so it never fights the
+  // className on web:
+  //   - NATIVE (always): `absolute` — pins against the screen-filling root
+  //     (`web:fixed` is a no-op on native).
+  //   - WEB + host className present (e.g. Mention's document-scroll shell):
+  //     OMIT the inline position so the supplied `web:fixed` class owns it
+  //     (NativeWind lets an inline `position` win over a className, which would
+  //     re-sink the dock to the document bottom).
+  //   - WEB + no host className (e.g. the Agora app, fixed-viewport model with
+  //     no NativeWind): `absolute` — pins to the viewport there, preserving the
+  //     prior behavior.
+  const dockPosition = useMemo<ViewStyle>(
+    () => (Platform.OS === 'web' && dockClassName ? {} : { position: 'absolute' }),
+    [dockClassName],
+  );
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
 
@@ -130,7 +149,8 @@ export function LiveRoomProvider({ children }: { children: React.ReactNode }) {
 
       {activeRoomId && (
         <Animated.View
-          style={[StyleSheet.absoluteFill, styles.backdrop, backdropAnimStyle]}
+          className={dockClassName}
+          style={[styles.backdrop, dockPosition, backdropAnimStyle]}
           pointerEvents={isExpanded ? 'auto' : 'none'}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={handleCollapse} />
@@ -139,8 +159,10 @@ export function LiveRoomProvider({ children }: { children: React.ReactNode }) {
 
       {activeRoomId && (
         <Animated.View
+          className={dockClassName}
           style={[
             styles.sheet,
+            dockPosition,
             {
               bottom: bottomBarOffset,
               borderColor: theme.colors.border,
@@ -190,13 +212,20 @@ export function LiveRoomProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// `position` is intentionally NOT set in these StyleSheet entries — it is
+// supplied at runtime via `dockPosition` (inline) and/or the host's
+// `dockClassName` (web), so an inline `position` here can never override the
+// `web:fixed` class on the document-scroll host.
 const styles = StyleSheet.create({
   backdrop: {
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     zIndex: 999,
   },
   sheet: {
-    position: 'absolute',
     maxWidth: 500,
     alignSelf: 'center',
     zIndex: 1000,

@@ -26,6 +26,17 @@ export interface AgoraConfig {
   isDesktop?: boolean;
   useIsDesktop?: () => boolean;
   onRoomChanged?: (roomId: string) => void;
+  /**
+   * Optional NativeWind className applied to the floating live-room dock and its
+   * backdrop. Hosts whose web shell uses a DOCUMENT-scroll model (html/body/#root
+   * = height:auto + overflow:visible, the window is the scroller) must pass
+   * `"web:fixed"` so the dock pins to the VIEWPORT bottom instead of resolving
+   * its `position: absolute` against the tall document and sinking to the page
+   * bottom. Omitted on hosts with the default fixed-viewport web model (and on
+   * native, where `web:fixed` is a no-op and the dock pins via `position:
+   * absolute` against the screen-filling root).
+   */
+  dockClassName?: string;
 }
 
 export interface AgoraConfigInternal extends AgoraConfig {

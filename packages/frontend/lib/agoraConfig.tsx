@@ -61,4 +61,12 @@ export const agoraConfig: AgoraConfig = {
     }
   ),
   isDesktop: false, // Will be overridden at runtime if needed
+  // Mention's web shell uses a DOCUMENT-scroll model (global.css forces
+  // html/body/#root to height:auto + overflow:visible, so the window is the
+  // scroller). `web:fixed` pins the floating live-room dock + backdrop to the
+  // VIEWPORT bottom; without it `position: absolute` resolves against the tall
+  // document and the dock sinks to the page bottom (only visible after
+  // scrolling all the way down). No-op on native. The literal lives here (a
+  // Tailwind-scanned `lib/` file) so the `web:fixed` utility is generated.
+  dockClassName: 'web:fixed',
 };
