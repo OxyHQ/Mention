@@ -5,7 +5,8 @@ import { describe, it, expect, vi } from 'vitest';
  * backfill one-shot. No DB and no federation I/O are touched — the `Post` model
  * and the federation helpers (whose imports pull in mongoose + the media cache
  * graph) are mocked so importing the script never opens a connection. Only the
- * deterministic `parseDryRun` / `parseLimit` helpers are exercised.
+ * deterministic `parseDryRun` / `parseLimit` / `parseSinceDays` helpers are
+ * exercised.
  */
 
 vi.mock('../../models/Post', () => ({ Post: {} }));
@@ -14,7 +15,7 @@ vi.mock('../../services/federation/sharedFederationHelpers', () => ({
   parseApPublished: vi.fn(),
 }));
 
-import { parseDryRun, parseLimit } from '../../scripts/backfillFederatedPublishedDate';
+import { parseDryRun, parseLimit, parseSinceDays } from '../../scripts/backfillFederatedPublishedDate';
 
 describe('backfillFederatedPublishedDate — parseDryRun', () => {
   it('treats unset / undefined as a live (writing) run', () => {
@@ -57,5 +58,37 @@ describe('backfillFederatedPublishedDate — parseLimit', () => {
     expect(parseLimit('-5')).toBeNull();
     expect(parseLimit('12.5')).toBeNull();
     expect(parseLimit('NaN')).toBeNull();
+  });
+});
+
+describe('backfillFederatedPublishedDate — parseSinceDays', () => {
+  // Fixed reference instant so the computed cutoff is deterministic.
+  const NOW = Date.parse('2026-06-23T00:00:00.000Z');
+  const MS_PER_DAY = 86_400_000;
+
+  it('returns null (no date filter) for unset / empty / whitespace', () => {
+    expect(parseSinceDays(undefined, NOW)).toBeNull();
+    expect(parseSinceDays('', NOW)).toBeNull();
+    expect(parseSinceDays('   ', NOW)).toBeNull();
+  });
+
+  it('computes the cutoff `now - days` for a positive integer window', () => {
+    const oneDay = parseSinceDays('1', NOW);
+    expect(oneDay).toBeInstanceOf(Date);
+    expect(oneDay?.getTime()).toBe(NOW - MS_PER_DAY);
+
+    const twoMonths = parseSinceDays('60', NOW);
+    expect(twoMonths?.getTime()).toBe(NOW - 60 * MS_PER_DAY);
+
+    const trimmed = parseSinceDays('  7  ', NOW);
+    expect(trimmed?.getTime()).toBe(NOW - 7 * MS_PER_DAY);
+  });
+
+  it('returns null for non-numeric, ≤0, and non-integer values (no date filter)', () => {
+    expect(parseSinceDays('abc', NOW)).toBeNull();
+    expect(parseSinceDays('0', NOW)).toBeNull();
+    expect(parseSinceDays('-30', NOW)).toBeNull();
+    expect(parseSinceDays('1.5', NOW)).toBeNull();
+    expect(parseSinceDays('NaN', NOW)).toBeNull();
   });
 });

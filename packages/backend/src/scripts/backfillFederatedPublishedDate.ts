@@ -37,6 +37,15 @@
  *     the summary reports `wouldCorrect` and states nothing was written.
  *   - `BACKFILL_LIMIT` (optional positive integer): stop after SCANNING that
  *     many federated posts (canary cap). Non-numeric / ≤0 values are ignored.
+ *   - `BACKFILL_SINCE_DAYS` (optional positive integer): scope the run to posts
+ *     `createdAt >= now - days` (e.g. `60` for ~2 months). The cutoff is added to
+ *     BOTH the upfront total count and every per-page `find` so the `_id`-cursor
+ *     pagination, total, and progress stay consistent. Unset / empty / non-numeric
+ *     / ≤0 / non-integer → no date filter (full history, unchanged behavior).
+ *
+ * The three controls are independent and compose cleanly: `BACKFILL_SINCE_DAYS`
+ * narrows the Mongo filter, `BACKFILL_LIMIT` caps how many of the matching posts
+ * are scanned, and `DRY_RUN` skips all writes.
  */
 
 import mongoose from 'mongoose';
@@ -57,14 +66,19 @@ const FETCH_CONCURRENCY = 4;
  */
 const DATE_DRIFT_TOLERANCE_MS = 1000;
 
+/** Milliseconds in a day, used to translate `BACKFILL_SINCE_DAYS` into a cutoff. */
+const MS_PER_DAY = 86_400_000;
+
 /**
  * Resolved, validated run-mode controls read once from the environment at start.
  * `dryRun` performs the full read-only scan (remote re-fetch + drift comparison)
  * but writes nothing. `limit` caps the number of federated posts SCANNED (canary).
+ * `sinceCutoff`, when set, restricts the scan to posts `createdAt >= sinceCutoff`.
  */
 interface RunOptions {
   dryRun: boolean;
   limit: number | null;
+  sinceCutoff: Date | null;
 }
 
 /**
@@ -88,6 +102,22 @@ export function parseLimit(raw: string | undefined): number | null {
   const parsed = Number(trimmed);
   if (!Number.isInteger(parsed) || parsed <= 0) return null;
   return parsed;
+}
+
+/**
+ * `BACKFILL_SINCE_DAYS` is an optional positive-integer window (in days). A valid
+ * value yields the cutoff `now - days` (posts `createdAt >= cutoff` are scanned).
+ * Non-numeric, empty, ≤0, or non-integer values yield `null` (no date filter →
+ * full history, unchanged behavior). `now` defaults to the current time and is
+ * injectable for deterministic tests.
+ */
+export function parseSinceDays(raw: string | undefined, now: number = Date.now()): Date | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return new Date(now - parsed * MS_PER_DAY);
 }
 
 interface FederatedPostRow {
@@ -137,20 +167,29 @@ async function backfillFederatedPublishedDate(): Promise<void> {
   const options: RunOptions = {
     dryRun: parseDryRun(process.env.DRY_RUN),
     limit: parseLimit(process.env.BACKFILL_LIMIT),
+    sinceCutoff: parseSinceDays(process.env.BACKFILL_SINCE_DAYS),
   };
 
   logger.info(
     `[backfillFederatedPublishedDate] mode: ${options.dryRun ? 'DRY RUN (read-only, no writes)' : 'LIVE (writes enabled)'}; ` +
-      `scan limit: ${options.limit === null ? 'none (full scan)' : String(options.limit)}`,
+      `scan limit: ${options.limit === null ? 'none (full scan)' : String(options.limit)}; ` +
+      `date window: ${options.sinceCutoff === null ? 'no date filter (full history)' : `createdAt >= ${options.sinceCutoff.toISOString()}`}`,
   );
 
   try {
     await mongoose.connect(mongoUri, { dbName });
     logger.info(`[backfillFederatedPublishedDate] connected to MongoDB (${dbName})`);
 
-    const totalCount = await Post.countDocuments({
+    // Base filter shared by the upfront count AND every per-page find so the
+    // total, `_id`-cursor pagination, and progress all scope to the same set.
+    const baseFilter: Record<string, unknown> = {
       'federation.activityId': { $exists: true, $ne: null },
-    });
+    };
+    if (options.sinceCutoff) {
+      baseFilter.createdAt = { $gte: options.sinceCutoff };
+    }
+
+    const totalCount = await Post.countDocuments(baseFilter);
     logger.info(`[backfillFederatedPublishedDate] ${totalCount} federated posts to scan`);
 
     if (totalCount === 0) {
@@ -170,9 +209,7 @@ async function backfillFederatedPublishedDate(): Promise<void> {
     for (;;) {
       if (options.limit !== null && scanned >= options.limit) break;
 
-      const pageFilter: Record<string, unknown> = {
-        'federation.activityId': { $exists: true, $ne: null },
-      };
+      const pageFilter: Record<string, unknown> = { ...baseFilter };
       if (lastId) {
         pageFilter._id = { $gt: lastId };
       }
