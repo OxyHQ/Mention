@@ -26,8 +26,8 @@ jest.mock('expo-router', () => ({
 // Reanimated's worklets runtime is not initialized under jest-expo. Mock the
 // thin surface the provider uses: `useSharedValue` returns a plain mutable
 // holder and `withTiming` resolves synchronously to its target so we can assert
-// the resulting `.value` deterministically (the provider's auto-hide DECISION is
-// what we verify, not the animation curve).
+// the resulting settled `.value` deterministically (the provider's auto-hide
+// DECISION + clean settle is what we verify, not the animation curve).
 jest.mock('react-native-reanimated', () => ({
     useSharedValue: (initial: number) => ({ value: initial }),
     withTiming: (target: number) => target,
@@ -61,6 +61,7 @@ function pushScroll(value: number) {
 describe('BottomBarVisibilityProvider', () => {
     beforeEach(() => {
         mockScrollY.setValue(0);
+        mockPathname = '/';
     });
 
     it('hides the bar on downward scroll on a normal route', () => {
@@ -68,14 +69,14 @@ describe('BottomBarVisibilityProvider', () => {
         // Scroll past the activation offset, downward.
         pushScroll(100);
         pushScroll(300);
-        expect(getHidden().value).toBeGreaterThan(0.5);
+        expect(getHidden().value).toBe(1);
     });
 
     it('reveals the bar again on upward scroll on a normal route', () => {
         const getHidden = renderWithPath('/');
         pushScroll(300);
         pushScroll(100); // scroll up
-        expect(getHidden().value).toBeLessThan(0.5);
+        expect(getHidden().value).toBe(0);
     });
 
     it('keeps the bar pinned visible on /videos regardless of scroll', () => {
@@ -85,5 +86,45 @@ describe('BottomBarVisibilityProvider', () => {
         pushScroll(800);
         pushScroll(1600);
         expect(getHidden().value).toBe(0);
+    });
+
+    // ── Regression: the bar must settle CLEANLY to 0 or 1, never an in-between
+    // value (a partial translateY makes the fixed bar poke below the viewport).
+    // This reproduces what happens on the profile screen, where the document
+    // jumps to a non-zero scroll position via scroll-restoration / layout growth
+    // BEFORE the user scrolls. The very first listener event therefore arrives
+    // with a large positive delta measured against the closure's initial
+    // lastKnownScrollY=0, which previously latched `isScrollingDown=true` and
+    // hid the bar on entry (and, mid-restoration jitter, could leave it partway).
+
+    it('does NOT treat the initial scroll-restoration jump as a downward scroll', () => {
+        // Land on the profile already scrolled (restoration jumps 0 -> 600).
+        const getHidden = renderWithPath('/@someone');
+        pushScroll(600); // single restoration jump, no real user gesture
+        // The bar must stay visible — a restoration jump is not a user scroll.
+        expect(getHidden().value).toBe(0);
+    });
+
+    it('settles to a clean 0/1 (never partial) after a restoration jump then a small upward correction', () => {
+        const getHidden = renderWithPath('/@someone');
+        pushScroll(600); // restoration jump
+        pushScroll(580); // tiny settle/correction upward
+        const v = getHidden().value;
+        expect(v === 0 || v === 1).toBe(true);
+    });
+
+    it('ignores a LATE programmatic restoration jump (after the baseline) — bar stays visible', () => {
+        const getHidden = renderWithPath('/@someone');
+        pushScroll(0);   // baseline at top
+        pushScroll(20);  // tiny real settle (no hide yet, below activation)
+        pushScroll(900); // late restoration jump — must NOT be read as a gesture
+        expect(getHidden().value).toBe(0);
+    });
+
+    it('still hides on a fast-but-plausible downward fling (not suppressed as programmatic)', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        pushScroll(150); // a fast single-frame fling, still a real gesture
+        expect(getHidden().value).toBe(1);
     });
 });
