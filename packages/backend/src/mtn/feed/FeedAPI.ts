@@ -28,6 +28,16 @@ export interface FeedContext {
   feedSettings?: any;
   oxyClient?: any;
   /**
+   * The viewer's DOMINANT learned coarse region (the highest-count
+   * `userBehavior.preferredRegions` entry), resolved once by the controller via
+   * `UserPreferenceService.getTopRegion`. Consumed as a BEST-EFFORT relevance
+   * signal by the For You region candidate source and the authenticated Explore
+   * relevance boost. Frequently `undefined` (post region is sparse), in which
+   * case every region-conditional path is a strict no-op — never an error, never
+   * an empty feed. Absent for anonymous viewers.
+   */
+  viewerRegion?: string;
+  /**
    * Whether THIS viewer has opted in to seeing sensitive / NSFW content. When
    * `true`, discovery surfaces (For You, Explore) and ranking do NOT exclude or
    * zero sensitive posts for this viewer; the posts still carry their sensitive

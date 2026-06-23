@@ -28,7 +28,7 @@ interface InteractionPost {
   type?: string;
   language?: string;
   hashtags?: string[];
-  postClassification?: { topicRefs?: unknown; topics?: unknown };
+  postClassification?: { topicRefs?: unknown; topics?: unknown; region?: unknown };
 }
 
 /**
@@ -178,7 +178,8 @@ export class UserPreferenceService {
           poll: 0
         },
         activeHours: [],
-        preferredLanguages: []
+        preferredLanguages: [],
+        preferredRegions: []
       });
     }
 
@@ -276,6 +277,20 @@ export class UserPreferenceService {
       userBehavior.preferredLanguages.push(post.language);
       // Mark array as modified
       userBehavior.markModified('preferredLanguages');
+    }
+
+    // Update REGION affinity (positive signals only — a skip must not increase
+    // interest in a region). Region is a CONTENT-origin signal, so it uses the
+    // content weight (amplified on video surfaces) like topics/post-type. It is
+    // best-effort and frequently absent — `postClassification.region` is itself
+    // derived only from a federated instance domain or author locale, never from
+    // post text — so this no-ops for most native posts. When present, the
+    // dominant region accrues a stable count (read via `getTopRegion`).
+    if (isPositiveSignal) {
+      const region = post.postClassification?.region;
+      if (typeof region === 'string' && region.length > 0) {
+        this.updateRegionPreference(userBehavior, region, contentWeight);
+      }
     }
 
     // Handle hard negative signals (hide/mute/block) — author/topic suppression.
@@ -489,6 +504,68 @@ export class UserPreferenceService {
     if (userBehavior.preferredTopics.length > 200) {
       userBehavior.preferredTopics = userBehavior.preferredTopics.slice(0, 200);
     }
+  }
+
+  /**
+   * Accumulate REGION affinity as a counted multiset entry. Unlike author/topic
+   * preferences this is a simple recency-stamped count (no normalized 0–1
+   * weight): the consumer only needs the DOMINANT region, and a raw count picks
+   * a stable winner without thrashing on every engagement. Sorted by count so
+   * `getTopRegion` reads index 0; kept bounded so a viewer who roams many
+   * instances can't grow the array unboundedly.
+   * Note: synchronous — only modifies in-memory objects.
+   */
+  private updateRegionPreference(
+    userBehavior: any,
+    region: string,
+    weight: number,
+  ): void {
+    if (!userBehavior.preferredRegions) {
+      userBehavior.preferredRegions = [];
+    }
+    let regionPref = userBehavior.preferredRegions.find(
+      (r: any) => r.region === region,
+    );
+
+    if (!regionPref) {
+      regionPref = { region, count: 0, lastInteractionAt: new Date() };
+      userBehavior.preferredRegions.push(regionPref);
+    }
+
+    regionPref.count += Math.abs(weight);
+    regionPref.lastInteractionAt = new Date();
+
+    // Most-engaged region first; bound the list (regions are a small, coarse
+    // space — this cap is just a safety ceiling, not an expected trim point).
+    userBehavior.preferredRegions.sort((a: any, b: any) => b.count - a.count);
+    if (userBehavior.preferredRegions.length > MtnConfig.preferences.maxPreferredRegions) {
+      userBehavior.preferredRegions = userBehavior.preferredRegions.slice(
+        0,
+        MtnConfig.preferences.maxPreferredRegions,
+      );
+    }
+
+    userBehavior.markModified('preferredRegions');
+  }
+
+  /**
+   * The viewer's DOMINANT learned region (the highest-count `preferredRegions`
+   * entry), or `undefined` when the viewer has learned none. Best-effort and
+   * often `undefined` because post region is itself sparse — callers must treat
+   * a missing region as a no-op (never error, never empty a feed). Accepts the
+   * lean behavior shape used across the feed pipeline.
+   */
+  getTopRegion(
+    userBehavior: { preferredRegions?: Array<{ region?: string; count?: number }> } | null | undefined,
+  ): string | undefined {
+    const regions = userBehavior?.preferredRegions;
+    if (!Array.isArray(regions) || regions.length === 0) return undefined;
+    let top: { region?: string; count?: number } | undefined;
+    for (const entry of regions) {
+      if (typeof entry?.region !== 'string' || entry.region.length === 0) continue;
+      if (!top || (entry.count ?? 0) > (top.count ?? 0)) top = entry;
+    }
+    return top?.region;
   }
 
   /**

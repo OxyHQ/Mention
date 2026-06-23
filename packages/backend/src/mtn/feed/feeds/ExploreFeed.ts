@@ -19,8 +19,124 @@ import { DISCOVERY_SAFE_MATCH } from '../feedSafety';
 import { logger } from '../../../utils/logger';
 import mongoose from 'mongoose';
 
+/** A resolved Explore relevance multiplier and the viewer signals it derived from. */
+interface ExploreRelevance {
+  /**
+   * The Mongo aggregation expression that evaluates to the per-post relevance
+   * multiplier (a number in `[1, maxBoost]`). For an anonymous / no-signal
+   * viewer this is the literal `1` — exactly neutral.
+   */
+  expr: unknown;
+  /** Preferred topic slugs used (post-weight-threshold), for diagnostics/tests. */
+  topics: string[];
+  /** Preferred languages used, for diagnostics/tests. */
+  languages: string[];
+  /** Viewer region used (or undefined), for diagnostics/tests. */
+  region?: string;
+}
+
 export class ExploreFeed implements FeedAPI {
   readonly descriptor = 'explore' as const;
+
+  /**
+   * Build the bounded RELEVANCE multiplier for the authenticated Explore feed
+   * from the viewer's learned signals in `context`. The result is folded into
+   * the ranking aggregation as a multiplier on top of engagement×recency.
+   *
+   * It is a SOFT lift, never a filter: a post matching the viewer's preferred
+   * topics / language / region scores higher, but a non-matching post keeps its
+   * full engagement×recency score and still appears (serendipity). The combined
+   * multiplier is clamped to `exploreRelevance.maxBoost` so no single viewer
+   * signal can dominate the discovery order.
+   *
+   * Returns a neutral `1` expression when the viewer is anonymous or has no
+   * usable signals, so anonymous Explore is byte-for-byte unchanged.
+   */
+  private resolveRelevanceSignals(context: FeedContext): ExploreRelevance {
+    const cfg = MtnConfig.ranking.exploreRelevance;
+    const NEUTRAL: ExploreRelevance = { expr: 1, topics: [], languages: [], region: undefined };
+
+    // No viewer → no signals → neutral (anonymous Explore unchanged).
+    if (!context.currentUserId) return NEUTRAL;
+
+    const behavior = context.userBehavior as
+      | {
+          preferredTopics?: Array<{ topic?: string; weight?: number }>;
+          preferredLanguages?: string[];
+        }
+      | undefined;
+
+    const candidateCfg = MtnConfig.feed.candidateSources;
+
+    // Preferred topic slugs above the discovery weight floor, by descending
+    // weight, bounded by the same cap the For You discovery sources use so the
+    // `$in` array stays small.
+    const topics = (behavior?.preferredTopics ?? [])
+      .filter((t): t is { topic: string; weight?: number } =>
+        typeof t.topic === 'string' && t.topic.length > 0)
+      .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+      .slice(0, candidateCfg.maxPreferredTopics)
+      .map((t) => t.topic.toLowerCase());
+
+    const languages = (behavior?.preferredLanguages ?? [])
+      .filter((l): l is string => typeof l === 'string' && l.length > 0)
+      .slice(0, candidateCfg.maxPreferredLanguages);
+
+    const region = typeof context.viewerRegion === 'string' && context.viewerRegion.length > 0
+      ? context.viewerRegion
+      : undefined;
+
+    // No usable signal at all → neutral.
+    if (topics.length === 0 && languages.length === 0 && !region) return NEUTRAL;
+
+    // Per-dimension multiplier: `weight` when the post matches, else 1.0. The
+    // matches are computed against the projected classification fields; an
+    // absent classification field yields no match (multiplier 1.0) for that
+    // post, so un-classified posts are simply neutral.
+    const factors: unknown[] = [];
+
+    if (topics.length > 0) {
+      factors.push({
+        $cond: [
+          {
+            // True when the post's classified topics intersect the viewer's.
+            $gt: [
+              { $size: { $setIntersection: [{ $ifNull: ['$postClassification.topics', []] }, topics] } },
+              0,
+            ],
+          },
+          cfg.topicMatch,
+          1,
+        ],
+      });
+    }
+
+    if (languages.length > 0) {
+      factors.push({
+        $cond: [
+          { $in: ['$postClassification.language', languages] },
+          cfg.languageMatch,
+          1,
+        ],
+      });
+    }
+
+    if (region) {
+      factors.push({
+        $cond: [
+          { $eq: ['$postClassification.region', region] },
+          cfg.regionMatch,
+          1,
+        ],
+      });
+    }
+
+    // Combined multiplier = product of the matched factors, clamped to maxBoost.
+    const product = factors.length === 1 ? factors[0] : { $multiply: factors };
+    const expr = { $min: [{ $literal: cfg.maxBoost }, product] };
+
+    return { expr, topics, languages, region };
+  }
 
   async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
     const trendingCutoff = new Date(Date.now() - MtnConfig.feed.trendingWindowMs);
@@ -53,6 +169,13 @@ export class ExploreFeed implements FeedAPI {
     const excludeUserIds: string[] = [];
     if (currentUserId) excludeUserIds.push(currentUserId);
     if (followingIds?.length) excludeUserIds.push(...followingIds);
+
+    // RELEVANCE signals for a LOGGED-IN viewer (a light, bounded lift — NOT a
+    // filter, NOT personalization-via-follows). Explore stays DISCOVERY of
+    // non-followed content; these only NUDGE matching posts up the
+    // engagement×recency order so they aren't buried. Anonymous viewers pass no
+    // signals, so the multiplier collapses to 1.0 (behavior unchanged).
+    const relevance = this.resolveRelevanceSignals(context);
 
     const trendingCutoff = new Date(Date.now() - MtnConfig.feed.trendingWindowMs);
 
@@ -105,6 +228,12 @@ export class ExploreFeed implements FeedAPI {
           _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
           parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
           content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
+          // Classification signals consumed by the (logged-in) relevance boost
+          // below. Cheap to project; absent on un-classified posts (relevance
+          // then no-ops to neutral for that post).
+          'postClassification.topics': 1,
+          'postClassification.language': 1,
+          'postClassification.region': 1,
         },
       },
       {
@@ -144,7 +273,20 @@ export class ExploreFeed implements FeedAPI {
       },
       {
         $addFields: {
-          finalScore: { $multiply: ['$engagementBase', '$recencyDecay'] },
+          // Bounded RELEVANCE multiplier for a logged-in viewer (1.0 for
+          // anonymous / no-signal viewers). Each matched dimension multiplies a
+          // configured weight in; the product is clamped to `maxBoost` so a
+          // single viewer can never overwhelm the trending order. This is a
+          // SOFT lift — non-matching posts keep their engagement×recency score
+          // and still surface (serendipity preserved).
+          relevanceBoost: relevance.expr,
+        },
+      },
+      {
+        $addFields: {
+          finalScore: {
+            $multiply: ['$engagementBase', '$recencyDecay', '$relevanceBoost'],
+          },
         },
       },
     ];

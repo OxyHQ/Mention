@@ -474,6 +474,65 @@ describe('gatherForYouCandidates — caps and exclusions', () => {
   });
 });
 
+describe('gatherForYouCandidates — region source (viewerRegion)', () => {
+  it('fires the region discovery source ONLY when viewerRegion is provided', async () => {
+    findRouter = (match) => {
+      if (sourceOf(match) === 'region') {
+        return [makePost(oid(60), 'region-author', { postClassification: { region: 'ES' } })];
+      }
+      return [];
+    };
+
+    const pool = await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: [],
+      userBehavior: {},
+      viewerRegion: 'ES',
+      seenPostIds: [],
+      contentAffinityService: affinityStub([]),
+    });
+
+    // The region source fired and contributed its post.
+    const sources = findCalls.map(sourceOf);
+    expect(sources).toContain('region');
+    expect(pool.map((p) => p.oxyUserId)).toContain('region-author');
+
+    // The region query keyed off the exact viewer region.
+    const regionMatch = findCalls.find((m) => sourceOf(m) === 'region');
+    expect(regionMatch?.['postClassification.region']).toBe('ES');
+  });
+
+  it('does NOT fire the region source when viewerRegion is absent (best-effort no-op)', async () => {
+    findRouter = () => [];
+
+    await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: ['follow-1'],
+      userBehavior: { preferredTopics: [{ topic: 'tech', weight: 1 }] },
+      // viewerRegion intentionally omitted — the common case (region is sparse).
+      seenPostIds: [],
+      contentAffinityService: affinityStub([]),
+    });
+
+    expect(findCalls.map(sourceOf)).not.toContain('region');
+  });
+
+  it('does NOT fire the region source for an empty-string viewerRegion', async () => {
+    findRouter = () => [];
+
+    await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: [],
+      userBehavior: {},
+      viewerRegion: '',
+      seenPostIds: [],
+      contentAffinityService: affinityStub([]),
+    });
+
+    expect(findCalls.map(sourceOf)).not.toContain('region');
+  });
+});
+
 describe('gatherForYouCandidates — trending source', () => {
   it('contributes trending posts and excludes discovery-sensitive via aggregate match', async () => {
     aggregateRouter = () => [makePost(oid(50), 'trending-author')];

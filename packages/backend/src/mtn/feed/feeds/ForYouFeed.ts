@@ -85,6 +85,7 @@ export class ForYouFeed implements FeedAPI {
       viewerId: currentUserId,
       followingIds: context.followingIds ?? [],
       userBehavior: context.userBehavior as CandidateUserBehavior | undefined,
+      viewerRegion: context.viewerRegion,
       seenPostIds,
       showSensitiveContent: context.showSensitiveContent === true,
     });

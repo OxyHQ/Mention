@@ -34,6 +34,48 @@ export const MtnConfig = {
       postTypeMatch: 1.3,
       languageMatch: 1.2,
     },
+    /**
+     * EXPLORE RELEVANCE — a LIGHT, BOUNDED lift applied ONLY to the
+     * authenticated Explore (discovery) feed on top of its engagement×recency
+     * score. Explore stays DISCOVERY of non-followed content — these weights do
+     * NOT personalize-via-follows and they are NOT a hard filter: a non-matching
+     * post still appears (for serendipity), it just ranks a bit lower than an
+     * equally-engaging post that matches the viewer's learned signals.
+     *
+     * Deliberately GENTLER than `personalization` above (Explore is discovery,
+     * not the curated For You feed) so the engagement×recency trending signal
+     * still dominates. Each matched dimension multiplies in; the product is
+     * clamped to `maxBoost` so no single viewer signal can dominate ranking.
+     *
+     * Anonymous Explore passes NO viewer signals, so every multiplier collapses
+     * to exactly 1.0 (neutral) and behavior is unchanged.
+     */
+    exploreRelevance: {
+      /**
+       * Multiplier when one or more of the post's classified topics
+       * (`postClassification.topics`) overlaps the viewer's `preferredTopics`.
+       * Applied ONCE (presence of overlap), not scaled by match count, so a
+       * multi-topic post can't run away with the score.
+       */
+      topicMatch: 1.25,
+      /**
+       * Multiplier when the post's `postClassification.language` is one of the
+       * viewer's preferred languages.
+       */
+      languageMatch: 1.15,
+      /**
+       * Multiplier when the post's `postClassification.region` equals the
+       * viewer's learned coarse region. Region is best-effort/sparse, so this is
+       * usually neutral (1.0); it only lifts when both sides actually carry one.
+       */
+      regionMatch: 1.1,
+      /**
+       * Hard ceiling on the COMBINED relevance multiplier (topic × language ×
+       * region). Bounds the lift so relevance nudges, never overwhelms, the
+       * engagement×recency trending order.
+       */
+      maxBoost: 1.5,
+    },
     quality: {
       highEngagement: 1.3,
       lowEngagement: 0.8,
@@ -264,6 +306,12 @@ export const MtnConfig = {
     },
     maxPreferredAuthors: 100,
     maxPreferredTopics: 200,
+    /**
+     * Safety ceiling on the learned `preferredRegions` multiset. Regions are a
+     * small, coarse space (country/zone codes), so this is just an upper bound a
+     * roaming viewer can't blow past — not an expected trim point.
+     */
+    maxPreferredRegions: 20,
     decayDays: 30,
     viewTimeAlpha: 0.1,
     /**

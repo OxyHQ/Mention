@@ -54,7 +54,6 @@ export interface CandidateUserBehavior {
   preferredAuthors?: Array<{ authorId?: string; weight?: number }>;
   preferredTopics?: Array<{ topic?: string; weight?: number }>;
   preferredLanguages?: string[];
-  region?: string;
 }
 
 /** Inputs to candidate gathering, resolved by `ForYouFeed.fetch`. */
@@ -64,6 +63,13 @@ export interface GatherForYouCandidatesParams {
   followingIds: string[];
   /** Lean UserBehavior document, or undefined when the viewer has none yet. */
   userBehavior?: CandidateUserBehavior;
+  /**
+   * The viewer's DOMINANT learned coarse region, resolved by the controller
+   * (`UserPreferenceService.getTopRegion`). Drives the REGION discovery source.
+   * Best-effort and usually `undefined` (post region is sparse) → the region
+   * source is skipped entirely, never an error.
+   */
+  viewerRegion?: string;
   /** Post ids already seen this session — excluded from every source. */
   seenPostIds: string[];
   /**
@@ -219,7 +225,9 @@ export async function gatherForYouCandidates(
     .filter((l): l is string => typeof l === 'string' && l.length > 0)
     .slice(0, cfg.maxPreferredLanguages);
 
-  const region = typeof params.userBehavior?.region === 'string' ? params.userBehavior.region : undefined;
+  const region = typeof params.viewerRegion === 'string' && params.viewerRegion.length > 0
+    ? params.viewerRegion
+    : undefined;
 
   const affinityAuthorIds = await resolveAffinityAuthorIds(params);
 

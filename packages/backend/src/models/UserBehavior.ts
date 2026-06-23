@@ -37,6 +37,17 @@ export interface IUserBehavior extends Document {
   // Time-based preferences
   activeHours: Array<number>; // Hours 0-23 when user is most active
   preferredLanguages: Array<string>;
+  // Coarse REGION affinity, learned best-effort from the (often-absent)
+  // `postClassification.region` of posts the viewer engages with. Stored as a
+  // counted multiset (region code → engagement count) rather than a single
+  // mutable field so the dominant region is stable across interactions instead
+  // of thrashing on every engagement. Frequently empty — post region is itself
+  // best-effort (federated instance / locale only, never inferred from text).
+  preferredRegions: Array<{
+    region: string; // Coarse region/country code (e.g. 'US', 'DE')
+    count: number; // Accumulated engagement weight for this region
+    lastInteractionAt: Date;
+  }>;
   // Engagement patterns
   averageEngagementTime: number; // Seconds spent viewing posts
   skipRate: number; // Percentage of posts skipped
@@ -74,6 +85,12 @@ const TopicPreferenceSchema = new Schema({
   weight: { type: Number, default: 0, min: 0, max: 1 }
 }, { _id: false });
 
+const RegionPreferenceSchema = new Schema({
+  region: { type: String, required: true },
+  count: { type: Number, default: 0 },
+  lastInteractionAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const UserBehaviorSchema = new Schema<IUserBehavior>({
   oxyUserId: { type: String, required: true, unique: true }, // unique: true automatically creates an index
   preferredAuthors: [AuthorPreferenceSchema],
@@ -86,6 +103,7 @@ const UserBehaviorSchema = new Schema<IUserBehavior>({
   },
   activeHours: [{ type: Number, min: 0, max: 23 }],
   preferredLanguages: [{ type: String }],
+  preferredRegions: [RegionPreferenceSchema],
   averageEngagementTime: { type: Number, default: 0 },
   skipRate: { type: Number, default: 0, min: 0, max: 1 },
   completionRate: { type: Number, default: 0, min: 0, max: 1 },

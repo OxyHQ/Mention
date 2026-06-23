@@ -188,6 +188,14 @@ class MtnFeedController {
         showSensitiveContent = await loadShowSensitiveContent(currentUserId);
       }
 
+      // Resolve the viewer's DOMINANT learned region once (best-effort; usually
+      // undefined because post region is sparse). Threaded into context so the
+      // For You region candidate source and the Explore relevance boost can use
+      // it. A missing region is a strict no-op downstream.
+      const viewerRegion = userPreferenceService.getTopRegion(
+        userBehavior as { preferredRegions?: Array<{ region?: string; count?: number }> } | undefined,
+      );
+
       // Build context
       const context = {
         currentUserId,
@@ -195,6 +203,7 @@ class MtnFeedController {
         userBehavior,
         oxyClient,
         showSensitiveContent,
+        viewerRegion,
       };
 
       // Resolve feed
