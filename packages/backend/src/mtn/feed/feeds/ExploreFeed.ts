@@ -15,6 +15,7 @@ import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } 
 import { ScoreCursor, didCursorAdvance } from '../CursorBuilder';
 import { diversifyByAuthor } from '../diversifyByAuthor';
 import { RankedCandidate, sliceAuthorKey, sliceCursorAnchor } from '../rankedCandidate';
+import { NSFW_HASHTAGS } from '../../../services/contentClassification/nsfw';
 import { logger } from '../../../utils/logger';
 import mongoose from 'mongoose';
 
@@ -55,10 +56,17 @@ export class ExploreFeed implements FeedAPI {
 
     const trendingCutoff = new Date(Date.now() - MtnConfig.feed.trendingWindowMs);
 
+    // Explore is a discovery surface (content from users the viewer does NOT
+    // follow), so it must be SFW: exclude classifier/metadata/federation-flagged
+    // sensitive content and NSFW-hashtag posts at the query level.
     const match: any = {
       visibility: 'public',
       status: 'published',
       createdAt: { $gte: trendingCutoff },
+      'postClassification.sensitive': { $ne: true },
+      'metadata.isSensitive': { $ne: true },
+      'federation.sensitive': { $ne: true },
+      hashtags: { $nin: Array.from(NSFW_HASHTAGS) },
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },

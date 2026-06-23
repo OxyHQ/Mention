@@ -184,19 +184,22 @@ describe('gatherForYouCandidates — discovery safety', () => {
     for (const m of discoveryMatches) expect(hasSensitiveExclusion(m)).toBe(true);
   });
 
-  it('drops NSFW-hashtag posts from discovery sources but keeps them from following', async () => {
+  it('drops NSFW-hashtag posts from EVERY source — including following (For You is uniformly SFW)', async () => {
     findRouter = (match) => {
       const src = sourceOf(match);
       if (src === 'authors') {
         const ids = (match.oxyUserId as { $in: string[] }).$in;
         if (ids.includes('follow-1')) {
-          // A followed author's NSFW-tagged post is kept (viewer chose them).
-          return [makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] })];
+          // Even a FOLLOWED author's NSFW-tagged post is dropped from For You.
+          return [
+            makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
+            makePost(oid(32), 'follow-1', { hashtags: ['tech'] }), // clean — kept
+          ];
         }
         return [];
       }
       if (src === 'global') {
-        // A discovery NSFW-tagged post is dropped.
+        // A discovery NSFW-tagged post is dropped too.
         return [makePost(oid(31), 'global-author', { hashtags: ['NSFW'] })];
       }
       return [];
@@ -210,9 +213,39 @@ describe('gatherForYouCandidates — discovery safety', () => {
       contentAffinityService: affinityStub([]),
     });
 
-    const authors = pool.map((p) => p.oxyUserId);
-    expect(authors).toContain('follow-1'); // followed NSFW post kept
-    expect(authors).not.toContain('global-author'); // discovery NSFW post dropped
+    const ids = pool.map((p) => p._id.toString());
+    expect(ids).toContain(new mongoose.Types.ObjectId(oid(32)).toString()); // clean followed post kept
+    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(30)).toString()); // followed NSFW dropped
+    expect(ids).not.toContain(new mongoose.Types.ObjectId(oid(31)).toString()); // discovery NSFW dropped
+  });
+
+  it('drops classifier/metadata/federation-flagged sensitive posts from EVERY source', async () => {
+    findRouter = (match) => {
+      const src = sourceOf(match);
+      if (src === 'authors') {
+        const ids = (match.oxyUserId as { $in: string[] }).$in;
+        if (ids.includes('follow-1')) {
+          return [
+            makePost(oid(40), 'follow-1', { postClassification: { sensitive: true } }),
+            makePost(oid(41), 'follow-1', { metadata: { isSensitive: true } }),
+            makePost(oid(42), 'follow-1', { federation: { sensitive: true } }),
+            makePost(oid(43), 'follow-1', {}), // clean — kept
+          ];
+        }
+      }
+      return [];
+    };
+
+    const pool = await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: ['follow-1'],
+      userBehavior: {},
+      seenPostIds: [],
+      contentAffinityService: affinityStub([]),
+    });
+
+    const ids = pool.map((p) => p._id.toString());
+    expect(ids).toEqual([new mongoose.Types.ObjectId(oid(43)).toString()]);
   });
 });
 

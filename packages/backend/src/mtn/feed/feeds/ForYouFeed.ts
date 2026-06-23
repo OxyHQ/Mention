@@ -25,6 +25,7 @@ import {
 } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
 import { gatherForYouCandidates, CandidateUserBehavior } from './forYouCandidateSources';
+import { NSFW_HASHTAGS, isSensitivePost } from '../../../services/contentClassification/nsfw';
 import mongoose from 'mongoose';
 
 export class ForYouFeed implements FeedAPI {
@@ -216,8 +217,16 @@ export class ForYouFeed implements FeedAPI {
   }
 
   private async fetchPopular(cursor: string | undefined, limit: number, context: FeedContext): Promise<FeedAPIResponse> {
-    const match: any = {
+    // For You (incl. the never-blank fallback AND the anonymous path) must be
+    // uniformly SFW: exclude classifier/metadata/federation-flagged sensitive
+    // content and drop NSFW-hashtag posts at the query level so the overfetch
+    // counts only SFW posts (keeping `hasMore` accurate).
+    const match: Record<string, unknown> = {
       visibility: 'public',
+      'postClassification.sensitive': { $ne: true },
+      'metadata.isSensitive': { $ne: true },
+      'federation.sensitive': { $ne: true },
+      hashtags: { $nin: Array.from(NSFW_HASHTAGS) },
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };
 
@@ -233,6 +242,7 @@ export class ForYouFeed implements FeedAPI {
           _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
           parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
           content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
+          'postClassification.sensitive': 1,
         },
       },
       {
@@ -250,8 +260,13 @@ export class ForYouFeed implements FeedAPI {
       { $limit: limit + 1 },
     ]).option({ maxTimeMS: 5000 });
 
-    const hasMore = posts.length > limit;
-    const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+    // Belt-and-suspenders in-code guard: the query above already excludes
+    // sensitive/NSFW, so this is a no-op in practice, but it guarantees no
+    // sensitive post can ever reach For You even if the query is later changed.
+    const sfwPosts = posts.filter((post) => !isSensitivePost(post));
+
+    const hasMore = sfwPosts.length > limit;
+    const postsToReturn = hasMore ? sfwPosts.slice(0, limit) : sfwPosts;
     const nextCursor =
       hasMore && postsToReturn.length > 0
         ? postsToReturn[postsToReturn.length - 1]._id.toString()

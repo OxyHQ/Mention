@@ -27,10 +27,12 @@
  *   7. GLOBAL     — DISCOVERY: recent public posts (the old behavior), SMALL cap,
  *      for serendipity.
  *
- * SAFETY: the DISCOVERY sources (topics, language, region, trending, global)
- * EXCLUDE sensitive / NSFW content — the viewer did not opt into them. The
- * FOLLOWING and AFFINITY sources do NOT over-filter sensitive content: the
- * viewer chose those authors, mirroring existing behavior.
+ * SAFETY: For You is the curated algorithmic feed and must be uniformly SFW.
+ * The DISCOVERY sources (topics, language, region, trending, global) EXCLUDE
+ * sensitive / NSFW content at the query level, and a single sensitive/NSFW guard
+ * is additionally applied to the MERGED pool (post-union, pre-rank) so EVERY
+ * source — including FOLLOWING and AFFINITY — is covered. The separate
+ * chronological Following feed is unaffected; only For You is filtered here.
  *
  * Each source is recency-windowed, per-source capped, and projects only
  * {@link FEED_FIELDS}. The merged pool is additionally bounded by
@@ -42,7 +44,7 @@ import mongoose from 'mongoose';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../models/Post';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
-import { isNsfwHashtag } from '../../../services/contentClassification/nsfw';
+import { isSensitivePost } from '../../../services/contentClassification/nsfw';
 import { logger } from '../../../utils/logger';
 import { FEED_FIELDS } from '../FeedAPI';
 import { RankedCandidate } from '../rankedCandidate';
@@ -302,47 +304,37 @@ export async function gatherForYouCandidates(
     globalSource,
   ]);
 
-  // Each source is tagged TRUSTED (the viewer chose this content) or DISCOVERY.
-  // TRUSTED content may include sensitive/NSFW (the viewer follows/engages with
-  // those authors); DISCOVERY content has already been query-filtered for
-  // classifier-sensitivity and here additionally drops NSFW-hashtag posts.
+  // Merge order = priority: TRUSTED (the viewer's chosen following/affinity
+  // content) first, then DISCOVERY. A full `maxPool` clamp therefore keeps the
+  // viewer's chosen content over pure discovery.
   //
-  // Merge order = priority: TRUSTED first, then DISCOVERY. A full `maxPool` clamp
-  // therefore keeps the viewer's chosen content over pure discovery.
-  const sources: Array<{ posts: CandidatePost[]; discovery: boolean }> = [
-    { posts: following, discovery: false },
-    { posts: affinity, discovery: false },
-    { posts: topics, discovery: true },
-    { posts: language, discovery: true },
-    { posts: regionPosts, discovery: true },
-    { posts: trending, discovery: true },
-    { posts: global, discovery: true },
+  // SFW GUARD: For You is the curated algorithmic feed and must be uniformly SFW,
+  // so a single sensitive/NSFW filter ({@link isSensitivePost}) is applied to the
+  // merged pool covering EVERY source — including following and affinity — on top
+  // of the per-source discovery query filter. (The separate chronological
+  // Following feed does not pass through here, so it is unaffected.)
+  const sources: CandidatePost[][] = [
+    following,
+    affinity,
+    topics,
+    language,
+    regionPosts,
+    trending,
+    global,
   ];
 
   const merged = new Map<string, CandidatePost>();
-  for (const { posts, discovery } of sources) {
+  for (const posts of sources) {
     for (const post of posts) {
       if (merged.size >= cfg.maxPool) break;
       const id = post?._id?.toString();
       if (!id || merged.has(id)) continue;
-      // Drop NSFW-hashtag posts from DISCOVERY only; never over-filter trusted content.
-      if (discovery && containsNsfwHashtag(post)) continue;
+      // Uniform SFW guard: drop sensitive/NSFW from ALL sources (For You is SFW).
+      if (isSensitivePost(post)) continue;
       merged.set(id, post);
     }
     if (merged.size >= cfg.maxPool) break;
   }
 
   return Array.from(merged.values());
-}
-
-/**
- * Whether a post carries any NSFW-blocklisted hashtag. Applied in code (not as a
- * query) because the blocklist is awkward to express as an index-served filter
- * and the candidate pool is already bounded. Only the top-level `hashtags` array
- * is checked (the canonical normalized read form).
- */
-function containsNsfwHashtag(post: CandidatePost): boolean {
-  const tags = post.hashtags;
-  if (!Array.isArray(tags) || tags.length === 0) return false;
-  return tags.some((tag) => isNsfwHashtag(tag));
 }

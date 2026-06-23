@@ -25,9 +25,15 @@ vi.mock('../mtn/feed/feeds/forYouCandidateSources', () => ({
   gatherForYouCandidates: (...args: unknown[]) => gatherMock(...args),
 }));
 
+// Capture the aggregate pipeline so fetchPopular's $match can be asserted.
+const aggregatePipelines: unknown[][] = [];
+
 vi.mock('../models/Post', () => ({
   Post: {
-    aggregate: vi.fn(() => ({ option: () => aggregateMock() })),
+    aggregate: vi.fn((pipeline: unknown[]) => {
+      aggregatePipelines.push(pipeline);
+      return { option: () => aggregateMock() };
+    }),
     findOne: vi.fn(() => ({
       select: () => ({ sort: () => ({ lean: () => findOneMock() }) }),
     })),
@@ -47,7 +53,7 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 
 vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: {
-    hydratePosts: () => hydratePostsMock(),
+    hydratePosts: (...args: unknown[]) => hydratePostsMock(...args),
     hydrateSlices: () => hydrateSlicesMock(),
   },
 }));
@@ -62,9 +68,19 @@ const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStar
 
 beforeEach(() => {
   vi.clearAllMocks();
+  aggregatePipelines.length = 0;
   getSeenMock.mockResolvedValue([]);
   markSeenMock.mockResolvedValue(undefined);
 });
+
+/** Pull the `$match` stage from the captured fetchPopular aggregate pipeline. */
+function popularMatch(): Record<string, unknown> {
+  expect(aggregatePipelines.length).toBeGreaterThan(0);
+  const pipeline = aggregatePipelines[aggregatePipelines.length - 1] as Array<Record<string, unknown>>;
+  const matchStage = pipeline.find((stage) => '$match' in stage);
+  expect(matchStage).toBeDefined();
+  return (matchStage as { $match: Record<string, unknown> }).$match;
+}
 
 describe('ForYouFeed.fetch — multi-source wiring', () => {
   it('ranks the pool gathered by gatherForYouCandidates (not a global query)', async () => {
@@ -160,5 +176,60 @@ describe('ForYouFeed.fetch — anonymous viewer', () => {
 
     expect(gatherMock).not.toHaveBeenCalled();
     expect(aggregateMock).toHaveBeenCalled();
+  });
+});
+
+describe('ForYouFeed.fetchPopular — SFW (never-blank fallback + anon)', () => {
+  it('excludes sensitive/NSFW at the query level for the anonymous path', async () => {
+    aggregateMock.mockResolvedValue([{ _id: oid(100), oxyUserId: 'popular-author' }]);
+    hydratePostsMock.mockResolvedValue([{ id: oid(100).toString() }]);
+
+    const feed = new ForYouFeed();
+    await feed.fetch({ cursor: undefined, limit: 30 }, { currentUserId: undefined, followingIds: [] });
+
+    const match = popularMatch();
+    expect(match['postClassification.sensitive']).toEqual({ $ne: true });
+    expect(match['metadata.isSensitive']).toEqual({ $ne: true });
+    expect(match['federation.sensitive']).toEqual({ $ne: true });
+    const hashtags = match.hashtags as { $nin?: string[] };
+    expect(Array.isArray(hashtags?.$nin)).toBe(true);
+    expect(hashtags.$nin).toContain('nsfw');
+  });
+
+  it('excludes sensitive/NSFW on the authed never-blank fallback too', async () => {
+    gatherMock.mockResolvedValue([]); // empty union → never-blank fetchPopular
+    rankMock.mockResolvedValue([]);
+    aggregateMock.mockResolvedValue([{ _id: oid(100), oxyUserId: 'popular-author' }]);
+    hydratePostsMock.mockResolvedValue([{ id: oid(100).toString() }]);
+
+    const feed = new ForYouFeed();
+    await feed.fetch({ cursor: undefined, limit: 30 }, { currentUserId: 'viewer', followingIds: [] });
+
+    const match = popularMatch();
+    expect(match['postClassification.sensitive']).toEqual({ $ne: true });
+    expect(match['metadata.isSensitive']).toEqual({ $ne: true });
+    expect(match['federation.sensitive']).toEqual({ $ne: true });
+    expect((match.hashtags as { $nin: string[] }).$nin).toContain('nsfw');
+  });
+
+  it('belt-and-suspenders: drops any sensitive post that slips into the aggregate result', async () => {
+    // Simulate the (impossible-after-query) case of a sensitive post in the
+    // aggregate output to prove the in-code guard removes it.
+    aggregateMock.mockResolvedValue([
+      { _id: oid(101), oxyUserId: 'clean-author' },
+      { _id: oid(102), oxyUserId: 'nsfw-author', hashtags: ['nsfw'] },
+      { _id: oid(103), oxyUserId: 'flagged-author', postClassification: { sensitive: true } },
+    ]);
+    hydratePostsMock.mockImplementation((posts: Array<{ _id: { toString(): string } }>) =>
+      Promise.resolve(posts.map((p) => ({ id: p._id.toString() }))),
+    );
+
+    const feed = new ForYouFeed();
+    const res = await feed.fetch({ cursor: undefined, limit: 30 }, { currentUserId: undefined, followingIds: [] });
+
+    const returnedIds = res.items.map((item) => item.id);
+    expect(returnedIds).toContain(oid(101).toString());
+    expect(returnedIds).not.toContain(oid(102).toString());
+    expect(returnedIds).not.toContain(oid(103).toString());
   });
 });

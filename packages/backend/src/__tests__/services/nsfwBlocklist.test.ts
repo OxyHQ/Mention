@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
+import { NSFW_HASHTAGS, isNsfwHashtag, isSensitivePost } from '../../services/contentClassification/nsfw';
 
 /**
  * Unit coverage for the canonical NSFW/adult hashtag blocklist. Verifies the
@@ -37,5 +37,33 @@ describe('isNsfwHashtag', () => {
   it('exposes the blocklist as a non-empty Set', () => {
     expect(NSFW_HASHTAGS.size).toBeGreaterThan(0);
     expect(NSFW_HASHTAGS.has('nsfw')).toBe(true);
+  });
+});
+
+describe('isSensitivePost', () => {
+  it('is false (neutral) for a clean post and nullish input', () => {
+    expect(isSensitivePost(null)).toBe(false);
+    expect(isSensitivePost(undefined)).toBe(false);
+    expect(isSensitivePost({})).toBe(false);
+    expect(isSensitivePost({ hashtags: ['tech', 'art'] })).toBe(false);
+    expect(isSensitivePost({ postClassification: { sensitive: false } })).toBe(false);
+  });
+
+  it('is true when the classifier flagged it sensitive', () => {
+    expect(isSensitivePost({ postClassification: { sensitive: true } })).toBe(true);
+  });
+
+  it('is true when app metadata marks it sensitive', () => {
+    expect(isSensitivePost({ metadata: { isSensitive: true } })).toBe(true);
+  });
+
+  it('is true when the federating source flagged it sensitive', () => {
+    expect(isSensitivePost({ federation: { sensitive: true } })).toBe(true);
+  });
+
+  it('is true when it carries an NSFW/adult hashtag (any case)', () => {
+    expect(isSensitivePost({ hashtags: ['nsfw'] })).toBe(true);
+    expect(isSensitivePost({ hashtags: ['tech', 'NSFW'] })).toBe(true);
+    expect(isSensitivePost({ hashtags: ['onlyfans'] })).toBe(true);
   });
 });

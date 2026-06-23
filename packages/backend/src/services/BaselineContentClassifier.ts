@@ -24,6 +24,7 @@
 import { detect as detectLanguage } from 'tinyld/light';
 import { normalizePostHashtags } from '../utils/textProcessing';
 import { HASHTAG_ALIASES } from './contentClassification/taxonomy';
+import { isNsfwHashtag } from './contentClassification/nsfw';
 import { deriveRegion } from './contentClassification/region';
 import {
   ruleBasedTopicClassifier,
@@ -43,8 +44,14 @@ import {
  * v2: added deterministic spam/quality/toxicity scores + expanded taxonomy
  * coverage (so the version-gated backfill re-processes existing posts and writes
  * the new `postClassification.scores`).
+ *
+ * v3: derive `sensitive` from the NSFW/adult hashtag blocklist (canonical
+ * hashtags AND hashtags parsed from the visible text), so a `#NSFW`/adult post is
+ * marked sensitive even when the federating source never set the flag. The
+ * source-provided `sensitive` flag is still honored (OR-combined). Bumped so the
+ * version-gated backfill re-marks sensitive across the existing corpus.
  */
-export const BASELINE_CLASSIFIER_VERSION = 2;
+export const BASELINE_CLASSIFIER_VERSION = 3;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -146,16 +153,42 @@ export class BaselineContentClassifier {
       computeDeterministicScores(input.text ?? '', hashtagsNorm.length),
     );
 
+    // Sensitive = the source-provided flag OR any NSFW/adult hashtag. The
+    // canonical `hashtagsNorm` already merges the explicit `hashtags` array with
+    // hashtags parsed from the visible text, so this single check covers both. We
+    // also scan the raw provided hashtags so an entry that an alias remaps away
+    // from a blocklisted slug is still caught.
+    const sensitive = this.resolveSensitive(input, hashtagsNorm);
+
     return {
       language,
       region,
       hashtagsNorm,
       topics,
-      sensitive: input.sensitive,
+      sensitive,
       scores,
       version: BASELINE_CLASSIFIER_VERSION,
       classifiedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Resolve the post's `sensitive` flag: the source-provided flag OR an NSFW/adult
+   * hashtag on the post (from the canonical normalized hashtags — which already
+   * include both the explicit `hashtags` array and hashtags parsed from the text —
+   * plus the raw provided hashtags, so an alias remap can never hide a blocklisted
+   * tag). Returns `true` when either signal is present; otherwise passes the
+   * provided flag through unchanged (`false`/`undefined`), so a clean post is
+   * never spuriously marked.
+   */
+  private resolveSensitive(input: ClassifyInput, hashtagsNorm: string[]): boolean | undefined {
+    if (input.sensitive === true) return true;
+
+    const hasNsfwHashtag =
+      hashtagsNorm.some(isNsfwHashtag) || (input.hashtags ?? []).some(isNsfwHashtag);
+    if (hasNsfwHashtag) return true;
+
+    return input.sensitive;
   }
 
   /**

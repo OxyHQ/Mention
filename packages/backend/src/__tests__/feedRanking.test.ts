@@ -318,6 +318,46 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
   });
 });
 
+describe('FeedRankingService sensitive/NSFW hard exclusion (belt-and-suspenders)', () => {
+  it('zeroes the score of a classifier-flagged sensitive post', async () => {
+    const sensitive = makePost({ postClassification: { status: 'baseline', topics: [], sensitive: true } });
+    expect(await scoreWith(sensitive, {})).toBe(0);
+  });
+
+  it('zeroes the score of a metadata.isSensitive post', async () => {
+    const sensitive = makePost({ metadata: { isSensitive: true } });
+    expect(await scoreWith(sensitive, {})).toBe(0);
+  });
+
+  it('zeroes the score of a federation.sensitive post', async () => {
+    const sensitive = makePost({ federation: { sensitive: true } });
+    expect(await scoreWith(sensitive, {})).toBe(0);
+  });
+
+  it('zeroes the score of an NSFW-hashtag post even without any sensitive flag', async () => {
+    const nsfw = makePost({ hashtags: ['nsfw'] });
+    expect(await scoreWith(nsfw, {})).toBe(0);
+  });
+
+  it('is NEUTRAL for a clean post — normal ranking is unchanged', async () => {
+    // A clean post keeps a positive score (the exclusion must not fire).
+    const clean = makePost({ hashtags: ['tech'] });
+    expect(await scoreWith(clean, {})).toBeGreaterThan(0);
+  });
+
+  it('excludes sensitive posts from a ranked batch via rankPosts (score 0)', async () => {
+    // Both posts carry identical real engagement so a positive base score exists;
+    // the ONLY differentiator is the NSFW hashtag, which must zero the score.
+    const stats = { likesCount: 10, boostsCount: 5, commentsCount: 3, viewsCount: 100 };
+    const clean = makePost({ _id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
+    const nsfw = makePost({ _id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
+    const ranked = await service.rankPosts([clean, nsfw], undefined, {});
+    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p._id), p.finalScore as number]));
+    expect(byId.get('nsfw-1')).toBe(0);
+    expect(byId.get('clean-1') ?? 0).toBeGreaterThan(0);
+  });
+});
+
 describe('FeedRankingService deterministic-baseline scores (P3d) — honored via the version marker', () => {
   /** A non-classified (pending) post carrying deterministic-baseline scores at the current version. */
   function baselineScored(

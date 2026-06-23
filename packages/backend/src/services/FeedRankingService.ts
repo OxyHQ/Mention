@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 import type { PostClassificationScores } from '@mention/shared-types';
 import { BASELINE_CLASSIFIER_VERSION } from './BaselineContentClassifier';
+import { isSensitivePost } from './contentClassification/nsfw';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
@@ -821,10 +822,17 @@ export class FeedRankingService {
   /**
    * Calculate negative signals penalty.
    *
-   * Combines two kinds of penalty, multiplicatively:
-   * 1. VIEWER negative signals — hidden / muted / blocked authors and hidden
+   * Combines three kinds of penalty, multiplicatively:
+   * 1. SENSITIVE/NSFW hard exclusion — a sensitive/NSFW post
+   *    ({@link isSensitivePost}: classifier/metadata/federation flag OR an
+   *    NSFW-blocklisted hashtag) returns `0`, fully removing it from the ranked
+   *    feeds. Viewer-INDEPENDENT (applies to anonymous too). This is the
+   *    belt-and-suspenders guard: even if a sensitive post slips into the
+   *    candidate pool, it can never surface in a ranked feed. NEUTRAL for clean
+   *    posts, so normal ranking is unchanged.
+   * 2. VIEWER negative signals — hidden / muted / blocked authors and hidden
    *    topics (require a logged-in viewer with behavior data).
-   * 2. CONTENT AI-safety penalty — high spam / toxicity from the classified
+   * 3. CONTENT AI-safety penalty — high spam / toxicity from the classified
    *    scores ({@link calculateAiSafetyPenalty}). This is viewer-INDEPENDENT, so
    *    it applies on EVERY path (including anonymous) — but it is exactly `1.0`
    *    (neutral) for any post that isn't AI-classified with high-risk scores, so
@@ -836,6 +844,13 @@ export class FeedRankingService {
     userBehavior: any,
     behaviorSets?: BehaviorSets
   ): Promise<number> {
+    // Sensitive/NSFW is a HARD exclusion from ranked feeds (For You / Explore /
+    // Videos / Media), regardless of viewer. Short-circuit to 0 so the post can
+    // never surface no matter how strong its other signals are.
+    if (isSensitivePost(post)) {
+      return 0;
+    }
+
     // Content-level AI safety penalty applies regardless of viewer/behavior.
     const aiSafetyPenalty = this.calculateAiSafetyPenalty(post);
 

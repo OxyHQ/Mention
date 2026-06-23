@@ -196,11 +196,45 @@ describe('BaselineContentClassifier', () => {
     });
   });
 
-  describe('sensitive passthrough', () => {
-    it('passes the provided sensitive flag through unchanged', () => {
+  describe('sensitive', () => {
+    it('passes the provided sensitive flag through when there is no NSFW signal', () => {
       expect(baselineContentClassifier.classify({ text: 'x', sensitive: true }).sensitive).toBe(true);
       expect(baselineContentClassifier.classify({ text: 'x', sensitive: false }).sensitive).toBe(false);
       expect(baselineContentClassifier.classify({ text: 'x' }).sensitive).toBeUndefined();
+    });
+
+    it('marks a post sensitive from an NSFW hashtag in the provided array (source NOT flagged)', () => {
+      const result = baselineContentClassifier.classify({
+        text: 'check out my latest',
+        hashtags: ['#NSFW'],
+        // sensitive intentionally omitted: the federating source did not flag it.
+      });
+      expect(result.sensitive).toBe(true);
+    });
+
+    it('marks a post sensitive from an NSFW hashtag parsed from the text (source NOT flagged)', () => {
+      const result = baselineContentClassifier.classify({
+        text: 'come see more #porn here',
+      });
+      expect(result.sensitive).toBe(true);
+    });
+
+    it('matches NSFW hashtags case-insensitively and with a leading #', () => {
+      expect(baselineContentClassifier.classify({ text: 'a', hashtags: ['OnlyFans'] }).sensitive).toBe(true);
+      expect(baselineContentClassifier.classify({ text: 'hot #XXX content' }).sensitive).toBe(true);
+    });
+
+    it('keeps the source sensitive flag even when there are no NSFW hashtags', () => {
+      expect(
+        baselineContentClassifier.classify({ text: 'ordinary text', sensitive: true, hashtags: ['tech'] }).sensitive,
+      ).toBe(true);
+    });
+
+    it('does NOT mark a clean post sensitive (non-NSFW hashtags pass through unchanged)', () => {
+      expect(baselineContentClassifier.classify({ text: 'a normal post #tech #music' }).sensitive).toBeUndefined();
+      expect(
+        baselineContentClassifier.classify({ text: 'a normal post', sensitive: false, hashtags: ['art'] }).sensitive,
+      ).toBe(false);
     });
   });
 
@@ -238,6 +272,10 @@ describe('BaselineContentClassifier', () => {
   describe('version + classifiedAt', () => {
     it('stamps the ruleset version', () => {
       expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(BASELINE_CLASSIFIER_VERSION);
+    });
+
+    it('is at v3 (the NSFW-by-hashtag sensitive ruleset) so the backfill re-marks the corpus', () => {
+      expect(BASELINE_CLASSIFIER_VERSION).toBe(3);
     });
 
     it('stamps an ISO classifiedAt timestamp', () => {
