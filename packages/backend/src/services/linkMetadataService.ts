@@ -13,6 +13,23 @@ export interface LinkMetadataResult {
   favicon?: string;
 }
 
+export interface FetchMetadataOptions {
+  /**
+   * When true, on an image cache MISS the call AWAITS the downscaled S3/CDN
+   * result and returns THAT url as `result.image` (so the persisted preview
+   * serves the optimized image, not the raw full-res og:image). When false
+   * (default), the raw absolute og:image url is returned immediately and the
+   * downscale runs fire-and-forget — correct for response-path callers that
+   * must stay fast. Only callers that already run OFF the response path (e.g.
+   * background preview warming, an explicit user-triggered refresh) should set
+   * this to true.
+   */
+  awaitImageCache?: boolean;
+}
+
+/** Default for {@link FetchMetadataOptions.awaitImageCache} (response-path safe). */
+const DEFAULT_AWAIT_IMAGE_CACHE = false;
+
 /**
  * Service to fetch link metadata (Open Graph, Twitter Cards, etc.)
  * Uses url-metadata library for reliable extraction
@@ -25,9 +42,16 @@ class LinkMetadataService {
   private readonly TIMEOUT_MS = Number(process.env.LINK_METADATA_TIMEOUT_MS ?? 6000);
 
   /**
-   * Fetch metadata for a URL
+   * Fetch metadata for a URL.
+   *
+   * @param url    The page URL to extract Open Graph / Twitter Card metadata from.
+   * @param options See {@link FetchMetadataOptions}. By default the image is
+   *   resolved on the response-path-safe fast path (raw url + fire-and-forget
+   *   downscale). Off-response-path callers can set `awaitImageCache` to persist
+   *   the downscaled CDN image instead.
    */
-  async fetchMetadata(url: string): Promise<LinkMetadataResult> {
+  async fetchMetadata(url: string, options?: FetchMetadataOptions): Promise<LinkMetadataResult> {
+    const awaitImageCache = options?.awaitImageCache ?? DEFAULT_AWAIT_IMAGE_CACHE;
     try {
       // Validate URL length (prevent DoS)
       if (!validateUrlLength(url)) {
@@ -88,11 +112,24 @@ class LinkMetadataService {
           if (cachedUrl) {
             logger.debug('[LinkMetadataService] Using cached image:', cachedUrl);
             result.image = cachedUrl;
+          } else if (awaitImageCache) {
+            // Off-response-path caller: AWAIT the downscale so the persisted
+            // preview serves the optimized CDN image, not the raw og:image.
+            const downscaledUrl = await imageCacheService.cacheImage(absoluteImageUrl);
+            if (downscaledUrl && downscaledUrl.length > 0) {
+              result.image = downscaledUrl;
+            } else {
+              // Caching failed — fall back to the raw url (still renderable).
+              logger.warn('[LinkMetadataService] Awaited image caching returned no url; using original:', {
+                image: absoluteImageUrl,
+              });
+              result.image = absoluteImageUrl;
+            }
           } else {
-            // Return metadata immediately with original URL, cache image in background
+            // Response-path caller: return metadata immediately with the original
+            // URL and downscale the image in the background (fire-and-forget).
             result.image = absoluteImageUrl;
-            
-            // Cache image asynchronously (non-blocking)
+
             imageCacheService.cacheImage(absoluteImageUrl).catch((error) => {
               logger.warn('[LinkMetadataService] Background image caching failed:', error);
             });

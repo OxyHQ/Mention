@@ -178,8 +178,10 @@ router.post('/refresh', linkRefreshRateLimiter, requireAuth, async (req: AuthReq
     const cacheKey = imageCacheService.generateCacheKey(url);
     await imageCacheService.deleteImage(cacheKey);
 
-    // Force fetch fresh metadata (this will also cache the image)
-    const metadata = await linkMetadataService.fetchMetadata(url);
+    // Force fetch fresh metadata. This is an explicit user-triggered refresh
+    // (not the high-traffic GET /metadata response path), so await the image
+    // downscale to return the optimized CDN image immediately.
+    const metadata = await linkMetadataService.fetchMetadata(url, { awaitImageCache: true });
 
     logger.info('[Links] Link refreshed:', { 
       userId: req.user?.id,

@@ -41,19 +41,20 @@ describe('resolveMediaRef', () => {
     getBaseURL.mockClear();
   });
 
-  it('resolves an Oxy file id to original url + w640 thumb + w2048 fullUrl', () => {
+  it('resolves an Oxy file id to original url + w320 thumb + w2048 fullUrl', () => {
     const result = resolveMediaRef('file123');
 
     // `url` is the no-variant original (also the playable source for videos).
     expect(result.url).toBe(`${OXY_BASE}/assets/file123/stream`);
     // Thumbnail uses a display-sized variant, NOT the 256px `thumb` crop.
-    expect(result.thumbUrl).toBe(`${OXY_BASE}/assets/file123/stream?variant=w640`);
+    // The post media card / profile grid are ≤320px, so this is `w320`.
+    expect(result.thumbUrl).toBe(`${OXY_BASE}/assets/file123/stream?variant=w320`);
     // For an image-like asset the poster mirrors the thumbnail.
     expect(result.posterUrl).toBe(result.thumbUrl);
     // The lightbox upgrade uses a large variant, not the raw original.
     expect(result.fullUrl).toBe(`${OXY_BASE}/assets/file123/stream?variant=w2048`);
     expect(getFileDownloadUrl).toHaveBeenCalledWith('file123');
-    expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w640');
+    expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w320');
     expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w2048');
   });
 
@@ -98,7 +99,7 @@ describe('resolveMediaRef', () => {
 
 describe('resolveAvatarUrl', () => {
   it('returns the square thumb crop for an Oxy file id', () => {
-    // Avatars stay on the small square `thumb` crop (not the wider w640 used for
+    // Avatars stay on the small square `thumb` crop (not the wider w320 used for
     // post media), since they render tiny and circular.
     expect(resolveAvatarUrl('avatar1')).toBe(`${OXY_BASE}/assets/avatar1/stream?variant=thumb`);
   });
@@ -129,7 +130,7 @@ describe('resolveMediaItems', () => {
     expect(items[0].id).toBe('file1');
     expect(items[0].type).toBe('image');
     expect(items[0].url).toBe(`${OXY_BASE}/assets/file1/stream`);
-    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/file1/stream?variant=w640`);
+    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/file1/stream?variant=w320`);
     expect(items[0].fullUrl).toBe(`${OXY_BASE}/assets/file1/stream?variant=w2048`);
 
     const encoded = encodeURIComponent('https://external.test/v.mp4');

@@ -848,7 +848,10 @@ export class PostHydrationService {
         await Promise.all(
           batch.map(async (url) => {
             try {
-              const metadata = await linkMetadataService.fetchMetadata(url);
+              // This warm path runs detached, off the response path, so we can
+              // AWAIT the image downscale and persist the OPTIMIZED CDN image
+              // (not the raw full-res og:image) into the preview cache.
+              const metadata = await linkMetadataService.fetchMetadata(url, { awaitImageCache: true });
               const hasContent = Boolean(
                 metadata.title || metadata.description || metadata.image,
               );

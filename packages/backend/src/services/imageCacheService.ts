@@ -14,9 +14,13 @@ import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectComm
  * under the link-previews/ prefix.
  */
 
-// Image processing configuration (defaults for link previews)
-const MAX_IMAGE_WIDTH = Number(process.env.LINK_PREVIEW_MAX_WIDTH ?? 200);
-const MAX_IMAGE_HEIGHT = Number(process.env.LINK_PREVIEW_MAX_HEIGHT ?? 150);
+// Image processing configuration (defaults for link previews).
+// Bounds are sized for a ~280px-wide preview card at retina (2x) density. The
+// processImage pipeline only DOWNSCALES (ResizeFit.Inside, never enlarges), so
+// smaller og:images pass through untouched while large ones (often ~1200px) cap
+// here — keeping cached previews small without softening the card at 2x.
+const MAX_IMAGE_WIDTH = Number(process.env.LINK_PREVIEW_MAX_WIDTH ?? 640);
+const MAX_IMAGE_HEIGHT = Number(process.env.LINK_PREVIEW_MAX_HEIGHT ?? 480);
 const JPEG_QUALITY = Number(process.env.LINK_PREVIEW_JPEG_QUALITY ?? 80);
 const PNG_QUALITY = Number(process.env.LINK_PREVIEW_PNG_QUALITY ?? 80);
 const WEBP_QUALITY = Number(process.env.LINK_PREVIEW_WEBP_QUALITY ?? 80);

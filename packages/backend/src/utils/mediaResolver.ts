@@ -58,11 +58,14 @@ export interface ResolvedMedia {
  * The asset service (`packages/api/src/services/variantService.ts`
  * `imageVariants`) generates only `thumb`(256) / `w320` / `w640` / `w1280` /
  * `w2048`; `small`/`medium`/`large`/`original` 404 on the CDN. Verified live
- * scale: `thumb`~2.6KB, `w640`~6.7KB, `w2048`~25.2KB, raw original ~77KB. Each
+ * scale: `thumb`~2.6KB, `w320`~4KB, `w2048`~25.2KB, raw original ~77KB. Each
  * render context maps to a real, existing variant instead of the 256px thumb or
  * the raw original.
  *
  *  - thumbnail (post media card / profile grid) → {@link MEDIA_VARIANT_THUMB}.
+ *    Both surfaces are ≤320px wide, so this resolves to the lighter `w320`
+ *    variant rather than a wider one — big enough for a retina render of those
+ *    small cards/cells without paying for the wider variants.
  *  - fullscreen lightbox (upgrade on open)      → {@link MEDIA_VARIANT_FULL}.
  *  - avatars (small, square crop)               → {@link MEDIA_VARIANT_AVATAR}.
  */

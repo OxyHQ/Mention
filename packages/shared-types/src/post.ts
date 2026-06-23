@@ -29,8 +29,13 @@ export enum PostVisibility {
  * requests, shared by the backend resolver (`utils/mediaResolver.ts`) and the
  * frontend (post media card / lightbox fallback) so the server-resolved and
  * client-fallback URL paths always agree.
+ *
+ * The in-feed post media card (~135–320px wide) and the profile media grid
+ * (~190px cells) are both ≤320px, so the THUMB context maps to `w320` — large
+ * enough for a retina render of those small surfaces, but far lighter than the
+ * `w640`/`w1280`/`w2048` variants reserved for wider displays / the lightbox.
  */
-export const MEDIA_VARIANT_THUMB = 'w640';
+export const MEDIA_VARIANT_THUMB = 'w320';
 export const MEDIA_VARIANT_FULL = 'w2048';
 export const MEDIA_VARIANT_AVATAR = 'thumb';
 
