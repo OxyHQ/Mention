@@ -84,7 +84,10 @@ export class ExploreFeed implements FeedAPI {
     // Half-life of the exponential recency decay, in hours, sourced from the
     // shared ranking config so Explore decays consistently with ForYou.
     const halfLifeHours = MtnConfig.ranking.recency.halfLifeMs / (1000 * 60 * 60);
-    const now = Date.now();
+    // Use a Date (not a number) — Mongo `$subtract` needs Date − Date to yield
+    // milliseconds; subtracting a Date from a double throws TypeMismatch
+    // ("can't $subtract date from double") and 500s the whole Explore feed.
+    const now = new Date();
 
     const pipeline: any[] = [
       { $match: match },
