@@ -20,6 +20,7 @@ import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
 import { MuteWord } from '../../models/MuteWord';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
+import { userPreferenceService } from '../../services/UserPreferenceService';
 import type { TunerContext } from '../feed/FeedTuner';
 
 type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
@@ -124,8 +125,11 @@ class MtnFeedController {
 
       const currentUserId = req.user?.id;
 
-      // Load privacy state and following IDs in parallel
+      // Load privacy state, following IDs, and the viewer's learned behavior in
+      // parallel. `userBehavior` feeds personalized candidate generation
+      // (For You multi-source) and ranking; it soft-fails to undefined.
       let followingIds: string[] = [];
+      let userBehavior: unknown;
       const privacyState = currentUserId
         ? await UserPrivacyManager.loadPrivacyState(currentUserId)
         : null;
@@ -149,12 +153,19 @@ class MtnFeedController {
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
         }
+
+        try {
+          userBehavior = await userPreferenceService.getUserBehavior(currentUserId);
+        } catch (error) {
+          logger.warn('[MtnFeedController] Failed to load user behavior', error);
+        }
       }
 
       // Build context
       const context = {
         currentUserId,
         followingIds,
+        userBehavior,
         oxyClient,
       };
 

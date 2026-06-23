@@ -151,6 +151,74 @@ export const MtnConfig = {
     trendingWindowMs: 24 * 60 * 60 * 1000, // 24 hours
     /** Minimum score difference to distinguish cursor position */
     scoreEpsilon: 0.001,
+
+    /**
+     * MULTI-SOURCE candidate generation for the AUTHENTICATED For You feed.
+     *
+     * The old behavior ranked only the global newest-N public posts, so ranking
+     * never even SAW relevant posts from followed / affinity / preferred-topic
+     * authors unless they happened to be in the global-recency window. On a noisy
+     * federated instance that is mostly irrelevant. Instead we gather a UNION of
+     * several bounded, parallel candidate sub-queries — each consuming a
+     * different personalization signal — and feed that union into the SAME
+     * rank → dedup → never-blank → diversify → page → cursor pipeline.
+     *
+     * Every source is recency-windowed and per-source capped; the merged pool is
+     * additionally bounded by `maxPool`. All caps live here — NO magic numbers in
+     * the candidate-generation code.
+     */
+    candidateSources: {
+      /**
+       * Hard ceiling on the merged (deduped) candidate pool fed into ranking.
+       * Bounds ranking + slicing cost regardless of how many sources contribute.
+       * ~150 keeps the pool rich enough for personalization + diversity while
+       * staying cheap to rank.
+       */
+      maxPool: 150,
+      /**
+       * Recency window (ms) every source draws from. A post older than this is
+       * not a candidate. 3 days balances freshness against having enough
+       * personalized supply on a low-volume instance.
+       */
+      recencyWindowMs: 3 * 24 * 60 * 60 * 1000,
+      /**
+       * Hard cap on how many distinct author ids any single id-set source
+       * (FOLLOWING, AFFINITY) may query with. Bounds the `$in` width and keeps
+       * the query index-served and predictable.
+       */
+      maxAuthorIds: 500,
+      /** Per-source result caps (each query `.limit()`s to its cap). */
+      perSource: {
+        /** Recent posts from authors the viewer FOLLOWS (incl. federated + subscribed lists). */
+        following: 60,
+        /** Recent posts from AFFINITY authors (preferredAuthors ∪ ContentAffinityService). */
+        affinity: 40,
+        /** DISCOVERY: recent posts matching the viewer's preferred topics. */
+        topics: 30,
+        /** DISCOVERY: recent posts in the viewer's preferred language(s). */
+        language: 20,
+        /** DISCOVERY: recent posts in the viewer's region. */
+        region: 15,
+        /** DISCOVERY: recent high-engagement (trending) posts. */
+        trending: 25,
+        /** DISCOVERY: recent public posts (the old global behavior) — small, for serendipity. */
+        global: 20,
+      },
+      /**
+       * How many top author ids to draw from each affinity source before
+       * unioning + de-duplicating them (then clamped to `maxAuthorIds`).
+       */
+      maxPreferredAuthors: 100,
+      maxAffinityCandidates: 50,
+      /**
+       * How many of the viewer's preferred topic slugs / languages to query with.
+       * Bounds the multikey `$in` width on the indexed discovery sources.
+       */
+      maxPreferredTopics: 20,
+      maxPreferredLanguages: 5,
+      /** Per-source query time budget (ms). */
+      maxTimeMS: 4000,
+    },
   },
 
   // --- Cache TTLs (milliseconds) ---

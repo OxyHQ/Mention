@@ -12,7 +12,6 @@ import { feedRankingService } from '../../../services/FeedRankingService';
 import { feedSeenPostsService } from '../../../services/FeedSeenPostsService';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { threadSlicingService } from '../../../services/ThreadSlicingService';
-import { FeedQueryBuilder } from '../../../utils/feedQueryBuilder';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } from '../FeedAPI';
 import { ScoreCursor, didCursorAdvance } from '../CursorBuilder';
@@ -25,6 +24,7 @@ import {
   sliceCursorAnchor,
 } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
+import { gatherForYouCandidates, CandidateUserBehavior } from './forYouCandidateSources';
 import mongoose from 'mongoose';
 
 export class ForYouFeed implements FeedAPI {
@@ -67,15 +67,25 @@ export class ForYouFeed implements FeedAPI {
       });
     }
 
-    const match = FeedQueryBuilder.buildForYouQuery(seenPostIds, parsedCursor?.id);
-    const candidateLimit = limit * MtnConfig.feed.candidateMultiplier;
-
-    const candidatePosts = await Post.find(match)
-      .select(FEED_FIELDS)
-      .sort({ createdAt: -1 })
-      .limit(candidateLimit)
-      .maxTimeMS(5000)
-      .lean();
+    // MULTI-SOURCE candidate generation. Instead of ranking only the global
+    // newest-N public posts (so ranking never saw relevant followed / affinity /
+    // preferred-topic content unless it landed in the global-recency window), we
+    // gather a bounded UNION of personalized sources — following, affinity,
+    // preferred topics/language/region, trending, and a small global-discovery
+    // tail — and feed that pool into the SAME ranking pipeline below.
+    //
+    // Forward progress across pages comes from the score cursor + the
+    // seen-posts exclusion (the cursor's id is added to `seenPostIds` above and
+    // every source excludes seen ids), so the pool is gathered by recency within
+    // the window and the score-descending cursor handles pagination — no
+    // per-source `_id < cursor` narrowing (that would drop recent low-scoring
+    // posts that belong on a later page).
+    const candidatePosts = await gatherForYouCandidates({
+      viewerId: currentUserId,
+      followingIds: context.followingIds ?? [],
+      userBehavior: context.userBehavior as CandidateUserBehavior | undefined,
+      seenPostIds,
+    });
 
     // Rank posts
     const rankedPosts = (await feedRankingService.rankPosts(candidatePosts, currentUserId, {
