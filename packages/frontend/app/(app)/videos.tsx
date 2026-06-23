@@ -1190,10 +1190,8 @@ export default function VideosScreen() {
             if (isLiked) {
                 await unlikePost({ postId, type: 'post' });
             } else {
-                // Attribute the like to the active Reels surface ('videos' /
-                // 'following') so the backend reads it as interest in the video
-                // content. The tab value is itself a valid feed descriptor.
-                await likePost({ postId, type: 'post' }, activeFeedRef.current);
+                // Surface attribution (the active Reels tab) returns when the affinity hooks land.
+                await likePost({ postId, type: 'post' });
             }
             setPosts(prev => prev.map(p =>
                 p.id === postId
@@ -1214,8 +1212,8 @@ export default function VideosScreen() {
             if (isBoosted) {
                 await unboostPost({ postId });
             } else {
-                // Attribute the boost to the active Reels surface (see handleLike).
-                await boostPost({ postId }, activeFeedRef.current);
+                // Surface attribution (the active Reels tab) returns when the affinity hooks land.
+                await boostPost({ postId });
             }
             setPosts(prev => prev.map(p =>
                 p.id === postId
