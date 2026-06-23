@@ -6,6 +6,7 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { linkMetadataService } from './linkMetadataService';
 import { readPreviews, storePreview, markNoPreview } from './linkPreviewCache';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
@@ -148,32 +149,6 @@ function summaryFromOxyUser(userId: string, userData: OxyUser): CachedUserSummar
   };
 }
 
-/**
- * Optional bulk-fetch surface of the Oxy client. The method ships in a newer
- * `@oxyhq/core` than may currently be installed, so we describe it locally and
- * feature-detect it at runtime rather than depending on the published type. This
- * lets the bulk path activate automatically once the SDK is bumped, with NO code
- * change here and without an `as any` cast.
- */
-interface BulkUserFetcher {
-  getUsersByIds(ids: string[]): Promise<OxyUser[]>;
-}
-
-function supportsBulkUserFetch(client: unknown): client is BulkUserFetcher {
-  return typeof (client as { getUsersByIds?: unknown })?.getUsersByIds === 'function';
-}
-
-/**
- * Kill-switch for the bulk `POST /users/by-ids` hydration path. Defaults OFF.
- *
- * The bulk endpoint on oxy-api currently rejects Mention's service-token call
- * with a CSRF `403`, which stalled the whole feed (hydration could not resolve
- * authors). The per-id `getUserById` fan-out (the prior, proven path) is kept as
- * the default until oxy-api exempts the service-token POST from CSRF; flip
- * `BULK_USER_FETCH_ENABLED=true` to re-enable the batch fetch with no redeploy.
- */
-const BULK_USER_FETCH_ENABLED = process.env.BULK_USER_FETCH_ENABLED === 'true';
-
 /** A minimal, safe summary used when an author cannot be resolved from Oxy. */
 function fallbackSummary(userId: string): CachedUserSummary {
   return {
@@ -193,9 +168,9 @@ function fallbackSummary(userId: string): CachedUserSummary {
  * Resolve {@link CachedUserSummary} for a set of Oxy user ids, collapsing the
  * classic feed M+1 (one `getUserById` per unique author) into:
  *   1. a single batched read of the Redis user-summary cache, then
- *   2. a single bulk Oxy fetch for the MISSES (via `getUsersByIds` when the SDK
- *      exposes it — feature-detected so this works both before and after that
- *      method ships — otherwise the prior per-id `getUserById` fan-out), then
+ *   2. a single bulk service-token Oxy fetch for the MISSES (`getUsersByIds`
+ *      via the service client; per-id `getUserById` fallback on error or for
+ *      any id the bulk call does not return), then
  *   3. a single batched write of the freshly-resolved summaries back to cache.
  *
  * Cache hits never touch Oxy. Misses that error fall back to a minimal summary
@@ -224,40 +199,16 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
     return resolved;
   }
 
-  // 2. Resolve misses from Oxy. Prefer the bulk endpoint; fall back to per-id.
+  // 2. Resolve misses from Oxy with a single bulk service-token call. The
+  //    `/users/by-ids` endpoint is server-to-server, so it must be called via
+  //    the service client (carries the app bearer token). Any id the bulk call
+  //    does not return — and a whole-call failure — falls back to the per-id
+  //    GET, which works unauthenticated for public user data.
   const freshlyResolved = new Map<string, CachedUserSummary>();
 
-  if (BULK_USER_FETCH_ENABLED && supportsBulkUserFetch(defaultOxyClient)) {
-    try {
-      const users = await defaultOxyClient.getUsersByIds(missIds);
-      const byId = new Map<string, OxyUser>();
-      for (const user of users) {
-        const id = String((user as { id?: unknown }).id ?? '');
-        if (id) byId.set(id, user);
-      }
-      for (const userId of missIds) {
-        const userData = byId.get(userId);
-        if (userData) {
-          freshlyResolved.set(userId, summaryFromOxyUser(userId, userData));
-        } else {
-          // Bulk endpoint returned no match for this id — minimal summary, not cached.
-          resolved.set(userId, fallbackSummary(userId));
-        }
-      }
-    } catch (error) {
-      logger.warn('[PostHydration] Bulk user fetch failed, using fallback summaries', {
-        count: missIds.length,
-        reason: error instanceof Error ? error.message : 'unknown',
-      });
-      for (const userId of missIds) {
-        if (!freshlyResolved.has(userId) && !resolved.has(userId)) {
-          resolved.set(userId, fallbackSummary(userId));
-        }
-      }
-    }
-  } else {
+  const resolvePerId = async (ids: string[]): Promise<void> => {
     await Promise.all(
-      missIds.map(async (userId) => {
+      ids.map(async (userId) => {
         try {
           const userData: OxyUser = await defaultOxyClient.getUserById(userId);
           freshlyResolved.set(userId, summaryFromOxyUser(userId, userData));
@@ -267,6 +218,33 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
         }
       }),
     );
+  };
+
+  try {
+    const users = await getServiceOxyClient().getUsersByIds(missIds);
+    const byId = new Map<string, OxyUser>();
+    for (const user of users) {
+      const id = String((user as { id?: unknown }).id ?? '');
+      if (id) byId.set(id, user);
+    }
+    const unresolved: string[] = [];
+    for (const userId of missIds) {
+      const userData = byId.get(userId);
+      if (userData) {
+        freshlyResolved.set(userId, summaryFromOxyUser(userId, userData));
+      } else {
+        unresolved.push(userId);
+      }
+    }
+    if (unresolved.length > 0) {
+      await resolvePerId(unresolved);
+    }
+  } catch (error) {
+    logger.warn('[PostHydration] Bulk user fetch failed, falling back to per-id', {
+      count: missIds.length,
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    await resolvePerId(missIds);
   }
 
   // 3. Merge fresh results and write them back to cache (only real resolutions).
