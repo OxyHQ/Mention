@@ -116,6 +116,7 @@ export function useFeedState({
         fetchUserFeed,
         refreshFeed,
         loadMoreFeed,
+        cachePosts,
         clearError: clearGlobalError,
     } = usePostsStore();
 
@@ -466,6 +467,11 @@ export function useFeedState({
                     // Prime the React Query actor cache so avatars/names render
                     // on web (no SQLite). This is the web feed's only actor source.
                     precacheActorsFromPosts(uniqueItems);
+                    // Seed the shared post cache so the post-detail screen can
+                    // render instantly from `getPostFromDb(id)` instead of issuing
+                    // a cold blocking fetch on open. Memory mode keeps its own
+                    // ordering in local state; this only upserts the post objects.
+                    cachePosts(uniqueItems);
                     const initialSlices = resp.slices || undefined;
                     const initialHasMore = !!resp.hasMore;
                     setLocalItems(uniqueItems);
@@ -526,6 +532,7 @@ export function useFeedState({
             fetchFeed,
             fetchUserFeed,
             refreshFeed,
+            cachePosts,
             clearError,
             applyPendingResult,
             retainMemoryCache,
@@ -591,6 +598,8 @@ export function useFeedState({
 
                 // Prime the React Query actor cache (web feed's only actor source)
                 precacheActorsFromPosts(uniqueItems);
+                // Seed the shared post cache for instant post-detail open (see fetchInitial).
+                cachePosts(uniqueItems);
                 const refreshedSlices = resp.slices || undefined;
                 const refreshedHasMore = !!resp.hasMore;
                 setLocalItems(uniqueItems);
@@ -619,7 +628,7 @@ export function useFeedState({
         } finally {
             if (useMemoryFeed && ownsPrimary()) setLocalLoading(false);
         }
-    }, [type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, clearError, retainMemoryCache]);
+    }, [type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, cachePosts, clearError, retainMemoryCache]);
 
     const loadMore = useCallback(async () => {
         if (isLoadingMoreRef.current) {
@@ -683,6 +692,8 @@ export function useFeedState({
 
                 // Prime the React Query actor cache (web feed's only actor source)
                 precacheActorsFromPosts(items);
+                // Seed the shared post cache for instant post-detail open (see fetchInitial).
+                cachePosts(items);
 
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
@@ -760,6 +771,7 @@ export function useFeedState({
         globalFeed?.nextCursor,
         loadMoreFeed,
         fetchUserFeed,
+        cachePosts,
         retainMemoryCache,
     ]);
 

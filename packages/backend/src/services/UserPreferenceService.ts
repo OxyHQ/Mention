@@ -3,7 +3,38 @@ import { Post } from '../models/Post';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import mongoose from 'mongoose';
+import { MtnConfig, isVideoSurface } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+
+/**
+ * Optional originating-surface context for an interaction. `surface` is the
+ * feed-descriptor string the engagement happened on (e.g. `videos`, `for_you`,
+ * `author|<id>`, `hashtag|<tag>`). Used for SURFACE-AWARE attribution; absent →
+ * normal full attribution (backward compatible).
+ */
+export interface InteractionContext {
+  surface?: string;
+}
+
+/**
+ * Extract the originating feed surface from a write-request body for
+ * SURFACE-AWARE attribution. The frontend sends it as `source` (preferred) or
+ * `feedContext`; either is the feed-descriptor string (e.g. `videos`, `for_you`,
+ * `author|<id>`). Returns `undefined` when absent/blank so attribution falls
+ * back to the normal full-weight path. Accepts an arbitrary body object so any
+ * controller can call it without importing a request type.
+ */
+export function readInteractionSurface(
+  body: { source?: unknown; feedContext?: unknown } | undefined | null,
+): string | undefined {
+  const raw = typeof body?.source === 'string'
+    ? body.source
+    : typeof body?.feedContext === 'string'
+      ? body.feedContext
+      : undefined;
+  const trimmed = raw?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
 
 /**
  * UserPreferenceService - Learns user preferences from behavior
@@ -32,16 +63,23 @@ export class UserPreferenceService {
   };
 
   /**
-   * Update user behavior based on interaction
+   * Update user behavior based on interaction.
+   *
+   * SURFACE-AWARE: when `context.surface` indicates a video-first feed (reels),
+   * AUTHOR affinity is dampened and CONTENT (post-type + topic) affinity is
+   * slightly amplified — a reels like means "I like this video content", not
+   * "follow this author". Omitting `context` preserves full attribution.
    *
    * @param userId - Oxy user ID (from req.user?.id)
    * @param postId - Post ID
    * @param interactionType - Type of interaction
+   * @param context - Optional originating-surface context (feed descriptor)
    */
   async recordInteraction(
     userId: string, // Oxy user ID
     postId: string,
-    interactionType: 'like' | 'boost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block'
+    interactionType: 'like' | 'boost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block',
+    context?: InteractionContext
   ): Promise<void> {
     try {
       logger.debug(`[UserPreference] Recording ${interactionType} interaction for user ${userId}, post ${postId}`);
@@ -73,50 +111,78 @@ export class UserPreferenceService {
       }
 
       const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
+      // A negative weight is a NEGATIVE signal (e.g. `skip`): it must not be
+      // allowed to look like positive engagement. Positive-only accumulators
+      // (author interaction count, post-type preference, active hours) are
+      // skipped for negative signals; the negative effect is applied explicitly.
+      const isPositiveSignal = weight > 0;
 
-      // Update author preference
-      if (post.oxyUserId) {
+      // SURFACE-AWARE attribution split. On a video-first surface (reels), an
+      // engagement is about the CONTENT, not the author: dampen author affinity,
+      // (slightly) amplify content (post-type/topic) affinity. Off video surfaces
+      // both factors are 1.0 → identical to the prior behavior.
+      const ctx = MtnConfig.preferences.engagementContext;
+      const fromVideoSurface = isVideoSurface(context?.surface);
+      // Author affinity is DAMPENED on video surfaces; this factor scales the
+      // normalized relationship weight (see updateAuthorPreference) rather than
+      // the raw input weight, because the relationship weight is derived from the
+      // per-type interaction COUNTS, not from the input weight — scaling the input
+      // alone would have no effect on the stored author weight.
+      const authorAffinityFactor = fromVideoSurface ? ctx.videoSurfaceAuthorAffinityFactor : 1;
+      const contentWeight = weight * (fromVideoSurface ? ctx.videoSurfaceContentBoost : 1);
+
+      // Update author preference (positive signals strengthen the relationship).
+      // Dampened on video surfaces so reels likes barely move "follow this author".
+      if (post.oxyUserId && isPositiveSignal) {
         this.updateAuthorPreference(
           userBehavior,
           post.oxyUserId,
           interactionType,
-          weight
+          weight,
+          authorAffinityFactor
         );
       }
 
-      // Update topic preferences from hashtags
-      if (post.hashtags && post.hashtags.length > 0) {
+      // Update topic preferences (positive signals only — skipping a topic must
+      // not increase interest in it). Uses the content weight (amplified on video).
+      if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
         for (const hashtag of post.hashtags) {
           this.updateTopicPreference(
             userBehavior,
             hashtag.toLowerCase(),
-            weight
+            contentWeight
           );
         }
       }
 
       // Update topic preferences from AI-extracted topics (richer signal)
-      if (post.extracted?.topics && post.extracted.topics.length > 0) {
+      if (isPositiveSignal && post.extracted?.topics && post.extracted.topics.length > 0) {
         for (const extractedTopic of post.extracted.topics) {
           this.updateTopicPreference(
             userBehavior,
             extractedTopic.name.toLowerCase(),
-            weight * (extractedTopic.relevance / 10), // Scale weight by relevance
+            contentWeight * (extractedTopic.relevance / 10), // Scale weight by relevance
             extractedTopic.topicId,
           );
         }
       }
 
-      // Update post type preference
-      const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
-      if (postType in userBehavior.preferredPostTypes) {
-        userBehavior.preferredPostTypes[postType] =
-          (userBehavior.preferredPostTypes[postType] || 0) + Math.abs(weight);
+      // Update post type preference (positive signals only — a skipped post type
+      // should not be promoted just because it was scrolled past). Uses the
+      // content weight so a reels like reinforces "I like video content".
+      if (isPositiveSignal) {
+        const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
+        if (postType in userBehavior.preferredPostTypes) {
+          userBehavior.preferredPostTypes[postType] =
+            (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
+          // Mark nested object as modified
+          userBehavior.markModified('preferredPostTypes');
+        }
       }
-      // Mark nested object as modified
-      userBehavior.markModified('preferredPostTypes');
 
-      // Record active hour
+      // Record active hour for any engagement (including a genuine view) — it
+      // reflects WHEN the user is on the app, independent of sentiment. A pure
+      // skip still means the user was active, so we record it too.
       const hour = new Date().getHours();
       if (!userBehavior.activeHours.includes(hour)) {
         userBehavior.activeHours.push(hour);
@@ -133,9 +199,17 @@ export class UserPreferenceService {
         userBehavior.markModified('preferredLanguages');
       }
 
-      // Handle negative signals
+      // Handle hard negative signals (hide/mute/block) — author/topic suppression.
       if (interactionType === 'hide' || interactionType === 'mute' || interactionType === 'block') {
         this.handleNegativeSignal(userBehavior, post, interactionType);
+      }
+
+      // Handle the soft negative signal (skip): the viewer scrolled past quickly.
+      // This is NOT a suppression — it only nudges down an existing author
+      // preference weight so a repeatedly-skipped author gradually loses its
+      // boost. It never creates a preference entry or hides the author.
+      if (interactionType === 'skip' && post.oxyUserId) {
+        this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
       }
 
       userBehavior.lastUpdated = new Date();
@@ -157,7 +231,11 @@ export class UserPreferenceService {
     userBehavior: any,
     authorId: string,
     interactionType: string,
-    weight: number
+    weight: number,
+    // SURFACE-AWARE dampener applied to the FINAL normalized relationship weight.
+    // 1 = no dampening (default / non-video surface); <1 = a video-surface
+    // engagement contributes proportionally less toward "follow this author".
+    authorAffinityFactor: number = 1
   ): void {
     let authorPref = userBehavior.preferredAuthors.find(
       (a: any) => a.authorId === authorId
@@ -213,9 +291,11 @@ export class UserPreferenceService {
     const daysSinceLastInteraction =
       (Date.now() - authorPref.lastInteractionAt.getTime()) / (1000 * 60 * 60 * 24);
 
-    // Weight decays over time, but is normalized to 0-1
+    // Weight decays over time, but is normalized to 0-1. The surface-aware
+    // dampener (authorAffinityFactor) scales it DOWN for video-surface
+    // engagements so a reels like barely moves "follow this author".
     const recencyFactor = Math.max(0, 1 - daysSinceLastInteraction / 30); // Decay over 30 days
-    authorPref.weight = Math.min(1, (totalInteractions / 100) * recencyFactor);
+    authorPref.weight = Math.min(1, (totalInteractions / 100) * recencyFactor * authorAffinityFactor);
 
     // Keep only top 100 authors by weight
     userBehavior.preferredAuthors.sort((a: any, b: any) => b.weight - a.weight);
@@ -224,6 +304,34 @@ export class UserPreferenceService {
     }
 
     // Mark the array as modified so Mongoose saves the changes
+    userBehavior.markModified('preferredAuthors');
+  }
+
+  /**
+   * Soft-negative author signal: nudge down an EXISTING author preference weight
+   * (e.g. on a `skip`). Does nothing if the viewer has no preference entry for
+   * the author — a skip should never create or hide an author, only erode an
+   * accumulated boost so a repeatedly-skipped author drifts back toward neutral.
+   * Note: synchronous — only modifies in-memory objects.
+   */
+  private decayAuthorPreference(
+    userBehavior: any,
+    authorId: string,
+    magnitude: number
+  ): void {
+    const authorPref = userBehavior.preferredAuthors.find(
+      (a: any) => a.authorId === authorId
+    );
+    if (!authorPref) {
+      return; // No existing relationship — nothing to erode.
+    }
+
+    // Reduce the weight proportionally to the skip magnitude, clamped to >= 0.
+    // 0.1 keeps a single skip gentle; sustained skipping compounds toward 0.
+    const decayFactor = Math.max(0, 1 - magnitude * 0.1);
+    authorPref.weight = Math.max(0, authorPref.weight * decayFactor);
+    authorPref.lastInteractionAt = new Date();
+
     userBehavior.markModified('preferredAuthors');
   }
 

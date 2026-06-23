@@ -16,6 +16,8 @@ import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
+import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
+import { getItemKey } from '@/utils/feedUtils';
 import {
     type FeedRow,
     buildFeedRows,
@@ -64,6 +66,14 @@ const OVERSCAN_ROWS = 8;
 // the viewport, so the next page is requested slightly ahead of the user
 // hitting the literal end of the document (smoother infinite scroll).
 const LOAD_MORE_ROOT_MARGIN = '600px';
+
+// A feed row counts as "visible" for impression tracking once ≥50% of it is in
+// the viewport. The tracker then requires ≥1s of visibility before reporting.
+const IMPRESSION_VISIBILITY_THRESHOLD = 0.5;
+
+// DOM attribute carrying a row's post id, read by the impression observer to map
+// an intersecting row element back to its post.
+const POST_URI_ATTR = 'data-post-uri';
 
 /**
  * Shared data wiring for the web feed. Returns the live row set plus the
@@ -220,7 +230,7 @@ function EmbeddedWebFeed(props: FeedProps) {
  */
 function VirtualizedWebFeed(props: FeedProps) {
     const merged = { ...DEFAULT_FEED_PROPS, ...props };
-    const { hideHeader, showComposeButton, onComposePress, listHeaderComponent, type, showOnlySaved } = merged;
+    const { hideHeader, showComposeButton, onComposePress, listHeaderComponent, type, showOnlySaved, userId, filters, reloadKey } = merged;
     const { t } = useTranslation();
     const theme = useTheme();
     const router = useRouter();
@@ -232,6 +242,13 @@ function VirtualizedWebFeed(props: FeedProps) {
         handleLoadMore,
         handleRetry,
     } = useWebFeed(merged);
+
+    // Feed-ranking telemetry: derive the descriptor this feed reports against and
+    // own an impression tracker for the session. The session resets when the
+    // descriptor changes or the feed is reloaded (reloadKey), so impressions are
+    // counted once per post per session.
+    const feedDescriptor = resolveFeedDescriptor(type, userId, filters, showOnlySaved);
+    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey);
 
     // Wrapper element used as the virtualizer's measurement origin. The window is
     // the scroller; `scrollMargin` is the wrapper's offset from the document top
@@ -321,6 +338,73 @@ function VirtualizedWebFeed(props: FeedProps) {
         return () => observer.disconnect();
     }, [count, hasMore]);
 
+    // Per-row impression observer. A single IntersectionObserver (threshold 50%)
+    // watches every mounted row; crossing the threshold marks the row's post
+    // visible/hidden on the tracker, which gates the ≥1s dwell requirement and
+    // batches the network writes. The tracker is read through a ref so the
+    // observer is built ONCE and never rebuilt as rows/data change. Subscribing
+    // to a browser observer is a legitimate effect (an external event source).
+    const trackerRef = impressionTracker;
+    const impressionObserverRef = useRef<IntersectionObserver | null>(null);
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const tracker = trackerRef.current;
+                if (!tracker) return;
+                for (const entry of entries) {
+                    const postUri = entry.target.getAttribute(POST_URI_ATTR);
+                    if (!postUri) continue;
+                    if (entry.isIntersecting && entry.intersectionRatio >= IMPRESSION_VISIBILITY_THRESHOLD) {
+                        tracker.setVisible(postUri);
+                    } else {
+                        tracker.setHidden(postUri);
+                    }
+                }
+            },
+            { root: null, threshold: [0, IMPRESSION_VISIBILITY_THRESHOLD, 1] }
+        );
+        impressionObserverRef.current = observer;
+        return () => {
+            observer.disconnect();
+            impressionObserverRef.current = null;
+        };
+        // trackerRef is a stable ref object; the observer reads `.current` live.
+    }, [trackerRef]);
+
+    // Combined per-row ref factory: returns a STABLE callback (cached per post id)
+    // that wires BOTH the virtualizer's measurement ref and the impression
+    // observer on the same row node. Stability matters — a fresh inline arrow
+    // each render would make React detach/re-attach every ref on every render,
+    // re-measuring rows and thrashing observation. The cached callback is reused
+    // across renders for the same post, so the ref only fires on real mount/
+    // unmount. `measureElement` is stable for the lifetime of this virtualizer.
+    const measureElement = virtualizer.measureElement;
+    const rowRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
+    const getRowRef = useCallback((postUri: string) => {
+        const cache = rowRefCallbacks.current;
+        const existing = cache.get(postUri);
+        if (existing) return existing;
+        // Bound the cache so a very long scroll session doesn't accumulate one
+        // closure per post id forever. Only rows in the virtual window are ever
+        // mounted, so a modest cap comfortably covers the live set; evicting the
+        // rest just means a future re-scroll recreates that row's callback once.
+        if (cache.size > 500) cache.clear();
+        const cb = (node: HTMLDivElement | null) => {
+            // Virtualizer measurement (reads data-index → getBoundingClientRect).
+            measureElement(node);
+            if (node) {
+                node.setAttribute(POST_URI_ATTR, postUri);
+                impressionObserverRef.current?.observe(node);
+            }
+            // No explicit unobserve: when a virtual row unmounts React calls this
+            // with null AFTER the node is gone; the observer drops detached nodes
+            // and is fully disconnected on feed unmount. A row leaving the viewport
+            // first fires an un-intersect (→ setHidden) before it unmounts.
+        };
+        cache.set(postUri, cb);
+        return cb;
+    }, [measureElement]);
+
     // Scroll restoration against the document scroller (per-route window offset).
     useScrollRestoration('window', { enabled: true });
 
@@ -371,10 +455,15 @@ function VirtualizedWebFeed(props: FeedProps) {
                         >
                             {virtualItems.map((virtualRow) => {
                                 const row = feedRows[virtualRow.index];
+                                const postUri = getItemKey(row.item);
                                 return (
                                     <div
                                         key={virtualRow.key as React.Key}
-                                        ref={virtualizer.measureElement}
+                                        // Stable combined ref: virtualizer measurement
+                                        // (data-index → height) + impression observer
+                                        // (≥50% visibility) on the SAME row node, so
+                                        // impression ratios reflect the real row geometry.
+                                        ref={getRowRef(postUri)}
                                         data-index={virtualRow.index}
                                         style={{
                                             position: 'absolute',
@@ -384,7 +473,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                                             transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
                                         }}
                                     >
-                                        {renderFeedRow(row, { router, primaryColor: theme.colors.primary })}
+                                        {renderFeedRow(row, { router, primaryColor: theme.colors.primary, feedDescriptor })}
                                     </div>
                                 );
                             })}

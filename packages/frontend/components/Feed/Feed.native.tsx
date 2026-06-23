@@ -27,6 +27,8 @@ import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
+import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
+import type { ViewToken } from 'react-native';
 import {
     type FeedRow,
     buildFeedRows,
@@ -68,6 +70,19 @@ const DEFAULT_FEED_PROPS = {
 // is the one render-ahead lever that still applies: keep it modest so we don't
 // mount far-offscreen post rows (each row is relatively heavy) every frame.
 const FEED_DRAW_DISTANCE = 250;
+
+// Impression viewability. `itemVisiblePercentThreshold: 50` matches the web
+// IntersectionObserver's 50% gate. The ≥1s DWELL requirement is owned by the
+// shared FeedImpressionTracker (not by `minimumViewTime`) so native and web
+// qualify impressions identically; a small `minimumViewTime` only debounces
+// FlashList's own callback against scroll jitter, it does NOT stack with the
+// tracker's 1s gate. Must be a STABLE object — FlashList rejects a changing
+// viewabilityConfig at runtime.
+const IMPRESSION_VIEWABILITY_CONFIG = {
+    itemVisiblePercentThreshold: 50,
+    minimumViewTime: 100,
+    waitForInteraction: false,
+} as const;
 
 /**
  * A non-scrolling ScrollView replacement for FlashList.
@@ -228,10 +243,38 @@ const Feed = ((props: FeedProps) => {
         threadPostId,
     }), [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
 
+    // Feed-ranking telemetry: derive the descriptor this feed reports against and
+    // own an impression tracker for the session. The session resets when the
+    // descriptor changes or the feed is reloaded (reloadKey), so impressions are
+    // counted once per post per session.
+    const feedDescriptor = resolveFeedDescriptor(type, userId, filters, showOnlySaved);
+    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey);
+
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item: row }: { item: FeedRow; index: number }) => {
-        return renderFeedRow(row, { router, primaryColor: theme.colors.primary });
-    }, [router, theme.colors.primary]);
+        return renderFeedRow(row, { router, primaryColor: theme.colors.primary, feedDescriptor });
+    }, [router, theme.colors.primary, feedDescriptor]);
+
+    // Impression tracking: reconcile the full viewable set on each change.
+    // FlashList REQUIRES a stable onViewableItemsChanged identity (it warns/throws
+    // on a changing callback), so this is created ONCE and reads both the tracker
+    // and the focus flag through ref objects. Only a FOCUSED feed reports — a
+    // background feed isn't actually being viewed by the user.
+    const isFocusedRef = useRef(isFocused);
+    isFocusedRef.current = isFocused;
+    const handleViewableItemsChanged = useCallback(
+        ({ viewableItems }: { viewableItems: ViewToken[]; changed: ViewToken[] }) => {
+            if (!isFocusedRef.current) return;
+            const visibleUris: string[] = [];
+            for (const token of viewableItems) {
+                if (!token.isViewable) continue;
+                const row = token.item as FeedRow | undefined;
+                if (row?.item) visibleUris.push(getItemKey(row.item));
+            }
+            impressionTracker.current.syncVisible(visibleUris);
+        },
+        [impressionTracker]
+    );
 
     const keyExtractor = useCallback((row: FeedRow) => feedRowKey(row), []);
 
@@ -415,6 +458,8 @@ const Feed = ((props: FeedProps) => {
                     refreshControl={refreshControl}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.7}
+                    onViewableItemsChanged={handleViewableItemsChanged}
+                    viewabilityConfig={IMPRESSION_VIEWABILITY_CONFIG}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                     onScroll={scrollEnabled === false ? undefined : handleScrollEvent}
