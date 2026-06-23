@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { createScopedLogger } from '@/lib/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, shallowFiltersEqual } from '@/utils/feedUtils';
+import { FeedFilters, deepEqual } from '@/utils/feedUtils';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
@@ -526,7 +526,7 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         return false;
     }
 
-    if (!shallowFiltersEqual(prevProps.filters, nextProps.filters)) {
+    if (!deepEqual(prevProps.filters, nextProps.filters)) {
         return false;
     }
 

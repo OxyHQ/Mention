@@ -57,14 +57,6 @@ const MIN_VISIBLE_MS = 1000;
 // the full dwell; this only covers the parked-indefinitely case.
 const SAFETY_FLUSH_INTERVAL_MS = 5000;
 
-// Bounded lifetime for the safety timer: after this many flushes with no new
-// visibility change, the timer stops itself (with a final flush) so an idle feed
-// the user parks on never holds a live interval indefinitely. Any real scroll /
-// visibility change re-arms it (and resets the budget) via `setVisible`, so a
-// later-qualifying post is still covered. With SAFETY_FLUSH_INTERVAL_MS=5s this
-// caps a fully idle parked feed at ~30s of timer activity.
-const MAX_SAFETY_FLUSHES = 6;
-
 interface PendingImpression {
     postUri: string;
     // Total accumulated visible time, summed across visible→hidden cycles.
@@ -95,9 +87,6 @@ export class FeedImpressionTracker {
     private readonly descriptor: string;
     private readonly pending = new Map<string, PendingImpression>();
     private safetyTimer: ReturnType<typeof setInterval> | null = null;
-    // Flushes elapsed since the timer was last (re)armed. Reset on every re-arm
-    // so a real scroll/visibility change always grants a fresh safety budget.
-    private safetyFlushesSinceArm = 0;
     private disposed = false;
 
     constructor(descriptor: string) {
@@ -163,7 +152,10 @@ export class FeedImpressionTracker {
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
-        this.stopSafetyTimer();
+        if (this.safetyTimer) {
+            clearInterval(this.safetyTimer);
+            this.safetyTimer = null;
+        }
         // Final report: accrue any still-visible spans and emit what qualifies.
         const now = Date.now();
         for (const entry of this.pending.values()) {
@@ -173,23 +165,9 @@ export class FeedImpressionTracker {
         this.pending.clear();
     }
 
-    // (Re)arm the bounded safety timer. Called on every real visibility change so
-    // a fresh scroll always grants a new flush budget: if a timer is already
-    // running we just reset the budget, otherwise we start one. The timer stops
-    // itself once the budget is spent (see `safetyFlush`); the next visibility
-    // change starts it again.
     private ensureSafetyTimer(): void {
-        if (this.disposed) return;
-        this.safetyFlushesSinceArm = 0;
-        if (this.safetyTimer) return;
+        if (this.safetyTimer || this.disposed) return;
         this.safetyTimer = setInterval(() => this.safetyFlush(), SAFETY_FLUSH_INTERVAL_MS);
-    }
-
-    private stopSafetyTimer(): void {
-        if (this.safetyTimer) {
-            clearInterval(this.safetyTimer);
-            this.safetyTimer = null;
-        }
     }
 
     // Fold the in-progress visible span (visibleSince → `now`) into the total,
@@ -204,16 +182,10 @@ export class FeedImpressionTracker {
 
     // Safety net for posts the user parks on without ever scrolling away: snapshot
     // their running dwell and report once they qualify. Keeps the span open so a
-    // later scroll-away is a no-op (already sent).
-    //
-    // The timer has a BOUNDED lifetime: it stops once every tracked post has been
-    // reported, OR after MAX_SAFETY_FLUSHES with no new visibility change — so an
-    // idle feed the user parks on never runs the interval forever. Both stop paths
-    // run a flush first, so no qualified impression is lost. A subsequent scroll /
-    // visibility change re-arms the timer (and resets the budget) via setVisible.
+    // later scroll-away is a no-op (already sent). Stops itself once every tracked
+    // post has been reported, so an idle/backgrounded feed holds no live timer.
     private safetyFlush(): void {
         if (this.disposed) return;
-        this.safetyFlushesSinceArm += 1;
         const now = Date.now();
         let anyUnsent = false;
         for (const entry of this.pending.values()) {
@@ -226,11 +198,9 @@ export class FeedImpressionTracker {
                 this.report(entry);
             }
         }
-        // Everything reported, or the bounded budget is spent: stop until the next
-        // real visibility change re-arms us. The flush above already emitted any
-        // qualified impressions, so stopping here loses nothing.
-        if (!anyUnsent || this.safetyFlushesSinceArm >= MAX_SAFETY_FLUSHES) {
-            this.stopSafetyTimer();
+        if (!anyUnsent && this.safetyTimer) {
+            clearInterval(this.safetyTimer);
+            this.safetyTimer = null;
         }
     }
 

@@ -25,12 +25,10 @@ const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY = 1000;
 
 // Federated outbox-sync polling: when a profile feed responds with `pending`
-// (its ActivityPub outbox is still syncing in the background), we refetch until
-// posts arrive, then stop. The delay before each successive refetch backs off so
-// we probe quickly at first then ease up. The number of entries is also the
-// poll budget, so we never poll indefinitely.
-const FED_PENDING_POLL_BACKOFF_MS = [1000, 2500, 5000] as const;
-const FED_PENDING_MAX_POLLS = FED_PENDING_POLL_BACKOFF_MS.length;
+// (its ActivityPub outbox is still syncing in the background), we refetch a few
+// times until posts arrive, then stop. Bounded so we never poll indefinitely.
+const FED_PENDING_POLL_INTERVAL_MS = 2500;
+const FED_PENDING_MAX_POLLS = 3;
 
 async function withRetry<T>(
     fn: () => Promise<T>,
@@ -318,13 +316,12 @@ export function useFeedState({
     const applyPendingResult = useCallback((isPending: boolean, hasItems: boolean) => {
         if (isPending && !hasItems) {
             setPending(true);
-            const pollIndex = pendingPollCountRef.current;
-            if (pollIndex < FED_PENDING_MAX_POLLS) {
+            if (pendingPollCountRef.current < FED_PENDING_MAX_POLLS) {
                 clearPendingPoll();
                 pendingTimerRef.current = setTimeout(() => {
                     pendingPollCountRef.current += 1;
                     fetchInitialRef.current?.(true);
-                }, FED_PENDING_POLL_BACKOFF_MS[pollIndex]);
+                }, FED_PENDING_POLL_INTERVAL_MS);
             } else {
                 logger.debug('Pending poll budget exhausted, showing empty state');
             }

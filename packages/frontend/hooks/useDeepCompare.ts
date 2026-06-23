@@ -1,15 +1,9 @@
 import { useEffect, useRef, useMemo } from 'react';
-import { depsShallowEqual } from '@/utils/feedUtils';
+import { deepEqual } from '@/utils/feedUtils';
 
 /**
- * Dependency-list comparison hook for useEffect.
- *
- * Triggers the effect only when the dependency list changes by
- * {@link depsShallowEqual}: large arrays (feed `items`/`slices`) and the privacy
- * `blockedSet` Set are compared by reference, primitives by `===`, and plain
- * objects (e.g. `filters`) by one shallow pass — so a rebuilt-but-equal filters
- * object never re-fires while any real change always does. This avoids
- * `JSON.stringify`-based comparison on every render.
+ * Deep comparison hook for useEffect dependencies
+ * Uses a counter ref to trigger effects only when deep equality changes
  */
 export function useDeepCompareEffect(
     callback: React.EffectCallback,
@@ -18,7 +12,7 @@ export function useDeepCompareEffect(
     const ref = useRef(0);
     const prevDeps = useRef<React.DependencyList>(dependencies);
 
-    if (!depsShallowEqual(prevDeps.current, dependencies)) {
+    if (!deepEqual(prevDeps.current, dependencies)) {
         ref.current += 1;
         prevDeps.current = dependencies;
     }
@@ -28,11 +22,8 @@ export function useDeepCompareEffect(
 }
 
 /**
- * Dependency-list comparison memo hook.
- *
- * Recomputes the value only when the dependency list changes by
- * {@link depsShallowEqual} (see {@link useDeepCompareEffect}) — replacing the
- * old `JSON.stringify` deep compare that ran on every render of the feed.
+ * Deep comparison memo hook
+ * Memoizes a value and only recalculates when dependencies change by deep equality
  */
 export function useDeepCompareMemo<T>(
     factory: () => T,
@@ -41,7 +32,7 @@ export function useDeepCompareMemo<T>(
     const ref = useRef(0);
     const prevDeps = useRef<React.DependencyList>(dependencies);
 
-    if (!depsShallowEqual(prevDeps.current, dependencies)) {
+    if (!deepEqual(prevDeps.current, dependencies)) {
         ref.current += 1;
         prevDeps.current = dependencies;
     }
