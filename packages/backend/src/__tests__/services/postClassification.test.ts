@@ -85,6 +85,24 @@ function setFor(id: string): Record<string, unknown> | undefined {
   return undefined;
 }
 
+/**
+ * Collapse the dotted `postClassification.*` keys of a $set into a nested object.
+ * The success path now writes a DOTTED $set (so Stage-A baseline fields are
+ * preserved through AI enrichment instead of being overwritten), so this
+ * reconstructs the classification view the assertions read. Throws when no $set
+ * was written for the id (a missing write is itself a test failure).
+ */
+function classificationFor(id: string): Record<string, unknown> {
+  const set = setFor(id);
+  if (!set) throw new Error(`no $set written for post '${id}'`);
+  const prefix = 'postClassification.';
+  const classification: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(set)) {
+    if (key.startsWith(prefix)) classification[key.slice(prefix.length)] = value;
+  }
+  return classification;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   isAliaEnabled.mockReturnValue(true);
@@ -107,9 +125,8 @@ describe('PostClassificationService — category classification', () => {
 
     await postClassificationService.processQueue();
 
-    const set = setFor('p1');
-    expect(set).toBeDefined();
-    const classification = set?.postClassification as Record<string, unknown>;
+    const classification = classificationFor('p1');
+    expect(classification).toBeDefined();
     expect(classification.status).toBe('classified');
     expect(classification.sentiment).toBe('positive');
     expect(classification.intent).toBe('feedback');
@@ -135,7 +152,7 @@ describe('PostClassificationService — category classification', () => {
 
     await postClassificationService.processQueue();
 
-    const classification = setFor('p2')?.postClassification as Record<string, unknown>;
+    const classification = classificationFor('p2');
     expect(classification.sentiment).toBe('neutral');
     expect(classification.intent).toBe('personal_update');
     expect(classification.status).toBe('classified');
@@ -156,7 +173,7 @@ describe('PostClassificationService — category classification', () => {
 
     await postClassificationService.processQueue();
 
-    const classification = setFor('p3')?.postClassification as Record<string, unknown>;
+    const classification = classificationFor('p3');
     const scores = classification.scores as Record<string, number>;
     expect(classification.sentiment).toBe('mixed');
     // Constructive criticism: negative but not toxic, and highly constructive.
@@ -180,7 +197,7 @@ describe('PostClassificationService — category classification', () => {
 
     await postClassificationService.processQueue();
 
-    const classification = setFor('p4')?.postClassification as Record<string, unknown>;
+    const classification = classificationFor('p4');
     const scores = classification.scores as Record<string, number>;
     expect(classification.sentiment).toBe('negative');
     expect(scores.toxicity).toBeGreaterThan(0.5);
@@ -202,7 +219,7 @@ describe('PostClassificationService — category classification', () => {
 
     await postClassificationService.processQueue();
 
-    const classification = setFor('p5')?.postClassification as Record<string, unknown>;
+    const classification = classificationFor('p5');
     const scores = classification.scores as Record<string, number>;
     expect(scores.spam).toBeGreaterThan(0.5);
     expect(scores.quality).toBeLessThan(0.5);
@@ -223,7 +240,7 @@ describe('PostClassificationService — category classification', () => {
 
     await postClassificationService.processQueue();
 
-    const classification = setFor('p6')?.postClassification as Record<string, unknown>;
+    const classification = classificationFor('p6');
     const scores = classification.scores as Record<string, number>;
     expect(scores.quality).toBeLessThan(0.2);
     expect(classification.topics).toEqual([]);
@@ -255,8 +272,8 @@ describe('PostClassificationService — category classification', () => {
 
     await postClassificationService.processQueue();
 
-    expect((setFor('a')?.postClassification as Record<string, unknown>).sentiment).toBe('positive');
-    expect((setFor('b')?.postClassification as Record<string, unknown>).sentiment).toBe('negative');
+    expect(classificationFor('a')?.sentiment).toBe('positive');
+    expect(classificationFor('b')?.sentiment).toBe('negative');
   });
 });
 
@@ -276,7 +293,7 @@ describe('PostClassificationService — provider/model isolation', () => {
 
     await postClassificationService.processQueue();
 
-    const classification = setFor('p7')?.postClassification as Record<string, unknown>;
+    const classification = classificationFor('p7');
     const serialized = JSON.stringify(classification).toLowerCase();
     for (const banned of ['gemini', 'openai', 'anthropic', 'alia', 'gpt', 'claude', 'model', 'provider']) {
       expect(serialized).not.toContain(banned);
@@ -307,11 +324,67 @@ describe('PostClassificationService — provider/model isolation', () => {
     expect(selectArg).toBeGreaterThan(0);
     const set = setFor('p8') as Record<string, unknown>;
     expect(set).toBeDefined();
-    // No hashtags key is written by classification.
-    expect(Object.keys(set)).toEqual(['postClassification']);
-    const classification = set.postClassification as Record<string, unknown>;
+    // The dotted $set only touches `postClassification.*` AI fields — no
+    // top-level `hashtags` (or any non-classification) key is written.
+    for (const key of Object.keys(set)) {
+      expect(key.startsWith('postClassification.')).toBe(true);
+    }
+    expect(set['postClassification.hashtagsNorm']).toBeUndefined();
     // Inferred topics, not the user's hashtags.
-    expect(classification.topics).toEqual(['design', 'product_feedback']);
+    const classification = classificationFor('p8');
+    expect(classification?.topics).toEqual(['design', 'product_feedback']);
+  });
+});
+
+describe('PostClassificationService — Stage-A baseline preservation', () => {
+  it('preserves the Stage-A deterministic fields through AI enrichment (dotted merge)', async () => {
+    findResult.docs = [post('baseline_post', 'I love how much faster the Mention feed feels now.')];
+    aliaJSON.mockResolvedValue([
+      {
+        postIndex: 0,
+        topics: ['mention', 'feed', 'product_feedback'],
+        sentiment: 'positive',
+        intent: 'feedback',
+        scores: { toxicity: 0, constructiveness: 0.8, spam: 0, quality: 0.75, controversy: 0, negativity: 0 },
+        confidence: 0.9,
+      },
+    ]);
+
+    await postClassificationService.processQueue();
+
+    const set = setFor('baseline_post');
+    expect(set).toBeDefined();
+    // The AI stage uses a DOTTED $set — it MUST NOT write the whole subdoc, or it
+    // would wipe the Stage-A fields. So the update touches ONLY AI-owned keys and
+    // leaves language/region/hashtagsNorm/version/sensitive untouched in the doc.
+    expect(set?.postClassification).toBeUndefined(); // no whole-subdoc overwrite
+    expect(Object.keys(set ?? {}).sort()).toEqual(
+      [
+        'postClassification.topics',
+        'postClassification.sentiment',
+        'postClassification.intent',
+        'postClassification.scores',
+        'postClassification.confidence',
+        'postClassification.status',
+        'postClassification.attempts',
+        'postClassification.classifiedAt',
+      ].sort(),
+    );
+    // None of the Stage-A keys appear in the $set (they are preserved, not rewritten).
+    for (const stageAKey of [
+      'postClassification.language',
+      'postClassification.region',
+      'postClassification.hashtagsNorm',
+      'postClassification.version',
+      'postClassification.sensitive',
+    ]) {
+      expect(set?.[stageAKey]).toBeUndefined();
+    }
+    // AI fields are added and the post reaches `classified`.
+    const classification = classificationFor('baseline_post');
+    expect(classification?.status).toBe('classified');
+    expect(classification?.sentiment).toBe('positive');
+    expect(classification?.topics).toEqual(['mention', 'feed', 'product_feedback']);
   });
 });
 
@@ -379,7 +452,7 @@ describe('PostClassificationService — failure and retry behavior', () => {
 
     await postClassificationService.processQueue();
 
-    expect((setFor('present')?.postClassification as Record<string, unknown>).status).toBe('classified');
+    expect(classificationFor('present')?.status).toBe('classified');
     const missing = setFor('missing');
     expect(missing?.['postClassification.status']).toBe('pending');
     expect(missing?.['postClassification.attempts']).toBe(1);

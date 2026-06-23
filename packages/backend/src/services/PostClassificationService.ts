@@ -1,10 +1,7 @@
 import { z } from 'zod';
 import type { AnyBulkWriteOperation, Types } from 'mongoose';
 import { Post, type IPost } from '../models/Post';
-import type {
-  PostClassification,
-  PostClassificationScores,
-} from '@mention/shared-types';
+import type { PostClassificationScores } from '@mention/shared-types';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -258,21 +255,26 @@ class PostClassificationService {
         return this.failureUpdateOp(post, now);
       }
 
-      const classification: PostClassification & { attempts: number } = {
-        topics: result.topics,
-        sentiment: result.sentiment,
-        intent: result.intent,
-        scores: this.normalizeScores(result.scores),
-        confidence: result.confidence,
-        status: 'classified',
-        attempts: this.attemptsOf(post),
-        classifiedAt: now,
-      };
-
+      // Dotted $set of ONLY the AI-owned (Stage-B) fields. A whole-subdoc
+      // overwrite (`$set: { postClassification }`) would wipe the Stage-A
+      // deterministic fields (language, region, hashtagsNorm, version, sensitive)
+      // populated at ingest, so the two stages must merge, not replace. `topics`
+      // is shared and intentionally refined here by the AI.
       return {
         updateOne: {
           filter: { _id: post._id },
-          update: { $set: { postClassification: classification } },
+          update: {
+            $set: {
+              'postClassification.topics': result.topics,
+              'postClassification.sentiment': result.sentiment,
+              'postClassification.intent': result.intent,
+              'postClassification.scores': this.normalizeScores(result.scores),
+              'postClassification.confidence': result.confidence,
+              'postClassification.status': 'classified',
+              'postClassification.attempts': this.attemptsOf(post),
+              'postClassification.classifiedAt': now,
+            },
+          },
         },
       };
     });

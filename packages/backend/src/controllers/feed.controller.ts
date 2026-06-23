@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { ParsedQs } from 'qs';
-import { Post } from '../models/Post';
+import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
 import Poll from '../models/Poll';
 import Like, { ILike } from '../models/Like';
 import Bookmark from '../models/Bookmark';
@@ -40,6 +40,7 @@ import {
 import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
+import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import type { User } from '@oxyhq/core';
 import { threadSlicingService } from '../services/ThreadSlicingService';
@@ -1235,6 +1236,31 @@ class FeedController {
           sharesCount: 0
         }
       });
+
+      // Stage-A deterministic classification. This native reply path saves the
+      // doc directly (not via PostCreationService), so populate the baseline
+      // fields here while keeping `status: 'pending'` so the AI batch still
+      // enriches it. Best-effort: never block the reply on classification.
+      try {
+        const signals = baselineContentClassifier.classify({
+          text: replyContent?.text,
+          hashtags: mergedTags,
+        });
+        // `attempts` is internal bookkeeping (not on the PostClassification type);
+        // the subschema default seeds it to 0 for the unset path.
+        reply.postClassification = {
+          status: POST_CLASSIFICATION_PENDING,
+          topics: signals.topics,
+          language: signals.language,
+          region: signals.region,
+          hashtagsNorm: signals.hashtagsNorm,
+          sensitive: signals.sensitive,
+          version: signals.version,
+          classifiedAt: new Date(signals.classifiedAt),
+        };
+      } catch (classifyError) {
+        logger.warn('createReply: baseline classification failed; saving with default pending', classifyError);
+      }
 
       await reply.save();
 

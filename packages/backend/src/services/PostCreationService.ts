@@ -1,4 +1,4 @@
-import { Post, IPost, PostFederationData } from '../models/Post';
+import { Post, IPost, PostFederationData, POST_CLASSIFICATION_PENDING } from '../models/Post';
 import { PostType, PostVisibility, PostContent, MediaItem } from '@mention/shared-types';
 import {
   createNotification,
@@ -8,6 +8,7 @@ import {
 import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
+import { baselineContentClassifier } from './BaselineContentClassifier';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -33,6 +34,11 @@ export interface CreatePostParams {
   metadata?: Record<string, unknown>;
   // Federation fields — only for incoming federated posts
   federation?: PostFederationData;
+  // Stage-A baseline classification inputs for federated posts. The federation
+  // ingest paths pass the AP-derived instance host so the deterministic
+  // classifier can resolve a coarse region. (Language is threaded through the
+  // existing `language` param so it also fixes the top-level `post.language`.)
+  instanceDomain?: string;
   // Caller-supplied username enables outbound ActivityPub federation delivery.
   // When omitted, federation delivery is skipped.
   senderUsername?: string;
@@ -57,6 +63,49 @@ function derivePostType(params: CreatePostParams): PostType {
 }
 
 class PostCreationService {
+  /**
+   * Compute the deterministic Stage-A classification subdoc for a post and merge
+   * it onto the post data, keeping `status: 'pending'` so the async AI batch
+   * (PostClassificationService) still enriches the post afterward.
+   *
+   * Best-effort and non-fatal: classification MUST NEVER block or fail post
+   * creation. The classifier is pure/synchronous so it should not throw, but any
+   * throw is caught + logged at warn and the post is still saved with the default
+   * `pending` subdoc untouched.
+   */
+  private applyBaselineClassification(postData: Record<string, unknown>, params: CreatePostParams): void {
+    try {
+      const isFederated = params.federation != null;
+      const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)?.isSensitive;
+      const signals = baselineContentClassifier.classify({
+        text: params.content.text,
+        hashtags: params.hashtags,
+        language: params.language,
+        sensitive: params.federation?.sensitive ?? metadataSensitive,
+        isFederated,
+        instanceDomain: params.instanceDomain,
+      });
+
+      // Populate the Stage-A deterministic fields but LEAVE status 'pending' so
+      // the AI batch's unclassified filter still picks the post up.
+      postData.postClassification = {
+        status: POST_CLASSIFICATION_PENDING,
+        attempts: 0,
+        topics: signals.topics,
+        language: signals.language,
+        region: signals.region,
+        hashtagsNorm: signals.hashtagsNorm,
+        sensitive: signals.sensitive,
+        version: signals.version,
+        classifiedAt: new Date(signals.classifiedAt),
+      };
+    } catch (error) {
+      // Never block creation on classification — fall back to the schema default
+      // (`{ status: 'pending' }`) so the AI batch still processes the post.
+      logger.warn('PostCreationService: baseline classification failed; saving without Stage-A signals', error);
+    }
+  }
+
   /**
    * Create a Post document and run the standard side-effect pipeline:
    * mention notifications, reply/quote/boost notifications, subscriber
@@ -113,6 +162,10 @@ class PostCreationService {
     if (params.updatedAt != null) {
       postData.updatedAt = params.updatedAt;
     }
+
+    // Stage-A deterministic classification (native + single-federated paths).
+    // Best-effort: keeps `status: 'pending'` so the AI batch still enriches it.
+    this.applyBaselineClassification(postData, params);
 
     const post = new Post(postData);
     await post.save();

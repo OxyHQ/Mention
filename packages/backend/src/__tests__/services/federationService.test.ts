@@ -49,6 +49,9 @@ vi.mock('../../models/FederationDeliveryQueue', () => ({
 }));
 
 vi.mock('../../models/Post', () => ({
+  // Mirror the real module's `pending` constant so OutboxSyncService's Stage-A
+  // baseline seed resolves it (vitest throws on undefined mock exports).
+  POST_CLASSIFICATION_PENDING: 'pending',
   Post: {
     find: mocks.postFind,
     findOne: mocks.postFindOne,
@@ -656,5 +659,130 @@ describe('federationService media-cache fallback during outbox backfill', () => 
       ]),
       { ordered: false },
     );
+  });
+});
+
+describe('Stage-A baseline classification on federated outbox backfill', () => {
+  const outboxUrl = 'https://chaos.social/users/dieter/outbox';
+  const firstPageUrl = 'https://chaos.social/users/dieter/outbox?page=true';
+  const actorUri = 'https://chaos.social/users/dieter';
+
+  /** A German note on a .social instance carrying an explicit AP `language`. */
+  function germanNote(id: string, language?: string, contentMap?: Record<string, string>) {
+    const note: Record<string, unknown> = {
+      id: `${actorUri}/statuses/${id}`,
+      type: 'Note',
+      attributedTo: actorUri,
+      content: '<p>Guten Morgen zusammen, das ist ein ganz normaler deutscher Beitrag.</p>',
+      published: `2026-06-18T00:00:0${id}Z`,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+    };
+    if (language) note.language = language;
+    if (contentMap) note.contentMap = contentMap;
+    return {
+      id: `${actorUri}/statuses/${id}/activity`,
+      type: 'Create',
+      actor: actorUri,
+      published: `2026-06-18T00:00:0${id}Z`,
+      object: note,
+    };
+  }
+
+  function stubOutbox(activity: Record<string, unknown>) {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === outboxUrl) {
+        return jsonResponse({ type: 'OrderedCollection', totalItems: 1, first: firstPageUrl });
+      }
+      if (url === firstPageUrl) {
+        return jsonResponse({ type: 'OrderedCollectionPage', id: firstPageUrl, orderedItems: [activity] });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+  }
+
+  /** The single doc handed to the raw `Post.collection.insertMany`. */
+  function insertedDoc(): Record<string, unknown> {
+    expect(mocks.postInsertMany).toHaveBeenCalledTimes(1);
+    const docs = mocks.postInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    expect(docs).toHaveLength(1);
+    return docs[0];
+  }
+
+  it('captures the AP-declared language (not the "en" default) and the Stage-A baseline, keeping status pending', async () => {
+    stubOutbox(germanNote('1', 'de-DE'));
+
+    await federationService.syncOutboxPostsDetailed(
+      { uri: actorUri, acct: 'dieter@chaos.social', outboxUrl, oxyUserId: 'oxy_dieter' },
+      { limit: 5, maxPages: 1 },
+    );
+
+    const doc = insertedDoc();
+    // Top-level language carries the REAL AP language, not the schema default 'en'.
+    expect(doc.language).toBe('de');
+
+    const classification = doc.postClassification as Record<string, unknown>;
+    // Deterministic Stage-A fields are populated...
+    expect(classification.language).toBe('de');
+    // chaos.social is a global .social instance → no region (not mislabeled DE).
+    expect(classification.region).toBeUndefined();
+    expect(classification.version).toBeGreaterThan(0);
+    expect(classification.classifiedAt).toBeInstanceOf(Date);
+    expect(Array.isArray(classification.hashtagsNorm)).toBe(true);
+    // ...but status stays `pending` so the async AI batch still enriches it.
+    expect(classification.status).toBe('pending');
+    expect(classification.attempts).toBe(0);
+  });
+
+  it('falls back to the AP contentMap language when no top-level language is set', async () => {
+    stubOutbox(germanNote('1', undefined, { de: '<p>Guten Morgen zusammen.</p>' }));
+
+    await federationService.syncOutboxPostsDetailed(
+      { uri: actorUri, acct: 'dieter@chaos.social', outboxUrl, oxyUserId: 'oxy_dieter' },
+      { limit: 5, maxPages: 1 },
+    );
+
+    const doc = insertedDoc();
+    expect(doc.language).toBe('de');
+    expect((doc.postClassification as Record<string, unknown>).language).toBe('de');
+  });
+
+  it('derives a coarse region from a ccTLD federated instance', async () => {
+    const deOutboxUrl = 'https://social.example.de/users/dieter/outbox';
+    const deFirstPageUrl = 'https://social.example.de/users/dieter/outbox?page=true';
+    const deActorUri = 'https://social.example.de/users/dieter';
+    const note = {
+      id: `${deActorUri}/statuses/1/activity`,
+      type: 'Create',
+      actor: deActorUri,
+      published: '2026-06-18T00:00:01Z',
+      object: {
+        id: `${deActorUri}/statuses/1`,
+        type: 'Note',
+        attributedTo: deActorUri,
+        content: '<p>Guten Morgen zusammen, das ist ein deutscher Beitrag.</p>',
+        language: 'de',
+        published: '2026-06-18T00:00:01Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+      },
+    };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === deOutboxUrl) {
+        return jsonResponse({ type: 'OrderedCollection', totalItems: 1, first: deFirstPageUrl });
+      }
+      if (url === deFirstPageUrl) {
+        return jsonResponse({ type: 'OrderedCollectionPage', id: deFirstPageUrl, orderedItems: [note] });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await federationService.syncOutboxPostsDetailed(
+      { uri: deActorUri, acct: 'dieter@social.example.de', outboxUrl: deOutboxUrl, oxyUserId: 'oxy_dieter' },
+      { limit: 5, maxPages: 1 },
+    );
+
+    const classification = insertedDoc().postClassification as Record<string, unknown>;
+    expect(classification.region).toBe('DE');
   });
 });

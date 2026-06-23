@@ -7,8 +7,11 @@ import {
 } from '../../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
+import { extractApLanguage } from '../../utils/federation/apLanguage';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import { getPostCreator } from '../serviceRegistry';
+import { baselineContentClassifier } from '../BaselineContentClassifier';
+import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
 import { actorService } from './ActorService';
 import {
   isAbsoluteHttpUrl,
@@ -23,6 +26,7 @@ import {
   extractActorUri,
   extractApMedia,
   extractApHashtags,
+  getRemoteHost,
   mapApVisibility,
   resolvePostIdFromObjectUri,
   materializeFederatedMedia,
@@ -130,7 +134,72 @@ export interface OutboxSyncOptions {
  * BoostImporter so InboxProcessingService can reuse `importAnnounce` without a
  * load-order cycle.
  */
+/**
+ * The classification subdoc seeded onto a raw-inserted federated post. Mirrors
+ * the schema's `pending` default plus the Stage-A deterministic fields. `status`
+ * stays `pending` so the async AI batch still enriches the post.
+ */
+interface RawPostClassificationSeed {
+  status: typeof POST_CLASSIFICATION_PENDING;
+  attempts: number;
+  topics: string[];
+  language?: string;
+  region?: string;
+  hashtagsNorm: string[];
+  sensitive: boolean;
+  version: number;
+  classifiedAt: Date;
+}
+
 export class OutboxSyncService {
+  /**
+   * Build the Stage-A classification subdoc for a raw-inserted federated note.
+   * Best-effort: the classifier is pure/synchronous so it should not throw, but
+   * any throw is caught + logged at warn and a bare `pending` subdoc is returned
+   * so the AI batch still processes the post and the batch insert is never
+   * aborted by classification.
+   */
+  private computeBaselineForNote(input: {
+    text: string;
+    hashtags: string[];
+    language?: string;
+    sensitive: boolean;
+    instanceDomain?: string;
+  }): RawPostClassificationSeed {
+    try {
+      const signals = baselineContentClassifier.classify({
+        text: input.text,
+        hashtags: input.hashtags,
+        language: input.language,
+        sensitive: input.sensitive,
+        isFederated: true,
+        instanceDomain: input.instanceDomain,
+      });
+      return {
+        status: POST_CLASSIFICATION_PENDING,
+        attempts: 0,
+        topics: signals.topics,
+        language: signals.language,
+        region: signals.region,
+        hashtagsNorm: signals.hashtagsNorm,
+        sensitive: signals.sensitive ?? input.sensitive,
+        version: signals.version,
+        classifiedAt: new Date(signals.classifiedAt),
+      };
+    } catch (error) {
+      logger.warn('[FedSync] baseline classification failed for federated note; seeding bare pending subdoc', error);
+      return {
+        status: POST_CLASSIFICATION_PENDING,
+        attempts: 0,
+        topics: [],
+        hashtagsNorm: input.hashtags,
+        sensitive: input.sensitive,
+        version: 0,
+        classifiedAt: new Date(),
+      };
+    }
+  }
+
   /**
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
@@ -414,6 +483,24 @@ export class OutboxSyncService {
           { activityId, actorUri: actorUri ?? undefined },
         );
 
+        // AP-derived language so federated posts carry their REAL language
+        // instead of the schema default 'en'. Used both as the top-level
+        // `post.language` and as the Stage-A classifier's explicit language.
+        const apLanguage = extractApLanguage(note);
+        // Stage-A deterministic baseline. The raw insertMany bypasses Mongoose
+        // middleware AND schema defaults, so the baseline fields are set
+        // explicitly here (mirroring the explicit `postClassification` seed and
+        // explicit `normalizePostHashtags` call). Best-effort: a classifier throw
+        // must not abort the whole batch insert — fall back to the bare pending
+        // subdoc on failure.
+        const baseline = this.computeBaselineForNote({
+          text,
+          hashtags,
+          language: apLanguage,
+          sensitive: note.sensitive === true,
+          instanceDomain: actorUri ? getRemoteHost(actorUri) : undefined,
+        });
+
         newDocs.push({
           oxyUserId: resolvedOxyUserId,
           federation: {
@@ -431,6 +518,7 @@ export class OutboxSyncService {
           },
           visibility: mapApVisibility(note.to, note.cc),
           hashtags,
+          ...(apLanguage ? { language: apLanguage } : {}),
           status: 'published',
           // Engagement counters start at 0 and only ever move in lockstep with
           // real native records (Like docs / boost Posts / reply Posts) created
@@ -448,10 +536,10 @@ export class OutboxSyncService {
             isSensitive: note.sensitive === true,
           },
           // The raw collection insertMany bypasses Mongoose schema defaults, so
-          // seed the classification subdoc explicitly. Federated/imported posts
-          // must default to `pending` so the classification batch job picks them
-          // up exactly like locally created posts.
-          postClassification: { status: 'pending', attempts: 0 },
+          // seed the classification subdoc explicitly. Stage-A deterministic
+          // fields are populated here while `status` stays `pending` so the async
+          // AI batch still enriches the post exactly like locally created posts.
+          postClassification: baseline,
           ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
         });
       }
@@ -756,6 +844,10 @@ export class OutboxSyncService {
         },
         visibility: mapApVisibility(note.to, note.cc),
         hashtags,
+        // AP-derived language + author instance for the Stage-A baseline (and the
+        // top-level `post.language`), via PostCreationService's classifier wiring.
+        language: extractApLanguage(note),
+        instanceDomain: authorUri ? getRemoteHost(authorUri) : undefined,
         status: 'published',
         metadata: { isSensitive: note.sensitive === true },
         skipNotifications: true,
