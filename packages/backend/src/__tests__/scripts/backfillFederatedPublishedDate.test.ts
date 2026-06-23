@@ -5,8 +5,8 @@ import { describe, it, expect, vi } from 'vitest';
  * backfill one-shot. No DB and no federation I/O are touched — the `Post` model
  * and the federation helpers (whose imports pull in mongoose + the media cache
  * graph) are mocked so importing the script never opens a connection. Only the
- * deterministic `parseDryRun` / `parseLimit` / `parseSinceDays` helpers are
- * exercised.
+ * deterministic `parseDryRun` / `parseLimit` / `parseSinceDays` /
+ * `parseConcurrency` helpers are exercised.
  */
 
 vi.mock('../../models/Post', () => ({ Post: {} }));
@@ -15,7 +15,7 @@ vi.mock('../../services/federation/sharedFederationHelpers', () => ({
   parseApPublished: vi.fn(),
 }));
 
-import { parseDryRun, parseLimit, parseSinceDays } from '../../scripts/backfillFederatedPublishedDate';
+import { parseDryRun, parseLimit, parseSinceDays, parseConcurrency } from '../../scripts/backfillFederatedPublishedDate';
 
 describe('backfillFederatedPublishedDate — parseDryRun', () => {
   it('treats unset / undefined as a live (writing) run', () => {
@@ -90,5 +90,37 @@ describe('backfillFederatedPublishedDate — parseSinceDays', () => {
     expect(parseSinceDays('-30', NOW)).toBeNull();
     expect(parseSinceDays('1.5', NOW)).toBeNull();
     expect(parseSinceDays('NaN', NOW)).toBeNull();
+  });
+});
+
+describe('backfillFederatedPublishedDate — parseConcurrency', () => {
+  const DEFAULT = 4;
+  const MAX = 50;
+
+  it('returns the default (4) for unset / empty / whitespace', () => {
+    expect(parseConcurrency(undefined)).toBe(DEFAULT);
+    expect(parseConcurrency('')).toBe(DEFAULT);
+    expect(parseConcurrency('   ')).toBe(DEFAULT);
+  });
+
+  it('uses a valid positive integer within range', () => {
+    expect(parseConcurrency('1')).toBe(1);
+    expect(parseConcurrency('8')).toBe(8);
+    expect(parseConcurrency('  20  ')).toBe(20);
+    expect(parseConcurrency('50')).toBe(MAX);
+  });
+
+  it('clamps values above the safe max (50) down to 50', () => {
+    expect(parseConcurrency('51')).toBe(MAX);
+    expect(parseConcurrency('100')).toBe(MAX);
+    expect(parseConcurrency('1000')).toBe(MAX);
+  });
+
+  it('falls back to the default (4) for non-numeric, ≤0, and non-integer values', () => {
+    expect(parseConcurrency('abc')).toBe(DEFAULT);
+    expect(parseConcurrency('0')).toBe(DEFAULT);
+    expect(parseConcurrency('-5')).toBe(DEFAULT);
+    expect(parseConcurrency('1.5')).toBe(DEFAULT);
+    expect(parseConcurrency('NaN')).toBe(DEFAULT);
   });
 });

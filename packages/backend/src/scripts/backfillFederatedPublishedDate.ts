@@ -42,10 +42,16 @@
  *     BOTH the upfront total count and every per-page `find` so the `_id`-cursor
  *     pagination, total, and progress stay consistent. Unset / empty / non-numeric
  *     / ≤0 / non-integer → no date filter (full history, unchanged behavior).
+ *   - `BACKFILL_CONCURRENCY` (optional positive integer): number of concurrent
+ *     remote AP fetches per page. Higher values hide the latency of dead remote
+ *     instances (each GET can sit until an 8s timeout), turning a ~12h scoped
+ *     backfill into ~1-2h. Clamped to a safe max of 50; unset / empty / non-numeric
+ *     / ≤0 / non-integer → the default 4.
  *
- * The three controls are independent and compose cleanly: `BACKFILL_SINCE_DAYS`
+ * The four controls are independent and compose cleanly: `BACKFILL_SINCE_DAYS`
  * narrows the Mongo filter, `BACKFILL_LIMIT` caps how many of the matching posts
- * are scanned, and `DRY_RUN` skips all writes.
+ * are scanned, `BACKFILL_CONCURRENCY` sets the remote fetch fan-out, and `DRY_RUN`
+ * skips all writes.
  */
 
 import mongoose from 'mongoose';
@@ -57,8 +63,18 @@ import { signedFetch, parseApPublished } from '../services/federation/sharedFede
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
 
-/** Concurrent remote AP fetches per page (keep remote fan-out small). */
-const FETCH_CONCURRENCY = 4;
+/**
+ * Default concurrent remote AP fetches per page. The bottleneck is sequential-ish
+ * waiting on dead remote instances that time out at 8s, so higher concurrency hides
+ * that latency. Overridable via `BACKFILL_CONCURRENCY` (see `parseConcurrency`).
+ */
+const DEFAULT_FETCH_CONCURRENCY = 4;
+
+/**
+ * Hard ceiling for `BACKFILL_CONCURRENCY`. Caps remote fan-out so a misconfigured
+ * value can't hammer remote instances or exhaust local sockets.
+ */
+const MAX_FETCH_CONCURRENCY = 50;
 
 /**
  * Minimum difference between the stored `createdAt` and the original `published`
@@ -74,11 +90,13 @@ const MS_PER_DAY = 86_400_000;
  * `dryRun` performs the full read-only scan (remote re-fetch + drift comparison)
  * but writes nothing. `limit` caps the number of federated posts SCANNED (canary).
  * `sinceCutoff`, when set, restricts the scan to posts `createdAt >= sinceCutoff`.
+ * `concurrency` is the resolved number of concurrent remote AP fetches per page.
  */
 interface RunOptions {
   dryRun: boolean;
   limit: number | null;
   sinceCutoff: Date | null;
+  concurrency: number;
 }
 
 /**
@@ -118,6 +136,21 @@ export function parseSinceDays(raw: string | undefined, now: number = Date.now()
   const parsed = Number(trimmed);
   if (!Number.isInteger(parsed) || parsed <= 0) return null;
   return new Date(now - parsed * MS_PER_DAY);
+}
+
+/**
+ * `BACKFILL_CONCURRENCY` is an optional positive-integer remote-fetch fan-out. A
+ * valid value is used but CLAMPED to `MAX_FETCH_CONCURRENCY` (50) to avoid a footgun
+ * that hammers remote instances; values above the cap clamp down to it. Non-numeric,
+ * empty, ≤0, non-integer, or unset → the default `DEFAULT_FETCH_CONCURRENCY` (4).
+ */
+export function parseConcurrency(raw: string | undefined): number {
+  if (typeof raw !== 'string') return DEFAULT_FETCH_CONCURRENCY;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return DEFAULT_FETCH_CONCURRENCY;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) return DEFAULT_FETCH_CONCURRENCY;
+  return Math.min(parsed, MAX_FETCH_CONCURRENCY);
 }
 
 interface FederatedPostRow {
@@ -168,12 +201,14 @@ async function backfillFederatedPublishedDate(): Promise<void> {
     dryRun: parseDryRun(process.env.DRY_RUN),
     limit: parseLimit(process.env.BACKFILL_LIMIT),
     sinceCutoff: parseSinceDays(process.env.BACKFILL_SINCE_DAYS),
+    concurrency: parseConcurrency(process.env.BACKFILL_CONCURRENCY),
   };
 
   logger.info(
     `[backfillFederatedPublishedDate] mode: ${options.dryRun ? 'DRY RUN (read-only, no writes)' : 'LIVE (writes enabled)'}; ` +
       `scan limit: ${options.limit === null ? 'none (full scan)' : String(options.limit)}; ` +
-      `date window: ${options.sinceCutoff === null ? 'no date filter (full history)' : `createdAt >= ${options.sinceCutoff.toISOString()}`}`,
+      `date window: ${options.sinceCutoff === null ? 'no date filter (full history)' : `createdAt >= ${options.sinceCutoff.toISOString()}`}; ` +
+      `fetch concurrency: ${options.concurrency}`,
   );
 
   try {
@@ -226,8 +261,8 @@ async function backfillFederatedPublishedDate(): Promise<void> {
 
       if (page.length === 0) break;
 
-      for (let i = 0; i < page.length; i += FETCH_CONCURRENCY) {
-        const batch = page.slice(i, i + FETCH_CONCURRENCY);
+      for (let i = 0; i < page.length; i += options.concurrency) {
+        const batch = page.slice(i, i + options.concurrency);
         const originals = await Promise.all(batch.map(fetchOriginalPublished));
 
         for (let j = 0; j < batch.length; j++) {
