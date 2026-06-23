@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { createScopedLogger } from '@/lib/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, getItemKey, deepEqual } from '@/utils/feedUtils';
+import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
 import type { FlashListRef } from '@shopify/flash-list';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
@@ -500,8 +500,8 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         return false;
     }
 
-    // Deep comparison for filters using utility
-    if (!deepEqual(prevProps.filters, nextProps.filters)) {
+    // Shallow comparison for the flat filters bag (avoids JSON.stringify).
+    if (!shallowFiltersEqual(prevProps.filters, nextProps.filters)) {
         return false;
     }
 
