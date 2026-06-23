@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   postFind: vi.fn(),
   postAggregate: vi.fn(),
   entityFollowFind: vi.fn(),
+  userBehaviorFindOne: vi.fn(),
   blockFind: vi.fn(),
   muteFind: vi.fn(),
   restrictFind: vi.fn(),
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../models/Like', () => ({ default: { find: mocks.likeFind } }));
 vi.mock('../../models/Post', () => ({ Post: { find: mocks.postFind, aggregate: mocks.postAggregate } }));
 vi.mock('../../models/EntityFollow', () => ({ EntityFollow: { find: mocks.entityFollowFind } }));
+vi.mock('../../models/UserBehavior', () => ({ default: { findOne: mocks.userBehaviorFindOne } }));
 vi.mock('../../models/Block', () => ({ default: { find: mocks.blockFind } }));
 vi.mock('../../models/Mute', () => ({ default: { find: mocks.muteFind } }));
 vi.mock('../../models/Restrict', () => ({ default: { find: mocks.restrictFind } }));
@@ -46,6 +48,11 @@ function leanQuery(rows: unknown[]) {
   return vi.fn().mockReturnValue(chain);
 }
 
+/** Build a `findOne().lean()` mock returning a single (or null) document. */
+function leanFindOne(doc: unknown) {
+  return vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(doc) });
+}
+
 /** Default: empty exclusion relations. */
 function emptyExclusions(): void {
   mocks.blockFind.mockImplementation(leanQuery([]));
@@ -59,6 +66,9 @@ function noSignals(): void {
   mocks.postAggregate.mockResolvedValue([]);
   mocks.likeFind.mockImplementation(leanQuery([]));
   mocks.postFind.mockImplementation(leanQuery([]));
+  // No maintained behavior aggregate by default (cold viewer) → preferred-author,
+  // topic-affinity, and negative-signal inputs all run empty.
+  mocks.userBehaviorFindOne.mockImplementation(leanFindOne(null));
 }
 
 beforeEach(() => {
@@ -285,5 +295,165 @@ describe('ContentAffinityService.getContentCandidates', () => {
     expect(result).toEqual(cached);
     expect(mocks.entityFollowFind).not.toHaveBeenCalled();
     expect(mocks.likeFind).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContentAffinityService UserBehavior signals', () => {
+  it('uses preferredAuthors (maintained relationship weight) as the strongest signal', async () => {
+    // A maxed-out preferred author (weight 1.0) must outrank a single hashtag-only
+    // author covering one followed tag — preferred-author is the strongest signal.
+    mocks.userBehaviorFindOne.mockImplementation(leanFindOne({
+      preferredAuthors: [{ authorId: 'fav', weight: 1.0 }],
+      preferredTopics: [],
+      hiddenAuthors: [],
+      mutedAuthors: [],
+      blockedAuthors: [],
+      hiddenTopics: [],
+    }));
+    mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'rust' }]));
+    mocks.postAggregate.mockResolvedValue([
+      { _id: 'tag_only', matchedTags: [['rust']], postCount: 1 },
+    ]);
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    const fav = result.find((c) => c.userId === 'fav');
+    const tagOnly = result.find((c) => c.userId === 'tag_only')?.weight ?? 0;
+    expect(fav).toBeDefined();
+    expect(fav?.reasons).toContain('preferred-author');
+    expect(fav?.weight ?? 0).toBeGreaterThan(tagOnly);
+  });
+
+  it('scales the preferred-author contribution by the maintained weight', async () => {
+    mocks.userBehaviorFindOne.mockImplementation(leanFindOne({
+      preferredAuthors: [
+        { authorId: 'strong', weight: 0.9 },
+        { authorId: 'weak', weight: 0.1 },
+      ],
+      preferredTopics: [],
+      hiddenAuthors: [],
+      mutedAuthors: [],
+      blockedAuthors: [],
+      hiddenTopics: [],
+    }));
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    const strong = result.find((c) => c.userId === 'strong')?.weight ?? 0;
+    const weak = result.find((c) => c.userId === 'weak')?.weight ?? 0;
+    expect(strong).toBeGreaterThan(weak);
+    expect(weak).toBeGreaterThan(0);
+  });
+
+  it('topic affinity picks authors posting under the viewer\'s preferred topics', async () => {
+    mocks.userBehaviorFindOne.mockImplementation(leanFindOne({
+      preferredAuthors: [],
+      preferredTopics: [
+        { topic: 'machine_learning', weight: 0.8 },
+        { topic: 'rust', weight: 0.3 },
+      ],
+      hiddenAuthors: [],
+      mutedAuthors: [],
+      blockedAuthors: [],
+      hiddenTopics: [],
+    }));
+    // No followed hashtags → the hashtag aggregation returns []; the topic
+    // aggregation (matched on postClassification.topics) returns the authors.
+    mocks.postAggregate.mockImplementation((pipeline: Array<{ $match?: Record<string, unknown> }>) => {
+      const match = pipeline[0]?.$match ?? {};
+      if ('postClassification.topics' in match) {
+        return Promise.resolve([
+          { _id: 'ml_author', matchedTopics: [['machine_learning']], postCount: 3 },
+          { _id: 'rust_author', matchedTopics: [['rust']], postCount: 1 },
+        ]);
+      }
+      return Promise.resolve([]); // hashtag aggregation
+    });
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    const ids = result.map((c) => c.userId);
+    expect(ids).toContain('ml_author');
+    expect(ids).toContain('rust_author');
+    // The strongly-preferred topic (0.8) outweighs the weakly-preferred one (0.3).
+    const ml = result.find((c) => c.userId === 'ml_author')?.weight ?? 0;
+    const rust = result.find((c) => c.userId === 'rust_author')?.weight ?? 0;
+    expect(ml).toBeGreaterThan(rust);
+    expect(result.find((c) => c.userId === 'ml_author')?.reasons).toContain('topic');
+  });
+
+  it('strips hidden topics from the topic-affinity input', async () => {
+    mocks.userBehaviorFindOne.mockImplementation(leanFindOne({
+      preferredAuthors: [],
+      preferredTopics: [
+        { topic: 'crypto', weight: 0.9 }, // hidden → must not pull authors
+        { topic: 'rust', weight: 0.5 },
+      ],
+      hiddenAuthors: [],
+      mutedAuthors: [],
+      blockedAuthors: [],
+      hiddenTopics: ['crypto'],
+    }));
+    const seen: Array<Record<string, unknown>> = [];
+    mocks.postAggregate.mockImplementation((pipeline: Array<{ $match?: Record<string, unknown> }>) => {
+      const match = pipeline[0]?.$match ?? {};
+      if ('postClassification.topics' in match) {
+        seen.push(match);
+      }
+      return Promise.resolve([]);
+    });
+
+    const service = makeService();
+    await service.getContentCandidates('viewer_1');
+
+    // Exactly one topic aggregation ran, and it queried only the non-hidden topic.
+    expect(seen).toHaveLength(1);
+    const topicsIn = (seen[0]['postClassification.topics'] as { $in: string[] }).$in;
+    expect(topicsIn).toEqual(['rust']);
+  });
+
+  it('excludes behavior-tracked hidden/muted/blocked authors from candidates', async () => {
+    mocks.userBehaviorFindOne.mockImplementation(leanFindOne({
+      // The negative author also appears as an engaged + preferred author — it must
+      // STILL be excluded (suppression wins over affinity).
+      preferredAuthors: [{ authorId: 'hidden_1', weight: 1.0 }],
+      preferredTopics: [],
+      hiddenAuthors: ['hidden_1'],
+      mutedAuthors: ['muted_1'],
+      blockedAuthors: ['blocked_1'],
+      hiddenTopics: [],
+    }));
+    mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'rust' }]));
+    mocks.postAggregate.mockResolvedValue([
+      { _id: 'hidden_1', matchedTags: [['rust']], postCount: 1 },
+      { _id: 'muted_1', matchedTags: [['rust']], postCount: 1 },
+      { _id: 'blocked_1', matchedTags: [['rust']], postCount: 1 },
+      { _id: 'good', matchedTags: [['rust']], postCount: 1 },
+    ]);
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    const ids = result.map((c) => c.userId);
+    expect(ids).toEqual(['good']);
+  });
+
+  it('degrades gracefully when the behavior load throws (no behavior signals)', async () => {
+    mocks.userBehaviorFindOne.mockReturnValue({
+      lean: vi.fn().mockRejectedValue(new Error('db down')),
+    });
+    // Hashtag affinity still produces a candidate — the behavior-derived signals
+    // simply contribute nothing.
+    mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'rust' }]));
+    mocks.postAggregate.mockResolvedValue([
+      { _id: 'tag_author', matchedTags: [['rust']], postCount: 1 },
+    ]);
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+    expect(result.map((c) => c.userId)).toContain('tag_author');
   });
 });

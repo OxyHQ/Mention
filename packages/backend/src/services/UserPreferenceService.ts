@@ -17,6 +17,22 @@ export interface InteractionContext {
 }
 
 /**
+ * The (lean) post fields {@link UserPreferenceService.recordInteraction} reads
+ * when attributing an interaction. A structural subset of the `Post` document so
+ * a lean query result is assignable without coupling to the full Mongoose
+ * `Document` type. `postClassification`/`extracted` are kept loosely typed to
+ * match {@link UserPreferenceService['getCanonicalTopics']}'s tolerant reader.
+ */
+interface InteractionPost {
+  oxyUserId?: string;
+  type?: string;
+  language?: string;
+  hashtags?: string[];
+  postClassification?: { topicRefs?: unknown };
+  extracted?: { topics?: unknown };
+}
+
+/**
  * Extract the originating feed surface from a write-request body for
  * SURFACE-AWARE attribution. The frontend sends it as `source` (preferred) or
  * `feedContext`; either is the feed-descriptor string (e.g. `videos`, `for_you`,
@@ -48,6 +64,20 @@ export function readInteractionSurface(
  * - Authors interacted with
  */
 export class UserPreferenceService {
+  // The accumulators (preferredAuthors weight/decay, top-N sort+slice, recency
+  // factors, multiplicative skip-decay) are stateful and order-dependent, so the
+  // write is a load-modify-`.save()` under Mongoose optimistic concurrency (`__v`).
+  // Feed-impression telemetry fires many concurrent interactions per user, so two
+  // saves can collide on `__v` (`VersionError`). When that happens we re-read the
+  // freshest document and re-apply the SAME mutation — the accumulators are
+  // commutative-enough that re-applying against the winning revision yields the
+  // correct end state, and the flood of `VersionError` logs/wasted writes is gone.
+  // Bounded so a pathological hot user can never spin unboundedly.
+  private readonly MAX_VERSION_CONFLICT_RETRIES = 5;
+  // MongoDB duplicate-key error code, raised when two concurrent FIRST
+  // interactions both insert a fresh UserBehavior for the same `oxyUserId`.
+  private readonly DUPLICATE_KEY_ERROR_CODE = 11000;
+
   // Learning weights (how much each interaction affects preferences)
   private readonly LEARNING_WEIGHTS = {
     like: 1.0,
@@ -90,144 +120,198 @@ export class UserPreferenceService {
         return;
       }
 
-      // userId is an Oxy user ID, query UserBehavior using oxyUserId field
-      let userBehavior = await UserBehavior.findOne({ oxyUserId: userId });
-
-      if (!userBehavior) {
-        logger.debug(`[UserPreference] Creating new UserBehavior record for user ${userId}`);
-        userBehavior = new UserBehavior({
-          oxyUserId: userId,
-          preferredAuthors: [],
-          preferredTopics: [],
-          preferredPostTypes: {
-            text: 0,
-            image: 0,
-            video: 0,
-            poll: 0
-          },
-          activeHours: [],
-          preferredLanguages: []
-        });
-      }
-
-      const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
-      // A negative weight is a NEGATIVE signal (e.g. `skip`): it must not be
-      // allowed to look like positive engagement. Positive-only accumulators
-      // (author interaction count, post-type preference, active hours) are
-      // skipped for negative signals; the negative effect is applied explicitly.
-      const isPositiveSignal = weight > 0;
-
-      // SURFACE-AWARE attribution split. On a video-first surface (reels), an
-      // engagement is about the CONTENT, not the author: dampen author affinity,
-      // (slightly) amplify content (post-type/topic) affinity. Off video surfaces
-      // both factors are 1.0 → identical to the prior behavior.
-      const ctx = MtnConfig.preferences.engagementContext;
-      const fromVideoSurface = isVideoSurface(context?.surface);
-      // Author affinity is DAMPENED on video surfaces; this factor scales the
-      // normalized relationship weight (see updateAuthorPreference) rather than
-      // the raw input weight, because the relationship weight is derived from the
-      // per-type interaction COUNTS, not from the input weight — scaling the input
-      // alone would have no effect on the stored author weight.
-      const authorAffinityFactor = fromVideoSurface ? ctx.videoSurfaceAuthorAffinityFactor : 1;
-      const contentWeight = weight * (fromVideoSurface ? ctx.videoSurfaceContentBoost : 1);
-
-      // Update author preference (positive signals strengthen the relationship).
-      // Dampened on video surfaces so reels likes barely move "follow this author".
-      if (post.oxyUserId && isPositiveSignal) {
-        this.updateAuthorPreference(
-          userBehavior,
-          post.oxyUserId,
-          interactionType,
-          weight,
-          authorAffinityFactor
-        );
-      }
-
-      // Update topic preferences (positive signals only — skipping a topic must
-      // not increase interest in it). Uses the content weight (amplified on video).
-      if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
-        for (const hashtag of post.hashtags) {
-          this.updateTopicPreference(
-            userBehavior,
-            hashtag.toLowerCase(),
-            contentWeight
-          );
+      // Apply the load-modify-save under a bounded retry loop so concurrent
+      // interactions for the same user (impression telemetry) re-read and
+      // re-apply on a write race instead of flooding error logs. Two races are
+      // possible: a `__v` `VersionError` on the versioned update of an existing
+      // document, and a duplicate-key error (`E11000` on the unique `oxyUserId`)
+      // when two FIRST interactions both insert a fresh document. Both resolve by
+      // re-reading the freshest revision and re-applying the same mutation.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await this.applyInteraction(userId, post, interactionType, context);
+          logger.debug(`[UserPreference] Successfully saved UserBehavior for user ${userId}`);
+          return;
+        } catch (error) {
+          if (this.isConcurrentWriteConflict(error) && attempt < this.MAX_VERSION_CONFLICT_RETRIES) {
+            logger.debug(
+              `[UserPreference] Concurrent write conflict saving UserBehavior for user ${userId} (attempt ${attempt + 1}), retrying`,
+            );
+            continue;
+          }
+          throw error;
         }
       }
-
-      // Update topic preferences from classified topics (richer signal). Prefer
-      // the canonical `postClassification.topicRefs` (registry-linked), falling
-      // back to legacy `extracted.topics`. Canonical refs may carry no relevance
-      // (AI topics are slug-only), so an absent relevance scales by the full
-      // content weight (relevance factor 1) rather than zeroing the signal.
-      if (isPositiveSignal) {
-        for (const topic of this.getCanonicalTopics(post)) {
-          if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
-          const relevanceFactor =
-            typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
-          this.updateTopicPreference(
-            userBehavior,
-            topic.name.toLowerCase(),
-            contentWeight * relevanceFactor,
-            topic.topicId,
-          );
-        }
-      }
-
-      // Update post type preference (positive signals only — a skipped post type
-      // should not be promoted just because it was scrolled past). Uses the
-      // content weight so a reels like reinforces "I like video content".
-      if (isPositiveSignal) {
-        const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
-        if (postType in userBehavior.preferredPostTypes) {
-          userBehavior.preferredPostTypes[postType] =
-            (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
-          // Mark nested object as modified
-          userBehavior.markModified('preferredPostTypes');
-        }
-      }
-
-      // Record active hour for any engagement (including a genuine view) — it
-      // reflects WHEN the user is on the app, independent of sentiment. A pure
-      // skip still means the user was active, so we record it too.
-      const hour = new Date().getHours();
-      if (!userBehavior.activeHours.includes(hour)) {
-        userBehavior.activeHours.push(hour);
-        // Keep only last 168 hours (1 week) of activity
-        userBehavior.activeHours = userBehavior.activeHours.slice(-168);
-        // Mark array as modified
-        userBehavior.markModified('activeHours');
-      }
-
-      // Update language preference
-      if (post.language && !userBehavior.preferredLanguages.includes(post.language)) {
-        userBehavior.preferredLanguages.push(post.language);
-        // Mark array as modified
-        userBehavior.markModified('preferredLanguages');
-      }
-
-      // Handle hard negative signals (hide/mute/block) — author/topic suppression.
-      if (interactionType === 'hide' || interactionType === 'mute' || interactionType === 'block') {
-        this.handleNegativeSignal(userBehavior, post, interactionType);
-      }
-
-      // Handle the soft negative signal (skip): the viewer scrolled past quickly.
-      // This is NOT a suppression — it only nudges down an existing author
-      // preference weight so a repeatedly-skipped author gradually loses its
-      // boost. It never creates a preference entry or hides the author.
-      if (interactionType === 'skip' && post.oxyUserId) {
-        this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
-      }
-
-      userBehavior.lastUpdated = new Date();
-
-      await userBehavior.save();
-      logger.debug(`[UserPreference] Successfully saved UserBehavior for user ${userId}`);
     } catch (error) {
       logger.error(`[UserPreference] Error recording interaction for user ${userId}, post ${postId}:`, error);
       // Re-throw to see full error stack
       throw error;
     }
+  }
+
+  /**
+   * One load-modify-`.save()` pass for {@link recordInteraction}. Re-reads the
+   * current `UserBehavior` document (so a retry applies against the freshest
+   * revision), applies the full accumulator mutation, and persists it. Extracted
+   * so the retry loop can re-run it verbatim on a `VersionError`. Behavior is
+   * identical to the previous inline body — only the read+mutate+save is now
+   * encapsulated so it can be re-attempted.
+   */
+  private async applyInteraction(
+    userId: string,
+    post: InteractionPost,
+    interactionType: 'like' | 'boost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block',
+    context?: InteractionContext,
+  ): Promise<void> {
+    // userId is an Oxy user ID, query UserBehavior using oxyUserId field
+    let userBehavior = await UserBehavior.findOne({ oxyUserId: userId });
+
+    if (!userBehavior) {
+      logger.debug(`[UserPreference] Creating new UserBehavior record for user ${userId}`);
+      userBehavior = new UserBehavior({
+        oxyUserId: userId,
+        preferredAuthors: [],
+        preferredTopics: [],
+        preferredPostTypes: {
+          text: 0,
+          image: 0,
+          video: 0,
+          poll: 0
+        },
+        activeHours: [],
+        preferredLanguages: []
+      });
+    }
+
+    const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
+    // A negative weight is a NEGATIVE signal (e.g. `skip`): it must not be
+    // allowed to look like positive engagement. Positive-only accumulators
+    // (author interaction count, post-type preference, active hours) are
+    // skipped for negative signals; the negative effect is applied explicitly.
+    const isPositiveSignal = weight > 0;
+
+    // SURFACE-AWARE attribution split. On a video-first surface (reels), an
+    // engagement is about the CONTENT, not the author: dampen author affinity,
+    // (slightly) amplify content (post-type/topic) affinity. Off video surfaces
+    // both factors are 1.0 → identical to the prior behavior.
+    const ctx = MtnConfig.preferences.engagementContext;
+    const fromVideoSurface = isVideoSurface(context?.surface);
+    // Author affinity is DAMPENED on video surfaces; this factor scales the
+    // normalized relationship weight (see updateAuthorPreference) rather than
+    // the raw input weight, because the relationship weight is derived from the
+    // per-type interaction COUNTS, not from the input weight — scaling the input
+    // alone would have no effect on the stored author weight.
+    const authorAffinityFactor = fromVideoSurface ? ctx.videoSurfaceAuthorAffinityFactor : 1;
+    const contentWeight = weight * (fromVideoSurface ? ctx.videoSurfaceContentBoost : 1);
+
+    // Update author preference (positive signals strengthen the relationship).
+    // Dampened on video surfaces so reels likes barely move "follow this author".
+    if (post.oxyUserId && isPositiveSignal) {
+      this.updateAuthorPreference(
+        userBehavior,
+        post.oxyUserId,
+        interactionType,
+        weight,
+        authorAffinityFactor
+      );
+    }
+
+    // Update topic preferences (positive signals only — skipping a topic must
+    // not increase interest in it). Uses the content weight (amplified on video).
+    if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
+      for (const hashtag of post.hashtags) {
+        this.updateTopicPreference(
+          userBehavior,
+          hashtag.toLowerCase(),
+          contentWeight
+        );
+      }
+    }
+
+    // Update topic preferences from classified topics (richer signal). Prefer
+    // the canonical `postClassification.topicRefs` (registry-linked), falling
+    // back to legacy `extracted.topics`. Canonical refs may carry no relevance
+    // (AI topics are slug-only), so an absent relevance scales by the full
+    // content weight (relevance factor 1) rather than zeroing the signal.
+    if (isPositiveSignal) {
+      for (const topic of this.getCanonicalTopics(post)) {
+        if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
+        const relevanceFactor =
+          typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
+        this.updateTopicPreference(
+          userBehavior,
+          topic.name.toLowerCase(),
+          contentWeight * relevanceFactor,
+          topic.topicId,
+        );
+      }
+    }
+
+    // Update post type preference (positive signals only — a skipped post type
+    // should not be promoted just because it was scrolled past). Uses the
+    // content weight so a reels like reinforces "I like video content".
+    if (isPositiveSignal) {
+      const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
+      if (postType in userBehavior.preferredPostTypes) {
+        userBehavior.preferredPostTypes[postType] =
+          (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
+        // Mark nested object as modified
+        userBehavior.markModified('preferredPostTypes');
+      }
+    }
+
+    // Record active hour for any engagement (including a genuine view) — it
+    // reflects WHEN the user is on the app, independent of sentiment. A pure
+    // skip still means the user was active, so we record it too.
+    const hour = new Date().getHours();
+    if (!userBehavior.activeHours.includes(hour)) {
+      userBehavior.activeHours.push(hour);
+      // Keep only last 168 hours (1 week) of activity
+      userBehavior.activeHours = userBehavior.activeHours.slice(-168);
+      // Mark array as modified
+      userBehavior.markModified('activeHours');
+    }
+
+    // Update language preference
+    if (post.language && !userBehavior.preferredLanguages.includes(post.language)) {
+      userBehavior.preferredLanguages.push(post.language);
+      // Mark array as modified
+      userBehavior.markModified('preferredLanguages');
+    }
+
+    // Handle hard negative signals (hide/mute/block) — author/topic suppression.
+    if (interactionType === 'hide' || interactionType === 'mute' || interactionType === 'block') {
+      this.handleNegativeSignal(userBehavior, post, interactionType);
+    }
+
+    // Handle the soft negative signal (skip): the viewer scrolled past quickly.
+    // This is NOT a suppression — it only nudges down an existing author
+    // preference weight so a repeatedly-skipped author gradually loses its
+    // boost. It never creates a preference entry or hides the author.
+    if (interactionType === 'skip' && post.oxyUserId) {
+      this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
+    }
+
+    userBehavior.lastUpdated = new Date();
+
+    await userBehavior.save();
+  }
+
+  /**
+   * True when an error from {@link applyInteraction}'s `.save()` is a retryable
+   * concurrent-write race: a Mongoose optimistic-concurrency `VersionError` on
+   * an existing document, or a MongoDB duplicate-key error (`E11000`) from two
+   * concurrent first-interaction inserts on the unique `oxyUserId`. Both are
+   * resolved by re-reading and re-applying.
+   */
+  private isConcurrentWriteConflict(error: unknown): boolean {
+    if (error instanceof mongoose.Error.VersionError) {
+      return true;
+    }
+    return (
+      error instanceof mongoose.mongo.MongoServerError &&
+      error.code === this.DUPLICATE_KEY_ERROR_CODE
+    );
   }
 
   /**

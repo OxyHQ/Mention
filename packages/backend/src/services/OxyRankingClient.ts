@@ -7,22 +7,23 @@
  * to Mention's frontend DTO) lives in exactly one place. If the Oxy contract
  * changes, only this file changes.
  *
- * Viewer identity (DUAL-AUTH NOTE):
- * --------------------------------
- * Recommendations are personalized by the viewer's mutual-connection overlap.
- * Mention's backend calls Oxy with a SERVICE token (it has no end-user session
- * token to forward server-side), passing the viewer's Oxy user id via the
- * `X-Oxy-User-Id` header (`makeServiceRequest(method, url, body, userId)`).
+ * Viewer identity (DUAL-AUTH):
+ * ---------------------------
+ * Recommendations are personalized by the viewer's mutual-connection overlap,
+ * app signals, and the content-affinity `boosts` Mention supplies. Mention's
+ * backend calls Oxy with a SERVICE token (it has no end-user session token to
+ * forward server-side), passing the viewer's Oxy user id via the `X-Oxy-User-Id`
+ * header (`makeServiceRequest(method, url, body, userId)`).
  *
- * As of this writing the Oxy `POST /profiles/recommendations` endpoint uses
- * `optionalAuthMiddleware`, which only honours a real SESSION token and IGNORES
- * `X-Oxy-User-Id` — so a service-token call is currently treated as ANONYMOUS
- * (popular-public fallback) regardless of the forwarded viewer id. This adapter
- * is written the correct way (it always forwards the viewer id when present) so
- * that the moment Oxy accepts service-auth + `X-Oxy-User-Id` (dual auth) on that
- * route, Mention gets personalized results with NO change here. Until then,
- * logged-in callers transparently degrade to the same public ranking as
- * logged-out callers — never an error. See the implementation report.
+ * The Oxy `POST /profiles/recommendations` endpoint authenticates with
+ * `optionalUserOrServiceAuth` and resolves the personalization viewer via
+ * `resolveViewerId`: a SERVICE principal that holds the viewer-delegation scope
+ * (`user:read`, which Mention's service credential has) names the viewer through
+ * `X-Oxy-User-Id`. So a service-token call WITH a forwarded viewer id is
+ * personalized end to end — the forwarded id seeds the viewer's mutual-overlap
+ * graph and the supplied content-affinity boosts join the candidate union. A
+ * service credential WITHOUT `user:read`, or a call with no/invalid viewer id,
+ * resolves to anonymous (popular-public fallback) — never an error.
  */
 
 import type { UserNameResponse } from '@oxyhq/contracts';

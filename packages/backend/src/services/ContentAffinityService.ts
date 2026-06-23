@@ -7,7 +7,7 @@
  * injects them into its candidate pool, subject to eligibility, and weights them
  * via the `appBoost` signal). Mention only COMPUTES good candidates; Oxy ranks.
  *
- * Two Mention-only content signals, summed per author:
+ * Four Mention-only content signals, summed per author:
  *
  *  1. HASHTAG AFFINITY (weaker) — for each hashtag the viewer follows
  *     (`EntityFollow` entityType `'hashtag'`), the recent, active, PUBLIC authors
@@ -15,13 +15,33 @@
  *     hashtags they cover (distinct-tag coverage), with a per-author post-volume
  *     bonus that saturates so a single prolific author cannot dominate.
  *
- *  2. ENGAGEMENT AFFINITY (stronger) — authors of posts the viewer LIKED, REPLIED
+ *  2. TOPIC AFFINITY (weaker) — for each topic the viewer has demonstrably
+ *     engaged with (`UserBehavior.preferredTopics`, populated from the AI
+ *     `postClassification.topicRefs`), the recent PUBLIC authors posting under
+ *     that topic. Like hashtag affinity but driven by INFERRED interest rather
+ *     than explicit follows, and each topic is scaled by the viewer's maintained
+ *     per-topic weight so strongly-preferred topics matter more.
+ *
+ *  3. ENGAGEMENT AFFINITY (stronger) — authors of posts the viewer LIKED, REPLIED
  *     TO, or BOOSTED. A direct, intentional signal, so it is weighted well above
- *     hashtag co-occurrence.
+ *     topic/hashtag co-occurrence.
+ *
+ *  4. PREFERRED-AUTHOR AFFINITY (strongest) — authors the viewer has a maintained
+ *     relationship with (`UserBehavior.preferredAuthors`), carrying a
+ *     recency-decayed relationship weight (0..1) that already folds in like/boost/
+ *     comment/save/share counts AND the video-surface dampener. This is the single
+ *     best "who to follow" signal: it is the long-horizon, decayed roll-up of the
+ *     viewer's real engagement, so it is weighted highest.
  *
  * Aggregation is bounded and viewer-scoped (every query is index-served and
  * limited), so this is cheap enough to run per recommendation request. Results
  * are additionally cached per-viewer in Redis with a short TTL.
+ *
+ * NEGATIVE SIGNALS: authors the viewer has hidden/muted/blocked (relation models
+ * AND `UserBehavior.hiddenAuthors`/`mutedAuthors`/`blockedAuthors`) are excluded
+ * from candidates, and topics the viewer has hidden (`UserBehavior.hiddenTopics`)
+ * are removed from the topic-affinity input so we never recommend "more of what
+ * you told us to stop showing you".
  *
  * SOFT-FAIL CONTRACT: this service is additive. The caller
  * ({@link RecommendationService}) wraps it in try/catch and proceeds with no
@@ -34,6 +54,7 @@ import { PostType, MtnConfig, isVideoSurface } from '@mention/shared-types';
 import Like from '../models/Like';
 import { Post, type IPost } from '../models/Post';
 import { EntityFollow } from '../models/EntityFollow';
+import UserBehavior, { type IUserBehavior } from '../models/UserBehavior';
 import Block from '../models/Block';
 import Mute from '../models/Mute';
 import Restrict from '../models/Restrict';
@@ -63,6 +84,17 @@ const MAX_AUTHORS_PER_HASHTAG = 200;
 const MAX_LIKES_SCANNED = 500; // was 300
 const MAX_VIEWER_INTERACTIONS_SCANNED = 500; // was 300
 
+/**
+ * Top-N maintained `preferredTopics` consulted for the TOPIC-affinity signal.
+ * The model keeps up to {@link MtnConfig.preferences.maxPreferredTopics}; we only
+ * fan out over the strongest few so a topic the viewer barely touched does not
+ * pull in a wide, weakly-related author set.
+ */
+const MAX_PREFERRED_TOPICS = 20;
+
+/** Per-topic author scan cap for the topic-affinity aggregation (mirrors hashtag). */
+const MAX_AUTHORS_PER_TOPIC = 200;
+
 /** Per-viewer Redis cache TTL (seconds). Short so affinity stays fresh. */
 const CACHE_TTL_SECONDS = 120;
 
@@ -78,6 +110,24 @@ const HASHTAG_VOLUME_BONUS_MAX = 1; // saturating bonus for posting volume under
 const ENGAGEMENT_LIKE_WEIGHT = 3;
 const ENGAGEMENT_REPLY_WEIGHT = 4;
 const ENGAGEMENT_BOOST_WEIGHT = 5;
+
+/**
+ * TOPIC AFFINITY. Per topic the viewer engaged with, an author covering it earns
+ * this weight scaled by the viewer's maintained per-topic weight (0..1), plus the
+ * same saturating volume bonus the hashtag signal uses. Kept on par with hashtag
+ * affinity (both are weak co-occurrence signals).
+ */
+const TOPIC_TAG_WEIGHT = 1;
+const TOPIC_VOLUME_BONUS_MAX = 1;
+
+/**
+ * PREFERRED-AUTHOR AFFINITY base. The maintained relationship `weight` is already
+ * a recency-decayed, surface-aware roll-up in [0, 1], so the contributed score is
+ * `weight * PREFERRED_AUTHOR_WEIGHT`. Set so a fully-saturated relationship
+ * (weight ≈ 1) slightly outscores a single boost — the strongest single "who to
+ * follow" signal — while a faint relationship stays modest.
+ */
+const PREFERRED_AUTHOR_WEIGHT = 6;
 
 /** A single content-affinity candidate author. */
 export interface ContentCandidate {
@@ -128,22 +178,41 @@ export class ContentAffinityService {
 
     const since = new Date(Date.now() - WINDOW_MS);
 
-    // Run the (independent) exclusion lookup and the two affinity signals in
-    // parallel. Each signal already self-degrades to empty on error.
-    const [excluded, hashtagScores, engagementScores] = await Promise.all([
+    // The maintained behavior aggregate drives THREE things: the preferred-author
+    // signal, the topic-affinity input (preferredTopics), and the negative-signal
+    // exclusion/suppression sets. Fetch it once up front so the signals below can
+    // consume it; it self-degrades to null on error (signals then run empty).
+    const behavior = await this.loadBehavior(viewerId);
+    const hiddenTopics = this.collectHiddenTopics(behavior);
+    const preferredTopics = this.collectPreferredTopics(behavior, hiddenTopics);
+
+    // Run the (independent) exclusion lookup and the affinity signals in parallel.
+    // Each signal already self-degrades to empty on error.
+    const [relationExcluded, hashtagScores, topicScores, engagementScores] = await Promise.all([
       this.resolveExcludeIds(viewerId),
       // Aggregation `$match` compares against the BSON Date path directly.
       this.computeHashtagAffinity(viewerId, since),
+      this.computeTopicAffinity(viewerId, since, preferredTopics),
       // `find()` filters are typed against `IPost` (createdAt declared as string);
       // pass the ISO boundary so Mongoose casts it to a Date for the query.
       this.computeEngagementAffinity(viewerId, since.toISOString()),
     ]);
 
-    // Merge the per-author accumulators from both signals.
+    // The full exclusion set = relation models (block/mute/restrict + self) PLUS
+    // the behavior-tracked negative authors (hidden/muted/blocked from the feed).
+    // A hidden author must never resurface as a follow recommendation.
+    const excluded = new Set<string>(relationExcluded);
+    for (const id of this.collectNegativeAuthors(behavior)) excluded.add(id);
+
+    // The preferred-author signal is computed from the (already-fetched) behavior
+    // doc — no extra query — and merged like the other signals.
+    const preferredAuthorScores = this.computePreferredAuthorAffinity(behavior);
+
+    // Merge the per-author accumulators from all signals.
     const merged = new Map<string, AuthorAccumulator>();
-    for (const source of [hashtagScores, engagementScores]) {
+    for (const source of [hashtagScores, topicScores, engagementScores, preferredAuthorScores]) {
       for (const [authorId, acc] of source) {
-        if (!authorId || excluded.has(authorId)) continue;
+        if (!authorId || authorId === viewerId || excluded.has(authorId)) continue;
         const existing = merged.get(authorId);
         if (existing) {
           existing.weight += acc.weight;
@@ -176,6 +245,182 @@ export class ContentAffinityService {
 
     await this.writeCache(cacheKey, candidates);
     return candidates;
+  }
+
+  /**
+   * Load the viewer's maintained {@link IUserBehavior} aggregate (preferred
+   * authors/topics + negative-signal lists). Returns null on a miss or any error
+   * so every behavior-derived signal simply runs empty — the service stays
+   * additive and never throws on a behavior read.
+   */
+  private async loadBehavior(viewerId: string): Promise<IUserBehavior | null> {
+    try {
+      return await UserBehavior.findOne({ oxyUserId: viewerId }).lean<IUserBehavior>();
+    } catch (error) {
+      logger.warn(`[ContentAffinity] behavior load failed for ${viewerId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * The viewer's hidden-topic slugs (lowercased) from the behavior doc. Used to
+   * strip suppressed topics out of the topic-affinity input.
+   */
+  private collectHiddenTopics(behavior: IUserBehavior | null): Set<string> {
+    const set = new Set<string>();
+    for (const t of behavior?.hiddenTopics ?? []) {
+      if (typeof t === 'string' && t.length > 0) set.add(t.toLowerCase());
+    }
+    return set;
+  }
+
+  /**
+   * The viewer's behavior-tracked negative AUTHORS — hidden, muted, and blocked
+   * from the feed — as a flat id list. These join the relation-model exclusions so
+   * an author the viewer suppressed is never recommended as someone to follow.
+   */
+  private collectNegativeAuthors(behavior: IUserBehavior | null): string[] {
+    if (!behavior) return [];
+    const ids: string[] = [];
+    for (const list of [behavior.hiddenAuthors, behavior.mutedAuthors, behavior.blockedAuthors]) {
+      for (const id of list ?? []) {
+        if (typeof id === 'string' && id.length > 0) ids.push(id);
+      }
+    }
+    return ids;
+  }
+
+  /**
+   * The viewer's strongest engaged topics (top {@link MAX_PREFERRED_TOPICS} by
+   * maintained weight), minus any hidden topics, as `{ topic, weight }`. `weight`
+   * is the maintained per-topic relationship strength in [0, 1] — it scales the
+   * topic-affinity contribution so a strongly-preferred topic pulls authors in
+   * harder than a barely-touched one.
+   */
+  private collectPreferredTopics(
+    behavior: IUserBehavior | null,
+    hiddenTopics: Set<string>,
+  ): Array<{ topic: string; weight: number }> {
+    const prefs = behavior?.preferredTopics ?? [];
+    return prefs
+      .map((p) => ({
+        topic: typeof p.topic === 'string' ? p.topic.trim().toLowerCase() : '',
+        weight: typeof p.weight === 'number' && Number.isFinite(p.weight) ? Math.max(0, Math.min(1, p.weight)) : 0,
+      }))
+      .filter((p) => p.topic.length > 0 && p.weight > 0 && !hiddenTopics.has(p.topic))
+      // The model already keeps preferredTopics sorted by weight desc, but sort
+      // defensively so the cap takes the genuinely strongest topics.
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, MAX_PREFERRED_TOPICS);
+  }
+
+  /**
+   * PREFERRED-AUTHOR AFFINITY. Turn the maintained `preferredAuthors` roll-up into
+   * per-author accumulators. Each author's contribution is its recency-decayed
+   * relationship `weight` (0..1, already surface-aware) times
+   * {@link PREFERRED_AUTHOR_WEIGHT}. This is the strongest single "who to follow"
+   * signal because it is the long-horizon decayed summary of the viewer's real
+   * engagement. Zero/invalid weights contribute nothing. Pure in-memory — the
+   * behavior doc was already fetched.
+   */
+  private computePreferredAuthorAffinity(behavior: IUserBehavior | null): Map<string, AuthorAccumulator> {
+    const result = new Map<string, AuthorAccumulator>();
+    for (const pref of behavior?.preferredAuthors ?? []) {
+      const authorId = typeof pref.authorId === 'string' ? pref.authorId : '';
+      const weight = typeof pref.weight === 'number' && Number.isFinite(pref.weight) ? pref.weight : 0;
+      if (authorId.length === 0 || weight <= 0) continue;
+      result.set(authorId, {
+        weight: Math.max(0, Math.min(1, weight)) * PREFERRED_AUTHOR_WEIGHT,
+        reasons: new Set(['preferred-author']),
+      });
+    }
+    return result;
+  }
+
+  /**
+   * TOPIC AFFINITY. For the viewer's strongest engaged topics, aggregate the
+   * recent PUBLIC, published authors posting under any of them (matched on the AI
+   * `postClassification.topics` slugs, index-served). Each author's weight rises
+   * with how many of the viewer's preferred topics they cover — weighted by the
+   * viewer's per-topic strength — plus a saturating post-volume bonus. Mirrors
+   * {@link computeHashtagAffinity} but driven by inferred interest.
+   */
+  private async computeTopicAffinity(
+    viewerId: string,
+    since: Date,
+    preferredTopics: Array<{ topic: string; weight: number }>,
+  ): Promise<Map<string, AuthorAccumulator>> {
+    const result = new Map<string, AuthorAccumulator>();
+    if (preferredTopics.length === 0) return result;
+
+    const topicWeight = new Map<string, number>();
+    for (const p of preferredTopics) topicWeight.set(p.topic, p.weight);
+    const topics = Array.from(topicWeight.keys());
+
+    try {
+      // One aggregation: recent public posts whose classified topics intersect the
+      // viewer's preferred topics, grouped by author, tracking which preferred
+      // topics they covered and their post volume. Index-served by
+      // {postClassification.topics, visibility, status, createdAt}.
+      const rows = await Post.aggregate<{
+        _id: string;
+        matchedTopics: string[];
+        postCount: number;
+      }>([
+        {
+          $match: {
+            'postClassification.topics': { $in: topics },
+            visibility: 'public',
+            status: 'published',
+            type: { $ne: 'boost' },
+            oxyUserId: { $ne: null },
+            createdAt: { $gte: since },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $limit: MAX_AUTHORS_PER_TOPIC * topics.length },
+        {
+          $group: {
+            _id: '$oxyUserId',
+            matchedTopics: { $addToSet: { $setIntersection: ['$postClassification.topics', topics] } },
+            postCount: { $sum: 1 },
+          },
+        },
+        { $limit: MAX_AUTHORS_PER_TOPIC },
+      ]);
+
+      for (const row of rows) {
+        const authorId = row._id;
+        if (typeof authorId !== 'string' || authorId.length === 0 || authorId === viewerId) {
+          continue;
+        }
+        // `matchedTopics` is an array-of-arrays (one inner array per post); flatten
+        // to the distinct set of preferred topics this author actually covered, and
+        // score each by the viewer's maintained per-topic weight.
+        const distinctTopics = new Set<string>();
+        for (const inner of row.matchedTopics ?? []) {
+          if (Array.isArray(inner)) {
+            for (const t of inner) if (typeof t === 'string') distinctTopics.add(t);
+          }
+        }
+        if (distinctTopics.size === 0) continue;
+
+        let coverageWeight = 0;
+        for (const t of distinctTopics) coverageWeight += topicWeight.get(t) ?? 0;
+        if (coverageWeight <= 0) continue;
+
+        const postCount = row.postCount ?? 0;
+        const volumeBonus =
+          TOPIC_VOLUME_BONUS_MAX * (Math.log1p(postCount) / Math.log1p(postCount + 4));
+        const weight = coverageWeight * TOPIC_TAG_WEIGHT + volumeBonus;
+
+        result.set(authorId, { weight, reasons: new Set(['topic']) });
+      }
+    } catch (error) {
+      logger.warn(`[ContentAffinity] topic affinity failed for ${viewerId}:`, error);
+      return new Map();
+    }
+    return result;
   }
 
   /**
