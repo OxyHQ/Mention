@@ -147,32 +147,82 @@ export interface PostClassificationScores {
 }
 
 /**
- * Status of a post's AI classification lifecycle:
- * - `pending`: not yet classified (default on creation, awaiting the batch job).
- * - `classified`: successfully classified; `classifiedAt` is set.
- * - `failed`: classification failed after the retry budget was exhausted.
+ * Status of a post's classification lifecycle. Classification is populated in two
+ * stages that share this single object:
+ * - `pending`: not yet processed (default on creation, awaiting the cheap
+ *   deterministic baseline and/or the async AI batch).
+ * - `baseline`: the cheap, deterministic Stage-A signals (language, region,
+ *   normalized hashtags, rule-based topics, sensitive) have been filled at
+ *   ingest. The async AI step has not enriched it yet.
+ * - `classified`: the async AI Stage-B enrichment (sentiment, intent,
+ *   quality/safety scores, refined topics) has completed; `classifiedAt` is set.
+ * - `failed`: AI enrichment failed after the retry budget was exhausted.
  */
-export type PostClassificationStatus = 'pending' | 'classified' | 'failed';
+export type PostClassificationStatus = 'pending' | 'baseline' | 'classified' | 'failed';
 
 /**
- * Internal, AI-inferred classification metadata for a post. This is intelligence
- * derived from the post's content (topics, sentiment, intent, quality/safety
- * signals) used for ranking, search, recommendations, and moderation.
+ * Internal classification metadata for a post — the single content-intelligence
+ * object used for ranking, search, recommendations, and moderation. It is
+ * populated in two stages that coexist on this one object:
+ *
+ * - Stage A (deterministic, synchronous at ingest): cheap signals derived
+ *   without any network/AI — {@link PostClassification.language},
+ *   {@link PostClassification.region}, {@link PostClassification.hashtagsNorm},
+ *   {@link PostClassification.sensitive}, and rule-based {@link PostClassification.topics}.
+ *   Runs on EVERY post (native and federated) on the same code path.
+ *   {@link PostClassification.version} tracks the deterministic ruleset so posts
+ *   can be re-baselined when rules change.
+ * - Stage B (AI-inferred, async batch): {@link PostClassification.sentiment},
+ *   {@link PostClassification.intent}, {@link PostClassification.scores},
+ *   {@link PostClassification.confidence}, and refined topics that merge into the
+ *   same {@link PostClassification.topics} list.
  *
  * It is intentionally SEPARATE from user-written {@link Post.hashtags}: hashtags
- * are explicit user tokens; `topics` here are inferred. The AI provider/model is
- * an infrastructure concern and is deliberately NOT stored on the post.
+ * are explicit user tokens; `topics` here are inferred/normalized. The AI
+ * provider/model is an infrastructure concern and is deliberately NOT stored on
+ * the post.
  */
 export interface PostClassification {
-  /** Inferred topics/tags (lowercase, normalized). Distinct from hashtags. */
+  /**
+   * Topics/tags (lowercase, normalized slugs). Distinct from hashtags. Seeded by
+   * Stage-A rule-based classification and refined/merged by Stage-B AI.
+   */
   topics: string[];
-  sentiment: PostSentiment;
-  intent: PostIntent;
-  scores: PostClassificationScores;
-  /** Overall confidence in this classification, 0..1. */
-  confidence: number;
+  /**
+   * Stage-A. Best-effort ISO 639-1 language code (e.g. `'en'`, `'es'`). Absent
+   * when it could not be determined (too-short or undetectable content).
+   */
+  language?: string;
+  /**
+   * Stage-A. Best-effort coarse region/country code (e.g. `'DE'`) or zone.
+   * Deliberately weak — derived from a federated instance domain/TLD or locale —
+   * and absent (`undefined`) when unknown. Never inferred from post text.
+   */
+  region?: string;
+  /**
+   * Stage-A. Canonical hashtags for this post: lowercase, `#`-stripped, trimmed,
+   * deduplicated, alias-mapped. Mirrors the same normalization used for
+   * {@link Post.hashtags} so ranking/discovery read one canonical form.
+   */
+  hashtagsNorm?: string[];
+  /** Stage-A. Whether the content is marked sensitive/NSFW (pass-through). */
+  sensitive?: boolean;
+  /**
+   * Stage-A. Version of the deterministic classifier ruleset that produced the
+   * baseline signals. Bumped when the rules/taxonomy change so posts can be
+   * re-baselined. Absent on posts that only carry legacy AI fields.
+   */
+  version?: number;
+  /** Stage-B (AI). Absent until the post reaches `classified`. */
+  sentiment?: PostSentiment;
+  /** Stage-B (AI). Absent until the post reaches `classified`. */
+  intent?: PostIntent;
+  /** Stage-B (AI). Absent until the post reaches `classified`. */
+  scores?: PostClassificationScores;
+  /** Stage-B (AI). Overall confidence in the AI classification, 0..1. Absent until `classified`. */
+  confidence?: number;
   status: PostClassificationStatus;
-  /** When the post was successfully classified. Absent until `classified`. */
+  /** When the post was successfully AI-classified (Stage B). Absent until `classified`. */
   classifiedAt?: Date;
 }
 

@@ -323,7 +323,26 @@ const PostClassificationScoresSchema = new Schema({
 }, { _id: false });
 
 const PostClassificationSchema = new Schema({
+  // Canonical topic slugs. Seeded by the Stage-A deterministic classifier and
+  // refined/merged by the Stage-B AI batch — one shared list.
   topics: { type: [String], default: [] },
+
+  // --- Stage-A deterministic baseline (synchronous at ingest) ---
+  // Filled cheaply for EVERY post (native + federated) with no AI/network. All
+  // optional: legacy/AI-only docs won't carry them until backfilled (P2).
+  // Best-effort ISO 639-1 language; absent when undetectable.
+  language: { type: String },
+  // Best-effort coarse region/country code; absent when unknown.
+  region: { type: String },
+  // Canonical hashtags (lowercase, no `#`, alias-mapped, deduped). Mirrors the
+  // top-level `hashtags` normalization for one canonical read form.
+  hashtagsNorm: { type: [String], default: undefined },
+  // Sensitive/NSFW pass-through.
+  sensitive: { type: Boolean },
+  // Deterministic ruleset version that produced the baseline; enables re-baselining.
+  version: { type: Number },
+
+  // --- Stage-B AI enrichment (async batch) ---
   sentiment: {
     type: String,
     enum: ['positive', 'neutral', 'negative', 'mixed'],
@@ -343,7 +362,7 @@ const PostClassificationSchema = new Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'classified', 'failed'],
+    enum: ['pending', 'baseline', 'classified', 'failed'],
     default: POST_CLASSIFICATION_PENDING,
     index: true,
   },
@@ -526,6 +545,9 @@ PostSchema.index({ createdAt: -1 }); // Default sort order
 PostSchema.index({ 'extracted.extractedAt': 1, createdAt: -1 }); // Topic extraction queue
 PostSchema.index({ 'extracted.topics.name': 1, createdAt: -1 }); // Topic name lookup
 PostSchema.index({ 'postClassification.status': 1, createdAt: 1 }); // Classification batch queue
+// Stage-A baseline signal lookups (used by For You candidate filtering, P3).
+PostSchema.index({ 'postClassification.language': 1, createdAt: -1 });
+PostSchema.index({ 'postClassification.region': 1, createdAt: -1 });
 
 // Geospatial indexes for both location fields
 PostSchema.index({ 'content.location': '2dsphere' }); // User's shared location
@@ -553,6 +575,20 @@ PostSchema.index({ _id: 1, createdAt: -1 });
 PostSchema.index(
   { visibility: 1, parentPostId: 1, boostOf: 1, createdAt: -1 },
   { name: 'for_you_feed_idx' }
+);
+
+// For You topic-candidate source (P3): fetch recent visible/published posts for a
+// set of topic slugs. `postClassification.topics` is multikey (array) so it leads
+// the index; visibility+status narrow, createdAt orders the candidate window.
+PostSchema.index(
+  { 'postClassification.topics': 1, visibility: 1, status: 1, createdAt: -1 },
+  { name: 'for_you_topics_idx' }
+);
+// For You language-candidate source (P3): recent visible/published posts in a
+// viewer's language(s).
+PostSchema.index(
+  { 'postClassification.language': 1, visibility: 1, status: 1, createdAt: -1 },
+  { name: 'for_you_language_idx' }
 );
 
 // Saved posts with text search: optimizes saved posts queries with content.text regex search

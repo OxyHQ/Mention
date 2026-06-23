@@ -96,6 +96,6 @@ describe('Post schema — postClassification default', () => {
     const error = post.validateSync();
     expect(error?.errors['postClassification.sentiment']).toBeUndefined();
     expect(post.postClassification?.status).toBe('classified');
-    expect(post.postClassification?.scores.constructiveness).toBe(0.85);
+    expect(post.postClassification?.scores?.constructiveness).toBe(0.85);
   });
 });
