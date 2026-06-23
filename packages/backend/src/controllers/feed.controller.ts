@@ -1255,6 +1255,7 @@ class FeedController {
           region: signals.region,
           hashtagsNorm: signals.hashtagsNorm,
           sensitive: signals.sensitive,
+          scores: signals.scores,
           version: signals.version,
           classifiedAt: new Date(signals.classifiedAt),
         };

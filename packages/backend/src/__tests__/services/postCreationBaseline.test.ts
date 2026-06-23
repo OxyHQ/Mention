@@ -115,6 +115,12 @@ describe('PostCreationService — native Stage-A baseline', () => {
     expect(classification.classifiedAt).toBeInstanceOf(Date);
     expect(classification.hashtagsNorm).toContain('ai');
     expect(classification.topics).toContain('ai');
+    // Deterministic scores are seeded so ranking can act on them pre-AI.
+    const scores = classification.scores as { spam: number; quality: number; toxicity: number };
+    expect(scores).toBeDefined();
+    expect(scores.spam).toBeGreaterThanOrEqual(0);
+    expect(scores.quality).toBeGreaterThanOrEqual(0);
+    expect(scores.toxicity).toBeGreaterThanOrEqual(0);
   });
 
   it('threads a federated note\'s AP language into both post.language and the baseline', async () => {

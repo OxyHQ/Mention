@@ -11,6 +11,11 @@ import { extractApLanguage } from '../../utils/federation/apLanguage';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import { getPostCreator } from '../serviceRegistry';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
+import {
+  SPAM_QUALITY_CONFIG,
+  toClassificationScores,
+} from '../contentClassification/spamQuality';
+import type { PostClassificationScores } from '@mention/shared-types';
 import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
 import { actorService } from './ActorService';
 import {
@@ -147,6 +152,8 @@ interface RawPostClassificationSeed {
   region?: string;
   hashtagsNorm: string[];
   sensitive: boolean;
+  /** Deterministic spam/quality/toxicity scores (0..1); AI batch overwrites later. */
+  scores: PostClassificationScores;
   version: number;
   classifiedAt: Date;
 }
@@ -183,6 +190,7 @@ export class OutboxSyncService {
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
         sensitive: signals.sensitive ?? input.sensitive,
+        scores: signals.scores,
         version: signals.version,
         classifiedAt: new Date(signals.classifiedAt),
       };
@@ -194,6 +202,9 @@ export class OutboxSyncService {
         topics: [],
         hashtagsNorm: input.hashtags,
         sensitive: input.sensitive,
+        // Neutral, valid scores so ranking treats a defensive-fallback post as
+        // unremarkable (not spam, mid quality) rather than skewing it.
+        scores: toClassificationScores({ spam: 0, quality: SPAM_QUALITY_CONFIG.quality.base, toxicity: 0 }),
         version: 0,
         classifiedAt: new Date(),
       };

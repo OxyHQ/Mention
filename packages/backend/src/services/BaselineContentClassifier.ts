@@ -29,13 +29,22 @@ import {
   ruleBasedTopicClassifier,
   type TopicClassifier,
 } from './contentClassification/TopicClassifier';
+import type { PostClassificationScores } from '@mention/shared-types';
+import {
+  computeDeterministicScores,
+  toClassificationScores,
+} from './contentClassification/spamQuality';
 
 /**
- * Version of the deterministic ruleset (taxonomy + maps + detection policy).
- * Bump when the rules change so posts can be re-baselined. Stored on each post's
- * `postClassification.version`.
+ * Version of the deterministic ruleset (taxonomy + maps + detection policy +
+ * spam/quality heuristics). Bump when ANY of those change so posts can be
+ * re-baselined. Stored on each post's `postClassification.version`.
+ *
+ * v2: added deterministic spam/quality/toxicity scores + expanded taxonomy
+ * coverage (so the version-gated backfill re-processes existing posts and writes
+ * the new `postClassification.scores`).
  */
-export const BASELINE_CLASSIFIER_VERSION = 1;
+export const BASELINE_CLASSIFIER_VERSION = 2;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -69,6 +78,15 @@ export interface BaselineSignals {
   hashtagsNorm: string[];
   topics: string[];
   sensitive?: boolean;
+  /**
+   * Content-classification scores stored into `postClassification.scores` so the
+   * SAME ranking path can downrank spam / low-quality posts before any AI runs.
+   * Only `spam`, `quality`, and `toxicity` are computed deterministically; the
+   * AI-only fields (`constructiveness`, `controversy`, `negativity`) carry the
+   * neutral `0` baseline. The async AI batch OVERWRITES the whole object with
+   * higher-fidelity values when a key is configured (the intended hybrid).
+   */
+  scores: PostClassificationScores;
   version: number;
   classifiedAt: string;
 }
@@ -120,12 +138,21 @@ export class BaselineContentClassifier {
       hashtagsNorm,
     });
 
+    // Deterministic spam/quality/toxicity from the ORIGINAL-case text (caps ratio
+    // needs case) and the canonical hashtag count (so the heuristics agree with
+    // the rest of the classifier on what counts as a hashtag). Lifted into the
+    // full scores shape (AI-only fields neutral) for storage.
+    const scores = toClassificationScores(
+      computeDeterministicScores(input.text ?? '', hashtagsNorm.length),
+    );
+
     return {
       language,
       region,
       hashtagsNorm,
       topics,
       sensitive: input.sensitive,
+      scores,
       version: BASELINE_CLASSIFIER_VERSION,
       classifiedAt: new Date().toISOString(),
     };

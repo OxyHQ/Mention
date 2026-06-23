@@ -129,6 +129,21 @@ describe('BaselineContentClassifier', () => {
       });
       expect(result.topics.filter(t => t === 'food')).toHaveLength(1);
     });
+
+    it('maps expanded aliased hashtags to topics (chatgpt → ai, f1 → sports, netflix → entertainment)', () => {
+      expect(baselineContentClassifier.classify({ text: 'wow #chatgpt' }).topics).toContain('ai');
+      expect(baselineContentClassifier.classify({ text: 'race day #f1' }).topics).toContain('sports');
+      expect(baselineContentClassifier.classify({ text: 'binge #netflix' }).topics).toContain('entertainment');
+    });
+
+    it('maps expanded keyword phrases to topics (federal reserve → finance, supreme court → politics)', () => {
+      expect(
+        baselineContentClassifier.classify({ text: 'the federal reserve held interest rate steady today' }).topics,
+      ).toContain('finance');
+      expect(
+        baselineContentClassifier.classify({ text: 'the supreme court issued a major ruling this morning' }).topics,
+      ).toContain('politics');
+    });
   });
 
   describe('region (best-effort, nullable)', () => {
@@ -186,6 +201,37 @@ describe('BaselineContentClassifier', () => {
       expect(baselineContentClassifier.classify({ text: 'x', sensitive: true }).sensitive).toBe(true);
       expect(baselineContentClassifier.classify({ text: 'x', sensitive: false }).sensitive).toBe(false);
       expect(baselineContentClassifier.classify({ text: 'x' }).sensitive).toBeUndefined();
+    });
+  });
+
+  describe('deterministic scores', () => {
+    it('includes finite 0..1 spam/quality/toxicity scores in the output', () => {
+      const { scores } = baselineContentClassifier.classify({
+        text: 'A perfectly ordinary post about my day.',
+      });
+      for (const value of [scores.spam, scores.quality, scores.toxicity]) {
+        expect(Number.isFinite(value)).toBe(true);
+        expect(value).toBeGreaterThanOrEqual(0);
+        expect(value).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it('scores a hashtag-dump post as spammy (using the canonical hashtag count)', () => {
+      const clean = baselineContentClassifier.classify({
+        text: 'just a normal sentence with real words and no spam at all',
+      });
+      const dump = baselineContentClassifier.classify({
+        text: 'check #a #b #c #d #e #f #g #h',
+      });
+      expect(dump.scores.spam).toBeGreaterThan(clean.scores.spam);
+    });
+
+    it('scores substantive prose higher quality than a one-word post', () => {
+      const tiny = baselineContentClassifier.classify({ text: 'lol' });
+      const substantive = baselineContentClassifier.classify({
+        text: 'I spent the afternoon refactoring the feed ranking. It is finally clean. Very happy with the result!',
+      });
+      expect(substantive.scores.quality).toBeGreaterThan(tiny.scores.quality);
     });
   });
 

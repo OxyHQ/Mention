@@ -48,7 +48,11 @@ const PAGE_SIZE = 500;
 /** Stage-A field writes flushed per bulkWrite chunk. */
 const BULK_CHUNK_SIZE = 500;
 
-/** Projection of only the inputs the deterministic baseline needs (no AI fields). */
+/**
+ * Projection of only the inputs the deterministic baseline needs. We also pull
+ * `postClassification.status` so the backfill can AVOID overwriting AI scores on
+ * a post that already reached `classified` (the AI scores are higher fidelity).
+ */
 const BACKFILL_PROJECTION: mongoose.ProjectionType<IPost> = {
   _id: 1,
   hashtags: 1,
@@ -56,6 +60,7 @@ const BACKFILL_PROJECTION: mongoose.ProjectionType<IPost> = {
   federation: 1,
   'metadata.isSensitive': 1,
   'postClassification.version': 1,
+  'postClassification.status': 1,
 };
 
 /**
@@ -68,7 +73,7 @@ export interface BackfillPostRow {
   content?: { text?: string };
   federation?: { activityId?: string; sensitive?: boolean; url?: string };
   metadata?: { isSensitive?: boolean };
-  postClassification?: { version?: number };
+  postClassification?: { version?: number; status?: string };
 }
 
 /**
@@ -119,12 +124,12 @@ export function buildBaselineSet(post: BackfillPostRow): Record<string, unknown>
       instanceDomain,
     });
 
-    // Set ONLY the Stage-A fields. Never touch the AI lifecycle fields
-    // (status/attempts/scores/sentiment/intent/confidence) — the async batch
-    // owns those. `topics` is shared, but Stage A only seeds it; the AI batch
-    // overwrites it on classification, so writing the rule-based topics here is
-    // additive for not-yet-classified posts and harmless for classified ones.
-    return {
+    // Set ONLY the Stage-A fields. Never touch the AI LIFECYCLE fields
+    // (status/attempts/sentiment/intent/confidence) — the async batch owns those.
+    // `topics` is shared, but Stage A only seeds it; the AI batch overwrites it on
+    // classification, so writing the rule-based topics here is additive for
+    // not-yet-classified posts and harmless for classified ones.
+    const set: Record<string, unknown> = {
       'postClassification.topics': signals.topics,
       'postClassification.language': signals.language,
       'postClassification.region': signals.region,
@@ -132,6 +137,17 @@ export function buildBaselineSet(post: BackfillPostRow): Record<string, unknown>
       'postClassification.sensitive': signals.sensitive,
       'postClassification.version': signals.version,
     };
+
+    // Deterministic spam/quality/toxicity scores: write them ONLY when the post
+    // has NOT already been AI-classified. An AI-classified post carries
+    // higher-fidelity scores we must not clobber with the deterministic baseline.
+    // For every other status (pending/baseline/failed/missing) the baseline
+    // scores are what ranking will honor until the AI batch (if ever) enriches it.
+    if (post.postClassification?.status !== 'classified') {
+      set['postClassification.scores'] = signals.scores;
+    }
+
+    return set;
   } catch (error) {
     logger.warn(`[backfillContentClassification] classify failed for ${post._id.toString()}; skipping`, error);
     return null;
@@ -223,7 +239,15 @@ async function backfillContentClassification(): Promise<void> {
 }
 
 if (require.main === module) {
-  backfillContentClassification();
+  // Run as a one-shot and force a clean self-termination. The Post model import
+  // can transitively open Redis/other handles that keep the event loop alive; an
+  // explicit exit guarantees the Fargate one-shot finishes instead of lingering.
+  backfillContentClassification()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[backfillContentClassification] fatal', error);
+      process.exit(1);
+    });
 }
 
 export default backfillContentClassification;

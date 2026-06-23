@@ -58,7 +58,7 @@ describe('backfillContentClassification — buildPageFilter (idempotency)', () =
 });
 
 describe('backfillContentClassification — buildBaselineSet', () => {
-  it('sets ONLY the Stage-A fields (never the AI lifecycle fields)', () => {
+  it('sets the Stage-A fields + deterministic scores (never the AI LIFECYCLE fields)', () => {
     const set = buildBaselineSet(row());
     expect(set).not.toBeNull();
     const keys = Object.keys(set as Record<string, unknown>).sort();
@@ -70,19 +70,44 @@ describe('backfillContentClassification — buildBaselineSet', () => {
         'postClassification.sensitive',
         'postClassification.topics',
         'postClassification.version',
+        // Deterministic scores are written for not-yet-AI-classified posts.
+        'postClassification.scores',
       ].sort(),
     );
-    // Crucially, it must NOT write status/attempts/scores/sentiment/intent.
+    // Crucially, it must NOT write the AI lifecycle fields.
     for (const banned of [
       'postClassification.status',
       'postClassification.attempts',
-      'postClassification.scores',
       'postClassification.sentiment',
       'postClassification.intent',
       'postClassification.confidence',
     ]) {
       expect(keys).not.toContain(banned);
     }
+  });
+
+  it('writes deterministic 0..1 scores (spam/quality/toxicity) for a non-classified post', () => {
+    const set = buildBaselineSet(row()) as Record<string, unknown>;
+    const scores = set['postClassification.scores'] as {
+      spam: number;
+      quality: number;
+      toxicity: number;
+    };
+    expect(scores).toBeDefined();
+    for (const value of [scores.spam, scores.quality, scores.toxicity]) {
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('does NOT overwrite scores on an already AI-classified post', () => {
+    const set = buildBaselineSet(
+      row({ postClassification: { status: 'classified' } }),
+    ) as Record<string, unknown>;
+    // Stage-A fields still refreshed, but the higher-fidelity AI scores are left intact.
+    expect(set['postClassification.version']).toBe(BASELINE_CLASSIFIER_VERSION);
+    expect(Object.keys(set)).not.toContain('postClassification.scores');
   });
 
   it('re-derives language from the stored text and stamps the current version', () => {

@@ -3,6 +3,7 @@ import UserBehavior from '../models/UserBehavior';
 import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 import type { PostClassificationScores } from '@mention/shared-types';
+import { BASELINE_CLASSIFIER_VERSION } from './BaselineContentClassifier';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
@@ -103,22 +104,51 @@ export class FeedRankingService {
   }
 
   /**
-   * Resolve a post's AI content-classification scores ONLY when they are safe to
-   * use for ranking — i.e. the post reached the `classified` stage AND carries a
-   * complete `scores` object with finite, in-range (0..1) numbers.
+   * Resolve a post's content-classification scores when they are safe to use for
+   * ranking — from EITHER source:
+   *   - the deterministic Stage-A BASELINE (any non-`classified` status that has
+   *     been baselined to the current ruleset `version`), or
+   *   - the async AI Stage-B enrichment (status `classified`).
    *
-   * This is the SINGLE neutral-when-absent guard for the whole AI-ranking path:
+   * This is what lets the SAME ranking path downrank spam/low-quality posts
+   * deterministically before any AI runs; when the AI batch later overwrites
+   * `scores` with higher-fidelity values (and flips status to `classified`), this
+   * method transparently uses those instead.
+   *
+   * PROVENANCE GUARD — why we don't just trust `scores` being present: the Post
+   * schema seeds a DEFAULT `scores` of all-zeros on every new doc, so a post that
+   * was never actually scored carries `quality:0` (which would otherwise be read
+   * as "very low quality"). We therefore only honor scores that have a real
+   * provenance marker:
+   *   - `status === 'classified'` → AI scores are real, OR
+   *   - `version >= BASELINE_CLASSIFIER_VERSION` → the current deterministic
+   *     baseline actually computed and wrote these scores.
+   * A post with the default placeholder (no current `version`, not classified) is
+   * treated as having NO usable signal.
+   *
+   * It remains the SINGLE neutral-when-absent guard for the ranking signals:
    * every caller (safety penalty + quality boost) treats a `null` return as
-   * "no AI signal" and contributes exactly 1.0 (neutral). A post that is
-   * `pending` / `baseline` / `failed`, has no `scores`, or has malformed scores
-   * therefore is NEVER penalized or boosted by the AI signals — the feed cannot
-   * empty just because most posts aren't AI-classified yet.
+   * "no usable signal" and contributes exactly 1.0 (neutral). A post with no
+   * `scores`, only the default placeholder, or a malformed value is therefore
+   * NEVER penalized or boosted — the feed can never empty because scores are
+   * absent.
    *
-   * @returns the validated scores, or `null` when the AI signal must be ignored.
+   * @returns the validated scores, or `null` when the signal must be ignored.
    */
   private getClassifiedScores(post: any): PostClassificationScores | null {
     const classification = post?.postClassification;
-    if (!classification || classification.status !== 'classified') {
+    if (!classification) {
+      return null;
+    }
+
+    // Provenance: scores are real only if AI-classified OR baselined to the
+    // current deterministic ruleset version. Otherwise they're the schema default
+    // placeholder (all-zeros) and must be ignored (neutral).
+    const isClassified = classification.status === 'classified';
+    const version = classification.version;
+    const isCurrentBaseline =
+      typeof version === 'number' && version >= BASELINE_CLASSIFIER_VERSION;
+    if (!isClassified && !isCurrentBaseline) {
       return null;
     }
 
@@ -128,8 +158,9 @@ export class FeedRankingService {
     }
 
     // Validate every field we rank on: finite and within the documented 0..1
-    // range. A single bad value disqualifies the whole object (treated as
-    // absent → neutral) rather than letting a malformed score skew ranking.
+    // range. A single bad value (or an unset field) disqualifies the whole object
+    // (treated as absent → neutral) rather than letting a malformed score skew
+    // ranking.
     const inUnitRange = (value: unknown): value is number =>
       typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
 

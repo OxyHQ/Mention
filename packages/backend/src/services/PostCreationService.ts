@@ -87,7 +87,10 @@ class PostCreationService {
       });
 
       // Populate the Stage-A deterministic fields but LEAVE status 'pending' so
-      // the AI batch's unclassified filter still picks the post up.
+      // the AI batch's unclassified filter still picks the post up. The
+      // deterministic `scores` are written so ranking can downrank spam/low-quality
+      // posts before any AI runs; the AI batch OVERWRITES `scores` wholesale when a
+      // key is configured (the intended hybrid).
       postData.postClassification = {
         status: POST_CLASSIFICATION_PENDING,
         attempts: 0,
@@ -96,6 +99,7 @@ class PostCreationService {
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
         sensitive: signals.sensitive,
+        scores: signals.scores,
         version: signals.version,
         classifiedAt: new Date(signals.classifiedAt),
       };

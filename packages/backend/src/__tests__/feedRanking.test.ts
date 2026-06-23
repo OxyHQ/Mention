@@ -19,6 +19,7 @@ vi.mock('../utils/redis', () => ({
 }));
 
 import { FeedRankingService } from '../services/FeedRankingService';
+import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 
 /**
  * Unit tests for the ranking signals added/recalibrated in the feed overhaul:
@@ -213,10 +214,10 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
     const failed = makePost({
       postClassification: { status: 'failed', topics: [] },
     });
-    // A post stuck in 'baseline' that even carries a malformed/partial scores
-    // object must still be neutral — only status==='classified' with a valid
-    // scores object is honored.
-    const baselineWithStaleScores = makePost({
+    // A post carrying scores but NO provenance marker (not classified, and no
+    // current baseline `version`) must still be neutral — the scores are the
+    // schema-default placeholder, not real. This is the un-baselined / stale case.
+    const scoresWithoutProvenance = makePost({
       postClassification: {
         status: 'baseline',
         topics: [],
@@ -228,8 +229,9 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
     expect(await scoreWith(pending, {})).toBeCloseTo(base, 10);
     expect(await scoreWith(baseline, {})).toBeCloseTo(base, 10);
     expect(await scoreWith(failed, {})).toBeCloseTo(base, 10);
-    // The high spam/toxicity scores are IGNORED because status !== 'classified'.
-    expect(await scoreWith(baselineWithStaleScores, {})).toBeCloseTo(base, 10);
+    // The high spam/toxicity scores are IGNORED because there is no provenance
+    // marker (no `version`, not `classified`) — they're the default placeholder.
+    expect(await scoreWith(scoresWithoutProvenance, {})).toBeCloseTo(base, 10);
   });
 
   it('(a) SAFETY CASE — a classified post with malformed/out-of-range scores is treated as NEUTRAL', async () => {
@@ -313,6 +315,86 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
     expect(ai.quality.highBoost).toBeGreaterThan(1);
     expect(ai.quality.lowPenalty).toBeLessThan(1);
     expect(ai.quality.lowPenalty).toBeGreaterThan(0);
+  });
+});
+
+describe('FeedRankingService deterministic-baseline scores (P3d) — honored via the version marker', () => {
+  /** A non-classified (pending) post carrying deterministic-baseline scores at the current version. */
+  function baselineScored(
+    scores: { spam: number; toxicity: number; quality: number },
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return makePost({
+      postClassification: {
+        status: 'pending',
+        topics: [],
+        version: BASELINE_CLASSIFIER_VERSION,
+        scores: { ...scores, constructiveness: 0, controversy: 0, negativity: 0 },
+      },
+      ...overrides,
+    });
+  }
+
+  it('honors a BASELINE high-spam post (no AI) and strongly downranks it', async () => {
+    const { spamThreshold, highRiskPenalty } = MtnConfig.ranking.aiQuality.safety;
+    const neutral = baselineScored({ spam: 0, toxicity: 0, quality: 0.5 });
+    const spammy = baselineScored({ spam: spamThreshold, toxicity: 0, quality: 0.5 });
+
+    const neutralScore = await scoreWith(neutral, {});
+    const spammyScore = await scoreWith(spammy, {});
+
+    expect(spammyScore).toBeLessThan(neutralScore);
+    expect(spammyScore / neutralScore).toBeCloseTo(highRiskPenalty, 5);
+  });
+
+  it('honors a BASELINE high-toxicity post (no AI) and strongly downranks it', async () => {
+    const { toxicityThreshold, highRiskPenalty } = MtnConfig.ranking.aiQuality.safety;
+    const neutral = baselineScored({ spam: 0, toxicity: 0, quality: 0.5 });
+    const toxic = baselineScored({ spam: 0, toxicity: toxicityThreshold, quality: 0.5 });
+
+    const neutralScore = await scoreWith(neutral, {});
+    const toxicScore = await scoreWith(toxic, {});
+
+    expect(toxicScore).toBeLessThan(neutralScore);
+    expect(toxicScore / neutralScore).toBeCloseTo(highRiskPenalty, 5);
+  });
+
+  it('honors a BASELINE quality signal (no AI): high quality outranks low quality', async () => {
+    const { highThreshold, lowThreshold, highBoost, lowPenalty } = MtnConfig.ranking.aiQuality.quality;
+    const high = baselineScored({ quality: highThreshold, spam: 0, toxicity: 0 });
+    const low = baselineScored({ quality: lowThreshold, spam: 0, toxicity: 0 });
+
+    const highScore = await scoreWith(high, {});
+    const lowScore = await scoreWith(low, {});
+
+    expect(highScore).toBeGreaterThan(lowScore);
+    expect(highScore / lowScore).toBeCloseTo(highBoost / lowPenalty, 5);
+  });
+
+  it('is NEUTRAL when scores carry an OLD baseline version (stale placeholder)', async () => {
+    const base = await scoreWith(makePost(), {});
+    const stale = makePost({
+      postClassification: {
+        status: 'pending',
+        topics: [],
+        version: BASELINE_CLASSIFIER_VERSION - 1, // older ruleset → not honored
+        scores: { spam: 0.99, toxicity: 0.99, quality: 0, constructiveness: 0, controversy: 0, negativity: 0 },
+      },
+    });
+    expect(await scoreWith(stale, {})).toBeCloseTo(base, 10);
+  });
+
+  it('still honors an AI-classified post even without a baseline version', async () => {
+    const { spamThreshold, highRiskPenalty } = MtnConfig.ranking.aiQuality.safety;
+    const base = await scoreWith(makePost(), {});
+    const classifiedSpam = makePost({
+      postClassification: {
+        status: 'classified',
+        topics: [],
+        scores: { spam: spamThreshold, toxicity: 0, quality: 0.5, constructiveness: 0, controversy: 0, negativity: 0 },
+      },
+    });
+    expect(await scoreWith(classifiedSpam, {})).toBeCloseTo(base * highRiskPenalty, 5);
   });
 });
 
