@@ -1,17 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, PanResponder, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle, type LayoutChangeEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, FollowButton } from '@oxyhq/services';
 import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
-import { useSafeBack } from '@/hooks/useSafeBack';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -24,6 +24,9 @@ import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { cn } from '@/lib/utils';
+import { LinkifiedText } from '@/components/common/LinkifiedText';
+import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
+import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
 
 // ── Tuning constants ─────────────────────────────────────────────
 // One-screen vertical pager: keep the live-player window tight so only the
@@ -72,6 +75,19 @@ const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
 const LIKE_ACTIVE_COLOR = '#FF3040';
 const BOOST_ACTIVE_COLOR = '#10B981';
 const VERIFIED_COLOR = '#1DA1F2';
+
+// Max delay (ms) between two surface taps to register a double-tap-like instead
+// of the single-tap pause toggle.
+const DOUBLE_TAP_WINDOW_MS = 280;
+// Caption is collapsed to two lines until this length, where a "more" toggle is
+// offered (TikTok-style expandable caption).
+const CAPTION_EXPAND_MIN_CHARS = 80;
+// expo-video timeUpdate cadence (seconds) driving the scrubber.
+const TIME_UPDATE_INTERVAL_S = 0.25;
+
+// The /videos feed tabs. 'videos' is the ranked "For You" video feed; 'following'
+// is the general following feed filtered down to video posts.
+type VideoFeedTab = 'videos' | 'following';
 
 // ── Types ────────────────────────────────────────────────────────
 // Runtime media reference. The shared `MediaItem` declares `id` + `type` plus the
@@ -149,6 +165,12 @@ interface VideoItemProps {
     bottomBarHeight: number;
     t: (key: string) => string;
     windowHeight: number;
+    // Desktop (>=990) moves the action column + on-video follow into the rail; the
+    // overlay keeps only the Shorts-style author/caption/sound block.
+    isDesktop: boolean;
+    // The signed-in viewer's id — hides the on-video follow button on the
+    // author's own video.
+    viewerId?: string;
 }
 
 // ── Active player surface ────────────────────────────────────────
@@ -166,6 +188,9 @@ interface ActiveVideoSurfaceProps {
     onError: () => void;
     t: (key: string) => string;
     theme: ReturnType<typeof useTheme>;
+    // Double-tap-to-like state + a like-ONLY handler (never unlikes).
+    isLiked: boolean;
+    onLikePost: () => void;
 }
 
 const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
@@ -178,14 +203,28 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     onError,
     t,
     theme,
+    isLiked,
+    onLikePost,
 }) => {
     // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
     // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
     const [hasRendered, setHasRendered] = useState(false);
     const [hasError, setHasError] = useState(false);
+    // Live re-buffer flag: distinct from `hasRendered` so a mid-playback stall
+    // shows only a small spinner over the already-rendered frame, never the poster.
+    const [isBuffering, setIsBuffering] = useState(false);
     // Poster frame can 404 (no extractable frame) or fail to load → fall back to
     // the neutral icon instead of a blank/broken image. Reset when the source changes.
     const [posterFailed, setPosterFailed] = useState(false);
+    // Reels tap-to-pause: a viewer-driven pause override on the ACTIVE surface. It
+    // is cleared whenever the surface stops being active (see the playback effect)
+    // so a newly-activated video always autoplays instead of inheriting a stale
+    // paused state.
+    const [userPaused, setUserPaused] = useState(false);
+    // Scrubber state — current playhead + total duration, driven by player events.
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [isScrubbing, setIsScrubbing] = useState(false);
 
     useEffect(() => {
         setPosterFailed(false);
@@ -195,17 +234,31 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
 
     const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
         p.loop = true;
+        // Drive the scrubber at a smooth-but-cheap cadence.
+        p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
         // Single source of truth for the initial mute: the global store value
         // captured at mount. Subsequent changes flow through the sync effect below.
         p.muted = muted;
     });
 
-    // Surface readiness + errors so the poster can stay up until first frame and
-    // a hard failure can fall back to the placeholder.
+    // Surface readiness + errors + live buffering. `hasRendered` latches on first
+    // `readyToPlay`; AFTER that, a transition to `loading` is a mid-playback
+    // re-buffer (small spinner), and `readyToPlay` clears it.
     useEffect(() => {
         const sub = player.addListener('statusChange', ({ status: next }) => {
             if (next === 'readyToPlay') {
                 setHasRendered(true);
+                setIsBuffering(false);
+                if (player.duration > 0) {
+                    setDuration(player.duration);
+                }
+            } else if (next === 'loading') {
+                // Only a re-buffer (small spinner) once the first frame has
+                // rendered; the initial load is covered by the poster instead.
+                setHasRendered((rendered) => {
+                    setIsBuffering(rendered);
+                    return rendered;
+                });
             } else if (next === 'error') {
                 setHasError(true);
                 onError();
@@ -214,6 +267,18 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         return () => sub.remove();
     }, [player, onError]);
 
+    // Track the playhead for the scrubber. Skipped while the viewer is dragging so
+    // the thumb follows the gesture, not the (lagging) player position.
+    useEffect(() => {
+        const sub = player.addListener('timeUpdate', ({ currentTime: nextTime }) => {
+            setCurrentTime((prev) => (isScrubbing ? prev : nextTime));
+            if (duration <= 0 && player.duration > 0) {
+                setDuration(player.duration);
+            }
+        });
+        return () => sub.remove();
+    }, [player, isScrubbing, duration]);
+
     // Single place that syncs the live player's mute with the store.
     useEffect(() => {
         if (player.muted !== muted) {
@@ -221,29 +286,151 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }, [player, muted]);
 
-    // Play only when this is the active index AND the /videos screen is focused;
-    // otherwise the neighbour is preloaded but paused, and a backgrounded reel
-    // (another route pushed on top) is fully paused so no audio/video bleeds
-    // through the frozen screen. Restarts from the top each time it (re)plays.
+    // When this surface stops being the active index, drop any viewer pause
+    // override so re-activating it (scrolling back) autoplays from the top rather
+    // than staying paused. A neighbour preloads but never plays, so the override
+    // is meaningless off-screen.
     useEffect(() => {
-        if (isActive && screenFocused) {
-            player.currentTime = 0;
+        if (!isActive) {
+            setUserPaused(false);
+        }
+    }, [isActive]);
+
+    // Drive playback from the active/focused gate AND the viewer's tap override.
+    // The active surface plays from the top when it first activates; a tap-resume
+    // continues from the current position (no `currentTime = 0` reset) so toggling
+    // play/pause does not jump the video back to the start. Off-screen, blurred,
+    // or viewer-paused → paused.
+    const shouldPlay = isActive && screenFocused && !userPaused;
+    useEffect(() => {
+        if (shouldPlay) {
             player.play();
         } else {
             player.pause();
         }
+    }, [player, shouldPlay]);
+
+    // Restart from the top whenever the surface (re)becomes active+focused, so each
+    // activation begins at the start. Kept separate from the play/pause gate so a
+    // mid-playback tap-resume does not rewind.
+    useEffect(() => {
+        if (isActive && screenFocused) {
+            player.currentTime = 0;
+        }
     }, [player, isActive, screenFocused]);
+
+    // ── Double-tap-to-like ──────────────────────────────────────────
+    // A single tap toggles pause but is DEFERRED by DOUBLE_TAP_WINDOW_MS; a second
+    // tap inside the window cancels that pending pause and fires a like-only.
+    const lastTapRef = useRef(0);
+    const pausePendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const heartScale = useSharedValue(0);
+    const heartOpacity = useSharedValue(0);
+
+    useEffect(() => () => {
+        if (pausePendingRef.current) {
+            clearTimeout(pausePendingRef.current);
+            pausePendingRef.current = null;
+        }
+    }, []);
+
+    const popHeart = useCallback(() => {
+        heartOpacity.value = withSequence(
+            withTiming(1, { duration: 120 }),
+            withTiming(0, { duration: 480 }),
+        );
+        heartScale.value = withSequence(
+            withTiming(1, { duration: 180 }),
+            withTiming(1.25, { duration: 420 }),
+        );
+    }, [heartOpacity, heartScale]);
+
+    const handleSurfacePress = useCallback(() => {
+        if (!isActive || !screenFocused) return;
+        const now = Date.now();
+        if (now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS) {
+            // Double tap: cancel the pending pause toggle and like (like-only).
+            lastTapRef.current = 0;
+            if (pausePendingRef.current) {
+                clearTimeout(pausePendingRef.current);
+                pausePendingRef.current = null;
+            }
+            if (!isLiked) {
+                onLikePost();
+            }
+            popHeart();
+            return;
+        }
+        lastTapRef.current = now;
+        if (pausePendingRef.current) {
+            clearTimeout(pausePendingRef.current);
+        }
+        pausePendingRef.current = setTimeout(() => {
+            pausePendingRef.current = null;
+            setUserPaused((prev) => !prev);
+        }, DOUBLE_TAP_WINDOW_MS);
+    }, [isActive, screenFocused, isLiked, onLikePost, popHeart]);
+
+    const heartStyle = useAnimatedStyle(() => ({
+        opacity: heartOpacity.value,
+        transform: [{ scale: heartScale.value }],
+    }));
 
     const toggleMute = useCallback(() => {
         const next = !muted;
         onMutedChange(next);
         player.muted = next;
-        if (!next && isActive && screenFocused) {
+        if (!next && shouldPlay) {
             player.play();
         }
-    }, [muted, isActive, screenFocused, onMutedChange, player]);
+    }, [muted, shouldPlay, onMutedChange, player]);
+
+    // ── Scrubber / seek ─────────────────────────────────────────────
+    // Measured track width drives the gesture→time mapping. PanResponder works on
+    // both web and native and is confined to the thin bar's own hit area, so it
+    // never steals tap-to-pause or scroll from the surface.
+    const trackWidthRef = useRef(0);
+    const onTrackLayout = useCallback((e: LayoutChangeEvent) => {
+        trackWidthRef.current = e.nativeEvent.layout.width;
+    }, []);
+
+    const seekToLocationX = useCallback((locationX: number) => {
+        const width = trackWidthRef.current;
+        const total = duration > 0 ? duration : player.duration;
+        if (width <= 0 || total <= 0) return;
+        const ratio = Math.min(1, Math.max(0, locationX / width));
+        const nextTime = ratio * total;
+        setCurrentTime(nextTime);
+        player.currentTime = nextTime;
+    }, [duration, player]);
+
+    const panResponder = useMemo(() => PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (e) => {
+            setIsScrubbing(true);
+            seekToLocationX(e.nativeEvent.locationX);
+        },
+        onPanResponderMove: (e) => {
+            seekToLocationX(e.nativeEvent.locationX);
+        },
+        onPanResponderRelease: (e) => {
+            seekToLocationX(e.nativeEvent.locationX);
+            setIsScrubbing(false);
+        },
+        onPanResponderTerminate: () => {
+            setIsScrubbing(false);
+        },
+    }), [seekToLocationX]);
+
+    const progress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
 
     const showPoster = !hasRendered;
+    // The pause affordance shows only when the viewer has actively paused the
+    // current video — not for the autoplay-gating pauses (off-screen / blurred).
+    const showPauseAffordance = isActive && screenFocused && userPaused;
+    const showScrubber = isActive && screenFocused;
+    const showBufferSpinner = isBuffering && isActive && hasRendered;
 
     return (
         <>
@@ -273,11 +460,56 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
                 </View>
             )}
 
+            {/* Full-surface tap target → toggle play/pause (single tap, deferred)
+                or like (double tap). It sits ABOVE the video/poster but BELOW the
+                mute button (z 10), scrubber, and the bottom overlay actions, so
+                those keep their own taps. */}
+            <Pressable
+                style={styles.tapLayer}
+                onPress={handleSurfacePress}
+                accessibilityRole="button"
+                accessibilityLabel={t(userPaused ? 'videos.play' : 'videos.pause')}
+            />
+
+            {/* Double-tap heart pop — large, centered, non-interactive. */}
+            <Animated.View style={[styles.heartPop, heartStyle]} pointerEvents="none">
+                <Ionicons name="heart" size={96} color={LIKE_ACTIVE_COLOR} />
+            </Animated.View>
+
+            {showPauseAffordance && (
+                <View style={styles.pauseAffordance} pointerEvents="none">
+                    <View style={styles.pauseAffordanceInner}>
+                        <Ionicons name="play" size={44} color="white" />
+                    </View>
+                </View>
+            )}
+
+            {showBufferSpinner && (
+                <View style={styles.bufferSpinner} pointerEvents="none">
+                    <View style={styles.bufferSpinnerInner}>
+                        <SpinnerIcon size={32} className="text-white" />
+                    </View>
+                </View>
+            )}
+
             <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={HIT_SLOP}>
                 <View style={styles.muteButtonInner}>
                     <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={22} color="white" />
                 </View>
             </Pressable>
+
+            {showScrubber && (
+                <View
+                    style={styles.scrubberHitArea}
+                    hitSlop={{ top: 8, bottom: 8 }}
+                    onLayout={onTrackLayout}
+                    {...panResponder.panHandlers}
+                >
+                    <View style={[styles.scrubberTrack, isScrubbing && styles.scrubberTrackActive]}>
+                        <View style={[styles.scrubberFill, { width: `${progress * 100}%` }]} />
+                    </View>
+                </View>
+            )}
 
             {hasError && (
                 <View style={styles.errorBadge} pointerEvents="none">
@@ -310,14 +542,19 @@ const VideoItem = memo<VideoItemProps>(({
     bottomBarHeight,
     t,
     windowHeight,
+    isDesktop,
+    viewerId,
 }) => {
     const router = useRouter();
     const [videoError, setVideoError] = useState(false);
     // Out-of-window poster can 404/fail → fall back to the neutral icon.
     const [posterFailed, setPosterFailed] = useState(false);
+    // TikTok-style expandable caption: collapsed to two lines until toggled.
+    const [captionExpanded, setCaptionExpanded] = useState(false);
 
     const handleError = useCallback(() => setVideoError(true), []);
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
+    const toggleCaption = useCallback(() => setCaptionExpanded((prev) => !prev), []);
 
     const userName = useMemo(() => item.user?.displayName ?? '', [item.user?.displayName]);
     const userHandle = useMemo(() => item.user?.handle || t('common.unknown'), [item.user?.handle, t]);
@@ -330,7 +567,19 @@ const VideoItem = memo<VideoItemProps>(({
         }
     }, [item.user?.handle, router]);
 
+    // Like-only handler for the double-tap gesture — never unlikes.
+    const handleDoubleTapLike = useCallback(() => {
+        if (!item.isLiked) {
+            onLike(item.id, false);
+        }
+    }, [item.id, item.isLiked, onLike]);
+
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
+    // On desktop the engagement column + the on-video follow live in the rail;
+    // the overlay keeps only the Shorts-style author/caption/sound block.
+    const showOnVideoActions = !isDesktop;
+    const showOnVideoFollow = !isDesktop && Boolean(item.user?.id) && item.user?.id !== viewerId;
+    const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
 
     return (
         <View
@@ -348,6 +597,8 @@ const VideoItem = memo<VideoItemProps>(({
                     onError={handleError}
                     t={t}
                     theme={theme}
+                    isLiked={item.isLiked || false}
+                    onLikePost={handleDoubleTapLike}
                 />
             ) : (
                 // Outside the live window (or errored): no decoder, just a poster.
@@ -371,75 +622,116 @@ const VideoItem = memo<VideoItemProps>(({
                 </View>
             )}
 
-            <View style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]}>
+            {/* `box-none`: the overlay container spans the bottom half of the
+                surface, but only its interactive leaves (author press, follow,
+                caption toggle, action buttons) should capture touches — empty
+                regions must fall through to the tap layer below (single-tap pause
+                / double-tap like). Without this the overlay (zIndex 5, above the
+                zIndex-2 tap layer) would swallow taps on the lower half. */}
+            <View style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]} pointerEvents="box-none">
                 <LinearGradient
                     colors={GRADIENT_COLORS}
                     locations={GRADIENT_LOCATIONS}
                     style={styles.gradientOverlay}
                 />
 
-                <View style={styles.bottomInfo}>
-                    <View style={styles.userInfo}>
-                        <Pressable onPress={handleProfilePress} style={styles.userHeader}>
-                            <Avatar
-                                source={item.user?.avatar}
-                                size={40}
-                                verified={item.user?.verified || false}
-                                style={styles.userAvatar}
-                            />
-                            <View style={styles.userNameContainer}>
-                                <View style={styles.userNameRow}>
-                                    <Text style={styles.userFullName} numberOfLines={1}>
-                                        {userName}
+                <View style={styles.bottomInfo} pointerEvents="box-none">
+                    <View style={styles.userInfo} pointerEvents="box-none">
+                        <View style={styles.userHeaderRow} pointerEvents="box-none">
+                            <Pressable onPress={handleProfilePress} style={styles.userHeader}>
+                                <Avatar
+                                    source={item.user?.avatar}
+                                    size={40}
+                                    verified={item.user?.verified || false}
+                                    style={styles.userAvatar}
+                                />
+                                <View style={styles.userNameContainer}>
+                                    <View style={styles.userNameRow}>
+                                        <Text style={styles.userFullName} numberOfLines={1}>
+                                            {userName}
+                                        </Text>
+                                        {item.user?.verified && (
+                                            <Ionicons name="checkmark-circle" size={14} color={VERIFIED_COLOR} style={styles.verifiedIcon} />
+                                        )}
+                                    </View>
+                                    <Text style={styles.userHandle} numberOfLines={1}>
+                                        @{userHandle}
                                     </Text>
-                                    {item.user?.verified && (
-                                        <Ionicons name="checkmark-circle" size={14} color={VERIFIED_COLOR} style={styles.verifiedIcon} />
-                                    )}
                                 </View>
-                                <Text style={styles.userHandle} numberOfLines={1}>
-                                    @{userHandle}
-                                </Text>
-                            </View>
-                        </Pressable>
+                            </Pressable>
+                            {showOnVideoFollow && item.user?.id && (
+                                <View style={styles.onVideoFollow}>
+                                    <FollowButton userId={item.user.id} size="small" />
+                                </View>
+                            )}
+                        </View>
                         {postText ? (
-                            <Text style={styles.postText} numberOfLines={2}>
-                                {postText}
-                            </Text>
+                            <View style={styles.caption}>
+                                <LinkifiedText
+                                    text={postText}
+                                    style={styles.postText}
+                                    linkStyle={styles.postLink}
+                                    numberOfLines={captionExpanded ? undefined : 2}
+                                />
+                                {showCaptionToggle && (
+                                    <Text
+                                        style={styles.captionToggle}
+                                        onPress={toggleCaption}
+                                        accessibilityRole="button"
+                                    >
+                                        {t(captionExpanded ? 'videos.less' : 'videos.more')}
+                                    </Text>
+                                )}
+                            </View>
                         ) : null}
+                        <View style={styles.soundRow} pointerEvents="none">
+                            <Ionicons name="musical-notes-outline" size={13} color="#FFFFFF" style={styles.soundIcon} />
+                            <Text style={styles.soundText} numberOfLines={1}>
+                                {t('videos.original_audio')} · @{userHandle}
+                            </Text>
+                        </View>
                     </View>
                 </View>
 
-                <View style={styles.rightActions}>
-                    <ActionButton
-                        icon={item.isLiked ? 'heart' : 'heart-outline'}
-                        count={item.stats?.likesCount || 0}
-                        isActive={item.isLiked}
-                        activeColor={LIKE_ACTIVE_COLOR}
-                        onPress={() => onLike(item.id, item.isLiked || false)}
-                        formatCompactNumber={formatCompactNumber}
-                    />
-                    <ActionButton
-                        icon="chatbubble-outline"
-                        count={item.stats?.commentsCount || 0}
-                        onPress={() => onComment(item.id)}
-                        formatCompactNumber={formatCompactNumber}
-                    />
-                    <ActionButton
-                        icon={item.isBoosted ? 'repeat' : 'repeat-outline'}
-                        count={item.stats?.boostsCount || 0}
-                        isActive={item.isBoosted}
-                        activeColor={BOOST_ACTIVE_COLOR}
-                        onPress={() => onBoost(item.id, item.isBoosted || false)}
-                        formatCompactNumber={formatCompactNumber}
-                    />
-                    <ActionButton
-                        icon="share-outline"
-                        count={0}
-                        onPress={() => onShare(item)}
-                        formatCompactNumber={formatCompactNumber}
-                        hideCount={true}
-                    />
-                </View>
+                {showOnVideoActions && (
+                    <View style={styles.rightActions} pointerEvents="box-none">
+                        <ActionButton
+                            icon={item.isLiked ? 'heart' : 'heart-outline'}
+                            count={item.stats?.likesCount || 0}
+                            isActive={item.isLiked}
+                            activeColor={LIKE_ACTIVE_COLOR}
+                            onPress={() => onLike(item.id, item.isLiked || false)}
+                            formatCompactNumber={formatCompactNumber}
+                        />
+                        <ActionButton
+                            icon="chatbubble-outline"
+                            count={item.stats?.commentsCount || 0}
+                            onPress={() => onComment(item.id)}
+                            formatCompactNumber={formatCompactNumber}
+                        />
+                        <ActionButton
+                            icon={item.isBoosted ? 'repeat' : 'repeat-outline'}
+                            count={item.stats?.boostsCount || 0}
+                            isActive={item.isBoosted}
+                            activeColor={BOOST_ACTIVE_COLOR}
+                            onPress={() => onBoost(item.id, item.isBoosted || false)}
+                            formatCompactNumber={formatCompactNumber}
+                        />
+                        <ActionButton
+                            icon="share-outline"
+                            count={0}
+                            onPress={() => onShare(item)}
+                            formatCompactNumber={formatCompactNumber}
+                            hideCount={true}
+                        />
+                        <View style={styles.viewCount} pointerEvents="none">
+                            <Ionicons name="eye-outline" size={26} color="white" style={styles.actionIcon} />
+                            <Text style={styles.actionCount}>
+                                {formatCompactNumber(item.stats?.viewsCount || 0)}
+                            </Text>
+                        </View>
+                    </View>
+                )}
             </View>
         </View>
     );
@@ -478,6 +770,29 @@ const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeCol
 
 ActionButton.displayName = 'ActionButton';
 
+// ── Feed tab pill ────────────────────────────────────────────────
+interface FeedTabProps {
+    label: string;
+    active: boolean;
+    onPress: () => void;
+}
+
+const FeedTab = memo<FeedTabProps>(({ label, active, onPress }) => (
+    <Pressable
+        style={[styles.tabPill, active ? styles.tabPillActive : styles.tabPillInactive]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        hitSlop={HIT_SLOP}
+    >
+        <Text style={[styles.tabLabel, active ? styles.tabLabelActive : styles.tabLabelInactive]}>
+            {label}
+        </Text>
+    </Pressable>
+));
+
+FeedTab.displayName = 'FeedTab';
+
 // ── Screen ───────────────────────────────────────────────────────
 export default function VideosScreen() {
     const { t } = useTranslation();
@@ -487,9 +802,13 @@ export default function VideosScreen() {
     const router = useRouter();
     const isFocused = useIsFocused();
     const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
-    const { oxyServices, user } = useAuth();
+    const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
     const viewerId = user?.id;
     const { likePost, unlikePost, boostPost, unboostPost, getPostById } = usePostsStore();
+    // Desktop (>=990) gate — shared source of truth with the RightBar. On desktop
+    // the engagement column + on-video follow move into the rail.
+    const isDesktop = useIsRightBarVisible();
+    const { setRailState } = useVideosRail();
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -497,7 +816,22 @@ export default function VideosScreen() {
     const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
+    // 'videos' = For You (ranked video feed); 'following' = following feed filtered
+    // to videos. Read through a ref inside the stable load callbacks so switching
+    // tabs doesn't thrash callback identity.
+    const [activeFeed, setActiveFeed] = useState<VideoFeedTab>('videos');
+    const activeFeedRef = useRef<VideoFeedTab>(activeFeed);
+    activeFeedRef.current = activeFeed;
     const { isMuted: globalMuted, loadMutedState } = useVideoMuteStore();
+
+    // If the viewer signs out while on Following, fall back to For You. Gated on
+    // `isAuthResolved` so the undetermined cold-boot window (where the session is
+    // about to restore) doesn't yank a Following viewer back to For You.
+    useEffect(() => {
+        if (isAuthResolved && !isAuthenticated && activeFeed === 'following') {
+            setActiveFeed('videos');
+        }
+    }, [isAuthResolved, isAuthenticated, activeFeed]);
     // Frozen at cold load: the target post + media index are read once so later
     // param changes never re-trigger the initial load or re-order the reel.
     const targetParamsRef = useRef<{ postId?: string; mediaIndex?: number } | null>(null);
@@ -601,17 +935,20 @@ export default function VideosScreen() {
     // (the setPosts updater can run twice in dev; we must count deterministically).
     const shownIdsRef = useRef<Set<string>>(new Set());
 
-    // Infinite-scroll source: the ranked `videos` MTN feed (native + federated,
-    // single AND multi-video). De-dupes against everything already shown and
-    // returns how many NEW posts were appended.
+    // Infinite-scroll source: the ranked `videos` MTN feed (For You) or the
+    // general `following` feed filtered to videos. Reads the active tab through a
+    // ref so the callback identity stays stable across tab switches. De-dupes
+    // against everything already shown and returns how many NEW posts were appended.
     const fetchVideos = useCallback(async (cursor?: string): Promise<number> => {
         try {
             const response = await feedService.getFeed({
-                type: 'videos',
+                type: activeFeedRef.current === 'following' ? 'following' : 'videos',
                 cursor,
                 limit: FEED_PAGE_LIMIT,
             });
 
+            // The `following` descriptor returns all post types; both paths run
+            // through filterVideoPosts so only video posts reach the reel.
             const videoPosts = filterVideoPosts((response.items || []) as unknown as RawPost[]);
             const newPosts = videoPosts.filter(p => !shownIdsRef.current.has(p.id));
 
@@ -656,13 +993,24 @@ export default function VideosScreen() {
         }
     }, [fetchVideos]);
 
-    // Initial load. Target first (own try/catch), then the ranked chain.
-    // `viewerId` is a dependency so the reel rebuilds when the viewer's auth
-    // session resolves on cold boot: the ranked `videos` feed and the per-post
-    // isLiked/isBoosted/isSaved flags are viewer-dependent, so the anonymous
-    // first pass must be discarded once the session lands. We reset the
-    // accumulated state before reloading so the de-dup set doesn't suppress the
-    // authenticated results.
+    // Reset the reel scroll window to the top across both platforms — used on a
+    // tab switch so the new feed starts from the first slide.
+    const scrollReelToTop = useCallback(() => {
+        if (Platform.OS === 'web') {
+            if (typeof window !== 'undefined') {
+                window.scrollTo({ top: 0 });
+            }
+        } else {
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        }
+    }, []);
+
+    // Initial load + tab switch. Target first (own try/catch), then the ranked
+    // chain. `viewerId` rebuilds the reel when the session resolves on cold boot
+    // (the feed and per-post flags are viewer-dependent). `activeFeed` rebuilds it
+    // on a tab switch — this effect already resets the accumulated state, so the
+    // de-dup set never suppresses the new feed's results. The deep-link target
+    // post is only pinned on the For You tab so a Following reload doesn't re-pin it.
     useEffect(() => {
         let isMounted = true;
 
@@ -673,8 +1021,9 @@ export default function VideosScreen() {
             setNextCursor(undefined);
             setHasMore(true);
             setCurrentVisibleIndex(0);
+            scrollReelToTop();
 
-            if (targetPostId) {
+            if (targetPostId && activeFeed === 'videos') {
                 const targetPost = await fetchPostById(targetPostId);
                 if (!isMounted) return;
                 if (targetPost) {
@@ -695,7 +1044,7 @@ export default function VideosScreen() {
         return () => {
             isMounted = false;
         };
-    }, [targetPostId, viewerId, fetchPostById, fetchVideosUntilProgress]);
+    }, [targetPostId, viewerId, activeFeed, fetchPostById, fetchVideosUntilProgress, scrollReelToTop]);
 
     const handleLoadMore = useCallback(async () => {
         if (loadingMore || !hasMore || !nextCursor) return;
@@ -773,6 +1122,53 @@ export default function VideosScreen() {
         };
     }, [handleLoadMore]);
 
+    // Scroll the reel to a clamped target index. Powers the rail arrows + the
+    // web keyboard ↑/↓ shortcuts. Web scrolls the document; native scrolls the
+    // FlatList by the slide height.
+    const goToIndex = useCallback((targetIndex: number) => {
+        const clamped = Math.min(Math.max(targetIndex, 0), posts.length - 1);
+        if (clamped < 0) return;
+        if (Platform.OS === 'web') {
+            if (typeof window !== 'undefined') {
+                window.scrollTo({ top: clamped * window.innerHeight, behavior: 'smooth' });
+            }
+        } else {
+            flatListRef.current?.scrollToOffset({ offset: clamped * WINDOW_HEIGHT, animated: true });
+        }
+    }, [posts.length, WINDOW_HEIGHT]);
+
+    const prev = useCallback(() => goToIndex(currentVisibleIndex - 1), [goToIndex, currentVisibleIndex]);
+    const next = useCallback(() => goToIndex(currentVisibleIndex + 1), [goToIndex, currentVisibleIndex]);
+
+    const handleSelectFeed = useCallback((tab: VideoFeedTab) => {
+        setActiveFeed((prevTab) => (prevTab === tab ? prevTab : tab));
+    }, []);
+
+    // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
+    // textarea / contenteditable so the composer and search are unaffected.
+    // External-system (window) listener with a cleanup — the legitimate effect case.
+    useEffect(() => {
+        if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            const target = document.activeElement;
+            if (target) {
+                const tag = target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || (target as HTMLElement).isContentEditable) {
+                    return;
+                }
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                prev();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                next();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [prev, next]);
+
     const handleLike = useCallback(async (postId: string, isLiked: boolean) => {
         try {
             if (isLiked) {
@@ -848,11 +1244,66 @@ export default function VideosScreen() {
         useVideoMuteStore.getState().setMuted(muted);
     }, []);
 
-    const handleBack = useSafeBack();
-
     useEffect(() => {
         loadMutedState();
     }, [loadMutedState]);
+
+    // ── Desktop rail coordination ───────────────────────────────────
+    // The rail (rendered in RightBar) is a read-only projection of this screen's
+    // active post + a set of screen-bound callbacks. Writing this derived state to
+    // an external store is the same legitimate-effect pattern as the ScreenColor
+    // screens. `active` flips true on mount and false on unmount so the rail
+    // mounts/unmounts in lockstep with /videos.
+    useEffect(() => {
+        setRailState({ active: true });
+        return () => {
+            setRailState({ active: false, activePost: null });
+        };
+    }, [setRailState]);
+
+    const activeVideoPost = posts[currentVisibleIndex];
+
+    const railActivePost = useMemo<VideosRailActivePost | null>(() => {
+        if (!activeVideoPost) return null;
+        const authorId = activeVideoPost.user?.id;
+        return {
+            id: activeVideoPost.id,
+            authorId,
+            authorIsViewer: Boolean(authorId) && authorId === viewerId,
+            isLiked: activeVideoPost.isLiked || false,
+            isBoosted: activeVideoPost.isBoosted || false,
+            likesCount: activeVideoPost.stats?.likesCount || 0,
+            commentsCount: activeVideoPost.stats?.commentsCount || 0,
+            boostsCount: activeVideoPost.stats?.boostsCount || 0,
+            viewsCount: activeVideoPost.stats?.viewsCount || 0,
+        };
+    }, [activeVideoPost, viewerId]);
+
+    // Push the snapshot + freshly-bound callbacks. The like/boost callbacks are
+    // FULL toggles (unlike the double-tap like-only path) and reuse the same
+    // screen handlers, so a rail mutation flows back through setPosts → re-derives
+    // railActivePost → the rail re-renders with the new count/state.
+    useEffect(() => {
+        setRailState({
+            index: currentVisibleIndex,
+            total: posts.length,
+            activePost: railActivePost,
+            prev,
+            next,
+            onLike: () => {
+                if (railActivePost) handleLike(railActivePost.id, railActivePost.isLiked);
+            },
+            onComment: () => {
+                if (railActivePost) handleComment(railActivePost.id);
+            },
+            onBoost: () => {
+                if (railActivePost) handleBoost(railActivePost.id, railActivePost.isBoosted);
+            },
+            onShare: () => {
+                if (activeVideoPost) handleShare(activeVideoPost);
+            },
+        });
+    }, [setRailState, currentVisibleIndex, posts.length, railActivePost, activeVideoPost, prev, next, handleLike, handleComment, handleBoost, handleShare]);
 
     const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => (
         <VideoItem
@@ -871,8 +1322,10 @@ export default function VideosScreen() {
             bottomBarHeight={bottomBarHeight}
             t={t}
             windowHeight={WINDOW_HEIGHT}
+            isDesktop={isDesktop}
+            viewerId={viewerId}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, isDesktop, viewerId]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -889,23 +1342,28 @@ export default function VideosScreen() {
                 description={t('seo.videos.description')}
             />
             <ThemedView style={styles.container}>
-                <Pressable
-                    onPress={handleBack}
-                    hitSlop={HIT_SLOP}
-                    style={[styles.backButton, { top: insets.top + 8 }]}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('common.back')}
-                >
-                    <View style={styles.backButtonInner}>
-                        <Ionicons name="arrow-back" size={24} color="white" />
-                    </View>
-                </Pressable>
-
                 {isLoading && posts.length === 0 && (
                     <View style={styles.initialLoadingContainer}>
                         <SpinnerIcon size={44} className="text-primary-foreground" />
                     </View>
                 )}
+
+                {/* Immersive pill tabs over the video — top-center, respecting the
+                    safe-area inset. Following is gated on the private API (auth). */}
+                <View style={[styles.tabsRow, { top: insets.top + 12 }]} pointerEvents="box-none">
+                    <FeedTab
+                        label={t('For You')}
+                        active={activeFeed === 'videos'}
+                        onPress={() => handleSelectFeed('videos')}
+                    />
+                    {canUsePrivateApi && (
+                        <FeedTab
+                            label={t('Following')}
+                            active={activeFeed === 'following'}
+                            onPress={() => handleSelectFeed('following')}
+                        />
+                    )}
+                </View>
 
                 {posts.length > 0 && (
                     Platform.OS === 'web' ? (
@@ -941,6 +1399,8 @@ export default function VideosScreen() {
                                     bottomBarHeight={bottomBarHeight}
                                     t={t}
                                     windowHeight={WINDOW_HEIGHT}
+                                    isDesktop={isDesktop}
+                                    viewerId={viewerId}
                                 />
                             ))}
                         </View>
@@ -1022,9 +1482,17 @@ interface VideosStyles {
     videoPlaceholder: ViewStyle;
     posterLayer: ViewStyle;
     poster: ImageStyle;
+    tapLayer: ViewStyle;
+    heartPop: ViewStyle;
+    pauseAffordance: ViewStyle;
+    pauseAffordanceInner: ViewStyle;
+    bufferSpinner: ViewStyle;
+    bufferSpinnerInner: ViewStyle;
+    scrubberHitArea: ViewStyle;
+    scrubberTrack: ViewStyle;
+    scrubberTrackActive: ViewStyle;
+    scrubberFill: ViewStyle;
     errorBadge: ViewStyle;
-    backButton: ViewStyle;
-    backButtonInner: ViewStyle;
     muteButton: ViewStyle;
     muteButtonInner: ViewStyle;
     overlay: ViewStyle;
@@ -1033,16 +1501,32 @@ interface VideosStyles {
     actionButton: ViewStyle;
     actionIcon: TextStyle;
     actionCount: TextStyle;
+    viewCount: ViewStyle;
     bottomInfo: ViewStyle;
     userInfo: ViewStyle;
+    userHeaderRow: ViewStyle;
     userHeader: ViewStyle;
+    onVideoFollow: ViewStyle;
     userAvatar: ViewStyle;
     userNameContainer: ViewStyle;
     userNameRow: ViewStyle;
     userFullName: TextStyle;
     userHandle: TextStyle;
     verifiedIcon: TextStyle;
+    caption: ViewStyle;
     postText: TextStyle;
+    postLink: TextStyle;
+    captionToggle: TextStyle;
+    soundRow: ViewStyle;
+    soundIcon: TextStyle;
+    soundText: TextStyle;
+    tabsRow: ViewStyle;
+    tabPill: ViewStyle;
+    tabPillActive: ViewStyle;
+    tabPillInactive: ViewStyle;
+    tabLabel: TextStyle;
+    tabLabelActive: TextStyle;
+    tabLabelInactive: TextStyle;
     emptyState: ViewStyle;
     loadingMore: ViewStyle;
     loadingIndicator: ViewStyle;
@@ -1095,6 +1579,65 @@ const styles = StyleSheet.create<VideosStyles>({
         width: '100%',
         height: '100%',
     },
+    tapLayer: {
+        ...StyleSheet.absoluteFill,
+        zIndex: 2,
+    },
+    heartPop: {
+        ...StyleSheet.absoluteFill,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 4,
+    },
+    pauseAffordance: {
+        ...StyleSheet.absoluteFill,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 3,
+    },
+    pauseAffordanceInner: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    bufferSpinner: {
+        ...StyleSheet.absoluteFill,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 4,
+    },
+    bufferSpinnerInner: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scrubberHitArea: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 16,
+        justifyContent: 'flex-end',
+        zIndex: 7,
+    },
+    scrubberTrack: {
+        height: 3,
+        width: '100%',
+        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    },
+    scrubberTrackActive: {
+        height: 5,
+    },
+    scrubberFill: {
+        height: '100%',
+        backgroundColor: '#FFFFFF',
+    },
     errorBadge: {
         position: 'absolute',
         top: 60,
@@ -1104,26 +1647,6 @@ const styles = StyleSheet.create<VideosStyles>({
         borderRadius: 16,
         backgroundColor: 'rgba(0, 0, 0, 0.6)',
         zIndex: 11,
-    },
-    backButton: {
-        position: 'absolute',
-        left: 12,
-        zIndex: 20,
-    },
-    backButtonInner: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.15)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
     },
     muteButton: {
         position: 'absolute',
@@ -1192,6 +1715,12 @@ const styles = StyleSheet.create<VideosStyles>({
         marginTop: 0,
         textAlign: 'center',
     },
+    viewCount: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        minWidth: 40,
+    },
     bottomInfo: {
         flex: 1,
         justifyContent: 'flex-end',
@@ -1203,10 +1732,19 @@ const styles = StyleSheet.create<VideosStyles>({
     userInfo: {
         gap: 8,
     },
+    userHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
     userHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+        flexShrink: 1,
+    },
+    onVideoFollow: {
+        flexShrink: 0,
     },
     userAvatar: {
         borderWidth: 0,
@@ -1234,13 +1772,74 @@ const styles = StyleSheet.create<VideosStyles>({
     verifiedIcon: {
         marginLeft: 2,
     },
+    caption: {
+        marginTop: 4,
+    },
     postText: {
         color: '#FFFFFF',
         fontSize: 14,
         lineHeight: 18,
         fontWeight: '400',
         ...TEXT_SHADOW_STRONG,
-        marginTop: 4,
+    },
+    postLink: {
+        color: '#9FD0FF',
+        fontWeight: '600',
+    },
+    captionToggle: {
+        color: 'rgba(255, 255, 255, 0.85)',
+        fontSize: 13,
+        fontWeight: '700',
+        marginTop: 2,
+        ...TEXT_SHADOW_MEDIUM,
+    },
+    soundRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 2,
+    },
+    soundIcon: {
+        ...TEXT_SHADOW_STRONG,
+    },
+    soundText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '500',
+        flexShrink: 1,
+        ...TEXT_SHADOW_STRONG,
+    },
+    tabsRow: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
+        zIndex: 12,
+    },
+    tabPill: {
+        paddingHorizontal: 16,
+        paddingVertical: 7,
+        borderRadius: 18,
+    },
+    tabPillActive: {
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    tabPillInactive: {
+        backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    },
+    tabLabel: {
+        fontSize: 15,
+        ...TEXT_SHADOW_STRONG,
+    },
+    tabLabelActive: {
+        color: '#FFFFFF',
+        fontWeight: '800',
+    },
+    tabLabelInactive: {
+        color: 'rgba(255, 255, 255, 0.7)',
+        fontWeight: '600',
     },
     emptyState: {
         flex: 1,

@@ -9,10 +9,12 @@ interface LinkifiedTextProps {
   className?: string;
   linkStyle?: StyleProp<TextStyle>;
   suffix?: React.ReactNode;
+  /** Clamp the rendered text to N lines (forwarded to the root <Text>). */
+  numberOfLines?: number;
 }
 
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs
-export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix }) => {
+export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix, numberOfLines }) => {
   const router = useRouter();
   const nodes = useMemo(() => {
     if (!text) return null;
@@ -133,7 +135,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
   }, [text, linkStyle, router]);
 
   if (!text) return null;
-  return <Text style={style} className={className}>{nodes}{suffix}</Text>;
+  return <Text style={style} className={className} numberOfLines={numberOfLines}>{nodes}{suffix}</Text>;
 };
 
 export default LinkifiedText;

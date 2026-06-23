@@ -1,10 +1,11 @@
-import { useAuth } from '@oxyhq/services';
 import React, { useMemo } from 'react';
 import { View, Platform, Text, Linking, StyleSheet } from "react-native";
-import { useMediaQuery } from 'react-responsive';
 import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
+import { VideosRail } from './videos/VideosRail';
+import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
+import { useVideosRail } from '@/context/VideosRailContext';
 
 const LINK_STYLE = Platform.select({ web: { cursor: 'pointer' as any } });
 
@@ -18,9 +19,22 @@ const STATIC_FOOTER_URLS = [
 ] as const;
 
 export function RightBar() {
-    const isRightBarVisible = useMediaQuery({ minWidth: 990 });
+    const isRightBarVisible = useIsRightBarVisible();
+    // The /videos screen is the sole writer of `active` — true ONLY while that
+    // route is mounted. Reading it here keeps the rail swap reactive and exact
+    // (no pathname string-matching), so the immersive rail mounts/unmounts in
+    // lockstep with the videos screen.
+    const { active: videosRailActive } = useVideosRail();
 
     if (!isRightBarVisible) return null;
+
+    if (videosRailActive) {
+        return (
+            <View className="flex-col px-4 pt-4" style={styles.container}>
+                <VideosRail />
+            </View>
+        );
+    }
 
     return (
         <View className="flex-col px-4 pt-4 gap-4" style={styles.container}>

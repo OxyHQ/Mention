@@ -494,7 +494,14 @@
     "no_video_posts_yet": "No video posts yet",
     "loading": "Loading...",
     "on_mention": "on Mention",
-    "action_failed": "Action failed. Please try again."
+    "action_failed": "Action failed. Please try again.",
+    "play": "Play",
+    "pause": "Pause",
+    "more": "more",
+    "less": "less",
+    "original_audio": "Original audio",
+    "previous": "Previous video",
+    "next": "Next video"
   },
   "common": {
     "unknown": "unknown",

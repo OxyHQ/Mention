@@ -22,6 +22,7 @@ import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
 import { ScreenColorProvider, useScreenColor } from '@/context/ScreenColorContext';
+import { VideosRailProvider } from '@/context/VideosRailContext';
 import { APP_COLOR_PRESETS, BloomColorScope, type AppColorName } from '@oxyhq/bloom/theme';
 import { ScrollRestorationProvider } from '@oxyhq/bloom/scroll';
 import { cn } from '@/lib/utils';
@@ -246,6 +247,7 @@ export default function AppLayout() {
 
   return (
     <ScreenColorProvider>
+    <VideosRailProvider>
     <DrawerProvider>
       <ConnectionStatus />
       <RealtimePostsBridge />
@@ -261,6 +263,7 @@ export default function AppLayout() {
         />
       )}
     </DrawerProvider>
+    </VideosRailProvider>
     </ScreenColorProvider>
   );
 }

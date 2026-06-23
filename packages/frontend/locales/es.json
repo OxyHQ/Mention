@@ -425,7 +425,14 @@
     "no_video_posts_yet": "Aún no hay videos",
     "loading": "Cargando...",
     "on_mention": "en Mention",
-    "action_failed": "Acción fallida. Por favor, inténtalo de nuevo."
+    "action_failed": "Acción fallida. Por favor, inténtalo de nuevo.",
+    "play": "Reproducir",
+    "pause": "Pausar",
+    "more": "más",
+    "less": "menos",
+    "original_audio": "Audio original",
+    "previous": "Video anterior",
+    "next": "Video siguiente"
   },
   "common": {
     "unknown": "desconocido",
