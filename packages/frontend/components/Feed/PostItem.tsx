@@ -16,7 +16,6 @@ import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
-import { PostAttachmentNested } from '../Post/Attachments';
 // Lazy load modals/sheets - only loaded when user opens them
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
@@ -52,11 +51,6 @@ type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
     quoted?: HydratedPostSummary | null;
 };
-
-// Max embed depth for a nested post (boost original / quoted post). A top-level
-// post embeds its original at depth 1; that embed will not itself render a
-// further nested post. Prevents unbounded nested-of-nested rendering.
-const MAX_NESTED_POST_DEPTH = 2;
 
 interface PostItemProps {
     post: PostEntity;
@@ -175,18 +169,13 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const shouldRenderMediaBlock =
         (Array.isArray(mediaItems) && mediaItems.length > 0) ||
+        Boolean(nestedPost) ||
         Boolean(pollData) ||
         Boolean(articleContent) ||
         Boolean(eventContent) ||
         Boolean(roomContent) ||
         Boolean(linkPreview) ||
         hasValidLocation;
-
-    // The embedded original (a boost's original post or a quoted post) renders as
-    // its OWN vertical body block — NOT as an item inside the attachments
-    // carousel. Cap the embed depth so a boost-of-a-quote (etc.) doesn't recurse
-    // a third level (mirrors the prior `nestingDepth < 2` cap).
-    const shouldRenderNested = Boolean(nestedPost) && nestingDepth < MAX_NESTED_POST_DEPTH;
 
     const attachmentDescriptors: PostAttachmentDescriptor[] | undefined = Array.isArray(content.attachments)
         ? content.attachments
@@ -491,13 +480,12 @@ const PostItem: React.FC<PostItemProps> = ({
     // differ — never the avatar/name/handle/time/content position.
     const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
-    // All vertical content spacing is driven by flex `gap` (NOT per-block
-    // margins), and is UNIFIED to a single value (SECTION_GAP): the header's
-    // content column (name row → body children) is passed SECTION_GAP via
-    // `contentGap`, the body text → nested-card wrapper uses SECTION_GAP, and the
-    // post's content blocks (header, location, sources, media, actions) are
-    // gap-siblings here at SECTION_GAP. Gap only adds space BETWEEN
-    // actually-rendered children, so an absent block never leaves an orphan gap.
+    // Spacing below the header is driven by flex `gap` on a single content column,
+    // NOT per-block margins: gap only adds space BETWEEN actually-rendered children,
+    // so an absent block (e.g. no text) never leaves an orphaned gap. The header's
+    // identity column already groups the name row + body text at HEADER_CONTENT_GAP
+    // (4px); the post's content blocks (text-already-in-header, location, sources,
+    // media, actions) are the gap-siblings here at SECTION_GAP (12px).
     const Container: React.ElementType = isTappable ? Pressable : View;
 
     const postAuthor = viewPost.user.displayName;
@@ -596,27 +584,8 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressAvatar={goToUser}
                     onPressMenu={openMenu}
                     paddingHorizontal={isNested ? 0 : HPAD}
-                    // Unify ALL of the post's vertical content spacing to one value
-                    // (SECTION_GAP): name row → body, between body blocks (text,
-                    // nested card, media, actions) — every vertical gap is the same,
-                    // so boost / quote / text / media all read uniformly.
-                    contentGap={SECTION_GAP}
                 >
-                    {/* Body content column (right of the avatar, under the name):
-                        the post text followed by the embedded original (a boost's
-                        original post or a quoted card). The nested post is a CHILD
-                        of the content column — like the text — so a no-text boost
-                        renders its nested card directly under the name (no orphan
-                        "reserved text line" gap). Sized full-width by the column;
-                        media/actions stay full-bleed siblings below. */}
-                    {(content.text || shouldRenderNested) ? (
-                        <View style={{ gap: SECTION_GAP }}>
-                            {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
-                            {shouldRenderNested && nestedPost ? (
-                                <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
-                            ) : null}
-                        </View>
-                    ) : null}
+                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
                 </PostHeader>
 
                 {hasValidLocation && location && (
@@ -665,9 +634,11 @@ const PostItem: React.FC<PostItemProps> = ({
                             <PostAttachmentsRow
                                 media={Array.isArray(mediaItems) ? mediaItems : []}
                                 attachments={attachmentDescriptors}
+                                nestedPost={nestedPost ?? null}
                                 leftOffset={AVATAR_OFFSET}
                                 pollData={pollData}
                                 pollId={pollId ? String(pollId) : undefined}
+                                nestingDepth={nestingDepth}
                                 postId={viewPostId}
                                 article={
                                     articleContent
@@ -752,7 +723,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}
                             detail={isDetailMain}
                             timestampLabel={fullTimestamp}
-                            hasMediaBlock={shouldRenderMediaBlock || shouldRenderNested}
+                            hasMediaBlock={shouldRenderMediaBlock}
                             onLikesPress={isDetailMain ? () => openEngagementList('likes') : undefined}
                             onBoostsPress={isDetailMain ? () => openEngagementList('boosts') : undefined}
                         />
