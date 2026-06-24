@@ -11,7 +11,6 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostItem from '@/components/Feed/PostItem';
-import PostDetailView from '@/components/Post/PostDetailView';
 import Feed from '@/components/Feed/Feed';
 import { FeedHeader } from '@/components/Feed/FeedHeader';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
@@ -74,7 +73,6 @@ const PostDetailScreen: React.FC = () => {
     // with the original embedded as a nested sub-card (the same way the feed row
     // renders a boost). A boost has no direct replies of its own; replies attach
     // to the original, so the replies thread below targets the original's id.
-    const isBoost = Boolean(post?.boost?.originalPost);
     const replyTargetId = post?.boost?.originalPost?.id
         ? String(post.boost.originalPost.id)
         : String(id);
@@ -206,21 +204,17 @@ const PostDetailScreen: React.FC = () => {
                     </View>
                 )}
 
-                {isBoost ? (
-                    // Render the boost via the SHARED feed boost path (PostItem):
-                    // booster header + "boosted" + the original as a nested sub-card.
-                    // On a detail route PostItem is non-tappable for the main post,
-                    // and the nested original card opens `/p/<originalId>`.
-                    <PostItem
-                        post={post}
-                        onReply={handleOpenReply}
-                    />
-                ) : (
-                    <PostDetailView
-                        post={post}
-                        onFocusReply={handleOpenReply}
-                    />
-                )}
+                {/* The focused post renders through the SAME PostItem as the feed,
+                    gated by the `isPostDetail` variant (full-width body, larger spread
+                    action bar, full timestamp + engagement-stats rows). This covers
+                    BOTH a normal post and a boost (booster header + "boosted" + the
+                    original as a nested, tappable sub-card → `/p/<originalId>`). The
+                    focused main post is non-tappable; only its nested card navigates. */}
+                <PostItem
+                    post={post}
+                    isPostDetail
+                    onReply={handleOpenReply}
+                />
 
                 <FeedHeader
                     showComposeButton={!!user}
@@ -233,7 +227,7 @@ const PostDetailScreen: React.FC = () => {
                 </View>
             </View>
         );
-    }, [post, parentPost, isBoost, handleOpenReply, user, t]);
+    }, [post, parentPost, handleOpenReply, user, t]);
 
     if (!loading && (error || !post)) {
         return (

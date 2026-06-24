@@ -20,6 +20,7 @@ import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
+const EngagementListSheet = lazy(() => import('@/components/Post/EngagementListSheet'));
 import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useLiveRoom } from '@/context/LiveRoomContext';
@@ -44,6 +45,7 @@ import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
+import { formatFullTimestamp } from '@/utils/dateUtils';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -60,6 +62,14 @@ interface PostItemProps {
     isThreadParent?: boolean;
     isThreadChild?: boolean;
     isThreadLastChild?: boolean;
+    /**
+     * Render the FOCUSED post-detail variant: full-width body, the larger spread-out
+     * action bar (with the full absolute timestamp + engagement-stats rows), and a
+     * non-tappable container. Passed ONLY by the post-detail screen for the focused
+     * post — NOT by the replies list (replies stay in the compact feed variant). The
+     * same `PostItem` renders feed AND detail; only this flag changes.
+     */
+    isPostDetail?: boolean;
     /**
      * When this item is rendered inside a feed, the feed's descriptor. Opening
      * the post detail from the feed reports a `click` interaction attributed to
@@ -78,6 +88,7 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadParent = false,
     isThreadChild = false,
     isThreadLastChild = false,
+    isPostDetail: isPostDetailProp = false,
     feedDescriptor,
 }) => {
     const { oxyServices, user: authUser } = useAuth();
@@ -196,11 +207,13 @@ const PostItem: React.FC<PostItemProps> = ({
 
     useImagePreload(imageUrls, true);
 
-    const isPostDetail = (pathname || '').startsWith('/p/');
-    // A nested item (the embedded original inside a boost/quote) is a SUB-card, never
-    // the focused post — so it stays tappable even on a detail route, where the main
-    // (focused) post is intentionally non-tappable. `isTappable` separates the two.
-    const isTappable = isNested || !isPostDetail;
+    // `onDetailRoute` = rendered on a `/p/` screen (focused post OR a reply in its
+    // list). `isDetailMain` = the FOCUSED post itself (detail variant). A nested
+    // sub-card (embedded original inside a boost/quote) is never the focused post,
+    // so it stays tappable even on a detail route; the focused main post does not.
+    const onDetailRoute = (pathname || '').startsWith('/p/');
+    const isDetailMain = isPostDetailProp && !isNested;
+    const isTappable = isNested || !onDetailRoute;
     const goToPost = useCallback((event?: GestureResponderEvent) => {
         // A nested item is its OWN tap target: opening it must NOT also trigger the
         // outer post's press. On React Native Web the press bubbles through the DOM,
@@ -349,6 +362,22 @@ const PostItem: React.FC<PostItemProps> = ({
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, viewPostId]);
 
+    // Detail-only: open the likes/boosts engagement list. No-op outside the
+    // focused post-detail variant (the feed action row doesn't expose it).
+    const openEngagementList = useCallback((type: 'likes' | 'boosts') => {
+        if (!viewPostId) return;
+        bottomSheet.setBottomSheetContent(
+            <Suspense fallback={null}>
+                <EngagementListSheet
+                    postId={viewPostId}
+                    type={type}
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                />
+            </Suspense>
+        );
+        bottomSheet.openBottomSheet(true);
+    }, [bottomSheet, viewPostId]);
+
     const roomId = roomContent?.roomId || roomContent?.spaceId;
     const handleRoomPress = useCallback(() => {
         if (roomId) joinLiveRoom(roomId);
@@ -444,6 +473,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // Canonical post-item layout tokens (single source of truth: COMPONENT_SPACING.post).
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
     const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
+
+    // Feed: body is indented under the avatar column (AVATAR_OFFSET). Detail: the
+    // focused post's body spans full width (HPAD), so text sits below the header.
+    const contentLeftPad = isDetailMain ? HPAD : AVATAR_OFFSET;
+    const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
     const Container: React.ElementType = isTappable ? Pressable : View;
 
@@ -553,17 +587,27 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressMenu={openMenu}
                     paddingHorizontal={isNested ? 0 : HPAD}
                 >
-                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
+                    {/* In the focused detail variant the body renders full-width BELOW the
+                        header (not indented under the avatar column), so the header carries
+                        no inline content there. */}
+                    {!isDetailMain && content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
                 </PostHeader>
 
+                {/* Detail variant: full-width body below the header. */}
+                {isDetailMain && content.text ? (
+                    <View style={{ paddingLeft: contentLeftPad, paddingRight: HPAD, marginTop: SECTION_GAP }}>
+                        <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} />
+                    </View>
+                ) : null}
+
                 {hasValidLocation && location && (
-                    <View style={{ marginTop: SECTION_GAP, paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                    <View style={{ marginTop: SECTION_GAP, paddingLeft: contentLeftPad, paddingRight: HPAD }}>
                         <PostLocation location={location} paddingHorizontal={0} />
                     </View>
                 )}
 
                 {hasSources && (
-                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: SECTION_GAP }}>
+                    <View style={{ paddingLeft: contentLeftPad, paddingRight: HPAD, marginTop: SECTION_GAP }}>
                         <TouchableOpacity
                             className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border mt-2"
                             style={{ paddingHorizontal: 10, paddingVertical: 4 }}
@@ -603,7 +647,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 media={Array.isArray(mediaItems) ? mediaItems : []}
                                 attachments={attachmentDescriptors}
                                 nestedPost={nestedPost ?? null}
-                                leftOffset={AVATAR_OFFSET}
+                                leftOffset={contentLeftPad}
                                 pollData={pollData}
                                 pollId={pollId ? String(pollId) : undefined}
                                 nestingDepth={nestingDepth}
@@ -663,7 +707,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 )}
 
                 {!isNested && (
-                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: SECTION_GAP }}>
+                    <View style={{ paddingLeft: contentLeftPad, paddingRight: HPAD, marginTop: SECTION_GAP }}>
                         <PostActions
                             engagement={{
                                 replies: engagement.replies ?? 0,
@@ -685,11 +729,16 @@ const PostItem: React.FC<PostItemProps> = ({
                             onSave={handleSave}
                             onShare={handleShare}
                             postId={viewPostId}
-                            onTranslate={content.text ? handleTranslate : undefined}
+                            onTranslate={!isDetailMain && content.text ? handleTranslate : undefined}
                             isTranslated={Boolean(translatedText)}
                             isTranslating={isTranslating}
                             isPremium={isPremium}
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}
+                            detail={isDetailMain}
+                            timestampLabel={fullTimestamp}
+                            hasMediaBlock={shouldRenderMediaBlock}
+                            onLikesPress={isDetailMain ? () => openEngagementList('likes') : undefined}
+                            onBoostsPress={isDetailMain ? () => openEngagementList('boosts') : undefined}
                         />
                     </View>
                 )}
@@ -770,6 +819,7 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prevProps.isThreadParent === nextProps.isThreadParent &&
         prevProps.isThreadChild === nextProps.isThreadChild &&
         prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
+        prevProps.isPostDetail === nextProps.isPostDetail &&
         prevProps.feedDescriptor === nextProps.feedDescriptor
     );
 });

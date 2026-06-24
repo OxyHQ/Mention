@@ -41,6 +41,28 @@ export function formatRelativeTimeCompact(input: string | number): string {
 }
 
 /**
+ * Full absolute timestamp for the focused post-detail view, e.g.
+ * "9:20 PM · Jun 11, 2026". Returns '' for an unparseable date.
+ */
+export function formatFullTimestamp(input: string | number): string {
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  const displayMinutes = minutes.toString().padStart(2, '0');
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+  const year = date.getFullYear();
+
+  return `${displayHours}:${displayMinutes} ${ampm} · ${month} ${day}, ${year}`;
+}
+
+/**
  * Localized relative time for notifications.
  * Uses i18n translation keys: notification.now, notification.minutes_ago,
  * notification.hours_ago, notification.days_ago. Falls back to toLocaleDateString for older dates.
