@@ -197,16 +197,19 @@ const PostItem: React.FC<PostItemProps> = ({
     useImagePreload(imageUrls, true);
 
     const isPostDetail = (pathname || '').startsWith('/p/');
+    // A nested item (the embedded original inside a boost/quote) is a SUB-card, never
+    // the focused post — so it stays tappable even on a detail route, where the main
+    // (focused) post is intentionally non-tappable. `isTappable` separates the two.
+    const isTappable = isNested || !isPostDetail;
     const goToPost = useCallback((event?: GestureResponderEvent) => {
-        // A nested item (e.g. the embedded original inside a boost/quote) is its
-        // OWN tap target: opening it must NOT also trigger the outer post's press.
-        // On React Native Web the press bubbles through the DOM, so stop it here.
-        // The outer boost row keeps navigating to the boost's own detail; only the
-        // inner card navigates to the embedded post.
+        // A nested item is its OWN tap target: opening it must NOT also trigger the
+        // outer post's press. On React Native Web the press bubbles through the DOM,
+        // so stop it here. The outer boost row navigates to the boost's own detail;
+        // only the inner card navigates to the embedded original.
         if (isNested) {
             event?.stopPropagation?.();
         }
-        if (!isPostDetail && viewPostId) {
+        if (isTappable && viewPostId) {
             // Best-effort feed-ranking signal: opening a post from a feed is a
             // strong positive interaction. No-op when not rendered in a feed
             // (feedDescriptor undefined) or for federated previews without an id.
@@ -215,7 +218,7 @@ const PostItem: React.FC<PostItemProps> = ({
             }
             router.push(`/p/${viewPostId}`);
         }
-    }, [router, viewPostId, isPostDetail, feedDescriptor, isNested]);
+    }, [router, viewPostId, isTappable, feedDescriptor, isNested]);
 
     const goToUser = useCallback(() => {
         const handle = getNormalizedUserHandle({
@@ -442,7 +445,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
     const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
 
-    const Container: React.ElementType = isPostDetail ? View : Pressable;
+    const Container: React.ElementType = isTappable ? Pressable : View;
 
     const boostedBy = viewPost.boost?.actor
         ? {
@@ -489,9 +492,9 @@ const PostItem: React.FC<PostItemProps> = ({
                     style,
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
-                {...(isPostDetail ? {} : { onPress: goToPost })}
+                {...(isTappable ? { onPress: goToPost } : {})}
             >
-                {!isPostDetail && <SubtleHover />}
+                {isTappable && <SubtleHover />}
                 {/* Thread line above avatar — connects from previous post's bottom */}
                 {isThreadChild && !isNested && (
                     <View

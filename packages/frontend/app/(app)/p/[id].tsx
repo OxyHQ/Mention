@@ -69,12 +69,22 @@ const PostDetailScreen: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
 
+    // A boost (`type:'boost'`) is its OWN post with an empty body whose content is
+    // the original it boosted — so `/p/<boostId>` renders as the booster's post
+    // with the original embedded as a nested sub-card (the same way the feed row
+    // renders a boost). A boost has no direct replies of its own; replies attach
+    // to the original, so the replies thread below targets the original's id.
+    const isBoost = Boolean(post?.boost?.originalPost);
+    const replyTargetId = post?.boost?.originalPost?.id
+        ? String(post.boost.originalPost.id)
+        : String(id);
+
     // Memoize filters for replies feed
     const feedFilters = useMemo(() => ({
-        postId: String(id),
-        parentPostId: String(id),
+        postId: replyTargetId,
+        parentPostId: replyTargetId,
         sort: SORT_TO_API[sortOrder],
-    }), [id, sortOrder]);
+    }), [replyTargetId, sortOrder]);
 
     const openReplyPreferences = useCallback(() => {
         setBottomSheetContent(<ReplyPreferencesSheet />);
@@ -82,8 +92,9 @@ const PostDetailScreen: React.FC = () => {
     }, [setBottomSheetContent, openBottomSheet]);
 
     const handleOpenReply = useCallback(() => {
-        if (id) router.push(`/compose?replyToPostId=${id}`);
-    }, [id]);
+        // Replies attach to the original, never to the boost record.
+        if (replyTargetId) router.push(`/compose?replyToPostId=${replyTargetId}`);
+    }, [replyTargetId]);
 
     // Load the post. When the feed already cached it, the post is rendered
     // synchronously above (`cachedPost`) and this effect only revalidates it in
@@ -195,10 +206,21 @@ const PostDetailScreen: React.FC = () => {
                     </View>
                 )}
 
-                <PostDetailView
-                    post={post}
-                    onFocusReply={handleOpenReply}
-                />
+                {isBoost ? (
+                    // Render the boost via the SHARED feed boost path (PostItem):
+                    // booster header + "boosted" + the original as a nested sub-card.
+                    // On a detail route PostItem is non-tappable for the main post,
+                    // and the nested original card opens `/p/<originalId>`.
+                    <PostItem
+                        post={post}
+                        onReply={handleOpenReply}
+                    />
+                ) : (
+                    <PostDetailView
+                        post={post}
+                        onFocusReply={handleOpenReply}
+                    />
+                )}
 
                 <FeedHeader
                     showComposeButton={!!user}
@@ -211,7 +233,7 @@ const PostDetailScreen: React.FC = () => {
                 </View>
             </View>
         );
-    }, [post, parentPost, handleOpenReply, user, t]);
+    }, [post, parentPost, isBoost, handleOpenReply, user, t]);
 
     if (!loading && (error || !post)) {
         return (
@@ -296,7 +318,7 @@ const PostDetailScreen: React.FC = () => {
                         listHeaderComponent={listHeader}
                         hideHeader={true}
                         threaded={treeView}
-                        threadPostId={String(id)}
+                        threadPostId={replyTargetId}
                         contentContainerStyle={styles.feedContent}
                     />
                 )}
