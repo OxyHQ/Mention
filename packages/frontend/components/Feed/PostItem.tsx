@@ -11,7 +11,7 @@ import {
     PostRoomContent,
 } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
-import PostHeader, { HEADER_CONTENT_GAP } from '../Post/PostHeader';
+import PostHeader from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
@@ -480,24 +480,12 @@ const PostItem: React.FC<PostItemProps> = ({
     // differ — never the avatar/name/handle/time/content position.
     const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
-    // Spacing below the header is pure flex `gap`, NOT per-block margins. Body
-    // blocks (location, sources, media, actions) live in ONE container at
-    // SECTION_GAP (12px) so an absent block never leaves an orphaned gap between
-    // the others.
-    //
-    // The ONLY seam that must vary is the header → first-body-block boundary: the
-    // body text lives INSIDE the header's content column (4px under the name via
-    // HEADER_CONTENT_GAP), so when text is present the first external block sits a
-    // full SECTION_GAP below the text. With NO text the header ends at the name
-    // row, and that first external block must hug the name at the SAME 4px a text
-    // line would have produced — otherwise it inherits the 12px wrapper gap and
-    // reads as an orphaned "reserved text line" space. Hence this single derived
-    // gap value (no conditional per-block margins).
-    const headerToBodyGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
-    // The action bar (`!isNested`) always renders, so non-nested posts always have
-    // a body block; nested posts only when there is real content to show.
-    // `shouldRenderMediaBlock` already subsumes `hasValidLocation`.
-    const hasBodyBlock = !isNested || hasSources || shouldRenderMediaBlock;
+    // Spacing below the header is driven by flex `gap` on a single content column,
+    // NOT per-block margins: gap only adds space BETWEEN actually-rendered children,
+    // so an absent block (e.g. no text) never leaves an orphaned gap. The header's
+    // identity column already groups the name row + body text at HEADER_CONTENT_GAP
+    // (4px); the post's content blocks (text-already-in-header, location, sources,
+    // media, actions) are the gap-siblings here at SECTION_GAP (12px).
     const Container: React.ElementType = isTappable ? Pressable : View;
 
     const postAuthor = viewPost.user.displayName;
@@ -579,7 +567,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         </Text>
                     </View>
                 )}
-                <View style={{ gap: headerToBodyGap }}>
+                <View style={{ gap: SECTION_GAP }}>
                 <PostHeader
                     user={{
                         displayName: viewPost.user.displayName,
@@ -600,8 +588,6 @@ const PostItem: React.FC<PostItemProps> = ({
                     {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
                 </PostHeader>
 
-                {hasBodyBlock && (
-                <View style={{ gap: SECTION_GAP }}>
                 {hasValidLocation && location && (
                     <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
                         <PostLocation location={location} paddingHorizontal={0} />
@@ -742,8 +728,6 @@ const PostItem: React.FC<PostItemProps> = ({
                             onBoostsPress={isDetailMain ? () => openEngagementList('boosts') : undefined}
                         />
                     </View>
-                )}
-                </View>
                 )}
                 </View>
             </Container>
