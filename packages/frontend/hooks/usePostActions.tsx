@@ -1,6 +1,8 @@
 import React, { useMemo, useContext } from 'react';
 import { useRouter, usePathname } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { queryKeys } from '@/hooks/useOptimizedQuery';
 import { useAuth } from '@oxyhq/services';
 import { createScopedLogger } from '@/lib/logger';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -81,7 +83,9 @@ export function usePostActions({
     const pathname = usePathname();
     const safeBack = useSafeBack();
     const bottomSheet = useContext(BottomSheetContext);
+    const queryClient = useQueryClient();
     const removePostEverywhere = usePostsStore((s) => s.removePostEverywhere);
+    const updatePostEverywhere = usePostsStore((s) => s.updatePostEverywhere);
 
     return useMemo(() => {
         const postId = viewPost?.id;
@@ -177,8 +181,17 @@ export function usePostActions({
                     : <PinIcon size={20} className="text-muted-foreground" />,
                 text: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
                 onPress: async () => {
+                    const nextPinned = !isPinned;
                     try {
-                        await feedService.updatePostSettings(postId, { isPinned: !isPinned });
+                        await feedService.updatePostSettings(postId, { isPinned: nextPinned });
+                        updatePostEverywhere(postId, (prev) => ({
+                            ...prev,
+                            metadata: { ...prev.metadata, isPinned: nextPinned },
+                        }));
+                        const authorId = viewPost?.user?.id;
+                        if (authorId) {
+                            queryClient.invalidateQueries({ queryKey: queryKeys.pinnedPost(authorId) });
+                        }
                     } catch (e) {
                         toast(isPinned ? t('postActions.failedToUnpinPost') : t('postActions.failedToPinPost'), { type: 'error' });
                     }
@@ -193,8 +206,13 @@ export function usePostActions({
                 icon: <HideIcon size={20} className="text-muted-foreground" />,
                 text: isHidden ? t('postActions.showEngagementCounts') : t('postActions.hideEngagementCounts'),
                 onPress: async () => {
+                    const nextHidden = !isHidden;
                     try {
-                        await feedService.updatePostSettings(postId, { hideEngagementCounts: !isHidden });
+                        await feedService.updatePostSettings(postId, { hideEngagementCounts: nextHidden });
+                        updatePostEverywhere(postId, (prev) => ({
+                            ...prev,
+                            metadata: { ...prev.metadata, hideEngagementCounts: nextHidden },
+                        }));
                     } catch (e) {
                         toast(t('postActions.failedToUpdateEngagement'), { type: 'error' });
                     }
@@ -214,6 +232,10 @@ export function usePostActions({
                             onReplyPermissionChange={async (permission) => {
                                 try {
                                     await feedService.updatePostSettings(postId, { replyPermission: permission });
+                                    updatePostEverywhere(postId, (prev) => ({
+                                        ...prev,
+                                        metadata: { ...prev.metadata, replyPermission: permission },
+                                    }));
                                 } catch (e) {
                                     toast(t('postActions.failedToUpdateReplyPermissions'), { type: 'error' });
                                 }
@@ -222,6 +244,10 @@ export function usePostActions({
                             onQuotesDisabledChange={async (disabled) => {
                                 try {
                                     await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
+                                    updatePostEverywhere(postId, (prev) => ({
+                                        ...prev,
+                                        metadata: { ...prev.metadata, quotesDisabled: disabled },
+                                    }));
                                 } catch (e) {
                                     toast(t('postActions.failedToUpdateQuoteSettings'), { type: 'error' });
                                 }
@@ -363,5 +389,5 @@ export function usePostActions({
             muteReportAction,
             copyLinkAction,
         };
-    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere]);
+    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere, updatePostEverywhere, queryClient]);
 }

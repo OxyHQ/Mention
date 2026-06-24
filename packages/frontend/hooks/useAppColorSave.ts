@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, queryKeys } from '@oxyhq/services';
 import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
+import { queryClient } from '@/lib/queryClient';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
 /**
@@ -27,6 +28,14 @@ export function useAppColorSave() {
           appearance: { primaryColor: hex },
         }),
       ]);
+      // `oxyServices.updateProfile` busts the SDK's internal HTTP response cache
+      // but NOT the React Query user caches that `useProfileData`/`useUserByUsername`
+      // read (`queryKeys.users.details()` covers the by-id, by-username, and
+      // federated-resolve keys). Without this, the viewer's own profile keeps
+      // rendering the pre-change accent color (via `useProfileScreenColor` →
+      // `BloomColorScope`) until the 5-minute staleTime elapses or a full reload.
+      // `updateMySettings` already invalidates the `['appearance', ...]` key.
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.details() });
     } catch (error) {
       logger.error('Error updating color', { error });
     } finally {

@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, TouchableOpacity, Text, ScrollView } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import SEO from '@/components/SEO';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
@@ -19,18 +19,25 @@ export default function StarterPacksScreen() {
   const [myPacks, setMyPacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await starterPacksService.list({ mine: true });
-        setMyPacks(res.items || []);
-      } catch (e) {
-        logger.warn('load starter packs failed', { error: e });
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const load = useCallback(async () => {
+    try {
+      const res = await starterPacksService.list({ mine: true });
+      setMyPacks(res.items || []);
+    } catch (e) {
+      logger.warn('load starter packs failed', { error: e });
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Refresh on every focus so returning from create/edit/delete shows fresh
+  // data — the linked client is uncached (core 3.9.0), so each call hits the
+  // network. Mirrors the detail screen's freshness pattern.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   return (
     <>

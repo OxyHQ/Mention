@@ -21,6 +21,7 @@ import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
 import { createScopedLogger } from '@/lib/logger';
+import { usePrivacyStore } from '@/stores/privacyStore';
 
 const restrictedLogger = createScopedLogger('RestrictedUsers');
 
@@ -56,6 +57,11 @@ export default function RestrictedUsersScreen() {
         oxyServices,
     } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
+    // Authoritative cross-app sync: keep the shared privacy store in lockstep so
+    // `usePrivacyControls().isRestricted` (which gates interactions everywhere)
+    // reflects a restrict/unrestrict immediately, without waiting for the store's
+    // interval refresh or a possibly-cached `getRestrictedUsers` refetch.
+    const setStoreRestricted = usePrivacyStore((state) => state.setRestricted);
     const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
     const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);
     const [loading, setLoading] = useState(true);
@@ -308,6 +314,8 @@ export default function RestrictedUsersScreen() {
             await oxyServices.restrictUser(userId);
             restrictedLogger.debug('User restricted successfully');
 
+            setStoreRestricted(userId, true);
+
             await loadRestrictedUsers();
 
             setSearchQuery('');
@@ -352,6 +360,8 @@ export default function RestrictedUsersScreen() {
 
                 await oxyServices.unrestrictUser(userId);
                 restrictedLogger.debug('User unrestricted successfully');
+
+                setStoreRestricted(userId, false);
 
                 await loadRestrictedUsers();
 

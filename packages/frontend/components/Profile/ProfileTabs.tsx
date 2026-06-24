@@ -2,8 +2,10 @@ import React, { memo, useState, useEffect } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { queryKeys } from '@/hooks/useOptimizedQuery';
 import { Spinner } from '@/components/ui/Spinner';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
@@ -37,25 +39,15 @@ export const ProfileTabs = memo(function ProfileTabs({
 }: ProfileTabsProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [pinnedPost, setPinnedPost] = useState<HydratedPost | null>(null);
 
-  // Fetch pinned post once per profile
-  useEffect(() => {
-    if (!profileId || (isPrivate && !isOwnProfile)) {
-      setPinnedPost(null);
-      return;
-    }
-
-    let cancelled = false;
-    feedService.getPinnedPost(profileId)
-      .then((post) => { if (!cancelled) setPinnedPost(post); })
-      .catch((err) => {
-        logger.warn('[ProfileTabs] Failed to load pinned post', { error: err });
-        if (!cancelled) setPinnedPost(null);
-      });
-
-    return () => { cancelled = true; };
-  }, [profileId, isPrivate, isOwnProfile]);
+  // Pinned post lives in React Query so pin/unpin can invalidate it
+  // (see usePostActions) and the post re-sorts without a profile remount.
+  const pinnedPostQuery = useQuery<HydratedPost | null>({
+    queryKey: queryKeys.pinnedPost(profileId),
+    queryFn: () => feedService.getPinnedPost(profileId as string),
+    enabled: Boolean(profileId) && !(isPrivate && !isOwnProfile),
+  });
+  const pinnedPost = pinnedPostQuery.data ?? null;
 
   // Don't render feed content without a valid profile identifier
   if (!profileId && !actorUri) {

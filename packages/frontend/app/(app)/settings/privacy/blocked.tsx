@@ -21,6 +21,7 @@ import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
 import { createScopedLogger } from '@/lib/logger';
+import { usePrivacyStore } from '@/stores/privacyStore';
 
 const blockedLogger = createScopedLogger('BlockedUsers');
 
@@ -56,6 +57,11 @@ export default function BlockedUsersScreen() {
         isPrivateApiPending,
     } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
+    // Authoritative cross-app sync: keep the shared privacy store in lockstep so
+    // `usePrivacyControls().isBlocked` (which gates interactions everywhere)
+    // reflects a block/unblock immediately, without waiting for the store's
+    // interval refresh or a possibly-cached `getBlockedUsers` refetch.
+    const setStoreBlocked = usePrivacyStore((state) => state.setBlocked);
     const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
     const [loading, setLoading] = useState(true);
@@ -241,6 +247,8 @@ export default function BlockedUsersScreen() {
             await oxyServices.blockUser(userId);
             blockedLogger.info('User blocked successfully');
 
+            setStoreBlocked(userId, true);
+
             await loadBlockedUsers();
 
             setSearchQuery('');
@@ -285,6 +293,8 @@ export default function BlockedUsersScreen() {
 
                 await oxyServices.unblockUser(userId);
                 blockedLogger.info('User unblocked successfully');
+
+                setStoreBlocked(userId, false);
 
                 await loadBlockedUsers();
 

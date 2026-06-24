@@ -27,44 +27,47 @@ type StarterPackWriteBody = {
   memberOxyUserIds: string[];
 };
 
+/** Base path for every starter-pack read/write request. */
+const STARTER_PACKS_BASE = '/starter-packs';
+
 class StarterPacksService {
   async list(params?: { mine?: boolean; search?: string }) {
-    const res = await authenticatedClient.get('/starter-packs', { params });
+    const res = await authenticatedClient.get(STARTER_PACKS_BASE, { params });
     return res.data as StarterPackCollection;
   }
 
   async get(id: string) {
-    const res = await authenticatedClient.get(`/starter-packs/${id}`);
+    const res = await authenticatedClient.get(`${STARTER_PACKS_BASE}/${id}`);
     return res.data as StarterPackSummary;
   }
 
   async create(body: StarterPackWriteBody) {
-    const res = await authenticatedClient.post('/starter-packs', body);
+    const res = await authenticatedClient.post(STARTER_PACKS_BASE, body);
     return res.data as StarterPackSummary;
   }
 
   async update(id: string, body: Partial<StarterPackWriteBody>) {
-    const res = await authenticatedClient.put(`/starter-packs/${id}`, body);
+    const res = await authenticatedClient.put(`${STARTER_PACKS_BASE}/${id}`, body);
     return res.data as StarterPackSummary;
   }
 
   async remove(id: string) {
-    const res = await authenticatedClient.delete(`/starter-packs/${id}`);
+    const res = await authenticatedClient.delete(`${STARTER_PACKS_BASE}/${id}`);
     return res.data as { success?: boolean };
   }
 
   async addMembers(id: string, userIds: string[]) {
-    const res = await authenticatedClient.post(`/starter-packs/${id}/members`, { userIds });
+    const res = await authenticatedClient.post(`${STARTER_PACKS_BASE}/${id}/members`, { userIds });
     return res.data as StarterPackSummary;
   }
 
   async removeMembers(id: string, userIds: string[]) {
-    const res = await authenticatedClient.delete(`/starter-packs/${id}/members`, { data: { userIds } });
+    const res = await authenticatedClient.delete(`${STARTER_PACKS_BASE}/${id}/members`, { data: { userIds } });
     return res.data as StarterPackSummary;
   }
 
   async use(id: string) {
-    const res = await authenticatedClient.post(`/starter-packs/${id}/use`);
+    const res = await authenticatedClient.post(`${STARTER_PACKS_BASE}/${id}/use`);
     return res.data as { memberOxyUserIds: string[]; useCount: number };
   }
 }

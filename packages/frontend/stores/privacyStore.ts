@@ -11,6 +11,18 @@ interface PrivacyStoreState {
     lastFetchedAt?: number;
     hasFetched: boolean;
     setLists: (payload: { blockedIds: string[]; restrictedIds: string[]; lastFetchedAt: number }) => void;
+    /**
+     * Authoritative single-user toggle for the blocked list. Used by the privacy
+     * screens immediately after a successful `blockUser`/`unblockUser` so the
+     * shared `blockedSet` (which gates interactions app-wide via
+     * `usePrivacyControls().isBlocked`) reflects the change without waiting for
+     * the next interval refresh or a possibly-cached `getBlockedUsers` refetch.
+     */
+    setBlocked: (userId: string, blocked: boolean) => void;
+    /**
+     * Authoritative single-user toggle for the restricted list. See `setBlocked`.
+     */
+    setRestricted: (userId: string, restricted: boolean) => void;
     setLoading: (loading: boolean) => void;
     setError: (error?: string) => void;
     reset: () => void;
@@ -61,6 +73,24 @@ export const usePrivacyStore = create<PrivacyStoreState>()(
                     lastFetchedAt,
                     hasFetched: true,
                 };
+            }),
+        setBlocked: (userId, blocked) =>
+            set((state) => {
+                const alreadyBlocked = state.blockedSet.has(userId);
+                if (blocked === alreadyBlocked) return {};
+                const blockedIds = blocked
+                    ? [...state.blockedIds, userId]
+                    : state.blockedIds.filter((id) => id !== userId);
+                return { blockedIds, blockedSet: new Set(blockedIds) };
+            }),
+        setRestricted: (userId, restricted) =>
+            set((state) => {
+                const alreadyRestricted = state.restrictedSet.has(userId);
+                if (restricted === alreadyRestricted) return {};
+                const restrictedIds = restricted
+                    ? [...state.restrictedIds, userId]
+                    : state.restrictedIds.filter((id) => id !== userId);
+                return { restrictedIds, restrictedSet: new Set(restrictedIds) };
             }),
         setLoading: (loading) => set({ loading }),
         setError: (error) => set({ error }),

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api, publicApi, isUnauthorizedError } from '@/utils/api';
+import { queryClient } from '@/lib/queryClient';
 import type { ThemeMode } from '@oxyhq/bloom/theme';
 
 function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
@@ -147,6 +148,17 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
           byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
           loading: false,
         }));
+
+        // `useProfileData` reads this same appearance payload through React Query
+        // (`['appearance', 'user', <userId>, 'viewer', <viewerId>]`) to render the
+        // profile banner, accent color, and customization. The store update above
+        // does NOT touch that cache, so without this invalidation the viewer's own
+        // profile would keep rendering the pre-edit banner/color until the 5-minute
+        // staleTime elapses or a full reload. Invalidate every viewer variant for
+        // this owner so the profile screen refetches the fresh appearance.
+        if (doc.oxyUserId) {
+          queryClient.invalidateQueries({ queryKey: ['appearance', 'user', doc.oxyUserId] });
+        }
 
         return doc;
       }

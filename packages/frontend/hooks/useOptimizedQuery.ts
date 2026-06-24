@@ -48,7 +48,8 @@ export const queryKeys = {
   // Post queries
   post: (postId: string) => ['post', postId] as const,
   posts: (filters?: Record<string, any>) => ['posts', filters] as const,
-  
+  pinnedPost: (profileId?: string) => ['pinnedPost', profileId] as const,
+
   // Feed queries
   feed: (type: string, filters?: Record<string, any>) => ['feed', type, filters] as const,
   
