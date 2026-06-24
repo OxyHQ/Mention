@@ -42,13 +42,6 @@ interface Props {
   media?: MediaObj[];
   attachments?: PostAttachmentDescriptor[];
   nestedPost?: any;
-  /**
-   * When true, the embedded/nested post card drops its own top margin so it sits
-   * flush under the outer header. Set by the outer `PostItem` only when the nested
-   * card is the FIRST content block under a text-less header (e.g. a boost), where
-   * the outer block already provides the hug gap — avoiding a doubled orphan gap.
-   */
-  nestedHugsHeader?: boolean;
   leftOffset?: number;
   pollId?: string;
   pollData?: any;
@@ -81,7 +74,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
   attachments,
   nestedPost,
-  nestedHugsHeader = false,
   leftOffset = 0,
   pollId,
   pollData,
@@ -540,7 +532,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               nestedPost={nestedPost}
               nestingDepth={nestingDepth}
               width={nestedWidth}
-              hugHeader={nestedHugsHeader && idx === 0}
             />
           );
         }
@@ -579,7 +570,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.media === nextProps.media &&
     prevProps.attachments === nextProps.attachments &&
     prevProps.nestedPost === nextProps.nestedPost &&
-    prevProps.nestedHugsHeader === nextProps.nestedHugsHeader &&
     prevProps.leftOffset === nextProps.leftOffset &&
     prevProps.pollId === nextProps.pollId &&
     prevProps.pollData === nextProps.pollData &&
