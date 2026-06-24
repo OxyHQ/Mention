@@ -495,6 +495,13 @@ const PostItem: React.FC<PostItemProps> = ({
     const topGapFor = (block: 'location' | 'sources' | 'media' | 'actions'): number =>
         !content.text && block === firstContentBlock ? HEADER_CONTENT_GAP : SECTION_GAP;
 
+    // When the media block is the FIRST content under a text-less header (e.g. a
+    // boost, whose only content is the embedded original), the outer block already
+    // hugs the header via `topGapFor('media')`. The nested card carries its OWN
+    // `nestedPostContainer` top margin too, which would re-introduce an orphan gap —
+    // so signal the nested card to drop that inner top margin and sit flush.
+    const nestedCardHugsHeader = !content.text && firstContentBlock === 'media';
+
     const Container: React.ElementType = isTappable ? Pressable : View;
 
     const boostedBy = viewPost.boost?.actor
@@ -653,6 +660,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 media={Array.isArray(mediaItems) ? mediaItems : []}
                                 attachments={attachmentDescriptors}
                                 nestedPost={nestedPost ?? null}
+                                nestedHugsHeader={nestedCardHugsHeader}
                                 leftOffset={AVATAR_OFFSET}
                                 pollData={pollData}
                                 pollId={pollId ? String(pollId) : undefined}
