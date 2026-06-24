@@ -73,6 +73,23 @@ const normalizeId = (item: any): string => {
 const isValidId = (id: string): boolean =>
   id !== '' && id !== 'undefined' && id !== 'null';
 
+/**
+ * Whether a post is a "blank boost" risk-free to cache: it is renderable on its
+ * own. A `type:'boost'` post carries an intentionally empty body and is only
+ * renderable through its embedded original (`boost.originalPost` / `original`).
+ * Any post that is NOT a boost is always renderable here (its own body/media is
+ * its content). Used by `cachePosts` so an under-hydrated boost (original lost)
+ * can never overwrite an already-hydrated cached boost.
+ */
+const isRenderableBoost = (item: FeedItem): boolean => {
+  // `type`/`boostOf` are not on the hydrated `FeedItem` shape but appear on raw/
+  // legacy payloads; read them through a narrow view (no `as any`).
+  const probe = item as FeedItem & { type?: string; boostOf?: unknown };
+  const isBoost = probe.type === 'boost' || Boolean(item?.boost) || Boolean(probe.boostOf);
+  if (!isBoost) return true;
+  return Boolean(item?.boost?.originalPost?.id || item?.original?.id);
+};
+
 type TransformOptions = { skipRelated?: boolean };
 
 const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, options: TransformOptions = {}): FeedItem => {
@@ -1076,7 +1093,23 @@ export const usePostsStore = create<PostsStoreState>()(
     cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => {
       if (!posts || posts.length === 0) return;
 
-      const transformed = posts.map((p) => transformToUIItem(p)).filter((p) => isValidId(p.id));
+      const transformed = posts
+        .map((p) => transformToUIItem(p))
+        .filter((p) => isValidId(p.id))
+        // Defense-in-depth: a `type:'boost'` post has an empty body and is only
+        // renderable via its embedded original. If an incoming copy lost that
+        // original (an under-hydrated response from some endpoint) but the cached
+        // copy still HAS it, keep the cached one — never let a blank boost
+        // clobber a hydrated boost in the shared cache. The backend now always
+        // embeds the boost original (PostHydrationService), so this is a guard
+        // against future regressions, not the primary fix.
+        .filter((item) => {
+          if (isRenderableBoost(item)) return true;
+          const cached = dbGetPostById(item.id);
+          // Drop the under-hydrated incoming copy only when the cached copy is a
+          // strictly-better (renderable) boost; otherwise let it through.
+          return !(cached && isRenderableBoost(cached));
+        });
       if (transformed.length === 0) return;
 
       dbUpsertPosts(transformed);

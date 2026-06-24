@@ -553,6 +553,13 @@ export class PostHydrationService {
     return context;
   }
 
+  // A boost-of-boost chain (Announce of an Announce) is collected one extra hop
+  // beyond `maxDepth` per the forced-boost-original rule below, but is then
+  // capped so a pathological chain cannot fan out unbounded. Two levels is
+  // enough to render a boost of a boost (its own original embeds); deeper
+  // chains keep their nested original empty rather than over-fetching.
+  private static readonly MAX_FORCED_BOOST_DEPTH = 2;
+
   private async collectPostsWithDepth(
     initialPosts: RawPost[],
     maxDepth: number,
@@ -563,7 +570,14 @@ export class PostHydrationService {
 
     let currentLevel = initialPosts.map((post): HydratedGraphNode => ({ post, depth: 0 }));
 
-    for (let depth = 0; depth <= maxDepth && currentLevel.length > 0; depth++) {
+    // The collection runs at least one level beyond `maxDepth` so a boost's
+    // mandatory original (forced below, regardless of `maxDepth`) is always
+    // fetched. The per-entry guards still respect `maxDepth` for OPTIONAL
+    // references, so this added iteration only ever fetches forced boost
+    // originals — never expands the normal depth budget.
+    const collectionDepthCap = Math.max(maxDepth, PostHydrationService.MAX_FORCED_BOOST_DEPTH);
+
+    for (let depth = 0; depth <= collectionDepthCap && currentLevel.length > 0; depth++) {
       const nextIdMap = new Map<string, number>();
 
       for (const entry of currentLevel) {
@@ -578,17 +592,34 @@ export class PostHydrationService {
 
         result.set(id, { post: entry.post, depth: entry.depth });
 
-        if (entry.depth >= maxDepth) {
-          continue;
+        const enqueueRef = (refId: string) => {
+          if (!refId || visited.has(refId)) return;
+          const nextDepth = entry.depth + 1;
+          const existing = nextIdMap.get(refId);
+          nextIdMap.set(refId, existing === undefined ? nextDepth : Math.min(existing, nextDepth));
+        };
+
+        // A `type:'boost'` post has an intentionally EMPTY content body and is
+        // NOT renderable without its boosted original — the original is part of
+        // the boost's own content, not optional nested context. So ALWAYS
+        // collect a boost's direct `boostOf` original one hop deep, independent
+        // of the caller's `maxDepth`. Without this, any endpoint that hydrates
+        // boosts at `maxDepth: 0` (most feed paths) silently returns a blank
+        // boost. Bounded by `collectionDepthCap` so a boost-of-boost chain
+        // cannot fan out indefinitely.
+        if (entry.depth < collectionDepthCap) {
+          const forcedOriginalId = this.extractBoostOriginalId(entry.post);
+          if (forcedOriginalId) {
+            enqueueRef(forcedOriginalId);
+          }
         }
 
-        const referenceIds = this.extractReferenceIds(entry.post);
-        for (const refId of referenceIds) {
-          if (!refId || visited.has(refId)) continue;
-          if (!nextIdMap.has(refId)) {
-            nextIdMap.set(refId, entry.depth + 1);
-          } else {
-            nextIdMap.set(refId, Math.min(nextIdMap.get(refId)!, entry.depth + 1));
+        // OPTIONAL references (quote, legacy originalPostId) still respect the
+        // caller's `maxDepth` budget — they are nested context, not mandatory
+        // content, so a `maxDepth: 0` caller intentionally omits them.
+        if (entry.depth < maxDepth) {
+          for (const refId of this.extractReferenceIds(entry.post)) {
+            enqueueRef(refId);
           }
         }
       }
@@ -614,6 +645,65 @@ export class PostHydrationService {
     }
 
     return result;
+  }
+
+  /**
+   * Resolve a boost's DIRECT original post id (`boostOf`), if any. Unlike
+   * {@link extractReferenceIds} this returns only the mandatory boost original
+   * (never the optional quote/originalPostId references), so the forced
+   * collection in {@link collectPostsWithDepth} pulls exactly the one post a
+   * boost cannot render without.
+   */
+  private extractBoostOriginalId(post: RawPost): string | undefined {
+    const value = post?.boostOf;
+    if (!value) return undefined;
+    if (typeof value === 'string') return value || undefined;
+    if (typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      const refId = obj._id ?? obj.id ?? obj.postId;
+      if (refId) return String(refId);
+    }
+    return undefined;
+  }
+
+  /**
+   * Build a placeholder author for a FEDERATED post whose `oxyUserId` was never
+   * linked to an Oxy user (orphaned actor). The post is public and physically
+   * exists, so it must render; without this it would surface as a blank row
+   * (most visibly: a boost of such a post, whose body is empty by design).
+   *
+   * The author is derived from the post's federation metadata — the origin
+   * domain (from `activityId`/`url`) becomes the handle/display name and a
+   * deterministic synthetic id — so the placeholder is stable across requests
+   * and never collides with a real Oxy id. Returns `undefined` when no domain
+   * can be derived, in which case the caller falls back to a postId-scoped id.
+   */
+  private buildFederatedFallbackAuthor(post: RawPost): PostActorSummary | undefined {
+    const federation = post?.federation as { activityId?: string; url?: string } | undefined;
+    const source = federation?.activityId || federation?.url;
+    if (!source || typeof source !== 'string') return undefined;
+
+    let domain: string | undefined;
+    try {
+      domain = new URL(source).hostname || undefined;
+    } catch {
+      // `activityId` is normally an absolute AP URI; if it is not parseable as a
+      // URL we have no reliable domain, so fall through to the postId-scoped id.
+      domain = undefined;
+    }
+    if (!domain) return undefined;
+
+    return {
+      id: `federated:${domain}`,
+      handle: domain,
+      displayName: domain,
+      avatarUrl: undefined,
+      avatar: undefined,
+      badges: undefined,
+      isVerified: false,
+      isFederated: true,
+      instance: domain,
+    };
   }
 
   private extractReferenceIds(post: RawPost): string[] {
@@ -1089,11 +1179,27 @@ export class PostHydrationService {
     const postId = this.resolveId(post);
     if (!postId) return null;
 
-    const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
-    if (!authorId) return null;
+    const isFederatedPost = !!post?.federation;
+    const resolvedAuthorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
+
+    // A federated post whose author actor was never linked to an Oxy user
+    // (orphaned `oxyUserId`) STILL physically exists and is public — it must
+    // render rather than vanish (e.g. a boost of such a post would otherwise
+    // surface as a blank row). Derive a stable placeholder author from its
+    // federation metadata so the post is renderable. A NON-federated post with
+    // no author is a genuine data error and is still dropped.
+    if (!resolvedAuthorId && !isFederatedPost) return null;
+
+    // `authorId` keys privacy/viewer-state/permission lookups below. For an
+    // orphaned federated post we use a deterministic synthetic id derived from
+    // its origin domain so those lookups behave (the viewer never owns/blocks a
+    // synthetic id) without a real Oxy id.
+    const federatedFallback = !resolvedAuthorId
+      ? this.buildFederatedFallbackAuthor(post)
+      : undefined;
+    const authorId = resolvedAuthorId ?? federatedFallback?.id ?? `federated:${postId}`;
 
     // Privacy checks only apply to local users (federated posts are public by definition)
-    const isFederatedPost = !!post?.federation;
     if (!isFederatedPost) {
       if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
         return null;
@@ -1109,7 +1215,7 @@ export class PostHydrationService {
       }
     }
 
-    const user = userMap.get(authorId) ?? {
+    const user = userMap.get(authorId) ?? federatedFallback ?? {
       id: authorId,
       handle: authorId,
       displayName: authorId,
