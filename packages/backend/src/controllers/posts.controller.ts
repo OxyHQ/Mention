@@ -1056,10 +1056,12 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       // `pending`. Omitted paths (`topicRefs`, `attempts`, the Stage-B AI fields)
       // fall back to their schema defaults on cast — clearing stale AI topicRefs
       // and resetting the retry counter — so the AI batch reprocesses cleanly.
+      // The subdoc carries ONLY the multi-language `languages` array; the primary
+      // (`languages[0]`) is written to the top-level AP `post.language`.
       post.postClassification = {
         status: POST_CLASSIFICATION_PENDING,
         topics: signals.topics,
-        language: signals.language,
+        languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
         sensitive: signals.sensitive,
@@ -1067,6 +1069,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         version: signals.version,
         classifiedAt: new Date(signals.classifiedAt),
       };
+      const primaryLanguage = signals.languages[0];
+      if (primaryLanguage != null) {
+        post.language = primaryLanguage;
+      }
       post.markModified('postClassification');
     }
     if (media !== undefined) {

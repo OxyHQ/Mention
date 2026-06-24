@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractApLanguage } from '../../utils/federation/apLanguage';
+import { extractApLanguage, extractApLanguages } from '../../utils/federation/apLanguage';
 
 describe('extractApLanguage', () => {
   it('reads a top-level language field', () => {
@@ -43,5 +43,53 @@ describe('extractApLanguage', () => {
 
   it('ignores a contentMap that is an array', () => {
     expect(extractApLanguage({ contentMap: ['en'] as unknown as Record<string, unknown> })).toBeUndefined();
+  });
+});
+
+describe('extractApLanguages', () => {
+  it('returns all languages from a multi-key contentMap', () => {
+    expect(
+      extractApLanguages({ contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } }),
+    ).toEqual(['en', 'es']);
+  });
+
+  it('includes the top-level language first, then every contentMap key (deduped)', () => {
+    expect(
+      extractApLanguages({ language: 'en', contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } }),
+    ).toEqual(['en', 'es']);
+  });
+
+  it('normalizes every entry to its ISO 639-1 primary subtag', () => {
+    expect(
+      extractApLanguages({ language: 'pt-BR', contentMap: { 'pt-BR': '<p>oi</p>', 'en-US': '<p>hi</p>' } }),
+    ).toEqual(['pt', 'en']);
+  });
+
+  it('returns a single-element list for a top-level language only', () => {
+    expect(extractApLanguages({ language: 'fr' })).toEqual(['fr']);
+  });
+
+  it('returns a single-element list for an unambiguous single-key contentMap', () => {
+    expect(extractApLanguages({ contentMap: { es: '<p>hola mundo</p>' } })).toEqual(['es']);
+  });
+
+  it('skips unusable codes but keeps the usable ones', () => {
+    expect(
+      extractApLanguages({ language: 'english', contentMap: { es: '<p>hola</p>', xx9: '<p>?</p>' } }),
+    ).toEqual(['es']);
+  });
+
+  it('returns [] when neither language nor contentMap yields a usable code', () => {
+    expect(extractApLanguages({ content: '<p>no lang</p>' })).toEqual([]);
+    expect(extractApLanguages({})).toEqual([]);
+    expect(extractApLanguages({ language: 123 })).toEqual([]);
+  });
+
+  it('handles null / undefined / array contentMap safely', () => {
+    expect(extractApLanguages(null)).toEqual([]);
+    expect(extractApLanguages(undefined)).toEqual([]);
+    expect(
+      extractApLanguages({ contentMap: ['en'] as unknown as Record<string, unknown> }),
+    ).toEqual([]);
   });
 });

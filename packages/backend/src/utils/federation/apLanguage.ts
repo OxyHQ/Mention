@@ -55,3 +55,35 @@ export function extractApLanguage(object: Record<string, unknown> | null | undef
 
   return undefined;
 }
+
+/**
+ * Extracts the FULL set of ISO 639-1 languages declared on an AP object: the
+ * top-level `language` field PLUS every `contentMap` key (a multi-key
+ * `contentMap` declares one localized variant per language). Unlike
+ * {@link extractApLanguage} — which conservatively ignores an ambiguous multi-key
+ * `contentMap` — this returns ALL declared languages so a bilingual Mastodon
+ * status records each one.
+ *
+ * The result is normalized to ISO 639-1 primary subtags (`"pt-BR"` → `"pt"`),
+ * deduped (first-seen order: the top-level `language` leads, then `contentMap`
+ * keys in object order), and excludes any value that is not a usable 2-letter
+ * code. Returns `[]` when neither source yields a usable code. Pure / no I/O.
+ */
+export function extractApLanguages(object: Record<string, unknown> | null | undefined): string[] {
+  if (!object || typeof object !== 'object') return [];
+
+  const codes: string[] = [];
+
+  const fromLanguage = toIso6391(object.language);
+  if (fromLanguage) codes.push(fromLanguage);
+
+  const contentMap = object.contentMap;
+  if (contentMap && typeof contentMap === 'object' && !Array.isArray(contentMap)) {
+    for (const key of Object.keys(contentMap)) {
+      const code = toIso6391(key);
+      if (code) codes.push(code);
+    }
+  }
+
+  return [...new Set(codes)];
+}

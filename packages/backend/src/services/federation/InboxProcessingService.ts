@@ -9,7 +9,7 @@ import {
   resolveOxyUser,
 } from '../../utils/federation/constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
-import { extractApLanguage } from '../../utils/federation/apLanguage';
+import { extractApLanguage, extractApLanguages } from '../../utils/federation/apLanguage';
 import { getPostCreator } from '../serviceRegistry';
 import { actorService } from './ActorService';
 import { outboxSyncService } from './OutboxSyncService';
@@ -331,8 +331,12 @@ export class InboxProcessingService {
       visibility: mapApVisibility(object.to, object.cc),
       hashtags,
       // AP-derived language so Mastodon/Pleroma posts carry their REAL language
-      // (and feed the Stage-A classifier) instead of defaulting to 'en'.
+      // (and feed the Stage-A classifier) instead of defaulting to 'en'. The
+      // singular `language` sets the top-level `post.language` (primary); the full
+      // declared set (top-level `language` + every `contentMap` key) feeds the
+      // classifier's `postClassification.languages`.
       language: extractApLanguage(object),
+      languages: extractApLanguages(object),
       // Instance host drives the Stage-A coarse region for federated posts.
       instanceDomain: getRemoteHost(actorUri),
       status: 'published',

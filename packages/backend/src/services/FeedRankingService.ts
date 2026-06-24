@@ -621,13 +621,23 @@ export class FeedRankingService {
       }
     }
     
-    // Language preference
-    if (post.language && userBehavior.preferredLanguages?.length > 0) {
-      if (userBehavior.preferredLanguages.includes(post.language)) {
+    // Language preference: boost when ANY of the post's classification languages
+    // is in the viewer's preferred set. `postClassification.languages` is the
+    // single canonical (multi-language) field; a post that has not been classified
+    // yet simply gets NO language boost (neutral) until the backfill populates it.
+    const preferredLanguages: string[] = Array.isArray(userBehavior.preferredLanguages)
+      ? userBehavior.preferredLanguages
+      : [];
+    if (preferredLanguages.length > 0) {
+      const postLanguages = post.postClassification?.languages;
+      if (
+        Array.isArray(postLanguages) &&
+        postLanguages.some((lang) => preferredLanguages.includes(lang))
+      ) {
         score *= this.R.personalization.languageMatch;
       }
     }
-    
+
     return Math.min(score, 2.0); // Cap at 2x boost
   }
 

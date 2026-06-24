@@ -1262,11 +1262,13 @@ class FeedController {
           hashtags: mergedTags,
         });
         // `attempts` is internal bookkeeping (not on the PostClassification type);
-        // the subschema default seeds it to 0 for the unset path.
+        // the subschema default seeds it to 0 for the unset path. The subdoc
+        // carries ONLY the multi-language `languages` array; the primary
+        // (`languages[0]`) is written to the top-level AP `post.language`.
         reply.postClassification = {
           status: POST_CLASSIFICATION_PENDING,
           topics: signals.topics,
-          language: signals.language,
+          languages: signals.languages,
           region: signals.region,
           hashtagsNorm: signals.hashtagsNorm,
           sensitive: signals.sensitive,
@@ -1274,6 +1276,10 @@ class FeedController {
           version: signals.version,
           classifiedAt: new Date(signals.classifiedAt),
         };
+        const primaryLanguage = signals.languages[0];
+        if (primaryLanguage != null) {
+          reply.language = primaryLanguage;
+        }
       } catch (classifyError) {
         logger.warn('createReply: baseline classification failed; saving with default pending', classifyError);
       }

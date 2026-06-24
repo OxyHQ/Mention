@@ -344,8 +344,13 @@ const PostClassificationSchema = new Schema({
   // --- Stage-A deterministic baseline (synchronous at ingest) ---
   // Filled cheaply for EVERY post (native + federated) with no AI/network. All
   // optional: legacy/AI-only docs won't carry them until backfilled (P2).
-  // Best-effort ISO 639-1 language; absent when undetectable.
-  language: { type: String },
+  // ALL detected/declared ISO 639-1 languages (primary first, deduped). The ONE
+  // canonical classification-language field (multikey/array) — feed
+  // language-overlap queries `$in` against it. Absent on posts that predate
+  // multi-language classification until the version-gated backfill populates
+  // them (language-match then goes neutral). The top-level `post.language`
+  // (single, AP protocol) carries the primary = `languages[0]`.
+  languages: { type: [String], default: undefined },
   // Best-effort coarse region/country code; absent when unknown.
   region: { type: String },
   // Canonical hashtags (lowercase, no `#`, alias-mapped, deduped). Mirrors the
@@ -552,7 +557,9 @@ PostSchema.index({ createdAt: -1 }); // Default sort order
 PostSchema.index({ 'postClassification.topicRefs.name': 1, createdAt: -1 });
 PostSchema.index({ 'postClassification.status': 1, createdAt: 1 }); // Classification batch queue
 // Stage-A baseline signal lookups (used by For You candidate filtering, P3).
-PostSchema.index({ 'postClassification.language': 1, createdAt: -1 });
+// `languages` is the multikey (array) field backing the multi-language overlap
+// `$in` queries; it is the only classification-language field.
+PostSchema.index({ 'postClassification.languages': 1, createdAt: -1 });
 PostSchema.index({ 'postClassification.region': 1, createdAt: -1 });
 
 // Geospatial indexes for both location fields
@@ -591,9 +598,12 @@ PostSchema.index(
   { name: 'for_you_topics_idx' }
 );
 // For You language-candidate source (P3): recent visible/published posts in a
-// viewer's language(s).
+// viewer's language(s). Leads with the MULTIKEY `postClassification.languages`
+// array so the discovery source's `$in` against the viewer's preferred languages
+// matches a post in ANY of its declared/detected languages (a bilingual post is
+// surfaced for either language).
 PostSchema.index(
-  { 'postClassification.language': 1, visibility: 1, status: 1, createdAt: -1 },
+  { 'postClassification.languages': 1, visibility: 1, status: 1, createdAt: -1 },
   { name: 'for_you_language_idx' }
 );
 

@@ -21,6 +21,11 @@ export interface CreatePostParams {
   hashtags?: string[];
   mentions?: string[];
   language?: string;
+  // Full declared language set for federated posts (AP top-level `language` +
+  // every `contentMap` key, via `extractApLanguages`). Authoritative for the
+  // Stage-A classifier's `postClassification.languages`; the top-level
+  // `post.language` continues to use the singular `language` param.
+  languages?: string[];
   location?: {
     type: 'Point';
     coordinates: [number, number];
@@ -81,6 +86,7 @@ class PostCreationService {
         text: params.content.text,
         hashtags: params.hashtags,
         language: params.language,
+        languages: params.languages,
         sensitive: params.federation?.sensitive ?? metadataSensitive,
         isFederated,
         instanceDomain: params.instanceDomain,
@@ -90,12 +96,13 @@ class PostCreationService {
       // the AI batch's unclassified filter still picks the post up. The
       // deterministic `scores` are written so ranking can downrank spam/low-quality
       // posts before any AI runs; the AI batch OVERWRITES `scores` wholesale when a
-      // key is configured (the intended hybrid).
+      // key is configured (the intended hybrid). The classification subdoc carries
+      // ONLY the multi-language `languages` array — there is no single-value field.
       postData.postClassification = {
         status: POST_CLASSIFICATION_PENDING,
         attempts: 0,
         topics: signals.topics,
-        language: signals.language,
+        languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
         sensitive: signals.sensitive,
@@ -103,6 +110,15 @@ class PostCreationService {
         version: signals.version,
         classifiedAt: new Date(signals.classifiedAt),
       };
+
+      // Keep the top-level AP `post.language` (single, protocol-facing) in sync
+      // with the resolved primary (`languages[0]`, already normalized to ISO
+      // 639-1). When the classifier could not resolve any language, the raw
+      // `params.language` set earlier (if any) is left untouched.
+      const primaryLanguage = signals.languages[0];
+      if (primaryLanguage != null) {
+        postData.language = primaryLanguage;
+      }
     } catch (error) {
       // Never block creation on classification — fall back to the schema default
       // (`{ status: 'pending' }`) so the AI batch still processes the post.

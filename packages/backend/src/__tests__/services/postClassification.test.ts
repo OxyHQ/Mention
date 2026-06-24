@@ -404,7 +404,7 @@ describe('PostClassificationService — Stage-A baseline preservation', () => {
     );
     // None of the Stage-A keys appear in the $set (they are preserved, not rewritten).
     for (const stageAKey of [
-      'postClassification.language',
+      'postClassification.languages',
       'postClassification.region',
       'postClassification.hashtagsNorm',
       'postClassification.version',

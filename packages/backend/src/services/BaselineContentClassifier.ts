@@ -3,8 +3,9 @@
  *
  * Produces the cheap, synchronous, side-effect-free signals that run on EVERY
  * post (native AND federated) on the same code path at ingest:
- *   - language: explicitly-provided language, else lightweight detection, else
- *     `undefined` (short/undetectable text)
+ *   - languages: ALL detected/declared ISO 639-1 languages (primary first) —
+ *     explicitly-provided AP set if any, else tinyld multi-candidate detection,
+ *     else `[]` (short/undetectable text). The single canonical language field.
  *   - region: best-effort, nullable (from a federated instance domain or locale)
  *   - hashtagsNorm: canonical hashtags via the shared post-hashtag normalizer
  *     (NOT a parallel normalizer), with the alias map applied
@@ -21,7 +22,7 @@
  * wiring happens in P2.
  */
 
-import { detect as detectLanguage } from 'tinyld/light';
+import { detectAll as detectAllLanguages } from 'tinyld/light';
 import { normalizePostHashtags } from '../utils/textProcessing';
 import { HASHTAG_ALIASES } from './contentClassification/taxonomy';
 import { isNsfwHashtag } from './contentClassification/nsfw';
@@ -50,8 +51,17 @@ import {
  * marked sensitive even when the federating source never set the flag. The
  * source-provided `sensitive` flag is still honored (OR-combined). Bumped so the
  * version-gated backfill re-marks sensitive across the existing corpus.
+ *
+ * v4: multi-language support. Detection moved from tinyld's single-best `detect`
+ * to the ranked `detectAll`, so a bilingual post (or a Mastodon `contentMap`
+ * declaring several languages) now records ALL its languages in
+ * `postClassification.languages` (primary first) — not just the dominant one.
+ * The classification subdoc now carries ONLY `postClassification.languages`; the
+ * primary (`languages[0]`) is written to the top-level `post.language` AP field.
+ * Bumped so the version-gated backfill re-derives `languages` across the existing
+ * corpus (and migrates off the removed singular `postClassification.language`).
  */
-export const BASELINE_CLASSIFIER_VERSION = 3;
+export const BASELINE_CLASSIFIER_VERSION = 4;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -60,14 +70,55 @@ export const BASELINE_CLASSIFIER_VERSION = 3;
  */
 const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
 
+/**
+ * Multi-language detection policy for {@link detectAllLanguages}. tinyld returns
+ * a ranked `[{ lang, accuracy }]` list whose accuracy values are RELATIVE within
+ * a single call (a confident monolingual post yields one entry at ~1.0, a
+ * monolingual-but-ambiguous post yields a low top score with a long noise tail,
+ * and a genuinely bilingual post yields two comparably-scored entries). A single
+ * absolute threshold therefore cannot separate "second real language" from
+ * "noise", so a SECONDARY candidate must clear BOTH gates below relative to the
+ * top candidate. The top candidate is always taken as the primary (best guess).
+ */
+const LANGUAGE_DETECTION = {
+  /**
+   * Absolute floor on a SECONDARY candidate's accuracy. Filters the long
+   * low-score noise tail tinyld emits for monolingual text (e.g. a Spanish post
+   * listing `pt`/`ro`/`hu` at ~0.02). Does NOT apply to the primary, which is the
+   * single best guess regardless of absolute score.
+   */
+  secondaryMinAccuracy: 0.2,
+  /**
+   * Minimum ratio of a SECONDARY candidate's accuracy to the top candidate's. A
+   * real second language scores close to the top (a balanced ES/EN post is ~0.55
+   * vs ~0.45, ratio ~0.82); incidental matches score far below it. Combined with
+   * the absolute floor this keeps multi-language to genuinely multilingual text.
+   */
+  secondaryMinRatioToTop: 0.5,
+  /**
+   * Maximum number of languages recorded for one post (primary + extras). Keeps
+   * the multikey `$in`/index footprint small; real posts rarely mix more than a
+   * couple of languages.
+   */
+  maxLanguages: 3,
+} as const;
+
 /** Minimal post shape the classifier needs. Framework-agnostic; no Mongoose. */
 export interface ClassifyInput {
   /** Visible post text (already plain text). */
   text?: string;
   /** Hashtags from the caller (e.g. AP `tag` array or user-provided). */
   hashtags?: string[];
-  /** Explicit language if known (AP `language`/`contentMap`, or native param). */
+  /** Explicit PRIMARY language if known (AP `language`, or native param). */
   language?: string;
+  /**
+   * Explicit FULL set of languages if known (e.g. AP top-level `language` plus
+   * every `contentMap` key, via {@link extractApLanguages}). When non-empty this
+   * declared set is AUTHORITATIVE — it is used verbatim (normalized to ISO 639-1,
+   * deduped) instead of running text detection, because a federating server's own
+   * declaration is more reliable than guessing from (often HTML-stripped) text.
+   */
+  languages?: string[];
   /** Sensitive/NSFW flag to pass through. */
   sensitive?: boolean;
   /** Whether this post came from a federated instance. */
@@ -80,7 +131,20 @@ export interface ClassifyInput {
 
 /** Deterministic Stage-A signals produced by {@link BaselineContentClassifier.classify}. */
 export interface BaselineSignals {
+  /**
+   * PRIMARY (dominant/declared) ISO 639-1 language — equals `languages[0]`, or
+   * `undefined` when none could be determined. Written ONLY to the TOP-LEVEL
+   * `post.language` ActivityPub protocol field, NEVER into the classification
+   * subdoc (the subdoc carries the full {@link BaselineSignals.languages} array).
+   */
   language?: string;
+  /**
+   * ALL detected/declared ISO 639-1 languages, primary (dominant/declared) first,
+   * deduped, capped at {@link LANGUAGE_DETECTION.maxLanguages}. Empty when none
+   * reliable. This is the ONE canonical classification-language signal, stored as
+   * `postClassification.languages`.
+   */
+  languages: string[];
   region?: string;
   hashtagsNorm: string[];
   topics: string[];
@@ -133,7 +197,7 @@ export class BaselineContentClassifier {
     const { hashtags: normalized } = normalizePostHashtags(input.text, input.hashtags);
     const hashtagsNorm = this.applyHashtagAliases(normalized);
 
-    const language = this.resolveLanguage(input.language, text);
+    const { primary: language, all: languages } = this.resolveLanguages(input, text);
     const region = deriveRegion({
       isFederated: input.isFederated,
       instanceDomain: input.instanceDomain,
@@ -162,6 +226,7 @@ export class BaselineContentClassifier {
 
     return {
       language,
+      languages,
       region,
       hashtagsNorm,
       topics,
@@ -192,18 +257,74 @@ export class BaselineContentClassifier {
   }
 
   /**
-   * Prefer an explicitly-provided language (AP carries it; native may pass it).
-   * Otherwise detect from text when it is long enough to be reliable. Detection
-   * returns `''` for unknown/too-short input — normalized to `undefined`.
+   * Resolve the post's languages into an ordered ISO 639-1 list (primary first).
+   * The primary is simply element 0 (or none when the list is empty). Policy:
+   *
+   * 1. An explicitly-DECLARED set (federated AP: top-level `language` + every
+   *    `contentMap` key) is AUTHORITATIVE — normalized to ISO 639-1, deduped,
+   *    capped — and used verbatim instead of detection. The single explicit
+   *    `language` is folded in as the leading element so a server that declares
+   *    only the top-level field still yields a one-element list.
+   * 2. Otherwise (native posts), detect from text when it is long enough to be
+   *    reliable, using tinyld's ranked `detectAll`: the top candidate is the
+   *    primary, and additional candidates are kept only when they clear both the
+   *    absolute and relative gates in {@link LANGUAGE_DETECTION}.
    */
-  private resolveLanguage(provided: string | undefined, trimmedText: string): string | undefined {
-    const explicit = normalizeProvidedLanguage(provided);
-    if (explicit) return explicit;
+  private resolveLanguages(
+    input: Pick<ClassifyInput, 'language' | 'languages'>,
+    trimmedText: string,
+  ): { primary: string | undefined; all: string[] } {
+    // (1) Explicit declared set wins. Merge the single `language` (leading) with
+    // the `languages` list, normalize each, dedupe (first-seen order), cap.
+    const declared = this.dedupeLanguages(
+      [input.language, ...(input.languages ?? [])]
+        .map(normalizeProvidedLanguage)
+        .filter((code): code is string => code !== undefined),
+    ).slice(0, LANGUAGE_DETECTION.maxLanguages);
 
-    if (trimmedText.length < MIN_TEXT_LENGTH_FOR_DETECTION) return undefined;
+    if (declared.length > 0) {
+      return { primary: declared[0], all: declared };
+    }
 
-    const detected = detectLanguage(trimmedText);
-    return detected.length === ISO_639_1_LENGTH ? detected : undefined;
+    // (2) Detect from text. Too-short input is unreliable → no language.
+    if (trimmedText.length < MIN_TEXT_LENGTH_FOR_DETECTION) return { primary: undefined, all: [] };
+
+    const detected = this.selectDetectedLanguages(trimmedText);
+    return { primary: detected[0], all: detected };
+  }
+
+  /**
+   * Run tinyld's ranked multi-candidate detection and select the languages to
+   * keep: the top candidate (the single best guess) plus any further candidate
+   * that clears BOTH the absolute accuracy floor AND the ratio-to-top gate. Only
+   * ISO 639-1 codes are kept; the result is deduped and capped.
+   */
+  private selectDetectedLanguages(trimmedText: string): string[] {
+    const ranked = detectAllLanguages(trimmedText).filter(
+      (candidate) => candidate.lang.length === ISO_639_1_LENGTH,
+    );
+    if (ranked.length === 0) return [];
+
+    const topAccuracy = ranked[0].accuracy;
+    const selected: string[] = [ranked[0].lang];
+
+    for (const candidate of ranked.slice(1)) {
+      if (selected.length >= LANGUAGE_DETECTION.maxLanguages) break;
+      const clearsFloor = candidate.accuracy >= LANGUAGE_DETECTION.secondaryMinAccuracy;
+      const clearsRatio =
+        topAccuracy > 0 &&
+        candidate.accuracy / topAccuracy >= LANGUAGE_DETECTION.secondaryMinRatioToTop;
+      if (clearsFloor && clearsRatio) {
+        selected.push(candidate.lang);
+      }
+    }
+
+    return this.dedupeLanguages(selected);
+  }
+
+  /** Dedupe ISO 639-1 codes, preserving first-seen order. */
+  private dedupeLanguages(codes: string[]): string[] {
+    return [...new Set(codes)];
   }
 
   /**

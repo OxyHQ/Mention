@@ -13,11 +13,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * no-ops so the test isolates the classification behavior.
  *
  * Invariants checked:
- *  - native create populates the Stage-A baseline fields (topics, language,
+ *  - native create populates the Stage-A baseline fields (topics, languages,
  *    hashtagsNorm, version, classifiedAt) AND keeps `status: 'pending'` so the
  *    async AI batch still enriches the post;
- *  - a federated note's AP-declared language is threaded through to both the
- *    top-level `post.language` and the Stage-A `postClassification.language`;
+ *  - a federated note's AP-declared language is threaded through to the top-level
+ *    `post.language` (primary) and the Stage-A `postClassification.languages`;
  *  - a classifier throw is caught and NEVER blocks post creation.
  */
 
@@ -109,8 +109,11 @@ describe('PostCreationService — native Stage-A baseline', () => {
     // Status MUST remain pending so the async AI batch still enriches the post.
     expect(classification.status).toBe('pending');
     expect(classification.attempts).toBe(0);
-    // Deterministic baseline is filled.
-    expect(classification.language).toBe('en');
+    // Deterministic baseline is filled. The subdoc carries ONLY the multi-language
+    // array; the primary lives on the top-level `post.language`.
+    expect(classification.languages).toEqual(['en']);
+    expect(classification.language).toBeUndefined();
+    expect((doc as Record<string, unknown>).language).toBe('en');
     expect(classification.version).toBeGreaterThan(0);
     expect(classification.classifiedAt).toBeInstanceOf(Date);
     expect(classification.hashtagsNorm).toContain('ai');
@@ -138,13 +141,39 @@ describe('PostCreationService — native Stage-A baseline', () => {
     });
 
     const doc = lastSavedDoc();
-    // Top-level language reflects the AP language, not the schema default 'en'.
+    // Top-level AP language reflects the resolved primary, not the schema default.
     expect(doc.language).toBe('de');
     const classification = doc.postClassification as Record<string, unknown>;
-    expect(classification.language).toBe('de');
+    // The subdoc carries ONLY the multi-language array (single field removed).
+    expect(classification.language).toBeUndefined();
+    expect(classification.languages).toEqual(['de']);
     // Region derived from the ccTLD federated instance.
     expect(classification.region).toBe('DE');
     expect(classification.status).toBe('pending');
+  });
+
+  it('threads a federated note\'s declared multi-language set into postClassification.languages', async () => {
+    await postCreationService.create({
+      oxyUserId: 'oxy_user_multi',
+      content: { text: 'This English body, but the AP source declared two languages via contentMap.' },
+      // The inbox/outbox handlers pass extractApLanguage (primary) + extractApLanguages (full set).
+      language: 'en',
+      languages: ['en', 'es'],
+      instanceDomain: 'mastodon.example.com',
+      federation: { activityId: 'https://mastodon.example.com/users/x/statuses/2', sensitive: false },
+      visibility: PostVisibility.PUBLIC,
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
+    });
+
+    const doc = lastSavedDoc();
+    // Top-level AP scalar is the primary; the classification records BOTH languages.
+    expect(doc.language).toBe('en');
+    const classification = doc.postClassification as Record<string, unknown>;
+    // The subdoc carries ONLY the multi-language array (single field removed).
+    expect(classification.language).toBeUndefined();
+    expect(classification.languages).toEqual(['en', 'es']);
   });
 
   it('does NOT block post creation when the classifier throws', async () => {
