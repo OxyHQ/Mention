@@ -16,7 +16,7 @@ import {
 } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
-import * as SegmentedControl from '@oxyhq/bloom/segmented-control';
+import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxyhq/bloom/segmented-control';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
@@ -138,21 +138,21 @@ export default function AppearanceSettingsScreen() {
               {t('settings.theme', 'Color mode')}
             </Text>
           </View>
-          <SegmentedControl.Root
+          <SegmentedControl
             label={t('settings.theme', 'Color mode')}
             type="radio"
             value={themeMode}
             onChange={onThemeModeChange}>
-            <SegmentedControl.Item value="system">
-              <SegmentedControl.ItemText>{t('settings.theme.system', 'System')}</SegmentedControl.ItemText>
-            </SegmentedControl.Item>
-            <SegmentedControl.Item value="light">
-              <SegmentedControl.ItemText>{t('settings.theme.light', 'Light')}</SegmentedControl.ItemText>
-            </SegmentedControl.Item>
-            <SegmentedControl.Item value="dark">
-              <SegmentedControl.ItemText>{t('settings.theme.dark', 'Dark')}</SegmentedControl.ItemText>
-            </SegmentedControl.Item>
-          </SegmentedControl.Root>
+            <SegmentedControlItem value="system">
+              <SegmentedControlItemText>{t('settings.theme.system', 'System')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+            <SegmentedControlItem value="light">
+              <SegmentedControlItemText>{t('settings.theme.light', 'Light')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+            <SegmentedControlItem value="dark">
+              <SegmentedControlItemText>{t('settings.theme.dark', 'Dark')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+          </SegmentedControl>
         </View>
 
         <SettingsListDivider />
