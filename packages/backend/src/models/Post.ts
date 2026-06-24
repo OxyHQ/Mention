@@ -526,19 +526,6 @@ PostSchema.pre('save', function() {
   }
 });
 
-// Virtual fields for backward compatibility
-PostSchema.virtual('text').get(function() {
-  return this.content?.text || '';
-});
-
-PostSchema.virtual('media').get(function() {
-  return this.content?.media || [];
-});
-
-PostSchema.virtual('userID').get(function() {
-  return this.oxyUserId;
-});
-
 // Indexes for optimal query performance
 PostSchema.index({ oxyUserId: 1, createdAt: -1 });
 PostSchema.index({ type: 1, createdAt: -1 });

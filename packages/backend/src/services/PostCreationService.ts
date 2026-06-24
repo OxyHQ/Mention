@@ -9,6 +9,8 @@ import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
 import { baselineContentClassifier } from './BaselineContentClassifier';
+import { postHydrationService } from './PostHydrationService';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -298,18 +300,31 @@ class PostCreationService {
       try {
         const io = global.io;
         if (io) {
-          const postObj = { ...post.toObject(), id: String(post._id) };
-          io.emit('feed:updated', {
-            type: 'for_you',
-            post: postObj,
-            timestamp: new Date().toISOString(),
+          // Emit the canonical hydrated DTO (author summary, resolved
+          // name.displayName, engagement shape, and embedded boosted original)
+          // so the post renders correctly in real time instead of as a raw,
+          // unhydrated document. Mirrors createThread's post-create emit.
+          // maxDepth:1 is REQUIRED so a created boost embeds its boostOf target
+          // (a boost has an intentionally empty body and renders blank otherwise).
+          const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+            viewerId: oxyUserId ?? undefined,
+            oxyClient: getServiceOxyClient(),
+            maxDepth: 1,
+            includeLinkMetadata: true,
           });
-          io.emit('feed:updated', {
-            type: 'following',
-            post: postObj,
-            authorId: oxyUserId,
-            timestamp: new Date().toISOString(),
-          });
+          if (hydratedPost) {
+            io.emit('feed:updated', {
+              type: 'for_you',
+              post: hydratedPost,
+              timestamp: new Date().toISOString(),
+            });
+            io.emit('feed:updated', {
+              type: 'following',
+              post: hydratedPost,
+              authorId: oxyUserId,
+              timestamp: new Date().toISOString(),
+            });
+          }
         }
       } catch (socketError) {
         logger.warn('PostCreationService: failed to emit socket event', socketError);

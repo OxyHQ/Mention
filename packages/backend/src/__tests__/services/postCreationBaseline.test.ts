@@ -72,6 +72,19 @@ vi.mock('../../services/serviceRegistry', () => ({
   registerPostCreator: vi.fn(),
 }));
 
+// The socket emit hydrates the created post via PostHydrationService before
+// broadcasting `feed:updated`. These tests pass `skipSocketEmit: true`, so the
+// hydration path is never exercised; mock it to a no-op so importing
+// PostCreationService does not pull in the heavy `../../server` module graph
+// (which would run FederationService's module-load registration side-effects).
+vi.mock('../../services/PostHydrationService', () => ({
+  postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
+}));
+
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ getUsersByIds: vi.fn().mockResolvedValue([]) }),
+}));
+
 // The classifier is pure, so it is NOT mocked — happy-path tests exercise the
 // real deterministic baseline. The failure test forces a throw via vi.spyOn.
 // Imported AFTER the model/side-effect mocks so the singleton wires to them.
