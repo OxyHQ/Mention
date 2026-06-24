@@ -108,7 +108,12 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
         return usePostsStore.getState().getPostFromDb(String(postId));
     }, [postId, dataVersion]);
     const rawPost = (storePost ?? post) as PostEntity;
-    // If this is a boost, display the original post as the main content
+    // A boost post has an intentionally empty body; its rendered "content" IS the
+    // original it boosted. So on a boost's OWN detail page (`/p/<boostId>`) we show
+    // the original as the main content, but keep the booster identity so the page
+    // reads as "<booster> boosted <original>" — NOT as the original on its own.
+    // This is what makes `/p/<boostId>` distinct from `/p/<originalId>`.
+    const boostActor = rawPost?.boost?.actor ?? null;
     const viewPost = (rawPost?.boost?.originalPost || rawPost?.original || rawPost) as PostEntity;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
@@ -187,6 +192,17 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
             router.push(`/@${handle}`);
         }
     }, [router, viewPost?.user?.handle]);
+
+    const goToBooster = useCallback(() => {
+        if (!boostActor) return;
+        const handle = getNormalizedUserHandle({
+            handle: boostActor.handle,
+            username: boostActor.handle,
+        });
+        if (handle) {
+            router.push(`/@${handle}`);
+        }
+    }, [router, boostActor?.handle]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
@@ -337,6 +353,22 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     return (
         <>
             <View className="bg-background" style={{ paddingHorizontal: HPAD, paddingTop: 12, paddingBottom: 4 }}>
+                {/* Booster banner — present only on a boost's own detail page, so the
+                    page reads "<booster> boosted" above the embedded original. */}
+                {boostActor && (
+                    <TouchableOpacity
+                        accessibilityRole="link"
+                        accessibilityLabel={`${boostActor.displayName} boosted`}
+                        className="flex-row items-center gap-1.5 mb-2 self-start"
+                        onPress={goToBooster}
+                        activeOpacity={0.7}
+                    >
+                        <Ionicons name="repeat" size={14} color={theme.colors.textSecondary} />
+                        <Text className="text-muted-foreground text-[13px] font-semibold">
+                            {`${boostActor.displayName} boosted`}
+                        </Text>
+                    </TouchableOpacity>
+                )}
                 {/* Author row */}
                 <View className="flex-row items-center mb-3">
                     <ProfileHoverCard username={viewPost.user.handle}>

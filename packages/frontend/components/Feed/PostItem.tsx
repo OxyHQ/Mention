@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useContext, useState, useRef, lazy, Suspense } from 'react';
-import { StyleSheet, View, Pressable, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import {
     HydratedPost,
@@ -197,7 +197,15 @@ const PostItem: React.FC<PostItemProps> = ({
     useImagePreload(imageUrls, true);
 
     const isPostDetail = (pathname || '').startsWith('/p/');
-    const goToPost = useCallback(() => {
+    const goToPost = useCallback((event?: GestureResponderEvent) => {
+        // A nested item (e.g. the embedded original inside a boost/quote) is its
+        // OWN tap target: opening it must NOT also trigger the outer post's press.
+        // On React Native Web the press bubbles through the DOM, so stop it here.
+        // The outer boost row keeps navigating to the boost's own detail; only the
+        // inner card navigates to the embedded post.
+        if (isNested) {
+            event?.stopPropagation?.();
+        }
         if (!isPostDetail && viewPostId) {
             // Best-effort feed-ranking signal: opening a post from a feed is a
             // strong positive interaction. No-op when not rendered in a feed
@@ -207,7 +215,7 @@ const PostItem: React.FC<PostItemProps> = ({
             }
             router.push(`/p/${viewPostId}`);
         }
-    }, [router, viewPostId, isPostDetail, feedDescriptor]);
+    }, [router, viewPostId, isPostDetail, feedDescriptor, isNested]);
 
     const goToUser = useCallback(() => {
         const handle = getNormalizedUserHandle({
