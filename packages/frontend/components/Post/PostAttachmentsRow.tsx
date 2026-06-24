@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
-import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, View, ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, GestureResponderEvent, Platform, View, ViewStyle } from 'react-native';
 import { useAuth } from '@oxyhq/services';
 import {
   GeoJSONPoint,
@@ -22,7 +22,6 @@ import {
   PostAttachmentLink,
   PostAttachmentMedia,
   PostAttachmentPoll,
-  PostAttachmentNested,
   PostAttachmentEvent,
   PostAttachmentRoom,
 } from './Attachments';
@@ -41,11 +40,9 @@ interface MediaObj {
 interface Props {
   media?: MediaObj[];
   attachments?: PostAttachmentDescriptor[];
-  nestedPost?: any;
   leftOffset?: number;
   pollId?: string;
   pollData?: any;
-  nestingDepth?: number;
   postId?: string;
   article?: { articleId?: string; title?: string; body?: string } | null;
   onArticlePress?: (() => void) | null;
@@ -73,11 +70,9 @@ type AttachmentItem =
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
   attachments,
-  nestedPost,
   leftOffset = 0,
   pollId,
   pollData,
-  nestingDepth = 0,
   postId,
   article,
   onArticlePress,
@@ -261,31 +256,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     return results;
   }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasLink, linkMetadata, resolveMediaSrc, oxyServices]);
 
-  type Item =
-    | { type: 'nested' }
-    | AttachmentItem;
-
-  const items = useMemo(() => {
-    const computed: Item[] = [...attachmentItems];
-    const shouldIncludeNested = nestedPost && nestingDepth < 2;
-    if (shouldIncludeNested) {
-      const firstMediaIdx = computed.findIndex(item => item.type === 'image' || item.type === 'video');
-      const nestedItem: Item = { type: 'nested' };
-      if (firstMediaIdx === -1) {
-        computed.push(nestedItem);
-      } else {
-        computed.splice(firstMediaIdx, 0, nestedItem);
-      }
-    }
-    return computed;
-  }, [attachmentItems, nestedPost, nestingDepth]);
+  const items = attachmentItems;
 
   const mediaItems = useMemo(() =>
-    items.filter((item): item is Extract<Item, { type: 'image' | 'video' }> => item.type === 'image' || item.type === 'video'),
+    items.filter((item): item is Extract<AttachmentItem, { type: 'image' | 'video' }> => item.type === 'image' || item.type === 'video'),
     [items]);
 
   const hasMultipleMedia = mediaItems.length > 1;
-  const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested');
+  const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article');
 
   // Open the fullscreen reels viewer seeded at the tapped video. The reels route
   // selects the correct media item via the `mediaIndex` query param, so a post
@@ -375,9 +353,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     galleryRef.current?.open(galleryImages, index, rect);
   }, [galleryImages, imageIndexByMediaId]);
 
-  const screenWidth = Dimensions.get('window').width;
-  const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
-
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
@@ -449,10 +424,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   if (items.length === 0) return null;
 
-  const scrollerPaddingRight = 12;
-  const scrollerPaddingLeft = Math.abs(leftOffset);
-  const nestedWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
-
   return (
     <>
     <ScrollView
@@ -465,7 +436,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
-      onLayout={(e) => setScrollViewWidth(e.nativeEvent.layout.width)}
       style={style}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
@@ -525,16 +495,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             />
           );
         }
-        if (item.type === 'nested') {
-          return (
-            <PostAttachmentNested
-              key={`nested-${idx}`}
-              nestedPost={nestedPost}
-              nestingDepth={nestingDepth}
-              width={nestedWidth}
-            />
-          );
-        }
         if (item.type === 'video' || item.type === 'image') {
           const mediaId = item.mediaId;
           // Images register their host node at their images-only subset index so
@@ -569,11 +529,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   return (
     prevProps.media === nextProps.media &&
     prevProps.attachments === nextProps.attachments &&
-    prevProps.nestedPost === nextProps.nestedPost &&
     prevProps.leftOffset === nextProps.leftOffset &&
     prevProps.pollId === nextProps.pollId &&
     prevProps.pollData === nextProps.pollData &&
-    prevProps.nestingDepth === nextProps.nestingDepth &&
     prevProps.postId === nextProps.postId &&
     prevProps.article === nextProps.article &&
     prevProps.onArticlePress === nextProps.onArticlePress &&

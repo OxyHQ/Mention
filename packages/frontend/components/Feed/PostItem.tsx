@@ -16,6 +16,7 @@ import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
+import { PostAttachmentNested } from '../Post/Attachments';
 // Lazy load modals/sheets - only loaded when user opens them
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
@@ -51,6 +52,11 @@ type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
     quoted?: HydratedPostSummary | null;
 };
+
+// Max embed depth for a nested post (boost original / quoted post). A top-level
+// post embeds its original at depth 1; that embed will not itself render a
+// further nested post. Prevents unbounded nested-of-nested rendering.
+const MAX_NESTED_POST_DEPTH = 2;
 
 interface PostItemProps {
     post: PostEntity;
@@ -169,13 +175,18 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const shouldRenderMediaBlock =
         (Array.isArray(mediaItems) && mediaItems.length > 0) ||
-        Boolean(nestedPost) ||
         Boolean(pollData) ||
         Boolean(articleContent) ||
         Boolean(eventContent) ||
         Boolean(roomContent) ||
         Boolean(linkPreview) ||
         hasValidLocation;
+
+    // The embedded original (a boost's original post or a quoted post) renders as
+    // its OWN vertical body block — NOT as an item inside the attachments
+    // carousel. Cap the embed depth so a boost-of-a-quote (etc.) doesn't recurse
+    // a third level (mirrors the prior `nestingDepth < 2` cap).
+    const shouldRenderNested = Boolean(nestedPost) && nestingDepth < MAX_NESTED_POST_DEPTH;
 
     const attachmentDescriptors: PostAttachmentDescriptor[] | undefined = Array.isArray(content.attachments)
         ? content.attachments
@@ -634,11 +645,9 @@ const PostItem: React.FC<PostItemProps> = ({
                             <PostAttachmentsRow
                                 media={Array.isArray(mediaItems) ? mediaItems : []}
                                 attachments={attachmentDescriptors}
-                                nestedPost={nestedPost ?? null}
                                 leftOffset={AVATAR_OFFSET}
                                 pollData={pollData}
                                 pollId={pollId ? String(pollId) : undefined}
-                                nestingDepth={nestingDepth}
                                 postId={viewPostId}
                                 article={
                                     articleContent
@@ -693,6 +702,12 @@ const PostItem: React.FC<PostItemProps> = ({
                     </View>
                 )}
 
+                {shouldRenderNested && nestedPost && (
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                        <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
+                    </View>
+                )}
+
                 {!isNested && (
                     <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
                         <PostActions
@@ -723,7 +738,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}
                             detail={isDetailMain}
                             timestampLabel={fullTimestamp}
-                            hasMediaBlock={shouldRenderMediaBlock}
+                            hasMediaBlock={shouldRenderMediaBlock || shouldRenderNested}
                             onLikesPress={isDetailMain ? () => openEngagementList('likes') : undefined}
                             onBoostsPress={isDetailMain ? () => openEngagementList('boosts') : undefined}
                         />

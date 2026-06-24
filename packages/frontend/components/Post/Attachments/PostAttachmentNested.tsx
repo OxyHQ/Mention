@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
 
-// Dynamic import to break circular dependency: PostItem -> PostAttachmentsRow -> PostItem
+// Dynamic import to break circular dependency: PostItem -> PostAttachmentNested -> PostItem
 let PostItemComponent: React.ComponentType<any> | null = null;
 const getPostItem = () => {
   if (!PostItemComponent) {
@@ -13,29 +12,23 @@ const getPostItem = () => {
 interface PostAttachmentNestedProps {
   nestedPost: any;
   nestingDepth: number;
-  width: number;
 }
 
+// Renders the embedded original (a boost's original post or a quoted post) as a
+// nested `PostItem`. This is a standalone VERTICAL body block rendered directly
+// by `PostItem` — it is NOT an item inside the horizontal attachments carousel.
+// The bordered nested-card chrome (border, radius, padding) lives in `PostItem`'s
+// `nestedPostContainer` style; this component just fills the width of the body
+// content column it is placed in.
 const PostAttachmentNested: React.FC<PostAttachmentNestedProps> = ({
   nestedPost,
   nestingDepth,
-  width,
 }) => {
   const PostItem = getPostItem();
   if (!PostItem) return null;
 
-  return (
-    <View style={[styles.nestedContainer, { width }]}>
-      <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
-    </View>
-  );
+  return <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />;
 };
-
-const styles = StyleSheet.create({
-  nestedContainer: {
-    // Width is set dynamically to fill available space
-  },
-});
 
 export default PostAttachmentNested;
 
