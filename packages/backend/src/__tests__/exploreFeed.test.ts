@@ -196,6 +196,42 @@ describe('ExploreFeed.fetch — relevance boost (logged-in)', () => {
     expect(cond.$gt[0].$size.$setIntersection[1]).toContain('tech');
   });
 
+  it('builds the language factor as ANY-overlap over the multikey languages[]', async () => {
+    const feed = new ExploreFeed();
+    await feed.fetch(
+      { cursor: undefined, limit: 30 },
+      {
+        currentUserId: 'viewer',
+        followingIds: [],
+        // Language-only signal → the relevance product is the single language factor.
+        userBehavior: { preferredTopics: [], preferredLanguages: ['es'] },
+      },
+    );
+
+    const expr = relevanceBoostExpr() as {
+      $min: [
+        unknown,
+        {
+          $cond: [
+            { $gt: [{ $size: { $setIntersection: [{ $ifNull: [string, unknown[]] }, string[]] } }, number] },
+            number,
+            number,
+          ];
+        },
+      ];
+    };
+    const cond = expr.$min[1].$cond;
+    // Boost weight when matched, neutral 1.0 otherwise.
+    expect(cond[1]).toBe(MtnConfig.ranking.exploreRelevance.languageMatch);
+    expect(cond[2]).toBe(1);
+    // Viewer's preferred languages are the intersection target.
+    const setIntersection = cond[0].$gt[0].$size.$setIntersection;
+    expect(setIntersection[1]).toContain('es');
+    // The post-side operand reads the multikey `postClassification.languages`
+    // array directly (no scalar fallback / $let — the single field is gone).
+    expect(setIntersection[0]).toEqual({ $ifNull: ['$postClassification.languages', []] });
+  });
+
   it('combines topic + language + region factors into one clamped product', async () => {
     const feed = new ExploreFeed();
     await feed.fetch(
@@ -230,7 +266,7 @@ describe('ExploreFeed.fetch — relevance boost (logged-in)', () => {
     const match = firstMatch();
     // No topic/language/region constraint leaked into the match (still discovery).
     expect(match['postClassification.topics']).toBeUndefined();
-    expect(match['postClassification.language']).toBeUndefined();
+    expect(match['postClassification.languages']).toBeUndefined();
     expect(match['postClassification.region']).toBeUndefined();
     // SFW exclusion still present (viewer did not opt in to sensitive content).
     expect(match['postClassification.sensitive']).toEqual({ $ne: true });

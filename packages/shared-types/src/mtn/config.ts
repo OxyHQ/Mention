@@ -59,8 +59,8 @@ export const MtnConfig = {
        */
       topicMatch: 1.25,
       /**
-       * Multiplier when the post's `postClassification.language` is one of the
-       * viewer's preferred languages.
+       * Multiplier when ANY of the post's `postClassification.languages` is one
+       * of the viewer's preferred languages.
        */
       languageMatch: 1.15,
       /**

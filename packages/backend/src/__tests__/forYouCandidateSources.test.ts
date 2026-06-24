@@ -71,7 +71,9 @@ function affinityStub(userIds: string[]) {
 /** Classify a Post.find match by which source built it. */
 function sourceOf(match: Record<string, unknown>): string {
   if (match['postClassification.topics']) return 'topics';
-  if (match['postClassification.language']) return 'language';
+  // The LANGUAGE source is an ANY-overlap `$in` over the multikey
+  // `postClassification.languages` array (the single canonical language field).
+  if (match['postClassification.languages']) return 'language';
   if (match['postClassification.region']) return 'region';
   const oxy = match.oxyUserId as { $in?: string[] } | undefined;
   if (oxy?.$in) return 'authors'; // following OR affinity (disambiguated by ids)
@@ -105,7 +107,7 @@ describe('gatherForYouCandidates — union semantics', () => {
         return [];
       }
       if (src === 'topics') return [makePost(oid(3), 'topic-author', { postClassification: { topics: ['tech'] } })];
-      if (src === 'language') return [makePost(oid(4), 'lang-author', { postClassification: { language: 'es' } })];
+      if (src === 'language') return [makePost(oid(4), 'lang-author', { postClassification: { languages: ['es'] } })];
       if (src === 'global') return [makePost(oid(5), 'global-author')];
       return [];
     };
@@ -124,6 +126,26 @@ describe('gatherForYouCandidates — union semantics', () => {
     expect(authors).toContain('topic-author');
     expect(authors).toContain('lang-author');
     expect(authors).toContain('global-author');
+  });
+
+  it('queries the LANGUAGE source as an ANY-overlap $in over the multikey languages[]', async () => {
+    findRouter = () => [];
+    await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: [],
+      userBehavior: { preferredLanguages: ['es'] },
+      seenPostIds: [],
+      contentAffinityService: affinityStub([]),
+    });
+
+    const languageMatch = findCalls.find((m) => sourceOf(m) === 'language') as Record<string, unknown>;
+    expect(languageMatch).toBeDefined();
+    // Single canonical clause: a post matches when ANY of its languages is the
+    // viewer's preferred language (a bilingual ['en','es'] post matches 'es').
+    // No legacy scalar $or branch — the single `postClassification.language` is gone.
+    expect(languageMatch['postClassification.languages']).toEqual({ $in: ['es'] });
+    expect(languageMatch.$or).toBeUndefined();
+    expect(languageMatch['postClassification.language']).toBeUndefined();
   });
 
   it('deduplicates a post that appears in multiple sources by _id', async () => {

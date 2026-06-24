@@ -112,9 +112,22 @@ export class ExploreFeed implements FeedAPI {
     }
 
     if (languages.length > 0) {
+      // ANY-overlap: boost when the viewer's preferred languages intersect the
+      // post's `postClassification.languages` (the single canonical multi-language
+      // field). An un-classified post has no array → empty intersection → neutral
+      // (multiplier 1.0).
       factors.push({
         $cond: [
-          { $in: ['$postClassification.language', languages] },
+          {
+            $gt: [
+              {
+                $size: {
+                  $setIntersection: [{ $ifNull: ['$postClassification.languages', []] }, languages],
+                },
+              },
+              0,
+            ],
+          },
           cfg.languageMatch,
           1,
         ],
@@ -232,7 +245,7 @@ export class ExploreFeed implements FeedAPI {
           // below. Cheap to project; absent on un-classified posts (relevance
           // then no-ops to neutral for that post).
           'postClassification.topics': 1,
-          'postClassification.language': 1,
+          'postClassification.languages': 1,
           'postClassification.region': 1,
         },
       },

@@ -209,7 +209,7 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
       postClassification: { status: 'pending', topics: [] },
     });
     const baseline = makePost({
-      postClassification: { status: 'baseline', topics: [], language: 'en' },
+      postClassification: { status: 'baseline', topics: [], languages: ['en'] },
     });
     const failed = makePost({
       postClassification: { status: 'failed', topics: [] },
@@ -584,6 +584,71 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
     const baseline = await scoreAsViewer(makePost());
     expect(topicLessScore).toBeCloseTo(baseline, 10);
     expect(await scoreAsViewer(visible)).toBeGreaterThan(topicLessScore);
+  });
+});
+
+describe('FeedRankingService language personalization (ANY-overlap on postClassification.languages)', () => {
+  const VIEWER = 'viewer-lang';
+
+  /** Score a post as a viewer whose preferred language is Spanish. */
+  async function scoreWithSpanishPref(post: Record<string, unknown>): Promise<number> {
+    return service.calculatePostScore(post, VIEWER, {
+      userBehavior: { preferredLanguages: ['es'] },
+      behaviorSets: {
+        hiddenAuthors: new Set<string>(),
+        mutedAuthors: new Set<string>(),
+        blockedAuthors: new Set<string>(),
+        hiddenTopics: new Set<string>(),
+        preferredTopicIds: new Set<string>(),
+      },
+      engagementScoreCache: new Map<string, number>([[String(post._id), 1]]),
+    });
+  }
+
+  it('boosts a bilingual post when the viewer language overlaps ANY of postClassification.languages', async () => {
+    // Viewer prefers 'es'; the post is ['en','es'] → overlap → boosted vs a
+    // non-overlapping ['en','fr'] post.
+    const overlapping = makePost({
+      postClassification: { status: 'baseline', topics: [], languages: ['en', 'es'] },
+    });
+    const nonOverlapping = makePost({
+      postClassification: { status: 'baseline', topics: [], languages: ['en', 'fr'] },
+    });
+    expect(await scoreWithSpanishPref(overlapping)).toBeGreaterThan(
+      await scoreWithSpanishPref(nonOverlapping),
+    );
+  });
+
+  it('does NOT fall back to the top-level `post.language` — a not-yet-backfilled post is NEUTRAL', async () => {
+    // Language-match reads ONLY `postClassification.languages`. A legacy post that
+    // carries only the top-level AP `language` (and no classification array) gets
+    // NO language boost — it scores the same whether that scalar matches or not.
+    const topLevelMatch = makePost({ language: 'es', postClassification: { status: 'baseline', topics: [] } });
+    const topLevelMiss = makePost({ language: 'fr', postClassification: { status: 'baseline', topics: [] } });
+    expect(await scoreWithSpanishPref(topLevelMatch)).toBeCloseTo(
+      await scoreWithSpanishPref(topLevelMiss),
+      10,
+    );
+  });
+
+  it('matches ONLY on postClassification.languages, ignoring the top-level scalar', async () => {
+    // The post's top-level scalar is 'fr' (would miss) but languages includes 'es'
+    // (hit): the classification array is the only thing language-match reads, so
+    // the post is boosted vs a post with no classification language signal.
+    const arrayWins = makePost({
+      language: 'fr',
+      postClassification: { status: 'baseline', topics: [], languages: ['fr', 'es'] },
+    });
+    const noLangSignal = makePost({ postClassification: { status: 'baseline', topics: [] } });
+    expect(await scoreWithSpanishPref(arrayWins)).toBeGreaterThan(
+      await scoreWithSpanishPref(noLangSignal),
+    );
+  });
+
+  it('is NEUTRAL when the post carries no language signal at all', async () => {
+    const noLang = makePost({ postClassification: { status: 'baseline', topics: [] } });
+    const baseline = makePost({ postClassification: { status: 'baseline', topics: [] } });
+    expect(await scoreWithSpanishPref(noLang)).toBeCloseTo(await scoreWithSpanishPref(baseline), 10);
   });
 });
 

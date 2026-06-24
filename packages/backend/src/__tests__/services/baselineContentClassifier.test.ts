@@ -13,44 +13,19 @@ import {
 import { deriveRegion } from '../../services/contentClassification/region';
 
 describe('BaselineContentClassifier', () => {
-  describe('language', () => {
-    it('prefers an explicitly provided language over detection', () => {
+  describe('languages (multi-language — the single canonical language field)', () => {
+    it('prefers an explicitly provided language over detection (primary = languages[0])', () => {
       const result = baselineContentClassifier.classify({
         // English text but an explicit Spanish tag — explicit wins.
         text: 'This is clearly an English sentence with enough length to detect.',
         language: 'es',
       });
-      expect(result.language).toBe('es');
+      expect(result.languages).toEqual(['es']);
     });
 
     it('normalizes a BCP-47 provided language to its primary subtag', () => {
       const result = baselineContentClassifier.classify({ text: 'irrelevant text here', language: 'pt-BR' });
-      expect(result.language).toBe('pt');
-    });
-
-    it('detects language from sufficiently long text when none is provided', () => {
-      const result = baselineContentClassifier.classify({
-        text: 'I love how much faster the feed feels now, this is genuinely great news for everyone.',
-      });
-      expect(result.language).toBe('en');
-    });
-
-    it('detects Spanish text', () => {
-      const result = baselineContentClassifier.classify({
-        text: 'Me encanta lo rápido que va el feed ahora, son muy buenas noticias para toda la comunidad.',
-      });
-      expect(result.language).toBe('es');
-    });
-
-    it('returns undefined for text shorter than the detection threshold', () => {
-      expect(baselineContentClassifier.classify({ text: 'hi' }).language).toBeUndefined();
-      expect(baselineContentClassifier.classify({ text: 'short one' }).language).toBeUndefined();
-    });
-
-    it('returns undefined for emoji-only / empty content', () => {
-      expect(baselineContentClassifier.classify({ text: '🔥🔥🔥' }).language).toBeUndefined();
-      expect(baselineContentClassifier.classify({ text: '' }).language).toBeUndefined();
-      expect(baselineContentClassifier.classify({}).language).toBeUndefined();
+      expect(result.languages).toEqual(['pt']);
     });
 
     it('ignores an unusable provided language and falls back to detection', () => {
@@ -58,7 +33,76 @@ describe('BaselineContentClassifier', () => {
         text: 'This is a long enough English sentence to be detected reliably.',
         language: 'english', // not a 2-letter subtag
       });
-      expect(result.language).toBe('en');
+      expect(result.languages).toEqual(['en']);
+    });
+
+    it('records a single language for monolingual text (primary first)', () => {
+      const en = baselineContentClassifier.classify({
+        text: 'I love how much faster the feed feels now, this is genuinely great news for everyone.',
+      });
+      expect(en.languages).toEqual(['en']);
+
+      const es = baselineContentClassifier.classify({
+        text: 'Me encanta lo rápido que va el feed ahora, son muy buenas noticias para toda la comunidad.',
+      });
+      expect(es.languages).toEqual(['es']);
+    });
+
+    it('detects multiple languages in genuinely bilingual text', () => {
+      const result = baselineContentClassifier.classify({
+        text:
+          'Hello everyone welcome to my channel today thanks for watching. ' +
+          'Hola a todos bienvenidos a mi canal de hoy muchas gracias por ver',
+      });
+      // Both languages present (order is by detection confidence).
+      expect(result.languages).toContain('en');
+      expect(result.languages).toContain('es');
+      expect(result.languages.length).toBe(2);
+    });
+
+    it('does not let the long noise tail leak extra languages into a monolingual post', () => {
+      // tinyld emits many low-score candidates for monolingual Spanish; only the
+      // top candidate clears the secondary gates, so exactly one language remains.
+      const result = baselineContentClassifier.classify({
+        text: 'El zorro marrón rápido salta sobre el perro perezoso cada mañana sin falta alguna.',
+      });
+      expect(result.languages).toEqual(['es']);
+    });
+
+    it('uses an explicitly declared language list verbatim (federated AP is authoritative)', () => {
+      const result = baselineContentClassifier.classify({
+        // English-looking text, but the federating server declared es + en.
+        text: 'This text is in English but the source declared two languages.',
+        languages: ['es', 'en'],
+      });
+      expect(result.languages).toEqual(['es', 'en']);
+    });
+
+    it('merges the singular `language` (leading) with the declared `languages` list, deduped + normalized', () => {
+      const result = baselineContentClassifier.classify({
+        text: 'irrelevant — declared set is authoritative',
+        language: 'pt-BR',
+        languages: ['pt', 'en-US'],
+      });
+      // pt-BR (primary) + pt (dup) + en-US → ['pt', 'en'].
+      expect(result.languages).toEqual(['pt', 'en']);
+    });
+
+    it('caps the recorded languages at the configured maximum', () => {
+      const result = baselineContentClassifier.classify({
+        text: 'x',
+        languages: ['en', 'es', 'fr', 'de', 'it'],
+      });
+      expect(result.languages.length).toBeLessThanOrEqual(3);
+      expect(result.languages).toEqual(['en', 'es', 'fr']);
+    });
+
+    it('returns an empty languages array when no language is determinable', () => {
+      expect(baselineContentClassifier.classify({ text: 'hi' }).languages).toEqual([]);
+      expect(baselineContentClassifier.classify({ text: 'short one' }).languages).toEqual([]);
+      expect(baselineContentClassifier.classify({ text: '🔥🔥🔥' }).languages).toEqual([]);
+      expect(baselineContentClassifier.classify({ text: '' }).languages).toEqual([]);
+      expect(baselineContentClassifier.classify({}).languages).toEqual([]);
     });
   });
 
@@ -274,8 +318,8 @@ describe('BaselineContentClassifier', () => {
       expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(BASELINE_CLASSIFIER_VERSION);
     });
 
-    it('is at v3 (the NSFW-by-hashtag sensitive ruleset) so the backfill re-marks the corpus', () => {
-      expect(BASELINE_CLASSIFIER_VERSION).toBe(3);
+    it('is at v4 (multi-language ruleset) so the backfill re-derives languages across the corpus', () => {
+      expect(BASELINE_CLASSIFIER_VERSION).toBe(4);
     });
 
     it('stamps an ISO classifiedAt timestamp', () => {

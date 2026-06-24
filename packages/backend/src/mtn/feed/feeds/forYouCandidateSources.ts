@@ -265,10 +265,14 @@ export async function gatherForYouCandidates(
     : Promise.resolve([]);
 
   // --- LANGUAGE (DISCOVERY): preferred-language match, sensitive excluded (SFW). ---
+  // ANY-overlap: a post matches when ANY of its languages is in the viewer's
+  // preferred set, via the multikey `postClassification.languages` array (a
+  // bilingual post is surfaced for either language, backed by
+  // `for_you_language_idx`). Not-yet-backfilled posts simply don't match here.
   const languageSource: Promise<CandidatePost[]> = preferredLanguages.length > 0
     ? runSource('language', applyDiscoverySafety({
         ...buildBaseMatch(seenObjectIds, since),
-        'postClassification.language': { $in: preferredLanguages },
+        'postClassification.languages': { $in: preferredLanguages },
       }), cfg.perSource.language)
     : Promise.resolve([]);
 

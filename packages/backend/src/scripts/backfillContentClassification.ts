@@ -4,7 +4,10 @@
  *
  * Stage A is the cheap, synchronous, side-effect-free baseline that now runs on
  * EVERY post at ingest (native + federated) via {@link BaselineContentClassifier}:
- *   - language (re-derived from stored text / explicit `post.language`),
+ *   - languages (ALL detected ISO 639-1, multi-language, primary first) —
+ *     re-derived from stored text (the AP `contentMap` declared set is only
+ *     available at ingest, so backfill re-detects from text); the resolved
+ *     primary (`languages[0]`) is mirrored to the top-level AP `post.language`,
  *   - region (best-effort, from a federated instance domain),
  *   - hashtagsNorm (canonical, alias-mapped),
  *   - topics (rule-based),
@@ -13,11 +16,14 @@
  *
  * Posts created before P2 only carry the AI/legacy fields (or a bare `pending`
  * subdoc), so this script recomputes the deterministic baseline from each post's
- * STORED state and `$set`s ONLY the Stage-A fields. It deliberately does NOT
- * touch the AI lifecycle fields (`status`, `attempts`, `scores`, `sentiment`,
- * `intent`, `confidence`) — the async {@link PostClassificationService} owns
- * those. A post still queued as `pending` stays `pending`; a post already
- * `classified` keeps its AI enrichment AND gains the deterministic baseline.
+ * STORED state and `$set`s ONLY the Stage-A fields (plus a `$unset` of the
+ * removed single `postClassification.language` so the corpus fully migrates to
+ * the multi-language `postClassification.languages` with no stale data). It
+ * deliberately does NOT touch the AI lifecycle fields (`status`, `attempts`,
+ * `scores`, `sentiment`, `intent`, `confidence`) — the async
+ * {@link PostClassificationService} owns those. A post still queued as `pending`
+ * stays `pending`; a post already `classified` keeps its AI enrichment AND gains
+ * the deterministic baseline.
  *
  * Properties:
  *   - Idempotent: a post already carrying the current `version` is skipped, so
@@ -96,13 +102,18 @@ export function buildPageFilter(lastId: mongoose.Types.ObjectId | null): Record<
 }
 
 /**
- * Build the `$set` for a single post's Stage-A fields from its STORED state.
- * Returns null when the classifier throws (defensive) so the caller can skip it.
+ * Build the Mongo update document (`{ $set, $unset }`) for a single post's
+ * Stage-A fields from its STORED state. Returns null when the classifier throws
+ * (defensive) so the caller can skip it.
  *
- * Exported for unit testing. Sets ONLY the Stage-A fields — never the AI
- * lifecycle fields (status/attempts/scores/sentiment/intent/confidence).
+ * Exported for unit testing. The `$set` writes ONLY the Stage-A fields — never
+ * the AI lifecycle fields (status/attempts/scores/sentiment/intent/confidence).
+ * The `$unset` migrates off the removed single `postClassification.language` so
+ * no stale data lingers after the corpus moves to multi-language.
  */
-export function buildBaselineSet(post: BackfillPostRow): Record<string, unknown> | null {
+export function buildBaselineUpdate(
+  post: BackfillPostRow,
+): { $set: Record<string, unknown>; $unset: Record<string, unknown> } | null {
   try {
     const isFederated = post.federation?.activityId != null;
     const sensitive = post.federation?.sensitive ?? post.metadata?.isSensitive;
@@ -111,11 +122,12 @@ export function buildBaselineSet(post: BackfillPostRow): Record<string, unknown>
     // the origin instance.
     const federationUri = post.federation?.url ?? post.federation?.activityId;
     const instanceDomain = isFederated && federationUri ? getRemoteHost(federationUri) : undefined;
-    // Re-derive language from the stored text rather than trusting the top-level
-    // `post.language`: that column carries the schema default `'en'` for every
-    // post (native and federated) created before the AP-language wiring, so it is
-    // not a reliable explicit signal. Letting the classifier detect from text
-    // yields the real language and leaves it `undefined` for undetectable text.
+    // Re-derive language(s) from the stored text rather than trusting the
+    // top-level `post.language`: that column carries the schema default `'en'` for
+    // every post created before the AP-language wiring, so it is not a reliable
+    // explicit signal. Letting the classifier detect from text yields the real
+    // language(s) and leaves the set empty for undetectable text. (The AP
+    // `contentMap` declared set is only available at ingest, not on stored docs.)
     const signals = baselineContentClassifier.classify({
       text: post.content?.text,
       hashtags: post.hashtags,
@@ -128,15 +140,21 @@ export function buildBaselineSet(post: BackfillPostRow): Record<string, unknown>
     // (status/attempts/sentiment/intent/confidence) — the async batch owns those.
     // `topics` is shared, but Stage A only seeds it; the AI batch overwrites it on
     // classification, so writing the rule-based topics here is additive for
-    // not-yet-classified posts and harmless for classified ones.
+    // not-yet-classified posts and harmless for classified ones. The classification
+    // subdoc carries ONLY the multi-language `languages` array; the resolved
+    // primary (`languages[0]`) is mirrored to the top-level AP `post.language`.
     const set: Record<string, unknown> = {
       'postClassification.topics': signals.topics,
-      'postClassification.language': signals.language,
+      'postClassification.languages': signals.languages,
       'postClassification.region': signals.region,
       'postClassification.hashtagsNorm': signals.hashtagsNorm,
       'postClassification.sensitive': signals.sensitive,
       'postClassification.version': signals.version,
     };
+    const primaryLanguage = signals.languages[0];
+    if (primaryLanguage != null) {
+      set.language = primaryLanguage;
+    }
 
     // Deterministic spam/quality/toxicity scores: write them ONLY when the post
     // has NOT already been AI-classified. An AI-classified post carries
@@ -147,7 +165,13 @@ export function buildBaselineSet(post: BackfillPostRow): Record<string, unknown>
       set['postClassification.scores'] = signals.scores;
     }
 
-    return set;
+    // Migrate off the removed single classification-language field — fully drop
+    // the stale value so only `postClassification.languages` remains.
+    const unset: Record<string, unknown> = {
+      'postClassification.language': '',
+    };
+
+    return { $set: set, $unset: unset };
   } catch (error) {
     logger.warn(`[backfillContentClassification] classify failed for ${post._id.toString()}; skipping`, error);
     return null;
@@ -199,15 +223,15 @@ async function backfillContentClassification(): Promise<void> {
       if (page.length === 0) break;
 
       for (const post of page) {
-        const set = buildBaselineSet(post);
-        if (!set) {
+        const update = buildBaselineUpdate(post);
+        if (!update) {
           skipped += 1;
           continue;
         }
         pendingOps.push({
           updateOne: {
             filter: { _id: post._id },
-            update: { $set: set },
+            update,
           },
         });
 

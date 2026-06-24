@@ -4,8 +4,9 @@ import mongoose from 'mongoose';
 /**
  * Unit coverage for the deterministic, pure pieces of the Stage-A backfill
  * one-shot: the version-aware page filter (idempotency contract) and the
- * per-post `$set` builder. No DB is touched — `mongoose.connect` and the
- * `Post` model are not exercised here; only the exported pure helpers are.
+ * per-post update builder (`{ $set, $unset }`). No DB is touched —
+ * `mongoose.connect` and the `Post` model are not exercised here; only the
+ * exported pure helpers are.
  */
 
 // Avoid pulling the real Post model (and its mongoose connection side effects)
@@ -14,7 +15,7 @@ vi.mock('../../models/Post', () => ({ Post: {} }));
 
 import {
   buildPageFilter,
-  buildBaselineSet,
+  buildBaselineUpdate,
   type BackfillPostRow,
 } from '../../scripts/backfillContentClassification';
 import { BASELINE_CLASSIFIER_VERSION } from '../../services/BaselineContentClassifier';
@@ -57,23 +58,28 @@ describe('backfillContentClassification — buildPageFilter (idempotency)', () =
   });
 });
 
-describe('backfillContentClassification — buildBaselineSet', () => {
+describe('backfillContentClassification — buildBaselineUpdate', () => {
   it('sets the Stage-A fields + deterministic scores (never the AI LIFECYCLE fields)', () => {
-    const set = buildBaselineSet(row());
-    expect(set).not.toBeNull();
-    const keys = Object.keys(set as Record<string, unknown>).sort();
+    const update = buildBaselineUpdate(row());
+    expect(update).not.toBeNull();
+    const keys = Object.keys((update as { $set: Record<string, unknown> }).$set).sort();
     expect(keys).toEqual(
       [
         'postClassification.hashtagsNorm',
-        'postClassification.language',
+        'postClassification.languages',
         'postClassification.region',
         'postClassification.sensitive',
         'postClassification.topics',
         'postClassification.version',
         // Deterministic scores are written for not-yet-AI-classified posts.
         'postClassification.scores',
+        // The top-level AP `post.language` carries the resolved primary.
+        'language',
       ].sort(),
     );
+    // The single classification-language field is GONE from `$set` — only the
+    // multi-language array remains in the subdoc.
+    expect(keys).not.toContain('postClassification.language');
     // Crucially, it must NOT write the AI lifecycle fields.
     for (const banned of [
       'postClassification.status',
@@ -86,9 +92,19 @@ describe('backfillContentClassification — buildBaselineSet', () => {
     }
   });
 
+  it('migrates off the removed single `postClassification.language` via $unset', () => {
+    const update = buildBaselineUpdate(row()) as {
+      $set: Record<string, unknown>;
+      $unset: Record<string, unknown>;
+    };
+    // The deprecated singular field is unset in the SAME write that sets the array.
+    expect(update.$unset['postClassification.language']).toBe('');
+    expect(update.$set['postClassification.language']).toBeUndefined();
+  });
+
   it('writes deterministic 0..1 scores (spam/quality/toxicity) for a non-classified post', () => {
-    const set = buildBaselineSet(row()) as Record<string, unknown>;
-    const scores = set['postClassification.scores'] as {
+    const { $set } = buildBaselineUpdate(row()) as { $set: Record<string, unknown> };
+    const scores = $set['postClassification.scores'] as {
       spam: number;
       quality: number;
       toxicity: number;
@@ -102,23 +118,32 @@ describe('backfillContentClassification — buildBaselineSet', () => {
   });
 
   it('does NOT overwrite scores on an already AI-classified post', () => {
-    const set = buildBaselineSet(
+    const { $set } = buildBaselineUpdate(
       row({ postClassification: { status: 'classified' } }),
-    ) as Record<string, unknown>;
+    ) as { $set: Record<string, unknown> };
     // Stage-A fields still refreshed, but the higher-fidelity AI scores are left intact.
-    expect(set['postClassification.version']).toBe(BASELINE_CLASSIFIER_VERSION);
-    expect(Object.keys(set)).not.toContain('postClassification.scores');
+    expect($set['postClassification.version']).toBe(BASELINE_CLASSIFIER_VERSION);
+    expect(Object.keys($set)).not.toContain('postClassification.scores');
   });
 
-  it('re-derives language from the stored text and stamps the current version', () => {
-    const set = buildBaselineSet(row()) as Record<string, unknown>;
-    expect(set['postClassification.language']).toBe('en');
-    expect(set['postClassification.version']).toBe(BASELINE_CLASSIFIER_VERSION);
-    expect(set['postClassification.topics']).toContain('ai');
+  it('re-derives the primary into the top-level `post.language` and stamps the current version', () => {
+    const { $set } = buildBaselineUpdate(row()) as { $set: Record<string, unknown> };
+    expect($set.language).toBe('en');
+    expect($set['postClassification.version']).toBe(BASELINE_CLASSIFIER_VERSION);
+    expect($set['postClassification.topics']).toContain('ai');
+  });
+
+  it('writes the multi-language `languages` array (primary first)', () => {
+    const { $set } = buildBaselineUpdate(row()) as { $set: Record<string, unknown> };
+    const languages = $set['postClassification.languages'] as string[];
+    expect(Array.isArray(languages)).toBe(true);
+    // A monolingual English post yields exactly one language, equal to the primary.
+    expect(languages).toEqual(['en']);
+    expect(languages[0]).toBe($set.language);
   });
 
   it('derives a coarse region for a federated post from its stored federation URI', () => {
-    const set = buildBaselineSet(
+    const { $set } = buildBaselineUpdate(
       row({
         content: { text: 'Guten Morgen zusammen, das ist ein ganz normaler deutscher Beitrag.' },
         hashtags: [],
@@ -128,22 +153,22 @@ describe('backfillContentClassification — buildBaselineSet', () => {
           sensitive: false,
         },
       }),
-    ) as Record<string, unknown>;
-    expect(set['postClassification.region']).toBe('DE');
-    expect(set['postClassification.language']).toBe('de');
+    ) as { $set: Record<string, unknown> };
+    expect($set['postClassification.region']).toBe('DE');
+    expect($set.language).toBe('de');
   });
 
   it('passes through the stored sensitive flag', () => {
-    const set = buildBaselineSet(
+    const { $set } = buildBaselineUpdate(
       row({ federation: { activityId: 'https://x.de/1', sensitive: true } }),
-    ) as Record<string, unknown>;
-    expect(set['postClassification.sensitive']).toBe(true);
+    ) as { $set: Record<string, unknown> };
+    expect($set['postClassification.sensitive']).toBe(true);
   });
 
-  it('is deterministic / idempotent for the same stored input (same $set)', () => {
+  it('is deterministic / idempotent for the same stored input (same update)', () => {
     const input = row();
-    const a = buildBaselineSet(input) as Record<string, unknown>;
-    const b = buildBaselineSet(input) as Record<string, unknown>;
+    const a = buildBaselineUpdate(input);
+    const b = buildBaselineUpdate(input);
     expect(a).toEqual(b);
   });
 });

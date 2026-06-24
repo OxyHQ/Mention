@@ -808,8 +808,10 @@ describe('Stage-A baseline classification on federated outbox backfill', () => {
     expect(doc.language).toBe('de');
 
     const classification = doc.postClassification as Record<string, unknown>;
-    // Deterministic Stage-A fields are populated...
-    expect(classification.language).toBe('de');
+    // Deterministic Stage-A fields are populated. The subdoc carries ONLY the
+    // multi-language array; the primary lives on the top-level `post.language`.
+    expect(classification.language).toBeUndefined();
+    expect(classification.languages).toEqual(['de']);
     // chaos.social is a global .social instance → no region (not mislabeled DE).
     expect(classification.region).toBeUndefined();
     expect(classification.version).toBeGreaterThan(0);
@@ -830,7 +832,9 @@ describe('Stage-A baseline classification on federated outbox backfill', () => {
 
     const doc = insertedDoc();
     expect(doc.language).toBe('de');
-    expect((doc.postClassification as Record<string, unknown>).language).toBe('de');
+    const classification = doc.postClassification as Record<string, unknown>;
+    expect(classification.language).toBeUndefined();
+    expect(classification.languages).toEqual(['de']);
   });
 
   it('derives a coarse region from a ccTLD federated instance', async () => {

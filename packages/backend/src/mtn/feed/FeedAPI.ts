@@ -69,10 +69,11 @@ export interface FeedAPI {
  * quality/safety signals: `scores` + `status` + `version` (consumed by
  * FeedRankingService — `status`/`version` are the provenance markers that
  * distinguish real AI / deterministic-baseline scores from the schema-default
- * placeholder), plus `topics`/`language` (used by topic/locale ranking &
- * candidate generation) and `topicRefs` (registry-linked canonical topics for
- * personalization / hidden-topic suppression). Ranking reads `topicRefs` first
- * and falls back to the slug-only `topics`; it treats an absent / un-baselined
- * classification as NEUTRAL.
+ * placeholder), plus `topics` and `postClassification.languages` (used by
+ * topic/locale ranking & candidate generation; the top-level AP `language` is
+ * projected separately above) and `topicRefs` (registry-linked canonical topics
+ * for personalization / hidden-topic suppression). Ranking reads `topicRefs`
+ * first and falls back to the slug-only `topics`; it treats an absent /
+ * un-baselined classification as NEUTRAL.
  */
-export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.version postClassification.sensitive postClassification.topics postClassification.topicRefs postClassification.language';
+export const FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.version postClassification.sensitive postClassification.topics postClassification.topicRefs postClassification.languages';

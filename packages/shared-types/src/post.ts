@@ -217,7 +217,7 @@ export interface ClassificationTopicRef {
  * populated in two stages that coexist on this one object:
  *
  * - Stage A (deterministic, synchronous at ingest): cheap signals derived
- *   without any network/AI — {@link PostClassification.language},
+ *   without any network/AI — {@link PostClassification.languages},
  *   {@link PostClassification.region}, {@link PostClassification.hashtagsNorm},
  *   {@link PostClassification.sensitive}, and rule-based {@link PostClassification.topics}.
  *   Runs on EVERY post (native and federated) on the same code path.
@@ -253,10 +253,17 @@ export interface PostClassification {
    */
   topicRefs?: ClassificationTopicRef[];
   /**
-   * Stage-A. Best-effort ISO 639-1 language code (e.g. `'en'`, `'es'`). Absent
-   * when it could not be determined (too-short or undetectable content).
+   * Stage-A. ALL detected/declared ISO 639-1 languages on the post (e.g. a
+   * bilingual ES+EN post, or a Mastodon `contentMap` declaring several), primary
+   * (dominant/declared) language first, deduped. This is the SINGLE canonical
+   * classification-language field — there is no separate single-value field;
+   * consumers read the array (the top-level {@link Post.language} carries the
+   * single primary for the ActivityPub protocol). Absent when no language could
+   * be determined, and absent on posts that predate multi-language classification
+   * until the version-gated backfill populates them (language-match then goes
+   * neutral for those posts).
    */
-  language?: string;
+  languages?: string[];
   /**
    * Stage-A. Best-effort coarse region/country code (e.g. `'DE'`) or zone.
    * Deliberately weak — derived from a federated instance domain/TLD or locale —

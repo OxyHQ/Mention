@@ -7,7 +7,7 @@ import {
 } from '../../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
-import { extractApLanguage } from '../../utils/federation/apLanguage';
+import { extractApLanguage, extractApLanguages } from '../../utils/federation/apLanguage';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import { getPostCreator } from '../serviceRegistry';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
@@ -156,7 +156,7 @@ interface RawPostClassificationSeed {
   status: typeof POST_CLASSIFICATION_PENDING;
   attempts: number;
   topics: string[];
-  language?: string;
+  languages: string[];
   region?: string;
   hashtagsNorm: string[];
   sensitive: boolean;
@@ -178,6 +178,7 @@ export class OutboxSyncService {
     text: string;
     hashtags: string[];
     language?: string;
+    languages?: string[];
     sensitive: boolean;
     instanceDomain?: string;
   }): RawPostClassificationSeed {
@@ -186,6 +187,7 @@ export class OutboxSyncService {
         text: input.text,
         hashtags: input.hashtags,
         language: input.language,
+        languages: input.languages,
         sensitive: input.sensitive,
         isFederated: true,
         instanceDomain: input.instanceDomain,
@@ -194,7 +196,7 @@ export class OutboxSyncService {
         status: POST_CLASSIFICATION_PENDING,
         attempts: 0,
         topics: signals.topics,
-        language: signals.language,
+        languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
         sensitive: signals.sensitive ?? input.sensitive,
@@ -208,6 +210,7 @@ export class OutboxSyncService {
         status: POST_CLASSIFICATION_PENDING,
         attempts: 0,
         topics: [],
+        languages: [],
         hashtagsNorm: input.hashtags,
         sensitive: input.sensitive,
         // Neutral, valid scores so ranking treats a defensive-fallback post as
@@ -541,9 +544,12 @@ export class OutboxSyncService {
         );
 
         // AP-derived language so federated posts carry their REAL language
-        // instead of the schema default 'en'. Used both as the top-level
-        // `post.language` and as the Stage-A classifier's explicit language.
+        // instead of the schema default 'en'. `extractApLanguage` is the declared
+        // primary; `extractApLanguages` is the full declared set (top-level
+        // `language` + every `contentMap` key) that feeds the classifier's
+        // `postClassification.languages`.
         const apLanguage = extractApLanguage(note);
+        const apLanguages = extractApLanguages(note);
         // Stage-A deterministic baseline. The raw insertMany bypasses Mongoose
         // middleware AND schema defaults, so the baseline fields are set
         // explicitly here (mirroring the explicit `postClassification` seed and
@@ -554,9 +560,14 @@ export class OutboxSyncService {
           text,
           hashtags,
           language: apLanguage,
+          languages: apLanguages,
           sensitive: note.sensitive === true,
           instanceDomain: actorUri ? getRemoteHost(actorUri) : undefined,
         });
+        // Top-level AP `post.language` (single, protocol-facing) = the resolved
+        // primary (`languages[0]`, normalized to ISO 639-1), falling back to the
+        // raw declared primary when the classifier resolved none.
+        const primaryLanguage = baseline.languages[0] ?? apLanguage;
 
         newDocs.push({
           oxyUserId: resolvedOxyUserId,
@@ -575,7 +586,7 @@ export class OutboxSyncService {
           },
           visibility: mapApVisibility(note.to, note.cc),
           hashtags,
-          ...(apLanguage ? { language: apLanguage } : {}),
+          ...(primaryLanguage ? { language: primaryLanguage } : {}),
           status: 'published',
           // Engagement counters start at 0 and only ever move in lockstep with
           // real native records (Like docs / boost Posts / reply Posts) created
@@ -934,7 +945,10 @@ export class OutboxSyncService {
         hashtags,
         // AP-derived language + author instance for the Stage-A baseline (and the
         // top-level `post.language`), via PostCreationService's classifier wiring.
+        // The singular `language` is the primary; the full declared set feeds
+        // `postClassification.languages`.
         language: extractApLanguage(note),
+        languages: extractApLanguages(note),
         instanceDomain: authorUri ? getRemoteHost(authorUri) : undefined,
         status: 'published',
         metadata: { isSensitive: note.sensitive === true },
