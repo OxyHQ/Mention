@@ -16,6 +16,15 @@ import { formatRelativeTimeCompact } from '@/utils/dateUtils';
 const HPAD = 8;
 const ROW_GAP = 8;
 
+/**
+ * Vertical gap between the header's name row and the first content node in its
+ * content column (the body text rendered as a `PostHeader` child). Exported so a
+ * post with NO text can hug its first external content block (media/location)
+ * under the header with the SAME gap a text line would produce — avoiding an
+ * orphaned "reserved text line" space. See `PostItem`'s first-content-block gap.
+ */
+export const HEADER_CONTENT_GAP = 4;
+
 interface User {
   displayName: string;
   handle: string;
@@ -71,7 +80,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             <Avatar source={avatarUri} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }} />
           </TouchableOpacity>
         </ProfileHoverCard>
-        <View className="flex-1" style={{ gap: 4 }}>
+        <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
           <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
             <UserName
               name={user.displayName}

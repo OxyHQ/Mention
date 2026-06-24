@@ -11,7 +11,7 @@ import {
     PostRoomContent,
 } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
-import PostHeader from '../Post/PostHeader';
+import PostHeader, { HEADER_CONTENT_GAP } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
@@ -480,6 +480,21 @@ const PostItem: React.FC<PostItemProps> = ({
     // differ — never the avatar/name/handle/time/content position.
     const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
+    // First content block below the header, in render order. With text, the body is
+    // the header child so the first EXTERNAL block sits one SECTION_GAP below it
+    // (name →4→ text →12→ block). Without text, that same SECTION_GAP would leave an
+    // orphaned empty line under the header, so the first external block instead hugs
+    // the header with the header's own small content gap (HEADER_CONTENT_GAP). All
+    // subsequent blocks (and everything when text exists) keep SECTION_GAP.
+    const firstContentBlock: 'location' | 'sources' | 'media' | 'actions' | null =
+        hasValidLocation && location ? 'location'
+            : hasSources ? 'sources'
+                : shouldRenderMediaBlock ? 'media'
+                    : !isNested ? 'actions'
+                        : null;
+    const topGapFor = (block: 'location' | 'sources' | 'media' | 'actions'): number =>
+        !content.text && block === firstContentBlock ? HEADER_CONTENT_GAP : SECTION_GAP;
+
     const Container: React.ElementType = isTappable ? Pressable : View;
 
     const boostedBy = viewPost.boost?.actor
@@ -592,13 +607,13 @@ const PostItem: React.FC<PostItemProps> = ({
                 </PostHeader>
 
                 {hasValidLocation && location && (
-                    <View style={{ marginTop: SECTION_GAP, paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                    <View style={{ marginTop: topGapFor('location'), paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
                         <PostLocation location={location} paddingHorizontal={0} />
                     </View>
                 )}
 
                 {hasSources && (
-                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: SECTION_GAP }}>
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: topGapFor('sources') }}>
                         <TouchableOpacity
                             className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border mt-2"
                             style={{ paddingHorizontal: 10, paddingVertical: 4 }}
@@ -691,14 +706,14 @@ const PostItem: React.FC<PostItemProps> = ({
                                         }
                                         : null
                                 }
-                                style={{ marginTop: SECTION_GAP }}
+                                style={{ marginTop: topGapFor('media') }}
                             />
                         </View>
                     </View>
                 )}
 
                 {!isNested && (
-                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: SECTION_GAP }}>
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: topGapFor('actions') }}>
                         <PostActions
                             engagement={{
                                 replies: engagement.replies ?? 0,
