@@ -491,12 +491,13 @@ const PostItem: React.FC<PostItemProps> = ({
     // differ — never the avatar/name/handle/time/content position.
     const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
-    // Spacing below the header is driven by flex `gap` on a single content column,
-    // NOT per-block margins: gap only adds space BETWEEN actually-rendered children,
-    // so an absent block (e.g. no text) never leaves an orphaned gap. The header's
-    // identity column already groups the name row + body text at HEADER_CONTENT_GAP
-    // (4px); the post's content blocks (text-already-in-header, location, sources,
-    // media, actions) are the gap-siblings here at SECTION_GAP (12px).
+    // All vertical content spacing is driven by flex `gap` (NOT per-block
+    // margins), and is UNIFIED to a single value (SECTION_GAP): the header's
+    // content column (name row → body children) is passed SECTION_GAP via
+    // `contentGap`, the body text → nested-card wrapper uses SECTION_GAP, and the
+    // post's content blocks (header, location, sources, media, actions) are
+    // gap-siblings here at SECTION_GAP. Gap only adds space BETWEEN
+    // actually-rendered children, so an absent block never leaves an orphan gap.
     const Container: React.ElementType = isTappable ? Pressable : View;
 
     const postAuthor = viewPost.user.displayName;
@@ -595,6 +596,11 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressAvatar={goToUser}
                     onPressMenu={openMenu}
                     paddingHorizontal={isNested ? 0 : HPAD}
+                    // Unify ALL of the post's vertical content spacing to one value
+                    // (SECTION_GAP): name row → body, between body blocks (text,
+                    // nested card, media, actions) — every vertical gap is the same,
+                    // so boost / quote / text / media all read uniformly.
+                    contentGap={SECTION_GAP}
                 >
                     {/* Body content column (right of the avatar, under the name):
                         the post text followed by the embedded original (a boost's

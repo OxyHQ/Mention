@@ -21,11 +21,10 @@ const HPAD = 8;
 const ROW_GAP = 8;
 
 /**
- * Vertical gap between the header's name row and the first content node in its
- * content column (the body text rendered as a `PostHeader` child). Exported so a
- * post with NO text can hug its first external content block (media/location)
- * under the header with the SAME gap a text line would produce — avoiding an
- * orphaned "reserved text line" space. See `PostItem`'s first-content-block gap.
+ * Default vertical gap between the header's name row and its content-column
+ * children (the `contentGap` prop default). Used where the body should hug the
+ * name tightly (e.g. the compose input). The feed/detail post overrides this
+ * with `SECTION_GAP` so the post's vertical spacing is uniform.
  */
 export const HEADER_CONTENT_GAP = 4;
 
@@ -43,6 +42,14 @@ interface PostHeaderProps {
   showBoost?: boolean;
   showReply?: boolean;
   paddingHorizontal?: number;
+  /**
+   * Vertical gap between the name row and the content-column children. Defaults
+   * to `HEADER_CONTENT_GAP`. Callers that want the header's content spacing to
+   * match the rest of their body layout pass that single shared value here — the
+   * feed/detail post passes `SECTION_GAP` so every vertical gap in the post is
+   * uniform (name → body → blocks).
+   */
+  contentGap?: number;
   children?: React.ReactNode;
   avatarUri?: string;
   avatarSize?: number;
@@ -59,6 +66,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   showBoost,
   showReply,
   paddingHorizontal = HPAD,
+  contentGap = HEADER_CONTENT_GAP,
   children,
   avatarUri,
   avatarSize = 36,
@@ -80,7 +88,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             <Avatar source={avatarUri} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }} />
           </TouchableOpacity>
         </ProfileHoverCard>
-        <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
+        <View className="flex-1" style={{ gap: contentGap }}>
           <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
             {/* Truncatable identity: name + handle shrink and ellipsize; the
                 trailing meta (\u00B7 time, indicators) stays fixed and visible. */}
