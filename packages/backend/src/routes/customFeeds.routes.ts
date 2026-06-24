@@ -7,17 +7,12 @@ import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
 import FeedLike from '../models/FeedLike';
-import { oxy as oxyClient } from '../../server';
 import { escapeRegex } from '../utils/textProcessing';
+import { resolveUserSummaries } from '../services/PostHydrationService';
+import type { CachedUserSummary } from '../services/userSummaryCache';
 import { logger } from '../utils/logger';
 
 const router = Router();
-
-function resolveAvatar(userData: any): string | undefined {
-  if (!userData) return undefined;
-  if (typeof userData.avatar === 'string') return userData.avatar;
-  return (userData.avatar as any)?.url || userData.profileImage || undefined;
-}
 
 interface UserProfile {
   id: string;
@@ -27,23 +22,52 @@ interface UserProfile {
   avatar?: string;
 }
 
-function buildUserProfile(userData: any, fallbackId: string): UserProfile {
+/**
+ * Map a resolved {@link CachedUserSummary} to the public {@link UserProfile}
+ * shape this route returns. `summary.avatar` is already a FINAL, ready-to-render
+ * URL (resolved server-side via the avatar resolver) — the same value the feed
+ * hydration path emits — so the frontend never constructs URLs.
+ */
+function profileFromSummary(oxyUserId: string, cached: CachedUserSummary | undefined): UserProfile {
+  const summary = cached?.summary;
   return {
-    id: userData?.id || fallbackId,
-    username: userData?.username || userData?.handle || fallbackId,
-    handle: userData?.username || userData?.handle || fallbackId,
-    displayName: userData?.name?.displayName ?? fallbackId,
-    avatar: resolveAvatar(userData),
+    id: summary?.id ?? oxyUserId,
+    username: summary?.handle ?? oxyUserId,
+    handle: summary?.handle ?? oxyUserId,
+    displayName: summary?.displayName ?? oxyUserId,
+    avatar: typeof summary?.avatar === 'string' && summary.avatar.length > 0 ? summary.avatar : undefined,
   };
 }
 
-async function resolveUserProfile(oxyUserId: string): Promise<UserProfile> {
+/**
+ * Resolve many Oxy user ids to {@link UserProfile}s in ONE batched, Redis-backed
+ * pass via {@link resolveUserSummaries} — the same resolver feed hydration and
+ * starter-pack enrichment use. This collapses what was a per-id `oxy.getUserById`
+ * HTTP fan-out (the classic N+1, served only by the SDK's separate 5-minute
+ * in-process cache) into a single bulk service call for the cache misses, sharing
+ * the one 10-minute `usersummary:v1:` cache. Best-effort: a whole-batch failure
+ * resolves every id to its id-only fallback profile rather than failing the
+ * response.
+ */
+async function resolveUserProfiles(oxyUserIds: string[]): Promise<Map<string, UserProfile>> {
+  const result = new Map<string, UserProfile>();
+  const uniqueIds = Array.from(new Set(oxyUserIds.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+  if (uniqueIds.length === 0) return result;
+
+  let summaries = new Map<string, CachedUserSummary>();
   try {
-    const userData = await oxyClient.getUserById(oxyUserId);
-    return buildUserProfile(userData, oxyUserId);
-  } catch {
-    return buildUserProfile(null, oxyUserId);
+    summaries = await resolveUserSummaries(uniqueIds);
+  } catch (error) {
+    logger.warn('[CustomFeeds] Failed to resolve user profiles', {
+      count: uniqueIds.length,
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
   }
+
+  for (const id of uniqueIds) {
+    result.set(id, profileFromSummary(id, summaries.get(id)));
+  }
+  return result;
 }
 
 // Create a new custom feed
@@ -160,41 +184,19 @@ router.get('/', async (req: any, res) => {
       }
     }
     
-    // Get unique owner IDs and fetch owner information
-    const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
-    const ownersMap = new Map<string, UserProfile>();
-
-    if (ownerIds.length > 0) {
-      await Promise.all(
-        ownerIds.map(async (ownerId) => {
-          ownersMap.set(ownerId, await resolveUserProfile(ownerId));
-        })
-      );
-    }
-    
-    // Fetch member avatars (first 3 per feed) for card display
+    // Resolve owner profiles AND member avatars (first 3 per feed) in ONE batched,
+    // Redis-backed pass over the union of all ids — no per-id HTTP fan-out.
+    const ownerIds = items.map((item: any) => item.ownerOxyUserId).filter(Boolean) as string[];
     const allMemberIds = new Set<string>();
     items.forEach((item: any) => {
       (item.memberOxyUserIds || []).slice(0, 3).forEach((id: string) => allMemberIds.add(id));
     });
+
+    const profilesById = await resolveUserProfiles([...ownerIds, ...allMemberIds]);
+    const ownersMap = profilesById;
     const memberAvatarsMap = new Map<string, string | undefined>();
-    if (allMemberIds.size > 0) {
-      await Promise.all(
-        Array.from(allMemberIds).map(async (memberId) => {
-          // Reuse already-fetched owner data to avoid redundant API calls
-          const cached = ownersMap.get(memberId);
-          if (cached) {
-            memberAvatarsMap.set(memberId, cached.avatar);
-            return;
-          }
-          try {
-            const userData = await oxyClient.getUserById(memberId);
-            memberAvatarsMap.set(memberId, resolveAvatar(userData));
-          } catch {
-            memberAvatarsMap.set(memberId, undefined);
-          }
-        })
-      );
+    for (const memberId of allMemberIds) {
+      memberAvatarsMap.set(memberId, profilesById.get(memberId)?.avatar);
     }
 
     // Normalize _id to id for frontend consistency and add like data, owner info, and member avatars
@@ -283,8 +285,8 @@ router.get('/marketplace', async (req: any, res) => {
     // Resolve isLiked + owner profiles in parallel (subscriberCount already on feed docs)
     const feedIds = items.map((item: any) => item._id);
     const likedFeedsSet = new Set<string>();
-    const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
-    const ownersMap = new Map<string, UserProfile>();
+    const ownerIds = items.map((item: any) => item.ownerOxyUserId).filter(Boolean) as string[];
+    let ownersMap = new Map<string, UserProfile>();
 
     await Promise.all([
       // User's liked feeds
@@ -292,10 +294,8 @@ router.get('/marketplace', async (req: any, res) => {
         ? FeedLike.find({ userId, feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } }).lean()
             .then((likes: any[]) => likes.forEach((like: any) => likedFeedsSet.add(String(like.feedId))))
         : Promise.resolve(),
-      // Owner profiles
-      ...ownerIds.map(async (ownerId) => {
-        ownersMap.set(ownerId, await resolveUserProfile(ownerId));
-      }),
+      // Owner profiles — one batched, Redis-backed resolution for all owners
+      resolveUserProfiles(ownerIds).then((map) => { ownersMap = map; }),
     ]);
 
     const normalizedItems = items.map((item: any) => {
@@ -345,15 +345,15 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
       isLiked = !!userLike;
     }
     
-    // Fetch owner and member profiles in parallel
-    const owner = feed.ownerOxyUserId
-      ? await resolveUserProfile(feed.ownerOxyUserId)
-      : null;
+    // Resolve owner + member profiles in ONE batched, Redis-backed pass.
+    const memberIds = (feed.memberOxyUserIds || []).slice(0, 50) as string[];
+    const profilesById = await resolveUserProfiles(
+      feed.ownerOxyUserId ? [feed.ownerOxyUserId, ...memberIds] : memberIds,
+    );
 
-    const memberIds = (feed.memberOxyUserIds || []).slice(0, 50);
-    const members = memberIds.length > 0
-      ? await Promise.all(memberIds.map((mid: string) => resolveUserProfile(mid)))
-      : [];
+    const owner = feed.ownerOxyUserId ? profilesById.get(feed.ownerOxyUserId) ?? null : null;
+    // Preserve member ORDER (the map is keyed by id; rebuild the ordered list).
+    const members = memberIds.map((mid) => profilesById.get(mid) ?? profileFromSummary(mid, undefined));
 
     const memberAvatars = members.slice(0, 4).map(m => m.avatar).filter(Boolean);
 
@@ -726,20 +726,13 @@ router.get('/:id/reviews', validateObjectId('id'), async (req: any, res) => {
     ]);
 
     // Resolve reviewer profiles
-    const reviewerIds = [...new Set(reviews.map((r: any) => r.reviewerId).filter(Boolean))];
-    const reviewersMap = new Map<string, UserProfile>();
-    if (reviewerIds.length > 0) {
-      await Promise.all(
-        reviewerIds.map(async (reviewerId) => {
-          reviewersMap.set(reviewerId, await resolveUserProfile(reviewerId));
-        })
-      );
-    }
+    const reviewerIds = reviews.map((r: any) => r.reviewerId).filter(Boolean) as string[];
+    const reviewersMap = await resolveUserProfiles(reviewerIds);
 
     const normalizedReviews = reviews.map((r: any) => ({
       ...r,
       id: String(r._id),
-      reviewer: reviewersMap.get(r.reviewerId) || buildUserProfile(null, r.reviewerId),
+      reviewer: reviewersMap.get(r.reviewerId) || profileFromSummary(r.reviewerId, undefined),
     }));
 
     res.json({

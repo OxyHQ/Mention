@@ -1,10 +1,8 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import type { User as OxyUser } from '@oxyhq/core';
 import StarterPack, { IStarterPack } from '../models/StarterPack';
 import { escapeRegex } from '../utils/textProcessing';
-import { oxy } from '../../server';
-import { resolveAvatarUrl } from '../utils/mediaResolver';
+import { resolveUserSummaries } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 
@@ -39,33 +37,17 @@ interface StarterPackListItem extends LeanStarterPack {
 }
 
 /**
- * Resolve a single Oxy member's avatar to a FINAL, ready-to-render URL.
- * Mirrors {@link PostHydrationService}'s actor resolution: prefer `avatar`,
- * fall back to `profileImage`, then run through {@link resolveAvatarUrl} so the
- * frontend never has to construct URLs. Returns `undefined` on any failure or
- * when the member has no avatar so the caller can omit it.
- */
-async function resolveMemberAvatar(oxyUserId: string): Promise<string | undefined> {
-  try {
-    const userData: OxyUser = await oxy.getUserById(oxyUserId);
-    const profileImage = (userData as { profileImage?: unknown }).profileImage;
-    const rawAvatar: string | undefined = typeof userData.avatar === 'string'
-      ? userData.avatar
-      : typeof profileImage === 'string'
-        ? profileImage
-        : undefined;
-    return resolveAvatarUrl(rawAvatar);
-  } catch (error) {
-    logger.warn(`[StarterPacks] Failed to resolve member avatar for ${oxyUserId}:`, error);
-    return undefined;
-  }
-}
-
-/**
  * Enrich a page of starter packs with `memberAvatars` (≤8 resolved URLs) and
- * `memberCount`. Avoids N+1: collects the union of each pack's first
- * {@link LIST_AVATAR_LIMIT} member ids, resolves every unique id ONCE, then maps
- * avatars back per pack preserving member order.
+ * `memberCount`.
+ *
+ * Avatar resolution is delegated to {@link resolveUserSummaries} — the SAME
+ * batched, Redis-backed (`usersummary:v1:`) author-summary resolver the feed
+ * hydration path uses. This collapses what was a per-unique-member
+ * `oxy.getUserById` HTTP fan-out (the classic N+1, served only by the SDK's
+ * separate 5-minute in-process cache) into a single bulk service call for the
+ * cache misses, and unifies the avatar staleness window with the feed (one
+ * 10-minute cache instead of two divergent ones). The resolved summary already
+ * carries the final, ready-to-render avatar URL, so the output is identical.
  */
 async function enrichWithMemberAvatars(packs: LeanStarterPack[]): Promise<StarterPackListItem[]> {
   const uniqueMemberIds = new Set<string>();
@@ -76,14 +58,23 @@ async function enrichWithMemberAvatars(packs: LeanStarterPack[]): Promise<Starte
   }
 
   const avatarById = new Map<string, string>();
-  await Promise.all(
-    Array.from(uniqueMemberIds).map(async (memberId) => {
-      const avatar = await resolveMemberAvatar(memberId);
-      if (avatar) {
-        avatarById.set(memberId, avatar);
+  if (uniqueMemberIds.size > 0) {
+    try {
+      const summaries = await resolveUserSummaries(Array.from(uniqueMemberIds));
+      for (const [memberId, { summary }] of summaries) {
+        if (typeof summary.avatar === 'string' && summary.avatar.length > 0) {
+          avatarById.set(memberId, summary.avatar);
+        }
       }
-    }),
-  );
+    } catch (error) {
+      // Avatar enrichment is best-effort: a resolution failure must never fail
+      // the list response — packs still render with `memberCount` and no avatars.
+      logger.warn('[StarterPacks] Failed to resolve member avatars for list', {
+        memberCount: uniqueMemberIds.size,
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+  }
 
   return packs.map((pack) => {
     const members = pack.memberOxyUserIds ?? [];
