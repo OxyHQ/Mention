@@ -221,7 +221,7 @@ Runs at ALL ingest chokepoints: `PostCreationService`, `feed.controller` reply p
 - `sensitive`, `spam`, `quality`, and `toxicity` scores (`services/contentClassification/spamQuality.ts`)
 - status set to `'pending'` (waiting for Stage B)
 
-`BASELINE_CLASSIFIER_VERSION` gates the idempotent backfill script `scripts/backfillContentClassification.ts` — run as a Fargate one-shot on new classifier versions; self-exits when done.
+`BASELINE_CLASSIFIER_VERSION` (in `services/BaselineContentClassifier.ts`) stamps the version on every post classified at write/ingest time. `FeedRankingService` only honors classification scores whose stamped `version >= BASELINE_CLASSIFIER_VERSION` (or that are AI-`classified`); posts below the baseline are treated as having no usable signal (neutral, never penalized), so bumping the baseline degrades gracefully with no one-shot backfill.
 
 **Stage B — async AI enrichment (`PostClassificationService`, Alia):**
 Uses a DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwrite (that would wipe Stage A fields). Topics are canonical via `postClassification.topicRefs` (`{name, topicId}`) resolved through `TopicService.resolveTopicRefs`. Readers (`FeedRankingService`, `UserPreferenceService`, `TrendingService`, `getPostsByTopic`) prefer `topicRefs`, fall back to legacy `extracted.topics`, then to neutral.
