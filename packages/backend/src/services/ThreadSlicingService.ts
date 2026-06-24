@@ -7,9 +7,10 @@
  *   2. Reply context injection: posts with parentPostId → prepend parent as context
  */
 
-import { FeedPostSlice, FeedSliceItem, FeedSliceReason, MtnConfig } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, FeedSliceReason, MtnConfig, PostActorSummary } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
+import { resolveUserSummaries } from './PostHydrationService';
 
 export interface ThreadSlicingOptions {
   enableThreadGrouping: boolean;
@@ -25,7 +26,6 @@ interface RawPost {
   parentPostId?: string;
   threadId?: string;
   createdAt?: string | Date;
-  user?: { id?: string; displayName?: string; handle?: string; avatarUrl?: string };
   [key: string]: any;
 }
 
@@ -86,6 +86,19 @@ class ThreadSlicingService {
       }
     }
 
+    // Reply-context slices render a "Replying to @<parent author>" header. The
+    // parent author's canonical display name/handle/avatar is owned by Oxy and
+    // is NOT present on the raw lean parent doc (only `oxyUserId` is). Slicing
+    // runs before PostHydrationService resolves authors, so resolve the parent
+    // authors here through the SAME canonical path hydration uses
+    // (`resolveUserSummaries`: batched Redis read + one bulk Oxy fetch for
+    // misses). Parent authors are almost always already-warm feed authors, so
+    // this typically adds no Oxy round-trip. Without this the header rendered a
+    // blank display name. Never hand-recompute names — use the resolved summary.
+    const parentAuthorSummaries = opts.enableReplyContext
+      ? await this.resolveReplyContextAuthors(posts, parentPostMap, postById)
+      : new Map<string, PostActorSummary>();
+
     // Build slices in feed order
     const slices: FeedPostSlice[] = [];
 
@@ -129,19 +142,15 @@ class ThreadSlicingService {
         if (parent && !seenPostIds.has(getPostId(parent))) {
           seenPostIds.add(getPostId(parent));
 
-          const parentAuthor = parent.user || {
-            id: parent.oxyUserId || '',
-            handle: '',
-            displayName: '',
-          };
+          const parentAuthorId = parent.oxyUserId ? String(parent.oxyUserId) : '';
+          const resolved = parentAuthorId ? parentAuthorSummaries.get(parentAuthorId) : undefined;
 
           slices.push(buildSlice([parent, post], true, {
             type: 'replyContext',
-            parentAuthor: {
-              id: parentAuthor.id || parent.oxyUserId || '',
-              handle: parentAuthor.handle || '',
-              displayName: parentAuthor.displayName ?? parentAuthor.handle ?? '',
-              avatarUrl: parentAuthor.avatarUrl,
+            parentAuthor: resolved ?? {
+              id: parentAuthorId,
+              handle: parentAuthorId,
+              displayName: parentAuthorId,
             },
           }));
           continue;
@@ -258,6 +267,43 @@ class ThreadSlicingService {
     }
 
     return result;
+  }
+
+  /**
+   * Resolve canonical author summaries for every parent post that will anchor a
+   * reply-context slice ("Replying to @…"). Returns a map keyed by the parent's
+   * `oxyUserId` → {@link PostActorSummary} (canonical `name.displayName`, handle,
+   * avatar resolved via Oxy). Uses {@link resolveUserSummaries} — the same
+   * batched/Redis-cached path PostHydrationService uses — so authors already in
+   * the feed cost nothing extra and the result never blanks for an existing
+   * parent author.
+   */
+  private async resolveReplyContextAuthors(
+    posts: RawPost[],
+    parentPostMap: Map<string, RawPost>,
+    postById: Map<string, RawPost>,
+  ): Promise<Map<string, PostActorSummary>> {
+    const authorIds = new Set<string>();
+
+    for (const post of posts) {
+      if (!post.parentPostId) continue;
+      const parent = parentPostMap.get(post.parentPostId) || postById.get(post.parentPostId);
+      const authorId = parent?.oxyUserId ? String(parent.oxyUserId) : '';
+      if (authorId) {
+        authorIds.add(authorId);
+      }
+    }
+
+    if (authorIds.size === 0) {
+      return new Map<string, PostActorSummary>();
+    }
+
+    const resolved = await resolveUserSummaries([...authorIds]);
+    const summaries = new Map<string, PostActorSummary>();
+    for (const [userId, value] of resolved) {
+      summaries.set(userId, value.summary);
+    }
+    return summaries;
   }
 }
 

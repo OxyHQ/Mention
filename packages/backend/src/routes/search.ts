@@ -2,7 +2,8 @@ import express, { Request, Response } from "express";
 import mongoose from "mongoose";
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
-import { feedController } from '../controllers/feed.controller';
+import { postHydrationService } from '../services/PostHydrationService';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { config } from '../config';
 import { oxy as oxyClient } from '../../server';
@@ -260,8 +261,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         ? postsToReturn[postsToReturn.length - 1]._id.toString()
         : undefined;
 
-      // Transform posts with user profiles
-      const transformedPosts = await (feedController as any).transformPostsWithProfiles(postsToReturn, currentUserId);
+      // Hydrate posts with viewer-scoped state and embedded quoted/boost
+      // originals. Pass the request's oxyClient so viewer-scoped fields
+      // (privacy, interactions, viewerState) resolve, and maxDepth:1 so quoted
+      // posts and boost originals are embedded (a maxDepth:0 boost renders
+      // blank). Mirrors the profile/posts.controller hydration path.
+      const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
+        viewerId: currentUserId,
+        oxyClient: createScopedOxyClient(req),
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
       results.posts = transformedPosts;
       results.hasMore = hasMoreResults;
       results.nextCursor = nextCursor;
