@@ -6,20 +6,18 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
-import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
-import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent } from '@mention/shared-types';
+import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent, PostActorSummary } from '@mention/shared-types';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
 import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
-import { postHydrationService } from '../services/PostHydrationService';
+import { postHydrationService, resolveUserSummaries } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
-import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { aliaChat } from '../utils/alia';
 
 // Constants from centralized config
@@ -40,8 +38,30 @@ const DEFAULT_NEARBY_RADIUS_METERS = config.posts.defaultNearbyRadiusMeters;
 const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
 const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
-const DEFAULT_BOOSTS_LIMIT = 50;
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
+
+/**
+ * Map a resolved {@link PostActorSummary} to the engagement-users response shape
+ * (`GET /posts/:id/likes` and `GET /posts/:id/boosts`). The summary already
+ * carries the canonical `displayName` (from Oxy `name.displayName`), resolved
+ * handle, and final avatar URL. When the resolver could not resolve a user, fall
+ * back to a minimal placeholder keyed by the raw id.
+ */
+const mapActorSummary = (
+  userId: string,
+  summary: PostActorSummary | undefined,
+): { id: string; displayName: string; handle: string; avatar?: string; verified: boolean } => {
+  if (!summary) {
+    return { id: userId, displayName: userId, handle: userId, avatar: undefined, verified: false };
+  }
+  return {
+    id: summary.id,
+    displayName: summary.displayName,
+    handle: summary.handle,
+    avatar: summary.avatar ?? summary.avatarUrl,
+    verified: Boolean(summary.isVerified),
+  };
+};
 
 const buildPostMetadata = (metadata: unknown): Record<string, unknown> => {
   if (!metadata || typeof metadata !== 'object') {
@@ -1582,109 +1602,6 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Boost
-export const boostPost = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-  const boostId = req.params.id as string;
-    const surface = readInteractionSurface(req.body);
-    const originalPost = await Post.findById(boostId);
-    if (!originalPost) {
-      return res.status(404).json({ message: 'Original post not found' });
-    }
-
-    const boost = new Post({
-      text: req.body.comment || '',
-      userID: new mongoose.Types.ObjectId(userId),
-      boost_of: new mongoose.Types.ObjectId(boostId)
-    });
-
-    await boost.save();
-    await boost.populate('userID', 'username name avatar verified');
-
-    // Record interaction for user preference learning
-    try {
-      await userPreferenceService.recordInteraction(userId, boostId, 'boost', { surface });
-      logger.debug('Successfully recorded boost interaction');
-      // Invalidate cached feed for this user
-      await feedCacheService.invalidateUserCache(userId);
-    } catch (error) {
-      logger.warn('Failed to record boost interaction', error);
-    }
-
-    // Notify original author about boost
-    try {
-      const recipientId = originalPost?.oxyUserId?.toString?.() || null;
-      if (recipientId && recipientId !== userId) {
-        await createNotification({
-          recipientId,
-          actorId: userId,
-          type: 'boost',
-          entityId: String(originalPost._id),
-          entityType: 'post'
-        });
-      }
-    } catch (e) {
-      logger.error('Failed to create boost notification', e);
-    }
-
-    res.status(201).json(boost);
-  } catch (error) {
-    logger.error('Error creating boost', error);
-    res.status(500).json({ message: 'Error creating boost' });
-  }
-};
-
-// Quote post
-export const quotePost = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-  const quoteId = req.params.id as string;
-    const originalPost = await Post.findById(quoteId);
-    if (!originalPost) {
-      return res.status(404).json({ message: 'Original post not found' });
-    }
-
-    const quotePost = new Post({
-      text: req.body.text,
-      userID: new mongoose.Types.ObjectId(userId),
-      quoted_post_id: new mongoose.Types.ObjectId(quoteId)
-    });
-
-    await quotePost.save();
-    await quotePost.populate('userID', 'username name avatar verified');
-
-    // Notify original author about quote
-    try {
-      const recipientId = originalPost?.oxyUserId?.toString?.() || null;
-      if (recipientId && recipientId !== userId) {
-        await createNotification({
-          recipientId,
-          actorId: userId,
-          type: 'quote',
-          entityId: String(originalPost._id),
-          entityType: 'post'
-        });
-      }
-    } catch (e) {
-      logger.error('Failed to create quote notification', e);
-    }
-
-    res.status(201).json(quotePost);
-  } catch (error) {
-    logger.error('Error creating quote post', error);
-    res.status(500).json({ message: 'Error creating quote post' });
-  }
-};
-
 // Get saved posts for current user
 export const getSavedPosts = async (req: AuthRequest, res: Response) => {
   try {
@@ -2103,34 +2020,12 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     const likesToReturn = hasMore ? likes.slice(0, Number(limit)) : likes;
     const nextCursor = hasMore ? likes[Number(limit) - 1]._id.toString() : undefined;
 
-    // Get unique user IDs
+    // Get unique user IDs, then resolve actor summaries through the same shared
+    // resolver PostHydrationService uses (canonical `name.displayName`, batched
+    // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
     const userIds = [...new Set(likesToReturn.map(like => like.userId))];
-
-    // Fetch user data from Oxy
-    const users = await Promise.all(
-      userIds.map(async (userId) => {
-        try {
-          const userData = await oxyClient.getUserById(userId);
-          const avatar = resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined);
-          return {
-            id: userData.id,
-            displayName: userData.displayName,
-            handle: userData.username || userId,
-            avatar,
-            verified: Boolean(userData.verified || userData.isVerified)
-          };
-        } catch (error) {
-          logger.error(`Error fetching user ${userId}`, error);
-          return {
-            id: userId,
-            displayName: userId,
-            handle: userId,
-            avatar: undefined,
-            verified: false
-          };
-        }
-      })
-    );
+    const summaries = await resolveUserSummaries(userIds);
+    const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.summary));
 
     res.json({
       users,
@@ -2169,34 +2064,12 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     const boostsToReturn = hasMore ? boosts.slice(0, Number(limit)) : boosts;
     const nextCursor = hasMore ? boosts[Number(limit) - 1]._id.toString() : undefined;
 
-    // Get unique user IDs
+    // Get unique user IDs, then resolve actor summaries through the same shared
+    // resolver PostHydrationService uses (canonical `name.displayName`, batched
+    // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
     const userIds = [...new Set(boostsToReturn.map(boost => boost.oxyUserId).filter((id): id is string => typeof id === 'string'))];
-
-    // Fetch user data from Oxy
-    const users = await Promise.all(
-      userIds.map(async (userId) => {
-        try {
-          const userData = await oxyClient.getUserById(userId);
-          const avatar = resolveAvatarUrl(typeof userData.avatar === 'string' ? userData.avatar : undefined);
-          return {
-            id: userData.id,
-            displayName: userData.displayName,
-            handle: userData.username || userId,
-            avatar,
-            verified: Boolean(userData.verified || userData.isVerified)
-          };
-        } catch (error) {
-          logger.error(`Error fetching user ${userId}`, error);
-          return {
-            id: userId,
-            displayName: userId,
-            handle: userId,
-            avatar: undefined,
-            verified: false
-          };
-        }
-      })
-    );
+    const summaries = await resolveUserSummaries(userIds);
+    const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.summary));
 
     res.json({
       users,

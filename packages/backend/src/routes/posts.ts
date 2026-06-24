@@ -11,8 +11,6 @@ import {
   unlikePost,
   savePost,
   unsavePost,
-  boostPost,
-  quotePost,
   getPostsByHashtag,
   getPostsByTopic,
   getSavedPosts,
@@ -68,8 +66,6 @@ router.post('/:id/like', likePost);
 router.delete('/:id/like', unlikePost);
 router.post('/:id/save', savePost);
 router.delete('/:id/save', unsavePost);
-router.post('/:id/boost', boostPost);
-router.post('/:id/quote', quotePost);
 router.post('/:id/translate', translatePost);
 
 // Threadgate routes (reply controls)
