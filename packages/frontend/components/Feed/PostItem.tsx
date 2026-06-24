@@ -596,7 +596,21 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressMenu={openMenu}
                     paddingHorizontal={isNested ? 0 : HPAD}
                 >
-                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
+                    {/* Body content column (right of the avatar, under the name):
+                        the post text followed by the embedded original (a boost's
+                        original post or a quoted card). The nested post is a CHILD
+                        of the content column — like the text — so a no-text boost
+                        renders its nested card directly under the name (no orphan
+                        "reserved text line" gap). Sized full-width by the column;
+                        media/actions stay full-bleed siblings below. */}
+                    {(content.text || shouldRenderNested) ? (
+                        <View style={{ gap: SECTION_GAP }}>
+                            {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
+                            {shouldRenderNested && nestedPost ? (
+                                <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
+                            ) : null}
+                        </View>
+                    ) : null}
                 </PostHeader>
 
                 {hasValidLocation && location && (
@@ -699,12 +713,6 @@ const PostItem: React.FC<PostItemProps> = ({
                                 }
                             />
                         </View>
-                    </View>
-                )}
-
-                {shouldRenderNested && nestedPost && (
-                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
-                        <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
                     </View>
                 )}
 
