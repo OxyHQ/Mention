@@ -9,9 +9,8 @@ import {
     PostEngagementSummary,
 } from '@mention/shared-types';
 import { usePostsStore } from '@/stores/postsStore';
-import { Avatar } from '@oxyhq/bloom/avatar';
 
-import UserName from '../UserName';
+import PostHeader from './PostHeader';
 import PostContentText from './PostContentText';
 import PostLocation from './PostLocation';
 import PostAttachmentsRow from './PostAttachmentsRow';
@@ -31,7 +30,6 @@ import { usePostSave } from '@/hooks/usePostSave';
 import { usePostBoost } from '@/hooks/usePostBoost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
-import { ProfileHoverCard } from '../ProfileHoverCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
@@ -46,7 +44,6 @@ import VotePill from './VotePill';
 import { useHaptics } from '@/hooks/useHaptics';
 import EngagementListSheet from './EngagementListSheet';
 import { cn } from '@/lib/utils';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 type PostEntity = HydratedPost & {
@@ -59,10 +56,10 @@ interface PostDetailViewProps {
     onFocusReply: () => void;
 }
 
-// Post detail view layout — intentionally distinct from the feed/compose tokens:
-// the focused (detail) post uses a larger 48px avatar and 16px horizontal padding,
-// not the 40px / 12px used in the compact feed list (POST_ITEM_SPACING).
-const AVATAR_SIZE = 48;
+// Post detail view layout. The header reuses the shared `PostHeader` (identical to
+// the feed), so the avatar size is owned by `PostHeader`. The detail keeps its own
+// 16px horizontal padding for the content/timestamp/actions rows (vs the feed's
+// 12px from POST_ITEM_SPACING).
 const HPAD = 16;
 const ICON_SIZE = 22;
 
@@ -341,41 +338,26 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onFocusReply }) =
     return (
         <>
             <View className="bg-background" style={{ paddingHorizontal: HPAD, paddingTop: 12, paddingBottom: 4 }}>
-                {/* Author row */}
-                <View className="flex-row items-center mb-3">
-                    <ProfileHoverCard username={viewPost.user.handle}>
-                        <TouchableOpacity activeOpacity={0.7} onPress={goToUser}>
-                            <Avatar source={avatarUri} size={AVATAR_SIZE} style={{ marginRight: 12 }} />
-                        </TouchableOpacity>
-                    </ProfileHoverCard>
-                    <View className="flex-1 mr-2">
-                        <View className="flex-row items-center">
-                            <UserName
-                                name={viewPost.user.displayName}
-                                verified={viewPost.user.isVerified}
-                                onPress={goToUser}
-                                style={{ name: { fontSize: 16, fontWeight: '700' } }}
-                            />
-                        </View>
-                        <View className="flex-row items-center mt-0.5">
-                            <Text className="text-muted-foreground text-[15px]">
-                                @{viewPost.user.isFederated && viewPost.user.handle?.includes('@')
-                                    ? viewPost.user.handle.split('@')[0]
-                                    : viewPost.user.handle}
-                            </Text>
-                            {viewPost.user.isFederated && (
-                                <FediverseIcon size={13} className="text-muted-foreground ml-1" />
-                            )}
-                        </View>
-                    </View>
-                    <TouchableOpacity
-                        accessibilityLabel="Post options"
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        className="p-2"
-                        onPress={openMenu}
-                    >
-                        <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
+                {/* Author row — the SAME reusable header the feed PostItem uses, so the
+                    detail header is visually + behaviorally identical to the feed. The
+                    focused post's full absolute timestamp is shown in its own row below
+                    the media (not inline in the header). */}
+                <View className="mb-3">
+                    <PostHeader
+                        user={{
+                            displayName: viewPost.user.displayName,
+                            handle: viewPost.user.handle || '',
+                            verified: viewPost.user.isVerified,
+                            isFederated: viewPost.user.isFederated,
+                            instance: viewPost.user.instance,
+                        }}
+                        date={metadata.createdAt}
+                        avatarUri={avatarUri}
+                        onPressUser={goToUser}
+                        onPressAvatar={goToUser}
+                        onPressMenu={openMenu}
+                        paddingHorizontal={0}
+                    />
                 </View>
 
                 {/* Post content */}
