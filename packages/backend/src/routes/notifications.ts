@@ -20,7 +20,7 @@ function toPopulatedActor(actor: Partial<User> & { _id?: string }, fallbackId: u
   return {
     _id: id,
     username: actor?.username || id,
-    displayName: actor?.displayName ?? id,
+    displayName: actor?.name?.displayName ?? id,
     avatar: resolveAvatarUrl(typeof actor?.avatar === 'string' ? actor.avatar : undefined),
   };
 }
@@ -34,7 +34,7 @@ const emitNotification = async (req: Request, notification: any) => {
     if (notification.actorId && notification.actorId !== 'system') {
       actor = await oxy.getUserById(notification.actorId);
     } else if (notification.actorId === 'system') {
-      actor = { id: 'system', username: 'system', displayName: 'System', avatar: undefined };
+      actor = { id: 'system', username: 'system', name: { displayName: 'System' }, avatar: undefined };
     }
   } catch (e) {
     logger.warn('[Notifications] Failed to resolve actor profile:', e);
@@ -128,7 +128,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     await Promise.all(uniqueActorIds.map(async (id: string) => {
       try {
         if (id === 'system') {
-          profilesMap.set(id, { id: 'system', username: 'system', displayName: 'System', avatar: undefined });
+          profilesMap.set(id, { id: 'system', username: 'system', name: { displayName: 'System' }, avatar: undefined });
         } else {
           const profile = await oxy.getUserById(id);
           profilesMap.set(id, profile);
