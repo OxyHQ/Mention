@@ -81,7 +81,7 @@ const AttachmentSchema = new Schema({
 }, { _id: false });
 
 const PostContentSchema = new Schema({
-  text: { type: String, default: '', index: 'text' },
+  text: { type: String, default: '' },
   media: [{
     // MediaItem objects with id and type
     type: Schema.Types.Mixed,
@@ -620,6 +620,30 @@ PostSchema.index(
 PostSchema.index(
   { threadId: 1, oxyUserId: 1, parentPostId: 1, createdAt: 1 },
   { name: 'thread_slicing_idx' }
+);
+
+// Full-text search index over post content.
+//
+// `language_override` intentionally points at the field `textSearchLanguage`,
+// which NO document has. By default MongoDB's text index treats a per-document
+// field literally named `language` as the stemmer language override. Since
+// multi-language classification, the document's top-level `language` field is the
+// ActivityPub content language and now holds arbitrary detected ISO codes
+// (ar/no/pl/…). MongoDB only supports a fixed set of stemmer languages and
+// REJECTS unsupported codes with error 17262 ("language override unsupported"),
+// which broke ingest AND the corpus backfill of every non-English post. Pointing
+// the override at a non-existent field makes MongoDB always fall back to
+// `default_language: english` for stemming (English stemming preserved) and
+// ignore the content-language field entirely — freeing `language` for AP use.
+// This MUST stay in sync with the live prod index `content.text_text`.
+PostSchema.index(
+  { 'content.text': 'text' },
+  {
+    default_language: 'english',
+    language_override: 'textSearchLanguage',
+    name: 'content.text_text',
+    weights: { 'content.text': 1 },
+  }
 );
 
 // Federation indexes (sparse — zero overhead for local posts)
