@@ -66,8 +66,13 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
     );
 
     if (onPress) {
+        // The Touchable is the actual flex child in the caller's row, so the
+        // caller's `container` style (e.g. PostHeader's `{ flexShrink: 1,
+        // minWidth: 0 }`) must land HERE for width-constrained truncation to
+        // reach the inner name Text. Without it the Touchable expands to the
+        // name's intrinsic width and nothing ellipsizes.
         return (
-            <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+            <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={style?.container}>
                 {content}
             </TouchableOpacity>
         );
@@ -84,10 +89,17 @@ const styles = StyleSheet.create({
     nameRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        // Allow the row to shrink below its content's intrinsic width when a
+        // constraining parent requests it, so the name Text can ellipsize.
+        minWidth: 0,
     },
     name: {
         fontSize: 15,
         fontWeight: '700',
+        // Shrink (and ellipsize via numberOfLines=1) only when the parent
+        // constrains width; a no-op when there is room, so unconstrained
+        // callers keep the name's intrinsic width.
+        flexShrink: 1,
     },
     nameSmall: {
         fontSize: 14,
