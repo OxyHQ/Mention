@@ -1285,16 +1285,27 @@ class FeedController {
         $inc: { 'stats.commentsCount': 1 }
       }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
+      // Hydrate the created reply at maxDepth 1 so the response + socket payload
+      // carry the author summary and engagement shape (and, when the reply is a
+      // quote, the embedded quoted card) — matching the feed/detail DTO instead
+      // of a raw `.toObject()`.
+      const [hydratedReply] = await postHydrationService.hydratePosts([reply.toObject()], {
+        viewerId: currentUserId,
+        oxyClient: createScopedOxyClient(req),
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
+
       // Emit real-time update to post room only (not all clients)
       io.to(`post:${postId}`).emit('post:replied', {
         postId,
-        reply: reply.toObject(),
+        reply: hydratedReply,
         timestamp: new Date().toISOString()
       });
 
-      res.status(201).json({ 
-        success: true, 
-        reply: reply.toObject() 
+      res.status(201).json({
+        success: true,
+        reply: hydratedReply
       });
     } catch (error) {
       logger.error('Error creating reply', error);
@@ -1371,11 +1382,22 @@ class FeedController {
         logger.warn('Failed to record interaction for preferences', error);
       }
 
+      // A boost has an intentionally empty content body and relies on `boostOf`
+      // for its rendered content. Hydrate at maxDepth 1 so the response + socket
+      // payload carry the embedded original, the author summary, and the engagement
+      // shape — matching the feed/detail DTO instead of a raw `.toObject()`.
+      const [hydratedBoost] = await postHydrationService.hydratePosts([boost.toObject()], {
+        viewerId: currentUserId,
+        oxyClient: createScopedOxyClient(req),
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
+
       // Emit real-time update to post room only (not all clients)
       io.to(`post:${originalPostId}`).emit('post:boosted', {
         originalPostId,
         postId: originalPostId,
-        boost: boost.toObject(),
+        boost: hydratedBoost,
         boostsCount: updatedPost?.stats?.boostsCount,
         userId: currentUserId,
         actorId: currentUserId,
@@ -1384,7 +1406,7 @@ class FeedController {
 
       res.status(201).json({
         success: true,
-        boost: boost.toObject()
+        boost: hydratedBoost
       });
     } catch (error) {
       logger.error('Error creating boost', error);
@@ -1865,7 +1887,17 @@ class FeedController {
         filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
       }
 
-      const items = await this.transformPostsWithProfiles(filteredPosts, currentUserId, createScopedOxyClient(req));
+      // Hydrate replies at maxDepth 1 so quoted/embedded context (e.g. a reply
+      // that is also a quote, or a boosted reply) renders, matching peer
+      // endpoints. transformPostsWithProfiles is pinned to maxDepth 0 for feed
+      // performance, so hydrate directly here.
+      const hydratedReplies = await postHydrationService.hydratePosts(filteredPosts, {
+        viewerId: currentUserId,
+        oxyClient: createScopedOxyClient(req),
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
+      const items = hydratedReplies.filter((post) => post?.id && post.user?.id);
       const nextCursor = hasMore && slicedPosts.length > 0 ? String(slicedPosts[slicedPosts.length - 1]._id) : undefined;
 
       return res.json({ items, hasMore, nextCursor });
