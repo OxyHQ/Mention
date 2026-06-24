@@ -474,9 +474,10 @@ const PostItem: React.FC<PostItemProps> = ({
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
     const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
 
-    // Feed: body is indented under the avatar column (AVATAR_OFFSET). Detail: the
-    // focused post's body spans full width (HPAD), so text sits below the header.
-    const contentLeftPad = isDetailMain ? HPAD : AVATAR_OFFSET;
+    // The detail variant is layout-identical to the feed: the body stays indented
+    // under the avatar column (AVATAR_OFFSET), aligned with the name. ONLY the
+    // bottom action bar and the extra detail rows (timestamp + engagement stats)
+    // differ — never the avatar/name/handle/time/content position.
     const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
     const Container: React.ElementType = isTappable ? Pressable : View;
@@ -587,27 +588,17 @@ const PostItem: React.FC<PostItemProps> = ({
                     onPressMenu={openMenu}
                     paddingHorizontal={isNested ? 0 : HPAD}
                 >
-                    {/* In the focused detail variant the body renders full-width BELOW the
-                        header (not indented under the avatar column), so the header carries
-                        no inline content there. */}
-                    {!isDetailMain && content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
+                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
                 </PostHeader>
 
-                {/* Detail variant: full-width body below the header. */}
-                {isDetailMain && content.text ? (
-                    <View style={{ paddingLeft: contentLeftPad, paddingRight: HPAD, marginTop: SECTION_GAP }}>
-                        <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} />
-                    </View>
-                ) : null}
-
                 {hasValidLocation && location && (
-                    <View style={{ marginTop: SECTION_GAP, paddingLeft: contentLeftPad, paddingRight: HPAD }}>
+                    <View style={{ marginTop: SECTION_GAP, paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
                         <PostLocation location={location} paddingHorizontal={0} />
                     </View>
                 )}
 
                 {hasSources && (
-                    <View style={{ paddingLeft: contentLeftPad, paddingRight: HPAD, marginTop: SECTION_GAP }}>
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: SECTION_GAP }}>
                         <TouchableOpacity
                             className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border mt-2"
                             style={{ paddingHorizontal: 10, paddingVertical: 4 }}
@@ -647,7 +638,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 media={Array.isArray(mediaItems) ? mediaItems : []}
                                 attachments={attachmentDescriptors}
                                 nestedPost={nestedPost ?? null}
-                                leftOffset={contentLeftPad}
+                                leftOffset={AVATAR_OFFSET}
                                 pollData={pollData}
                                 pollId={pollId ? String(pollId) : undefined}
                                 nestingDepth={nestingDepth}
@@ -707,7 +698,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 )}
 
                 {!isNested && (
-                    <View style={{ paddingLeft: contentLeftPad, paddingRight: HPAD, marginTop: SECTION_GAP }}>
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD, marginTop: SECTION_GAP }}>
                         <PostActions
                             engagement={{
                                 replies: engagement.replies ?? 0,
