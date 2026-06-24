@@ -488,15 +488,6 @@ const PostItem: React.FC<PostItemProps> = ({
     // media, actions) are the gap-siblings here at SECTION_GAP (12px).
     const Container: React.ElementType = isTappable ? Pressable : View;
 
-    const boostedBy = viewPost.boost?.actor
-        ? {
-            displayName: viewPost.boost.actor.displayName,
-            handle: viewPost.boost.actor.handle || '',
-            verified: viewPost.boost.actor.isVerified,
-            date: metadata.createdAt,
-        }
-        : undefined;
-
     const postAuthor = viewPost.user.displayName;
     const postTextSummary = content.text
         ? content.text.length > 80
@@ -587,7 +578,6 @@ const PostItem: React.FC<PostItemProps> = ({
                     }}
                     date={metadata.createdAt}
                     showBoost={Boolean(viewPost.boost) && !isNested}
-                    boostedBy={boostedBy}
                     showReply={false}
                     avatarUri={avatarUri}
                     onPressUser={goToUser}

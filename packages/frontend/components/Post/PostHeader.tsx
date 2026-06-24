@@ -7,7 +7,11 @@ import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatRelativeTimeCompact } from '@/utils/dateUtils';
+
+// Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
+const INDICATOR_ICON_SIZE = 14;
 
 // PostHeader-local default spacing. HPAD here (8px) is only the fallback for the
 // `paddingHorizontal` prop — callers (PostItem, compose, detail) pass their own
@@ -38,7 +42,6 @@ interface PostHeaderProps {
   date?: string;
   showBoost?: boolean;
   showReply?: boolean;
-  boostedBy?: { displayName: string; handle: string; verified?: boolean; date?: string };
   paddingHorizontal?: number;
   children?: React.ReactNode;
   avatarUri?: string;
@@ -55,7 +58,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   date,
   showBoost,
   showReply,
-  boostedBy,
   paddingHorizontal = HPAD,
   children,
   avatarUri,
@@ -69,8 +71,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const theme = useTheme();
 
   const timeLabel = useMemo(() => formatRelativeTimeCompact(date || ''), [date]);
-  const boostLabel = useMemo(() => boostedBy ? `${boostedBy.displayName} boosted` : undefined, [boostedBy]);
-  const boostTime = useMemo(() => boostedBy?.date ? formatRelativeTimeCompact(boostedBy.date) : undefined, [boostedBy?.date]);
 
   return (
     <View style={{ paddingHorizontal }}>
@@ -82,26 +82,28 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         </ProfileHoverCard>
         <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
           <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
-            <UserName
-              name={user.displayName}
-              verified={user.verified}
-              onPress={onPressUser}
-            />
-            {user.handle ? (
-              <Text className="text-muted-foreground text-[15px]">
-                @{user.handle}
-              </Text>
-            ) : null}
-            {user.isFederated ? (
-              <FediverseIcon size={13} className="text-muted-foreground" />
-            ) : null}
-            {!!timeLabel && <Text className="text-muted-foreground text-[15px]">{'\u00B7'} {timeLabel}</Text>}
-            {(boostLabel || showBoost) && (
-              <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
-                <Ionicons name="repeat" size={12} color={theme.colors.textSecondary} />
-                <Text className="text-muted-foreground text-xs">
-                  {boostLabel || 'Boosted'}{boostTime ? ` \u00B7 ${boostTime}` : ''}
+            {/* Truncatable identity: name + handle shrink and ellipsize; the
+                trailing meta (\u00B7 time, indicators) stays fixed and visible. */}
+            <View className="flex-row items-center flex-shrink" style={{ gap: ROW_GAP, minWidth: 0 }}>
+              <UserName
+                name={user.displayName}
+                verified={user.verified}
+                onPress={onPressUser}
+                style={{ container: { flexShrink: 1, minWidth: 0 } }}
+              />
+              {user.handle ? (
+                <Text className="text-muted-foreground text-[15px] flex-shrink" style={{ minWidth: 0 }} numberOfLines={1} ellipsizeMode="tail">
+                  @{user.handle}
                 </Text>
+              ) : null}
+              {user.isFederated ? (
+                <FediverseIcon size={13} className="text-muted-foreground" />
+              ) : null}
+            </View>
+            {!!timeLabel && <Text className="text-muted-foreground text-[15px]">{'\u00B7'} {timeLabel}</Text>}
+            {showBoost && (
+              <View accessibilityRole="image" accessibilityLabel="Reposted">
+                <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
               </View>
             )}
             {showReply && (
