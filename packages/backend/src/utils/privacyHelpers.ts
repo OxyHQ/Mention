@@ -198,6 +198,25 @@ export function extractFollowersIds(followersRes: unknown): string[] {
     .filter((id): id is string => Boolean(id));
 }
 
+
+/**
+ * Fetch the viewer's following list once and expose it as a Set for batched
+ * access checks within a single request path.
+ * @param viewerId - The user checking access
+ * @param client - Optional per-request OxyServices instance
+ * @returns Set of user IDs followed by the viewer
+ */
+export async function getFollowingIdSet(viewerId: string, client?: OxyClient): Promise<Set<string>> {
+  try {
+    const c = client || oxy;
+    const followingRes = await c.getUserFollowing(viewerId);
+    return new Set(extractFollowingIds(followingRes));
+  } catch (error) {
+    logger.error('Error fetching following list for access check:', error);
+    return new Set(); // On error, deny access for privacy
+  }
+}
+
 /**
  * Check if a user is following another user
  * @param viewerId - The user checking access
@@ -206,15 +225,8 @@ export function extractFollowersIds(followersRes: unknown): string[] {
  * @returns true if viewer follows target, false otherwise
  */
 export async function checkFollowAccess(viewerId: string, targetUserId: string, client?: OxyClient): Promise<boolean> {
-  try {
-    const c = client || oxy;
-    const followingRes = await c.getUserFollowing(viewerId);
-    const followingIds = extractFollowingIds(followingRes);
-    return followingIds.includes(targetUserId);
-  } catch (error) {
-    logger.error('Error checking follow access:', error);
-    return false; // On error, deny access for privacy
-  }
+  const followingIds = await getFollowingIdSet(viewerId, client);
+  return followingIds.has(targetUserId);
 }
 
 /**
