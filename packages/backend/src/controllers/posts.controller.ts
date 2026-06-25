@@ -1769,6 +1769,7 @@ export function buildPostsByTopicFilter(
       { 'postClassification.topics': normalizedTopic },
     ],
     status: 'published',
+    visibility: PostVisibility.PUBLIC,
   };
   if (cursor) {
     filter._id = { $lt: cursor };
