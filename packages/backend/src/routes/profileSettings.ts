@@ -7,6 +7,7 @@ import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/userSettings';
+import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
@@ -71,7 +72,11 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
 
     const update: Record<string, any> = {};
     const unset: Record<string, ''> = {};
-    
+    // The Oxy file id newly set as the profile banner (if any). Captured here so
+    // we can promote it to public AFTER the settings persist — profile banners
+    // are public-facing media that an anonymous <img> must be able to load.
+    let newBannerFileId: string | undefined;
+
     if (appearance) {
       update['appearance'] = {};
       if (appearance.themeMode && ['light', 'dark', 'system'].includes(appearance.themeMode)) {
@@ -88,6 +93,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       const trimmedProfileHeaderImage = profileHeaderImage.trim();
       if (trimmedProfileHeaderImage) {
         update.profileHeaderImage = trimmedProfileHeaderImage;
+        newBannerFileId = trimmedProfileHeaderImage;
       } else {
         unset.profileHeaderImage = '';
       }
@@ -228,6 +234,17 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         { upsert: true, new: true }
       ).lean()
       : await ensureUserSettings(oxyUserId);
+
+    // Profile banners are public-facing media: an anonymous <img> on a profile
+    // page can't send a bearer token, so a private Oxy asset is denied and the
+    // banner never renders. Promote the newly set banner asset to public using
+    // the owner's own session token (Oxy's visibility route requires it). This
+    // mirrors how Oxy auto-publishes avatars on PUT /users/me; the banner is a
+    // Mention-only field, so Mention owns this promotion. Best-effort: it never
+    // throws and never blocks the settings update.
+    if (newBannerFileId) {
+      await ensureProfileMediaPublic(req.accessToken, newBannerFileId);
+    }
 
     return sendSuccessResponse(res, 200, doc);
   } catch (err) {
