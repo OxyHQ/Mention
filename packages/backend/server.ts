@@ -85,6 +85,7 @@ import { RedisStore } from "./src/middleware/rateLimitStore";
 import { bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
 import { performanceMiddleware } from "./src/middleware/performance";
+import { csrfProtection } from "./src/middleware/csrfProtection";
 
 import helmet from 'helmet';
 
@@ -900,7 +901,7 @@ app.use('/media', mediaRoutes);
 
 // Mount public and authenticated API routers
 app.use("/", publicApiRouter);
-app.use("/", oxy.auth(), authenticatedApiRouter);
+app.use("/", csrfProtection, oxy.auth(), authenticatedApiRouter);
 
 // Global error handler — must be the LAST middleware registered.
 // Catches unhandled errors from route handlers and prevents raw error leakage.
