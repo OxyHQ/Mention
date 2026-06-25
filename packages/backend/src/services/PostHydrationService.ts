@@ -4,6 +4,7 @@ import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
+import FederatedActor from '../models/FederatedActor';
 import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -300,6 +301,7 @@ export class PostHydrationService {
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
+      federatedAuthorMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -313,6 +315,7 @@ export class PostHydrationService {
       options.includeLinkMetadata !== false
         ? this.buildLinkPreviewMap(postsForHydration)
         : Promise.resolve(new Map<string, PostLinkPreview>()),
+      this.buildFederatedAuthorMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostActorSummary> = new Map(userMap);
 
@@ -329,6 +332,7 @@ export class PostHydrationService {
           linkPreviewMap,
           authorPrivacyMap,
           recentReplierMap,
+          federatedAuthorMap,
         })
       )
     );
@@ -667,18 +671,106 @@ export class PostHydrationService {
   }
 
   /**
-   * Build a placeholder author for a FEDERATED post whose `oxyUserId` was never
-   * linked to an Oxy user (orphaned actor). The post is public and physically
-   * exists, so it must render; without this it would surface as a blank row
-   * (most visibly: a boost of such a post, whose body is empty by design).
+   * Build the per-post REMOTE-actor map for FEDERATED posts whose `oxyUserId` was
+   * never linked to an Oxy user (orphaned actor). Such a post is public and
+   * physically exists, so it must render with a real author rather than a blank
+   * row (most visibly: a boost of such a post, whose body is empty by design).
    *
-   * The author is derived from the post's federation metadata — the origin
-   * domain (from `activityId`/`url`) becomes the handle/display name and a
-   * deterministic synthetic id — so the placeholder is stable across requests
-   * and never collides with a real Oxy id. Returns `undefined` when no domain
-   * can be derived, in which case the caller falls back to a postId-scoped id.
+   * Resolution honors the canonical identity contract: the orphaned author is
+   * the REMOTE {@link FederatedActor}, so its real `displayName` and remote
+   * `avatarUrl` are carried through. The link from post → actor follows the same
+   * convention the `/federation/actor/posts` route uses: a `FederatedActor.uri`
+   * is a PREFIX of the post's `federation.activityId`. Actors are batch-fetched
+   * by domain, then matched per-post by longest matching `uri` prefix. Posts
+   * with no matching actor fall back to the deterministic domain placeholder
+   * ({@link buildFederatedDomainAuthor}) so the displayName is NEVER blank.
    */
-  private buildFederatedFallbackAuthor(post: RawPost): PostActorSummary | undefined {
+  private async buildFederatedAuthorMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostActorSummary>> {
+    const map = new Map<string, PostActorSummary>();
+
+    // Collect orphaned federated posts (no Oxy author) and their origin domains.
+    const orphans: Array<{ postId: string; activityId: string; domain: string }> = [];
+    const domains = new Set<string>();
+    for (const { post } of nodes) {
+      if (post?.oxyUserId) continue;
+      const federation = post?.federation as { activityId?: string; url?: string } | undefined;
+      const source = federation?.activityId || federation?.url;
+      if (!source || typeof source !== 'string') continue;
+      let domain: string | undefined;
+      try {
+        domain = new URL(source).hostname || undefined;
+      } catch {
+        domain = undefined;
+      }
+      if (!domain) continue;
+      const postId = this.resolveId(post);
+      if (!postId) continue;
+      orphans.push({ postId, activityId: source, domain });
+      domains.add(domain);
+    }
+
+    if (orphans.length === 0) {
+      return map;
+    }
+
+    // Batch-fetch every remote actor on the relevant domains, then match each
+    // orphan to the actor whose `uri` is the LONGEST prefix of its activity URI.
+    let actors: Array<{ uri: string; username: string; displayName?: string; avatarUrl?: string; domain: string; acct: string }> = [];
+    try {
+      actors = await FederatedActor.find(
+        { domain: { $in: [...domains] } },
+        { uri: 1, username: 1, displayName: 1, avatarUrl: 1, domain: 1, acct: 1 },
+      ).lean();
+    } catch (error) {
+      logger.warn('[PostHydration] Failed to resolve federated actors for orphaned posts:', error);
+      actors = [];
+    }
+
+    const actorsByDomain = new Map<string, typeof actors>();
+    for (const actor of actors) {
+      const list = actorsByDomain.get(actor.domain);
+      if (list) list.push(actor);
+      else actorsByDomain.set(actor.domain, [actor]);
+    }
+
+    for (const { postId, activityId, domain } of orphans) {
+      const candidates = actorsByDomain.get(domain) ?? [];
+      let best: typeof actors[number] | undefined;
+      for (const actor of candidates) {
+        if (activityId === actor.uri || activityId.startsWith(actor.uri + '/')) {
+          if (!best || actor.uri.length > best.uri.length) best = actor;
+        }
+      }
+      if (best) {
+        const displayName = (typeof best.displayName === 'string' && best.displayName.trim()) || best.username || best.acct || domain;
+        map.set(postId, {
+          id: `federated:${best.uri}`,
+          handle: best.acct || best.username || domain,
+          displayName,
+          avatarUrl: resolveAvatarUrl(best.avatarUrl),
+          avatar: resolveAvatarUrl(best.avatarUrl),
+          badges: undefined,
+          isVerified: false,
+          isFederated: true,
+          instance: domain,
+          actorUri: best.uri,
+        });
+      }
+    }
+
+    return map;
+  }
+
+  /**
+   * Deterministic domain-only placeholder author for an orphaned FEDERATED post
+   * whose remote {@link FederatedActor} could not be resolved. The origin domain
+   * (from `activityId`/`url`) becomes the handle/display name and a stable
+   * synthetic id — so the placeholder is consistent across requests, never
+   * collides with a real Oxy id, and the displayName is NEVER blank. Returns
+   * `undefined` when no domain can be derived, in which case the caller falls
+   * back to a postId-scoped id.
+   */
+  private buildFederatedDomainAuthor(post: RawPost): PostActorSummary | undefined {
     const federation = post?.federation as { activityId?: string; url?: string } | undefined;
     const source = federation?.activityId || federation?.url;
     if (!source || typeof source !== 'string') return undefined;
@@ -1173,8 +1265,9 @@ export class PostHydrationService {
     linkPreviewMap: Map<string, PostLinkPreview>;
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
     recentReplierMap?: Map<string, string[]>;
+    federatedAuthorMap?: Map<string, PostActorSummary>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, federatedAuthorMap } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -1191,11 +1284,13 @@ export class PostHydrationService {
     if (!resolvedAuthorId && !isFederatedPost) return null;
 
     // `authorId` keys privacy/viewer-state/permission lookups below. For an
-    // orphaned federated post we use a deterministic synthetic id derived from
-    // its origin domain so those lookups behave (the viewer never owns/blocks a
-    // synthetic id) without a real Oxy id.
+    // orphaned federated post we prefer the resolved REMOTE actor (real
+    // displayName + remote avatarUrl) and fall back to a deterministic synthetic
+    // id derived from its origin domain so those lookups behave (the viewer never
+    // owns/blocks a synthetic id) without a real Oxy id. The displayName is never
+    // blank in either branch.
     const federatedFallback = !resolvedAuthorId
-      ? this.buildFederatedFallbackAuthor(post)
+      ? (federatedAuthorMap?.get(postId) ?? this.buildFederatedDomainAuthor(post))
       : undefined;
     const authorId = resolvedAuthorId ?? federatedFallback?.id ?? `federated:${postId}`;
 

@@ -26,12 +26,13 @@ const BOOSTER_OXY_ID = 'oxy-booster';
 const ORIGINAL_AUTHOR_OXY_ID = 'oxy-original-author';
 const VIEWER_ID = 'oxy-viewer';
 
-const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federatedActorFind } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
   postFind: vi.fn(),
   postFindOne: vi.fn(),
+  federatedActorFind: vi.fn(),
 }));
 
 vi.mock('../../../server', () => ({
@@ -78,6 +79,9 @@ vi.mock('../../models/Post', () => ({
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
+vi.mock('../../models/FederatedActor', () => ({
+  default: { find: (...args: unknown[]) => chainable(federatedActorFind(...args)) },
+}));
 vi.mock('../../models/UserSettings', () => ({
   UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
 }));
@@ -157,6 +161,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     getUsersByIds.mockReset();
     postFind.mockReset();
     postFindOne.mockReset();
+    federatedActorFind.mockReset();
+    // No remote actor records resolve by default — orphaned federated posts fall
+    // back to the deterministic domain placeholder. Individual tests override.
+    federatedActorFind.mockReturnValue([]);
 
     // Both authors resolve via the bulk Oxy fetch.
     getUsersByIds.mockResolvedValue([
@@ -262,5 +270,46 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // The orphaned original gets a federation-domain placeholder author.
     expect(hydrated.boost?.originalPost?.user?.displayName).toBe('zpravobot.news');
     expect(hydrated.boost?.originalPost?.user?.isFederated).toBe(true);
+  });
+
+  it('carries the REMOTE actor displayName + avatarUrl when the FederatedActor resolves (orphaned)', async () => {
+    service = new PostHydrationService();
+
+    const activityId = 'https://zpravobot.news/users/TerribleMaps/statuses/123';
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          oxyUserId: null,
+          federation: { activityId },
+        }];
+      }
+      return [];
+    });
+    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
+
+    // The remote actor IS known locally (orphaned: not linked to an Oxy user).
+    // `uri` is a prefix of the post's federation.activityId — the canonical link.
+    federatedActorFind.mockReturnValue([
+      {
+        uri: 'https://zpravobot.news/users/TerribleMaps',
+        username: 'TerribleMaps',
+        displayName: 'Terrible Maps',
+        avatarUrl: 'https://zpravobot.news/system/accounts/avatars/terrible.png',
+        domain: 'zpravobot.news',
+        acct: 'TerribleMaps@zpravobot.news',
+      },
+    ]);
+
+    const [hydrated] = await hydrateBoost(undefined);
+
+    expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
+    // The REMOTE actor's real display name — NOT the bare domain.
+    expect(hydrated.boost?.originalPost?.user?.displayName).toBe('Terrible Maps');
+    expect(hydrated.boost?.originalPost?.user?.isFederated).toBe(true);
+    expect(hydrated.boost?.originalPost?.user?.instance).toBe('zpravobot.news');
+    // Remote avatar is carried through (resolved, not dropped).
+    expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
   });
 });

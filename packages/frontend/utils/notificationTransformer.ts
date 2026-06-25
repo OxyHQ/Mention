@@ -5,10 +5,12 @@ export interface NotificationActor {
   _id?: string;
   id?: string;
   username?: string;
+  // Canonical resolved display name (profile-identity contract). The backend
+  // serializer (`toPopulatedActor`) always emits `name.displayName`; clients
+  // render it directly.
   name?: {
     displayName?: string;
   };
-  displayName?: string;
   avatar?: string;
 }
 
@@ -67,13 +69,12 @@ export const transformNotification = (
   const actorFromActorId = isNotificationActor(rawNotification.actorId)
     ? rawNotification.actorId
     : undefined;
+  // Render the canonical `name.displayName` directly (profile-identity contract);
+  // the backend guarantees it on the embedded actor. `'Someone'` is the generic
+  // floor when no actor is resolvable at all — NOT a name recompute.
   const actorName =
     actorFromActorId?.name?.displayName ||
-    actorFromActorId?.displayName ||
-    actorFromActorId?.username ||
     rawNotification.actorId_populated?.name?.displayName ||
-    rawNotification.actorId_populated?.displayName ||
-    rawNotification.actorId_populated?.username ||
     'Someone';
 
   const baseNotification = {

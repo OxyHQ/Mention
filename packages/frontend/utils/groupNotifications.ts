@@ -133,7 +133,10 @@ function extractActor(n: TRawNotification): GroupedActor {
 
   if (populated) {
     const populatedName = objectValue(populated.name);
-    const name = stringValue(populatedName?.displayName) || populated.displayName || populated.username || actorId;
+    // Render the canonical `name.displayName` directly (profile-identity
+    // contract); the backend guarantees it on the embedded actor. `actorId` is
+    // the never-blank handle floor, NOT a name recompute.
+    const name = stringValue(populatedName?.displayName) || actorId;
     return {
       id: actorId,
       name,

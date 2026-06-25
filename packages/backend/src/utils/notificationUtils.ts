@@ -75,12 +75,16 @@ export const createNotification = async (
       } catch (e) {
         // ignore actor resolution failures
       }
+      const actorId = String(actor?.id || actor?._id || data.actorId);
       const payload = {
         ...notification.toObject(),
+        // Emit the canonical, required `name.displayName` (profile-identity
+        // contract). The `|| actorId` floor is the never-blank last resort
+        // (the handle), NOT a name recompute. Clients render it directly.
         actorId_populated: actor ? {
-          _id: actor.id || actor._id || data.actorId,
-          username: actor.username || data.actorId,
-          displayName: actor.displayName ?? data.actorId,
+          _id: actorId,
+          username: actor.username || actorId,
+          name: { displayName: (actor.displayName && actor.displayName.trim()) || actorId },
           avatar: actor.avatar
         } : undefined
       };

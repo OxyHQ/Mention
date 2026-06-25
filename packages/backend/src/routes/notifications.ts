@@ -26,12 +26,17 @@ type ActorProfile = Pick<User, 'username' | 'name' | 'avatar'> & {
   _id?: string;
 };
 
-function toPopulatedActor(actor: ActorProfile, fallbackId: unknown) {
+export function toPopulatedActor(actor: ActorProfile, fallbackId: unknown) {
   const id = String(actor?.id || actor?._id || fallbackId);
+  // Emit the canonical, required `name.displayName` (profile-identity contract).
+  // For a resolved Oxy user this is always present and composed server-side; the
+  // `|| id` floor is the never-blank last resort (the handle), NOT a name
+  // recompute. Clients render `name.displayName` directly.
+  const displayName = (actor?.name?.displayName && actor.name.displayName.trim()) || id;
   return {
     _id: id,
     username: actor?.username || id,
-    displayName: actor?.name?.displayName ?? id,
+    name: { displayName },
     avatar: resolveAvatarUrl(typeof actor?.avatar === 'string' ? actor.avatar : undefined),
   };
 }

@@ -7,9 +7,8 @@ export const ZActor = z.object({
   id: z.string().optional(),
   username: z.string().optional(),
   // Canonical resolved display name (profile-identity contract). The backend
-  // populates `name.displayName`; `displayName` is the legacy flat fallback.
+  // serializer always emits `name.displayName`; clients render it directly.
   name: z.object({ displayName: z.string().optional() }).partial().optional(),
-  displayName: z.string().optional(),
   avatar: z.string().optional(),
 }).partial();
 
