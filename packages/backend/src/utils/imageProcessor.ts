@@ -1,4 +1,5 @@
 import { Transformer, ResizeFit } from '@napi-rs/image';
+import { assertSafeInputImageBuffer, assertSafeInputImageDimensions } from './imageDimensionGuard';
 
 type ImagePreset = 'avatar' | 'cover' | 'roomImage';
 
@@ -13,7 +14,13 @@ export async function processImage(
   preset: ImagePreset,
 ): Promise<{ buffer: Buffer; contentType: string }> {
   const { width, height, quality } = PRESETS[preset];
-  const buffer = await new Transformer(input)
+  assertSafeInputImageBuffer(input);
+
+  const transformer = new Transformer(input);
+  const metadata = await transformer.metadata();
+  assertSafeInputImageDimensions(metadata);
+
+  const buffer = await transformer
     .resize(width, height, undefined, ResizeFit.Cover)
     .webp(quality);
   return { buffer, contentType: 'image/webp' };

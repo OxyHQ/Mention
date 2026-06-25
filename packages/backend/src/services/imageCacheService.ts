@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { Transformer, ResizeFit } from '@napi-rs/image';
 import { getS3Client, getBucket, getCdnUrl } from '../utils/spaces';
 import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { assertSafeInputImageBuffer, assertSafeInputImageDimensions, isInputImageTooLargeError } from '../utils/imageDimensionGuard';
 
 /**
  * Service to cache and optimize images from external URLs.
@@ -208,8 +209,11 @@ class ImageCacheService {
       return { buffer: imageBuffer, contentType: 'image/svg+xml' };
     }
 
+    assertSafeInputImageBuffer(imageBuffer);
+
     const transformer = new Transformer(imageBuffer);
     const metadata = await transformer.metadata();
+    assertSafeInputImageDimensions(metadata);
 
     // GIF images: return as-is to preserve animation
     if (metadata.format === 'gif') {
@@ -306,6 +310,10 @@ class ImageCacheService {
       try {
         processedResult = await this.processImage(imageBuffer);
       } catch (error) {
+        if (isInputImageTooLargeError(error)) {
+          throw error;
+        }
+
         logger.warn('[ImageCacheService] Image processing failed, using original:', {
           url: normalizedUrl,
           error: error instanceof Error ? error.message : String(error)
@@ -436,6 +444,10 @@ class ImageCacheService {
       try {
         processedResult = await this.processImage(imageBuffer, options);
       } catch (error) {
+        if (isInputImageTooLargeError(error)) {
+          throw error;
+        }
+
         logger.warn('[ImageCacheService] Image processing failed for optimized variant, using original:', {
           url: normalizedUrl,
           error: error instanceof Error ? error.message : String(error)
