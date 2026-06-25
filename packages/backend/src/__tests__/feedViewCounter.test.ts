@@ -12,6 +12,10 @@ vi.mock('../utils/redis', () => ({
     isReady: true,
     isOpen: true,
     connect: vi.fn().mockResolvedValue(undefined),
+    // `ensureRedisConnected` verifies a ready client with a ping before running
+    // the operation; a healthy client must resolve it, otherwise the connection
+    // check fails and `withRedisFallback` returns the no-op fallback.
+    ping: vi.fn().mockResolvedValue('PONG'),
     set: mocks.redisSet,
   }),
 }));
@@ -45,13 +49,35 @@ describe('feedViewCounter', () => {
     });
   });
 
-  it('does not allocate a Redis dedupe key or increment for nonexistent/private/draft posts', async () => {
+  it('does not allocate a Redis dedupe key or increment for nonexistent/private/followers-only/draft posts', async () => {
+    // The eligibility query (`{ visibility: PUBLIC, status: 'published' }`) does
+    // not match private, followers-only, draft, or nonexistent posts, so Mongo
+    // resolves `Post.exists` to `null` for every one of those cases — modelling
+    // the security guard that keeps forged client telemetry off non-public ids.
     mocks.postExists.mockResolvedValueOnce(null);
 
     await expect(recordDedupedView(POST_ID, 'attacker_oxy_user')).resolves.toBe(false);
 
+    expect(mocks.postExists).toHaveBeenCalledWith({
+      _id: POST_ID,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    });
     expect(mocks.redisSet).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('treats a followers-only post as ineligible for impression telemetry', async () => {
+    // A FOLLOWERS_ONLY post never satisfies the `visibility: PUBLIC` predicate, so
+    // `Post.exists` returns null and no view side effects run.
+    mocks.postExists.mockResolvedValueOnce(null);
+
+    await expect(isPostEligibleForViewTelemetry(POST_ID)).resolves.toBe(false);
+    expect(mocks.postExists).toHaveBeenCalledWith({
+      _id: POST_ID,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    });
   });
 
   it('keeps the increment guarded by the same public published predicate', async () => {
