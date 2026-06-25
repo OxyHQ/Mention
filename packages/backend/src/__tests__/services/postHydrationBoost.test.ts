@@ -312,4 +312,59 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // Remote avatar is carried through (resolved, not dropped).
     expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
   });
+  it('does not embed a boosted original that is not published', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          status: 'draft',
+          content: { text: 'victim draft body' },
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await service.hydratePosts([boostRow()], {
+      viewerId: VIEWER_ID,
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
+  it('does not embed a boosted original that is private to another user', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          status: 'published',
+          visibility: 'private',
+          content: { text: 'victim private body' },
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await service.hydratePosts([boostRow()], {
+      viewerId: VIEWER_ID,
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
 });

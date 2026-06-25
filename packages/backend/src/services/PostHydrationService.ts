@@ -1256,6 +1256,34 @@ export class PostHydrationService {
     return replierMap;
   }
 
+  private canViewerSeePost(post: RawPost, viewerContext: ViewerContext): boolean {
+    const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
+    const isOwnPost = Boolean(authorId && viewerContext.viewerId === authorId);
+
+    // Older records/tests may omit status; the schema default is published.
+    // Drafts and scheduled posts are only visible to their owner and must never
+    // be embedded through a public boost/quote hydration path.
+    const status = typeof post.status === 'string' ? post.status : 'published';
+    if (status !== 'published' && !isOwnPost) {
+      return false;
+    }
+
+    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility | string;
+    if (visibility === PostVisibility.PUBLIC) {
+      return true;
+    }
+
+    if (isOwnPost) {
+      return true;
+    }
+
+    if (visibility === PostVisibility.FOLLOWERS_ONLY) {
+      return Boolean(authorId && viewerContext.viewerId && viewerContext.follows.has(authorId));
+    }
+
+    return false;
+  }
+
   private async buildPostSummary(params: {
     post: RawPost;
     viewerContext: ViewerContext;
@@ -1273,6 +1301,10 @@ export class PostHydrationService {
     if (!postId) return null;
 
     const isFederatedPost = !!post?.federation;
+    if (!this.canViewerSeePost(post, viewerContext)) {
+      return null;
+    }
+
     const resolvedAuthorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
 
     // A federated post whose author actor was never linked to an Oxy user
