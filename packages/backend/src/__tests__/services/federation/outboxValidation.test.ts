@@ -325,3 +325,57 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     );
   });
 });
+
+describe('OutboxSyncService — outbox URL SSRF hardening', () => {
+  it('does not fetch cross-origin string items or Create.object URLs from an outbox page', async () => {
+    const fetchMock = stubOutbox({
+      type: 'OrderedCollection',
+      totalItems: 2,
+      orderedItems: [
+        'http://169.254.169.254/latest/meta-data/',
+        {
+          id: `${ACTOR_URI}/activities/create-evil`,
+          type: 'Create',
+          actor: ACTOR_URI,
+          object: 'http://127.0.0.1/private-note',
+        },
+      ],
+    });
+
+    const result = await runSync();
+
+    expect(result).toMatchObject({
+      syncedCount: 0,
+      reason: 'no-candidates',
+      candidateCount: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      OUTBOX_URL,
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: expect.stringContaining('application/activity+json') }) }),
+    );
+  });
+
+  it('caps inspected non-candidate items and returns an item-offset cursor', async () => {
+    const orderedItems = Array.from({ length: 105 }, (_, index) => `http://169.254.169.254/latest/meta-data/${index}`);
+    const fetchMock = stubOutbox({
+      type: 'OrderedCollection',
+      totalItems: orderedItems.length,
+      orderedItems,
+    });
+
+    const result = await outboxSyncService.syncOutboxPostsDetailed(
+      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: 'oxy_alice' },
+      { limit: 10, maxPages: 1 },
+    );
+
+    expect(result).toMatchObject({
+      syncedCount: 0,
+      reason: 'no-candidates',
+      candidateCount: 0,
+      nextCursor: { url: OUTBOX_URL, itemOffset: 100 },
+      reachedEnd: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
