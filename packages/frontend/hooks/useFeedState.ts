@@ -135,8 +135,15 @@ export function useFeedState({
     // scroll offset lands on the same items. Recomputed only when identity
     // inputs change.
     const feedScrollKey = useMemo(
-        () => buildFeedScrollKey({ type, userId, showOnlySaved, filters }),
-        [type, userId, showOnlySaved, filters]
+        () => buildFeedScrollKey({
+            type,
+            userId,
+            showOnlySaved,
+            filters,
+            isAuthenticated,
+            currentViewerId: currentUserId,
+        }),
+        [type, userId, showOnlySaved, filters, isAuthenticated, currentUserId]
     );
 
     // Warm-start seed: in memory mode, if we retained this feed's slice from a
