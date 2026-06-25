@@ -162,6 +162,53 @@ describe('GET /media/proxy — upstream status mapping', () => {
     expect(res.status).toBe(413);
   });
 
+  it('does NOT negative-cache request-specific 400 responses', async () => {
+    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(400), finalUrl: REMOTE });
+
+    const res = await request(app).get('/media/proxy').set('Range', 'bytes=not-a-range').query({ url: REMOTE });
+
+    expect(res.status).toBe(404);
+    expect(markNegativelyCached).not.toHaveBeenCalled();
+  });
+
+  it('does NOT negative-cache transient upstream 429 responses', async () => {
+    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(429), finalUrl: REMOTE });
+
+    const res = await request(app).get('/media/proxy').query({ url: REMOTE });
+
+    expect(res.status).toBe(404);
+    expect(markNegativelyCached).not.toHaveBeenCalled();
+  });
+
+  it('does NOT negative-cache 4xx responses to ranged requests', async () => {
+    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(403), finalUrl: REMOTE });
+
+    const res = await request(app).get('/media/proxy').set('Range', 'bytes=0-1').query({ url: REMOTE });
+
+    expect(res.status).toBe(404);
+    expect(markNegativelyCached).not.toHaveBeenCalled();
+  });
+
+  it('does NOT negative-cache 4xx responses to conditional requests', async () => {
+    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(404), finalUrl: REMOTE });
+
+    const res = await request(app).get('/media/proxy').set('If-None-Match', '"stale"').query({ url: REMOTE });
+
+    expect(res.status).toBe(404);
+    expect(markNegativelyCached).not.toHaveBeenCalled();
+  });
+
+  it('does NOT use the URL-only negative cache for ranged requests', async () => {
+    isNegativelyCached.mockResolvedValue(true);
+    fetchUpstreamFollowingRedirects.mockResolvedValue({ response: fakeResponse(416), finalUrl: REMOTE });
+
+    const res = await request(app).get('/media/proxy').set('Range', 'bytes=999-1000').query({ url: REMOTE });
+
+    expect(res.status).toBe(416);
+    expect(isNegativelyCached).not.toHaveBeenCalled();
+    expect(fetchUpstreamFollowingRedirects).toHaveBeenCalled();
+  });
+
   it('relays a 416 range-not-satisfiable as 416', async () => {
     fetchUpstreamFollowingRedirects.mockResolvedValue({
       response: fakeResponse(416, { 'content-range': 'bytes */1024' }),

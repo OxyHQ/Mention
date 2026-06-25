@@ -13,8 +13,7 @@
  * page → cursor pipeline unchanged.
  *
  * Sources:
- *   1. FOLLOWING  — posts from authors the viewer follows (incl. federated +
- *      subscribed-list members already merged into `followingIds`).
+ *   1. FOLLOWING  — posts from authors the viewer actually follows (incl. federated).
  *   2. AFFINITY   — posts from authors the viewer engages with
  *      (`userBehavior.preferredAuthors` ∪ `ContentAffinityService`).
  *   3. TOPICS     — DISCOVERY: posts whose classification topics match the
@@ -59,8 +58,10 @@ export interface CandidateUserBehavior {
 /** Inputs to candidate gathering, resolved by `ForYouFeed.fetch`. */
 export interface GatherForYouCandidatesParams {
   viewerId: string;
-  /** Author ids the viewer follows (already includes federated + subscribed lists). */
+  /** Author ids the viewer actually follows (including accepted federated follows). */
   followingIds: string[];
+  /** Author ids from subscribed lists; feed-inclusion only, never follow authorization. */
+  subscribedListMemberIds?: string[];
   /** Lean UserBehavior document, or undefined when the viewer has none yet. */
   userBehavior?: CandidateUserBehavior;
   /**
@@ -214,6 +215,10 @@ export async function gatherForYouCandidates(
   const since = new Date(Date.now() - cfg.recencyWindowMs);
 
   const followingIds = params.followingIds.slice(0, cfg.maxAuthorIds);
+  const followSet = new Set([params.viewerId, ...params.followingIds]);
+  const subscribedListMemberIds = Array.from(new Set(params.subscribedListMemberIds ?? []))
+    .filter((id) => id !== params.viewerId && !followSet.has(id))
+    .slice(0, cfg.maxAuthorIds);
 
   const preferredTopics = (params.userBehavior?.preferredTopics ?? [])
     .filter((t): t is { topic: string; weight?: number } => typeof t.topic === 'string' && t.topic.length > 0)
@@ -245,6 +250,16 @@ export async function gatherForYouCandidates(
     ? runSource('following', {
         ...buildBaseMatch(seenObjectIds, since),
         oxyUserId: { $in: followingIds },
+      }, cfg.perSource.following)
+    : Promise.resolve([]);
+
+  // --- SUBSCRIBED LISTS: public posts from list authors only. List subscriptions
+  // are feed-inclusion signals, not follow relationships, so they must never
+  // make followers-only posts eligible.
+  const subscribedListsSource: Promise<CandidatePost[]> = subscribedListMemberIds.length > 0
+    ? runSource('subscribed-lists', {
+        ...buildBaseMatch(seenObjectIds, since),
+        oxyUserId: { $in: subscribedListMemberIds },
       }, cfg.perSource.following)
     : Promise.resolve([]);
 
@@ -322,8 +337,9 @@ export async function gatherForYouCandidates(
     cfg.perSource.global,
   );
 
-  const [following, affinity, topics, language, regionPosts, trending, global] = await Promise.all([
+  const [following, subscribedLists, affinity, topics, language, regionPosts, trending, global] = await Promise.all([
     followingSource,
+    subscribedListsSource,
     affinitySource,
     topicsSource,
     languageSource,
@@ -345,6 +361,7 @@ export async function gatherForYouCandidates(
   // through here, so it is unaffected either way.)
   const sources: CandidatePost[][] = [
     following,
+    subscribedLists,
     affinity,
     topics,
     language,

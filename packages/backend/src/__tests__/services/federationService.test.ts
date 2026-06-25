@@ -1,3 +1,4 @@
+import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   postCreatorCreate: vi.fn(),
   followExists: vi.fn(),
   assertSafePublicUrl: vi.fn(),
+  fetchUpstreamFollowingRedirects: vi.fn(),
+  fetchUpstreamSingleHop: vi.fn(),
+  userSettingsUpdateOne: vi.fn(),
+  uploadProfileBanner: vi.fn(),
 }));
 
 vi.mock('../../utils/federation/crypto', () => ({
@@ -81,13 +86,22 @@ vi.mock('../../models/Like', () => ({
 
 vi.mock('../../models/UserSettings', () => ({
   default: {
-    updateOne: vi.fn(),
+    updateOne: mocks.userSettingsUpdateOne,
   },
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));
+
+vi.mock('../../utils/safeUpstreamFetch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/safeUpstreamFetch')>();
+  return {
+    ...actual,
+    fetchUpstreamFollowingRedirects: mocks.fetchUpstreamFollowingRedirects,
+    fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,
+  };
+});
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
@@ -180,8 +194,29 @@ beforeEach(() => {
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
+  mocks.uploadProfileBanner.mockResolvedValue({ file: { id: 'banner_file_1' } });
+  mocks.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  mocks.fetchUpstreamFollowingRedirects.mockReset();
+  // `signedFetch` is built on `fetchUpstreamSingleHop` (IP-pinned, no global
+  // `fetch`). Adapt it to the per-test stubbed global `fetch` so existing tests
+  // that assert on the `fetch(url, { headers })` shape keep exercising the real
+  // signing/redirect logic — the only thing that changed is the transport.
+  mocks.fetchUpstreamSingleHop.mockImplementation(
+    async (url: string, options: { headers: Record<string, string> }) => {
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const bodyBuffer = Buffer.from(await res.arrayBuffer());
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      const stream = new PassThrough();
+      stream.end(bodyBuffer);
+      return { response: stream, status: res.status, headers };
+    },
+  );
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
+    uploadProfileBanner: mocks.uploadProfileBanner,
   });
 });
 
@@ -252,6 +287,90 @@ describe('federationService.fetchRemoteActor', () => {
       }),
     );
   });
+
+  it('downloads actor banners through the SSRF-safe media fetcher with content validation and a size cap', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://remote.example/users/alice') {
+        return jsonResponse({
+          id: 'https://remote.example/users/alice',
+          type: 'Person',
+          preferredUsername: 'alice',
+          name: 'Alice',
+          inbox: 'https://remote.example/users/alice/inbox',
+          image: ['http://127.0.0.1/latest/meta-data', { url: 'https://remote.example/banner.jpg' }],
+        });
+      }
+
+      throw new Error(`unexpected global fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const body = new PassThrough();
+    body.end(Buffer.from('fake-image-bytes'));
+    Object.assign(body, {
+      statusCode: 200,
+      headers: { 'content-type': 'image/jpeg' },
+    });
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: body,
+      finalUrl: 'http://127.0.0.1/latest/meta-data',
+    });
+
+    await federationService.fetchRemoteActor('https://remote.example/users/alice');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalledWith('http://127.0.0.1/latest/meta-data');
+    expect(mocks.fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
+      'http://127.0.0.1/latest/meta-data',
+      {},
+      expect.any(AbortSignal),
+    );
+    expect(mocks.uploadProfileBanner).toHaveBeenCalledTimes(1);
+    expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
+      { oxyUserId: 'oxy_user_1' },
+      { $set: { profileHeaderImage: 'banner_file_1' } },
+      { upsert: true },
+    );
+  });
+
+  it('rejects non-image actor banner responses before upload', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://remote.example/users/bob') {
+        return jsonResponse({
+          id: 'https://remote.example/users/bob',
+          type: 'Person',
+          preferredUsername: 'bob',
+          inbox: 'https://remote.example/users/bob/inbox',
+          image: 'https://remote.example/banner.txt',
+        });
+      }
+
+      throw new Error(`unexpected global fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const body = new PassThrough();
+    body.end(Buffer.from('not an image'));
+    Object.assign(body, {
+      statusCode: 200,
+      headers: { 'content-type': 'text/plain' },
+    });
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({
+      response: body,
+      finalUrl: 'https://remote.example/banner.txt',
+    });
+
+    await federationService.fetchRemoteActor('https://remote.example/users/bob');
+
+    expect(mocks.fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
+      'https://remote.example/banner.txt',
+      {},
+      expect.any(AbortSignal),
+    );
+    expect(mocks.uploadProfileBanner).not.toHaveBeenCalled();
+    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+  });
+
 });
 
 describe('federationService.syncOutboxPostsDetailed', () => {
@@ -532,6 +651,10 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
   it('creates a native boost Post deduped by Announce id and increments boostsCount', async () => {
     stubResolvedActor('oxy_bob');
     stubResolvedPost('local_post_2');
+    // The boosted post must be public + published for the boost to be imported.
+    mocks.postFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ status: 'published', visibility: 'public' }),
+    });
     mocks.postExists.mockResolvedValue(null); // no existing boost
 
     await federationService.processInboxActivity(

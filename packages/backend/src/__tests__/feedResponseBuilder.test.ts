@@ -65,6 +65,16 @@ describe('FeedResponseBuilder.buildSlicedResponse', () => {
     expect(result.hasMore).toBe(false);
   });
 
+  it('can rebuild backward-compatible items after slice-level filtering', () => {
+    const originalSlices = makeSlices(3);
+    const filteredSlices = originalSlices.filter((slice) => slice._sliceKey !== 'slice-1');
+
+    const items = FeedResponseBuilder.flattenSlicesToItems(filteredSlices);
+
+    expect(items.map((item) => item.id)).toEqual(['post-0-0', 'post-2-0']);
+    expect(items).toHaveLength(filteredSlices.length);
+  });
+
   it('paginates a full page of single-post slices', () => {
     const result = FeedResponseBuilder.buildSlicedResponse({
       slices: makeSlices(20),

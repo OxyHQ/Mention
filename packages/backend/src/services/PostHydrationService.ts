@@ -64,6 +64,13 @@ interface HydrationOptions {
   includeLinkMetadata?: boolean;
   includeFullArticleBody?: boolean; // For feed, skip full article bodies
   includeFullMetadata?: boolean; // For feed, skip some metadata fields
+  /**
+   * When hydrating posts for public federation surfaces, referenced posts
+   * (boost/quote originals) must not bypass their own publication controls.
+   * Root posts are still supplied by the caller's query; this only constrains
+   * graph expansion by id.
+   */
+  publicReferencesOnly?: boolean;
 }
 
 interface HydratedGraphNode {
@@ -287,7 +294,12 @@ export class PostHydrationService {
       return [];
     }
 
-    const graph = await this.collectPostsWithDepth(initialPosts, maxDepth, viewerContext.blockedIds);
+    const graph = await this.collectPostsWithDepth(
+      initialPosts,
+      maxDepth,
+      viewerContext.blockedIds,
+      options.publicReferencesOnly === true,
+    );
 
     const postIds = Array.from(graph.keys());
     const postsForHydration = Array.from(graph.values());
@@ -568,6 +580,7 @@ export class PostHydrationService {
     initialPosts: RawPost[],
     maxDepth: number,
     blockedIds: Set<string>,
+    publicReferencesOnly: boolean,
   ): Promise<Map<string, HydratedGraphNode>> {
     const result = new Map<string, HydratedGraphNode>();
     const visited = new Set<string>();
@@ -633,8 +646,14 @@ export class PostHydrationService {
       }
 
       const nextIds = Array.from(nextIdMap.keys());
+      const referenceQuery: Record<string, unknown> = { _id: { $in: nextIds } };
+      if (publicReferencesOnly) {
+        referenceQuery.status = 'published';
+        referenceQuery.visibility = PostVisibility.PUBLIC;
+      }
+
       try {
-        const fetched = await Post.find({ _id: { $in: nextIds } })
+        const fetched = await Post.find(referenceQuery)
           .select('-metadata.likedBy -metadata.savedBy -translations')
           .lean();
 
@@ -1294,19 +1313,38 @@ export class PostHydrationService {
       : undefined;
     const authorId = resolvedAuthorId ?? federatedFallback?.id ?? `federated:${postId}`;
 
-    // Privacy checks only apply to local users (federated posts are public by definition)
+    // Privacy checks only apply to local users (federated posts are public by definition).
+    // Hydration can be used for globally-broadcast DTOs and for nested quote/boost
+    // references fetched by id, so enforce post-level ACL here instead of relying
+    // on callers to pre-filter every referenced post.
     if (!isFederatedPost) {
-      if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
+      const viewerOwnsPost = viewerContext.viewerId === authorId;
+
+      if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
         return null;
       }
 
-      // Filter posts from private/followers_only profiles
-      // Own posts are always visible; public profiles pass through
-      if (viewerContext.privateProfileIds.has(authorId) && viewerContext.viewerId !== authorId) {
-        // If not authenticated, hide private profiles
-        if (!viewerContext.viewerId) return null;
-        // If viewer doesn't follow the author, hide the post
-        if (!viewerContext.follows.has(authorId)) return null;
+      const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
+      if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
+        return null;
+      }
+
+      if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
+        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
+          return null;
+        }
+      }
+
+      if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
+        return null;
+      }
+
+      // Filter posts from private/followers_only profiles. Own posts are always
+      // visible; public profiles pass through.
+      if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
+        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
+          return null;
+        }
       }
     }
 
@@ -1647,10 +1685,10 @@ export class PostHydrationService {
       return text;
     }
 
-    // Normalize mention IDs and collect those whose placeholder is present in
-    // the text but not yet in the per-request cache. Only placeholders that
-    // actually appear are worth resolving.
-    const uncachedIds: string[] = [];
+    // Normalize the current post's declared mention IDs. The per-request
+    // cache is intentionally shared across a hydration batch, so replacement
+    // must be scoped to this per-post allowlist rather than every cached user.
+    const declaredMentionIds = new Set<string>();
     for (const mentionIdRaw of mentions) {
       let mentionId: string;
       if (typeof mentionIdRaw === 'string') {
@@ -1661,7 +1699,17 @@ export class PostHydrationService {
       } else {
         mentionId = String(mentionIdRaw || '');
       }
-      if (mentionId && text.includes(`[mention:${mentionId}]`) && !mentionCache.has(mentionId)) {
+      if (mentionId) {
+        declaredMentionIds.add(mentionId);
+      }
+    }
+
+    // Collect declared mention placeholders present in the text but not yet in
+    // the per-request cache. Only placeholders that actually appear are worth
+    // resolving.
+    const uncachedIds: string[] = [];
+    for (const mentionId of declaredMentionIds) {
+      if (text.includes(`[mention:${mentionId}]`) && !mentionCache.has(mentionId)) {
         uncachedIds.push(mentionId);
       }
     }
@@ -1684,12 +1732,15 @@ export class PostHydrationService {
       }
     }
 
-    // Single-pass replacement: build the placeholder→replacement map, then run
-    // ONE regex over the text. An unresolved mention (absent from the map) is
-    // left as its original placeholder.
+    // Single-pass replacement: build the placeholder→replacement map for only
+    // this post's declared mention IDs, then run ONE regex over the text. An
+    // undeclared or unresolved mention is left as its original placeholder.
     const replacements = new Map<string, string>();
-    for (const [mentionId, mentionUser] of mentionCache) {
-      replacements.set(mentionId, `[@${mentionUser.displayName}](${mentionUser.handle})`);
+    for (const mentionId of declaredMentionIds) {
+      const mentionUser = mentionCache.get(mentionId);
+      if (mentionUser) {
+        replacements.set(mentionId, `[@${mentionUser.displayName}](${mentionUser.handle})`);
+      }
     }
 
     return text.replace(/\[mention:([^\]]+)\]/g, (placeholder, mentionId: string) => {

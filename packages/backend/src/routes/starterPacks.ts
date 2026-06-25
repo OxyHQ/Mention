@@ -17,6 +17,17 @@ function syncPackEndorsements(packId: string): void {
     .catch((error) => logger.warn(`[StarterPacks] endorsement sync failed for ${packId}:`, error));
 }
 
+function syncPackMembershipChange(
+  packId: string,
+  ownerId: string,
+  previousMemberIds: string[],
+  nextMemberIds: string[],
+): void {
+  void endorsementSignalService
+    .syncScopeMembershipChange('starterPack', packId, ownerId, previousMemberIds, nextMemberIds)
+    .catch((error) => logger.warn(`[StarterPacks] endorsement membership sync failed for ${packId}:`, error));
+}
+
 const router = express.Router();
 
 const MAX_MEMBERS = 150;
@@ -162,12 +173,17 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     const { name, description, memberOxyUserIds } = req.body || {};
     if (name !== undefined) pack.name = String(name);
     if (description !== undefined) pack.description = String(description);
+    const previousMemberIds = [...(pack.memberOxyUserIds || [])];
     if (Array.isArray(memberOxyUserIds)) {
       if (memberOxyUserIds.length > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
       pack.memberOxyUserIds = memberOxyUserIds;
     }
     await pack.save();
-    syncPackEndorsements(String(pack._id));
+    if (Array.isArray(memberOxyUserIds)) {
+      syncPackMembershipChange(String(pack._id), pack.ownerOxyUserId, previousMemberIds, pack.memberOxyUserIds || []);
+    } else {
+      syncPackEndorsements(String(pack._id));
+    }
     res.json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update starter pack' });
@@ -224,10 +240,11 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
+    const previousMemberIds = [...(pack.memberOxyUserIds || [])];
     const toRemove = new Set(Array.isArray(userIds) ? userIds : []);
     pack.memberOxyUserIds = (pack.memberOxyUserIds || []).filter(id => !toRemove.has(id));
     await pack.save();
-    syncPackEndorsements(String(pack._id));
+    syncPackMembershipChange(String(pack._id), pack.ownerOxyUserId, previousMemberIds, pack.memberOxyUserIds || []);
     res.json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to remove members' });
