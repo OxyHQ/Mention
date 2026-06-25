@@ -6,9 +6,12 @@ import { WidgetManager } from './widgets/WidgetManager';
 import { VideosRail } from './videos/VideosRail';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
-import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
+import { asViewStyle, asTextStyle, type WebViewStyle } from '@/types/webStyles';
 
-const LINK_STYLE = Platform.select({ web: { cursor: 'pointer' } });
+// `cursor` is a web-only CSS property absent from RN's `TextStyle` — author it
+// through the shared extended TextStyle and bridge at the consumption point
+// rather than using an `as any` cast (same pattern as SideBar/SearchBar).
+const LINK_STYLE = Platform.OS === 'web' ? asTextStyle({ cursor: 'pointer' }) : undefined;
 
 // `position: 'sticky'` is a valid react-native-web value absent from RN's native
 // `ViewStyle['position']` union — author the web container style through the
