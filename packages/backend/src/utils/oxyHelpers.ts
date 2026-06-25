@@ -47,6 +47,58 @@ export function getServiceOxyClient(): OxyServices {
 }
 
 /**
+ * Promote an Oxy asset that a user has set as public-facing profile media
+ * (e.g. the Mention profile banner) to `public` visibility, so it renders for
+ * anonymous viewers.
+ *
+ * Why this is needed: profile media is displayed by a bare `<img>`/`Image`,
+ * which cannot send an Authorization header or a signed token. A private Oxy
+ * asset requested anonymously is denied (403 on `/assets/:id/stream`, 404 on
+ * the public CDN), so the banner never renders — not even for the owner.
+ * Oxy already does this for avatars/banners owned via `PUT /users/me`
+ * (`assetService.ensureOwnedAssetPublic`), but the Mention banner is a
+ * Mention-only field that never flows through that endpoint, so Mention must
+ * promote it itself.
+ *
+ * Auth path: Oxy's `PATCH /assets/:id/visibility` requires a session-based
+ * user bearer token and enforces `file.ownerUserId === req.user._id`. A service
+ * token (no `sessionId`) is rejected by that route, so this MUST use the
+ * owner's own access token — which is exactly the token on the authenticated
+ * profile-settings request. Building a scoped client (never mutating the
+ * singleton) keeps it race-safe under concurrent requests.
+ *
+ * Best-effort and owner-gated by Oxy: it skips empty/temp/absolute refs, never
+ * throws, and never blocks the profile update. A non-owner or already-public
+ * asset is a no-op on the Oxy side.
+ *
+ * @param accessToken - The authenticated owner's Oxy session bearer token.
+ * @param fileId - The Oxy file id just persisted as profile media.
+ */
+export async function ensureProfileMediaPublic(
+  accessToken: string | undefined,
+  fileId: string,
+): Promise<void> {
+  if (!accessToken) return;
+  // Only bare Oxy file ids are promotable. Skip empties, client-side temp ids,
+  // and absolute URLs (federated/external media has no Oxy visibility flag).
+  if (!fileId || fileId.startsWith('temp-') || /^https?:\/\//i.test(fileId)) return;
+
+  try {
+    const client = new OxyServices({ baseURL: OXY_BASE_URL });
+    client.setTokens(accessToken);
+    await client.assetUpdateVisibility(fileId, 'public');
+    logger.info('[oxyHelpers] Promoted profile media asset to public', { fileId });
+  } catch (error) {
+    // Non-fatal: a failed visibility flip must never block the profile update.
+    // Ownership/already-public cases are handled on the Oxy side; log the rest.
+    logger.warn('[oxyHelpers] Failed to promote profile media asset to public', {
+      fileId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
  * Mention's Oxy `Application` `_id`. Sent as `clientId` on
  * `POST /profiles/recommendations` so Oxy selects Mention's per-app weight
  * profile when scoring recommendations (`REC_SCORING_V2`). When unset the Oxy
