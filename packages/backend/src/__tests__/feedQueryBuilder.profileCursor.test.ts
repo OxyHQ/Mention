@@ -25,6 +25,7 @@ describe('FeedQueryBuilder.buildUserProfileQuery — chronological cursor', () =
 
     expect(query.oxyUserId).toBe(userId);
     expect(query.visibility).toBeTruthy();
+    expect(query.status).toBe('published');
     expect(query.parentPostId).toBeNull();
 
     // No pagination clause when there is no cursor.
@@ -96,7 +97,15 @@ describe('FeedQueryBuilder.buildUserProfileQuery — chronological cursor', () =
     const query = FeedQueryBuilder.buildUserProfileQuery(userId, 'replies', cursor);
 
     expect(query.parentPostId).toEqual({ $ne: null });
+    expect(query.status).toBe('published');
     expect(query._id).toBeUndefined();
     expect(Array.isArray(query.$or)).toBe(true);
   });
+
+  it('adds the published-status boundary to legacy public feed helper queries', () => {
+    expect(FeedQueryBuilder.buildFollowingQuery(['followed-user']).status).toBe('published');
+    expect(FeedQueryBuilder.buildExploreQuery().status).toBe('published');
+    expect(FeedQueryBuilder.buildMediaQuery().status).toBe('published');
+  });
+
 });

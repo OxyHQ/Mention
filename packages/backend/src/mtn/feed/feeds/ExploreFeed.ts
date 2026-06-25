@@ -158,6 +158,7 @@ export class ExploreFeed implements FeedAPI {
     const trendingCutoff = new Date(Date.now() - MtnConfig.feed.trendingWindowMs);
     const match: Record<string, unknown> = {
       visibility: 'public',
+      status: 'published',
       createdAt: { $gte: trendingCutoff },
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
