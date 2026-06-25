@@ -84,8 +84,8 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
 
     // Calculate post-related counts in parallel. All three are scoped to the
-    // user's public content and leverage existing indexes (oxyUserId, type,
-    // parentPostId, boostOf), so there is no N+1.
+    // user's published public content and leverage existing indexes (oxyUserId,
+    // type, parentPostId, boostOf), so there is no N+1.
     // - postsCount: top-level posts (not replies) — matches getUserProfileFeed.
     //   `parentPostId: null` matches null OR a missing field in MongoDB.
     // - boostsCount: documents authored as boosts (type=boost, boostOf set).
@@ -94,16 +94,19 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
       Post.countDocuments({
         oxyUserId: userId,
         visibility: PostVisibility.PUBLIC,
+        status: 'published',
         parentPostId: null,
       }),
       Post.countDocuments({
         oxyUserId: userId,
         visibility: PostVisibility.PUBLIC,
+        status: 'published',
         type: PostType.BOOST,
       }),
       Post.countDocuments({
         oxyUserId: userId,
         visibility: PostVisibility.PUBLIC,
+        status: 'published',
         parentPostId: { $ne: null },
       }),
     ]);
