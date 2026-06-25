@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
  * `getPostsByTopic` controller runs. It must match a post whose CANONICAL
  * registry-linked `postClassification.topicRefs.name` OR slug-only
  * `postClassification.topics` equals the lowercased topic, always scoped to
- * `status: 'published'`.
+ * public, published posts so topic discovery cannot expose followers-only or
+ * private content.
  *
  * The controller pulls in the server bootstrap; stub it (and the OxyServices
  * client it constructs) so importing the controller stays pure/no-network.
@@ -28,6 +29,7 @@ describe('buildPostsByTopicFilter — canonical topicRefs.name OR slug topics ma
       { 'postClassification.topics': 'basketball' },
     ]);
     expect(filter.status).toBe('published');
+    expect(filter.visibility).toBe('public');
     // No cursor → no _id range clause.
     expect(filter._id).toBeUndefined();
   });
@@ -39,5 +41,6 @@ describe('buildPostsByTopicFilter — canonical topicRefs.name OR slug topics ma
       { 'postClassification.topicRefs.name': 'tech' },
       { 'postClassification.topics': 'tech' },
     ]);
+    expect(filter.visibility).toBe('public');
   });
 });
