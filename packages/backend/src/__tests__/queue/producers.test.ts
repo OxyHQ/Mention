@@ -30,15 +30,17 @@ beforeEach(() => {
 });
 
 describe('enqueueInboxActivity', () => {
-  it('dedupes inbound activities on a stable jobId derived from the activity id', async () => {
+  it('dedupes inbound activities on a stable jobId derived from the verified actor and activity id', async () => {
     const activity = { id: 'https://remote/users/bob/statuses/1/activity', type: 'Like' };
     const ok = await enqueueInboxActivity({ activity, verifiedActorUri: 'https://remote/users/bob' });
 
     expect(ok).toBe(true);
+    const expectedJobId = `inbox:${shortHash(`https://remote/users/bob|${activity.id}`)}`;
+
     expect(mocks.inboxAdd).toHaveBeenCalledWith(
       'inbox',
       { activity, verifiedActorUri: 'https://remote/users/bob' },
-      { jobId: `inbox:${shortHash(activity.id)}` },
+      { jobId: expectedJobId },
     );
   });
 
@@ -50,6 +52,22 @@ describe('enqueueInboxActivity', () => {
     const firstJobId = mocks.inboxAdd.mock.calls[0][2].jobId;
     const secondJobId = mocks.inboxAdd.mock.calls[1][2].jobId;
     expect(firstJobId).toBe(secondJobId);
+  });
+
+  it('does not collide when different verified actors reuse the same activity id', async () => {
+    const activity = { id: 'https://remote/shared/activity', type: 'Like' };
+
+    await enqueueInboxActivity({ activity, verifiedActorUri: 'https://remote/users/bob' });
+    await enqueueInboxActivity({ activity, verifiedActorUri: 'https://evil.example/users/mallory' });
+
+    const firstJobId = mocks.inboxAdd.mock.calls[0][2].jobId;
+    const secondJobId = mocks.inboxAdd.mock.calls[1][2].jobId;
+    const bobJobId = `inbox:${shortHash(`https://remote/users/bob|${activity.id}`)}`;
+    const malloryJobId = `inbox:${shortHash(`https://evil.example/users/mallory|${activity.id}`)}`;
+
+    expect(firstJobId).toBe(bobJobId);
+    expect(secondJobId).toBe(malloryJobId);
+    expect(firstJobId).not.toBe(secondJobId);
   });
 
   it('falls back (returns false) when the activity has no stable id to dedupe on', async () => {

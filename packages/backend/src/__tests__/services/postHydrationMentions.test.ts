@@ -162,6 +162,23 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
     expect(result).toBe('who is [mention:u9]?');
   });
 
+  it('does not replace undeclared placeholders from the shared hydration cache', async () => {
+    const mentionCache = new Map<string, PostActorSummary>([
+      ['attacker', { id: 'attacker', handle: 'attacker', displayName: 'Attacker', isVerified: false }],
+      ['victim', { id: 'victim', handle: 'victim', displayName: 'Victim', isVerified: false }],
+    ]);
+
+    const result = await asReplacer(service).replaceMentionPlaceholders(
+      'declared [mention:attacker], raw spoof [mention:victim]',
+      ['attacker'],
+      mentionCache,
+    );
+
+    expect(result).toBe('declared [@Attacker](attacker), raw spoof [mention:victim]');
+    expect(getUsersByIds).not.toHaveBeenCalled();
+    expect(getUserById).not.toHaveBeenCalled();
+  });
+
   it('leaves placeholders for ids not listed in mentions untouched', async () => {
     getUsersByIds.mockResolvedValue([makeOxyUser('u1', 'alice', 'Alice')]);
 

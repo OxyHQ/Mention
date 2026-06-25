@@ -53,8 +53,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../utils/privacyHelpers', () => ({
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
-  extractFollowingIds: () => [],
-  extractFollowersIds: () => [],
+  extractFollowingIds: vi.fn(() => []),
+  extractFollowersIds: vi.fn(() => []),
 }));
 
 // A chainable Mongoose query stub. `.select().sort().limit().maxTimeMS().lean()`
@@ -224,6 +224,53 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     }
   });
 
+  it('does not embed a non-public referenced original for an anonymous/global broadcast viewer', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          visibility: 'private',
+          status: 'draft',
+          content: { text: 'private draft secret' },
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await hydrateBoost(undefined);
+
+    expect(hydrated, 'public boost should still hydrate').toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
+  it('allows a referenced followers-only original only for an authenticated follower viewer', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          visibility: 'followers_only',
+          status: 'published',
+        }];
+      }
+      return [];
+    });
+
+    const { extractFollowingIds } = await import('../../utils/privacyHelpers');
+    vi.mocked(extractFollowingIds).mockReturnValueOnce([ORIGINAL_AUTHOR_OXY_ID]);
+
+    const [hydrated] = await hydrateBoost(VIEWER_ID);
+
+    expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
+    expect(hydrated.originalPost?.id).toBe(ORIGINAL_ID);
+  });
+
   // The core root-cause assertion: a boost's original is part of the boost's
   // renderable content and must embed REGARDLESS of the caller's maxDepth.
   // Every feed endpoint that hydrates boosts at maxDepth:0 (most of them) relied
@@ -312,4 +359,38 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // Remote avatar is carried through (resolved, not dropped).
     expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
   });
+
+  it('does not embed non-public boost originals when publicReferencesOnly is enabled', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (!Array.isArray(idIn) || !idIn.map(String).includes(ORIGINAL_ID)) {
+        return [];
+      }
+
+      expect(query).toMatchObject({
+        status: 'published',
+        visibility: 'public',
+      });
+
+      // Model the database predicate: a private/draft original does not match
+      // the public-reference query and therefore must not be embedded into the
+      // public actor-posts response.
+      return [];
+    });
+
+    const [hydrated] = await service.hydratePosts([boostRow()], {
+      viewerId: undefined,
+      maxDepth: 1,
+      publicReferencesOnly: true,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
 });

@@ -154,9 +154,8 @@ export function shallowFiltersEqual(a?: FeedFilters, b?: FeedFilters): boolean {
  * when the underlying data changes (SQLite re-`.map`s rows on each `dataVersion`;
  * memory mode replaces the array on every setter), so the reference short-circuit
  * safely catches the common "re-render, same data" case. For changed references,
- * a length + head/middle/tail-key signature detects any add / remove / reorder
- * (mirrors the native `dataHash` first/mid/last sampling) — so a real structural
- * change is never missed and the feed can never silently blank.
+ * a full key-by-key pass is still cheap relative to rebuilding rows, and is required
+ * to detect same-length interior replacements / reorders without stale row sets.
  */
 export function feedArrayEqual<T>(
     a: readonly T[] | undefined,
@@ -166,18 +165,16 @@ export function feedArrayEqual<T>(
     if (a === b) return true;
     if (!a || !b) return false;
     if (a.length !== b.length) return false;
-    if (a.length === 0) return true;
-    const last = a.length - 1;
-    const mid = last >> 1;
-    return (
-        keyOf(a[0]) === keyOf(b[0]) &&
-        keyOf(a[mid]) === keyOf(b[mid]) &&
-        keyOf(a[last]) === keyOf(b[last])
-    );
+
+    for (let i = 0; i < a.length; i++) {
+        if (keyOf(a[i]) !== keyOf(b[i])) return false;
+    }
+
+    return true;
 }
 
 /**
- * Element key for {@link feedArrayEqual}'s boundary signature that works for BOTH
+ * Element key for {@link feedArrayEqual}'s ordered-key comparison that works for BOTH
  * feed array shapes: a {@link FeedPostSlice} (keyed by its deterministic
  * `_sliceKey`) and a hydrated post item (keyed by {@link getItemKey}). A slice is
  * detected by its `_sliceKey` field; everything else falls back to the post key.
@@ -196,10 +193,9 @@ function feedElementKey(element: unknown): string {
  *
  * Each element is compared by its runtime type:
  *  - Arrays (the feed `items`/`slices`): {@link feedArrayEqual} — a reference
- *    short-circuit plus a length + head/tail-key signature (via
- *    {@link feedElementKey}). Both feed data paths allocate a new array reference
- *    on every real change (see {@link feedArrayEqual}), so the reference path is
- *    correct; the signature is a defensive backstop so the feed can never blank.
+ *    short-circuit plus full ordered-key equality (via {@link feedElementKey}).
+ *    Both feed data paths allocate a new array reference on every real change
+ *    (see {@link feedArrayEqual}), so the reference path is the common fast path.
  *  - `Set`/`Map` (e.g. the privacy `blockedSet`): reference — the owning store
  *    allocates a new instance only when membership changes, so reference equality
  *    is both correct and far cheaper than serializing (the old path stringified a

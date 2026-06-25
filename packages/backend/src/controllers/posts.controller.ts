@@ -1754,8 +1754,9 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
  * registry-linked `postClassification.topicRefs.name` OR slug-only
  * `postClassification.topics` equals the normalized (lowercased) topic — the two
  * forms of the one canonical topic list (Stage-B AI refs and the Stage-A
- * rule-based slug baseline). Topics are stored lowercase, so the lookup is
- * lowercased for index efficiency. Exported for unit testing the canonical `$or`
+ * rule-based slug baseline). Topic discovery is a public surface, so the
+ * filter is constrained to public posts. Topics are stored lowercase, so the
+ * lookup is lowercased for index efficiency. Exported for unit testing the canonical `$or`
  * contract without booting the controller's server import chain.
  */
 export function buildPostsByTopicFilter(
@@ -1769,6 +1770,7 @@ export function buildPostsByTopicFilter(
       { 'postClassification.topics': normalizedTopic },
     ],
     status: 'published',
+    visibility: PostVisibility.PUBLIC,
   };
   if (cursor) {
     filter._id = { $lt: cursor };
