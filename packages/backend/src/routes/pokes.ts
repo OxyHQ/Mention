@@ -51,13 +51,13 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const [pokes, pokedBackDocs] = await Promise.all([
-      Poke.find({ pokedId: userId }).sort({ createdAt: -1 }).limit(POKES_LIMIT).lean(),
-      Poke.find({ pokerId: userId }).select('pokedId').lean(),
-    ]);
+    const pokes = await Poke.find({ pokedId: userId }).sort({ createdAt: -1 }).limit(POKES_LIMIT).lean();
+    const pokerIds = pokes.map((p) => p.pokerId);
+    const pokedBackDocs = pokerIds.length > 0
+      ? await Poke.find({ pokerId: userId, pokedId: { $in: pokerIds } }).select('pokedId').lean()
+      : [];
 
     const pokedBackSet = new Set(pokedBackDocs.map((p) => p.pokedId));
-    const pokerIds = pokes.map((p) => p.pokerId);
     const profiles = await resolveUsers(pokerIds);
 
     const items = pokes.flatMap((p) => {
