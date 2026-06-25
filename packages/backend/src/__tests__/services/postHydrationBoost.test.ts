@@ -370,7 +370,8 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // Remote avatar is carried through (resolved, not dropped).
     expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
 
-    const [query] = federatedActorFind.mock.calls.at(-1) ?? [];
+    const calls = federatedActorFind.mock.calls;
+    const [query] = calls[calls.length - 1] ?? [];
     expect(query).toEqual({
       uri: {
         $in: [
