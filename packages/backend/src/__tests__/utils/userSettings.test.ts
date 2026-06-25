@@ -59,7 +59,7 @@ describe('buildSettingsResponseForViewer', () => {
     const result = buildSettingsResponseForViewer(
       {
         oxyUserId: 'target-user',
-        appearance: { primaryColor: '#00f' },
+        appearance: { themeMode: 'system', primaryColor: '#00f' },
         profileHeaderImage: 'banner-file',
         profileCustomization: {
           coverPhotoEnabled: true,
@@ -76,6 +76,7 @@ describe('buildSettingsResponseForViewer', () => {
       'viewer-user',
     );
 
+    expect(result).toBeTruthy();
     expect(result).toEqual({
       oxyUserId: 'target-user',
       appearance: { primaryColor: '#00f' },
@@ -85,6 +86,8 @@ describe('buildSettingsResponseForViewer', () => {
         minimalistMode: false,
       },
     });
-    expect('privacy' in result).toBe(false);
+    if (result) {
+      expect('privacy' in result).toBe(false);
+    }
   });
 });
