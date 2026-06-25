@@ -134,10 +134,14 @@ The composer accepts rich URL params for prefilling — mirrors X/Twitter `inten
 - Quote flow: `hooks/useQuoteManager.ts` + `components/Compose/QuoteCard.tsx`
 - Wire format: quote post field is snake_case `quoted_post_id` as top-level body field (NOT nested under `content`)
 
-## Dependencies
+## Oxy SDK Conventions
 
-- `@oxyhq/core ^3.9.0` (root override), `@oxyhq/services ^11.0.0` — Oxy platform SDK
-- `@oxyhq/bloom ^0.18.1` — Shared UI component library (`AvatarGroup` at `@oxyhq/bloom/avatar-group`, `UserHoverCard` at `@oxyhq/bloom/user-hover-card`)
+- **Versions**: `@oxyhq/core ^3.10.0` (root override), `@oxyhq/services ^11.0.0`, `@oxyhq/bloom ^0.19.1`, `@oxyhq/contracts ^0.2.1` (transitive via core). `@oxyhq/services ^11.0.0` is a packaging-only major — deps moved to peerDependencies; ensure root `package.json` declares the required peers (`@tanstack/react-query`, `@tanstack/react-query-persist-client`, `@tanstack/query-async-storage-persister`).
+- **Media**: avatars/images resolve ONLY through `oxyServices.getFileDownloadUrl(id, variant)` (or bloom's variant-aware `<Avatar source={fileId} variant="thumb">`). Never hardcode `cdn.oxy.so`/`cloud.oxy.so`/`/media/` URLs in components.
+- **Display names**: render `name.displayName` directly (core 3.10 fixes the type under node resolution). No local name fallbacks from `name.first`/`name.last`/`username`.
+- **Backend auth**: `@oxyhq/core/server` only — `createOxyAuthMiddleware`/`getRequiredOxyUserId`/`authSocket`. No local `requireAuth`, bearer parsers, or token-decoding middleware.
+- **Notifications**: `POST /notifications` is server-authored — no client mass-assignment of notification fields.
+- **Debug routes**: the `/test` debug route was removed in production. Do not re-add it.
 
 ## Auth Cold-Boot Reactivity (Web)
 
