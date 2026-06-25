@@ -17,6 +17,7 @@ import {
 } from '../contentClassification/spamQuality';
 import type { PostClassificationScores } from '@mention/shared-types';
 import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
+import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 import { actorService } from './ActorService';
 import {
   isAbsoluteHttpUrl,
@@ -66,6 +67,16 @@ const OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS = 20 * 1000; // 20 seconds
  * parallelized in small batches rather than run strictly sequentially.
  */
 const OUTBOX_BOOST_IMPORT_CONCURRENCY = 4;
+
+/**
+ * Hard cap on how many untrusted outbox items a single page pass may inspect.
+ * The candidate limit only bounds successfully imported candidates; malicious
+ * pages can otherwise fill `orderedItems` with non-candidates that each trigger
+ * URL resolution work. Keep this independent from the page-size advertised by
+ * a remote server so backfill advances via the item-offset cursor instead of
+ * spending an entire run on attacker-controlled fan-out.
+ */
+const OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE = 100;
 
 /**
  * A candidate extracted from a remote actor's outbox during backfill.
@@ -153,6 +164,15 @@ export interface OutboxSyncOptions {
  * the schema's `pending` default plus the Stage-A deterministic fields. `status`
  * stays `pending` so the async AI batch still enriches the post.
  */
+function isSameOriginHttpUrl(value: string, sourceUrl: string): boolean {
+  if (!isAbsoluteHttpUrl(value) || !isAbsoluteHttpUrl(sourceUrl)) return false;
+  try {
+    return new URL(value).origin === new URL(sourceUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
 interface RawPostClassificationSeed {
   status: typeof POST_CLASSIFICATION_PENDING;
   attempts: number;
@@ -269,6 +289,12 @@ export class OutboxSyncService {
     if (!actor.outboxUrl) {
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
     }
+    // Capture the narrowed value: `actor.outboxUrl` is `string | undefined`, and
+    // the guard above only narrows the property at the method-body level. The
+    // pagination closures below (`fetchAndProcessPage`) re-widen a property access
+    // back to `string | undefined` because TS cannot prove it is not reassigned.
+    // A `const` preserves the narrowing into those closures.
+    const outboxUrl = actor.outboxUrl;
 
     const options: Required<Pick<OutboxSyncOptions, 'limit' | 'maxPages' | 'startItemOffset'>>
       & Pick<OutboxSyncOptions, 'startPageUrl'> = typeof limitOrOptions === 'number'
@@ -284,9 +310,9 @@ export class OutboxSyncService {
 
     try {
       // Fetch the outbox collection (signed for authorized-fetch servers)
-      const res = await signedFetch(actor.outboxUrl, AP_CONTENT_TYPE);
+      const res = await signedFetch(outboxUrl, AP_CONTENT_TYPE);
       if (!res.ok) {
-        logger.info(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${actor.outboxUrl}`);
+        logger.info(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${outboxUrl}`);
         return { syncedCount: 0, shouldStampCooldown: false, reason: `outbox-http-${res.status}` };
       }
 
@@ -301,7 +327,7 @@ export class OutboxSyncService {
       const collectionParse = parseOrderedCollection(rawCollection);
       if (!collectionParse.ok) {
         logger.warn(
-          `[FedSync] outbox collection failed validation for ${actor.acct} (${actor.outboxUrl}); aborting sync: ${collectionParse.error.message}`,
+          `[FedSync] outbox collection failed validation for ${actor.acct} (${outboxUrl}); aborting sync: ${collectionParse.error.message}`,
         );
         return { syncedCount: 0, shouldStampCooldown: false, reason: 'invalid-collection' };
       }
@@ -316,6 +342,14 @@ export class OutboxSyncService {
       let nextCursor: OutboxSyncResult['nextCursor'];
       let reachedEnd = false;
       let paginationFailed = false;
+      // Set when a page is processed only partially this run — either the
+      // candidate limit was reached or the per-page inspection cap
+      // (`OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE`) bounded the scan before the page
+      // was exhausted. The returned cursor points back at the SAME page+offset,
+      // so the run must STOP and hand that cursor to the next run instead of
+      // re-fetching the same page to drain its remaining (possibly
+      // attacker-controlled) items in one pass.
+      let pausedMidPage = false;
       const visitedPageUrls = new Set<string>();
 
       const processPage = async (
@@ -326,15 +360,16 @@ export class OutboxSyncService {
         const items = activityPubItems(pageData);
         const normalizedOffset = Math.max(0, Math.min(startItemOffset, items.length));
         if (items.length > 0) {
-          const nextItemOffset = await this.extractCandidates(items, candidates, limit, normalizedOffset);
+          const nextItemOffset = await this.extractCandidates(items, candidates, limit, pageUrl, normalizedOffset);
           if (nextItemOffset < items.length) {
             nextCursor = { url: pageUrl, itemOffset: nextItemOffset };
+            pausedMidPage = true;
             return;
           }
         }
 
         const nextPageUrl = activityPubLinkUrl(pageData.next);
-        if (nextPageUrl) {
+        if (nextPageUrl && isSameOriginHttpUrl(nextPageUrl, pageUrl)) {
           nextCursor = { url: nextPageUrl, itemOffset: 0 };
         } else {
           nextCursor = undefined;
@@ -343,6 +378,13 @@ export class OutboxSyncService {
       };
 
       const fetchAndProcessPage = async (pageUrl: string, startItemOffset: number): Promise<void> => {
+        if (!isSameOriginHttpUrl(pageUrl, outboxUrl)) {
+          logger.info(`[FedSync] rejected cross-origin outbox page for ${actor.acct}: ${pageUrl}`);
+          paginationFailed = true;
+          nextCursor = undefined;
+          return;
+        }
+
         if (visitedPageUrls.has(pageUrl)) {
           logger.info(`[FedSync] outbox pagination loop detected for ${actor.acct} at ${pageUrl}`);
           paginationFailed = true;
@@ -393,27 +435,29 @@ export class OutboxSyncService {
 
       const firstPageObject = asRecord(collection.first);
       const inlineItems = activityPubItems(collection);
-      if (options.startPageUrl) {
+      if (options.startPageUrl && isSameOriginHttpUrl(options.startPageUrl, outboxUrl)) {
         nextCursor = { url: options.startPageUrl, itemOffset: Math.max(0, options.startItemOffset) };
       } else if (inlineItems.length > 0) {
-        await processPage(collection, actor.outboxUrl, 0);
+        await processPage(collection, outboxUrl, 0);
       } else if (firstPageObject && activityPubItems(firstPageObject).length > 0) {
-        await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? actor.outboxUrl, 0);
+        await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? outboxUrl, 0);
       } else {
         const firstPageUrl = activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
-        if (firstPageUrl) {
+        if (firstPageUrl && isSameOriginHttpUrl(firstPageUrl, outboxUrl)) {
           nextCursor = { url: firstPageUrl, itemOffset: 0 };
         }
       }
 
-      // Paginate through pages until we have enough candidates, run out of pages,
-      // or exhaust the per-run page budget. The returned cursor is opaque remote
+      // Paginate through pages until we have enough candidates, pause mid-page
+      // (candidate limit or per-page inspection cap), run out of pages, or
+      // exhaust the per-run page budget. The returned cursor is opaque remote
       // state: we persist it exactly and never synthesize pagination URLs.
       while (
         nextCursor
         && candidates.length < limit
         && !reachedEnd
         && !paginationFailed
+        && !pausedMidPage
       ) {
         const cursor = nextCursor;
         await fetchAndProcessPage(cursor.url, cursor.itemOffset);
@@ -708,12 +752,14 @@ export class OutboxSyncService {
     items: unknown[],
     candidates: OutboxCandidate[],
     limit: number,
+    sourcePageUrl: string,
     startIndex = 0,
   ): Promise<number> {
-    for (let index = startIndex; index < items.length; index++) {
+    const maxIndexExclusive = Math.min(items.length, startIndex + OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE);
+    for (let index = startIndex; index < maxIndexExclusive; index++) {
       if (candidates.length >= limit) return index;
 
-      const activity = await this.resolveOutboxActivity(items[index]);
+      const activity = await this.resolveOutboxActivity(items[index], sourcePageUrl);
       if (!activity) continue;
 
       // Each outbox item is untrusted remote JSON: it is either a wrapping
@@ -743,7 +789,7 @@ export class OutboxSyncService {
         continue;
       }
 
-      const note = await this.extractOutboxNote(activity);
+      const note = await this.extractOutboxNote(activity, sourcePageUrl);
       if (!note) continue;
       // The note may have been FETCHED from a remote URL (Create with a string
       // `object`), so it is independently untrusted — validate it too. A
@@ -763,25 +809,25 @@ export class OutboxSyncService {
       candidates.push({ kind: 'note', note, activity, activityId });
     }
 
-    return items.length;
+    return maxIndexExclusive;
   }
 
-  private async resolveOutboxActivity(item: unknown): Promise<Record<string, any> | null> {
+  private async resolveOutboxActivity(item: unknown, sourcePageUrl: string): Promise<Record<string, any> | null> {
     const inlineActivity = asRecord(item);
     if (inlineActivity) return inlineActivity;
 
-    if (typeof item !== 'string' || !isAbsoluteHttpUrl(item)) return null;
+    if (typeof item !== 'string' || !isSameOriginHttpUrl(item, sourcePageUrl)) return null;
     return fetchActivityPubObject(item);
   }
 
-  private async extractOutboxNote(activity: Record<string, any>): Promise<Record<string, any> | null> {
+  private async extractOutboxNote(activity: Record<string, any>, sourcePageUrl: string): Promise<Record<string, any> | null> {
     if (activity.type === 'Note' || activity.type === 'Article') return activity;
     if (activity.type !== 'Create') return null;
 
     const inlineObject = asRecord(activity.object);
     if (inlineObject) return inlineObject;
 
-    if (typeof activity.object === 'string' && isAbsoluteHttpUrl(activity.object)) {
+    if (typeof activity.object === 'string' && isSameOriginHttpUrl(activity.object, sourcePageUrl)) {
       return fetchActivityPubObject(activity.object);
     }
 
@@ -893,6 +939,12 @@ export class OutboxSyncService {
       { _id: 1 },
     ).lean();
     if (existing) return String(existing._id);
+
+    const objectGuard = await assertSafePublicUrl(objectUri);
+    if (!objectGuard.ok) {
+      logger.info(`[FedSync] rejected unsafe boosted object URL ${objectUri}: ${objectGuard.reason}`);
+      return null;
+    }
 
     // Fetch the announced object (the boosted Note) from its origin.
     const fetched = await fetchVerifiedAnnouncedNote(objectUri);
