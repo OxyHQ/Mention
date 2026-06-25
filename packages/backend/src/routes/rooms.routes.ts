@@ -50,6 +50,21 @@ interface IngressReplacementResult {
   previousDeletedBeforeCreate: boolean;
 }
 
+type InternalStreamFields = {
+  activeStreamUrl?: unknown;
+  activeIngressId?: unknown;
+  rtmpUrl?: unknown;
+  rtmpStreamKey?: unknown;
+};
+
+export function stripInternalStreamFields<T extends InternalStreamFields>(room: T): T {
+  delete room.activeStreamUrl;
+  delete room.activeIngressId;
+  delete room.rtmpUrl;
+  delete room.rtmpStreamKey;
+  return room;
+}
+
 async function canManageRoom(room: RoomOwnershipFields, userId: string): Promise<boolean> {
   if (room.host === userId) {
     return true;
@@ -509,7 +524,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       : undefined;
 
     res.json({
-      rooms: roomsToReturn,
+      rooms: roomsToReturn.map((room) => stripInternalStreamFields(room)),
       hasMore,
       nextCursor,
     });
@@ -574,10 +589,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       : false;
 
     if (!canViewInternalStreamFields) {
-      delete room.activeStreamUrl;
-      delete room.activeIngressId;
-      delete room.rtmpUrl;
-      delete room.rtmpStreamKey;
+      stripInternalStreamFields(room);
     }
 
     res.json({ room });
