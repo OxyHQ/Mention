@@ -11,6 +11,7 @@ import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import {
     getFeedMemoryCache,
     setFeedMemoryCache,
+    clearFeedMemoryCache,
     subscribeToNewLocalPosts,
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
@@ -119,6 +120,8 @@ export function useFeedState({
         refreshFeed,
         loadMoreFeed,
         cachePosts,
+        clearFeed,
+        clearUserFeed,
         clearError: clearGlobalError,
     } = usePostsStore();
 
@@ -811,33 +814,60 @@ export function useFeedState({
             ? 'saved'
             : (isAuthenticated && currentUserId ? currentUserId : 'anon');
         const previousIdentity = previousIdentityRef.current;
-        const identityChanged =
-            previousIdentity !== undefined && previousIdentity !== identity;
+        const identitySeen = previousIdentity !== undefined;
+        const identityChanged = identitySeen && previousIdentity !== identity;
         previousIdentityRef.current = identity;
 
-        // When the viewer changes (anon→user, or user A→user B), bypass warm-start
-        // suppression and force a network refresh. Keep the current items on screen
-        // until the fresh result arrives so cold-boot auth restoration never flashes
-        // an empty profile/feed.
-        if (identityChanged) {
+        // Feed cache keys are scoped by feed/profile, not by the viewing account.
+        // On the first concrete viewer observed after cold boot (and on later
+        // viewer switches), drop warm caches before loading so a shared device or
+        // account switch cannot render another viewer's locally cached private feed.
+        const shouldInvalidateViewerCache = !showOnlySaved && (!identitySeen || identityChanged);
+        if (shouldInvalidateViewerCache) {
             seededCacheRef.current = undefined;
+            if (useMemoryFeed) {
+                clearFeedMemoryCache(feedScrollKey);
+                setLocalItems([]);
+                setLocalSlices(undefined);
+                setLocalHasMore(true);
+                setLocalNextCursor(undefined);
+            } else if (userId) {
+                clearUserFeed(userId, type);
+            } else {
+                clearFeed(type);
+            }
         }
 
         clearPendingPoll();
         pendingPollCountRef.current = 0;
         setPending(false);
 
-        fetchInitial(identityChanged);
-    }, [type, userId, filters, useMemoryFeed, showOnlySaved, isAuthenticated, currentUserId]);
+        fetchInitial(shouldInvalidateViewerCache);
+    }, [
+        type,
+        userId,
+        filters,
+        useMemoryFeed,
+        showOnlySaved,
+        isAuthenticated,
+        currentUserId,
+        feedScrollKey,
+        clearFeed,
+        clearUserFeed,
+    ]);
 
     // Return appropriate state based on which path is active.
     // useMemoryFeed covers both scoped (filtered) feeds and global feeds when SQLite
     // is unavailable (web without COOP/COEP). The SQLite path is only taken when
     // isDbAvailable() === true and no scoped filters are present.
-    const items = useMemoryFeed ? localItems : globalFeed?.items || [];
-    const slices = useMemoryFeed ? localSlices : globalFeed?.slices;
+    const currentViewerIdentity = showOnlySaved
+        ? 'saved'
+        : (isAuthenticated && currentUserId ? currentUserId : 'anon');
+    const isViewerCacheTrusted = showOnlySaved || previousIdentityRef.current === currentViewerIdentity;
+    const items = isViewerCacheTrusted ? (useMemoryFeed ? localItems : globalFeed?.items || []) : [];
+    const slices = isViewerCacheTrusted ? (useMemoryFeed ? localSlices : globalFeed?.slices) : undefined;
     const hasMore = useMemoryFeed ? localHasMore : !!globalFeed?.hasMore;
-    const isLoading = useMemoryFeed ? localLoading : !!globalFeed?.isLoading;
+    const isLoading = !isViewerCacheTrusted || (useMemoryFeed ? localLoading : !!globalFeed?.isLoading);
     const error = useMemoryFeed ? localError : globalFeed?.error || null;
     const nextCursor = useMemoryFeed ? localNextCursor : globalFeed?.nextCursor;
 
