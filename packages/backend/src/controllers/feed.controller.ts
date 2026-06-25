@@ -1340,6 +1340,19 @@ class FeedController {
         return res.status(400).json({ error: 'Original post ID is required' });
       }
 
+      const originalPost = await Post.findOne({
+        _id: originalPostId,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published'
+      })
+        .select('_id')
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+        .lean();
+
+      if (!originalPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       // Check if user already boosted this
       const existingBoost = await Post.findOne({
         oxyUserId: currentUserId,

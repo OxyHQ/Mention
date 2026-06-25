@@ -287,7 +287,7 @@ export class PostHydrationService {
       return [];
     }
 
-    const graph = await this.collectPostsWithDepth(initialPosts, maxDepth, viewerContext.blockedIds);
+    const graph = await this.collectPostsWithDepth(initialPosts, maxDepth, viewerContext);
 
     const postIds = Array.from(graph.keys());
     const postsForHydration = Array.from(graph.values());
@@ -567,7 +567,7 @@ export class PostHydrationService {
   private async collectPostsWithDepth(
     initialPosts: RawPost[],
     maxDepth: number,
-    blockedIds: Set<string>,
+    viewerContext: ExtendedViewerContext,
   ): Promise<Map<string, HydratedGraphNode>> {
     const result = new Map<string, HydratedGraphNode>();
     const visited = new Set<string>();
@@ -590,7 +590,7 @@ export class PostHydrationService {
         visited.add(id);
 
         const authorId = entry.post?.oxyUserId ? String(entry.post.oxyUserId) : undefined;
-        if (authorId && blockedIds.has(authorId)) {
+        if (authorId && viewerContext.blockedIds.has(authorId)) {
           continue;
         }
 
@@ -638,10 +638,13 @@ export class PostHydrationService {
           .select('-metadata.likedBy -metadata.savedBy -translations')
           .lean();
 
-        currentLevel = fetched.map((post) => ({
-          post: post as unknown as RawPost,
-          depth: nextIdMap.get(this.resolveId(post as unknown as RawPost)!) ?? depth + 1,
-        }));
+        currentLevel = fetched
+          .map((post) => post as unknown as RawPost)
+          .filter((post) => this.canHydrateReferencedPost(post, viewerContext))
+          .map((post) => ({
+            post,
+            depth: nextIdMap.get(this.resolveId(post)!) ?? depth + 1,
+          }));
       } catch (error) {
         logger.error('[PostHydration] Failed to fetch referenced posts:', error);
         break;
@@ -649,6 +652,36 @@ export class PostHydrationService {
     }
 
     return result;
+  }
+
+  private canHydrateReferencedPost(post: RawPost, viewerContext: ExtendedViewerContext): boolean {
+    const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
+    if (authorId && viewerContext.blockedIds.has(authorId)) {
+      return false;
+    }
+
+    if (post.status !== 'published') {
+      return false;
+    }
+
+    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
+    if (visibility === PostVisibility.PUBLIC) {
+      return true;
+    }
+
+    if (!authorId || !viewerContext.viewerId) {
+      return false;
+    }
+
+    if (authorId === viewerContext.viewerId) {
+      return true;
+    }
+
+    if (visibility === PostVisibility.FOLLOWERS_ONLY) {
+      return viewerContext.follows.has(authorId);
+    }
+
+    return false;
   }
 
   /**

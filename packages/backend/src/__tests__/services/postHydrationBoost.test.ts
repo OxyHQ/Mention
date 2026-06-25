@@ -131,6 +131,7 @@ function boostRow() {
     metadata: { createdAt: new Date('2024-01-01T00:00:00Z') },
     createdAt: new Date('2024-01-01T00:00:00Z'),
     visibility: 'public',
+    status: 'published',
     hashtags: [],
     mentions: [],
   };
@@ -147,6 +148,7 @@ function originalRow() {
     metadata: { createdAt: new Date('2023-12-31T00:00:00Z') },
     createdAt: new Date('2023-12-31T00:00:00Z'),
     visibility: 'public',
+    status: 'published',
     hashtags: [],
     mentions: [],
   };
@@ -221,6 +223,29 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     for (let i = 0; i < 25; i++) {
       const [hydrated] = await hydrateBoost(VIEWER_ID);
       expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded (authed)`).toBe(ORIGINAL_ID);
+    }
+  });
+
+  it('does not embed non-public or unpublished boost originals', async () => {
+    service = new PostHydrationService();
+
+    for (const blockedOriginal of [
+      { ...originalRow(), visibility: 'private', status: 'published' },
+      { ...originalRow(), visibility: 'followers_only', status: 'published' },
+      { ...originalRow(), visibility: 'public', status: 'draft' },
+      { ...originalRow(), visibility: 'public', status: 'scheduled' },
+    ]) {
+      postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+        const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+        if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+          return [blockedOriginal];
+        }
+        return [];
+      });
+
+      const [hydrated] = await hydrateBoost(undefined);
+      expect(hydrated.boost, `${blockedOriginal.visibility}/${blockedOriginal.status}: boost context leaked`).toBeNull();
+      expect(hydrated.originalPost, `${blockedOriginal.visibility}/${blockedOriginal.status}: original leaked`).toBeNull();
     }
   });
 
