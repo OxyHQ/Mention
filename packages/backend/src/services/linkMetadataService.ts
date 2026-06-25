@@ -1,7 +1,8 @@
+import type { IncomingMessage } from 'http';
 import { URL } from 'url';
-import urlMetadata from 'url-metadata';
 import { logger } from '../utils/logger';
-import { validateUrlSecurity, validateUrlLength, decodeHtmlEntities } from '../utils/urlSecurity';
+import { validateUrlLength, decodeHtmlEntities } from '../utils/urlSecurity';
+import { fetchUpstreamSingleHop, SsrfRejection } from '../utils/safeUpstreamFetch';
 import { imageCacheService } from './imageCacheService';
 
 export interface LinkMetadataResult {
@@ -63,22 +64,9 @@ class LinkMetadataService {
         throw new Error('Invalid URL');
       }
 
-      // Security validation (prevent SSRF)
-      const securityCheck = validateUrlSecurity(normalizedUrl);
-      if (!securityCheck.valid) {
-        logger.warn('[LinkMetadataService] Security check failed:', securityCheck.error);
-        throw new Error(securityCheck.error || 'URL security validation failed');
-      }
-
       logger.debug('[LinkMetadataService] Fetching metadata for:', normalizedUrl);
 
-      // Use url-metadata library
-      const metadata = await urlMetadata(normalizedUrl, {
-        timeout: this.TIMEOUT_MS,
-        requestHeaders: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-      });
+      const { metadata, finalUrl } = await this.fetchMetadataDocument(normalizedUrl);
 
       logger.debug('[LinkMetadataService] Extracted metadata:', {
         hasTitle: !!metadata.title,
@@ -88,11 +76,11 @@ class LinkMetadataService {
       });
 
       const result: LinkMetadataResult = {
-        url: normalizedUrl,
+        url: finalUrl,
         title: metadata.title || metadata['og:title'] || metadata['twitter:title'],
         description: metadata.description || metadata['og:description'] || metadata['twitter:description'],
         image: metadata.image || metadata['og:image'] || metadata['twitter:image'],
-        siteName: metadata['og:site_name'] || this.extractSiteName(normalizedUrl),
+        siteName: metadata['og:site_name'] || this.extractSiteName(finalUrl),
         favicon: metadata.favicon,
       };
 
@@ -105,7 +93,7 @@ class LinkMetadataService {
       if (result.image && result.image.trim().length > 0) {
         try {
           // Resolve relative image URLs to absolute URLs
-          const absoluteImageUrl = this.resolveImageUrl(result.image, normalizedUrl);
+          const absoluteImageUrl = this.resolveImageUrl(result.image, finalUrl);
           
           // Check if already cached (non-blocking check)
           const cachedUrl = await imageCacheService.getCachedImage(absoluteImageUrl);
@@ -167,6 +155,109 @@ class LinkMetadataService {
         };
       }
     }
+  }
+
+  private async fetchMetadataDocument(initialUrl: string): Promise<{ metadata: Record<string, string>; finalUrl: string }> {
+    let currentUrl = initialUrl;
+    const maxRedirects = 3;
+
+    for (let hop = 0; hop <= maxRedirects; hop++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
+
+      try {
+        const result = await fetchUpstreamSingleHop(currentUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
+            'Accept-Encoding': 'identity',
+          },
+          headersTimeoutMs: this.TIMEOUT_MS,
+        });
+
+        const { response, status, headers } = result;
+        if ([301, 302, 303, 307, 308].includes(status)) {
+          response.destroy();
+          if (hop === maxRedirects) throw new Error('Too many redirects');
+          const location = headers.location;
+          if (!location || Array.isArray(location)) throw new Error('Invalid redirect location');
+          currentUrl = new URL(location, currentUrl).toString();
+          continue;
+        }
+
+        const contentTypeHeader = headers['content-type'] || '';
+        const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader;
+        if (contentType && !contentType.toLowerCase().includes('html')) {
+          response.destroy();
+          return { metadata: {}, finalUrl: currentUrl };
+        }
+
+        const html = await this.readLimitedResponse(response, 512 * 1024);
+        return { metadata: this.extractMetadataFromHtml(html), finalUrl: currentUrl };
+      } catch (error) {
+        if (error instanceof SsrfRejection) {
+          logger.warn('[LinkMetadataService] Security check failed:', error.message);
+          throw new Error('URL security validation failed');
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    throw new Error('Too many redirects');
+  }
+
+  private async readLimitedResponse(response: IncomingMessage, maxBytes: number): Promise<string> {
+    return await new Promise<string>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let totalSize = 0;
+
+      response.on('data', (chunk: Buffer) => {
+        totalSize += chunk.length;
+        if (totalSize > maxBytes) {
+          response.destroy();
+          reject(new Error('Metadata response too large'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+
+      response.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      response.on('error', reject);
+    });
+  }
+
+  private extractMetadataFromHtml(html: string): Record<string, string> {
+    const metadata: Record<string, string> = {};
+    const headMatch = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i);
+    const head = headMatch?.[1] ?? html.slice(0, 128 * 1024);
+    const attrPattern = /([a-zA-Z_:.-]+)\s*=\s*(["'])(.*?)\2/g;
+
+    for (const tagMatch of head.matchAll(/<(title|meta|link)\b[^>]*>([\s\S]*?)<\/\1>|<(meta|link)\b[^>]*\/?\s*>/gi)) {
+      const fullTag = tagMatch[0];
+      const tagName = (tagMatch[1] || tagMatch[3] || '').toLowerCase();
+      if (tagName === 'title') {
+        metadata.title = decodeHtmlEntities(tagMatch[2] || '');
+        continue;
+      }
+
+      const attrs: Record<string, string> = {};
+      attrPattern.lastIndex = 0;
+      for (const attr of fullTag.matchAll(attrPattern)) {
+        attrs[attr[1].toLowerCase()] = decodeHtmlEntities(attr[3]);
+      }
+
+      if (tagName === 'meta') {
+        const key = attrs.property || attrs.name;
+        if (key && attrs.content) metadata[key.toLowerCase()] = attrs.content;
+      } else if (tagName === 'link' && attrs.rel?.toLowerCase().includes('icon') && attrs.href) {
+        metadata.favicon = attrs.href;
+      }
+    }
+
+    return metadata;
   }
 
   /**

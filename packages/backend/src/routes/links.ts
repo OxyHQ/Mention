@@ -2,7 +2,7 @@ import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { linkMetadataService } from '../services/linkMetadataService';
 import { logger } from '../utils/logger';
-import { validateUrlSecurity } from '../utils/urlSecurity';
+import { assertSafePublicUrl } from '../utils/ssrfGuard';
 import { imageCacheService } from '../services/imageCacheService';
 import { requireOxyAuth as requireAuth } from '@oxyhq/core/server';
 import { linkRefreshRateLimiter, linkCacheClearRateLimiter } from '../middleware/security';
@@ -45,13 +45,14 @@ router.get('/metadata', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Security validation (SSRF protection)
-    const securityCheck = validateUrlSecurity(url);
-    if (!securityCheck.valid) {
-      logger.warn('[Links] Security check failed:', { url, error: securityCheck.error });
+    // Security validation (SSRF protection). Perform DNS/IP checks for this
+    // public server-side fetch endpoint before handing the URL to the service.
+    const securityCheck = await assertSafePublicUrl(url);
+    if (!securityCheck.ok) {
+      logger.warn('[Links] Security check failed:', { url, error: securityCheck.reason });
       return res.status(400).json({
         success: false,
-        message: securityCheck.error || 'URL security validation failed',
+        message: 'URL security validation failed',
       });
     }
 

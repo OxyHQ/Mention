@@ -1,8 +1,6 @@
-import * as https from 'https';
-import * as http from 'http';
 import { URL } from 'url';
 import { logger } from '../utils/logger';
-import { validateUrlSecurity } from '../utils/urlSecurity';
+import { fetchUpstreamFollowingRedirects, SsrfRejection } from '../utils/safeUpstreamFetch';
 import crypto from 'crypto';
 import { Transformer, ResizeFit } from '@napi-rs/image';
 import { getS3Client, getBucket, getCdnUrl } from '../utils/spaces';
@@ -25,6 +23,7 @@ const JPEG_QUALITY = Number(process.env.LINK_PREVIEW_JPEG_QUALITY ?? 80);
 const PNG_QUALITY = Number(process.env.LINK_PREVIEW_PNG_QUALITY ?? 80);
 const WEBP_QUALITY = Number(process.env.LINK_PREVIEW_WEBP_QUALITY ?? 80);
 const MAX_FILE_SIZE = Number(process.env.LINK_PREVIEW_MAX_FILE_SIZE ?? 500 * 1024);
+const MAX_DOWNLOAD_SIZE = 10 * 1024 * 1024;
 
 // S3 key prefix for all link preview images
 const LINK_PREVIEW_PREFIX = 'link-previews';
@@ -119,42 +118,27 @@ class ImageCacheService {
    * Download image from URL
    */
   private async downloadImage(url: string): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      // Security check
-      const securityCheck = validateUrlSecurity(url);
-      if (!securityCheck.valid) {
-        return reject(new Error(securityCheck.error || 'URL security validation failed'));
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
+
+    try {
+      const upstream = await fetchUpstreamFollowingRedirects(url, {}, controller.signal);
+      const res = upstream.response;
+
+      const contentTypeHeader = res.headers['content-type'] || '';
+      const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader;
+      if (!contentType.startsWith('image/')) {
+        res.destroy();
+        throw new Error('URL does not point to an image');
       }
 
-      const urlObj = new URL(url);
-      const isHttps = urlObj.protocol === 'https:';
-      const client = isHttps ? https : http;
+      const contentLength = parseInt(String(res.headers['content-length'] || '0'), 10);
+      if (contentLength > MAX_DOWNLOAD_SIZE) {
+        res.destroy();
+        throw new Error('Image too large');
+      }
 
-      const options = {
-        hostname: urlObj.hostname,
-        port: urlObj.port || (isHttps ? 443 : 80),
-        path: urlObj.pathname + urlObj.search,
-        method: 'GET',
-        headers: {
-          'User-Agent': this.USER_AGENT,
-          'Accept': 'image/*',
-        },
-        timeout: this.TIMEOUT_MS,
-      };
-
-      const req = client.request(options, (res) => {
-        // Check content type
-        const contentType = res.headers['content-type'] || '';
-        if (!contentType.startsWith('image/')) {
-          return reject(new Error('URL does not point to an image'));
-        }
-
-        // Check content length
-        const contentLength = parseInt(res.headers['content-length'] || '0', 10);
-        if (contentLength > 10 * 1024 * 1024) { // 10MB limit
-          return reject(new Error('Image too large'));
-        }
-
+      return await new Promise<Buffer>((resolve, reject) => {
         const chunks: Buffer[] = [];
         let totalSize = 0;
 
@@ -162,29 +146,23 @@ class ImageCacheService {
           chunks.push(chunk);
           totalSize += chunk.length;
 
-          // Prevent memory issues
-          if (totalSize > 10 * 1024 * 1024) { // 10MB limit
+          if (totalSize > MAX_DOWNLOAD_SIZE) {
             res.destroy();
-            return reject(new Error('Image too large'));
+            reject(new Error('Image too large'));
           }
         });
 
-        res.on('end', () => {
-          resolve(Buffer.concat(chunks));
-        });
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
       });
-
-      req.on('error', (error) => {
-        reject(error);
-      });
-
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error('Request timeout'));
-      });
-
-      req.end();
-    });
+    } catch (error) {
+      if (error instanceof SsrfRejection) {
+        throw new Error('URL security validation failed');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   /**
