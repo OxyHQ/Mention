@@ -1647,10 +1647,10 @@ export class PostHydrationService {
       return text;
     }
 
-    // Normalize mention IDs and collect those whose placeholder is present in
-    // the text but not yet in the per-request cache. Only placeholders that
-    // actually appear are worth resolving.
-    const uncachedIds: string[] = [];
+    // Normalize the current post's declared mention IDs. The per-request
+    // cache is intentionally shared across a hydration batch, so replacement
+    // must be scoped to this per-post allowlist rather than every cached user.
+    const declaredMentionIds = new Set<string>();
     for (const mentionIdRaw of mentions) {
       let mentionId: string;
       if (typeof mentionIdRaw === 'string') {
@@ -1661,7 +1661,17 @@ export class PostHydrationService {
       } else {
         mentionId = String(mentionIdRaw || '');
       }
-      if (mentionId && text.includes(`[mention:${mentionId}]`) && !mentionCache.has(mentionId)) {
+      if (mentionId) {
+        declaredMentionIds.add(mentionId);
+      }
+    }
+
+    // Collect declared mention placeholders present in the text but not yet in
+    // the per-request cache. Only placeholders that actually appear are worth
+    // resolving.
+    const uncachedIds: string[] = [];
+    for (const mentionId of declaredMentionIds) {
+      if (text.includes(`[mention:${mentionId}]`) && !mentionCache.has(mentionId)) {
         uncachedIds.push(mentionId);
       }
     }
@@ -1684,12 +1694,15 @@ export class PostHydrationService {
       }
     }
 
-    // Single-pass replacement: build the placeholder→replacement map, then run
-    // ONE regex over the text. An unresolved mention (absent from the map) is
-    // left as its original placeholder.
+    // Single-pass replacement: build the placeholder→replacement map for only
+    // this post's declared mention IDs, then run ONE regex over the text. An
+    // undeclared or unresolved mention is left as its original placeholder.
     const replacements = new Map<string, string>();
-    for (const [mentionId, mentionUser] of mentionCache) {
-      replacements.set(mentionId, `[@${mentionUser.displayName}](${mentionUser.handle})`);
+    for (const mentionId of declaredMentionIds) {
+      const mentionUser = mentionCache.get(mentionId);
+      if (mentionUser) {
+        replacements.set(mentionId, `[@${mentionUser.displayName}](${mentionUser.handle})`);
+      }
     }
 
     return text.replace(/\[mention:([^\]]+)\]/g, (placeholder, mentionId: string) => {
