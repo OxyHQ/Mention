@@ -7,9 +7,11 @@
 import { HydratedPost, PostType, PostVisibility } from '@mention/shared-types';
 import { MtnConfig } from '@mention/shared-types';
 import { Post } from '../../../models/Post';
+import UserSettings from '../../../models/UserSettings';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { threadSlicingService } from '../../../services/ThreadSlicingService';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
+import { ProfileVisibility, requiresAccessCheck } from '../../../utils/privacyHelpers';
 import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } from '../FeedAPI';
 import { ChronoCursor, didCursorAdvance } from '../CursorBuilder';
 import { logger } from '../../../utils/logger';
@@ -103,6 +105,12 @@ export class AuthorFeed implements FeedAPI {
     };
 
     const Like = (await import('../../../models/Like')).default;
+
+    const canViewLikes = await this.canViewAuthorLikes(context);
+    if (!canViewLikes) {
+      return { slices: [], items: [], hasMore: false, totalCount: 0 };
+    }
+
     const likes = await Like.find({ userId: authorId, value: 1 })
       .sort({ createdAt: -1 })
       .limit(limit + 1)
@@ -114,7 +122,11 @@ export class AuthorFeed implements FeedAPI {
     }
     const hasMore = likedPostIds.length > limit;
     const ids = hasMore ? likedPostIds.slice(0, limit) : likedPostIds;
-    const posts = await Post.find({ _id: { $in: ids }, status: 'published' })
+    const posts = await Post.find({
+      _id: { $in: ids },
+      status: 'published',
+      ...this.buildVisibleLikedPostMatch(context),
+    })
       .select(FEED_FIELDS)
       .lean();
     // Preserve like order
@@ -125,6 +137,44 @@ export class AuthorFeed implements FeedAPI {
     const hydrated = await postHydrationService.hydratePosts(ordered, hydrateOpts);
     const nextCursor = hasMore ? ChronoCursor.build(likes[limit - 1]._id.toString()) : undefined;
     return { slices: [], items: hydrated, hasMore, nextCursor, totalCount: hydrated.length };
+  }
+
+  private async canViewAuthorLikes(context: FeedContext): Promise<boolean> {
+    if (context.currentUserId === this.authorId) return true;
+
+    const settings = await UserSettings.findOne(
+      { oxyUserId: this.authorId },
+      { 'privacy.profileVisibility': 1 },
+    ).lean();
+    const profileVisibility = settings?.privacy?.profileVisibility ?? ProfileVisibility.PUBLIC;
+
+    if (!requiresAccessCheck(profileVisibility)) return true;
+    if (!context.currentUserId) return false;
+
+    return (context.followingIds ?? []).includes(this.authorId);
+  }
+
+  private buildVisibleLikedPostMatch(context: FeedContext): Record<string, unknown> {
+    const viewerId = context.currentUserId;
+    const followAuthorizedIds = Array.from(new Set([viewerId, ...(context.followingIds ?? [])].filter(Boolean)));
+
+    if (!viewerId) {
+      return { visibility: PostVisibility.PUBLIC };
+    }
+
+    return {
+      $or: [
+        { visibility: PostVisibility.PUBLIC },
+        {
+          oxyUserId: { $in: followAuthorizedIds },
+          visibility: PostVisibility.FOLLOWERS_ONLY,
+        },
+        {
+          oxyUserId: viewerId,
+          visibility: PostVisibility.PRIVATE,
+        },
+      ],
+    };
   }
 
   private buildQuery(cursor?: string): Record<string, unknown> {
