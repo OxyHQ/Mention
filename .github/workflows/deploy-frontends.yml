@@ -61,6 +61,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: 'bun'
+          wranglerVersion: '4.81.0'
           command: pages deploy packages/frontend/dist --project-name=mention-frontend --branch=main
 
   deploy-agora:
@@ -87,4 +88,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: 'bun'
+          wranglerVersion: '4.81.0'
           command: pages deploy packages/agora/dist --project-name=agora-frontend --branch=main
