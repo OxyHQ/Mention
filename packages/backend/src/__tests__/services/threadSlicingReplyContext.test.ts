@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PostActorSummary } from '@mention/shared-types';
+import { PostVisibility, type PostActorSummary } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 /**
@@ -146,5 +146,41 @@ describe('ThreadSlicingService reply-context parent author', () => {
     expect(reason.parentAuthor.displayName).toBe(PARENT_AUTHOR_ID);
     expect(reason.parentAuthor.handle).not.toBe('');
     expect(reason.parentAuthor.displayName).not.toBe('');
+  });
+});
+
+describe('ThreadSlicingService thread children visibility', () => {
+  it('fetches self-thread children only when public and published', async () => {
+    postFind.mockImplementation(() => []);
+    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
+
+    const root = {
+      _id: '650000000000000000000101',
+      oxyUserId: 'oxy-thread-author',
+      parentPostId: undefined,
+      threadId: 'thread-1',
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { text: 'public root' },
+    };
+
+    await threadSlicingService.sliceFeed([root], {
+      enableThreadGrouping: true,
+      enableReplyContext: false,
+      maxSliceSize: 3,
+    });
+
+    expect(postFind).toHaveBeenCalledTimes(1);
+    expect(postFind.mock.calls[0][0]).toMatchObject({
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      $or: [
+        {
+          threadId: 'thread-1',
+          oxyUserId: 'oxy-thread-author',
+          parentPostId: { $ne: null, $exists: true },
+        },
+      ],
+    });
   });
 });
