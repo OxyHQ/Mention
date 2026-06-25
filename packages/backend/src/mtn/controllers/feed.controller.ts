@@ -7,10 +7,11 @@
 
 import { Request, Response } from 'express';
 import { isValidFeedDescriptor, MtnConfig } from '@mention/shared-types';
-import type { FeedDescriptor } from '@mention/shared-types';
+import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { feedAPIRegistry } from '../feed/FeedAPIRegistry';
 import { FeedTuner } from '../feed/FeedTuner';
+import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
 import { logger } from '../../utils/logger';
@@ -26,6 +27,11 @@ import type { IUserBehavior } from '../../models/UserBehavior';
 import type { TunerContext } from '../feed/FeedTuner';
 
 type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
+
+function syncFlattenedItemsWithSlices(response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>): void {
+  response.items = FeedResponseBuilder.flattenSlicesToItems(response.slices);
+  response.totalCount = response.items.length;
+}
 
 /**
  * Load the user's muted words/hashtags and map them into the tuner-preference
@@ -222,9 +228,11 @@ class MtnFeedController {
           return !authorId || !privacyState.excludedUserIds.has(authorId);
         });
         response.slices = response.slices.filter((slice: any) => {
-          const anchorAuthor = slice.items?.[0]?.author?.id || slice.items?.[0]?.oxyUserId;
+          const anchorPost = slice.items?.[0]?.post ?? slice.items?.[0];
+          const anchorAuthor = anchorPost?.author?.id || anchorPost?.oxyUserId;
           return !anchorAuthor || !privacyState.excludedUserIds.has(anchorAuthor);
         });
+        syncFlattenedItemsWithSlices(response);
       }
 
       // Apply tuner pipeline
@@ -240,6 +248,7 @@ class MtnFeedController {
             hideSensitive: false,
           },
         });
+        syncFlattenedItemsWithSlices(response);
       }
 
       res.json({
