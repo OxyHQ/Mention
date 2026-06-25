@@ -25,6 +25,7 @@ import {
   activityPubLinkUrl,
   signedFetch,
   fetchActivityPubObject,
+  fetchVerifiedAnnouncedNote,
   runWithTimeout,
   isDuplicateKeyError,
   extractAnnouncedObjectUri,
@@ -831,6 +832,12 @@ export class OutboxSyncService {
       return false;
     }
 
+    const originalPost = await Post.findById(originalPostId, { visibility: 1, status: 1 }).lean();
+    if (!originalPost || originalPost.status !== 'published' || originalPost.visibility !== PostVisibility.PUBLIC) {
+      logger.info(`[FedSync] skipping announce ${announceId}: boosted object ${announcedUri} is not public/published`);
+      return false;
+    }
+
     // The boost Post's date reflects when the BOOST happened (the Announce's
     // `published`), while the embedded original keeps its own date via its own
     // post — matching the native repost shape. Validated/falls back to now.
@@ -888,19 +895,9 @@ export class OutboxSyncService {
     if (existing) return String(existing._id);
 
     // Fetch the announced object (the boosted Note) from its origin.
-    let note: Record<string, any>;
-    try {
-      const res = await signedFetch(objectUri, AP_CONTENT_TYPE);
-      if (!res.ok) {
-        logger.info(`[FedSync] failed to fetch boosted object ${objectUri}: ${res.status} ${res.statusText}`);
-        return null;
-      }
-      note = await res.json() as Record<string, any>;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.info(`[FedSync] error fetching boosted object ${objectUri}: ${message}`);
-      return null;
-    }
+    const fetched = await fetchVerifiedAnnouncedNote(objectUri);
+    if (!fetched) return null;
+    const { note } = fetched;
 
     if (!note || (note.type !== 'Note' && note.type !== 'Article')) {
       logger.info(`[FedSync] boosted object ${objectUri} is not a Note/Article (type=${note?.type}); skipping`);

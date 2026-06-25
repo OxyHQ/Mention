@@ -34,6 +34,7 @@ export class ForYouFeed implements FeedAPI {
   async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
     const post = await Post.findOne({
       visibility: 'public',
+      status: 'published',
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     })
       .select(FEED_FIELDS)
@@ -84,6 +85,7 @@ export class ForYouFeed implements FeedAPI {
     const candidatePosts = await gatherForYouCandidates({
       viewerId: currentUserId,
       followingIds: context.followingIds ?? [],
+      subscribedListMemberIds: context.subscribedListMemberIds,
       userBehavior: context.userBehavior as CandidateUserBehavior | undefined,
       viewerRegion: context.viewerRegion,
       seenPostIds,
@@ -230,6 +232,7 @@ export class ForYouFeed implements FeedAPI {
     const allowSensitive = context.showSensitiveContent === true;
     const match: Record<string, unknown> = {
       visibility: 'public',
+      status: 'published',
       ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };

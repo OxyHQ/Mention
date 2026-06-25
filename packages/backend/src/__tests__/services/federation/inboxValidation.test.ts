@@ -366,6 +366,10 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
   it('creates a native boost Post for a valid Announce activity', async () => {
     stubResolvedActor('oxy_bob');
     stubResolvedPost('local_post_2');
+    // The boosted post must be public + published for the boost to be imported.
+    mocks.postFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ status: 'published', visibility: 'public' }),
+    });
     mocks.postExists.mockResolvedValue(null); // no existing boost
 
     await federationService.processInboxActivity(

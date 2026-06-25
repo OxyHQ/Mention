@@ -258,6 +258,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
+      publicReferencesOnly: true,
       includeLinkMetadata: false,
     });
 

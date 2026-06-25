@@ -40,8 +40,9 @@ function isNonEmptyString(value: unknown): value is string {
  * Oxy owns all federation key material. This returns the mention.earth-scoped
  * keyId (`https://<FEDERATION_DOMAIN>/ap/users/<username>#main-key`) and the
  * matching public key PEM, used to build the actor's `publicKey` block. The
- * private key is never returned. Requires a valid service token with
- * `federation:write`; the OxyServices client auto-acquires/refreshes it.
+ * private key is never returned. Requires a valid service token with the
+ * appropriate federation permission; the OxyServices client
+ * auto-acquires/refreshes it.
  */
 export async function getPublicKey(username: string): Promise<FederationPublicKey> {
   const cached = publicKeyCache.get(username);
@@ -80,8 +81,9 @@ export async function getPublicKey(username: string): Promise<FederationPublicKe
 /**
  * Ask Oxy to sign an HTTP-Signature signing string with the private key that
  * backs `keyId`. The private key never leaves Oxy. Returns the base64 RSA-SHA256
- * signature. Requires a service token with `federation:write`; the keyId host
- * must be Mention's authorized domain (enforced by Oxy).
+ * signature. Requires a service token with the appropriate federation
+ * permission; the keyId host must be Mention's authorized domain (enforced by
+ * Oxy).
  */
 export async function signViaOxy(keyId: string, signingString: string): Promise<string> {
   let response: OxySignResponse;
