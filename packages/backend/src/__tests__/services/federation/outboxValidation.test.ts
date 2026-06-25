@@ -1,3 +1,4 @@
+import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -36,11 +37,29 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
+  fetchUpstreamSingleHop: vi.fn(),
+  assertSafePublicUrl: vi.fn(),
 }));
 
 vi.mock('../../../utils/federation/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signRequest: mocks.signRequest,
+}));
+
+// `signedFetch` performs its GET via the IP-pinned `fetchUpstreamSingleHop`
+// (no global `fetch`). Route it through the per-test stubbed global `fetch` so
+// these outbox fixtures keep exercising the real validation/ingest logic; only
+// the transport is adapted.
+vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>();
+  return {
+    ...actual,
+    fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,
+  };
+});
+
+vi.mock('../../../utils/ssrfGuard', () => ({
+  assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
 vi.mock('../../../models/FederatedActor', () => ({
@@ -175,6 +194,20 @@ beforeEach(() => {
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
   mocks.getServiceOxyClient.mockReturnValue({ makeServiceRequest: mocks.makeServiceRequest });
+  mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
+  mocks.fetchUpstreamSingleHop.mockImplementation(
+    async (url: string, options: { headers: Record<string, string> }) => {
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const bodyBuffer = Buffer.from(await res.arrayBuffer());
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      const stream = new PassThrough();
+      stream.end(bodyBuffer);
+      return { response: stream, status: res.status, headers };
+    },
+  );
 });
 
 describe('OutboxSyncService — collection-level zod validation', () => {

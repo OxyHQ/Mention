@@ -86,25 +86,18 @@ export interface UpstreamResult {
  * Build the request options for a single hop, pinning the TCP connection to the
  * already-validated IP via a custom `lookup`. This closes the DNS-rebind TOCTOU
  * window: the address we validated is exactly the address Node connects to.
+ *
+ * `headers` are the EXACT request headers to send (already assembled by the
+ * caller). The media-proxy path passes its media-oriented header set; the
+ * federation `signedFetch` path passes its HTTP-signature + Accept headers.
  */
 function buildRequestOptions(
   target: URL,
   pinnedIp: string,
   pinnedFamily: 4 | 6,
-  extras: UpstreamRequestExtras,
+  headers: Record<string, string>,
   signal: AbortSignal,
 ): https.RequestOptions {
-  const headers: Record<string, string> = {
-    'User-Agent': PROXY_USER_AGENT,
-    Accept: 'image/*,video/*,audio/*,*/*;q=0.8',
-    // Disable transparent decompression so byte caps measure wire bytes and the
-    // buffered prefix is the raw container ffmpeg expects.
-    'Accept-Encoding': 'identity',
-  };
-  if (extras.range) headers.Range = extras.range;
-  if (extras.ifNoneMatch) headers['If-None-Match'] = extras.ifNoneMatch;
-  if (extras.ifModifiedSince) headers['If-Modified-Since'] = extras.ifModifiedSince;
-
   return {
     protocol: target.protocol,
     hostname: target.hostname,
@@ -139,17 +132,36 @@ function buildRequestOptions(
 }
 
 /** Perform a single upstream GET (no auto-redirect). */
-function fetchOnce(options: https.RequestOptions, isHttps: boolean): Promise<IncomingMessage> {
+function fetchOnce(
+  options: https.RequestOptions,
+  isHttps: boolean,
+  headersTimeoutMs: number = UPSTREAM_HEADERS_TIMEOUT_MS,
+): Promise<IncomingMessage> {
   return new Promise<IncomingMessage>((resolve, reject) => {
     const transport = isHttps ? https : http;
     const req = transport.request(options, (res) => resolve(res));
 
-    req.setTimeout(UPSTREAM_HEADERS_TIMEOUT_MS, () => {
+    req.setTimeout(headersTimeoutMs, () => {
       req.destroy(new Error('upstream headers timeout'));
     });
     req.on('error', (err) => reject(err));
     req.end();
   });
+}
+
+/** Build the media-proxy request headers from the optional conditional/range extras. */
+function buildMediaProxyHeaders(extras: UpstreamRequestExtras): Record<string, string> {
+  const headers: Record<string, string> = {
+    'User-Agent': PROXY_USER_AGENT,
+    Accept: 'image/*,video/*,audio/*,*/*;q=0.8',
+    // Disable transparent decompression so byte caps measure wire bytes and the
+    // buffered prefix is the raw container ffmpeg expects.
+    'Accept-Encoding': 'identity',
+  };
+  if (extras.range) headers.Range = extras.range;
+  if (extras.ifNoneMatch) headers['If-None-Match'] = extras.ifNoneMatch;
+  if (extras.ifModifiedSince) headers['If-Modified-Since'] = extras.ifModifiedSince;
+  return headers;
 }
 
 /**
@@ -174,7 +186,7 @@ export async function fetchUpstreamFollowingRedirects(
     }
 
     const target = new URL(currentUrl);
-    const options = buildRequestOptions(target, guard.ip, guard.family, extras, signal);
+    const options = buildRequestOptions(target, guard.ip, guard.family, buildMediaProxyHeaders(extras), signal);
     const response = await fetchOnce(options, target.protocol === 'https:');
 
     const status = response.statusCode ?? 0;
@@ -200,6 +212,60 @@ export async function fetchUpstreamFollowingRedirects(
 
   // Unreachable: the loop either returns a response or throws.
   throw new UpstreamError('redirect loop exhausted');
+}
+
+/** A single, IP-pinned upstream response (which MAY be a redirect). */
+export interface SingleHopResult {
+  /** The raw response. The caller OWNS draining/destroying this stream. */
+  response: IncomingMessage;
+  /** The HTTP status code (may be a 3xx redirect — NOT followed here). */
+  status: number;
+  /** Response headers. */
+  headers: IncomingHttpHeaders;
+}
+
+/** Options for {@link fetchUpstreamSingleHop}. */
+export interface SingleHopOptions {
+  /** The EXACT request headers to send (the caller assembles these). */
+  headers: Record<string, string>;
+  /** Aborts the in-flight request when the signal fires. */
+  signal: AbortSignal;
+  /** Time-to-first-byte deadline; defaults to {@link UPSTREAM_HEADERS_TIMEOUT_MS}. */
+  headersTimeoutMs?: number;
+}
+
+/**
+ * Perform ONE SSRF-safe upstream GET. The URL is validated by
+ * {@link assertSafePublicUrl} and the TCP connection is PINNED to the validated
+ * IP via a custom `lookup` — DNS is NOT re-resolved at connect time, closing the
+ * DNS-rebind TOCTOU window.
+ *
+ * Unlike {@link fetchUpstreamFollowingRedirects}, redirects are NOT followed:
+ * the redirect response (status + `location` header) is returned to the caller,
+ * which decides whether/how to follow (e.g. {@link signedFetch} re-signs and
+ * re-validates each hop). Used for signed ActivityPub fetches where each hop
+ * needs its own HTTP signature and the caller may enforce a stricter per-hop
+ * policy.
+ *
+ * @throws {SsrfRejection} when the target is a blocked address/host/port.
+ */
+export async function fetchUpstreamSingleHop(
+  url: string,
+  options: SingleHopOptions,
+): Promise<SingleHopResult> {
+  const guard = await assertSafePublicUrl(url);
+  if (!guard.ok) {
+    throw new SsrfRejection(guard.reason);
+  }
+
+  const target = new URL(url);
+  const requestOptions = buildRequestOptions(target, guard.ip, guard.family, options.headers, options.signal);
+  const response = await fetchOnce(requestOptions, target.protocol === 'https:', options.headersTimeoutMs);
+  return {
+    response,
+    status: response.statusCode ?? 0,
+    headers: response.headers,
+  };
 }
 
 /**
