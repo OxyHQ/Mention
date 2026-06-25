@@ -2257,8 +2257,23 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const post = await Post.findById(id).select('content.text translations').lean();
+    const post = await Post.findById(id)
+      .select('_id oxyUserId content.text translations visibility status federation createdAt')
+      .lean();
     if (!post) {
+      res.status(404).json({ message: 'Post not found' });
+      return;
+    }
+
+    const visiblePosts = await postHydrationService.hydratePosts([post], {
+      viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullArticleBody: false,
+      includeFullMetadata: false,
+    });
+    if (visiblePosts.length === 0) {
       res.status(404).json({ message: 'Post not found' });
       return;
     }
