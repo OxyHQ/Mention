@@ -1296,6 +1296,10 @@ export class PostHydrationService {
 
     // Privacy checks only apply to local users (federated posts are public by definition)
     if (!isFederatedPost) {
+      if (!this.canViewerAccessLocalPost(post, authorId, viewerContext)) {
+        return null;
+      }
+
       if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
         return null;
       }
@@ -1517,6 +1521,33 @@ export class PostHydrationService {
       isBoosted: viewerContext.boostedPosts.has(postId),
       isSaved: viewerContext.savedPosts.has(postId),
     };
+  }
+
+  private canViewerAccessLocalPost(post: RawPost, authorId: string, viewerContext: ViewerContext): boolean {
+    const viewerId = viewerContext.viewerId;
+    const isOwner = viewerId === authorId;
+
+    if (isOwner) {
+      return true;
+    }
+
+    // Older imported/test posts may not carry an explicit status; preserve the
+    // historical default-public behavior for missing values, but never expose
+    // explicitly non-published local posts through nested boost/quote hydration.
+    if (post.status && post.status !== 'published') {
+      return false;
+    }
+
+    switch (post.visibility ?? PostVisibility.PUBLIC) {
+      case PostVisibility.PUBLIC:
+        return true;
+      case PostVisibility.FOLLOWERS_ONLY:
+        return Boolean(viewerId && viewerContext.follows.has(authorId));
+      case PostVisibility.PRIVATE:
+        return false;
+      default:
+        return false;
+    }
   }
 
   private buildPermissions(post: RawPost, authorId: string, viewerContext: ViewerContext): PostPermissions {

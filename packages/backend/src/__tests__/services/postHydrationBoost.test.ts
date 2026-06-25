@@ -152,6 +152,15 @@ function originalRow() {
   };
 }
 
+function protectedOriginalRow() {
+  return {
+    ...originalRow(),
+    content: { text: 'protected original note body' },
+    visibility: 'followers_only',
+    status: 'draft',
+  };
+}
+
 describe('PostHydrationService — boost original embedding is deterministic', () => {
   let service: PostHydrationService;
 
@@ -204,6 +213,24 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(ORIGINAL_ID);
       expect(hydrated.originalPost?.id).toBe(ORIGINAL_ID);
     }
+  });
+
+  it('does not embed a non-public or non-published boosted original for an anonymous viewer', async () => {
+    service = new PostHydrationService();
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [protectedOriginalRow()];
+      }
+      return [];
+    });
+
+    const [hydrated] = await hydrateBoost(undefined);
+
+    expect(hydrated, 'public boost row should still hydrate').toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+    expect(JSON.stringify(hydrated)).not.toContain('protected original note body');
   });
 
   it('embeds the boosted original identically for anon (fetch 1) and authed (fetch 2)', async () => {
