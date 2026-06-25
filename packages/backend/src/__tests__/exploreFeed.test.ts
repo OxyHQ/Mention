@@ -192,8 +192,8 @@ describe('ExploreFeed.fetch — relevance boost (logged-in)', () => {
     expect(product.$cond[1]).toBe(MtnConfig.ranking.exploreRelevance.topicMatch);
     expect(product.$cond[2]).toBe(1);
     // The topic slug is lowercased and matched against the projected topics.
-    const cond = product.$cond[0] as { $gt: [{ $size: { $setIntersection: [unknown, string[]] } }, number] };
-    expect(cond.$gt[0].$size.$setIntersection[1]).toContain('tech');
+    const cond = product.$cond[0] as { $gt: [{ $size: { $setIntersection: [unknown, { $literal: string[] }] } }, number] };
+    expect(cond.$gt[0].$size.$setIntersection[1]).toEqual({ $literal: ['tech'] });
   });
 
   it('builds the language factor as ANY-overlap over the multikey languages[]', async () => {
@@ -213,7 +213,7 @@ describe('ExploreFeed.fetch — relevance boost (logged-in)', () => {
         unknown,
         {
           $cond: [
-            { $gt: [{ $size: { $setIntersection: [{ $ifNull: [string, unknown[]] }, string[]] } }, number] },
+            { $gt: [{ $size: { $setIntersection: [{ $ifNull: [string, unknown[]] }, { $literal: string[] }] } }, number] },
             number,
             number,
           ];
@@ -226,7 +226,7 @@ describe('ExploreFeed.fetch — relevance boost (logged-in)', () => {
     expect(cond[2]).toBe(1);
     // Viewer's preferred languages are the intersection target.
     const setIntersection = cond[0].$gt[0].$size.$setIntersection;
-    expect(setIntersection[1]).toContain('es');
+    expect(setIntersection[1]).toEqual({ $literal: ['es'] });
     // The post-side operand reads the multikey `postClassification.languages`
     // array directly (no scalar fallback / $let — the single field is gone).
     expect(setIntersection[0]).toEqual({ $ifNull: ['$postClassification.languages', []] });
@@ -272,6 +272,57 @@ describe('ExploreFeed.fetch — relevance boost (logged-in)', () => {
     expect(match['postClassification.sensitive']).toEqual({ $ne: true });
   });
 
+  it('wraps dynamic viewer signals in $literal so $-prefixed preferences cannot become aggregation expressions', async () => {
+    const feed = new ExploreFeed();
+    await feed.fetch(
+      { cursor: undefined, limit: 30 },
+      {
+        currentUserId: 'viewer',
+        followingIds: [],
+        userBehavior: { preferredTopics: [{ topic: '$$bad', weight: 5 }], preferredLanguages: ['$$lang'] },
+        viewerRegion: '$$region',
+      },
+    );
+
+    const expr = relevanceBoostExpr() as { $min: [unknown, { $multiply: Array<{ $cond: unknown[] }> }] };
+    const factors = expr.$min[1].$multiply;
+    expect(factors).toHaveLength(3);
+
+    // Locate each factor by its STRUCTURE rather than a fixed position in the
+    // `$multiply` array, so the test is robust to factor ordering changes.
+    const setIntersectionRhs = (factor: { $cond: unknown[] }): unknown => {
+      const cond = factor.$cond[0] as {
+        $gt?: [{ $size: { $setIntersection: unknown[] } }, number];
+      };
+      return cond.$gt?.[0]?.$size?.$setIntersection?.[1];
+    };
+    const fieldPath = (factor: { $cond: unknown[] }): string | undefined => {
+      const cond = factor.$cond[0] as {
+        $gt?: [{ $size: { $setIntersection: unknown[] } }, number];
+        $eq?: [string, unknown];
+      };
+      if (cond.$gt) {
+        const lhs = cond.$gt[0].$size.$setIntersection[0] as { $ifNull?: [string, unknown] };
+        return lhs.$ifNull?.[0];
+      }
+      return cond.$eq?.[0];
+    };
+
+    const topicFactor = factors.find((f) => fieldPath(f) === '$postClassification.topics');
+    const languageFactor = factors.find((f) => fieldPath(f) === '$postClassification.languages');
+    const regionFactor = factors.find((f) => fieldPath(f) === '$postClassification.region');
+    expect(topicFactor).toBeDefined();
+    expect(languageFactor).toBeDefined();
+    expect(regionFactor).toBeDefined();
+
+    // The malicious `$`-prefixed viewer signals are wrapped in `$literal`, so the
+    // aggregation treats them as constant data — never as field paths/expressions.
+    if (!topicFactor || !languageFactor || !regionFactor) throw new Error('missing factor');
+    expect(setIntersectionRhs(topicFactor)).toEqual({ $literal: ['$$bad'] });
+    expect(setIntersectionRhs(languageFactor)).toEqual({ $literal: ['$$lang'] });
+    expect((regionFactor.$cond[0] as { $eq: [string, unknown] }).$eq[1]).toEqual({ $literal: '$$region' });
+  });
+
   it('only counts topics above the discovery weight floor is NOT applied — all preferred topics with non-empty slug are used', async () => {
     // The relevance boost uses ALL preferred-topic slugs (sorted by weight,
     // capped), unlike ranking's >0.3 floor — Explore is a coarse discovery lift.
@@ -285,7 +336,7 @@ describe('ExploreFeed.fetch — relevance boost (logged-in)', () => {
       },
     );
 
-    const expr = relevanceBoostExpr() as { $min: [unknown, { $cond: [{ $gt: [{ $size: { $setIntersection: [unknown, string[]] } }, number] }, number, number] }] };
-    expect(expr.$min[1].$cond[0].$gt[0].$size.$setIntersection[1]).toContain('technews');
+    const expr = relevanceBoostExpr() as { $min: [unknown, { $cond: [{ $gt: [{ $size: { $setIntersection: [unknown, { $literal: string[] }] } }, number] }, number, number] }] };
+    expect(expr.$min[1].$cond[0].$gt[0].$size.$setIntersection[1]).toEqual({ $literal: ['technews'] });
   });
 });

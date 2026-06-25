@@ -100,8 +100,11 @@ export class ExploreFeed implements FeedAPI {
         $cond: [
           {
             // True when the post's classified topics intersect the viewer's.
+            // The viewer-derived `topics` array is wrapped in `$literal` so any
+            // `$`-prefixed value inside it is treated as constant data, never
+            // evaluated as an aggregation field path / expression (injection guard).
             $gt: [
-              { $size: { $setIntersection: [{ $ifNull: ['$postClassification.topics', []] }, topics] } },
+              { $size: { $setIntersection: [{ $ifNull: ['$postClassification.topics', []] }, { $literal: topics }] } },
               0,
             ],
           },
@@ -122,7 +125,7 @@ export class ExploreFeed implements FeedAPI {
             $gt: [
               {
                 $size: {
-                  $setIntersection: [{ $ifNull: ['$postClassification.languages', []] }, languages],
+                  $setIntersection: [{ $ifNull: ['$postClassification.languages', []] }, { $literal: languages }],
                 },
               },
               0,
@@ -137,7 +140,7 @@ export class ExploreFeed implements FeedAPI {
     if (region) {
       factors.push({
         $cond: [
-          { $eq: ['$postClassification.region', region] },
+          { $eq: ['$postClassification.region', { $literal: region }] },
           cfg.regionMatch,
           1,
         ],
