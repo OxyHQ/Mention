@@ -287,6 +287,84 @@ describe('OutboxSyncService — per-item zod validation', () => {
     expect(activityIds).not.toContain(`${ACTOR_URI}/statuses/bad`);
   });
 
+
+  it('rejects Create items whose actor or attributedTo does not match the synced outbox owner', async () => {
+    const victimUri = 'https://victim.example/users/bob';
+    stubOutbox(
+      { type: 'OrderedCollection', totalItems: 2, first: FIRST_PAGE_URL },
+      {
+        type: 'OrderedCollectionPage',
+        id: FIRST_PAGE_URL,
+        orderedItems: [
+          {
+            ...createNoteActivity('forged-actor', '2023-04-04T12:00:00Z'),
+            actor: victimUri,
+          },
+          {
+            id: `${ACTOR_URI}/statuses/forged-attributed/activity`,
+            type: 'Create',
+            actor: ACTOR_URI,
+            published: '2023-04-05T12:00:00Z',
+            object: {
+              id: `${ACTOR_URI}/statuses/forged-attributed`,
+              type: 'Note',
+              attributedTo: victimUri,
+              content: '<p>forged</p>',
+              published: '2023-04-05T12:00:00Z',
+              to: ['https://www.w3.org/ns/activitystreams#Public'],
+            },
+          },
+        ],
+      },
+    );
+
+    const result = await runSync();
+
+    expect(result).toMatchObject({ syncedCount: 0, candidateCount: 0, reason: 'no-candidates' });
+    expect(mocks.postInsertMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects outbox notes whose activity id belongs to another actor and stores verified actorUri on accepted notes', async () => {
+    stubOutbox(
+      { type: 'OrderedCollection', totalItems: 2, first: FIRST_PAGE_URL },
+      {
+        type: 'OrderedCollectionPage',
+        id: FIRST_PAGE_URL,
+        orderedItems: [
+          {
+            id: 'https://victim.example/users/bob/statuses/forged-id/activity',
+            type: 'Create',
+            actor: ACTOR_URI,
+            published: '2023-04-04T12:00:00Z',
+            object: {
+              id: 'https://victim.example/users/bob/statuses/forged-id',
+              type: 'Note',
+              attributedTo: ACTOR_URI,
+              content: '<p>forged id</p>',
+              published: '2023-04-04T12:00:00Z',
+              to: ['https://www.w3.org/ns/activitystreams#Public'],
+            },
+          },
+          createNoteActivity('accepted', '2023-04-05T12:00:00Z'),
+        ],
+      },
+    );
+
+    const result = await runSync();
+
+    expect(result.candidateCount).toBe(1);
+    expect(result.newPostCount).toBe(1);
+    const inserted = mocks.postInsertMany.mock.calls[0][0] as Array<Record<string, unknown>>;
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0].oxyUserId).toBe('oxy_alice');
+    expect(inserted[0].federation).toEqual(
+      expect.objectContaining({
+        activityId: `${ACTOR_URI}/statuses/accepted`,
+        actorUri: ACTOR_URI,
+      }),
+    );
+  });
+
   it('preserves the original past published date on a valid item (no date regression)', async () => {
     const pastPublished = '2020-01-15T08:30:00.000Z';
     stubOutbox(
