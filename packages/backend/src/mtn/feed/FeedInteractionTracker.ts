@@ -8,7 +8,7 @@
 import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { recordDedupedView } from '../../services/feedViewCounter';
+import { isPostEligibleForViewTelemetry, recordDedupedView } from '../../services/feedViewCounter';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
 export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
@@ -65,6 +65,14 @@ async function applyImpressionSignals(interaction: FeedInteractionData): Promise
   const postId = interaction.postUri;
   if (!postId || !mongoose.isValidObjectId(postId)) {
     return; // Not a local post id — nothing to count or learn from.
+  }
+
+  // Client telemetry is untrusted: only derive view/preference side effects for
+  // real public, published local posts. This prevents forged impressions from
+  // mutating stats or learning against private/draft/nonexistent post ids.
+  const eligible = await isPostEligibleForViewTelemetry(postId);
+  if (!eligible) {
+    return;
   }
 
   // 1. Deduped real view count (no-op without Redis / on duplicate).
