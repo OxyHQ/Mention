@@ -288,6 +288,60 @@ describe('federationService.fetchRemoteActor', () => {
     );
   });
 
+  it('does not trust cross-domain acct hints or actor webfinger claims', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://evil.example/users/mallory') {
+        return jsonResponse({
+          id: 'https://evil.example/users/mallory',
+          type: 'Person',
+          preferredUsername: 'mallory',
+          name: 'Mallory',
+          webfinger: 'victim@trusted.example',
+          inbox: 'https://evil.example/users/mallory/inbox',
+          outbox: 'https://evil.example/users/mallory/outbox',
+          publicKey: {
+            id: 'https://evil.example/users/mallory#main-key',
+            publicKeyPem: 'remote-public',
+          },
+        });
+      }
+
+      if (url === 'https://evil.example/users/mallory/outbox') {
+        return jsonResponse({ type: 'OrderedCollection', totalItems: 0 });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await federationService.fetchRemoteActor(
+      'https://evil.example/users/mallory',
+      false,
+      'victim@trusted.example',
+    );
+
+    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
+      { uri: 'https://evil.example/users/mallory' },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          uri: 'https://evil.example/users/mallory',
+          acct: 'mallory@evil.example',
+          domain: 'evil.example',
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+      'PUT',
+      '/users/resolve',
+      expect.objectContaining({
+        username: 'mallory@evil.example',
+        actorUri: 'https://evil.example/users/mallory',
+        domain: 'evil.example',
+      }),
+    );
+  });
+
   it('downloads actor banners through the SSRF-safe media fetcher with content validation and a size cap', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://remote.example/users/alice') {
@@ -370,7 +424,6 @@ describe('federationService.fetchRemoteActor', () => {
     expect(mocks.uploadProfileBanner).not.toHaveBeenCalled();
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });
-
 });
 
 describe('federationService.syncOutboxPostsDetailed', () => {
