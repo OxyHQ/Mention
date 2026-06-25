@@ -21,7 +21,6 @@ import { IPost } from '../models/Post';
 import { IAccountList } from '../models/AccountList';
 import { io } from '../../server';
 import { oxy as oxyClient } from '../../server';
-import { feedCacheService } from '../services/FeedCacheService';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { postHydrationService } from '../services/PostHydrationService';
 import UserSettings from '../models/UserSettings';
@@ -1382,8 +1381,6 @@ class FeedController {
       // Record interaction for user preference learning
       try {
         await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'boost', { surface });
-        // Invalidate cached feed for this user
-        await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
         logger.warn('Failed to record interaction for preferences', error);
       }
@@ -1492,8 +1489,6 @@ class FeedController {
       try {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'like', { surface });
         logger.debug(`[Like] Successfully recorded interaction`);
-        // Invalidate cached feed for this user
-        await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
         logger.error(`[Like] Failed to record interaction for preferences`, error);
         // Don't fail the request if preference tracking fails, but log the error
@@ -1570,13 +1565,6 @@ class FeedController {
 
       if (!updateResult) {
         return res.status(404).json({ error: 'Post not found' });
-      }
-
-      // Invalidate cached feed for this user
-      try {
-        await feedCacheService.invalidateUserCache(currentUserId);
-      } catch (error) {
-        logger.warn('Failed to invalidate cache', error);
       }
 
       // Emit real-time update to post room only (not all clients)
@@ -1727,8 +1715,6 @@ class FeedController {
       try {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'save', { surface });
         logger.debug(`[Save] Successfully recorded interaction`);
-        // Invalidate cached feed for this user
-        await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
         logger.error(`[Save] Failed to record interaction for preferences`, error);
       }

@@ -10,7 +10,6 @@ import { createNotification, createMentionNotifications, createBatchNotification
 import PostSubscription from '../models/PostSubscription';
 import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent, PostActorSummary } from '@mention/shared-types';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
-import { feedCacheService } from '../services/FeedCacheService';
 import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
@@ -1390,7 +1389,6 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
       try {
         await userPreferenceService.recordInteraction(userId, postId, 'like', { surface });
-        await feedCacheService.invalidateUserCache(userId);
       } catch (error) {
         logger.error('Failed to record interaction for vote switch', error);
       }
@@ -1418,7 +1416,6 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     // Record interaction for user preference learning
     try {
       await userPreferenceService.recordInteraction(userId, postId, 'like', { surface });
-      await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
       logger.error('Failed to record interaction for preferences', error);
     }
@@ -1487,13 +1484,6 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       { new: true }
     ).lean();
 
-    // Invalidate cached feed for this user
-    try {
-      await feedCacheService.invalidateUserCache(userId);
-    } catch (error) {
-      logger.warn('Failed to invalidate cache', error);
-    }
-
     const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
 
     res.json({
@@ -1556,8 +1546,6 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     try {
       await userPreferenceService.recordInteraction(userId, postId, 'save', { surface });
       logger.debug('Successfully recorded interaction');
-      // Invalidate cached feed for this user
-      await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
       logger.error('Failed to record interaction for preferences', error);
       // Don't fail the request if preference tracking fails, but log the error
@@ -1593,13 +1581,6 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
         $pull: { 'metadata.savedBy': userId }
       }
     );
-
-    // Invalidate cached feed for this user
-    try {
-      await feedCacheService.invalidateUserCache(userId);
-    } catch (error) {
-      logger.warn('Failed to invalidate cache', error);
-    }
 
     res.json({ message: 'Post unsaved successfully' });
   } catch (error) {

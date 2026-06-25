@@ -265,14 +265,6 @@ export const MtnConfig = {
 
   // --- Cache TTLs (milliseconds) ---
   cache: {
-    l1: {
-      ttlMs: 60 * 1000, // 1 minute
-      maxEntries: 1000,
-      evictionPercent: 0.1,
-    },
-    l2: {
-      ttlMs: 15 * 60 * 1000, // 15 minutes
-    },
     /** Per-feed-type TTLs for frontend caching */
     feedTtl: {
       for_you: 2000,
