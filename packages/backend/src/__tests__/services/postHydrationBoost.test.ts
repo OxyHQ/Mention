@@ -312,4 +312,59 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // Remote avatar is carried through (resolved, not dropped).
     expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
   });
+
+  it('does not embed another user’s non-public quoted post as nested context', async () => {
+    service = new PostHydrationService();
+
+    const publicPostId = '650000000000000000000003';
+    const privateQuoteId = '650000000000000000000004';
+    const quoteAuthorId = 'oxy-private-author';
+
+    getUsersByIds.mockResolvedValue([
+      makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster'),
+      makeOxyUser(quoteAuthorId, 'private-author', 'Private Author'),
+    ]);
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(privateQuoteId)) {
+        return [{
+          _id: privateQuoteId,
+          oxyUserId: quoteAuthorId,
+          type: 'post',
+          content: { text: 'SECRET DRAFT PRIVATE CONTENT' },
+          stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
+          createdAt: new Date('2024-01-02T00:00:00Z'),
+          visibility: 'private',
+          status: 'draft',
+          hashtags: [],
+          mentions: [],
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await service.hydratePosts([{
+      _id: publicPostId,
+      oxyUserId: BOOSTER_OXY_ID,
+      type: 'post',
+      quoteOf: privateQuoteId,
+      content: { text: 'public wrapper' },
+      stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
+      createdAt: new Date('2024-01-03T00:00:00Z'),
+      visibility: 'public',
+      status: 'published',
+      hashtags: [],
+      mentions: [],
+    }], {
+      viewerId: VIEWER_ID,
+      maxDepth: 1,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated?.id).toBe(publicPostId);
+    expect(hydrated?.quotedPost).toBeNull();
+    expect(JSON.stringify(hydrated)).not.toContain('SECRET DRAFT PRIVATE CONTENT');
+  });
 });

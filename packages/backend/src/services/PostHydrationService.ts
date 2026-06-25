@@ -564,6 +564,31 @@ export class PostHydrationService {
   // chains keep their nested original empty rather than over-fetching.
   private static readonly MAX_FORCED_BOOST_DEPTH = 2;
 
+  private canViewerAccessPost(post: RawPost, authorId: string, viewerContext: ViewerContext): boolean {
+    const viewerId = viewerContext.viewerId;
+    const isOwner = viewerId === authorId;
+
+    // Drafts and scheduled posts are author-only. Search/feed surfaces can
+    // still hydrate an owner's own draft/scheduled post after creation or from
+    // explicit owner-only endpoints, but nested quote/boost hydration must not
+    // disclose another user's unpublished content merely because its ObjectId
+    // is referenced by a public post.
+    const status = post.status ?? 'published';
+    if (status !== 'published' && !isOwner) {
+      return false;
+    }
+
+    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
+    if (visibility === PostVisibility.PRIVATE) {
+      return isOwner;
+    }
+    if (visibility === PostVisibility.FOLLOWERS_ONLY) {
+      return isOwner || Boolean(viewerId && viewerContext.follows.has(authorId));
+    }
+
+    return true;
+  }
+
   private async collectPostsWithDepth(
     initialPosts: RawPost[],
     maxDepth: number,
@@ -1296,6 +1321,10 @@ export class PostHydrationService {
 
     // Privacy checks only apply to local users (federated posts are public by definition)
     if (!isFederatedPost) {
+      if (!this.canViewerAccessPost(post, authorId, viewerContext)) {
+        return null;
+      }
+
       if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
         return null;
       }
