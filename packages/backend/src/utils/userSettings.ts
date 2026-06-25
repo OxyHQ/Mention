@@ -71,3 +71,23 @@ export function extractPublicProfileData(doc: Partial<UserSettingsData> | null |
     profileCustomization,
   };
 }
+
+/**
+ * Returns the appropriate settings payload for a viewer.
+ *
+ * Full settings documents include private preferences (for example NSFW opt-in
+ * and hidden words) and must only be returned to the settings owner. Other
+ * authenticated viewers receive the same public-safe profile data used by
+ * profile surfaces.
+ */
+export function buildSettingsResponseForViewer(
+  doc: Partial<UserSettingsData> | null | undefined,
+  targetUserId: string,
+  viewerUserId: string,
+) {
+  if (targetUserId === viewerUserId) {
+    return doc;
+  }
+
+  return extractPublicProfileData(doc, targetUserId);
+}
