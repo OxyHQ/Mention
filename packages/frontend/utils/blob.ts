@@ -53,26 +53,29 @@ export function createTextBlob(text: string, mimeType: string = 'text/plain'): B
  * Helper function to create a Blob from binary data
  */
 export function createBinaryBlob(
-  data: ArrayBuffer | Uint8Array | ArrayBufferView | BlobPart,
+  data: BlobPart,
   mimeType: string = 'application/octet-stream'
 ): Blob {
-  return new Blob([data as any], { type: mimeType });
+  // `new Blob` here resolves to the global DOM `Blob`; its `BlobPart` differs
+  // structurally from this module's wider `BlobPart` (which includes the
+  // re-exported expo-blob type), so bridge through `globalThis.BlobPart`.
+  return new Blob([data as globalThis.BlobPart], { type: mimeType });
 }
 
 /**
  * Helper function to create a Blob from mixed content
  */
 export function createMixedBlob(
-  parts: (string | ArrayBuffer | ArrayBufferView | Blob)[],
+  parts: BlobPart[],
   mimeType: string = ''
 ): Blob {
-  return new Blob(parts as any, { type: mimeType });
+  return new Blob(parts as globalThis.BlobPart[], { type: mimeType });
 }
 
 /**
  * Helper function to check if a value is a Blob
  */
-export function isBlob(value: any): value is Blob {
+export function isBlob(value: unknown): value is Blob {
   return value instanceof Blob;
 }
 

@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  type GestureResponderEvent,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { BlurView } from 'expo-blur';
@@ -164,7 +165,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     stableOnClose();
   }, [stableOnClose]);
 
-  const handleContentPress = useCallback((e: any) => {
+  const handleContentPress = useCallback((e: GestureResponderEvent) => {
     e.stopPropagation();
   }, []);
 

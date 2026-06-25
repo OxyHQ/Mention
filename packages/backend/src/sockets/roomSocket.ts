@@ -7,8 +7,11 @@ import { updateRoomParticipantPermissions } from '../utils/livekit';
 import { emitLiveRoomsUpdated } from '../utils/socket';
 
 interface AuthenticatedSocket extends Socket {
-  user?: { id: string; [key: string]: any };
+  user?: { id: string; [key: string]: unknown };
 }
+
+/** Socket.IO ack payload: always carries `success`, plus handler-specific fields. */
+type RoomAck = (res: { success: boolean; [key: string]: unknown }) => void;
 
 // --- Redis key helpers ---
 
@@ -212,7 +215,7 @@ export function initializeRoomSocket(io: Server): Namespace {
     /**
      * Join a room
      */
-    socket.on('room:join', async (data: { roomId: string }, callback?: (res: any) => void) => {
+    socket.on('room:join', async (data: { roomId: string }, callback?: RoomAck) => {
       try {
         const { roomId } = data || {};
 
@@ -279,7 +282,7 @@ export function initializeRoomSocket(io: Server): Namespace {
         });
 
         // Update DB: add to participants if not already there
-        const isNewJoin = !room.participants.some((p: any) => String(p) === String(userId));
+        const isNewJoin = !room.participants.some((p) => String(p) === String(userId));
         await Room.findByIdAndUpdate(roomId, {
           $addToSet: { participants: userId },
           ...(isNewJoin ? { $inc: { 'stats.totalJoined': 1 } } : {}),
@@ -373,7 +376,7 @@ export function initializeRoomSocket(io: Server): Namespace {
      * Request to speak (listener -> host)
      * Rejected for BROADCAST rooms (no speaking allowed).
      */
-    socket.on('speaker:request', async (data: { roomId: string }, callback?: (res: any) => void) => {
+    socket.on('speaker:request', async (data: { roomId: string }, callback?: RoomAck) => {
       try {
         const { roomId } = data || {};
         if (!roomId) return;
@@ -431,7 +434,7 @@ export function initializeRoomSocket(io: Server): Namespace {
      * Approve speaker request (host only)
      * Rejected for BROADCAST rooms.
      */
-    socket.on('speaker:approve', async (data: { roomId: string; targetUserId: string }, callback?: (res: any) => void) => {
+    socket.on('speaker:approve', async (data: { roomId: string; targetUserId: string }, callback?: RoomAck) => {
       try {
         const { roomId, targetUserId } = data || {};
         if (!roomId || !targetUserId) return;
@@ -504,7 +507,7 @@ export function initializeRoomSocket(io: Server): Namespace {
      * Remove speaker (host only, demote back to listener)
      * Rejected for BROADCAST rooms.
      */
-    socket.on('speaker:remove', async (data: { roomId: string; targetUserId: string }, callback?: (res: any) => void) => {
+    socket.on('speaker:remove', async (data: { roomId: string; targetUserId: string }, callback?: RoomAck) => {
       try {
         const { roomId, targetUserId } = data || {};
         if (!roomId || !targetUserId) return;

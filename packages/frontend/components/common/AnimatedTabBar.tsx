@@ -1,5 +1,5 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, ScrollView, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
 import { cn } from '@/lib/utils';
 
@@ -13,7 +13,7 @@ interface AnimatedTabBarProps {
     activeTabId: string;
     onTabPress: (tabId: string) => void;
     scrollEnabled?: boolean;
-    style?: any;
+    style?: StyleProp<ViewStyle>;
     instanceId?: string;
 }
 
@@ -78,7 +78,7 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
             if (ref) {
                 const containerWidth = containerWidthRef.current || 300;
                 const scrollTo = Math.max(0, layout.x + layout.width / 2 - containerWidth / 2);
-                (ref as any).scrollTo?.({ x: scrollTo, animated: shouldAnimate });
+                ref.scrollTo({ x: scrollTo, animated: shouldAnimate });
             }
         }
     }, [activeTabId, indicatorPosition, indicatorWidth, layoutReady, instanceId, scrollEnabled]);

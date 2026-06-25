@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useAuth } from '@oxyhq/services';
 import { usePrivacyControls } from './usePrivacyControls';
 import { useCurrentUserPrivacySettings } from './usePrivacySettings';
-import { extractAuthorId } from '@/utils/postUtils';
+import { extractAuthorId, type AuthorBearingItem } from '@/utils/postUtils';
 
 interface PostPrivacyResult {
     isAuthorBlocked: boolean;
@@ -13,7 +13,7 @@ interface PostPrivacyResult {
     hideSaveCounts: boolean;
 }
 
-export function usePostPrivacy(post: any): PostPrivacyResult {
+export function usePostPrivacy(post: AuthorBearingItem | null | undefined): PostPrivacyResult {
     const { blockedSet, restrictedSet } = usePrivacyControls({ autoRefresh: false });
     const currentUserPrivacySettings = useCurrentUserPrivacySettings();
 

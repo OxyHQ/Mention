@@ -14,8 +14,9 @@ import {
 import { Loading } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/lib/logger';
-import { classifyApiError, type ApiErrorReason } from '@/utils/apiError';
+import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { useAuth } from '@oxyhq/services';
+import type { FileMetadata } from '@oxyhq/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
@@ -856,7 +857,7 @@ const ComposeScreen = () => {
         multiSelect: true,
         disabledMimeTypes: ['audio/', 'application/pdf'],
         afterSelect: 'back',
-        onSelect: async (file: any) => {
+        onSelect: async (file: FileMetadata) => {
           const isImage = file?.contentType?.startsWith?.('image/');
           const isVideo = file?.contentType?.startsWith?.('video/');
           if (!isImage && !isVideo) {
@@ -868,11 +869,11 @@ const ComposeScreen = () => {
             const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
             addThreadMedia(threadId, mediaItem);
             toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
-          } catch (e: any) {
-            toast(e?.message || t('Failed to attach media'), { type: 'error' });
+          } catch (e: unknown) {
+            toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
           }
         },
-        onConfirmSelection: async (files: any[]) => {
+        onConfirmSelection: async (files: FileMetadata[]) => {
           const validFiles = (files || []).filter(f => {
             const contentType = f?.contentType || '';
             return contentType.startsWith('image/') || contentType.startsWith('video/');
@@ -932,7 +933,7 @@ const ComposeScreen = () => {
     updateThreadText(threadId, text);
   }, [updateThreadText]);
 
-  const handleThreadMentionsChange = useCallback((threadId: string, m: any[]) => {
+  const handleThreadMentionsChange = useCallback((threadId: string, m: MentionData[]) => {
     updateThreadMentions(threadId, m);
   }, [updateThreadMentions]);
 
@@ -954,8 +955,8 @@ const ComposeScreen = () => {
               const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
               addThreadMedia(threadId, mediaItem);
               toast(t('GIF attached'), { type: 'success' });
-            } catch (error: any) {
-              toast(error?.message || t('Failed to attach GIF'), { type: 'error' });
+            } catch (error: unknown) {
+              toast(normalizeApiError(error).message || t('Failed to attach GIF'), { type: 'error' });
             }
           }}
         />

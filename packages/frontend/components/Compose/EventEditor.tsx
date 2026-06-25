@@ -76,7 +76,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 
     const handleTimeChange = React.useCallback((params: { date: DateType }) => {
         if (params.date) {
-            const selectedTime = new Date(params.date as any);
+            const selectedTime = new Date(params.date.valueOf());
             // Merge with existing date if we're just changing the time
             const currentDateTime = eventDate;
             const newDateTime = new Date(currentDateTime);

@@ -23,7 +23,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import SEO from '@/components/SEO';
 
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, type Theme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
@@ -37,14 +37,14 @@ import { reportService } from '@/services/reportService';
 import { ReportModal } from '@/components/report/ReportModal';
 
 // Wrapper to use useUserById hook for each participant
-const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: any }) => {
+const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: unknown }) => {
   const profile = useUserById(userId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
   return <Avatar size={32} source={avatarUri} shape="squircle" />;
 };
 
 // Host info with resolved profile
-const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices: any; theme: any }) => {
+const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices: unknown; theme: Theme }) => {
   const profile = useUserById(hostId);
   const displayName = getDisplayName(profile, hostId);
   const avatarUri = getAvatarUrl(profile, oxyServices);

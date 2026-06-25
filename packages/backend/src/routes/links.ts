@@ -61,7 +61,7 @@ router.get('/metadata', async (req: AuthRequest, res: Response) => {
         success: true,
         ...metadata,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Even if fetch fails, return basic metadata
       logger.error('[Links] Error in fetchMetadata, returning basic metadata:', { userId: req.user?.id, url: req.query.url, error });
       try {
@@ -81,12 +81,12 @@ router.get('/metadata', async (req: AuthRequest, res: Response) => {
         });
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[Links] Error fetching metadata:', { userId: req.user?.id, url: req.query.url, error });
     res.status(500).json({
       success: false,
       message: 'Failed to fetch link metadata',
-      error: error?.message || 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -129,12 +129,12 @@ router.post('/clear-cache', linkCacheClearRateLimiter, requireAuth, async (req: 
       message: 'Link cache cleared successfully',
       clearedImages,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[Links] Error clearing cache:', { userId: req.user?.id, error });
     res.status(500).json({
       success: false,
       message: 'Failed to clear cache',
-      error: error?.message || 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -194,12 +194,12 @@ router.post('/refresh', linkRefreshRateLimiter, requireAuth, async (req: AuthReq
       message: 'Link refreshed successfully',
       ...metadata,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[Links] Error refreshing link:', { userId: req.user?.id, url: req.body.url, error });
     res.status(500).json({
       success: false,
       message: 'Failed to refresh link',
-      error: error?.message || 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -231,7 +231,7 @@ router.get('/images/:cacheKey', async (req: AuthRequest, res: Response) => {
     const { getCdnUrl } = require('../utils/spaces.js');
     const cdnUrl = getCdnUrl(`link-previews/${cacheKey}`);
     return res.redirect(301, cdnUrl);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[Links] Error serving cached image:', { cacheKey: req.params.cacheKey, error });
     res.status(500).json({
       success: false,

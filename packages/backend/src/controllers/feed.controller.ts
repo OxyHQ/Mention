@@ -179,7 +179,9 @@ class FeedController {
    * @param currentUserId - Current user ID for personalization
    * @returns Array of hydrated posts with user data and engagement stats
    */
-  private async transformPostsWithProfiles(posts: object[], currentUserId?: string, oxyClient?: OxyClient): Promise<HydratedPost[]> {
+  // Public because the list-timeline route (`routes/lists.ts`) reuses the same
+  // hydration path as the controller's own feed endpoints.
+  async transformPostsWithProfiles(posts: object[], currentUserId?: string, oxyClient?: OxyClient): Promise<HydratedPost[]> {
     try {
       if (!posts || posts.length === 0) {
         return [];

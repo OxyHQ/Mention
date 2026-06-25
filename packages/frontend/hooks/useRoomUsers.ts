@@ -11,7 +11,7 @@ import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
  */
 export function getAvatarUrl(
   userProfile: import('@mention/agora-shared').UserEntity | undefined,
-  oxyServices: any,
+  oxyServices: unknown,
 ): string | undefined {
   return _getAvatarUrl(userProfile, oxyServices, getCachedFileDownloadUrlSync);
 }

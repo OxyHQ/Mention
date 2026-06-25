@@ -8,11 +8,21 @@ import mongoose from 'mongoose';
 import { buildFeedCursor, validateCursorAdvanced, deduplicatePosts, validateResultSize } from './feedUtils';
 import { logger } from './logger';
 
+/**
+ * Raw feed post document (lean or hydrated Mongo result) before
+ * hydration/transformation. Only the identity fields the builder reads are
+ * declared; concrete Post documents are structurally assignable.
+ */
+export interface RawFeedPost {
+  _id?: string | mongoose.Types.ObjectId;
+  id?: string;
+}
+
 export interface FeedResponseOptions {
-  posts: any[];
+  posts: RawFeedPost[];
   limit: number;
   previousCursor?: string;
-  transformPosts?: (posts: any[], currentUserId?: string) => Promise<HydratedPost[]>;
+  transformPosts?: (posts: RawFeedPost[], currentUserId?: string) => Promise<HydratedPost[]>;
   currentUserId?: string;
   validateSize?: boolean;
 }
@@ -57,12 +67,12 @@ export class FeedResponseBuilder {
         // Return raw posts instead of empty array to preserve data
         transformedPosts = postsToReturn.map(post => ({
           ...post,
-          id: post._id?.toString() || post.id,
+          id: (post._id != null ? String(post._id) : undefined) ?? post.id,
           _transformError: true, // Flag to indicate transformation failed
-        })) as HydratedPost[];
+        })) as unknown as HydratedPost[];
       }
     } else {
-      transformedPosts = postsToReturn as HydratedPost[];
+      transformedPosts = postsToReturn as unknown as HydratedPost[];
     }
 
     // Final deduplication after transformation
@@ -98,10 +108,10 @@ export class FeedResponseBuilder {
    * Build response for saved posts with special handling
    */
   static async buildSavedPostsResponse(
-    posts: any[],
+    posts: RawFeedPost[],
     limit: number,
     previousCursor?: string,
-    transformPosts?: (posts: any[], currentUserId?: string) => Promise<HydratedPost[]>,
+    transformPosts?: (posts: RawFeedPost[], currentUserId?: string) => Promise<HydratedPost[]>,
     currentUserId?: string
   ): Promise<FeedResponse> {
     // For saved posts, mark all posts as saved after transformation
@@ -112,15 +122,21 @@ export class FeedResponseBuilder {
       transformPosts: async (postsToTransform, userId) => {
         const transformed = transformPosts
           ? await transformPosts(postsToTransform, userId)
-          : (postsToTransform as HydratedPost[]);
+          : (postsToTransform as unknown as HydratedPost[]);
 
-        // Mark all posts as saved
-        transformed.forEach((post: any) => {
-          post.isSaved = true;
-          if (post.metadata) {
-            post.metadata.isSaved = true;
+        // Mark all posts as saved. `isSaved` is a client-facing runtime flag the
+        // saved-feed adds on top of the hydrated shape, so it's written through a
+        // narrow saved-state view rather than widening HydratedPost.
+        transformed.forEach((post) => {
+          const savedState = post as Omit<HydratedPost, 'metadata'> & {
+            isSaved?: boolean;
+            metadata?: { isSaved?: boolean };
+          };
+          savedState.isSaved = true;
+          if (savedState.metadata) {
+            savedState.metadata.isSaved = true;
           } else {
-            post.metadata = { isSaved: true };
+            savedState.metadata = { isSaved: true };
           }
         });
 

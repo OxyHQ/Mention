@@ -36,7 +36,13 @@ export default function LanguageSettingsScreen() {
     const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
     const setAutoTranslateEnabled = useAutoTranslateStore((s) => s.setEnabled);
     const { user: authUser } = useAuth();
-    const isPremium = (authUser as any)?.premium?.isPremium ?? false;
+    // `premium` is not in the core `User` type (it arrives via the index
+    // signature as `unknown`); narrow defensively instead of an `as any` cast.
+    const premium = authUser?.premium;
+    const isPremium =
+        typeof premium === 'object' && premium !== null && 'isPremium' in premium
+            ? Boolean((premium as { isPremium?: boolean }).isPremium)
+            : false;
     const router = useRouter();
 
     useEffect(() => {

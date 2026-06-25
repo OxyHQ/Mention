@@ -1,11 +1,11 @@
 import { usePostsStore } from '@/stores/postsStore';
-import { getPostById as dbGetPostById } from '@/db';
+import { getPostById as dbGetPostById, type FeedItem } from '@/db';
 import { logger } from '@/lib/logger';
 
 /**
  * Get post from store by ID — reads from SQLite cache
  */
-export function getPostFromStore(postId: string | undefined): any {
+export function getPostFromStore(postId: string | undefined): FeedItem | null {
     if (!postId) return null;
     
     try {

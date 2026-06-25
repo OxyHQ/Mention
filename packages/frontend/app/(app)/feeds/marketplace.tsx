@@ -26,8 +26,20 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
+import type { CustomFeed } from '@mention/shared-types';
 
 const PAGE_LIMIT = 20;
+
+/**
+ * A `CustomFeed` as returned by the `/feeds/marketplace` endpoint, which
+ * enriches each item with a resolved owner summary, member avatar URLs, and a
+ * derived topic count (see `customFeeds.routes.ts` normalization).
+ */
+type MarketplaceFeed = CustomFeed & {
+  owner?: { username?: string; displayName?: string; avatar?: string };
+  memberAvatars?: string[];
+  topicCount?: number;
+};
 
 type SortBy = 'trending' | 'top_rated' | 'newest';
 
@@ -87,7 +99,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
   onSubscribeToggle,
   subscribingId,
 }: {
-  item: any;
+  item: MarketplaceFeed;
   onSubscribeToggle: (id: string, isSubscribed: boolean) => void;
   subscribingId: string | null;
 }) {
@@ -107,7 +119,6 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
     id: feedId,
     displayName: item.title,
     description: item.description,
-    avatar: item.avatar,
     creator: item.owner
       ? {
           username: item.owner.username || '',
@@ -166,7 +177,7 @@ export default function FeedMarketplaceScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
 
-  const [feeds, setFeeds] = useState<any[]>([]);
+  const [feeds, setFeeds] = useState<MarketplaceFeed[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -315,7 +326,7 @@ export default function FeedMarketplaceScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: any }) => (
+    ({ item }: { item: MarketplaceFeed }) => (
       <MarketplaceFeedCard
         item={item}
         onSubscribeToggle={handleSubscribeToggle}
@@ -326,7 +337,7 @@ export default function FeedMarketplaceScreen() {
   );
 
   const keyExtractor = useCallback(
-    (item: any) => String(item._id || item.id),
+    (item: MarketplaceFeed) => String(item._id || item.id),
     [],
   );
 

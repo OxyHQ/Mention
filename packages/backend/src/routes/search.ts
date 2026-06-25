@@ -108,7 +108,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     } = req.query;
 
     const currentUserId = req.user?.id;
-    const results: any = { posts: [] };
+    const results: { posts: unknown[]; hasMore?: boolean; nextCursor?: string } = { posts: [] };
 
     if (type === "all" || type === "posts") {
       // Parse search operators from query string
@@ -116,7 +116,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const operators = parseSearchOperators(rawQuery);
 
       // Build query with filters
-      const filter: any = {};
+      const filter: Record<string, unknown> = {};
 
       // Text search with escaped regex (prevent ReDoS)
       if (operators.textQuery) {
@@ -133,8 +133,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       if (operators.from) {
         try {
           const profile = await oxyClient.getProfileByUsername(operators.from);
-          if (profile && (profile as any)._id) {
-            filter.oxyUserId = String((profile as any)._id);
+          // Canonical id is `profile.id`; tolerate a legacy `_id` field if present.
+          const profileId = profile?.id ?? (profile as { _id?: string } | null)?._id;
+          if (profileId) {
+            filter.oxyUserId = String(profileId);
           } else {
             // Username not found - return empty results
             res.json({ posts: [], hasMore: false });
@@ -152,7 +154,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const effectiveDateTo = operators.until || (typeof dateTo === 'string' ? dateTo : undefined);
 
       if (effectiveDateFrom || effectiveDateTo) {
-        filter.createdAt = {};
+        const createdAtFilter: { $gte?: Date; $lte?: Date } = {};
         let fromDate: Date | undefined;
         let toDate: Date | undefined;
 
@@ -161,14 +163,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           if (isNaN(fromDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateFrom format' });
           }
-          filter.createdAt.$gte = fromDate;
+          createdAtFilter.$gte = fromDate;
         }
         if (effectiveDateTo) {
           toDate = new Date(effectiveDateTo);
           if (isNaN(toDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateTo format' });
           }
-          filter.createdAt.$lte = toDate;
+          createdAtFilter.$lte = toDate;
         }
 
         // Validate date range span
@@ -184,9 +186,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           }
         }
 
-        // Remove empty date filter if no valid dates
-        if (Object.keys(filter.createdAt).length === 0) {
-          delete filter.createdAt;
+        // Only attach the date filter when at least one valid bound was parsed.
+        if (Object.keys(createdAtFilter).length > 0) {
+          filter.createdAt = createdAtFilter;
         }
       }
 
@@ -219,8 +221,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         const linkCondition = { 'content.text': { $regex: 'https?://', $options: 'i' } };
         if (filter.$or) {
           // Combine with existing text search using $and
-          filter.$and = filter.$and || [];
-          filter.$and.push(linkCondition);
+          const andClauses = Array.isArray(filter.$and) ? filter.$and : [];
+          andClauses.push(linkCondition);
+          filter.$and = andClauses;
         } else {
           filter['content.text'] = { $regex: 'https?://', $options: 'i' };
         }

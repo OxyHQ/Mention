@@ -37,7 +37,7 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
     const posts = await Post.find({
       oxyUserId: userId,
       createdAt: { $gte: startDate, $lte: endDate }
-    } as any).lean();
+    } as Record<string, unknown>).lean();
 
     // Aggregate stats
     const totalPosts = posts.length;
@@ -297,7 +297,7 @@ export const getFollowerChanges = async (req: AuthRequest, res: Response) => {
     const posts = await Post.find({
       oxyUserId: userId,
       createdAt: { $gte: startDate, $lte: endDate }
-    } as any).lean();
+    } as Record<string, unknown>).lean();
 
     // Estimate follower engagement based on interactions
     const totalInteractions = posts.reduce((sum, post) => {
@@ -345,7 +345,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
     const posts = await Post.find({
       oxyUserId: userId,
       createdAt: { $gte: startDate, $lte: endDate }
-    } as any).lean();
+    } as Record<string, unknown>).lean();
 
     let totalViews = 0;
     let totalLikes = 0;
@@ -443,7 +443,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     const posts = await Post.find({
       oxyUserId: userId,
       createdAt: { $gte: startDate, $lte: now },
-    } as any).lean();
+    } as Record<string, unknown>).lean();
 
     // Split into current week (last 7 days) and previous week (days 8-14)
     const sevenDaysAgo = new Date();

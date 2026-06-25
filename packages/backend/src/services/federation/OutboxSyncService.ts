@@ -508,8 +508,10 @@ export class OutboxSyncService {
 
       logger.debug(`[FedSync] ${candidates.length} candidates (${noteCandidates.length} notes, ${announceCandidates.length} announces), ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
 
-      // Build documents for batch insert
-      const newDocs: any[] = [];
+      // Build documents for batch insert. Raw insert docs (bypass Mongoose) — a
+      // loose record shape since they are assembled field-by-field below and
+      // inserted via `Post.collection.insertMany`.
+      const newDocs: Record<string, unknown>[] = [];
       for (const { note, activity, activityId } of noteCandidates) {
         if (existingIds.has(activityId)) continue;
 
@@ -578,7 +580,7 @@ export class OutboxSyncService {
             sensitive: note.sensitive || false,
             spoilerText: note.summary || undefined,
           },
-          type: media.length > 0 ? (media.some((m: any) => m.type === 'video') ? 'video' : 'image') : 'text',
+          type: media.length > 0 ? (media.some((m) => m.type === 'video') ? 'video' : 'image') : 'text',
           content: {
             text,
             media: media.length > 0 ? media : undefined,
@@ -613,28 +615,35 @@ export class OutboxSyncService {
       }
 
       // Strip empty location/coordinates from content to avoid 2dsphere index errors
+      const hasInvalidCoords = (loc: unknown): boolean => {
+        if (!loc || typeof loc !== 'object') return false;
+        const coords = (loc as { coordinates?: unknown }).coordinates;
+        return !Array.isArray(coords) || coords.length !== 2;
+      };
       for (const doc of newDocs) {
-        if (doc.content?.location) {
-          if (!doc.content.location.coordinates || doc.content.location.coordinates.length !== 2) {
-            delete doc.content.location;
-          }
+        const content = doc.content as { location?: unknown } | undefined;
+        if (content?.location && hasInvalidCoords(content.location)) {
+          delete content.location;
         }
-        if (doc.location) {
-          if (!doc.location.coordinates || doc.location.coordinates.length !== 2) {
-            delete doc.location;
-          }
+        if (doc.location && hasInvalidCoords(doc.location)) {
+          delete doc.location;
         }
       }
 
       // Batch insert using raw collection to bypass Mongoose schema defaults
       // (Mongoose adds empty location.coordinates which breaks 2dsphere index)
       if (newDocs.length > 0) {
-        await Post.collection.insertMany(newDocs, { ordered: false }).catch((err: any) => {
-          // Partial write errors (duplicate key) are expected — log but don't throw
-          const writeErrors = err?.writeErrors || [];
-          const unexpectedErrors = writeErrors.filter((e: any) => e.err?.code !== 11000);
+        await Post.collection.insertMany(newDocs, { ordered: false }).catch((err: unknown) => {
+          // Partial write errors (duplicate key) are expected — log but don't throw.
+          // Bulk-write errors carry `writeErrors: [{ err: { code, errmsg } }]`.
+          type BulkWriteEntry = { err?: { code?: number; errmsg?: string } };
+          const writeErrors: BulkWriteEntry[] =
+            err && typeof err === 'object' && Array.isArray((err as { writeErrors?: unknown }).writeErrors)
+              ? ((err as { writeErrors: BulkWriteEntry[] }).writeErrors)
+              : [];
+          const unexpectedErrors = writeErrors.filter((e) => e.err?.code !== 11000);
           if (unexpectedErrors.length > 0) {
-            logger.warn(`[FedSync] insertMany unexpected errors: ${unexpectedErrors.map((e: any) => e.err?.errmsg).join('; ')}`);
+            logger.warn(`[FedSync] insertMany unexpected errors: ${unexpectedErrors.map((e) => e.err?.errmsg).join('; ')}`);
           }
           if (writeErrors.length > 0 && writeErrors.length < newDocs.length) {
             logger.debug(`[FedSync] insertMany partial: ${writeErrors.length} errors, ${newDocs.length - writeErrors.length} inserted`);

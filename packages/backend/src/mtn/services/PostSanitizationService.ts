@@ -156,9 +156,10 @@ export class PostSanitizationService {
    * Sanitize article input, returning undefined when the data is empty/invalid.
    */
   static sanitizeArticle(
-    input: any,
+    rawInput: unknown,
   ): { title?: string; body?: string } | undefined {
-    if (!input || typeof input !== 'object') return undefined;
+    if (!rawInput || typeof rawInput !== 'object') return undefined;
+    const input = rawInput as Record<string, unknown>;
     const title =
       typeof input.title === 'string'
         ? input.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH)
@@ -172,7 +173,7 @@ export class PostSanitizationService {
    * Sanitize event data. Returns null when required fields (name, date) are missing.
    */
   static sanitizeEventData(
-    eventData: any,
+    rawEventData: unknown,
   ): {
     eventId?: string;
     name?: string;
@@ -180,7 +181,8 @@ export class PostSanitizationService {
     location?: string;
     description?: string;
   } | null {
-    if (!eventData || typeof eventData !== 'object') return null;
+    if (!rawEventData || typeof rawEventData !== 'object') return null;
+    const eventData = rawEventData as Record<string, unknown>;
 
     const sanitized = {
       eventId:
@@ -221,7 +223,7 @@ export class PostSanitizationService {
    * Sanitize room / space data. Returns null when required fields are missing.
    */
   static sanitizeRoomData(
-    roomData: any,
+    rawRoomData: unknown,
   ): {
     roomId: string;
     title: string;
@@ -229,7 +231,8 @@ export class PostSanitizationService {
     topic?: string;
     host?: string;
   } | null {
-    if (!roomData || typeof roomData !== 'object') return null;
+    if (!rawRoomData || typeof rawRoomData !== 'object') return null;
+    const roomData = rawRoomData as Record<string, unknown>;
     const id = roomData.roomId ?? roomData.spaceId;
     if (typeof id !== 'string' || typeof roomData.title !== 'string') return null;
 
@@ -251,13 +254,13 @@ export class PostSanitizationService {
    * Normalize a heterogeneous media array into a deduplicated list of
    * `{ id, type, mime? }` items.
    */
-  static normalizeMediaItems(arr: any): NormalizedMediaItem[] {
+  static normalizeMediaItems(arr: unknown): NormalizedMediaItem[] {
     if (!Array.isArray(arr)) return [];
 
     const seen = new Set<string>();
     const normalized: NormalizedMediaItem[] = [];
 
-    arr.forEach((item: any) => {
+    arr.forEach((item: unknown) => {
       if (!item) return;
 
       if (typeof item === 'string') {
@@ -269,14 +272,15 @@ export class PostSanitizationService {
       }
 
       if (typeof item === 'object') {
-        const rawId = item.id || item.fileId || item._id || item.mediaId;
+        const mediaItem = item as Record<string, unknown>;
+        const rawId = mediaItem.id || mediaItem.fileId || mediaItem._id || mediaItem.mediaId;
         if (!rawId) return;
         const id = String(rawId);
         if (!id || seen.has(id)) return;
 
-        const rawType = (item.type || item.mediaType || '').toString().toLowerCase();
-        const mimeValue = item.mime || item.contentType;
-        const rawMime = mimeValue ? mimeValue.toString().toLowerCase() : '';
+        const rawType = String(mediaItem.type || mediaItem.mediaType || '').toLowerCase();
+        const mimeValue = mediaItem.mime || mediaItem.contentType;
+        const rawMime = mimeValue ? String(mimeValue).toLowerCase() : '';
 
         let resolvedType: 'image' | 'video' | 'gif';
         if (rawType === 'video' || rawMime.startsWith('video/')) {

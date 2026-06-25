@@ -11,7 +11,7 @@ import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
-import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import MentionTextInput, { MentionTextInputHandle, type MentionData } from '@/components/MentionTextInput';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
@@ -36,7 +36,7 @@ interface ComposeThreadItemProps {
   userVerified: boolean;
   // Stable callback refs — parent must wrap these in useCallback
   onTextChange: (threadId: string, text: string) => void;
-  onMentionsChange: (threadId: string, mentions: any[]) => void;
+  onMentionsChange: (threadId: string, mentions: MentionData[]) => void;
   onFocus: (threadId: string) => void;
   onRemove: (threadId: string) => void;
   onMediaPress: (threadId: string) => void;
@@ -119,7 +119,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
 
   // Stable callbacks bound to this thread item's id
   const handleTextChange = useCallback((v: string) => onTextChange(threadId, v), [threadId, onTextChange]);
-  const handleMentionsChange = useCallback((m: any[]) => onMentionsChange(threadId, m), [threadId, onMentionsChange]);
+  const handleMentionsChange = useCallback((m: MentionData[]) => onMentionsChange(threadId, m), [threadId, onMentionsChange]);
   const handleFocus = useCallback(() => onFocus(threadId), [threadId, onFocus]);
   const handleRemove = useCallback(() => onRemove(threadId), [threadId, onRemove]);
   const handleMediaPress = useCallback(() => onMediaPress(threadId), [threadId, onMediaPress]);

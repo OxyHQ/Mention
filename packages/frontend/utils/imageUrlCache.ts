@@ -7,6 +7,22 @@
 
 import { API_URL, OXY_BASE_URL } from '@/config';
 
+/**
+ * The subset of `OxyServices` these resolvers actually call. Accepting this
+ * structural shape (rather than `any`) keeps the param assignable from the SDK
+ * client AND from `unknown`-typed callers (agora-shared passes `unknown`), which
+ * we narrow at the call site with optional chaining.
+ */
+interface FileUrlResolver {
+  getFileDownloadUrl?: (fileId: string, variant?: string, expiresIn?: number) => string | undefined;
+  getFileDownloadUrlAsync?: (fileId: string, variant?: string, expiresIn?: number) => Promise<string>;
+}
+
+/** Narrow an `unknown` services value to the {@link FileUrlResolver} shape. */
+function asFileUrlResolver(value: unknown): FileUrlResolver | undefined {
+  return value && typeof value === 'object' ? (value as FileUrlResolver) : undefined;
+}
+
 // Backend media proxy: streams remote media with CORS + cache + HTTP Range, and
 // survives expiring upstream links. See backend `GET /media/proxy?url=<encoded>`.
 const MEDIA_PROXY_PATH = '/media/proxy';
@@ -281,11 +297,12 @@ if (typeof window !== 'undefined') {
  * Uses async method when available, falls back to sync method
  */
 export async function getCachedFileDownloadUrl(
-  oxyServices: any,
+  oxyServices: unknown,
   fileId: string,
   variant?: string,
   expiresIn?: number
 ): Promise<string> {
+  const resolver = asFileUrlResolver(oxyServices);
   // Absolute HTTP URLs are already FINAL, ready-to-render URLs resolved by the
   // backend (our CDN/media-proxy, or a remote one the server chose to expose).
   // Return as-is — the client no longer rewrites them.
@@ -300,9 +317,9 @@ export async function getCachedFileDownloadUrl(
   }
 
   // Try async method if available
-  if (oxyServices?.getFileDownloadUrlAsync) {
+  if (resolver?.getFileDownloadUrlAsync) {
     try {
-      const url = await oxyServices.getFileDownloadUrlAsync(fileId, variant, expiresIn);
+      const url = await resolver.getFileDownloadUrlAsync(fileId, variant, expiresIn);
       const ttl = expiresIn ? expiresIn * 1000 : undefined;
       imageUrlCache.set(fileId, url, variant, ttl);
       return url;
@@ -312,7 +329,7 @@ export async function getCachedFileDownloadUrl(
   }
 
   // Fallback to sync method
-  const url = oxyServices?.getFileDownloadUrl?.(fileId, variant, expiresIn);
+  const url = resolver?.getFileDownloadUrl?.(fileId, variant, expiresIn);
   if (!url || !url.startsWith('http')) {
     // Don't cache invalid URLs — return raw fileId so next render retries
     return fileId;
@@ -327,7 +344,7 @@ export async function getCachedFileDownloadUrl(
  * Use this when you need immediate return (e.g., in render)
  */
 export function getCachedFileDownloadUrlSync(
-  oxyServices: any,
+  oxyServices: unknown,
   fileId: string,
   variant?: string,
   expiresIn?: number
@@ -346,7 +363,7 @@ export function getCachedFileDownloadUrlSync(
   }
 
   // Generate URL using sync method
-  const url = oxyServices?.getFileDownloadUrl?.(fileId, variant, expiresIn);
+  const url = asFileUrlResolver(oxyServices)?.getFileDownloadUrl?.(fileId, variant, expiresIn);
   if (!url || !url.startsWith('http')) {
     // Don't cache invalid URLs — return raw fileId so next render retries
     return fileId;

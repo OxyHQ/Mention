@@ -133,13 +133,17 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
 
       observerRef.current = observer;
 
-      // Try to find DOM element
-      const element = (viewRef.current as any)?._nativeNode ||
-        (viewRef.current as any)?.getNode?.() ||
-        (viewRef.current as any);
+      // Try to find the underlying DOM node. react-native-web exposes it via
+      // `_nativeNode`/`getNode()` (neither is on the typed View ref), with the
+      // ref itself as a last resort. Narrow structurally instead of `as any`.
+      const ref = viewRef.current as
+        | (View & { _nativeNode?: Element; getNode?: () => Element })
+        | null;
+      const element: Element | View | null =
+        ref?._nativeNode ?? ref?.getNode?.() ?? ref;
 
-      if (element && element.nodeType !== undefined) {
-        observer.observe(element);
+      if (element && (element as Partial<Element>).nodeType !== undefined) {
+        observer.observe(element as Element);
       } else {
         // Fallback: load after short delay
         setTimeout(() => setImgState({ shouldLoad: true }), 50);

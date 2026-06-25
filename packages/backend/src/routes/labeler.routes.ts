@@ -58,7 +58,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       settings?.privacy?.labelPreferences?.subscribedLabelers ?? []
     );
 
-    const items = labelers.map((l: any) => {
+    const items = labelers.map((l) => {
       const id = String(l._id);
       return { ...l, id, isSubscribed: subscribedSet.has(id) };
     });
@@ -134,10 +134,11 @@ router.delete('/labels/:id', async (req: AuthRequest, res: Response) => {
 
     await LabelService.removeLabel(labelId, userId);
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[Labelers] Remove label error:', { userId: req.user?.id, labelId: req.params.id, error });
-    if (error?.message === 'Label not found') return res.status(404).json({ error: error.message });
-    if (error?.message === 'Not authorised to remove this label') return res.status(403).json({ error: error.message });
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'Label not found') return res.status(404).json({ error: message });
+    if (message === 'Not authorised to remove this label') return res.status(403).json({ error: message });
     res.status(500).json({ error: 'Failed to remove label' });
   }
 });
@@ -212,9 +213,9 @@ router.post('/:id/subscribe', validateObjectId('id'), async (req: AuthRequest, r
 
     await LabelService.subscribeToLabeler(userId, String(req.params.id));
     res.json({ success: true, subscribed: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[Labelers] Subscribe error:', { userId: req.user?.id, labelerId: req.params.id, error });
-    if (error?.message === 'Labeler not found') return res.status(404).json({ error: error.message });
+    if (error instanceof Error && error.message === 'Labeler not found') return res.status(404).json({ error: error.message });
     res.status(500).json({ error: 'Failed to subscribe to labeler' });
   }
 });
@@ -229,9 +230,9 @@ router.delete('/:id/subscribe', validateObjectId('id'), async (req: AuthRequest,
 
     await LabelService.unsubscribeFromLabeler(userId, String(req.params.id));
     res.json({ success: true, subscribed: false });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[Labelers] Unsubscribe error:', { userId: req.user?.id, labelerId: req.params.id, error });
-    if (error?.message === 'Labeler not found') return res.status(404).json({ error: error.message });
+    if (error instanceof Error && error.message === 'Labeler not found') return res.status(404).json({ error: error.message });
     res.status(500).json({ error: 'Failed to unsubscribe from labeler' });
   }
 });

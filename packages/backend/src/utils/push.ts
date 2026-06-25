@@ -102,7 +102,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   }
 }
 
-export async function formatPushForNotification(n: any) {
+export async function formatPushForNotification(n: HydratedDocument<INotification>) {
   // Best-effort: hydrate actor for title/body
   let actorName = 'Someone';
   try {
@@ -131,7 +131,7 @@ export async function formatPushForNotification(n: any) {
   // For post notifications, try to include a short preview in the push body
   try {
     if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
-      const post: any = await Post.findById(n.entityId, { 'content.text': 1 }).lean();
+      const post = await Post.findById(n.entityId, { 'content.text': 1 }).lean();
       if (post) {
         const text: string = post?.content?.text || '';
         preview = buildPreview(text, 200);
@@ -145,7 +145,7 @@ export async function formatPushForNotification(n: any) {
   }
   const data: Record<string, string> = {
     type: String(n.type || ''),
-    entityId: String((n as any).entityId || ''),
+    entityId: String(n.entityId || ''),
     entityType: String(n.entityType || ''),
     actorId: String(n.actorId || ''),
     notificationId: String(n._id || ''),

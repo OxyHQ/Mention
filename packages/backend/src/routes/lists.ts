@@ -63,8 +63,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
-    const { mine, publicOnly } = req.query as any;
-    const q: any = {};
+    const { mine, publicOnly } = req.query;
+    const q: Record<string, unknown> = {};
     if (mine === 'true') q.ownerOxyUserId = userId;
     if (publicOnly === 'true') q.isPublic = true;
     if (!mine && !publicOnly) q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
@@ -169,19 +169,21 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
 router.get('/:id/timeline', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { cursor, limit = 20 } = req.query as any;
+    const { cursor, limit = 20 } = req.query;
     const list = await AccountList.findById(req.params.id).lean();
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (!list.isPublic && list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
-    const q: any = { oxyUserId: { $in: list.memberOxyUserIds || [] }, visibility: 'public' };
+    const q: Record<string, unknown> = { oxyUserId: { $in: list.memberOxyUserIds || [] }, visibility: 'public' };
     if (cursor) q._id = { $lt: new mongoose.Types.ObjectId(String(cursor)) };
     const docs = await Post.find(q).sort({ createdAt: -1 }).limit(Number(limit) + 1).lean();
     const hasMore = docs.length > Number(limit);
     const toReturn = hasMore ? docs.slice(0, Number(limit)) : docs;
     const nextCursor = hasMore ? String(docs[Number(limit) - 1]._id) : undefined;
-    const transformed = await (feedController as any).transformPostsWithProfiles(toReturn, userId);
-    res.json({ items: transformed.map((p: any) => ({ id: p.id, type: 'post', data: p, createdAt: p.date, updatedAt: p.date })), hasMore, nextCursor, totalCount: transformed.length });
+    const transformed = await feedController.transformPostsWithProfiles(toReturn, userId);
+    // Date lives on the hydrated post's `metadata` (HydratedPost has no top-level
+    // `date`); the previous `p.date` read was always undefined under the loose cast.
+    res.json({ items: transformed.map((p) => ({ id: p.id, type: 'post', data: p, createdAt: p.metadata?.createdAt, updatedAt: p.metadata?.updatedAt })), hasMore, nextCursor, totalCount: transformed.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load list timeline' });
   }

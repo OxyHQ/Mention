@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle } from 'react-native';
+import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
@@ -215,7 +215,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [scheduleHideControls]);
 
   const handleProgressBarPress = useCallback(
-    (event: any) => {
+    (event: GestureResponderEvent) => {
       if (!player || duration <= 0) return;
 
       progressBarRef.current?.measure((_x, _y, width, _height, _pageX, _pageY) => {
