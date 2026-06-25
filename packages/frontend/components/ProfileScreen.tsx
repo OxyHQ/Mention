@@ -613,14 +613,16 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             preserved) → 1 once scrolled (opaque, matching the tabs).
                             `web:z-[100]` paints it ABOVE the feed content (z-3) and the
                             tabs (z-5) but BELOW the chrome icons/name overlay (z-101),
-                            so the icons stay on top. `pointer-events-none` + the
-                            `-48px` bottom margin (cancels its flow height, like the
-                            banner's `-170px`) keep it a pure 0-flow overlay. Empty on
-                            native, where the chrome is an absolute overlay over the
-                            non-scrolling root. */}
+                            so the icons stay on top. It intentionally receives web
+                            pointer events to prevent clicks from reaching covered feed
+                            content while the band is opaque; the higher z-101 header
+                            controls remain interactive. The `-48px` bottom margin
+                            (cancels its flow height, like the banner's `-170px`)
+                            keeps it a 0-flow overlay. Empty on native, where the chrome
+                            is an absolute overlay over the non-scrolling root. */}
                         {IS_WEB && (
                             <View
-                                className="left-0 right-0 web:sticky web:z-[100] web:pointer-events-none web:[margin-bottom:-48px]"
+                                className="left-0 right-0 web:sticky web:z-[100] web:pointer-events-auto web:[margin-bottom:-48px]"
                                 style={[panelStickyTopInset, { height: PANEL_HEADER_HEIGHT }]}
                             >
                                 <Animated.View

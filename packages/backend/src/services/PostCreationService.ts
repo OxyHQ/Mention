@@ -296,7 +296,8 @@ class PostCreationService {
       }
     }
 
-    if (!params.skipSocketEmit) {
+    const shouldEmitGlobally = post.visibility === 'public' && (post.status ?? 'published') === 'published';
+    if (!params.skipSocketEmit && shouldEmitGlobally) {
       try {
         const io = global.io;
         if (io) {
@@ -307,7 +308,10 @@ class PostCreationService {
           // maxDepth:1 is REQUIRED so a created boost embeds its boostOf target
           // (a boost has an intentionally empty body and renders blank otherwise).
           const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
-            viewerId: oxyUserId ?? undefined,
+            // This DTO is broadcast to all sockets, so hydrate as an anonymous
+            // viewer. Nested quote/boost references that are not publicly
+            // visible are omitted instead of leaking via a creator-specific ACL.
+            viewerId: undefined,
             oxyClient: getServiceOxyClient(),
             maxDepth: 1,
             includeLinkMetadata: true,

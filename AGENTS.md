@@ -96,7 +96,7 @@ Remote/federated post media (images, video, audio) is proxied and cached through
 - **Key code locations**: `packages/backend/src/services/mediaCache/*`, `routes/media.ts`, `utils/safeUpstreamFetch.ts`, `utils/ssrfGuard.ts`, `utils/videoPoster.ts`.
 - **Gated by env**: `FEDERATION_MEDIA_CACHE_WRITE_ENABLED=true` (set on the mention ECS task in `oxy-infra/terraform-uswest2/app-services-realtime.tf`). Unset = proxy works but nothing is written to S3.
 - **Post storage**: federated media URLs are stored RAW (remote) on the post (`content.media[].id`). The cache keys off the remote URL and never rewrites the post.
-- **SSM secrets**: `OXY_SERVICE_API_KEY` + `OXY_SERVICE_API_SECRET` are live in SSM at `/oxy/mention/OXY_SERVICE_API_KEY` and `/oxy/mention/OXY_SERVICE_API_SECRET`, wired into the ECS task definition.
+- **Service credentials**: media-cache writes use the backend service credential injected into the ECS task definition. Do not document production secret names, paths, or values in this repository.
 - **Error classification + negative cache (shipped 2026-06-21, tests 382/382):** upstream 4xx (deleted/protected media) were previously relayed as our 502, causing ~12% 5XX rate on the ALB target group. Fix: `classifyUpstreamStatus` in `routes/mediaProxyStatus.ts` maps upstream 4xx → our 404 (logged debug), genuine upstream 5xx + connection errors → 502, oversized body → 413. A **negative cache** (`services/mediaCache/negativeCache.ts`) backed by the existing Redis singleton (`mediaproxy:neg:<sha256(url)>`, client-error TTL 600s, connection-error TTL 60s, graceful no-op when `REDIS_URL` unset) short-circuits known-dead URLs to 404 with zero upstream fetch. First-byte/headers timeout tightened 10s→8s (`UPSTREAM_HEADERS_TIMEOUT_MS` in `safeUpstreamFetch.ts`); post-headers stream timers (`UPSTREAM_SOCKET_TIMEOUT_MS=30s` / `MAX_REQUEST_DURATION_MS=60s`) unchanged so large videos still stream.
 - **Perf context:** infra is NOT resource-bound (Mongo ~1%, Valkey ~0.5%, ECS CPU 1–4%); the 5XX + p99 tail were purely this endpoint's outbound-federation I/O + mislabeling. Do NOT scale instances for this.
 
@@ -111,15 +111,11 @@ The canonical Oxy media URL is **`https://cloud.oxy.so/<fileId>?variant=<v>`**. 
 
 ## Federation — Service Credential & Outbox Sync
 
-Federated post sync requires a valid Oxy `service`-type ApplicationCredential. Flow: view federated profile → `syncOutboxPosts` → `getKeyPair('instance')` → `getServiceToken()` (`POST api.oxy.so/auth/service-token`) → signs the GET to the remote ActivityPub outbox.
+Federated post sync requires a valid Oxy `service`-type ApplicationCredential. The backend service client acquires short-lived service tokens through the Oxy SDK and uses them to sign authorized ActivityPub outbox fetches.
 
-**Silent sticky outage pattern:** a bad/missing service token causes `getServiceToken()` to fail → signed fetch returns 0 posts. The outbox-sync cooldown (`OUTBOX_SYNC_MIN_INTERVAL_MS`, stamps `lastOutboxSyncAt` in `feed.controller.ts`) then makes this empty first sync PERMANENT (`pending:true`, 0 posts) until `lastOutboxSyncAt` is manually cleared from the DB. A bad service token is invisible at `LOG_LEVEL=info` — service-token and signed-fetch failures now log at `error`/`warn` (commit `7138fbaf`).
+**Silent sticky outage pattern:** a bad/missing service credential causes service-token acquisition to fail → signed fetch returns 0 posts. The outbox-sync cooldown (`OUTBOX_SYNC_MIN_INTERVAL_MS`, stamps `lastOutboxSyncAt` in `feed.controller.ts`) then makes this empty first sync PERMANENT (`pending:true`, 0 posts) until `lastOutboxSyncAt` is manually cleared from the DB. A bad service credential is invisible at `LOG_LEVEL=info` — service-token and signed-fetch failures now log at `error`/`warn` (commit `7138fbaf`).
 
-**Current service credential:** Oxy ApplicationCredential id `6a30ca4b5b15dc1bb793ad53` under the "Mention" Application, scopes `federation:write` + `user:read` + `files:write`. Secrets in GitHub `OxyHQ/Mention` → SSM `/oxy/mention/OXY_SERVICE_API_KEY|SECRET`.
-
-**Recreating creds:** use `~/Oxy/OxyHQServices/packages/api/scripts/create-service-credential.ts` (generic/idempotent; not committed — OxyHQServices working tree has an in-progress rewrite). Always use the real `ApplicationCredential.create` (SHA-256 secretHash). NEVER do a raw DB insert. Run prod-DB one-shots as a Fargate task in the oxy-api SG/subnets.
-
-**Mention is the only app using the Oxy service-token flow** (no other app needed a service credential as of 2026-06-16).
+**Credential handling:** do not document production credential identifiers, scopes, secret storage paths, or internal recreation/runbook details in this repository. Operators should use the private Oxy credential-management runbook and the approved secret-management console for rotation or recovery.
 
 ## Compose Intent URL
 

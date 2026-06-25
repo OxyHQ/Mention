@@ -23,7 +23,8 @@ function shortHash(input: string): string {
 
 /**
  * Enqueue an inbound activity for asynchronous processing. Dedupes on the
- * activity `id` so a redelivered activity is processed at most once. Returns
+ * verified actor URI and activity `id` so redelivery from the same actor is
+ * idempotent without letting another actor suppress a reused activity id. Returns
  * false when no queue is available (caller should process inline) — that
  * includes the case where the activity has no stable `id` to dedupe on.
  */
@@ -35,7 +36,7 @@ export async function enqueueInboxActivity(data: InboxJobData): Promise<boolean>
   if (!activityId) return false;
 
   await queue.add('inbox', data, {
-    jobId: `inbox:${shortHash(activityId)}`,
+    jobId: `inbox:${shortHash(`${data.verifiedActorUri}|${activityId}`)}`,
   });
   return true;
 }

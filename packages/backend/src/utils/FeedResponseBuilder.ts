@@ -29,6 +29,21 @@ export interface FeedResponseOptions {
 
 export class FeedResponseBuilder {
   /**
+   * Flatten feed slices into the backward-compatible `items` array. Use this
+   * any time a post-fetch tuner mutates `slices` so legacy clients never see
+   * stale posts that were removed from the canonical sliced response.
+   */
+  static flattenSlicesToItems(slices: FeedPostSlice[]): HydratedPost[] {
+    const items: HydratedPost[] = [];
+    for (const slice of slices) {
+      for (const item of slice.items) {
+        items.push(item.post as HydratedPost);
+      }
+    }
+    return items;
+  }
+
+  /**
    * Build feed response with consistent deduplication, cursor handling, and transformation
    */
   static async buildResponse(options: FeedResponseOptions): Promise<FeedResponse> {
@@ -168,12 +183,7 @@ export class FeedResponseBuilder {
     const slicesToReturn = slices;
 
     // Flatten slices into items for backward compatibility
-    const items: HydratedPost[] = [];
-    for (const slice of slicesToReturn) {
-      for (const item of slice.items) {
-        items.push(item.post as HydratedPost);
-      }
-    }
+    const items = FeedResponseBuilder.flattenSlicesToItems(slicesToReturn);
 
     // Calculate cursor from last slice's anchor post (first post in the slice)
     let nextCursor: string | undefined;

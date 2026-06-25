@@ -17,13 +17,13 @@
  *
  * The Oxy `POST /profiles/recommendations` endpoint authenticates with
  * `optionalUserOrServiceAuth` and resolves the personalization viewer via
- * `resolveViewerId`: a SERVICE principal that holds the viewer-delegation scope
- * (`user:read`, which Mention's service credential has) names the viewer through
+ * `resolveViewerId`: an authorized SERVICE principal can name the viewer through
  * `X-Oxy-User-Id`. So a service-token call WITH a forwarded viewer id is
  * personalized end to end — the forwarded id seeds the viewer's mutual-overlap
  * graph and the supplied content-affinity boosts join the candidate union. A
- * service credential WITHOUT `user:read`, or a call with no/invalid viewer id,
- * resolves to anonymous (popular-public fallback) — never an error.
+ * service credential without viewer-delegation permission, or a call with
+ * no/invalid viewer id, resolves to anonymous (popular-public fallback) — never
+ * an error.
  */
 
 import type { UserNameResponse } from '@oxyhq/contracts';
