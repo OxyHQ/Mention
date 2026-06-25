@@ -348,6 +348,60 @@ describe('federationService.fetchRemoteActor', () => {
     );
   });
 
+  it('rejects actor documents that claim a different origin than the fetched URI', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://evil.example/users/mallory') {
+        return jsonResponse({
+          id: 'https://victim.example/users/alice',
+          type: 'Person',
+          preferredUsername: 'alice',
+          name: 'Alice',
+          inbox: 'https://evil.example/users/mallory/inbox',
+          publicKey: {
+            id: 'https://victim.example/users/alice#main-key',
+            publicKeyPem: 'attacker-public',
+          },
+        });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const actor = await federationService.fetchRemoteActor('https://evil.example/users/mallory');
+
+    expect(actor).toBeNull();
+    expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects actor documents with a cross-origin public key id', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://remote.example/users/alice') {
+        return jsonResponse({
+          id: 'https://remote.example/users/alice',
+          type: 'Person',
+          preferredUsername: 'alice',
+          name: 'Alice',
+          inbox: 'https://remote.example/users/alice/inbox',
+          publicKey: {
+            id: 'https://victim.example/users/alice#main-key',
+            publicKeyPem: 'remote-public',
+          },
+        });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const actor = await federationService.fetchRemoteActor('https://remote.example/users/alice');
+
+    expect(actor).toBeNull();
+    expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+  });
+
   it('does not trust cross-domain acct hints or actor webfinger claims', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://evil.example/users/mallory') {

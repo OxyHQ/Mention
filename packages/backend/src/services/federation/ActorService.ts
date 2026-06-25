@@ -36,6 +36,27 @@ const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 const WEBFINGER_TIMEOUT_MS = 10000;
 const WEBFINGER_MAX_BYTES = 256 * 1024;
 
+function sameOriginUrl(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin.toLowerCase() === new URL(b).origin.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+function actorPublicKeyIsSelfConsistent(actor: Record<string, any>): boolean {
+  const publicKey = actor.publicKey;
+  if (!publicKey || typeof publicKey !== 'object') return true;
+
+  const publicKeyId = typeof publicKey.id === 'string' ? publicKey.id : undefined;
+  if (publicKeyId && !sameOriginUrl(publicKeyId, actor.id)) return false;
+
+  const owner = typeof publicKey.owner === 'string' ? publicKey.owner : undefined;
+  if (owner && owner !== actor.id) return false;
+
+  return true;
+}
+
 function acctMatchesActorHost(acct: string | undefined, actorHost: string): acct is string {
   if (!acct) return false;
   const domain = domainFromAcct(acct)?.toLowerCase();
@@ -188,6 +209,16 @@ export class ActorService {
       const actor = await res.json() as Record<string, any>;
       if (!actor.id || !actor.inbox) {
         logger.info(`[FedSync] fetchRemoteActor missing fields for ${actorUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${actor.type} keys=${Object.keys(actor).join(',')}`);
+        return null;
+      }
+
+      if (!sameOriginUrl(actorUri, actor.id)) {
+        logger.warn(`[FedSync] rejecting actor ${actorUri}: fetched URI is not authoritative for claimed id ${actor.id}`);
+        return null;
+      }
+
+      if (!actorPublicKeyIsSelfConsistent(actor)) {
+        logger.warn(`[FedSync] rejecting actor ${actorUri}: publicKey is not self-consistent for claimed id ${actor.id}`);
         return null;
       }
 
