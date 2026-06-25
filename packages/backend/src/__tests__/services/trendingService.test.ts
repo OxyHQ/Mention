@@ -55,6 +55,9 @@ describe('TrendingService.aggregateHashtags — NSFW/sensitive exclusion', () =>
 
     const pipeline = mocks.postAggregate.mock.calls[0][0];
     const match = pipeline.find((stage: Record<string, unknown>) => '$match' in stage).$match;
+    expect(match.status).toBe('published');
+    expect(match.visibility).toBe('public');
+    expect(match.boostOf).toEqual({ $exists: false });
     expect(match['postClassification.sensitive']).toEqual({ $ne: true });
     expect(match['metadata.isSensitive']).toEqual({ $ne: true });
     expect(match['federation.sensitive']).toEqual({ $ne: true });
@@ -93,6 +96,9 @@ describe('TrendingService.aggregateTopics — NSFW/sensitive exclusion', () => {
     const pipeline = mocks.postAggregate.mock.calls[0][0];
     const matchStages = pipeline.filter((stage: Record<string, unknown>) => '$match' in stage);
     const firstMatch = matchStages[0].$match;
+    expect(firstMatch.status).toBe('published');
+    expect(firstMatch.visibility).toBe('public');
+    expect(firstMatch.boostOf).toEqual({ $exists: false });
     expect(firstMatch['postClassification.sensitive']).toEqual({ $ne: true });
     expect(firstMatch['metadata.isSensitive']).toEqual({ $ne: true });
     expect(firstMatch['federation.sensitive']).toEqual({ $ne: true });
