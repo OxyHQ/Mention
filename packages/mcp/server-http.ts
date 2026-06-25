@@ -6,8 +6,10 @@
  *   2. SSE (protocol 2024-11-05) on GET /sse + POST /messages
  *
  * Environment variables:
- *   MENTION_API_URL — Base URL of the Mention API (default: https://api.mention.earth)
- *   MCP_PORT        — Port to listen on (default: 3100)
+ *   MENTION_API_URL             — Base URL of the Mention API (default: https://api.mention.earth)
+ *   MCP_PORT                    — Port to listen on (default: 3100)
+ *   MCP_ALLOWED_ORIGINS         — Comma-separated browser origins allowed by CORS (default: none)
+ *   MCP_MAX_REQUEST_BODY_BYTES  — Maximum JSON body size (default: 1048576)
  */
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -17,12 +19,15 @@ import { createMcpServer } from "./lib/create-server.js";
 import { requestContext } from "./lib/context.js";
 
 const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
+const MAX_REQUEST_BODY_BYTES = parseInt(process.env.MCP_MAX_REQUEST_BODY_BYTES || "1048576", 10);
+const ALLOWED_ORIGINS = (process.env.MCP_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // ── Transport store ──────────────────────────────────────────
 const transports: Record<string, StreamableHTTPServerTransport | SSEServerTransport> = {};
 const sessionLastActivity: Map<string, number> = new Map();
-/** Map session IDs to their user tokens for SSE sessions (long-lived). */
-const sessionUserTokens: Map<string, string> = new Map();
 
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -37,7 +42,6 @@ const cleanupInterval = setInterval(() => {
       transport.close().catch(() => {});
       delete transports[id];
       sessionLastActivity.delete(id);
-      sessionUserTokens.delete(id);
       cleaned++;
     }
   }
@@ -51,19 +55,26 @@ cleanupInterval.unref();
 
 function extractBearerToken(
   headers: Record<string, string | string[] | undefined>,
-  query?: Record<string, string | undefined>,
 ): string | undefined {
   const authHeader = headers.authorization;
   const header = Array.isArray(authHeader) ? authHeader[0] : authHeader;
   if (header?.startsWith("Bearer ")) return header.slice(7);
-  const queryToken = query?.token;
-  return Array.isArray(queryToken) ? queryToken[0] : queryToken;
+  return undefined;
 }
 
 function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.byteLength;
+      if (size > MAX_REQUEST_BODY_BYTES) {
+        reject(new BodyTooLargeError());
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
       try {
         const raw = Buffer.concat(chunks).toString();
@@ -74,6 +85,13 @@ function readBody(req: IncomingMessage): Promise<unknown> {
     });
     req.on("error", reject);
   });
+}
+
+class BodyTooLargeError extends Error {
+  constructor() {
+    super(`Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`);
+    this.name = "BodyTooLargeError";
+  }
 }
 
 function sendJsonRpcError(res: ServerResponse, httpStatus: number, code: number, message: string): void {
@@ -89,7 +107,17 @@ function sendJsonRpcError(res: ServerResponse, httpStatus: number, code: number,
 function cleanupSession(id: string): void {
   delete transports[id];
   sessionLastActivity.delete(id);
-  sessionUserTokens.delete(id);
+}
+
+function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
+  const origin = req.headers.origin;
+  const requestOrigin = Array.isArray(origin) ? origin[0] : origin;
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id");
 }
 
 // ── Main ─────────────────────────────────────────────────────
@@ -108,10 +136,7 @@ async function main() {
 
     const headers = req.headers as Record<string, string | string[] | undefined>;
 
-    // CORS headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id");
+    setCorsHeaders(req, res);
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
@@ -135,7 +160,7 @@ async function main() {
 
     // ── Streamable HTTP: POST /mcp ───────────────────────────
     if (pathname === "/mcp" && req.method === "POST") {
-      const userToken = extractBearerToken(headers, query);
+      const userToken = extractBearerToken(headers);
       try {
         const sessionId = req.headers["mcp-session-id"] as string | undefined;
         let transport: StreamableHTTPServerTransport;
@@ -171,7 +196,11 @@ async function main() {
         }
       } catch (error) {
         if (!res.headersSent) {
-          sendJsonRpcError(res, 500, -32603, `Internal error: ${error instanceof Error ? error.message : String(error)}`);
+          if (error instanceof BodyTooLargeError) {
+            sendJsonRpcError(res, 413, -32000, error.message);
+          } else {
+            sendJsonRpcError(res, 500, -32603, `Internal error: ${error instanceof Error ? error.message : String(error)}`);
+          }
         }
       }
       return;
@@ -205,13 +234,9 @@ async function main() {
 
     // ── SSE: GET /sse ────────────────────────────────────────
     if (pathname === "/sse" && req.method === "GET") {
-      const userToken = extractBearerToken(headers, query);
       const server = createMcpServer();
       const transport = new SSEServerTransport("/messages", res);
       transports[transport.sessionId] = transport;
-      if (userToken) {
-        sessionUserTokens.set(transport.sessionId, userToken);
-      }
 
       res.on("close", () => {
         cleanupSession(transport.sessionId);
@@ -231,12 +256,21 @@ async function main() {
         return;
       }
 
-      // Use per-request Bearer token, or fall back to the token from session init
-      const userToken = extractBearerToken(headers, query) || (sessionId ? sessionUserTokens.get(sessionId) : undefined);
-      const body = await readBody(req);
-      await requestContext.run({ userToken }, () =>
-        transport.handlePostMessage(req, res, body),
-      );
+      const userToken = extractBearerToken(headers);
+      try {
+        const body = await readBody(req);
+        await requestContext.run({ userToken }, () =>
+          transport.handlePostMessage(req, res, body),
+        );
+      } catch (error) {
+        if (!res.headersSent) {
+          if (error instanceof BodyTooLargeError) {
+            sendJsonRpcError(res, 413, -32000, error.message);
+          } else {
+            sendJsonRpcError(res, 500, -32603, `Internal error: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
       return;
     }
 
