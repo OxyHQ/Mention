@@ -100,6 +100,9 @@ export class ExploreFeed implements FeedAPI {
         $cond: [
           {
             // True when the post's classified topics intersect the viewer's.
+            // The viewer-derived `topics` array is wrapped in `$literal` so any
+            // `$`-prefixed value inside it is treated as constant data, never
+            // evaluated as an aggregation field path / expression (injection guard).
             $gt: [
               { $size: { $setIntersection: [{ $ifNull: ['$postClassification.topics', []] }, { $literal: topics }] } },
               0,
