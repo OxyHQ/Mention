@@ -122,6 +122,7 @@ vi.mock('../../services/serviceRegistry', () => ({
 }));
 
 import { federationService } from '../../services/FederationService';
+import { SsrfRejection } from '../../utils/safeUpstreamFetch';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -202,8 +203,19 @@ beforeEach(() => {
   // that assert on the `fetch(url, { headers })` shape keep exercising the real
   // signing/redirect logic — the only thing that changed is the transport.
   mocks.fetchUpstreamSingleHop.mockImplementation(
-    async (url: string, options: { headers: Record<string, string> }) => {
-      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+    async (
+      url: string,
+      options: {
+        method?: 'GET' | 'POST';
+        headers: Record<string, string>;
+        body?: string | Buffer;
+      },
+    ) => {
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, {
+        method: options.method ?? 'GET',
+        headers: options.headers,
+        body: options.body,
+      });
       const bodyBuffer = Buffer.from(await res.arrayBuffer());
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {
@@ -217,6 +229,55 @@ beforeEach(() => {
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
     uploadProfileBanner: mocks.uploadProfileBanner,
+  });
+});
+
+describe('federationService.deliverActivity', () => {
+  it('posts through the SSRF-safe single-hop transport instead of global fetch', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('should not be called', { status: 500 })));
+    mocks.fetchUpstreamSingleHop.mockResolvedValue({
+      response: new PassThrough(),
+      status: 202,
+      headers: {},
+    });
+
+    const delivered = await federationService.deliverActivity(
+      { id: 'https://mention.earth/ap/users/alice/accepts/1', type: 'Accept' },
+      'https://remote.example/users/mallory/inbox',
+      'oxy_alice',
+      'alice',
+    );
+
+    expect(delivered).toBe(true);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledWith(
+      'https://remote.example/users/mallory/inbox',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/activity+json',
+          Accept: 'application/activity+json',
+        }),
+        body: expect.stringContaining('"type":"Accept"'),
+      }),
+    );
+  });
+
+  it('blocks unsafe inbox URLs before delivery', async () => {
+    mocks.fetchUpstreamSingleHop.mockRejectedValue(new SsrfRejection('literal ip in blocked range'));
+
+    const delivered = await federationService.deliverActivity(
+      { id: 'https://mention.earth/ap/users/alice/accepts/2', type: 'Accept' },
+      'http://127.0.0.1/internal/admin/task',
+      'oxy_alice',
+      'alice',
+    );
+
+    expect(delivered).toBe(false);
+    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledWith(
+      'http://127.0.0.1/internal/admin/task',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 });
 

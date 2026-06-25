@@ -14,8 +14,23 @@ import {
 import { PostVisibility } from '@mention/shared-types';
 import { enqueueDelivery } from '../../queue/producers';
 import { actorService } from './ActorService';
+import { assertSafePublicUrl } from '../../utils/ssrfGuard';
+import { fetchUpstreamSingleHop, SsrfRejection } from '../../utils/safeUpstreamFetch';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
+const DELIVERY_ERROR_BODY_LIMIT_BYTES = 1024;
+
+async function readSmallResponseBody(stream: AsyncIterable<unknown>): Promise<string> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+    chunks.push(buffer);
+    total += buffer.length;
+    if (total >= DELIVERY_ERROR_BODY_LIMIT_BYTES) break;
+  }
+  return Buffer.concat(chunks, Math.min(total, DELIVERY_ERROR_BODY_LIMIT_BYTES)).toString('utf8');
+}
 
 /**
  * Outbound activity delivery + follow lifecycle (Follow / Undo(Follow) /
@@ -55,19 +70,24 @@ export class FollowService {
 
       logger.debug(`[FedDeliver] POST ${targetInbox} body=${body} sig-headers=${sigHeaders['Signature']?.match(/headers="([^"]+)"/)?.[1]}`);
 
-      const res = await fetch(targetInbox, {
+      const res = await fetchUpstreamSingleHop(targetInbox, {
         method: 'POST',
         headers: allHeaders,
         body,
         signal: AbortSignal.timeout(DELIVER_ACTIVITY_TIMEOUT_MS),
+        headersTimeoutMs: DELIVER_ACTIVITY_TIMEOUT_MS,
       });
 
-      if (res.ok || res.status === 202) return true;
+      if ((res.status >= 200 && res.status < 300) || res.status === 202) return true;
 
-      const responseBody = await res.text().catch(() => '');
-      logger.debug(`Activity delivery failed to ${targetInbox}: ${res.status} ${res.statusText} body=${responseBody.slice(0, 500)}`);
+      const responseBody = await readSmallResponseBody(res.response);
+      logger.debug(`Activity delivery failed to ${targetInbox}: ${res.status} body=${responseBody.slice(0, 500)}`);
       return false;
     } catch (err) {
+      if (err instanceof SsrfRejection) {
+        logger.warn(`[FedDeliver] blocked unsafe inbox URL ${targetInbox}: ${err.message}`);
+        return false;
+      }
       logger.debug(`Activity delivery error to ${targetInbox}:`, err);
       return false;
     }
@@ -86,6 +106,12 @@ export class FollowService {
     targetInbox: string,
     senderOxyUserId: string,
   ): Promise<void> {
+    const guard = await assertSafePublicUrl(targetInbox);
+    if (!guard.ok) {
+      logger.warn(`[FedDeliver] not queueing unsafe inbox URL ${targetInbox}: ${guard.reason}`);
+      return;
+    }
+
     const enqueued = await enqueueDelivery({
       activityJson: activity,
       targetInbox,
