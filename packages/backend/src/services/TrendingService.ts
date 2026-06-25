@@ -74,7 +74,7 @@ class TrendingService {
       const collection = Trending.collection;
       const indexes = await collection.indexes();
       const legacyIndex = indexes.find(
-        (idx: any) => idx.key && 'timeWindow' in idx.key,
+        (idx) => idx.key && 'timeWindow' in idx.key,
       );
       if (legacyIndex && legacyIndex.name) {
         await collection.dropIndex(legacyIndex.name);
@@ -426,7 +426,7 @@ class TrendingService {
     limit: number = 10,
   ): Promise<{ days: Array<{ date: string; trends: ITrending[] }>; page: number; totalPages: number }> {
     // Get distinct days
-    const allDays = await Trending.aggregate([
+    const allDays = await Trending.aggregate<{ _id: string }>([
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$calculatedAt' } },
@@ -437,14 +437,14 @@ class TrendingService {
 
     const totalPages = Math.ceil(allDays.length / limit);
     const start = (page - 1) * limit;
-    const pageDays = allDays.slice(start, start + limit).map((d: any) => d._id as string);
+    const pageDays = allDays.slice(start, start + limit).map((d) => d._id);
 
     if (pageDays.length === 0) {
       return { days: [], page, totalPages };
     }
 
     // For each day, get unique trends with highest score
-    const grouped = await Trending.aggregate([
+    const grouped = await Trending.aggregate<{ date: string; trends: ITrending[] }>([
       {
         $addFields: {
           day: { $dateToString: { format: '%Y-%m-%d', date: '$calculatedAt' } },
@@ -475,9 +475,9 @@ class TrendingService {
       { $sort: { date: -1 } },
     ]);
 
-    const days = grouped.map((g: any) => ({
-      date: g.date as string,
-      trends: g.trends as ITrending[],
+    const days = grouped.map((g) => ({
+      date: g.date,
+      trends: g.trends,
     }));
 
     return { days, page, totalPages };

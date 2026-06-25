@@ -182,7 +182,7 @@ export function validateResultSize<T>(
 /**
  * Apply query optimizations (timeout, result size validation)
  */
-export function applyQueryOptimizations<T>(query: any, maxResults?: number): any {
+export function applyQueryOptimizations<T extends { maxTimeMS(ms: number): T }>(query: T): T {
   // Add query timeout
   query.maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
   return query;
