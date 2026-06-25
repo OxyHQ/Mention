@@ -5,8 +5,7 @@
  * Replaces FollowingFeedStrategy.
  */
 
-import { HydratedPost } from '@mention/shared-types';
-import { MtnConfig } from '@mention/shared-types';
+import { HydratedPost, MtnConfig, PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../models/Post';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { threadSlicingService } from '../../../services/ThreadSlicingService';
@@ -15,15 +14,56 @@ import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } 
 import { ChronoCursor, didCursorAdvance } from '../CursorBuilder';
 import { logger } from '../../../utils/logger';
 
+function buildFollowingVisibilityMatch(
+  currentUserId: string,
+  followingIds: string[] = [],
+  subscribedListMemberIds: string[] = [],
+): Record<string, unknown> {
+  const followAuthorizedIds = Array.from(new Set([currentUserId, ...followingIds]));
+  const publicOnlyListIds = Array.from(
+    new Set(subscribedListMemberIds.filter((id) => id !== currentUserId && !followAuthorizedIds.includes(id))),
+  );
+
+  if (publicOnlyListIds.length === 0) {
+    return {
+      oxyUserId: { $in: followAuthorizedIds },
+      visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
+    };
+  }
+
+  return {
+    $and: [
+      {
+        $or: [
+          {
+            oxyUserId: { $in: followAuthorizedIds },
+            visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
+          },
+          {
+            oxyUserId: { $in: publicOnlyListIds },
+            visibility: PostVisibility.PUBLIC,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export class FollowingFeed implements FeedAPI {
   readonly descriptor = 'following' as const;
 
   async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
-    if (!context.currentUserId || !context.followingIds?.length) return undefined;
+    if (
+      !context.currentUserId
+      || (!context.followingIds?.length && !context.subscribedListMemberIds?.length)
+    ) return undefined;
 
     const post = await Post.findOne({
-      oxyUserId: { $in: [context.currentUserId, ...context.followingIds] },
-      visibility: { $in: ['public', 'followers_only'] },
+      ...buildFollowingVisibilityMatch(
+        context.currentUserId,
+        context.followingIds,
+        context.subscribedListMemberIds,
+      ),
       status: 'published',
     })
       .select(FEED_FIELDS)
@@ -41,14 +81,13 @@ export class FollowingFeed implements FeedAPI {
 
   async fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse> {
     const { cursor, limit } = options;
-    const { currentUserId, followingIds } = context;
+    const { currentUserId, followingIds, subscribedListMemberIds } = context;
 
     const empty: FeedAPIResponse = { slices: [], items: [], hasMore: false, totalCount: 0 };
-    if (!currentUserId || !followingIds?.length) return empty;
+    if (!currentUserId || (!followingIds?.length && !subscribedListMemberIds?.length)) return empty;
 
     const match: Record<string, unknown> = {
-      oxyUserId: { $in: [currentUserId, ...followingIds] },
-      visibility: { $in: ['public', 'followers_only'] },
+      ...buildFollowingVisibilityMatch(currentUserId, followingIds, subscribedListMemberIds),
       status: 'published',
     };
     ChronoCursor.applyToQuery(match, cursor);

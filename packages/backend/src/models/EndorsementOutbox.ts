@@ -4,10 +4,10 @@ import mongoose, { Document, Schema } from 'mongoose';
  * Outbox for endorsement-signal pushes to Oxy (`POST /app-signals/ingest`).
  *
  * Mirrors {@link FederationDeliveryQueue}: each row is a unit of work that is
- * attempted immediately and retried with backoff until it succeeds. Unlike the
- * delivery queue, an endorsement push is DESIRED-STATE — the row records the
- * `(source, sourceId)` scope to re-sync, NOT a frozen edge list, so a retry
- * recomputes the CURRENT member set and is self-healing/idempotent.
+ * attempted immediately and retried with backoff until it succeeds. The normal
+ * path is DESIRED-STATE — the row records the `(source, sourceId)` scope to
+ * re-sync. Membership removals also append the removed member ids to the row so
+ * retries can retract edges that no longer exist in the source document.
  *
  * There is at most ONE row per `(source, sourceId)` (unique index). A new
  * mutation on an already-pending scope upserts the same row (bumping
@@ -33,6 +33,10 @@ export interface IEndorsementOutbox extends Document {
   lastAttemptAt?: Date;
   /** Last error message, when the most recent attempt failed. */
   error?: string;
+  /** Owner for pending removal edges captured before members were pruned. */
+  pendingRemoveOwnerId?: string;
+  /** Removed members that must be retracted before the row can be considered sent. */
+  pendingRemoveMemberIds?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +77,8 @@ const EndorsementOutboxSchema = new Schema<IEndorsementOutbox>({
   nextAttemptAt: { type: Date, required: true, default: Date.now, index: true },
   lastAttemptAt: { type: Date },
   error: { type: String },
+  pendingRemoveOwnerId: { type: String },
+  pendingRemoveMemberIds: { type: [String], default: undefined },
 }, {
   timestamps: true,
 });

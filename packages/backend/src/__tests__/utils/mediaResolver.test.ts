@@ -142,6 +142,16 @@ describe('resolveMediaItems', () => {
     expect(items[1].fullUrl).toBeUndefined();
   });
 
+  it('uses the native thumb variant for Oxy video posters', () => {
+    const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].url).toBe(`${OXY_BASE}/assets/video-file/stream`);
+    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
+    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
+    expect(items[0].fullUrl).toBeUndefined();
+  });
+
   it('drops items without an id and tolerates empty input', () => {
     expect(resolveMediaItems([])).toEqual([]);
     expect(resolveMediaItems(undefined)).toEqual([]);

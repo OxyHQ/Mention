@@ -4,7 +4,7 @@
  *
  *  - `shallowFiltersEqual`: one-level key-by-key equality for the flat FeedFilters
  *    bag (used by `arePropsEqual` in the Feed components).
- *  - `feedArrayEqual`: reference short-circuit + length/boundary-key signature for
+ *  - `feedArrayEqual`: reference short-circuit + full ordered-key equality for
  *    the feed `items`/`slices` arrays.
  *  - `depsShallowEqual`: element-wise dependency-list equality (used by the
  *    useDeepCompareMemo/Effect hooks). Arrays via `feedArrayEqual`; Sets/Maps by
@@ -14,8 +14,8 @@
  * memo must recompute only when the SET / ORDER / membership of rows changes.
  * Per-post content updates (likes/replies) reach the row through PostItem's own
  * `dataVersion` store subscription, so they do not need this memo to re-run.
- * Therefore `feedArrayEqual` returns equal only when length AND the first/mid/last
- * keys all match — any add/remove/reorder is detected.
+ * Therefore `feedArrayEqual` returns equal only when length AND every ordered key
+ * matches — any add/remove/reorder is detected.
  */
 
 import { shallowFiltersEqual, feedArrayEqual, depsShallowEqual } from '../feedUtils';
@@ -99,19 +99,11 @@ describe('feedArrayEqual', () => {
         ).toBe(false);
     });
 
-    it('detects an interior reorder via the middle-key sample (same length, same boundaries)', () => {
+    it('detects an interior reorder even when first, middle, and last keys are unchanged', () => {
         expect(
             feedArrayEqual(
                 [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }, { id: '5' }],
                 [{ id: '1' }, { id: '4' }, { id: '3' }, { id: '2' }, { id: '5' }],
-                keyOf,
-            ),
-        ).toBe(true); // middle (index 2) unchanged → not detected, acceptable
-        // A reorder that DOES move the middle element is detected.
-        expect(
-            feedArrayEqual(
-                [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }, { id: '5' }],
-                [{ id: '1' }, { id: '3' }, { id: '2' }, { id: '4' }, { id: '5' }],
                 keyOf,
             ),
         ).toBe(false);
@@ -143,7 +135,7 @@ describe('depsShallowEqual', () => {
         expect(depsShallowEqual([items], [[{ id: '1' }, { id: '2' }, { id: '3' }]])).toBe(false);
     });
 
-    it('compares slice arrays by _sliceKey boundary signature', () => {
+    it('compares slice arrays by _sliceKey ordered equality', () => {
         const a = [{ _sliceKey: 's1', items: [] }, { _sliceKey: 's2', items: [] }];
         const b = [{ _sliceKey: 's1', items: [] }, { _sliceKey: 's2', items: [] }];
         expect(depsShallowEqual([a], [b])).toBe(true);
