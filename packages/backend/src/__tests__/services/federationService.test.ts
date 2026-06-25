@@ -24,7 +24,9 @@ const mocks = vi.hoisted(() => ({
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
   followExists: vi.fn(),
+  assertSafePublicUrl: vi.fn(),
   fetchUpstreamFollowingRedirects: vi.fn(),
+  fetchUpstreamSingleHop: vi.fn(),
   userSettingsUpdateOne: vi.fn(),
   uploadProfileBanner: vi.fn(),
 }));
@@ -48,6 +50,10 @@ vi.mock('../../models/FederatedFollow', () => ({
   default: {
     exists: mocks.followExists,
   },
+}));
+
+vi.mock('../../utils/ssrfGuard', () => ({
+  assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
 vi.mock('../../models/FederationDeliveryQueue', () => ({
@@ -93,6 +99,7 @@ vi.mock('../../utils/safeUpstreamFetch', async (importOriginal) => {
   return {
     ...actual,
     fetchUpstreamFollowingRedirects: mocks.fetchUpstreamFollowingRedirects,
+    fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,
   };
 });
 
@@ -178,6 +185,7 @@ beforeEach(() => {
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   mocks.postExists.mockResolvedValue(null);
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
+  mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.likeCreate.mockResolvedValue({ _id: 'like_1' });
   mocks.likeFindOneAndDelete.mockReturnValue({
     lean: vi.fn().mockResolvedValue(null),
@@ -189,6 +197,23 @@ beforeEach(() => {
   mocks.uploadProfileBanner.mockResolvedValue({ file: { id: 'banner_file_1' } });
   mocks.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.fetchUpstreamFollowingRedirects.mockReset();
+  // `signedFetch` is built on `fetchUpstreamSingleHop` (IP-pinned, no global
+  // `fetch`). Adapt it to the per-test stubbed global `fetch` so existing tests
+  // that assert on the `fetch(url, { headers })` shape keep exercising the real
+  // signing/redirect logic — the only thing that changed is the transport.
+  mocks.fetchUpstreamSingleHop.mockImplementation(
+    async (url: string, options: { headers: Record<string, string> }) => {
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const bodyBuffer = Buffer.from(await res.arrayBuffer());
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      const stream = new PassThrough();
+      stream.end(bodyBuffer);
+      return { response: stream, status: res.status, headers };
+    },
+  );
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
     uploadProfileBanner: mocks.uploadProfileBanner,
@@ -259,6 +284,60 @@ describe('federationService.fetchRemoteActor', () => {
         username: 'mosseri@threads.net',
         actorUri: 'https://www.threads.net/ap/users/mosseri/',
         domain: 'threads.net',
+      }),
+    );
+  });
+
+  it('does not trust cross-domain acct hints or actor webfinger claims', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://evil.example/users/mallory') {
+        return jsonResponse({
+          id: 'https://evil.example/users/mallory',
+          type: 'Person',
+          preferredUsername: 'mallory',
+          name: 'Mallory',
+          webfinger: 'victim@trusted.example',
+          inbox: 'https://evil.example/users/mallory/inbox',
+          outbox: 'https://evil.example/users/mallory/outbox',
+          publicKey: {
+            id: 'https://evil.example/users/mallory#main-key',
+            publicKeyPem: 'remote-public',
+          },
+        });
+      }
+
+      if (url === 'https://evil.example/users/mallory/outbox') {
+        return jsonResponse({ type: 'OrderedCollection', totalItems: 0 });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await federationService.fetchRemoteActor(
+      'https://evil.example/users/mallory',
+      false,
+      'victim@trusted.example',
+    );
+
+    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
+      { uri: 'https://evil.example/users/mallory' },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          uri: 'https://evil.example/users/mallory',
+          acct: 'mallory@evil.example',
+          domain: 'evil.example',
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+      'PUT',
+      '/users/resolve',
+      expect.objectContaining({
+        username: 'mallory@evil.example',
+        actorUri: 'https://evil.example/users/mallory',
+        domain: 'evil.example',
       }),
     );
   });
@@ -345,7 +424,6 @@ describe('federationService.fetchRemoteActor', () => {
     expect(mocks.uploadProfileBanner).not.toHaveBeenCalled();
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });
-
 });
 
 describe('federationService.syncOutboxPostsDetailed', () => {
@@ -682,6 +760,32 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
       actorUri,
     );
 
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('blocks unsafe boosted object fetches before contacting the network', async () => {
+    const unsafeUri = 'http://127.0.0.1/latest/meta-data';
+    stubResolvedActor('oxy_bob');
+    mocks.postFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue(null),
+    });
+    mocks.postExists.mockResolvedValue(null);
+    mocks.assertSafePublicUrl.mockImplementation(async (url: string) => (
+      url === unsafeUri
+        ? { ok: false, reason: 'literal ip in blocked range' }
+        : { ok: true, ip: '93.184.216.34', family: 4 }
+    ));
+    const fetchMock = vi.fn(async () => jsonResponse({ type: 'Note' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await federationService.processInboxActivity(
+      { type: 'Announce', id: announceId, actor: actorUri, object: unsafeUri },
+      actorUri,
+    );
+
+    expect(mocks.assertSafePublicUrl).toHaveBeenCalledWith(unsafeUri);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });

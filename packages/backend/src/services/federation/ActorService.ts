@@ -35,6 +35,14 @@ const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const WEBFINGER_TIMEOUT_MS = 10000;
 
+function acctMatchesActorHost(acct: string | undefined, actorHost: string): acct is string {
+  if (!acct) return false;
+  const domain = domainFromAcct(acct)?.toLowerCase();
+  if (!domain) return false;
+  const normalizedActorHost = actorHost.toLowerCase();
+  return domain === normalizedActorHost || normalizedActorHost === `www.${domain}`;
+}
+
 /** Maximum bytes accepted for a remote federated actor banner image. */
 const ACTOR_BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
 
@@ -170,8 +178,14 @@ export class ActorService {
       const actorWebfinger = typeof actor.webfinger === 'string'
         ? normalizeFederatedAcct(actor.webfinger)
         : undefined;
-      const acct = canonicalAcctHint
-        || actorWebfinger
+      const verifiedAcctHint = acctMatchesActorHost(canonicalAcctHint, actorHost)
+        ? canonicalAcctHint
+        : undefined;
+      const verifiedActorWebfinger = acctMatchesActorHost(actorWebfinger, actorHost)
+        ? actorWebfinger
+        : undefined;
+      const acct = verifiedAcctHint
+        || verifiedActorWebfinger
         || normalizeFederatedAcct(`${username}@${actorHost}`)
         || `${String(username).toLowerCase()}@${actorHost}`;
       const domain = domainFromAcct(acct) || actorHost;

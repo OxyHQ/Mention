@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { MtnConfig } from '@mention/shared-types';
+import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
@@ -36,6 +36,26 @@ function keyFor(postId: string, viewerId: string): string {
 }
 
 /**
+ * Verify a client-reported impression references a real post that is safe to
+ * count as feed-visible telemetry. Telemetry is client-controlled, so this
+ * intentionally only accepts public, published local posts before creating any
+ * Redis dedupe marker or updating ranking/view statistics.
+ */
+export async function isPostEligibleForViewTelemetry(postId: string): Promise<boolean> {
+  if (!postId || !mongoose.isValidObjectId(postId)) {
+    return false;
+  }
+
+  const post = await Post.exists({
+    _id: postId,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+  });
+
+  return Boolean(post);
+}
+
+/**
  * Increment a post's view count for `viewerId`, deduped within the configured
  * window. Returns `true` when this call counted a NEW view (and thus performed
  * the increment), `false` when it was a duplicate or Redis was unavailable.
@@ -47,6 +67,11 @@ function keyFor(postId: string, viewerId: string): string {
  */
 export async function recordDedupedView(postId: string, viewerId: string): Promise<boolean> {
   if (!postId || !viewerId || !mongoose.isValidObjectId(postId)) {
+    return false;
+  }
+
+  const eligible = await isPostEligibleForViewTelemetry(postId);
+  if (!eligible) {
     return false;
   }
 
@@ -74,7 +99,10 @@ export async function recordDedupedView(postId: string, viewerId: string): Promi
   }
 
   try {
-    await Post.updateOne({ _id: postId }, { $inc: { 'stats.viewsCount': 1 } });
+    await Post.updateOne(
+      { _id: postId, visibility: PostVisibility.PUBLIC, status: 'published' },
+      { $inc: { 'stats.viewsCount': 1 } },
+    );
     return true;
   } catch (error) {
     logger.debug('[FeedViewCounter] viewsCount increment failed', {

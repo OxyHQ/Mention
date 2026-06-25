@@ -16,7 +16,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-import { extractPublicProfileData } from '../../utils/userSettings';
+import { buildSettingsResponseForViewer, extractPublicProfileData } from '../../utils/userSettings';
 
 describe('extractPublicProfileData', () => {
   it('exposes profileHeaderImage as the canonical resolved banner field', () => {
@@ -38,5 +38,56 @@ describe('extractPublicProfileData', () => {
       coverPhotoEnabled: true,
       minimalistMode: false,
     });
+  });
+});
+
+describe('buildSettingsResponseForViewer', () => {
+  it('returns the full settings document to the owner', () => {
+    const doc = {
+      oxyUserId: 'user-1',
+      privacy: {
+        profileVisibility: 'public' as const,
+        showSensitiveContent: true,
+        hiddenWords: ['private'],
+      },
+    };
+
+    expect(buildSettingsResponseForViewer(doc, 'user-1', 'user-1')).toBe(doc);
+  });
+
+  it('redacts private preferences from cross-user settings responses', () => {
+    const result = buildSettingsResponseForViewer(
+      {
+        oxyUserId: 'target-user',
+        appearance: { themeMode: 'system', primaryColor: '#00f' },
+        profileHeaderImage: 'banner-file',
+        profileCustomization: {
+          coverPhotoEnabled: true,
+          minimalistMode: false,
+        },
+        privacy: {
+          profileVisibility: 'public',
+          showSensitiveContent: true,
+          hiddenWords: ['private'],
+          restrictedUsers: ['blocked-user'],
+        },
+      },
+      'target-user',
+      'viewer-user',
+    );
+
+    expect(result).toBeTruthy();
+    expect(result).toEqual({
+      oxyUserId: 'target-user',
+      appearance: { primaryColor: '#00f' },
+      profileHeaderImage: 'https://api.oxy.so/assets/banner-file/stream',
+      profileCustomization: {
+        coverPhotoEnabled: true,
+        minimalistMode: false,
+      },
+    });
+    if (result) {
+      expect('privacy' in result).toBe(false);
+    }
   });
 });

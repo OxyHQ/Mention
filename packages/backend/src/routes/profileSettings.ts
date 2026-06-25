@@ -6,7 +6,7 @@ import Bookmark from '../models/Bookmark';
 import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { ensureUserSettings } from '../utils/userSettings';
+import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
@@ -43,14 +43,17 @@ router.get('/settings/me', async (req: AuthRequest, res: Response) => {
 router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.userId as string;
+    const viewerUserId = getAuthenticatedUserId(req);
 
     const validationError = validateRequired(userId, 'userId');
     if (validationError) {
       return sendErrorResponse(res, 400, 'Bad Request', validationError);
     }
 
-    const doc = await ensureUserSettings(userId);
-    return sendSuccessResponse(res, 200, doc);
+    const doc = userId === viewerUserId
+      ? await ensureUserSettings(userId)
+      : await UserSettings.findOne({ oxyUserId: userId }).lean().exec();
+    return sendSuccessResponse(res, 200, buildSettingsResponseForViewer(doc, userId, viewerUserId));
   } catch (err) {
     logger.error('[ProfileSettings] Error fetching user settings:', { userId: req.user?.id, targetUserId: req.params.userId, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');

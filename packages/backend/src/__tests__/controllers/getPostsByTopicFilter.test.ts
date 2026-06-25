@@ -18,7 +18,7 @@ vi.mock('../../../server', () => ({
   roomsNamespace: { emit: vi.fn() },
 }));
 
-import { buildPostsByTopicFilter } from '../../controllers/posts.controller';
+import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../../controllers/posts.controller';
 
 describe('buildPostsByTopicFilter — canonical topicRefs.name OR slug topics match', () => {
   it('matches the canonical topicRefs.name AND the slug-only postClassification.topics (lowercased)', () => {
@@ -41,6 +41,25 @@ describe('buildPostsByTopicFilter — canonical topicRefs.name OR slug topics ma
       { 'postClassification.topicRefs.name': 'tech' },
       { 'postClassification.topics': 'tech' },
     ]);
+    expect(filter.visibility).toBe('public');
+  });
+});
+
+describe('buildPostsByHashtagFilter — hashtag discovery visibility scope', () => {
+  it('matches normalized hashtags only on public, published posts', () => {
+    const filter = buildPostsByHashtagFilter('MixedCase');
+
+    expect(filter.hashtags).toEqual({ $in: ['mixedcase'] });
+    expect(filter.status).toBe('published');
+    expect(filter.visibility).toBe('public');
+    expect(filter._id).toBeUndefined();
+  });
+
+  it('adds the cursor range clause without dropping ACL filters', () => {
+    const filter = buildPostsByHashtagFilter('Tech', 'cursor-456');
+
+    expect(filter._id).toEqual({ $lt: 'cursor-456' });
+    expect(filter.status).toBe('published');
     expect(filter.visibility).toBe('public');
   });
 });

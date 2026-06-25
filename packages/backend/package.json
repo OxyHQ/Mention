@@ -17,7 +17,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.47",
+    "@ai-sdk/openai": "^3.0.73",
     "@aws-sdk/client-s3": "^3.1014.0",
     "@aws-sdk/s3-request-presigner": "^3.1014.0",
     "@mention/shared-types": "file:../shared-types",
@@ -40,7 +40,7 @@
     "he": "^1.2.0",
     "helmet": "^8.1.0",
     "i18n": "^0.15.3",
-    "ioredis": "5.10.1",
+    "ioredis": "5.11.1",
     "jsonwebtoken": "^9.0.3",
     "jwt-decode": "^4.0.0",
     "livekit-server-sdk": "^2.15.0",

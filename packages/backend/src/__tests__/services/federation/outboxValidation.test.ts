@@ -1,3 +1,4 @@
+import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -36,11 +37,29 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
+  fetchUpstreamSingleHop: vi.fn(),
+  assertSafePublicUrl: vi.fn(),
 }));
 
 vi.mock('../../../utils/federation/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signRequest: mocks.signRequest,
+}));
+
+// `signedFetch` performs its GET via the IP-pinned `fetchUpstreamSingleHop`
+// (no global `fetch`). Route it through the per-test stubbed global `fetch` so
+// these outbox fixtures keep exercising the real validation/ingest logic; only
+// the transport is adapted.
+vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>();
+  return {
+    ...actual,
+    fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,
+  };
+});
+
+vi.mock('../../../utils/ssrfGuard', () => ({
+  assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
 vi.mock('../../../models/FederatedActor', () => ({
@@ -175,6 +194,20 @@ beforeEach(() => {
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
   mocks.getServiceOxyClient.mockReturnValue({ makeServiceRequest: mocks.makeServiceRequest });
+  mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
+  mocks.fetchUpstreamSingleHop.mockImplementation(
+    async (url: string, options: { headers: Record<string, string> }) => {
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const bodyBuffer = Buffer.from(await res.arrayBuffer());
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      const stream = new PassThrough();
+      stream.end(bodyBuffer);
+      return { response: stream, status: res.status, headers };
+    },
+  );
 });
 
 describe('OutboxSyncService — collection-level zod validation', () => {
@@ -327,5 +360,59 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
       { _id: 'local_boosted_post' },
       { $inc: { 'stats.boostsCount': 1 } },
     );
+  });
+});
+
+describe('OutboxSyncService — outbox URL SSRF hardening', () => {
+  it('does not fetch cross-origin string items or Create.object URLs from an outbox page', async () => {
+    const fetchMock = stubOutbox({
+      type: 'OrderedCollection',
+      totalItems: 2,
+      orderedItems: [
+        'http://169.254.169.254/latest/meta-data/',
+        {
+          id: `${ACTOR_URI}/activities/create-evil`,
+          type: 'Create',
+          actor: ACTOR_URI,
+          object: 'http://127.0.0.1/private-note',
+        },
+      ],
+    });
+
+    const result = await runSync();
+
+    expect(result).toMatchObject({
+      syncedCount: 0,
+      reason: 'no-candidates',
+      candidateCount: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      OUTBOX_URL,
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: expect.stringContaining('application/activity+json') }) }),
+    );
+  });
+
+  it('caps inspected non-candidate items and returns an item-offset cursor', async () => {
+    const orderedItems = Array.from({ length: 105 }, (_, index) => `http://169.254.169.254/latest/meta-data/${index}`);
+    const fetchMock = stubOutbox({
+      type: 'OrderedCollection',
+      totalItems: orderedItems.length,
+      orderedItems,
+    });
+
+    const result = await outboxSyncService.syncOutboxPostsDetailed(
+      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: 'oxy_alice' },
+      { limit: 10, maxPages: 1 },
+    );
+
+    expect(result).toMatchObject({
+      syncedCount: 0,
+      reason: 'no-candidates',
+      candidateCount: 0,
+      nextCursor: { url: OUTBOX_URL, itemOffset: 100 },
+      reachedEnd: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
