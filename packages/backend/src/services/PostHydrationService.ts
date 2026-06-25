@@ -671,6 +671,30 @@ export class PostHydrationService {
   }
 
   /**
+   * Derive a bounded set of possible ActivityPub actor URI prefixes from an
+   * object/activity URI. This intentionally does not query by domain because a
+   * single popular instance can contain an unbounded number of actors.
+   */
+  private deriveFederatedActorUriCandidates(activityId: string): string[] {
+    let url: URL;
+    try {
+      url = new URL(activityId);
+    } catch {
+      return [];
+    }
+
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return [];
+
+    const candidates: string[] = [];
+    const maxSegments = Math.min(segments.length, 16);
+    for (let count = maxSegments; count >= 1; count--) {
+      candidates.push(`${url.origin}/${segments.slice(0, count).join('/')}`);
+    }
+    return candidates;
+  }
+
+  /**
    * Build the per-post REMOTE-actor map for FEDERATED posts whose `oxyUserId` was
    * never linked to an Oxy user (orphaned actor). Such a post is public and
    * physically exists, so it must render with a real author rather than a blank
@@ -680,17 +704,20 @@ export class PostHydrationService {
    * the REMOTE {@link FederatedActor}, so its real `displayName` and remote
    * `avatarUrl` are carried through. The link from post → actor follows the same
    * convention the `/federation/actor/posts` route uses: a `FederatedActor.uri`
-   * is a PREFIX of the post's `federation.activityId`. Actors are batch-fetched
-   * by domain, then matched per-post by longest matching `uri` prefix. Posts
+   * is a PREFIX of the post's `federation.activityId`. Hydration must not
+   * query a whole remote domain; instead it derives a bounded set of possible
+   * actor URI prefixes from the visible post URI and only fetches exact URI
+   * candidates. Posts
    * with no matching actor fall back to the deterministic domain placeholder
    * ({@link buildFederatedDomainAuthor}) so the displayName is NEVER blank.
    */
   private async buildFederatedAuthorMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostActorSummary>> {
     const map = new Map<string, PostActorSummary>();
 
-    // Collect orphaned federated posts (no Oxy author) and their origin domains.
+    // Collect orphaned federated posts (no Oxy author) and bounded candidate
+    // actor URIs derived from each post's ActivityPub object URI.
     const orphans: Array<{ postId: string; activityId: string; domain: string }> = [];
-    const domains = new Set<string>();
+    const candidateUris = new Set<string>();
     for (const { post } of nodes) {
       if (post?.oxyUserId) continue;
       const federation = post?.federation as { activityId?: string; url?: string } | undefined;
@@ -706,35 +733,43 @@ export class PostHydrationService {
       const postId = this.resolveId(post);
       if (!postId) continue;
       orphans.push({ postId, activityId: source, domain });
-      domains.add(domain);
+      for (const candidateUri of this.deriveFederatedActorUriCandidates(source)) {
+        candidateUris.add(candidateUri);
+      }
     }
 
     if (orphans.length === 0) {
       return map;
     }
 
-    // Batch-fetch every remote actor on the relevant domains, then match each
-    // orphan to the actor whose `uri` is the LONGEST prefix of its activity URI.
+    if (candidateUris.size === 0) {
+      return map;
+    }
+
+    // Fetch only exact candidate actor URIs. This keeps public hydration bounded
+    // by the number of posts/path segments in the response, not by the number of
+    // actors known for a remote domain.
+    const candidateUriList = [...candidateUris];
     let actors: Array<{ uri: string; username: string; displayName?: string; avatarUrl?: string; domain: string; acct: string }> = [];
     try {
       actors = await FederatedActor.find(
-        { domain: { $in: [...domains] } },
+        { uri: { $in: candidateUriList } },
         { uri: 1, username: 1, displayName: 1, avatarUrl: 1, domain: 1, acct: 1 },
-      ).lean();
+      )
+        .limit(candidateUriList.length)
+        .maxTimeMS(1000)
+        .lean();
     } catch (error) {
       logger.warn('[PostHydration] Failed to resolve federated actors for orphaned posts:', error);
       actors = [];
     }
 
-    const actorsByDomain = new Map<string, typeof actors>();
-    for (const actor of actors) {
-      const list = actorsByDomain.get(actor.domain);
-      if (list) list.push(actor);
-      else actorsByDomain.set(actor.domain, [actor]);
-    }
+    const actorsByUri = new Map(actors.map((actor) => [actor.uri, actor]));
 
     for (const { postId, activityId, domain } of orphans) {
-      const candidates = actorsByDomain.get(domain) ?? [];
+      const candidates = this.deriveFederatedActorUriCandidates(activityId)
+        .map((uri) => actorsByUri.get(uri))
+        .filter((actor): actor is typeof actors[number] => Boolean(actor));
       let best: typeof actors[number] | undefined;
       for (const actor of candidates) {
         if (activityId === actor.uri || activityId.startsWith(actor.uri + '/')) {
