@@ -14,6 +14,7 @@ import {
 import { PostVisibility } from '@mention/shared-types';
 import { enqueueDelivery } from '../../queue/producers';
 import { actorService } from './ActorService';
+import { readDeliveryFailureBodyPrefix } from '../../utils/federation/deliveryFailureBody';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
 
@@ -64,7 +65,7 @@ export class FollowService {
 
       if (res.ok || res.status === 202) return true;
 
-      const responseBody = await res.text().catch(() => '');
+      const responseBody = await readDeliveryFailureBodyPrefix(res).catch(() => '');
       logger.debug(`Activity delivery failed to ${targetInbox}: ${res.status} ${res.statusText} body=${responseBody.slice(0, 500)}`);
       return false;
     } catch (err) {
