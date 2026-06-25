@@ -11,6 +11,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from '../../utils/federation/apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
 import { recordAccessAndMaybeEnqueue } from '../mediaCache/cacheStore';
+import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../mediaCache/cacheWorker';
 
 /**
@@ -133,18 +134,29 @@ export function domainFromAcct(acct: string): string | undefined {
  * Sign a GET request using the instance actor key pair (managed by Oxy).
  * Required by servers that enforce authorized fetch (e.g., Threads).
  */
-export async function signedFetch(url: string, accept: string): Promise<Response> {
+
+function requestInitHeaders(init: RequestInit): Record<string, string> {
+  if (!init.headers) return {};
+  if (init.headers instanceof Headers) return Object.fromEntries(init.headers.entries());
+  if (Array.isArray(init.headers)) return Object.fromEntries(init.headers);
+  return init.headers as Record<string, string>;
+}
+
+export async function signedFetch(url: string, accept: string, init: RequestInit = {}): Promise<Response> {
   const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
   const { keyId } = await getPublicKey('instance');
   const sigHeaders = await signRequest(keyId, 'GET', url);
+  const extraHeaders = requestInitHeaders(init);
 
   const res = await fetch(url, {
+    ...init,
     headers: {
       Accept: acceptHeader,
       'User-Agent': USER_AGENT,
       ...sigHeaders,
+      ...extraHeaders,
     },
-    signal: AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
+    signal: init.signal ?? AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
   });
 
   // If the remote server returns a 5xx (e.g. it can't resolve our keyId to verify
@@ -152,11 +164,13 @@ export async function signedFetch(url: string, accept: string): Promise<Response
   if (res.status >= 500) {
     logger.info(`[FedSync] signedFetch got ${res.status} for ${url}, retrying unsigned`);
     return fetch(url, {
+      ...init,
       headers: {
         Accept: acceptHeader,
         'User-Agent': USER_AGENT,
+        ...extraHeaders,
       },
-      signal: AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
+      signal: init.signal ?? AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
     });
   }
 
@@ -173,6 +187,107 @@ export async function signedFetch(url: string, accept: string): Promise<Response
   }
 
   return res;
+}
+
+
+const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+const MAX_ACTIVITYPUB_REDIRECTS = 3;
+
+function sameOrigin(left: string, right: string): boolean {
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    return a.protocol === b.protocol && a.host.toLowerCase() === b.host.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+function isPubliclyAddressed(to?: unknown, cc?: unknown): boolean {
+  const addressees = [
+    ...(Array.isArray(to) ? to : []),
+    ...(Array.isArray(cc) ? cc : []),
+  ];
+  return addressees.includes('https://www.w3.org/ns/activitystreams#Public');
+}
+
+export interface FetchedAnnouncedNote {
+  note: Record<string, any>;
+  finalUrl: string;
+}
+
+/**
+ * Fetch an announced Note/Article under the stricter boost-import contract:
+ * every hop must be a public http(s) URL, redirects are re-validated, the final
+ * object id must match the fetched IRI, the author must share the object's
+ * origin, and only public notes are importable as public boost originals.
+ */
+export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<FetchedAnnouncedNote | null> {
+  let currentUrl = objectUri;
+
+  for (let hop = 0; hop <= MAX_ACTIVITYPUB_REDIRECTS; hop++) {
+    const guard = await assertSafePublicUrl(currentUrl);
+    if (!guard.ok) {
+      logger.info(`[FedSync] blocked boosted object fetch ${currentUrl}: ${guard.reason}`);
+      return null;
+    }
+
+    let res: Response;
+    try {
+      res = await signedFetch(currentUrl, AP_CONTENT_TYPE, { redirect: 'manual' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.info(`[FedSync] error fetching boosted object ${currentUrl}: ${message}`);
+      return null;
+    }
+
+    if (REDIRECT_STATUS_CODES.has(res.status)) {
+      const location = res.headers.get('location');
+      if (hop === MAX_ACTIVITYPUB_REDIRECTS || !location) {
+        logger.info(`[FedSync] boosted object ${currentUrl} redirect failed`);
+        return null;
+      }
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    if (!res.ok) {
+      logger.info(`[FedSync] failed to fetch boosted object ${currentUrl}: ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    let note: Record<string, any>;
+    try {
+      note = await res.json() as Record<string, any>;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.info(`[FedSync] failed to parse boosted object ${currentUrl}: ${message}`);
+      return null;
+    }
+
+    if (!note || (note.type !== 'Note' && note.type !== 'Article')) return null;
+
+    const noteId = typeof note.id === 'string' ? note.id : undefined;
+    if (!noteId || !sameOrigin(noteId, currentUrl)) {
+      logger.info(`[FedSync] boosted object ${currentUrl} id is missing or not same-origin; skipping`);
+      return null;
+    }
+
+    const authorUri = extractActorUri(note.attributedTo);
+    if (!authorUri || !sameOrigin(authorUri, noteId)) {
+      logger.info(`[FedSync] boosted object ${noteId} attributedTo is missing or not same-origin; skipping`);
+      return null;
+    }
+
+    if (!isPubliclyAddressed(note.to, note.cc)) {
+      logger.info(`[FedSync] boosted object ${noteId} is not public; skipping boost import`);
+      return null;
+    }
+
+    return { note, finalUrl: currentUrl };
+  }
+
+  return null;
 }
 
 /**
@@ -229,10 +344,10 @@ export function isDuplicateKeyError(err: unknown): boolean {
  * which may be a plain URI string or an embedded object with an `id`.
  */
 export function extractAnnouncedObjectUri(object: unknown): string | undefined {
-  if (typeof object === 'string') return object;
+  if (typeof object === 'string') return isAbsoluteHttpUrl(object) ? object : undefined;
   if (object && typeof object === 'object' && 'id' in object) {
     const id = (object as { id?: unknown }).id;
-    return typeof id === 'string' ? id : undefined;
+    return typeof id === 'string' && isAbsoluteHttpUrl(id) ? id : undefined;
   }
   return undefined;
 }
