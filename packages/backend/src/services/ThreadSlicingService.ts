@@ -7,7 +7,14 @@
  *   2. Reply context injection: posts with parentPostId → prepend parent as context
  */
 
-import { FeedPostSlice, FeedSliceItem, FeedSliceReason, MtnConfig, PostActorSummary } from '@mention/shared-types';
+import {
+  FeedPostSlice,
+  FeedSliceItem,
+  FeedSliceReason,
+  MtnConfig,
+  PostActorSummary,
+  PostVisibility,
+} from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
 import { resolveUserSummaries } from './PostHydrationService';
@@ -200,6 +207,8 @@ class ThreadSlicingService {
 
     try {
       const children = await Post.find({
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
         $or: orConditions,
       })
         .select('_id oxyUserId createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
