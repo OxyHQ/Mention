@@ -18,6 +18,7 @@ import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { aliaChat } from '../utils/alia';
+import { validatePublicShareTarget } from '../utils/postAccessControl';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -644,6 +645,22 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const isScheduled = postStatus === 'scheduled';
 
     const postMetadata = buildPostMetadata(req.body.metadata);
+
+    if (quoted_post_id) {
+      const quotedPost = await Post.findById(quoted_post_id).maxTimeMS(5000).lean();
+      const quoteValidation = validatePublicShareTarget(quotedPost, { action: 'quote' });
+      if (!quoteValidation.ok) {
+        return res.status(quoteValidation.status).json({ message: quoteValidation.message });
+      }
+    }
+
+    if (boost_of) {
+      const boostedPost = await Post.findById(boost_of).maxTimeMS(5000).lean();
+      const boostValidation = validatePublicShareTarget(boostedPost, { action: 'boost' });
+      if (!boostValidation.ok) {
+        return res.status(boostValidation.status).json({ message: boostValidation.message });
+      }
+    }
 
     const post = await postCreationService.create({
       oxyUserId: userId,

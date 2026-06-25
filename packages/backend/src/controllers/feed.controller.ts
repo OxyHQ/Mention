@@ -40,6 +40,7 @@ import {
 import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
+import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import type { User } from '@oxyhq/core';
@@ -1344,6 +1345,14 @@ class FeedController {
 
       if (!originalPostId) {
         return res.status(400).json({ error: 'Original post ID is required' });
+      }
+
+      const originalPost = await Post.findById(originalPostId)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+        .lean();
+      const shareValidation = validatePublicShareTarget(originalPost, { action: 'boost' });
+      if (!shareValidation.ok) {
+        return res.status(shareValidation.status).json({ error: shareValidation.message });
       }
 
       // Check if user already boosted this
