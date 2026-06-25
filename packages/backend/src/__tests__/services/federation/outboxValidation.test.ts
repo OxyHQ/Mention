@@ -285,6 +285,10 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     // The boosted object already exists locally so `resolvePostIdFromObjectUri`
     // returns its id (no remote fetch of the boosted Note needed).
     mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue({ _id: 'local_boosted_post' }) });
+    // The boosted post must be public + published for the boost to be imported.
+    mocks.postFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ status: 'published', visibility: 'public' }),
+    });
 
     stubOutbox(
       { type: 'OrderedCollection', totalItems: 1, first: FIRST_PAGE_URL },
