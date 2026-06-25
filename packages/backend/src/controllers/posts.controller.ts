@@ -1705,20 +1705,30 @@ export const moveBookmarkToFolder = async (req: AuthRequest, res: Response) => {
 };
 
 // Get posts by hashtag
+export function buildPostsByHashtagFilter(
+  hashtag: string,
+  cursor?: string,
+): Record<string, unknown> {
+  const filter: Record<string, unknown> = {
+    hashtags: { $in: [hashtag.toLowerCase()] },
+    status: 'published',
+    visibility: PostVisibility.PUBLIC,
+  };
+
+  if (cursor) {
+    filter._id = { $lt: cursor };
+  }
+
+  return filter;
+}
+
 export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   try {
     const hashtag = String(req.params.hashtag);
     const cursor = req.query.cursor as string | undefined;
     const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    const filter: Record<string, unknown> = {
-      hashtags: { $in: [hashtag.toLowerCase()] },
-      status: 'published',
-    };
-
-    if (cursor) {
-      filter._id = { $lt: cursor };
-    }
+    const filter = buildPostsByHashtagFilter(hashtag, cursor);
 
     const posts = await Post.find(filter)
       .sort({ createdAt: -1 })

@@ -515,6 +515,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
     // Build query based on feed configuration
     const q: Record<string, unknown> = {
       visibility: 'public',
+      status: 'published',
     };
 
     // Collect all conditions in $and array for proper MongoDB query structure
