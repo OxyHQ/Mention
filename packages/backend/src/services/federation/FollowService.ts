@@ -14,8 +14,31 @@ import {
 import { PostVisibility } from '@mention/shared-types';
 import { enqueueDelivery } from '../../queue/producers';
 import { actorService } from './ActorService';
+import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
+const DELIVERY_RESPONSE_PREVIEW_MAX_BYTES = 1024;
+
+async function readResponsePreview(response: NodeJS.ReadableStream): Promise<string> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  try {
+    for await (const chunk of response) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buffer.byteLength;
+      chunks.push(buffer);
+      if (totalBytes >= DELIVERY_RESPONSE_PREVIEW_MAX_BYTES) break;
+    }
+  } catch {
+    return '';
+  } finally {
+    const maybeDestroy = response as NodeJS.ReadableStream & { destroy?: () => void };
+    maybeDestroy.destroy?.();
+  }
+
+  return Buffer.concat(chunks).toString('utf8', 0, DELIVERY_RESPONSE_PREVIEW_MAX_BYTES);
+}
 
 /**
  * Outbound activity delivery + follow lifecycle (Follow / Undo(Follow) /
@@ -55,17 +78,21 @@ export class FollowService {
 
       logger.debug(`[FedDeliver] POST ${targetInbox} body=${body} sig-headers=${sigHeaders['Signature']?.match(/headers="([^"]+)"/)?.[1]}`);
 
-      const res = await fetch(targetInbox, {
+      const { response, status } = await fetchUpstreamSingleHop(targetInbox, {
         method: 'POST',
         headers: allHeaders,
         body,
         signal: AbortSignal.timeout(DELIVER_ACTIVITY_TIMEOUT_MS),
+        headersTimeoutMs: DELIVER_ACTIVITY_TIMEOUT_MS,
       });
 
-      if (res.ok || res.status === 202) return true;
+      if ((status >= 200 && status < 300) || status === 202) {
+        response.destroy();
+        return true;
+      }
 
-      const responseBody = await res.text().catch(() => '');
-      logger.debug(`Activity delivery failed to ${targetInbox}: ${res.status} ${res.statusText} body=${responseBody.slice(0, 500)}`);
+      const responseBody = await readResponsePreview(response);
+      logger.debug(`Activity delivery failed to ${targetInbox}: ${status} body=${responseBody.slice(0, 500)}`);
       return false;
     } catch (err) {
       logger.debug(`Activity delivery error to ${targetInbox}:`, err);
