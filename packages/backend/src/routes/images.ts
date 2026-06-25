@@ -1,7 +1,7 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
-import { validateUrlSecurity } from '../utils/urlSecurity';
+import { assertSafePublicUrl } from '../utils/ssrfGuard';
 import { imageCacheService } from '../services/imageCacheService';
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../middleware/rateLimitStore';
@@ -76,13 +76,14 @@ router.get('/optimize', imageOptimizeRateLimiter, async (req: AuthRequest, res: 
       });
     }
 
-    // Security validation (SSRF protection)
-    const securityCheck = validateUrlSecurity(url);
-    if (!securityCheck.valid) {
-      logger.warn('[Images] Security check failed:', { url, error: securityCheck.error });
+    // Security validation (SSRF protection). Perform DNS/IP checks for this
+    // public server-side fetch endpoint before handing the URL to the service.
+    const securityCheck = await assertSafePublicUrl(url);
+    if (!securityCheck.ok) {
+      logger.warn('[Images] Security check failed:', { url, error: securityCheck.reason });
       return res.status(400).json({
         success: false,
-        message: securityCheck.error || 'URL security validation failed',
+        message: 'URL security validation failed',
       });
     }
 
