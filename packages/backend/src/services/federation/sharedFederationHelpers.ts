@@ -11,8 +11,10 @@ import { PostVisibility } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from '../../utils/federation/apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
 import { recordAccessAndMaybeEnqueue } from '../mediaCache/cacheStore';
+import { fetchUpstreamFollowingRedirects } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../mediaCache/cacheWorker';
+import { Readable } from 'node:stream';
 
 /**
  * Shared low-level helpers used by more than one federation sub-service
@@ -142,51 +144,81 @@ function requestInitHeaders(init: RequestInit): Record<string, string> {
   return init.headers as Record<string, string>;
 }
 
+function nodeResponseToFetchResponse(response: import('node:http').IncomingMessage): Response {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(response.headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) headers.append(key, item);
+    } else if (typeof value === 'string') {
+      headers.set(key, value);
+    }
+  }
+
+  return new Response(Readable.toWeb(response) as ReadableStream, {
+    status: response.statusCode ?? 502,
+    statusText: response.statusMessage,
+    headers,
+  });
+}
+
+async function ssrfSafeGet(url: string, headers: Record<string, string>, signal: AbortSignal, followRedirects: boolean): Promise<Response> {
+  const { response } = await fetchUpstreamFollowingRedirects(url, { headers, followRedirects }, signal);
+  return nodeResponseToFetchResponse(response);
+}
+
 export async function signedFetch(url: string, accept: string, init: RequestInit = {}): Promise<Response> {
   const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
-  const { keyId } = await getPublicKey('instance');
-  const sigHeaders = await signRequest(keyId, 'GET', url);
   const extraHeaders = requestInitHeaders(init);
+  const signal = init.signal ?? AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS);
+  const followRedirects = init.redirect !== 'manual';
+  let currentUrl = url;
 
-  const res = await fetch(url, {
-    ...init,
-    headers: {
+  for (let hop = 0; hop <= MAX_ACTIVITYPUB_REDIRECTS; hop++) {
+    const { keyId } = await getPublicKey('instance');
+    const sigHeaders = await signRequest(keyId, 'GET', currentUrl);
+    const res = await ssrfSafeGet(currentUrl, {
       Accept: acceptHeader,
       'User-Agent': USER_AGENT,
       ...sigHeaders,
       ...extraHeaders,
-    },
-    signal: init.signal ?? AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
-  });
+    }, signal, false);
 
-  // If the remote server returns a 5xx (e.g. it can't resolve our keyId to verify
-  // the signature), retry without the signature as a fallback for public resources.
-  if (res.status >= 500) {
-    logger.info(`[FedSync] signedFetch got ${res.status} for ${url}, retrying unsigned`);
-    return fetch(url, {
-      ...init,
-      headers: {
+    if (followRedirects && REDIRECT_STATUS_CODES.has(res.status)) {
+      const location = res.headers.get('location');
+      await res.body?.cancel().catch(() => undefined);
+      if (!location || hop === MAX_ACTIVITYPUB_REDIRECTS) return res;
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    // If the remote server returns a 5xx (e.g. it can't resolve our keyId to verify
+    // the signature), retry without the signature as a fallback for public resources.
+    if (res.status >= 500) {
+      await res.body?.cancel().catch(() => undefined);
+      logger.info(`[FedSync] signedFetch got ${res.status} for ${currentUrl}, retrying unsigned`);
+      return ssrfSafeGet(currentUrl, {
         Accept: acceptHeader,
         'User-Agent': USER_AGENT,
         ...extraHeaders,
-      },
-      signal: init.signal ?? AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
-    });
+      }, signal, followRedirects);
+    }
+
+    // A 401/403 on a signed request means the remote rejected OUR signature
+    // (e.g. it could not resolve/verify our keyId, or our instance key pair is
+    // missing/invalid because the service token could not be acquired). Without a
+    // log this silently yields zero results — surface it so the failure mode is
+    // observable in production. The caller still receives the response and decides
+    // how to proceed; we do not change control flow here.
+    if (res.status === 401 || res.status === 403) {
+      logger.warn(
+        `[FedSync] signedFetch got ${res.status} ${res.statusText} for ${currentUrl} — remote rejected our HTTP signature (check instance key pair / service token); returning the failed response so no posts are imported from this source`,
+      );
+    }
+
+    return res;
   }
 
-  // A 401/403 on a signed request means the remote rejected OUR signature
-  // (e.g. it could not resolve/verify our keyId, or our instance key pair is
-  // missing/invalid because the service token could not be acquired). Without a
-  // log this silently yields zero results — surface it so the failure mode is
-  // observable in production. The caller still receives the response and decides
-  // how to proceed; we do not change control flow here.
-  if (res.status === 401 || res.status === 403) {
-    logger.warn(
-      `[FedSync] signedFetch got ${res.status} ${res.statusText} for ${url} — remote rejected our HTTP signature (check instance key pair / service token); returning the failed response so no posts are imported from this source`,
-    );
-  }
-
-  return res;
+  throw new Error('too many ActivityPub redirects');
 }
 
 

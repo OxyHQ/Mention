@@ -73,6 +73,10 @@ export interface UpstreamRequestExtras {
   ifNoneMatch?: string;
   /** Client `If-Modified-Since` validator to forward. */
   ifModifiedSince?: string;
+  /** Additional request headers to send upstream after the proxy defaults. */
+  headers?: Record<string, string>;
+  /** When false, return redirect responses after validating the current hop. */
+  followRedirects?: boolean;
 }
 
 export interface UpstreamResult {
@@ -101,6 +105,7 @@ function buildRequestOptions(
     // buffered prefix is the raw container ffmpeg expects.
     'Accept-Encoding': 'identity',
   };
+  Object.assign(headers, extras.headers ?? {});
   if (extras.range) headers.Range = extras.range;
   if (extras.ifNoneMatch) headers['If-None-Match'] = extras.ifNoneMatch;
   if (extras.ifModifiedSince) headers['If-Modified-Since'] = extras.ifModifiedSince;
@@ -179,6 +184,9 @@ export async function fetchUpstreamFollowingRedirects(
 
     const status = response.statusCode ?? 0;
     if (REDIRECT_STATUS_CODES.has(status)) {
+      if (extras.followRedirects === false) {
+        return { response, finalUrl: currentUrl };
+      }
       const location = response.headers.location;
       // We only need the Location header. Destroy immediately rather than
       // draining (resume()) the redirect body, which could be unbounded.

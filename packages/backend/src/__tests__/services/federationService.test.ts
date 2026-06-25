@@ -124,6 +124,17 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+function streamResponse(body: unknown, init: { statusCode?: number; headers?: Record<string, string> } = {}) {
+  const stream = new PassThrough();
+  stream.end(typeof body === 'string' ? body : JSON.stringify(body));
+  Object.assign(stream, {
+    statusCode: init.statusCode ?? 200,
+    statusMessage: init.statusCode && init.statusCode >= 400 ? 'Error' : 'OK',
+    headers: init.headers ?? { 'content-type': 'application/activity+json' },
+  });
+  return stream;
+}
+
 function createNoteActivity(id: string, actorUri = 'https://mastodon.social/users/alice') {
   return {
     id: `${actorUri}/statuses/${id}/activity`,
@@ -189,6 +200,18 @@ beforeEach(() => {
   mocks.uploadProfileBanner.mockResolvedValue({ file: { id: 'banner_file_1' } });
   mocks.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.fetchUpstreamFollowingRedirects.mockReset();
+  mocks.fetchUpstreamFollowingRedirects.mockImplementation(async (url: string, extras?: { headers?: Record<string, string> }) => {
+    const res = await fetch(url, { headers: extras?.headers });
+    const body = await res.arrayBuffer();
+    const stream = new PassThrough();
+    stream.end(Buffer.from(body));
+    Object.assign(stream, {
+      statusCode: res.status,
+      statusMessage: res.statusText,
+      headers: Object.fromEntries(res.headers.entries()),
+    });
+    return { response: stream, finalUrl: url };
+  });
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
     uploadProfileBanner: mocks.uploadProfileBanner,
@@ -197,9 +220,9 @@ beforeEach(() => {
 
 describe('federationService.fetchRemoteActor', () => {
   it('preserves canonical www hostnames such as Threads actor URIs', async () => {
-    const fetchMock = vi.fn(async (url: string) => {
+    mocks.fetchUpstreamFollowingRedirects.mockImplementation(async (url: string) => {
       if (url === 'https://www.threads.net/ap/users/mosseri/') {
-        return jsonResponse({
+        return { response: streamResponse({
           id: 'https://www.threads.net/ap/users/mosseri/',
           type: 'Person',
           preferredUsername: 'mosseri',
@@ -210,16 +233,15 @@ describe('federationService.fetchRemoteActor', () => {
             id: 'https://www.threads.net/ap/users/mosseri/#main-key',
             publicKeyPem: 'remote-public',
           },
-        });
+        }), finalUrl: url };
       }
 
       if (url === 'https://www.threads.net/ap/users/mosseri/outbox') {
-        return jsonResponse({ type: 'OrderedCollection', totalItems: 12 });
+        return { response: streamResponse({ type: 'OrderedCollection', totalItems: 12 }), finalUrl: url };
       }
 
-      throw new Error(`unexpected fetch ${url}`);
+      throw new Error(`unexpected safe fetch ${url}`);
     });
-    vi.stubGlobal('fetch', fetchMock);
 
     const actor = await federationService.fetchRemoteActor(
       'https://www.threads.net/ap/users/mosseri/',
@@ -228,16 +250,18 @@ describe('federationService.fetchRemoteActor', () => {
     );
 
     expect(actor?.uri).toBe('https://www.threads.net/ap/users/mosseri/');
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(mocks.fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
       'https://www.threads.net/ap/users/mosseri/',
       expect.objectContaining({
         headers: expect.objectContaining({
           Accept: expect.stringContaining('application/activity+json'),
         }),
       }),
+      expect.any(AbortSignal),
     );
-    expect(fetchMock).not.toHaveBeenCalledWith(
+    expect(mocks.fetchUpstreamFollowingRedirects).not.toHaveBeenCalledWith(
       expect.stringContaining('https://threads.net/ap/users/mosseri/'),
+      expect.anything(),
       expect.anything(),
     );
     expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
@@ -264,37 +288,36 @@ describe('federationService.fetchRemoteActor', () => {
   });
 
   it('downloads actor banners through the SSRF-safe media fetcher with content validation and a size cap', async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      if (url === 'https://remote.example/users/alice') {
-        return jsonResponse({
-          id: 'https://remote.example/users/alice',
-          type: 'Person',
-          preferredUsername: 'alice',
-          name: 'Alice',
-          inbox: 'https://remote.example/users/alice/inbox',
-          image: ['http://127.0.0.1/latest/meta-data', { url: 'https://remote.example/banner.jpg' }],
-        });
-      }
-
-      throw new Error(`unexpected global fetch ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
     const body = new PassThrough();
     body.end(Buffer.from('fake-image-bytes'));
     Object.assign(body, {
       statusCode: 200,
       headers: { 'content-type': 'image/jpeg' },
     });
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response: body,
-      finalUrl: 'http://127.0.0.1/latest/meta-data',
+    mocks.fetchUpstreamFollowingRedirects.mockImplementation(async (url: string) => {
+      if (url === 'https://remote.example/users/alice') {
+        return { response: streamResponse({
+          id: 'https://remote.example/users/alice',
+          type: 'Person',
+          preferredUsername: 'alice',
+          name: 'Alice',
+          inbox: 'https://remote.example/users/alice/inbox',
+          image: ['http://127.0.0.1/latest/meta-data', { url: 'https://remote.example/banner.jpg' }],
+        }), finalUrl: url };
+      }
+      return {
+        response: body,
+        finalUrl: 'http://127.0.0.1/latest/meta-data',
+      };
     });
 
     await federationService.fetchRemoteActor('https://remote.example/users/alice');
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalledWith('http://127.0.0.1/latest/meta-data');
+    expect(mocks.fetchUpstreamFollowingRedirects).not.toHaveBeenCalledWith(
+      'http://127.0.0.1/latest/meta-data',
+      expect.objectContaining({ headers: expect.anything() }),
+      expect.any(AbortSignal),
+    );
     expect(mocks.fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
       'http://127.0.0.1/latest/meta-data',
       {},
@@ -309,30 +332,26 @@ describe('federationService.fetchRemoteActor', () => {
   });
 
   it('rejects non-image actor banner responses before upload', async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      if (url === 'https://remote.example/users/bob') {
-        return jsonResponse({
-          id: 'https://remote.example/users/bob',
-          type: 'Person',
-          preferredUsername: 'bob',
-          inbox: 'https://remote.example/users/bob/inbox',
-          image: 'https://remote.example/banner.txt',
-        });
-      }
-
-      throw new Error(`unexpected global fetch ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
     const body = new PassThrough();
     body.end(Buffer.from('not an image'));
     Object.assign(body, {
       statusCode: 200,
       headers: { 'content-type': 'text/plain' },
     });
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response: body,
-      finalUrl: 'https://remote.example/banner.txt',
+    mocks.fetchUpstreamFollowingRedirects.mockImplementation(async (url: string) => {
+      if (url === 'https://remote.example/users/bob') {
+        return { response: streamResponse({
+          id: 'https://remote.example/users/bob',
+          type: 'Person',
+          preferredUsername: 'bob',
+          inbox: 'https://remote.example/users/bob/inbox',
+          image: 'https://remote.example/banner.txt',
+        }), finalUrl: url };
+      }
+      return {
+        response: body,
+        finalUrl: 'https://remote.example/banner.txt',
+      };
     });
 
     await federationService.fetchRemoteActor('https://remote.example/users/bob');
