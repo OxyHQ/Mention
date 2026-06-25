@@ -4,6 +4,7 @@ import { Post } from '../../models/Post';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
+  extractActorUriFromActivityId,
 } from '../../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
@@ -171,6 +172,41 @@ function isSameOriginHttpUrl(value: string, sourceUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+
+function normalizeActorUriForCompare(uri: string | null | undefined): string | null {
+  if (!uri || !isAbsoluteHttpUrl(uri)) return null;
+  try {
+    const parsed = new URL(uri);
+    parsed.hash = '';
+    parsed.search = '';
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function actorUrisMatch(actual: string | null | undefined, expected: string): boolean {
+  const normalizedActual = normalizeActorUriForCompare(actual);
+  const normalizedExpected = normalizeActorUriForCompare(expected);
+  return Boolean(normalizedActual && normalizedExpected && normalizedActual === normalizedExpected);
+}
+
+function activityIdBelongsToActor(activityId: string, actorUri: string): boolean {
+  if (!isAbsoluteHttpUrl(activityId)) return false;
+
+  try {
+    const activityUrl = new URL(activityId);
+    const actorUrl = new URL(actorUri);
+    if (activityUrl.origin !== actorUrl.origin) return false;
+  } catch {
+    return false;
+  }
+
+  const derivedActorUri = extractActorUriFromActivityId(activityId);
+  return !derivedActorUri || actorUrisMatch(derivedActorUri, actorUri);
 }
 
 interface RawPostClassificationSeed {
@@ -360,7 +396,7 @@ export class OutboxSyncService {
         const items = activityPubItems(pageData);
         const normalizedOffset = Math.max(0, Math.min(startItemOffset, items.length));
         if (items.length > 0) {
-          const nextItemOffset = await this.extractCandidates(items, candidates, limit, pageUrl, normalizedOffset);
+          const nextItemOffset = await this.extractCandidates(items, candidates, limit, pageUrl, actor.uri, normalizedOffset);
           if (nextItemOffset < items.length) {
             nextCursor = { url: pageUrl, itemOffset: nextItemOffset };
             pausedMidPage = true;
@@ -578,8 +614,8 @@ export class OutboxSyncService {
         const published = parseApPublished(note.published ?? activity.published);
 
         // Resolve author's Oxy User ID
-        const actorUri = extractActorUri(note.attributedTo);
-        const resolvedOxyUserId = actorUri ? actorOxyMap.get(actorUri) || null : null;
+        const actorUri = actor.uri;
+        const resolvedOxyUserId = actorOxyMap.get(actorUri) || null;
         if (!resolvedOxyUserId) {
           logger.debug(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
         }
@@ -620,6 +656,7 @@ export class OutboxSyncService {
           oxyUserId: resolvedOxyUserId,
           federation: {
             activityId,
+            actorUri,
             inReplyTo: note.inReplyTo || undefined,
             url: note.url || note.id,
             sensitive: note.sensitive || false,
@@ -753,6 +790,7 @@ export class OutboxSyncService {
     candidates: OutboxCandidate[],
     limit: number,
     sourcePageUrl: string,
+    expectedActorUri: string,
     startIndex = 0,
   ): Promise<number> {
     const maxIndexExclusive = Math.min(items.length, startIndex + OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE);
@@ -785,6 +823,8 @@ export class OutboxSyncService {
         const activityId = activity.id;
         const announcedUri = extractAnnouncedObjectUri(activity.object);
         if (!activityId || !announcedUri) continue;
+        if (!actorUrisMatch(extractActorUri(activity.actor), expectedActorUri)) continue;
+        if (!activityIdBelongsToActor(activityId, expectedActorUri)) continue;
         candidates.push({ kind: 'announce', activity, activityId, announcedUri });
         continue;
       }
@@ -805,6 +845,11 @@ export class OutboxSyncService {
 
       const activityId = note.id || activity.id;
       if (!activityId) continue;
+
+      const attributedTo = extractActorUri(note.attributedTo);
+      if (!actorUrisMatch(attributedTo, expectedActorUri)) continue;
+      if (activity.type === 'Create' && !actorUrisMatch(extractActorUri(activity.actor), expectedActorUri)) continue;
+      if (!activityIdBelongsToActor(activityId, expectedActorUri)) continue;
 
       candidates.push({ kind: 'note', note, activity, activityId });
     }
@@ -899,6 +944,7 @@ export class OutboxSyncService {
         visibility: PostVisibility.PUBLIC,
         federation: {
           activityId: announceId,
+          actorUri: typeof announceActivity.actor === 'string' ? announceActivity.actor : undefined,
           url: typeof announceActivity.url === 'string' ? announceActivity.url : announceId,
         },
         status: 'published',

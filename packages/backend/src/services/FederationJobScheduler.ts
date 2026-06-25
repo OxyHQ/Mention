@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger';
 import type { Types } from 'mongoose';
-import { FEDERATION_ENABLED, extractActorUriFromActivityId } from '../utils/federation/constants';
+import { FEDERATION_ENABLED } from '../utils/federation/constants';
 import FederatedActor, { type FederatedOutboxBackfillState } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
@@ -725,8 +725,10 @@ class FederationJobScheduler {
   }
 
   /**
-   * One-time backfill: set oxyUserId on federated posts that were stored without one.
-   * Uses bulk operations to avoid N+1 queries.
+   * Backfill oxyUserId only when a post already stores a verified ActivityPub
+   * actor URI from its original inbox/outbox import. Older posts that only have
+   * an activityId are intentionally skipped: activity IDs are attacker-controlled
+   * strings and are not proof of authorship.
    *
    * Public so the BullMQ periodic worker can invoke it.
    */
@@ -739,29 +741,21 @@ class FederationJobScheduler {
     try {
       const posts = await Post.find({
         federation: { $ne: null },
+        'federation.actorUri': { $exists: true, $ne: null },
         $or: [{ oxyUserId: null }, { oxyUserId: { $exists: false } }],
       })
-        .select('federation')
+        .select('federation.actorUri')
         .limit(500)
         .lean();
 
       if (posts.length === 0) return;
 
-      logger.info(`[FedSync] Backfilling oxyUserId for ${posts.length} federated posts`);
+      logger.info(`[FedSync] Backfilling oxyUserId for ${posts.length} federated posts with verified actor URIs`);
 
-      // Derive actor URIs from activity IDs using the shared utility
-      const postActorMap = new Map<string, string[]>(); // actorUri → [postId, ...]
-
+      const postActorMap = new Map<string, string[]>();
       for (const post of posts) {
-        const activityId = (post.federation as { activityId?: string } | undefined)?.activityId;
-        if (!activityId) continue;
-
-        const actorUri = extractActorUriFromActivityId(activityId);
-        if (!actorUri) {
-          logger.debug(`[FedSync] Backfill: could not extract actor URI from ${activityId}`);
-          continue;
-        }
-
+        const actorUri = (post.federation as { actorUri?: string } | undefined)?.actorUri;
+        if (!actorUri) continue;
         const postIds = postActorMap.get(actorUri) ?? [];
         postIds.push(String(post._id));
         postActorMap.set(actorUri, postIds);
@@ -769,7 +763,6 @@ class FederationJobScheduler {
 
       if (postActorMap.size === 0) return;
 
-      // Single batch query for all actor URIs
       const actors = await FederatedActor.find({
         uri: { $in: [...postActorMap.keys()] },
         oxyUserId: { $ne: null },
@@ -777,14 +770,13 @@ class FederationJobScheduler {
         .select('uri oxyUserId')
         .lean();
 
-      // Build bulk updates grouped by oxyUserId
       const bulkOps: Array<{ updateMany: { filter: Record<string, unknown>; update: Record<string, unknown> } }> = [];
       for (const actor of actors) {
         const postIds = postActorMap.get(actor.uri);
         if (!postIds?.length || !actor.oxyUserId) continue;
         bulkOps.push({
           updateMany: {
-            filter: { _id: { $in: postIds } },
+            filter: { _id: { $in: postIds }, 'federation.actorUri': actor.uri },
             update: { $set: { oxyUserId: actor.oxyUserId } },
           },
         });

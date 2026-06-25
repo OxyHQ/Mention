@@ -318,6 +318,7 @@ export class InboxProcessingService {
       oxyUserId: actor.oxyUserId ?? null,
       federation: {
         activityId: object.id,
+        actorUri,
         inReplyTo: object.inReplyTo || undefined,
         url: object.url || object.id,
         sensitive: object.sensitive || false,

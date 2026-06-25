@@ -13,6 +13,7 @@ export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned'
 
 export interface PostFederationData {
   activityId?: string;   // AP activity URI
+  actorUri?: string;     // Verified ActivityPub actor/signing URI that authored this activity
   inReplyTo?: string;    // AP URI of parent post
   url?: string;          // canonical web URL on remote instance
   sensitive?: boolean;   // content warning flag
@@ -287,6 +288,7 @@ const PostMetadataSchema = new Schema({
 
 const FederationSchema = new Schema({
   activityId: { type: String },
+  actorUri: { type: String },
   inReplyTo: { type: String },
   url: { type: String },
   sensitive: { type: Boolean, default: false },
