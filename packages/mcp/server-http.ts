@@ -21,8 +21,6 @@ const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
 // ── Transport store ──────────────────────────────────────────
 const transports: Record<string, StreamableHTTPServerTransport | SSEServerTransport> = {};
 const sessionLastActivity: Map<string, number> = new Map();
-/** Map session IDs to their user tokens for SSE sessions (long-lived). */
-const sessionUserTokens: Map<string, string> = new Map();
 
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -37,7 +35,6 @@ const cleanupInterval = setInterval(() => {
       transport.close().catch(() => {});
       delete transports[id];
       sessionLastActivity.delete(id);
-      sessionUserTokens.delete(id);
       cleaned++;
     }
   }
@@ -89,7 +86,6 @@ function sendJsonRpcError(res: ServerResponse, httpStatus: number, code: number,
 function cleanupSession(id: string): void {
   delete transports[id];
   sessionLastActivity.delete(id);
-  sessionUserTokens.delete(id);
 }
 
 // ── Main ─────────────────────────────────────────────────────
@@ -205,13 +201,9 @@ async function main() {
 
     // ── SSE: GET /sse ────────────────────────────────────────
     if (pathname === "/sse" && req.method === "GET") {
-      const userToken = extractBearerToken(headers, query);
       const server = createMcpServer();
       const transport = new SSEServerTransport("/messages", res);
       transports[transport.sessionId] = transport;
-      if (userToken) {
-        sessionUserTokens.set(transport.sessionId, userToken);
-      }
 
       res.on("close", () => {
         cleanupSession(transport.sessionId);
@@ -231,8 +223,10 @@ async function main() {
         return;
       }
 
-      // Use per-request Bearer token, or fall back to the token from session init
-      const userToken = extractBearerToken(headers, query) || (sessionId ? sessionUserTokens.get(sessionId) : undefined);
+      // Do not reuse the token from GET /sse here: session IDs are carried in URLs
+      // and must not become bearer credentials for a user account. Require callers
+      // to present any user token on each POST /messages request instead.
+      const userToken = extractBearerToken(headers, query);
       const body = await readBody(req);
       await requestContext.run({ userToken }, () =>
         transport.handlePostMessage(req, res, body),
