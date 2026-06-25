@@ -154,6 +154,8 @@ interface RequestDeadline {
    * Called once the non-redirect response is in hand.
    */
   setActiveResponse: (response: IncomingMessage) => void;
+  /** Abort the upstream request/response immediately, e.g. after client close. */
+  abort: () => void;
 }
 
 /**
@@ -170,7 +172,9 @@ interface RequestDeadline {
  * `res`. The double-send guard is preserved.
  *
  * The timer is cleared on the single `res` 'close' event, which fires on every
- * terminal path: success, error, or client disconnect.
+ * terminal path. If that close is a premature client disconnect, the same event
+ * also aborts the upstream work so a gone requester cannot keep sockets, buffers,
+ * or poster ffmpeg jobs alive in the background.
  */
 function withRequestDeadline(
   res: Response,
@@ -180,9 +184,13 @@ function withRequestDeadline(
   const abortController = new AbortController();
   let activeResponse: IncomingMessage | null = null;
 
-  const deadlineTimer = setTimeout(() => {
+  const abortUpstream = (): void => {
     abortController.abort();
     if (activeResponse && !activeResponse.destroyed) activeResponse.destroy();
+  };
+
+  const deadlineTimer = setTimeout(() => {
+    abortUpstream();
     const canRespond = !res.headersSent;
     onTimeout(canRespond);
     if (!canRespond && !res.writableEnded) {
@@ -192,6 +200,9 @@ function withRequestDeadline(
 
   res.once('close', () => {
     clearTimeout(deadlineTimer);
+    if (!res.writableEnded) {
+      abortUpstream();
+    }
   });
 
   return {
@@ -199,6 +210,7 @@ function withRequestDeadline(
     setActiveResponse: (response: IncomingMessage): void => {
       activeResponse = response;
     },
+    abort: abortUpstream,
   };
 }
 
@@ -673,6 +685,11 @@ router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response
 
   if (prefix.length === 0) {
     if (!res.headersSent) res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+    return;
+  }
+
+  if (deadline.signal.aborted || res.destroyed || res.writableEnded) {
+    deadline.abort();
     return;
   }
 
