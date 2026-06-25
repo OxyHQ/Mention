@@ -85,6 +85,7 @@ export class ForYouFeed implements FeedAPI {
     const candidatePosts = await gatherForYouCandidates({
       viewerId: currentUserId,
       followingIds: context.followingIds ?? [],
+      subscribedListMemberIds: context.subscribedListMemberIds,
       userBehavior: context.userBehavior as CandidateUserBehavior | undefined,
       viewerRegion: context.viewerRegion,
       seenPostIds,
