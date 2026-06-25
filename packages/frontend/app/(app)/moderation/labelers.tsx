@@ -20,7 +20,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { labelerService } from '@/services/labelerService';
+import { labelerService, type LabelDefinition } from '@/services/labelerService';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 
@@ -30,7 +30,7 @@ interface Labeler {
   name: string;
   description?: string;
   subscriberCount: number;
-  labelDefinitions?: any[];
+  labelDefinitions?: LabelDefinition[];
   isOfficial?: boolean;
   isSubscribed?: boolean;
 }
@@ -326,7 +326,7 @@ export default LabelersScreen;
 const styles = StyleSheet.create({
   searchInput: {
     ...Platform.select({
-      web: { outlineStyle: 'none' as any },
+      web: { outlineWidth: 0 },
     }),
   },
   listContent: {

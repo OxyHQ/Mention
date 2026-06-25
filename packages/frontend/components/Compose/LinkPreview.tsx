@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Linking, type StyleProp, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Loading } from '@oxyhq/bloom/loading';
 import { LinkMetadata } from '../../stores/linksStore';
@@ -53,7 +53,7 @@ function fixImageUrl(imageUrl: string | undefined): string | undefined {
 interface LinkPreviewProps {
   link: LinkMetadata;
   onRemove?: () => void;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRemove, style }) => {
@@ -181,7 +181,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
 LinkPreview.displayName = 'LinkPreview';
 
 interface LinkPreviewLoadingProps {
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const LinkPreviewLoading: React.FC<LinkPreviewLoadingProps> = ({ style }) => {

@@ -44,7 +44,19 @@ interface PostHeaderProps {
   showReply?: boolean;
   paddingHorizontal?: number;
   children?: React.ReactNode;
-  avatarUri?: string;
+  /**
+   * Avatar image source passed straight to Bloom's {@link Avatar}. Accepts a full
+   * http(s) URL (federated/remote actor avatar — rendered directly) OR a bare Oxy
+   * file id for a LOCAL actor — Bloom's `ImageResolver` resolves the file id with
+   * {@link avatarVariant}. The federated-vs-local branch is owned by the caller
+   * (it picks the URL or the file id); Bloom disambiguates URL vs file id again.
+   */
+  avatarSource?: string;
+  /**
+   * Rendition variant for `avatarSource` when it is a bare file id (local actor).
+   * Ignored by Bloom when `avatarSource` is already a full URL.
+   */
+  avatarVariant?: string;
   avatarSize?: number;
   avatarGap?: number;
   placeholderColor?: string;
@@ -60,7 +72,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   showReply,
   paddingHorizontal = HPAD,
   children,
-  avatarUri,
+  avatarSource,
+  avatarVariant,
   avatarSize = 36,
 
   placeholderColor,
@@ -77,7 +90,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       <View className="flex-row items-start justify-between">
         <ProfileHoverCard username={user.handle}>
           <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
-            <Avatar source={avatarUri} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }} />
+            <Avatar source={avatarSource} variant={avatarVariant} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }} />
           </TouchableOpacity>
         </ProfileHoverCard>
         <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>

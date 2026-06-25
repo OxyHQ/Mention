@@ -7,9 +7,13 @@ import {
     Platform,
     NativeSyntheticEvent,
     TextInputContentSizeChangeEventData,
+    TextInputSelectionChangeEventData,
+    type StyleProp,
+    type TextStyle,
 } from "react-native";
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionPicker, { MentionUser } from "./MentionPicker";
+import { asTextStyle, type WebTextStyle } from "@/types/webStyles";
 
 export interface MentionData {
     userId: string;
@@ -31,7 +35,7 @@ interface MentionTextInputProps extends Omit<TextInputProps, "onChangeText" | "v
     placeholder?: string;
     maxLength?: number;
     multiline?: boolean;
-    style?: any;
+    style?: StyleProp<TextStyle>;
 }
 
 const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInputProps>(({
@@ -140,7 +144,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     }, [cursorPosition, onChangeText, mentions, convertToStorageFormat]);
 
     // Handle selection change to track cursor position
-    const handleSelectionChange = useCallback((event: any) => {
+    const handleSelectionChange = useCallback((event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
         setCursorPosition(event.nativeEvent.selection.start);
     }, []);
 
@@ -292,12 +296,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
         textAlignVertical: "top",
         ...Platform.select({
-            web: {
+            web: asTextStyle({
                 outlineStyle: 'none',
                 outlineWidth: 0,
                 resize: 'none',
                 overflow: 'hidden',
-            } as any,
+            }),
         }),
     },
     pickerContainer: {

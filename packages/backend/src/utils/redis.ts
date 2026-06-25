@@ -52,6 +52,10 @@ function createRedisOptions(): RedisClientOptions {
 
 let redisClient: RedisClientType | null = null;
 let redisClientPromise: Promise<RedisClientType> | null = null;
+// Whether the current `redisClient` was created from a REDIS_URL (vs host/port).
+// Tracked alongside the client so a later config change (e.g. dotenv loading
+// after first use) can detect the mismatch and recreate the client.
+let redisClientCreatedWithUrl = false;
 let hasLoggedRedisUnavailable = false; // Track if we've already logged Redis unavailability
 let isMainClient = true; // Track if this is the main client (for logging)
 
@@ -66,7 +70,7 @@ export function getRedisClient(): RedisClientType {
   if (redisClient) {
     // Check if we need to recreate the client due to config change
     // This can happen if dotenv loads after the first call
-    const wasCreatedWithUrl = (redisClient as any)._createdWithUrl;
+    const wasCreatedWithUrl = redisClientCreatedWithUrl;
     const shouldUseUrl = !!config.redisUrl;
     
     // If config changed (URL now available but client was created without URL, or vice versa)
@@ -137,13 +141,13 @@ export function getRedisClient(): RedisClientType {
     };
     redisClient = createClient(urlOptions) as RedisClientType;
     // Mark that this client was created with URL
-    (redisClient as any)._createdWithUrl = true;
+    redisClientCreatedWithUrl = true;
   } else {
     // No URL provided - use host/port configuration
     const options = createRedisOptions();
     redisClient = createClient(options) as RedisClientType;
     // Mark that this client was created without URL
-    (redisClient as any)._createdWithUrl = false;
+    redisClientCreatedWithUrl = false;
   }
 
   // Set up event handlers
@@ -256,8 +260,8 @@ export async function verifyRedisConnection(): Promise<{
   };
 }> {
   const config = getRedisConfig();
-  const details: any = {};
-  
+  const details: { host?: string; port?: number; url?: string; error?: string } = {};
+
   if (config.redisUrl) {
     details.url = config.redisUrl.replace(/:[^:@]+@/, ':****@');
   } else {
@@ -283,8 +287,8 @@ export async function verifyRedisConnection(): Promise<{
       try {
         await client.ping();
         ping = true;
-      } catch (pingError: any) {
-        details.error = `Ping failed: ${pingError.message}`;
+      } catch (pingError: unknown) {
+        details.error = `Ping failed: ${pingError instanceof Error ? pingError.message : 'unknown error'}`;
       }
     } else {
       details.error = 'Client not ready';
@@ -296,12 +300,12 @@ export async function verifyRedisConnection(): Promise<{
       ping,
       details
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       connected: false,
       ready: false,
       ping: false,
-      details: { ...details, error: error.message }
+      details: { ...details, error: error instanceof Error ? error.message : 'unknown error' }
     };
   }
 }

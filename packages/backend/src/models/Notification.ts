@@ -1,11 +1,24 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+export type NotificationType =
+  | 'like'
+  | 'reply'
+  | 'mention'
+  | 'follow'
+  | 'boost'
+  | 'quote'
+  | 'welcome'
+  | 'post'
+  | 'poke';
+
+export type NotificationEntityType = 'post' | 'reply' | 'profile';
+
 export interface INotification extends Document {
   recipientId: string;
   actorId: string;
-  type: string;
+  type: NotificationType;
   entityId: mongoose.Types.ObjectId;
-  entityType: string;
+  entityType: NotificationEntityType;
   read: boolean;
   createdAt: Date;
 }

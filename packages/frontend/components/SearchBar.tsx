@@ -8,10 +8,11 @@ import { useTheme } from '@oxyhq/bloom/theme'
 import { Search } from '@/assets/icons/search-icon'
 import { SPACING } from '@/styles/spacing'
 import { FONT_SIZES } from '@/styles/typography'
+import { asViewStyle, type WebViewStyle } from '@/types/webStyles'
 
-const debounce = (func: Function, wait: number) => {
-    let timeout: NodeJS.Timeout;
-    return function executedFunction(...args: any[]) {
+const debounce = <Args extends unknown[]>(func: (...args: Args) => void, wait: number) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    return (...args: Args) => {
         const later = () => {
             clearTimeout(timeout);
             func(...args);
@@ -82,14 +83,18 @@ export const SearchBar = () => {
     );
 };
 
+// `position: 'sticky'` is a valid react-native-web value absent from RN's native
+// `ViewStyle['position']` union — author it through the shared extended ViewStyle
+// (same pattern as SideBar), then bridge to ViewStyle for StyleSheet rather than
+// an `as any` cast.
+const webStickyStyle: WebViewStyle = { position: 'sticky' };
+
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        ...Platform.select({
-            web: { position: 'sticky' as any },
-        }),
+        ...(Platform.OS === 'web' ? asViewStyle(webStickyStyle) : null),
         top: 0,
         zIndex: 1000,
         width: '100%',
@@ -113,10 +118,9 @@ const styles = StyleSheet.create({
         marginHorizontal: SPACING.md,
         flex: 1,
         ...Platform.select({
-            web: {
-                outlineStyle: 'none',
-                outlineWidth: 0,
-            } as any,
+            // `outlineWidth: 0` is a valid numeric react-native-web style and
+            // removes the focus ring without the invalid `outlineStyle: 'none'`.
+            web: { outlineWidth: 0 },
         }),
     },
     clearBtn: {

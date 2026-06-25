@@ -21,9 +21,23 @@ export interface RankingExplanation {
 }
 
 /**
+ * The runtime ranking-breakdown fields FeedRankingService attaches to a post.
+ * Every field is optional so a not-yet-scored post explains cleanly to zeros.
+ */
+export interface ScoredPostFactors {
+  _rankEngagement?: number;
+  _rankRecency?: number;
+  _rankRelationship?: number;
+  _rankPersonalization?: number;
+  _rankQuality?: number;
+  _rankDiversity?: number;
+  finalScore?: number;
+}
+
+/**
  * Build an explanation from the ranking factors on a scored post.
  */
-export function explainRanking(post: any): RankingExplanation {
+export function explainRanking(post: ScoredPostFactors): RankingExplanation {
   const factors: RankingFactors = {
     engagement: post._rankEngagement ?? 0,
     recency: post._rankRecency ?? 0,

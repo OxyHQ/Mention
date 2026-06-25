@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { api } from '@/utils/api';
+import { normalizeApiError } from '@/utils/apiError';
 
 interface AnalyticsState {
-  data: any;
+  data: unknown;
   loading: boolean;
   error: string | null;
   fetchAnalytics: (userID: string, period: string) => Promise<void>;
@@ -17,8 +18,8 @@ export const useAnalyticsStore = create<AnalyticsState>((set) => ({
     try {
       const response = await api.get('analytics', { userID, period });
       set({ data: response.data, loading: false });
-    } catch (error: any) {
-      set({ error: error?.message || 'Failed to fetch analytics', loading: false });
+    } catch (error: unknown) {
+      set({ error: normalizeApiError(error).message || 'Failed to fetch analytics', loading: false });
     }
   },
 })); 

@@ -26,26 +26,34 @@ const pinoLogger = pino({
 });
 
 interface LoggerFunction {
-  (message: string, ...args: any[]): void;
+  (message: string, ...args: unknown[]): void;
 }
 
 interface Logger {
   info: LoggerFunction;
   warn: LoggerFunction;
-  error: LoggerFunction;
+  error: (message: string, error?: unknown) => void;
   debug: LoggerFunction;
 }
 
+/** Fold variadic log args into a single pino-mergeable object. */
+function mergeLogArgs(args: unknown[]): Record<string, unknown> {
+  const first = args[0];
+  if (args.length === 1 && first !== null && typeof first === 'object') {
+    return first as Record<string, unknown>;
+  }
+  return { data: args };
+}
+
 export const logger: Logger = {
-  info: (message: string, ...args: any[]) => {
+  info: (message: string, ...args: unknown[]) => {
     if (args.length > 0) {
-      const merged = args.length === 1 && typeof args[0] === 'object' ? args[0] : { data: args };
-      pinoLogger.info(merged, message);
+      pinoLogger.info(mergeLogArgs(args), message);
     } else {
       pinoLogger.info(message);
     }
   },
-  error: (message: string, error?: any) => {
+  error: (message: string, error?: unknown) => {
     if (error instanceof Error) {
       pinoLogger.error({ err: error }, message);
     } else if (error) {
@@ -54,18 +62,16 @@ export const logger: Logger = {
       pinoLogger.error(message);
     }
   },
-  warn: (message: string, ...args: any[]) => {
+  warn: (message: string, ...args: unknown[]) => {
     if (args.length > 0) {
-      const merged = args.length === 1 && typeof args[0] === 'object' ? args[0] : { data: args };
-      pinoLogger.warn(merged, message);
+      pinoLogger.warn(mergeLogArgs(args), message);
     } else {
       pinoLogger.warn(message);
     }
   },
-  debug: (message: string, ...args: any[]) => {
+  debug: (message: string, ...args: unknown[]) => {
     if (args.length > 0) {
-      const merged = args.length === 1 && typeof args[0] === 'object' ? args[0] : { data: args };
-      pinoLogger.debug(merged, message);
+      pinoLogger.debug(mergeLogArgs(args), message);
     } else {
       pinoLogger.debug(message);
     }

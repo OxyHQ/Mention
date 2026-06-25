@@ -1431,7 +1431,8 @@ const ComposeScreen = () => {
                       handle: user?.username || '',
                       verified: Boolean(user?.verified)
                     }}
-                    avatarUri={user?.avatar ?? undefined}
+                    avatarSource={user?.avatar ?? undefined}
+                    avatarVariant="thumb"
                     avatarSize={AVATAR_SIZE}
                     onPressUser={() => { }}
                     onPressAvatar={() => { }}

@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { starterPacksService } from '@/services/starterPacksService';
+import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import SEO from '@/components/SEO';
@@ -16,7 +16,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 export default function StarterPacksScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const [myPacks, setMyPacks] = useState<any[]>([]);
+  const [myPacks, setMyPacks] = useState<StarterPackSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -91,7 +91,7 @@ export default function StarterPacksScreen() {
             />
           ) : (
             <View className="px-1">
-              {myPacks.map((p: any) => {
+              {myPacks.map((p: StarterPackSummary) => {
                 const memberCount = p.memberCount ?? (p.memberOxyUserIds || []).length;
                 const cardData: StarterPackCardData = {
                   id: String(p._id || p.id),

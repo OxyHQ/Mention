@@ -1,9 +1,10 @@
 import React from "react";
+import type { StyleProp, ViewStyle } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 
 interface VideoPreviewProps {
     src: string;
-    style?: any;
+    style?: StyleProp<ViewStyle>;
 }
 
 export const VideoPreview: React.FC<VideoPreviewProps> = ({ src, style }) => {

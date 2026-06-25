@@ -1,14 +1,16 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { show as toast } from '@oxyhq/bloom/toast';
+import type { FileMetadata } from '@oxyhq/core';
 import { ComposerMediaItem, toComposerMediaType } from "@/utils/composeUtils";
+import { normalizeApiError } from "@/utils/apiError";
 
 export const useMediaManager = () => {
   const { t } = useTranslation();
   const [mediaIds, setMediaIds] = useState<ComposerMediaItem[]>([]);
 
   const addMedia = useCallback(
-    (file: any) => {
+    (file: FileMetadata) => {
       const isImage = file?.contentType?.startsWith?.("image/");
       const isVideo = file?.contentType?.startsWith?.("video/");
 
@@ -26,8 +28,8 @@ export const useMediaManager = () => {
         setMediaIds((prev) => (prev.some((m) => m.id === file.id) ? prev : [...prev, mediaItem]));
         toast(t(isImage ? "Image attached" : "Video attached"), { type: 'success' });
         return true;
-      } catch (e: any) {
-        toast(e?.message || t("Failed to attach media"), { type: 'error' });
+      } catch (e: unknown) {
+        toast(normalizeApiError(e).message || t("Failed to attach media"), { type: 'error' });
         return false;
       }
     },
@@ -35,7 +37,7 @@ export const useMediaManager = () => {
   );
 
   const addMultipleMedia = useCallback(
-    (files: any[]) => {
+    (files: FileMetadata[]) => {
       const validFiles = (files || []).filter((f) => {
         const contentType = f?.contentType || "";
         return contentType.startsWith("image/") || contentType.startsWith("video/");

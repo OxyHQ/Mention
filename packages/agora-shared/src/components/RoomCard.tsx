@@ -110,11 +110,14 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const isScheduled = room.status === 'scheduled';
   const isCompact = variant === 'compact';
 
-  // Resolve host display
+  // Resolve host display: an explicit prop wins, then the @handle, then the
+  // canonical API-owned `name.displayName` from the Oxy user DTO (never a
+  // recompute from name parts), then a not-yet-resolved userId fallback.
+  const hostProfileName = hostProfile?.name;
   const hostName = hostNameProp
     ?? (hostProfile?.username
       ? `@${hostProfile.username}`
-      : (typeof hostProfile?.name === 'object' ? hostProfile?.name?.full : typeof hostProfile?.name === 'string' ? hostProfile?.name : null)
+      : (typeof hostProfileName === 'object' ? hostProfileName?.displayName : null)
         || room.host?.slice(0, 10)
         || 'Unknown');
   const hostAvatarUri = hostAvatarUriProp ?? getAvatarUrl(hostProfile, oxyServices, getCachedFileDownloadUrlSync);

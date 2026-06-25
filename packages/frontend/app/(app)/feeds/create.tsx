@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minHeight: 24,
     ...Platform.select({
-      web: { outlineStyle: 'none' as any },
+      web: { outlineWidth: 0 },
     }),
   },
   separator: {
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     ...Platform.select({
-      web: { outlineStyle: 'none' as any },
+      web: { outlineWidth: 0 },
     }),
   },
   listRow: {

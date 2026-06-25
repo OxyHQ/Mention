@@ -914,7 +914,7 @@ const reviewStyles = StyleSheet.create({
     minHeight: 100,
     fontSize: 15,
     ...Platform.select({
-      web: { outlineStyle: 'none' as any },
+      web: { outlineWidth: 0 },
     }),
   },
   modalSubmitBtn: {

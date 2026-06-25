@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
 import { logger } from '@/lib/logger';
+import { normalizeApiError } from '@/utils/apiError';
 import { getPostFromStore } from '@/utils/postSelectors';
 import { queryClient } from '@/lib/queryClient';
 import { precacheProfileViews, type CacheableUser } from '@/lib/precacheProfiles';
@@ -80,9 +81,9 @@ export function useOriginalPost({ post, isNested, nestingDepth }: UseOriginalPos
                     setFetchedPost(original);
                     primeUsersCache(post?.user, original?.user);
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
                 // Silently handle 404s - post may have been deleted
-                if (error?.response?.status !== 404) {
+                if (normalizeApiError(error).status !== 404) {
                     logger.error('Error loading original/quoted post', { error });
                 }
             }

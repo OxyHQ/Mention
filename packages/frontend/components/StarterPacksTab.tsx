@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
-import { starterPacksService } from '@/services/starterPacksService';
+import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
 import LegendList from '@/components/LegendList';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,7 @@ export function StarterPacksTab() {
   const router = useRouter();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
-  const [packs, setPacks] = useState<any[]>([]);
+  const [packs, setPacks] = useState<StarterPackSummary[]>([]);
 
   const fetchPacks = useCallback(async () => {
     try {
@@ -57,7 +57,7 @@ export function StarterPacksTab() {
     );
   }
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = ({ item }: { item: StarterPackSummary }) => {
     const memberCount = item.memberCount ?? (item.memberOxyUserIds || []).length;
     const cardData: StarterPackCardData = {
       id: String(item._id || item.id),
@@ -84,7 +84,7 @@ export function StarterPacksTab() {
     <LegendList
       data={packs}
       renderItem={renderItem}
-      keyExtractor={(item: any) => String(item._id || item.id)}
+      keyExtractor={(item: StarterPackSummary) => String(item._id || item.id)}
       contentContainerStyle={styles.list}
       ListHeaderComponent={
         <TouchableOpacity

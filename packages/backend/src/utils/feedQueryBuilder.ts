@@ -101,7 +101,7 @@ export class FeedQueryBuilder {
   /** Merge a $nin exclusion into the query's _id filter, creating $and if needed */
   private static excludeIds(query: Record<string, unknown>, ids: string[]): void {
     if (ids.length === 0) return;
-    const existing = query._id as any;
+    const existing = query._id;
     if (existing && typeof existing === 'object') {
       if (!Array.isArray(query.$and)) {
         query.$and = [];
@@ -134,7 +134,7 @@ export class FeedQueryBuilder {
       $or: orConditions,
     }, { targetId: 1, _id: 0 }).limit(200).lean();
 
-    const hiddenPostIds = matchingLabels.map((l: any) => String(l.targetId));
+    const hiddenPostIds = matchingLabels.map((l) => String(l.targetId));
 
     this.excludeIds(query, hiddenPostIds);
 
@@ -169,10 +169,10 @@ export class FeedQueryBuilder {
     
     // Exclude owner from custom feeds if explicitly requested
     if (filters.excludeOwner && currentUserId) {
-      const oxyUserIdFilter = query.oxyUserId as any;
+      const oxyUserIdFilter = query.oxyUserId;
       if (oxyUserIdFilter && typeof oxyUserIdFilter === 'object' && '$in' in oxyUserIdFilter && Array.isArray(oxyUserIdFilter.$in)) {
         query.oxyUserId = {
-          $in: oxyUserIdFilter.$in.filter((id: string) => id !== currentUserId)
+          $in: (oxyUserIdFilter.$in as unknown[]).filter((id) => id !== currentUserId)
         };
       } else {
         query.oxyUserId = { $ne: currentUserId };
@@ -204,7 +204,7 @@ export class FeedQueryBuilder {
       const dateTo = typeof filters.dateTo === 'string' || filters.dateTo instanceof Date
         ? new Date(filters.dateTo as string | Date)
         : new Date(String(filters.dateTo));
-      const existingCreatedAt = query.createdAt as any;
+      const existingCreatedAt = query.createdAt;
       query.createdAt = existingCreatedAt && typeof existingCreatedAt === 'object'
         ? { ...existingCreatedAt, $lte: dateTo }
         : { $lte: dateTo };
@@ -301,7 +301,7 @@ export class FeedQueryBuilder {
         if (!Array.isArray(match.$and)) {
           match.$and = [];
         }
-        (match.$and as any[]).push({ _id: { $nin: seenObjectIds } });
+        (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
       }
     }
 
@@ -313,7 +313,7 @@ export class FeedQueryBuilder {
         if (!Array.isArray(match.$and)) {
           match.$and = [];
         }
-        (match.$and as any[]).push({ _id: { $lt: cursorId } });
+        (match.$and as unknown[]).push({ _id: { $lt: cursorId } });
       } else {
         match._id = { $lt: cursorId };
       }

@@ -8,6 +8,9 @@ import {
   Pressable,
   ImageBackground,
   ImageSourcePropType,
+  type StyleProp,
+  type ViewStyle,
+  type GestureResponderEvent,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -55,7 +58,7 @@ interface WelcomeModalProps {
  */
 const GradientText: React.FC<{
   lines: string[];
-  style?: any;
+  style?: StyleProp<ViewStyle>;
   fontSize: number;
   fontWeight?: string;
   fontFamily?: string;
@@ -139,7 +142,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
     stableOnClose();
   }, [stableOnClose]);
 
-  const handleContentPress = useCallback((e: any) => {
+  const handleContentPress = useCallback((e: GestureResponderEvent) => {
     e.stopPropagation();
   }, []);
 

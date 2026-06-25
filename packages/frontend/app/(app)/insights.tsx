@@ -5,14 +5,16 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Platform
+    Platform,
+    type ViewStyle,
+    type TextStyle
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, type Theme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
 import { statisticsService, UserStatistics, EngagementRatios } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +28,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { asViewStyle, asTextStyle } from '@/types/webStyles';
 import { StatusBar } from 'expo-status-bar';
 import SEO from '@/components/SEO';
 import { logger } from '@/lib/logger';
@@ -47,6 +50,12 @@ const PERIOD_OPTIONS = [
     { labelKey: 'insights.period.90days', value: 90 }
 ];
 
+// `position: 'sticky'` is a valid react-native-web value absent from RN's native
+// position union — author it through the shared extended View/Text styles (same
+// pattern as SideBar) and bridge to the RN style types, rather than an `as any` cast.
+const webStickyViewStyle: ViewStyle = asViewStyle({ position: 'sticky' });
+const webStickyRankStyle: TextStyle = asTextStyle({ position: 'sticky', top: 12 });
+
 // Reusable stat row
 interface StatRowProps {
     icon: React.ReactNode;
@@ -56,7 +65,7 @@ interface StatRowProps {
     showDivider?: boolean;
 }
 
-const StatRow: React.FC<StatRowProps & { theme: any }> = ({ icon, label, value, sub, showDivider = true, theme }) => (
+const StatRow: React.FC<StatRowProps & { theme: Theme }> = ({ icon, label, value, sub, showDivider = true }) => (
     <View>
         <View className="flex-row items-center justify-between py-3">
             <View className="flex-row items-center gap-3">
@@ -80,7 +89,7 @@ const StatRow: React.FC<StatRowProps & { theme: any }> = ({ icon, label, value, 
 interface PeriodSelectorProps {
     selected: number;
     onSelect: (val: number) => void;
-    theme: any;
+    theme: Theme;
     t: (key: string) => string;
 }
 
@@ -136,8 +145,9 @@ const InsightsScreen: React.FC = () => {
                     const postsPromises = statsData.topPosts.slice(0, 5).map(async (postInfo) => {
                         try {
                             return await getPostById(postInfo.postId);
-                        } catch (error: any) {
-                            if (error?.response?.status !== 404) {
+                        } catch (error: unknown) {
+                            const status = (error as { response?: { status?: number } })?.response?.status;
+                            if (status !== 404) {
                                 logger.error(`Error loading post ${postInfo.postId}`, { error });
                             }
                             return null;
@@ -287,7 +297,7 @@ const InsightsScreen: React.FC = () => {
                         {topPostsData.length > 0 ? (
                             topPostsData.map((post, index) => (
                                 <View key={post.id} style={[styles.topPostRow, index < topPostsData.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }]}>
-                                    <Text className="text-xl font-extrabold w-8 pt-3.5 text-muted-foreground" style={{ position: 'sticky' as any, top: 12 }}>
+                                    <Text className="text-xl font-extrabold w-8 pt-3.5 text-muted-foreground" style={webStickyRankStyle}>
                                         {index + 1}
                                     </Text>
                                     <View className="flex-1">
@@ -426,10 +436,9 @@ const InsightsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
     stickyTabBar: {
-        ...Platform.select({
-            web: { position: 'sticky' as any },
-            default: { position: 'relative' },
-        }),
+        ...(Platform.OS === 'web'
+            ? webStickyViewStyle
+            : { position: 'relative' as const }),
         top: 0,
         zIndex: 100,
         backgroundColor: 'transparent',

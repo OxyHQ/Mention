@@ -16,8 +16,11 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import { Loading } from '@oxyhq/bloom/loading';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { confirmDialog } from "@/utils/alerts";
+import { createScopedLogger } from "@/lib/logger";
 import { useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
+
+const logger = createScopedLogger('SettingsScreen');
 
 export default function SettingsScreen() {
     const { t } = useTranslation();
@@ -68,7 +71,9 @@ export default function SettingsScreen() {
         if (!confirmed) return;
         try {
             await signOut();
-        } catch {}
+        } catch (error) {
+            logger.warn('Sign-out failed; resetting local state and navigating anyway', { error });
+        }
         resetAppearance();
         resetTheme();
         router.replace('/');

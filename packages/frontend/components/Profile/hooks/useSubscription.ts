@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { subscriptionService } from '@/services/subscriptionService';
+import { normalizeApiError } from '@/utils/apiError';
 import { useDeferredToggle } from './useDeferredToggle';
 import type { UseSubscriptionReturn } from '../types';
 
@@ -45,8 +46,8 @@ export function useSubscription(
   const safeToggle = useCallback(async () => {
     try {
       await toggle();
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || t('subscription.error');
+    } catch (error: unknown) {
+      const errorMessage = normalizeApiError(error).message || t('subscription.error');
       toast(errorMessage, { type: 'error' });
     }
   }, [toggle, t]);

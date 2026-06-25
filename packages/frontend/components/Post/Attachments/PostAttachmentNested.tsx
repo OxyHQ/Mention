@@ -1,8 +1,14 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import type { HydratedPostSummary } from '@mention/shared-types';
+
+// PostItem's `post` prop. Typed structurally here (the concrete `PostEntity`
+// alias is local to PostItem) to keep the dynamic require below typed without a
+// circular import.
+type NestedPostItemProps = { post: HydratedPostSummary; isNested?: boolean; nestingDepth?: number };
 
 // Dynamic import to break circular dependency: PostItem -> PostAttachmentsRow -> PostItem
-let PostItemComponent: React.ComponentType<any> | null = null;
+let PostItemComponent: React.ComponentType<NestedPostItemProps> | null = null;
 const getPostItem = () => {
   if (!PostItemComponent) {
     PostItemComponent = require('../../Feed/PostItem').default;
@@ -11,7 +17,7 @@ const getPostItem = () => {
 };
 
 interface PostAttachmentNestedProps {
-  nestedPost: any;
+  nestedPost: HydratedPostSummary;
   nestingDepth: number;
   width: number;
 }

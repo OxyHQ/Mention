@@ -68,7 +68,7 @@ const tabStyle = {
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     height: '100%' as const,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as const } : {}),
 };
 
 export const BottomBar = () => {

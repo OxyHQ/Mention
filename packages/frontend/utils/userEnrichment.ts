@@ -3,9 +3,11 @@ import { queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 
 /**
- * For each user missing an avatar, fetch the full profile and write it into the
- * React Query cache (the single in-memory actor cache). Per-user errors are
- * silently swallowed so one bad profile does not block the rest.
+ * For each user missing an avatar, fetch the full profiles in a SINGLE bulk
+ * request and write them into the React Query cache (the single in-memory actor
+ * cache). This avoids the classic N+1 — one HTTP request per missing user —
+ * by routing the misses through `oxyServices.getUsersByIds` (chunked 100/req,
+ * deduped) instead of looping `getUserById`.
  *
  * Fire-and-forget — callers should NOT await this if they want the UI to render
  * immediately with placeholder avatars. The full profiles fill in reactively as
@@ -13,23 +15,24 @@ import type { User } from '@oxyhq/core';
  */
 export function enrichMissingAvatars(
   users: readonly { id: string; avatar?: string; [k: string]: unknown }[],
-  getUserById: (id: string) => Promise<User | null | undefined>,
+  getUsersByIds: (ids: string[]) => Promise<User[]>,
   queryClient: QueryClient,
 ): Promise<void> {
-  const missing = users.filter(
-    (u) => !u.avatar || (typeof u.avatar === 'string' && !u.avatar.startsWith('http')),
-  );
-  if (missing.length === 0) return Promise.resolve();
+  const missingIds = users
+    .filter((u) => !u.avatar || (typeof u.avatar === 'string' && !u.avatar.startsWith('http')))
+    .map((u) => u.id)
+    .filter((id) => id.length > 0);
+  if (missingIds.length === 0) return Promise.resolve();
 
-  return Promise.all(
-    missing.map((u) =>
-      getUserById(u.id)
-        .then((user) => {
-          if (user?.id) {
-            queryClient.setQueryData(queryKeys.users.detail(user.id), user);
-          }
-        })
-        .catch(() => {}),
-    ),
-  ).then(() => {});
+  return getUsersByIds(missingIds)
+    .then((fetched) => {
+      for (const user of fetched) {
+        if (user?.id) {
+          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
+        }
+      }
+    })
+    .catch(() => {
+      // Avatar enrichment is best-effort: placeholders stay in place on failure.
+    });
 }

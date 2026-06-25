@@ -61,7 +61,9 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 
     const handleDateChange = React.useCallback((params: { date: DateType }) => {
         if (params.date) {
-            const selectedDate = new Date(params.date as any);
+            // `DateType` is `string | number | Dayjs | Date`; `valueOf()` yields a
+            // `Date`-constructible value for every member (Dayjs/Date → ms epoch).
+            const selectedDate = new Date(params.date.valueOf());
             // Merge with existing time if we're just changing the date
             const currentDateTime = eventDate;
             selectedDate.setHours(currentDateTime.getHours());

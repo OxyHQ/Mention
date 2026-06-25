@@ -1,12 +1,23 @@
 import { RedisClientType } from 'redis';
 import { logger } from './logger';
 
+/** Read the `code`/`message` of an unknown error without assuming its shape. */
+function errorFields(error: unknown): { code?: string; message?: string } {
+  if (!error || typeof error !== 'object') return {};
+  const record = error as Record<string, unknown>;
+  return {
+    code: typeof record.code === 'string' ? record.code : undefined,
+    message: typeof record.message === 'string' ? record.message : undefined,
+  };
+}
+
 /**
  * Check if an error is a Redis connection error
  */
-export function isRedisConnectionError(error: any): boolean {
-  return error?.code === 'ECONNREFUSED' || error?.code === 'ENOTFOUND' || 
-         error?.message?.includes('ECONNREFUSED') || error?.message?.includes('ENOTFOUND');
+export function isRedisConnectionError(error: unknown): boolean {
+  const { code, message } = errorFields(error);
+  return code === 'ECONNREFUSED' || code === 'ENOTFOUND' ||
+         Boolean(message?.includes('ECONNREFUSED')) || Boolean(message?.includes('ENOTFOUND'));
 }
 
 /**
@@ -71,11 +82,12 @@ export async function ensureRedisConnected(client: RedisClientType, timeoutMs: n
     
     // If still not ready after timeout, return false
     return false;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle "Socket already opened" error gracefully - this means connection is in progress
-    if (error?.message?.includes('Socket already opened') || 
-        error?.message?.includes('already open') ||
-        error?.message?.includes('already connected')) {
+    const { message: connectErrorMessage } = errorFields(error);
+    if (connectErrorMessage?.includes('Socket already opened') ||
+        connectErrorMessage?.includes('already open') ||
+        connectErrorMessage?.includes('already connected')) {
       // Socket is already open/connecting, check if it becomes ready
       const startTime = Date.now();
       const maxWait = timeoutMs;
@@ -125,8 +137,8 @@ export async function verifyRedisConnectionWithDiagnostics(client: RedisClientTy
           )
         ]);
         ping = true;
-      } catch (pingError: any) {
-        error = `Ping failed: ${pingError.message}`;
+      } catch (pingError: unknown) {
+        error = `Ping failed: ${errorFields(pingError).message ?? 'unknown error'}`;
       }
     } else if (connected) {
       error = 'Client connected but not ready';
@@ -140,12 +152,12 @@ export async function verifyRedisConnectionWithDiagnostics(client: RedisClientTy
       ping,
       error
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       connected: false,
       ready: false,
       ping: false,
-      error: error.message
+      error: errorFields(error).message ?? 'unknown error'
     };
   }
 }
@@ -166,7 +178,7 @@ export async function withRedisFallback<T>(
       return fallback;
     }
     return await operation();
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (isRedisConnectionError(error)) {
       if (operationName) {
         logger.debug(`Redis unavailable for ${operationName}, using fallback`);

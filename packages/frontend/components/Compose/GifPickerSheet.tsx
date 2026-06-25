@@ -20,6 +20,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { Platform } from 'react-native';
 import { api } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';
+import { normalizeApiError } from '@/utils/apiError';
 
 const logger = createScopedLogger('GifPickerSheet');
 
@@ -113,9 +114,9 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       } else {
         setGifs([]);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error fetching GIFs', { error });
-      toast(error?.message || t('Failed to load GIFs'), { type: 'error' });
+      toast(normalizeApiError(error).message || t('Failed to load GIFs'), { type: 'error' });
       setGifs([]);
     } finally {
       setLoading(false);
@@ -219,9 +220,9 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
           throw new Error('Upload failed - no file ID returned');
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error selecting GIF', { error });
-      toast(error?.message || t('Failed to add GIF'), { type: 'error' });
+      toast(normalizeApiError(error).message || t('Failed to add GIF'), { type: 'error' });
     } finally {
       setUploading(false);
       setSelectedGif(null);

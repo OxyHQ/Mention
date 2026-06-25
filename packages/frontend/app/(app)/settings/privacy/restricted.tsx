@@ -35,13 +35,6 @@ interface RestrictedUser {
     avatar?: string | null;
 }
 
-interface OxyProfileService {
-    getProfileById?: (id: string) => Promise<User | null | undefined>;
-    getProfile?: (id: string) => Promise<User | null | undefined>;
-    getUserById?: (id: string) => Promise<User | null | undefined>;
-    getUser?: (id: string) => Promise<User | null | undefined>;
-}
-
 const getUserId = (user: RestrictedUser): string | undefined => user.id || user._id;
 
 export default function RestrictedUsersScreen() {
@@ -110,67 +103,20 @@ export default function RestrictedUsersScreen() {
                 return;
             }
 
-            const BATCH_SIZE = 10;
-            const userPromises: Promise<RestrictedUser | null>[] = [];
-
-            for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
-                const batch = userIds.slice(i, i + BATCH_SIZE);
-                const batchPromises = batch.map(async (userId: string): Promise<RestrictedUser | null> => {
-                    try {
-                        restrictedLogger.debug(`Fetching user details for: ${userId}`);
-
-                        const svc = oxyServices as unknown as OxyProfileService;
-                        const loader = async (id: string): Promise<User | null | undefined> => {
-                            if (typeof svc.getProfileById === 'function') {
-                                try {
-                                    return await svc.getProfileById(id);
-                                } catch {
-                                    restrictedLogger.debug(`getProfileById failed for ${id}`);
-                                }
-                            }
-                            if (typeof svc.getProfile === 'function') {
-                                try {
-                                    return await svc.getProfile(id);
-                                } catch {
-                                    restrictedLogger.debug(`getProfile failed for ${id}`);
-                                }
-                            }
-                            if (typeof svc.getUserById === 'function') {
-                                try {
-                                    return await svc.getUserById(id);
-                                } catch {
-                                    restrictedLogger.debug(`getUserById failed for ${id}`);
-                                }
-                            }
-                            if (typeof svc.getUser === 'function') {
-                                try {
-                                    return await svc.getUser(id);
-                                } catch {
-                                    restrictedLogger.debug(`getUser failed for ${id}`);
-                                }
-                            }
-                            return null;
-                        };
-
-                        const user = await queryClient.fetchQuery<User | null | undefined>({
-                            queryKey: queryKeys.users.detail(String(userId)),
-                            queryFn: () => loader(String(userId)),
-                            staleTime: 5 * 60 * 1000,
-                        });
-                        restrictedLogger.debug(`Found user for ${userId}: ${user ? 'yes' : 'no'}`);
-
-                        if (!user) return null;
-
-                        return user;
-                    } catch (error) {
-                        restrictedLogger.warn(`Failed to fetch user ${userId}`, { error });
-                        return null;
-                    }
-                });
-                userPromises.push(...batchPromises);
+            // Single bulk fetch for all restricted profiles (no per-id N+1, no
+            // manual batching — the SDK chunks 100/req internally). Results are
+            // primed into the shared React Query cache for downstream reads.
+            const fetched = await oxyServices.getUsersByIds(userIds);
+            for (const user of fetched) {
+                if (user?.id) {
+                    queryClient.setQueryData(queryKeys.users.detail(user.id), user);
+                }
             }
-
-            const users = (await Promise.all(userPromises)).filter((user): user is User => Boolean(user));
+            // Preserve order; drop ids the bulk fetch couldn't resolve.
+            const byId = new Map(fetched.map((user) => [user.id, user]));
+            const users = userIds
+                .map((id) => byId.get(id))
+                .filter((user): user is User => Boolean(user));
             restrictedLogger.debug(`Loaded ${users.length} users`);
             setRestrictedUsers(users);
         } catch (error) {

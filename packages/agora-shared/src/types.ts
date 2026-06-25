@@ -52,7 +52,7 @@ export interface RoomAttachmentData {
 export interface UserEntity {
   id: string;
   username?: string;
-  name?: { full?: string; first?: string; last?: string } | string;
+  name?: { displayName?: string; full?: string; first?: string; last?: string } | string;
   handle?: string;
   // Adapts the Oxy SDK `User.avatar` (`string | null`): the API projects avatar
   // from a nullable column, so `null` is a legitimate value at this boundary.

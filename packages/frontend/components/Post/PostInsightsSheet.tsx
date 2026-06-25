@@ -23,7 +23,7 @@ interface PostInsightsSheetProps {
 }
 
 interface StatRowProps {
-    icon: string;
+    icon: React.ComponentProps<typeof Ionicons>['name'];
     iconColor: string;
     label: string;
     value: number;
@@ -35,7 +35,7 @@ const StatRow: React.FC<StatRowProps> = ({ icon, iconColor, label, value, percen
     <View>
         <View className="flex-row items-center justify-between py-3">
             <View className="flex-row items-center gap-3">
-                <Ionicons name={icon as any} size={18} color={iconColor} />
+                <Ionicons name={icon} size={18} color={iconColor} />
                 <Text className="text-foreground text-[15px] font-medium">{label}</Text>
             </View>
             <View className="flex-row items-center" style={{ gap: 10 }}>

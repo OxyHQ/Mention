@@ -3,6 +3,8 @@ import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, Vi
 import { useAuth } from '@oxyhq/services';
 import {
   GeoJSONPoint,
+  HydratedPostSummary,
+  PollData,
   PostAttachmentDescriptor,
   PostSourceLink,
   MEDIA_VARIANT_THUMB,
@@ -41,17 +43,17 @@ interface MediaObj {
 interface Props {
   media?: MediaObj[];
   attachments?: PostAttachmentDescriptor[];
-  nestedPost?: any;
+  nestedPost?: HydratedPostSummary | null;
   leftOffset?: number;
   pollId?: string;
-  pollData?: any;
+  pollData?: PollData | null;
   nestingDepth?: number;
   postId?: string;
   article?: { articleId?: string; title?: string; body?: string } | null;
   onArticlePress?: (() => void) | null;
   event?: { eventId?: string; name: string; date: string; location?: string; description?: string } | null;
   onEventPress?: (() => void) | null;
-  room?: { roomId: string; title: string; status?: string; topic?: string; host?: string } | null;
+  room?: { roomId: string; title: string; status?: 'scheduled' | 'live' | 'ended'; topic?: string; host?: string } | null;
   onRoomPress?: (() => void) | null;
   location?: GeoJSONPoint | null;
   sources?: PostSourceLink[];
@@ -196,7 +198,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             break;
           case 'media':
             if (descriptor.id) {
-              addMediaItem(descriptor.id, descriptor.mediaType as any);
+              addMediaItem(descriptor.id, descriptor.mediaType);
             }
             break;
           default:
@@ -405,14 +407,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       _node?: unknown;
     } | null;
     const node = scrollView?.getScrollableNode?.() ?? scrollView?._node ?? scrollViewRef.current;
-    if (!node || !(node as any).addEventListener) return;
+    if (!node || typeof (node as Partial<HTMLElement>).addEventListener !== 'function') return;
     const element = node as unknown as HTMLElement;
 
     let isDragging = false;
     let startXPos = 0;
     let startScrollLeft = 0;
 
-    const handleMouseDown = (event: any) => {
+    const handleMouseDown = (event: MouseEvent) => {
       isDragging = true;
       startXPos = event.pageX;
       startScrollLeft = element.scrollLeft;
@@ -425,7 +427,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       element.style.removeProperty('user-select');
     };
 
-    const handleMouseMove = (event: any) => {
+    const handleMouseMove = (event: MouseEvent) => {
       if (!isDragging) return;
       event.preventDefault();
       const x = event.pageX;
@@ -497,7 +499,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               key={`room-${idx}`}
               roomId={room?.roomId || ''}
               title={room?.title || ''}
-              status={room?.status as any}
+              status={room?.status}
               topic={room?.topic}
               host={room?.host}
               onPress={onRoomPress || undefined}
@@ -521,11 +523,12 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             <PostAttachmentPoll
               key={`poll-${idx}`}
               pollId={pollId}
-              pollData={pollData}
+              pollData={pollData ?? undefined}
             />
           );
         }
         if (item.type === 'nested') {
+          if (!nestedPost) return null;
           return (
             <PostAttachmentNested
               key={`nested-${idx}`}

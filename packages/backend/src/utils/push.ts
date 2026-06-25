@@ -1,6 +1,8 @@
 import admin from 'firebase-admin';
+import { HydratedDocument } from 'mongoose';
 import PushToken from '../models/PushToken';
 import Post from '../models/Post';
+import { INotification } from '../models/Notification';
 import { oxy } from '../../server';
 import { logger } from './logger';
 
@@ -16,11 +18,11 @@ function initFirebase() {
   }
   try {
     const json = Buffer.from(credsB64, 'base64').toString('utf-8');
-    const serviceAccount = JSON.parse(json);
+    const serviceAccount = JSON.parse(json) as admin.ServiceAccount;
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       projectId,
-    } as any);
+    });
     firebaseInitialized = true;
     logger.info('[Push] Firebase Admin initialized for FCM');
   } catch (e) {
@@ -79,7 +81,10 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
       if (resp.responses) {
         resp.responses.forEach((r, idx) => {
           if (!r.success) {
-            const code = (r.error as any)?.errorInfo?.code || r.error?.code;
+            const errorInfo = r.error && 'errorInfo' in r.error
+              ? (r.error as { errorInfo?: { code?: string } }).errorInfo
+              : undefined;
+            const code = errorInfo?.code || r.error?.code;
             if (code && (code.includes('registration-token-not-registered') || code.includes('invalid-argument'))) {
               const bad = tkChunk[idx];
               if (bad) toDisable.push(bad);
@@ -107,7 +112,9 @@ export async function formatPushForNotification(n: any) {
     } else if (n.actorId === 'system') {
       actorName = 'System';
     }
-  } catch {}
+  } catch (error) {
+    logger.debug('[Push] Failed to hydrate actor for notification, using fallback name', { error });
+  }
   const map: Record<string, { title: string; body: string }> = {
     like: { title: 'New like', body: `${actorName} liked your post` },
     reply: { title: 'New reply', body: `${actorName} replied to your post` },
@@ -133,7 +140,9 @@ export async function formatPushForNotification(n: any) {
         }
       }
     }
-  } catch {}
+  } catch (error) {
+    logger.debug('[Push] Failed to build post preview for notification', { error });
+  }
   const data: Record<string, string> = {
     type: String(n.type || ''),
     entityId: String((n as any).entityId || ''),

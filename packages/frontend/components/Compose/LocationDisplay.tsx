@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,7 @@ interface LocationDisplayProps {
     } | null;
     onRemove: () => void;
     isGettingLocation?: boolean;
-    style?: any;
+    style?: StyleProp<ViewStyle>;
 }
 
 export const LocationDisplay: React.FC<LocationDisplayProps> = ({

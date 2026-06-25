@@ -1,8 +1,8 @@
 import { Post } from '../models/Post';
-import UserBehavior from '../models/UserBehavior';
+import UserBehavior, { IUserBehavior } from '../models/UserBehavior';
 import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
-import type { PostClassificationScores } from '@mention/shared-types';
+import type { PostClassificationScores, PostClassification } from '@mention/shared-types';
 import { BASELINE_CLASSIFIER_VERSION } from './BaselineContentClassifier';
 import { isSensitivePost } from '../mtn/feed/feedSafety';
 import { extractFollowingIds } from '../utils/privacyHelpers';
@@ -18,6 +18,85 @@ interface BehaviorSets {
   blockedAuthors: Set<string>;
   hiddenTopics: Set<string>;
   preferredTopicIds: Set<string>;
+}
+
+/**
+ * The lean user-behavior shape the ranking signals read. A relaxed view of
+ * {@link IUserBehavior}: every field optional (the doc may be a partial
+ * `.lean()` result, absent entirely for anonymous viewers, or supplied by the
+ * caller) and each preference entry only declares the fields ranking reads, so
+ * callers can pass minimal behavior objects. Every signal degrades to neutral
+ * when a field is absent.
+ */
+interface RankingUserBehavior {
+  preferredAuthors?: Array<{ authorId: string; weight: number }>;
+  preferredTopics?: Array<{ topic: string; topicId?: unknown; weight: number }>;
+  preferredPostTypes?: Partial<IUserBehavior['preferredPostTypes']>;
+  preferredLanguages?: string[];
+  activeHours?: number[];
+  hiddenAuthors?: string[];
+  mutedAuthors?: string[];
+  blockedAuthors?: string[];
+  hiddenTopics?: string[];
+}
+
+/**
+ * Per-viewer feed tuning loaded from the user's `feedSettings` profile field.
+ * All optional — every knob falls back to the `MtnConfig.ranking` default when
+ * unset (see `routes/profileSettings.ts` for the write side).
+ */
+interface FeedRankingSettings {
+  recency?: { halfLifeHours?: number; maxAgeHours?: number };
+  diversity?: {
+    enabled?: boolean;
+    sameAuthorPenalty?: number;
+    sameTopicPenalty?: number;
+    maxConsecutiveSameAuthor?: number;
+  };
+}
+
+/**
+ * The post document shape the ranking pipeline operates on: a lean Post plus the
+ * runtime ranking-breakdown fields this service attaches in place
+ * (`finalScore`, `_rank*`, `rankingExplanation`). Posts arrive as `.lean()`
+ * results from feed queries, so this is a structural view over `IPost` rather
+ * than a hydrated document.
+ */
+interface RankablePost {
+  _id?: unknown;
+  oxyUserId?: string;
+  // Optional so lean candidate projections without a timestamp still satisfy the
+  // type; a missing value yields an Invalid Date which every reader treats as a
+  // very old post (recency 0 / no trending boost).
+  createdAt?: Date | string;
+  type?: string;
+  hashtags?: string[];
+  threadId?: string;
+  parentPostId?: string;
+  language?: string;
+  stats?: Partial<{
+    likesCount: number;
+    boostsCount: number;
+    commentsCount: number;
+    viewsCount: number;
+    sharesCount: number;
+  }>;
+  metadata?: { savedBy?: unknown[]; isSensitive?: boolean | null };
+  federation?: { sensitive?: boolean | null };
+  // Partial: lean feed projections may carry only a subset of classification
+  // fields (e.g. candidate sources select `sensitive`/`topics` only). Every
+  // ranking signal that reads classification already degrades to neutral when a
+  // field is absent.
+  postClassification?: Partial<PostClassification>;
+  // Runtime ranking breakdown fields attached by this service.
+  finalScore?: number;
+  rankingExplanation?: unknown;
+  _rankEngagement?: number;
+  _rankRecency?: number;
+  _rankRelationship?: number;
+  _rankPersonalization?: number;
+  _rankQuality?: number;
+  _rankDiversity?: number;
 }
 
 /**
@@ -58,7 +137,7 @@ export class FeedRankingService {
    * whose follower count is unavailable are simply absent from the map and fall
    * back to a neutral authority multiplier.
    */
-  private async resolveAuthorFollowerCounts(posts: any[]): Promise<Map<string, number>> {
+  private async resolveAuthorFollowerCounts(posts: RankablePost[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
 
     const authorIds = Array.from(
@@ -89,17 +168,17 @@ export class FeedRankingService {
     return counts;
   }
 
-  private buildBehaviorSets(userBehavior: any): BehaviorSets | undefined {
+  private buildBehaviorSets(userBehavior: RankingUserBehavior | undefined): BehaviorSets | undefined {
     if (!userBehavior) return undefined;
     return {
       hiddenAuthors: new Set<string>(userBehavior.hiddenAuthors || []),
       mutedAuthors: new Set<string>(userBehavior.mutedAuthors || []),
       blockedAuthors: new Set<string>(userBehavior.blockedAuthors || []),
-      hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t: string) => t.toLowerCase())),
+      hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t) => t.toLowerCase())),
       preferredTopicIds: new Set<string>(
         (userBehavior.preferredTopics || [])
-          .filter((t: any) => t.topicId && t.weight > 0.3)
-          .map((t: any) => t.topicId.toString()),
+          .filter((t) => t.topicId && t.weight > 0.3)
+          .map((t) => String(t.topicId)),
       ),
     };
   }
@@ -136,7 +215,7 @@ export class FeedRankingService {
    *
    * @returns the validated scores, or `null` when the signal must be ignored.
    */
-  private getClassifiedScores(post: any): PostClassificationScores | null {
+  private getClassifiedScores(post: RankablePost): PostClassificationScores | null {
     const classification = post?.postClassification;
     if (!classification) {
       return null;
@@ -173,7 +252,7 @@ export class FeedRankingService {
       return null;
     }
 
-    return scores as PostClassificationScores;
+    return scores;
   }
 
   /**
@@ -190,14 +269,14 @@ export class FeedRankingService {
    * posts (just like an unresolved registry entry). This is the single
    * normalization point: the rest of the ranking code reads one list.
    */
-  private getCanonicalTopics(post: any): Array<{ topicId?: unknown; name?: unknown }> {
+  private getCanonicalTopics(post: RankablePost): Array<{ topicId?: unknown; name?: unknown }> {
     const refs = post?.postClassification?.topicRefs;
     if (Array.isArray(refs) && refs.length > 0) {
       return refs;
     }
     const topics = post?.postClassification?.topics;
     if (Array.isArray(topics) && topics.length > 0) {
-      return topics.map((name: unknown) => ({ name }));
+      return topics.map((name) => ({ name }));
     }
     return [];
   }
@@ -212,7 +291,7 @@ export class FeedRankingService {
    * is folded INTO the existing negative penalty, so it composes multiplicatively
    * with hidden/muted/blocked/hidden-topic penalties.
    */
-  private calculateAiSafetyPenalty(post: any): number {
+  private calculateAiSafetyPenalty(post: RankablePost): number {
     const scores = this.getClassifiedScores(post);
     if (!scores) {
       return 1.0; // No usable AI signal → neutral.
@@ -235,7 +314,7 @@ export class FeedRankingService {
    * `lowThreshold`, and neutral `1.0` in between. Bounded by config, so the AI
    * quality signal nudges — never dominates — the multiplicative score.
    */
-  private calculateAiQualityMultiplier(post: any): number | null {
+  private calculateAiQualityMultiplier(post: RankablePost): number | null {
     const scores = this.getClassifiedScores(post);
     if (!scores) {
       return null; // No usable AI signal → defer to engagement-rate quality.
@@ -255,7 +334,7 @@ export class FeedRankingService {
   /**
    * Get cached engagement score or calculate and cache
    */
-  private async getCachedEngagementScore(postId: string, post: any): Promise<number> {
+  private async getCachedEngagementScore(postId: string, post: RankablePost): Promise<number> {
     const cacheKey = `${this.ENGAGEMENT_SCORE_CACHE_PREFIX}${postId}`;
     
     // Try to get from cache
@@ -296,14 +375,14 @@ export class FeedRankingService {
    * @param context - Additional context for ranking (followingIds, userBehavior, etc.)
    */
   public async calculatePostScore(
-    post: any,
+    post: RankablePost,
     userId: string | undefined, // Oxy user ID
     context: {
       followingIds?: string[];
-      userBehavior?: any;
+      userBehavior?: RankingUserBehavior;
       recentAuthors?: string[];
       recentTopics?: string[];
-      feedSettings?: any; // User feed settings
+      feedSettings?: FeedRankingSettings; // User feed settings
       engagementScoreCache?: Map<string, number>; // Optional pre-calculated engagement scores
       followingIdsSet?: Set<string>;
       recentAuthorsSet?: Set<string>;
@@ -346,7 +425,7 @@ export class FeedRankingService {
 
     // Author relationship score
     const authorScore = safe(await this.calculateAuthorScore(
-      post.oxyUserId,
+      post.oxyUserId ?? '',
       userId,
       followingIdsSet,
       context.userBehavior
@@ -427,13 +506,13 @@ export class FeedRankingService {
    * Calculate engagement score from post stats with logarithmic normalization
    * Uses log scaling to prevent extremely popular posts from dominating
    */
-  private calculateEngagementScore(post: any): number {
+  private calculateEngagementScore(post: RankablePost): number {
     const stats = post.stats || {};
     const metadata = post.metadata || {};
-    
+
     // Get saves count from metadata.savedBy array
-    const savesCount = Array.isArray(metadata.savedBy) 
-      ? metadata.savedBy.length 
+    const savesCount = Array.isArray(metadata.savedBy)
+      ? metadata.savedBy.length
       : 0;
     
     // Calculate raw engagement score
@@ -461,11 +540,11 @@ export class FeedRankingService {
    * @param maxAgeHours - Optional custom max age (from user settings)
    */
   private calculateRecencyScore(
-    createdAt: Date | string,
+    createdAt: Date | string | undefined,
     halfLifeHours?: number,
     maxAgeHours?: number
   ): number {
-    const postDate = new Date(createdAt);
+    const postDate = new Date(createdAt ?? NaN);
     if (isNaN(postDate.getTime())) {
       return 0; // Invalid date, treat as very old post
     }
@@ -505,7 +584,7 @@ export class FeedRankingService {
     authorId: string, // Oxy user ID
     userId: string | undefined, // Oxy user ID
     followingIdsSet: Set<string>, // Set of Oxy user IDs
-    userBehavior: any
+    userBehavior: RankingUserBehavior | undefined
   ): Promise<number> {
     if (!userId) {
       return 1.0; // No personalization for anonymous users
@@ -516,11 +595,11 @@ export class FeedRankingService {
     if (isFollowing) {
       return this.R.relationship.followBoost;
     }
-    
+
     // Check relationship strength from behavior data
     if (userBehavior?.preferredAuthors) {
       const authorPreference = userBehavior.preferredAuthors.find(
-        (a: any) => a.authorId === authorId
+        (a) => a.authorId === authorId
       );
       
       if (authorPreference) {
@@ -568,8 +647,8 @@ export class FeedRankingService {
    * Calculate personalization score based on user preferences
    */
   private async calculatePersonalizationScore(
-    post: any,
-    userBehavior: any,
+    post: RankablePost,
+    userBehavior: RankingUserBehavior | undefined,
     behaviorSets?: BehaviorSets,
   ): Promise<number> {
     if (!userBehavior) {
@@ -584,8 +663,9 @@ export class FeedRankingService {
 
       // Match via hashtags (existing behavior)
       if (post.hashtags && post.hashtags.length > 0) {
+        const preferredTopics = userBehavior.preferredTopics ?? [];
         matchCount += post.hashtags.filter((tag: string) =>
-          userBehavior.preferredTopics.some((t: any) =>
+          preferredTopics.some((t) =>
             t.topic.toLowerCase() === tag.toLowerCase() && t.weight > 0.3
           )
         ).length;
@@ -596,7 +676,7 @@ export class FeedRankingService {
       const prefTopicIds = behaviorSets?.preferredTopicIds;
       if (prefTopicIds && prefTopicIds.size > 0) {
         matchCount += this.getCanonicalTopics(post).filter(
-          (t: any) => t.topicId && prefTopicIds.has(t.topicId.toString()),
+          (t) => Boolean(t.topicId) && prefTopicIds.has(String(t.topicId)),
         ).length;
       }
 
@@ -657,12 +737,12 @@ export class FeedRankingService {
    * trust the AI judgment over the noisy engagement ratio rather than stacking
    * them).
    */
-  private calculateQualityScore(post: any): number {
+  private calculateQualityScore(post: RankablePost): number {
     const stats = post.stats || {};
     const viewsCount = stats.viewsCount || 0;
 
     // Engagement velocity: posts with recent engagement are more relevant.
-    const createdAtMs = new Date(post.createdAt).getTime();
+    const createdAtMs = new Date(post.createdAt ?? NaN).getTime();
     const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
     const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0;
 
@@ -719,9 +799,9 @@ export class FeedRankingService {
    * Calculate trending boost for posts with accelerating engagement
    * Detects posts that are gaining traction rapidly
    */
-  private calculateTrendingBoost(post: any): number {
+  private calculateTrendingBoost(post: RankablePost): number {
     const stats = post.stats || {};
-    const createdAtMs = new Date(post.createdAt).getTime();
+    const createdAtMs = new Date(post.createdAt ?? NaN).getTime();
     const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
 
     // Only consider posts less than 24 hours old for trending
@@ -757,7 +837,7 @@ export class FeedRankingService {
    * Thread roots that sparked conversation are more valuable feed items,
    * especially since they'll be displayed as grouped slices.
    */
-  private calculateThreadBoost(post: any): number {
+  private calculateThreadBoost(post: RankablePost): number {
     const hasThread = post.threadId && !post.parentPostId;
     const hasReplies = (post.stats?.commentsCount || 0) > 0;
 
@@ -772,28 +852,29 @@ export class FeedRankingService {
    * Boosts posts created during user's active hours
    */
   private calculateTimeOfDayScore(
-    post: any,
-    userBehavior: any
+    post: RankablePost,
+    userBehavior: RankingUserBehavior | undefined
   ): number {
-    if (!userBehavior?.activeHours || userBehavior.activeHours.length === 0) {
+    const activeHours = userBehavior?.activeHours;
+    if (!activeHours || activeHours.length === 0) {
       return 1.0; // No preference data
     }
-    
-    const postDate = new Date(post.createdAt);
+
+    const postDate = new Date(post.createdAt ?? NaN);
     const postHour = postDate.getHours();
-    
+
     // Check if post was created during user's active hours
-    if (userBehavior.activeHours.includes(postHour)) {
+    if (activeHours.includes(postHour)) {
       return 1.2; // Boost for posts created during active hours
     }
-    
+
     // Check adjacent hours (within 1 hour of active time)
     const adjacentHours = [
       (postHour + 23) % 24, // Previous hour
       (postHour + 1) % 24   // Next hour
     ];
-    
-    if (adjacentHours.some(h => userBehavior.activeHours.includes(h))) {
+
+    if (adjacentHours.some(h => activeHours.includes(h))) {
       return 1.1; // Slight boost for adjacent hours
     }
     
@@ -805,10 +886,10 @@ export class FeedRankingService {
    * Uses user settings if provided, otherwise uses defaults
    */
   private calculateDiversityPenalty(
-    post: any,
+    post: RankablePost,
     recentAuthorsSet: Set<string>,
     recentTopicsSet: Set<string>,
-    diversitySettings?: any
+    diversitySettings?: FeedRankingSettings['diversity']
   ): number {
     // If diversity is disabled, return no penalty
     if (diversitySettings?.enabled === false) {
@@ -822,7 +903,7 @@ export class FeedRankingService {
     let penalty = 1.0;
     
     // Penalize if same author appeared recently
-    if (recentAuthorsSet.has(post.oxyUserId)) {
+    if (post.oxyUserId && recentAuthorsSet.has(post.oxyUserId)) {
       penalty *= sameAuthorPenalty;
     }
     
@@ -864,9 +945,9 @@ export class FeedRankingService {
    *    the feed never empties when AI scores are absent.
    */
   private async calculateNegativePenalty(
-    post: any,
+    post: RankablePost,
     userId: string | undefined,
-    userBehavior: any,
+    userBehavior: RankingUserBehavior | undefined,
     behaviorSets?: BehaviorSets,
     showSensitiveContent: boolean = false,
   ): Promise<number> {
@@ -886,10 +967,13 @@ export class FeedRankingService {
       return aiSafetyPenalty;
     }
 
-    const authorId = post.oxyUserId;
+    const authorId = post.oxyUserId ?? '';
 
     // Use pre-computed Sets if available, else create from arrays
-    const sets = behaviorSets ?? this.buildBehaviorSets(userBehavior)!;
+    const sets = behaviorSets ?? this.buildBehaviorSets(userBehavior);
+    if (!sets) {
+      return aiSafetyPenalty;
+    }
 
     // Check if author is hidden, muted, or blocked
     if (
@@ -909,7 +993,7 @@ export class FeedRankingService {
       );
 
       const hasHiddenClassifiedTopic = this.getCanonicalTopics(post).some(
-        (t: any) => typeof t.name === 'string' && sets.hiddenTopics.has(t.name.toLowerCase()),
+        (t) => typeof t.name === 'string' && sets.hiddenTopics.has(t.name.toLowerCase()),
       );
 
       if (hasHiddenHashtag || hasHiddenClassifiedTopic) {
@@ -928,13 +1012,13 @@ export class FeedRankingService {
    * @param userId - Oxy user ID (from req.user?.id) or undefined for anonymous users
    * @param context - Additional context (followingIds, userBehavior, feedSettings)
    */
-  async rankPosts(
-    posts: any[],
+  async rankPosts<T extends RankablePost>(
+    posts: T[],
     userId: string | undefined, // Oxy user ID
     context: {
       followingIds?: string[]; // Array of Oxy user IDs
-      userBehavior?: any;
-      feedSettings?: any; // User feed settings
+      userBehavior?: RankingUserBehavior;
+      feedSettings?: FeedRankingSettings; // User feed settings
       /**
        * Oxy authorId → follower count for the author-authority signal. When
        * omitted, it is resolved here from the candidate posts' authors (cache +
@@ -950,19 +1034,19 @@ export class FeedRankingService {
        */
       showSensitiveContent?: boolean;
     } = {}
-  ): Promise<any[]> {
+  ): Promise<T[]> {
     const rankingStartTime = Date.now();
-    
+
     // Early return for empty posts
     if (posts.length === 0) {
       return [];
     }
-    
+
     // Load user behavior if not provided (batch load once)
-    let userBehavior = context.userBehavior;
+    let userBehavior: RankingUserBehavior | undefined = context.userBehavior;
     if (userId && !userBehavior) {
       try {
-        userBehavior = await UserBehavior.findOne({ oxyUserId: userId }).lean();
+        userBehavior = (await UserBehavior.findOne({ oxyUserId: userId }).lean()) ?? undefined;
       } catch (error) {
         logger.warn('Failed to load user behavior:', error);
       }
@@ -1012,7 +1096,7 @@ export class FeedRankingService {
         const postId = post._id?.toString() || '';
         const engagementScore = engagementScoreCache.get(postId) || 0;
         // Simple recency boost
-        const createdMs = new Date(post.createdAt).getTime();
+        const createdMs = new Date(post.createdAt ?? NaN).getTime();
         const postAge = isNaN(createdMs) ? Infinity : (Date.now() - createdMs) / (1000 * 60 * 60);
         const recencyBoost = postAge < 24 ? Math.exp(-postAge / 24) : 0.1;
         return {
@@ -1102,8 +1186,8 @@ export class FeedRankingService {
     // This avoids expensive recalculation during cursor filtering
     // Performance optimization: saves ~60-100ms per request for large feeds
     postsWithScores.forEach(({ post, score }) => {
-      (post as any).finalScore = score;
-      (post as any).rankingExplanation = explainRanking(post);
+      post.finalScore = score;
+      post.rankingExplanation = explainRanking(post);
     });
     
     // Record ranking metrics

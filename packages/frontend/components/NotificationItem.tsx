@@ -129,7 +129,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 const merged = { ...(populated as Partial<User>), id: String(id || populated.id || populated._id) };
                 precacheProfileView(queryClient, merged);
             }
-        } catch { }
+        } catch (error) {
+            logger.debug('NotificationItem: failed to precache populated actor profile', { error });
+        }
     }, [notification]);
 
     // Module-local cache of actorId -> display name to avoid repeated calls
@@ -163,7 +165,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 actorCacheRef.current.set(String(id), { name: resolvedName, avatar: cachedUser.avatar ?? undefined });
                 return;
             }
-        } catch { }
+        } catch (error) {
+            logger.debug('NotificationItem: failed to read cached actor profile', { error });
+        }
 
         // Otherwise ensure by ID via oxy services, then populate cache
         const resolve = async () => {

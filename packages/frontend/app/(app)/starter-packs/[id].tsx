@@ -10,7 +10,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth, FollowButton } from '@oxyhq/services';
+import { useAuth, FollowButton, queryKeys } from '@oxyhq/services';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -19,6 +19,7 @@ import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import SEO from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
+import { queryClient } from '@/lib/queryClient';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 
 interface MemberProfile {
@@ -56,25 +57,25 @@ export default function StarterPackDetailScreen() {
       setPack(p);
 
       if (p.memberOxyUserIds?.length) {
-        const profiles = await Promise.all(
-          p.memberOxyUserIds.map(async (uid: string): Promise<MemberProfile | null> => {
-            try {
-              const profile: User | null = await oxyServices.getUserById(uid);
-              if (profile) {
-                return {
-                  id: uid,
-                  username: profile.username,
-                  displayName: profile.name.displayName,
-                  avatar: profile.avatar ?? undefined,
-                };
-              }
-            } catch (error) {
-              logger.warn('Failed to load starter pack member profile', { error, uid });
-            }
-            return null;
-          }),
-        );
-        setMembers(profiles.filter((profile): profile is MemberProfile => Boolean(profile)));
+        // Single bulk fetch (no per-id N+1); prime the shared React Query cache
+        // so downstream profile reads for these members hit the cache.
+        const fetched = await oxyServices.getUsersByIds(p.memberOxyUserIds);
+        for (const profile of fetched) {
+          if (profile?.id) {
+            queryClient.setQueryData(queryKeys.users.detail(profile.id), profile);
+          }
+        }
+        const byId = new Map(fetched.map((profile) => [profile.id, profile]));
+        const profiles = p.memberOxyUserIds
+          .map((uid) => byId.get(uid))
+          .filter((profile): profile is User => Boolean(profile))
+          .map((profile) => ({
+            id: profile.id,
+            username: profile.username,
+            displayName: profile.name.displayName,
+            avatar: profile.avatar ?? undefined,
+          }));
+        setMembers(profiles);
       } else {
         setMembers([]);
       }

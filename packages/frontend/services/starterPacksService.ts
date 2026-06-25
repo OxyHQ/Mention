@@ -1,5 +1,13 @@
 import { authenticatedClient } from '@/utils/api';
 
+/** Resolved owner summary embedded on a starter pack list/detail item. */
+export interface StarterPackCreator {
+  id?: string;
+  username: string;
+  displayName?: string;
+  avatar?: string;
+}
+
 export interface StarterPackSummary {
   id?: string;
   _id?: string;
@@ -11,6 +19,9 @@ export interface StarterPackSummary {
   /** Pre-resolved member avatar URLs (up to 8) returned by the list endpoint. */
   memberAvatars?: string[];
   useCount?: number;
+  /** Resolved owner summary (`creator` is the canonical field; `owner` is a legacy alias). */
+  creator?: StarterPackCreator;
+  owner?: StarterPackCreator;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;

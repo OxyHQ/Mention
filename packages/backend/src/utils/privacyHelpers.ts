@@ -12,57 +12,91 @@ export const ProfileVisibility = {
 
 export type ProfileVisibilityType = typeof ProfileVisibility[keyof typeof ProfileVisibility];
 
-/** Minimal interface for the OxyServices methods we need */
+/**
+ * Minimal interface for the OxyServices methods we need. Return types are
+ * deliberately `unknown` because the Oxy privacy/follow endpoints have several
+ * historical response shapes; the `extract*`/`readIdRef` helpers below narrow
+ * them defensively at the boundary.
+ */
 export interface OxyClient {
-  getBlockedUsers(): Promise<any[]>;
-  getRestrictedUsers(): Promise<any[]>;
-  getUserFollowing(userId: string): Promise<any>;
-  getUserFollowers(userId: string): Promise<any>;
+  getBlockedUsers(): Promise<unknown[]>;
+  getRestrictedUsers(): Promise<unknown[]>;
+  getUserFollowing(userId: string): Promise<unknown>;
+  getUserFollowers(userId: string): Promise<unknown>;
+}
+
+/** Read a string-or-`{_id}` reference, returning the resolved id string when present. */
+function readIdRef(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  const nested = readProp(value, '_id');
+  return typeof nested === 'string' ? nested : undefined;
+}
+
+/** Read a property off an unknown object-like value, else undefined. */
+function readProp(value: unknown, key: string): unknown {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
+}
+
+/** First string-valued property among the candidates, else undefined. */
+function firstStringProp(value: unknown, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const candidate = readProp(value, key);
+    if (typeof candidate === 'string' && candidate.length > 0) return candidate;
+  }
+  return undefined;
 }
 
 /**
  * Extract user ID from blocked/restricted user entry
  * Handles different response formats from Oxy API
  */
-export function extractUserIdFromBlockedRestricted(entry: any): string | undefined {
+export function extractUserIdFromBlockedRestricted(entry: unknown): string | undefined {
   if (!entry) return undefined;
 
-  if (entry?.blockedId) {
-    return typeof entry.blockedId === 'string' ? entry.blockedId : entry.blockedId._id;
+  const blockedId = readProp(entry, 'blockedId');
+  if (blockedId) {
+    return readIdRef(blockedId);
   }
-  if (entry?.restrictedId) {
-    return typeof entry.restrictedId === 'string' ? entry.restrictedId : entry.restrictedId._id;
+  const restrictedId = readProp(entry, 'restrictedId');
+  if (restrictedId) {
+    return readIdRef(restrictedId);
   }
-  return entry?.id || entry?._id || entry?.userId || entry?.targetId;
+  return firstStringProp(entry, ['id', '_id', 'userId', 'targetId']);
 }
 
 /**
  * Check if an error is a network error (transient, can be retried)
  */
-function isNetworkError(error: any): boolean {
+function isNetworkError(error: unknown): boolean {
   if (!error) return false;
   // Check for network error indicators
+  const message = readProp(error, 'message');
   return (
-    error.code === 'NETWORK_ERROR' ||
-    error.status === 0 ||
-    (error.message && typeof error.message === 'string' && error.message.toLowerCase().includes('network'))
+    readProp(error, 'code') === 'NETWORK_ERROR' ||
+    readProp(error, 'status') === 0 ||
+    (typeof message === 'string' && message.toLowerCase().includes('network'))
   );
 }
 
-function getErrorStatus(error: any): number | undefined {
-  const status = error?.status ?? error?.statusCode ?? error?.response?.status;
+function getErrorStatus(error: unknown): number | undefined {
+  const status =
+    readProp(error, 'status') ??
+    readProp(error, 'statusCode') ??
+    readProp(readProp(error, 'response'), 'status');
   return typeof status === 'number' ? status : undefined;
 }
 
-function isAuthContextError(error: any): boolean {
+function isAuthContextError(error: unknown): boolean {
   if (!error) return false;
   const status = getErrorStatus(error);
   if (status === 401 || status === 403) return true;
 
-  const code = typeof error.code === 'string' ? error.code.toUpperCase() : '';
+  const rawCode = readProp(error, 'code');
+  const code = typeof rawCode === 'string' ? rawCode.toUpperCase() : '';
   if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN') return true;
 
-  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  const rawMessage = readProp(error, 'message');
+  const message = typeof rawMessage === 'string' ? rawMessage.toLowerCase() : '';
   return message.includes('authorization header') || message.includes('unauthorized');
 }
 
@@ -73,7 +107,7 @@ function isAuthContextError(error: any): boolean {
  * @returns Array of user IDs
  */
 async function getUserIdsFromPrivacyList(
-  getUserList: () => Promise<any[]>,
+  getUserList: () => Promise<unknown[]>,
   listType: 'blocked' | 'restricted'
 ): Promise<string[]> {
   try {
@@ -123,37 +157,45 @@ export async function getRestrictedUserIds(client?: OxyClient): Promise<string[]
  * Extract user IDs from Oxy following response
  * Handles various response formats from Oxy API
  */
-export function extractFollowingIds(followingRes: any): string[] {
-  const followingList = Array.isArray((followingRes as any)?.following)
-    ? (followingRes as any).following
+export function extractFollowingIds(followingRes: unknown): string[] {
+  const following = readProp(followingRes, 'following');
+  const followingList: unknown[] = Array.isArray(following)
+    ? following
     : (Array.isArray(followingRes) ? followingRes : []);
 
   return followingList
-    .map((u: any) =>
+    .map((u): string | undefined =>
       typeof u === 'string'
         ? u
-        : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
+        : (firstStringProp(u, ['id', '_id', 'userId'])
+          ?? firstStringProp(readProp(u, 'user'), ['id'])
+          ?? firstStringProp(readProp(u, 'profile'), ['id'])
+          ?? firstStringProp(u, ['targetId']))
     )
-    .filter(Boolean);
+    .filter((id): id is string => Boolean(id));
 }
 
 /**
  * Extract user IDs from Oxy followers response
  * Handles various response formats from Oxy API
  */
-export function extractFollowersIds(followersRes: any): string[] {
-  const followersList = Array.isArray((followersRes as any)?.followers)
-    ? (followersRes as any).followers
+export function extractFollowersIds(followersRes: unknown): string[] {
+  const followers = readProp(followersRes, 'followers');
+  const followersList: unknown[] = Array.isArray(followers)
+    ? followers
     : (Array.isArray(followersRes) ? followersRes : []);
 
   return followersList
-    .map((entry: any) => {
+    .map((entry): string | undefined => {
       if (typeof entry === 'string') {
         return entry;
       }
-      return entry?.id || entry?._id || entry?.userId || entry?.oxyUserId || entry?.user?.id || entry?.profile?.id || entry?.targetId;
+      return firstStringProp(entry, ['id', '_id', 'userId', 'oxyUserId'])
+        ?? firstStringProp(readProp(entry, 'user'), ['id'])
+        ?? firstStringProp(readProp(entry, 'profile'), ['id'])
+        ?? firstStringProp(entry, ['targetId']);
     })
-    .filter(Boolean);
+    .filter((id): id is string => Boolean(id));
 }
 
 /**

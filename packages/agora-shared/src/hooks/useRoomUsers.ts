@@ -32,11 +32,14 @@ export function useRoomUsers(userIds: string[]) {
 
 export function getDisplayName(userProfile: UserEntity | undefined, userId: string, isCurrentUser?: boolean): string {
   if (isCurrentUser) return 'You';
+  // The user source is always an Oxy user DTO (resolved via `oxyServices.getUserById`
+  // in `useRoomUsers` → `ensureUserById`), so `name.displayName` is the canonical,
+  // API-owned display string and is rendered directly. The `userId` slice is a
+  // not-yet-resolved loading fallback, NOT a name recompute.
   if (!userProfile) return userId.slice(0, 10);
   const name = userProfile.name;
-  if (typeof name === 'object' && name?.full) return name.full;
-  if (typeof name === 'string' && name) return name;
-  return userProfile.username || userId.slice(0, 10);
+  if (typeof name === 'object' && name?.displayName) return name.displayName;
+  return userId.slice(0, 10);
 }
 
 export function getAvatarUrl(

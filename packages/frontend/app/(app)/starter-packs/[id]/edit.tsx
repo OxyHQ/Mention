@@ -15,7 +15,7 @@ import {
   Trash_Stroke2_Corner0_Rounded as TrashIcon,
   CircleX_Stroke2_Corner0_Rounded as ErrorIcon,
 } from '@oxyhq/bloom/icons';
-import { useAuth } from '@oxyhq/services';
+import { queryKeys, useAuth } from '@oxyhq/services';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -26,6 +26,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxyhq/core';
 
 interface MemberProfile {
@@ -89,23 +90,25 @@ export default function EditStarterPackScreen() {
       setName(pack.name ?? '');
       setDescription(pack.description ?? '');
       const memberIds = Array.isArray(pack.memberOxyUserIds) ? pack.memberOxyUserIds : [];
-      const profiles = await Promise.all(
-        memberIds.map(async (uid): Promise<MemberProfile | null> => {
-          try {
-            const profile = await oxyServices.getUserById(uid);
-            return {
-              id: profile.id,
-              username: profile.username,
-              name: { displayName: profile.name.displayName },
-              avatar: profile.avatar ?? undefined,
-            };
-          } catch (e) {
-            logger.warn('Failed to load starter pack member profile', { error: e, uid });
-            return null;
-          }
-        }),
-      );
-      setMembers(profiles.filter((p): p is MemberProfile => Boolean(p)));
+      // Single bulk fetch (no per-id N+1); prime the shared React Query cache so
+      // downstream profile reads for these members hit the cache.
+      const fetched = await oxyServices.getUsersByIds(memberIds);
+      for (const profile of fetched) {
+        if (profile?.id) {
+          queryClient.setQueryData(queryKeys.users.detail(profile.id), profile);
+        }
+      }
+      const byId = new Map(fetched.map((profile) => [profile.id, profile]));
+      const profiles = memberIds
+        .map((uid) => byId.get(uid))
+        .filter((profile): profile is User => Boolean(profile))
+        .map((profile) => ({
+          id: profile.id,
+          username: profile.username,
+          name: { displayName: profile.name.displayName },
+          avatar: profile.avatar ?? undefined,
+        }));
+      setMembers(profiles);
     } catch (e) {
       logger.warn('Failed to load starter pack for editing', { error: e });
       setError('Could not load this starter pack');

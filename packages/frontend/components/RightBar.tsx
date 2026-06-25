@@ -6,8 +6,22 @@ import { WidgetManager } from './widgets/WidgetManager';
 import { VideosRail } from './videos/VideosRail';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
+import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 
-const LINK_STYLE = Platform.select({ web: { cursor: 'pointer' as any } });
+const LINK_STYLE = Platform.select({ web: { cursor: 'pointer' } });
+
+// `position: 'sticky'` is a valid react-native-web value absent from RN's native
+// `ViewStyle['position']` union — author the web container style through the
+// shared extended ViewStyle (same pattern as SideBar) rather than an `as any` cast.
+const webStickyContainer: WebViewStyle = {
+    position: 'sticky',
+    // `alignSelf: flex-start` keeps this column from being stretched to the tall
+    // shell row's height (default flex stretch), so the sticky box has room to
+    // pin while only the center feed scrolls.
+    alignSelf: 'flex-start',
+    top: 50,
+    bottom: 20,
+};
 
 // Static footer links that don't depend on translations — URLs never change
 const STATIC_FOOTER_URLS = [
@@ -82,16 +96,6 @@ const FooterLink = React.memo(function FooterLink({ label, url }: { label: strin
 const styles = StyleSheet.create({
     container: {
         width: 350,
-        ...Platform.select({
-            web: {
-                position: 'sticky' as any,
-                // `alignSelf: flex-start` keeps this column from being stretched
-                // to the tall shell row's height (default flex stretch), so the
-                // sticky box has room to pin while only the center feed scrolls.
-                alignSelf: 'flex-start',
-                top: 50,
-                bottom: 20,
-            },
-        }),
+        ...(Platform.OS === 'web' ? asViewStyle(webStickyContainer) : null),
     },
 });

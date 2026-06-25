@@ -1,5 +1,6 @@
 import { logger } from "@/lib/logger";
 import { authenticatedClient } from "@/utils/api";
+import { normalizeApiError } from "@/utils/apiError";
 
 export const REPORT_CATEGORIES = [
   { id: 'spam', label: 'Spam' },
@@ -20,8 +21,8 @@ class ReportService {
         details
       });
       return true;
-    } catch (error: any) {
-      if (error?.response?.status === 409) {
+    } catch (error: unknown) {
+      if (normalizeApiError(error).status === 409) {
         // Already reported — treat as success
         logger.warn("Already reported this content");
         return true;
@@ -40,8 +41,8 @@ class ReportService {
         details
       });
       return true;
-    } catch (error: any) {
-      if (error?.response?.status === 409) {
+    } catch (error: unknown) {
+      if (normalizeApiError(error).status === 409) {
         logger.warn("Already reported this user");
         return true;
       }
@@ -59,8 +60,8 @@ class ReportService {
         details
       });
       return true;
-    } catch (error: any) {
-      if (error?.response?.status === 409) {
+    } catch (error: unknown) {
+      if (normalizeApiError(error).status === 409) {
         logger.warn("Already reported this room");
         return true;
       }

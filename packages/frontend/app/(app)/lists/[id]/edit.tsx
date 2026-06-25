@@ -6,7 +6,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@oxyhq/services';
+import { queryKeys, useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 
 import { ThemedView } from '@/components/ThemedView';
@@ -16,6 +16,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@/lib/logger';
+import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxyhq/core';
 
 interface MemberProfile {
@@ -67,17 +68,24 @@ export default function EditListMembersScreen() {
     try {
       const data = await listsService.get(listId);
       const memberIds: string[] = Array.isArray(data?.memberOxyUserIds) ? data.memberOxyUserIds : [];
-      const profiles = await Promise.all(
-        memberIds.map(async (uid): Promise<MemberProfile> => {
-          const profile = await oxyServices.getUserById(uid);
-          return {
-            id: profile.id,
-            username: profile.username,
-            name: profile.name,
-            avatar: profile.avatar ?? undefined,
-          };
-        }),
-      );
+      // Single bulk fetch (no per-id N+1); prime the shared React Query cache so
+      // downstream profile reads for these members hit the cache.
+      const fetched = await oxyServices.getUsersByIds(memberIds);
+      for (const user of fetched) {
+        if (user?.id) {
+          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
+        }
+      }
+      const byId = new Map(fetched.map((user) => [user.id, user]));
+      const profiles = memberIds
+        .map((uid) => byId.get(uid))
+        .filter((profile): profile is User => Boolean(profile))
+        .map((profile) => ({
+          id: profile.id,
+          username: profile.username,
+          name: profile.name,
+          avatar: profile.avatar ?? undefined,
+        }));
       setMembers(profiles);
     } catch (e) {
       logger.warn('Failed to load list for editing', { error: e });

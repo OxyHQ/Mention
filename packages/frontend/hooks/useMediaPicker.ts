@@ -1,9 +1,12 @@
 import { useCallback } from 'react';
 import { show as toast } from '@oxyhq/bloom/toast';
+import type { FileMetadata } from '@oxyhq/core';
+import type { RouteName } from '@oxyhq/services';
 import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
+import { normalizeApiError } from '@/utils/apiError';
 
 interface UseMediaPickerProps {
-  showBottomSheet?: (config: any) => void;
+  showBottomSheet?: (screenOrConfig: RouteName | { screen: RouteName; props?: Record<string, unknown> }) => void;
   setMediaIds: (updater: (prev: ComposerMediaItem[]) => ComposerMediaItem[]) => void;
   t: (key: string) => string;
 }
@@ -21,7 +24,7 @@ export const useMediaPicker = ({
         multiSelect: true,
         disabledMimeTypes: ['audio/', 'application/pdf'],
         afterSelect: 'back',
-        onSelect: async (file: any) => {
+        onSelect: async (file: FileMetadata) => {
           const isImage = file?.contentType?.startsWith?.('image/');
           const isVideo = file?.contentType?.startsWith?.('video/');
           if (!isImage && !isVideo) {
@@ -33,11 +36,11 @@ export const useMediaPicker = ({
             const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
             setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
             toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
-          } catch (e: any) {
-            toast(e?.message || t('Failed to attach media'), { type: 'error' });
+          } catch (e: unknown) {
+            toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
           }
         },
-        onConfirmSelection: async (files: any[]) => {
+        onConfirmSelection: async (files: FileMetadata[]) => {
           const validFiles = (files || []).filter(f => {
             const contentType = f?.contentType || '';
             return contentType.startsWith('image/') || contentType.startsWith('video/');

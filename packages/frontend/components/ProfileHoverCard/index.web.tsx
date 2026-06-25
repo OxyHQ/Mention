@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useReducer, useRef } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, type ViewProps, type ViewStyle } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
@@ -16,6 +16,29 @@ import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { type ProfileHoverCardProps } from './types';
 
 const IS_TOUCH_DEVICE = typeof window !== 'undefined' && 'ontouchstart' in window;
+
+// `inline-flex` is a valid react-native-web `display` value but is not in RN's
+// native `ViewStyle['display']` union. Author it through an extended ViewStyle,
+// then bridge to ViewStyle at the boundary (same intent as SideBar's web sticky
+// style). The `display` unions don't overlap, so the bridge goes through
+// `unknown` — a deliberate, contained web-platform type bridge, not an escape
+// hatch over the whole value.
+type WebInlineViewStyle = Omit<ViewStyle, 'display'> & {
+  display?: ViewStyle['display'] | 'inline-flex';
+};
+const webInlineFlexStyle: WebInlineViewStyle = { display: 'inline-flex' };
+const webInlineFlex = webInlineFlexStyle as unknown as ViewStyle;
+
+// react-native-web forwards `onMouseUp` and resolves the `ref` to a DOM element,
+// but RN's `ViewProps`/`Ref<View>` types model neither. `WebView` extends View
+// with the web-only prop surface (floating-ui's DOM-node ref + `onMouseUp`) so we
+// attach them with full typing rather than per-line type suppressions. (Same
+// "extend the type" approach SideBar uses for its web-only sticky style.)
+type WebViewProps = Omit<ViewProps, 'ref'> & {
+  ref?: (node: Element | null) => void;
+  onMouseUp?: () => void;
+};
+const WebView = View as unknown as React.ComponentType<WebViewProps>;
 
 const floatingMiddlewares = [
   offset(4),
@@ -38,7 +61,7 @@ export function ProfileHoverCard(props: ProfileHoverCardProps) {
   }
 
   return (
-    <View style={[{ flexShrink: 1 }, props.inline && { display: 'inline-flex' as any }, props.style]}>
+    <View style={[{ flexShrink: 1 }, props.inline && webInlineFlex, props.style]}>
       <ProfileHoverCardInner {...props} />
     </View>
   );
@@ -220,14 +243,14 @@ function ProfileHoverCardInner(props: ProfileHoverCardProps) {
   };
 
   return (
-    <View
-      // @ts-ignore View ref used as div ref for floating-ui
+    <WebView
+      // floating-ui's `setReference` takes a DOM node; on react-native-web the
+      // View ref resolves to that node. `onMouseUp` is a web-only View prop.
       ref={refs.setReference}
       onPointerMove={onPointerMoveTarget}
       onPointerLeave={onPointerLeaveTarget}
-      // @ts-ignore web only prop
       onMouseUp={onPress}
-      style={[{ flexShrink: 1 }, props.inline && { display: 'inline-flex' as any }]}>
+      style={[{ flexShrink: 1 }, props.inline && webInlineFlex]}>
       {props.children}
       {isVisible && (
         <Portal>
@@ -242,7 +265,7 @@ function ProfileHoverCardInner(props: ProfileHoverCardProps) {
           </div>
         </Portal>
       )}
-    </View>
+    </WebView>
   );
 }
 

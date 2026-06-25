@@ -5,7 +5,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { labelerService } from '@/services/labelerService';
+import { labelerService, type Labeler } from '@/services/labelerService';
 import { logger } from '@/lib/logger';
 
 interface SubscribedLabeler {
@@ -35,8 +35,8 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
     try {
       const res = await labelerService.list();
       const subscribed = (res.items ?? [])
-        .filter((l: any) => l.isSubscribed)
-        .map((l: any) => ({
+        .filter((l: Labeler) => l.isSubscribed)
+        .map((l: Labeler) => ({
           id: String(l._id || l.id),
           name: l.name,
           activeLabelCount: (l.labelDefinitions ?? []).length,

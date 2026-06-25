@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { pollService } from '@/services/pollService';
+import { pollService, type PollData, type PollOption } from '@/services/pollService';
 import { useAuth } from '@oxyhq/services';
 import { cn } from '@/lib/utils';
 
@@ -12,7 +12,7 @@ interface PollCardProps {
 
 const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   const { user } = useAuth();
-  const [poll, setPoll] = useState<any>(null);
+  const [poll, setPoll] = useState<PollData | null>(null);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
       const res = await pollService.getPoll(pollId);
       setPoll(res.data);
       setError(null);
-    } catch (e: any) {
+    } catch {
       setError('Failed to load poll');
     } finally {
       setLoading(false);
@@ -36,12 +36,12 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
 
   const totalVotes = useMemo(() => {
     if (!poll) return 0;
-    return poll.options.reduce((sum: number, opt: any) => sum + (opt.votes?.length || 0), 0);
+    return poll.options.reduce((sum: number, opt: PollOption) => sum + (opt.votes?.length || 0), 0);
   }, [poll]);
 
   const hasVoted = useMemo(() => {
     if (!poll || !user?.id) return false;
-    return poll.options.some((opt: any) => (opt.votes || []).includes(user.id));
+    return poll.options.some((opt: PollOption) => (opt.votes || []).includes(user.id));
   }, [poll, user?.id]);
 
   const ended = useMemo(() => {
@@ -77,7 +77,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
     <View className="flex-1 w-full p-3 bg-background" style={{ width }}>
       <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
       <View className="gap-2">
-        {(poll.options || []).map((opt: any) => {
+        {(poll.options || []).map((opt: PollOption) => {
           const votes = opt.votes?.length || 0;
           const pct = totalVotes > 0 ? (votes / totalVotes) : 0;
           return (

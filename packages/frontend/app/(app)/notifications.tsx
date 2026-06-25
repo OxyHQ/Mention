@@ -19,6 +19,7 @@ import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { validateNotifications } from '@/types/validation';
+import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { groupNotifications, GroupedNotification } from '@/utils/groupNotifications';
 import { GroupedNotificationItem } from '@/components/GroupedNotificationItem';
@@ -74,7 +75,7 @@ const NotificationsScreen: React.FC = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
             notificationLogger.error('Error marking notification as read', { error });
             toast(t('notification.mark_read_error') || 'Failed to mark notification as read', { type: 'error' });
         },
@@ -96,10 +97,9 @@ const NotificationsScreen: React.FC = () => {
                 toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
             }
         },
-        onError: (error: any) => {
-            notificationLogger.error('Error marking all notifications as read', { error, statusCode: error?.response?.status });
-            const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
-            const statusCode = error?.response?.status;
+        onError: (error: unknown) => {
+            const { status: statusCode, message: errorMessage } = normalizeApiError(error);
+            notificationLogger.error('Error marking all notifications as read', { error, statusCode });
             toast(
                 t('notification.mark_all_read_error') ||
                 `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`,

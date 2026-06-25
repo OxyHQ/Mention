@@ -115,7 +115,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
         // Fire-and-forget: missing avatars fill in reactively via useUserById.
         void enrichMissingAvatars(
           users.map((u) => ({ ...u, id: getUserId(u) })),
-          (id) => oxyServices.getUserById(id),
+          (ids) => oxyServices.getUsersByIds(ids),
           queryClient,
         );
       }

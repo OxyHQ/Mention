@@ -35,13 +35,6 @@ interface BlockedUser {
     avatar?: string | null;
 }
 
-interface OxyProfileService {
-    getProfileById?: (id: string) => Promise<User | null | undefined>;
-    getProfile?: (id: string) => Promise<User | null | undefined>;
-    getUserById?: (id: string) => Promise<User | null | undefined>;
-    getUser?: (id: string) => Promise<User | null | undefined>;
-}
-
 const getUserId = (user: BlockedUser): string | undefined => user.id || user._id;
 
 export default function BlockedUsersScreen() {
@@ -102,60 +95,20 @@ export default function BlockedUsersScreen() {
                 return;
             }
 
-            const userPromises = userIds.map(async (userId: string): Promise<BlockedUser | null> => {
-                try {
-                    blockedLogger.debug(`Fetching user details for: ${userId}`);
-
-                    const svc = oxyServices as unknown as OxyProfileService;
-                    const loader = async (id: string): Promise<User | null | undefined> => {
-                        if (typeof svc.getProfileById === 'function') {
-                            try {
-                                return await svc.getProfileById(id);
-                            } catch {
-                                blockedLogger.debug(`getProfileById failed for ${id}`);
-                            }
-                        }
-                        if (typeof svc.getProfile === 'function') {
-                            try {
-                                return await svc.getProfile(id);
-                            } catch {
-                                blockedLogger.debug(`getProfile failed for ${id}`);
-                            }
-                        }
-                        if (typeof svc.getUserById === 'function') {
-                            try {
-                                return await svc.getUserById(id);
-                            } catch {
-                                blockedLogger.debug(`getUserById failed for ${id}`);
-                            }
-                        }
-                        if (typeof svc.getUser === 'function') {
-                            try {
-                                return await svc.getUser(id);
-                            } catch {
-                                blockedLogger.debug(`getUser failed for ${id}`);
-                            }
-                        }
-                        return null;
-                    };
-
-                    const user = await queryClient.fetchQuery<User | null | undefined>({
-                        queryKey: queryKeys.users.detail(String(userId)),
-                        queryFn: () => loader(String(userId)),
-                        staleTime: 5 * 60 * 1000,
-                    });
-                    blockedLogger.debug(`Found user for ${userId}: ${user ? 'yes' : 'no'}`);
-
-                    if (!user) return null;
-
-                    return user;
-                } catch (error) {
-                    blockedLogger.warn(`Failed to fetch user ${userId}`, { error });
-                    return null;
+            // Single bulk fetch for all blocked profiles (no per-id N+1). The
+            // results are primed into the shared React Query cache so any
+            // `useUserById`/profile read for these ids hits the cache.
+            const fetched = await oxyServices.getUsersByIds(userIds);
+            for (const user of fetched) {
+                if (user?.id) {
+                    queryClient.setQueryData(queryKeys.users.detail(user.id), user);
                 }
-            });
-
-            const users = (await Promise.all(userPromises)).filter((user): user is User => Boolean(user));
+            }
+            // Preserve the blocked order; drop ids the bulk fetch couldn't resolve.
+            const byId = new Map(fetched.map((user) => [user.id, user]));
+            const users = userIds
+                .map((id) => byId.get(id))
+                .filter((user): user is User => Boolean(user));
             blockedLogger.debug(`Loaded users: ${users.length}`);
             setBlockedUsers(users);
         } catch (error) {

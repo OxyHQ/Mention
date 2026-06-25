@@ -47,7 +47,6 @@ import customFeedsRoutes from './src/routes/customFeeds.routes';
 import labelerRoutes from './src/routes/labeler.routes';
 import statisticsRoutes from './src/routes/statistics.routes';
 import { OxyServices } from '@oxyhq/core';
-import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';
 import subscriptionsRoutes from './src/routes/subscriptions';
@@ -788,7 +787,6 @@ authenticatedApiRouter.use("/statistics", statisticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
 authenticatedApiRouter.use("/labelers", labelerRoutes); // Composable moderation labels
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
-authenticatedApiRouter.use("/test", testRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 authenticatedApiRouter.use("/gifs", gifsRoutes);
@@ -873,7 +871,9 @@ app.get('/nodeinfo/2.0', async (req, res) => {
     postCount = await Post.estimatedDocumentCount();
     // User count is managed by Oxy, use a reasonable estimate
     userCount = 0;
-  } catch {}
+  } catch (error) {
+    logger.debug('nodeinfo: failed to estimate post count, defaulting to 0', error);
+  }
 
   res.json({
     version: '2.0',

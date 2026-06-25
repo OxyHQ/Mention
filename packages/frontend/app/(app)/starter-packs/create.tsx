@@ -161,7 +161,7 @@ export default function CreateStarterPackScreen() {
 const styles = StyleSheet.create({
   input: {
     ...Platform.select({
-      web: { outlineStyle: 'none' as any },
+      web: { outlineWidth: 0 },
     }),
   },
 });

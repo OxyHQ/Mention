@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import mongoose from 'mongoose';
-import Notification from "../models/Notification";
+import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import mongoose, { HydratedDocument } from 'mongoose';
+import Notification, { INotification } from "../models/Notification";
 import Post from "../models/Post";
 import { Server } from 'socket.io';
 import { oxy } from '../../server';
@@ -11,11 +11,22 @@ import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import type { HydratedPost } from '@mention/shared-types';
 import type { User } from '@oxyhq/core';
 
 const router = express.Router();
 
-function toPopulatedActor(actor: Partial<User> & { _id?: string }, fallbackId: unknown) {
+/**
+ * Minimal read-surface of an actor profile consumed by `toPopulatedActor`.
+ * `getUsersByIds`/`getUserById` return full `User` objects (assignable to this),
+ * while the synthetic `system` actor only needs these fields.
+ */
+type ActorProfile = Pick<User, 'username' | 'name' | 'avatar'> & {
+  id?: string;
+  _id?: string;
+};
+
+function toPopulatedActor(actor: ActorProfile, fallbackId: unknown) {
   const id = String(actor?.id || actor?._id || fallbackId);
   return {
     _id: id,
@@ -25,26 +36,43 @@ function toPopulatedActor(actor: Partial<User> & { _id?: string }, fallbackId: u
   };
 }
 
+const SYSTEM_ACTOR: ActorProfile = {
+  id: 'system',
+  username: 'system',
+  name: { displayName: 'System' },
+  avatar: undefined,
+};
+
+/**
+ * Lean shape of a Notification as read in the GET handler. `entityId` is
+ * declared with `.populate('entityId', ...)`, so at runtime it may be the
+ * populated post subdocument (`{ _id, ... }`) or the raw ObjectId.
+ */
+type LeanNotification = Omit<INotification, keyof mongoose.Document | 'entityId'> & {
+  _id: mongoose.Types.ObjectId;
+  entityId: mongoose.Types.ObjectId | { _id: mongoose.Types.ObjectId } | string | null;
+};
+
 // Helper function to emit notification event
-const emitNotification = async (req: Request, notification: any) => {
+const emitNotification = async (req: Request, notification: HydratedDocument<INotification>) => {
   const io = req.app.get('io') as Server;
   const notificationsNamespace = io.of('/notifications');
-  let actor: any = null;
+  let actor: ActorProfile | null = null;
   try {
     if (notification.actorId && notification.actorId !== 'system') {
       actor = await oxy.getUserById(notification.actorId);
     } else if (notification.actorId === 'system') {
-      actor = { id: 'system', username: 'system', name: { displayName: 'System' }, avatar: undefined };
+      actor = SYSTEM_ACTOR;
     }
   } catch (e) {
     logger.warn('[Notifications] Failed to resolve actor profile:', e);
   }
   // Attach preview and embedded post for post notifications if applicable
   let preview: string | undefined;
-  let embeddedPost: any | undefined;
+  let embeddedPost: HydratedPost | undefined;
   try {
     if (notification.type === 'post' && notification.entityType === 'post' && notification.entityId) {
-      const post: any = await Post.findById(notification.entityId).lean();
+      const post = await Post.findById(notification.entityId).lean();
       if (post) {
         const text: string = post?.content?.text || '';
         const trimmed = typeof text === 'string' ? text.trim() : '';
@@ -60,7 +88,7 @@ const emitNotification = async (req: Request, notification: any) => {
     logger.warn('[Notifications] Failed to build post preview for notification:', e);
   }
   const payload = {
-    ...notification.toObject?.() || notification,
+    ...notification.toObject(),
     preview,
     post: embeddedPost,
     actorId_populated: actor ? toPopulatedActor(actor, notification.actorId) : undefined
@@ -84,7 +112,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 50); // Clamp between 1-50
 
     // Build query with cursor support
-    const query: any = { recipientId: userId };
+    const query: { recipientId: string; _id?: { $lt: mongoose.Types.ObjectId } } = { recipientId: userId };
     if (cursor) {
       // Validate cursor is a valid ObjectId
       if (!mongoose.Types.ObjectId.isValid(cursor)) {
@@ -102,7 +130,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         .sort({ createdAt: -1 })
         .limit(limit + 1)
         .populate('entityId', '_id oxyUserId content.text stats metadata.isPinned createdAt')
-        .lean(),
+        .lean<LeanNotification[]>(),
       Notification.countDocuments({
         recipientId: userId,
         read: false
@@ -121,40 +149,44 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
   // Resolve unique actor profiles from Oxy to enrich response
     const uniqueActorIds = Array.from(new Set(
-      notificationsRaw.map((n: any) => n.actorId).filter(Boolean)
+      notificationsRaw.map((n) => n.actorId).filter(Boolean)
     ));
 
-    const profilesMap = new Map<string, any>();
-    await Promise.all(uniqueActorIds.map(async (id: string) => {
+    const profilesMap = new Map<string, ActorProfile>();
+    if (uniqueActorIds.includes('system')) {
+      profilesMap.set('system', SYSTEM_ACTOR);
+    }
+    // Single bulk fetch for all real actors (chunked/deduped by the SDK) instead
+    // of one getUserById HTTP request per actor.
+    const realActorIds = uniqueActorIds.filter((id) => id !== 'system');
+    if (realActorIds.length > 0) {
       try {
-        if (id === 'system') {
-          profilesMap.set(id, { id: 'system', username: 'system', name: { displayName: 'System' }, avatar: undefined });
-        } else {
-          const profile = await oxy.getUserById(id);
-          profilesMap.set(id, profile);
+        const profiles = await oxy.getUsersByIds(realActorIds);
+        for (const profile of profiles) {
+          if (profile?.id) profilesMap.set(profile.id, profile);
         }
       } catch (e) {
-        logger.warn(`[Notifications] Failed to resolve actor profile ${id}:`, e);
+        logger.warn('[Notifications] Failed to bulk-resolve actor profiles:', e);
       }
-    }));
+    }
+
+    // `entityId` may be a populated subdocument (after `.populate`) or a raw
+    // ObjectId; this resolves either to its string id.
+    const resolveEntityId = (ent: LeanNotification['entityId']): string => {
+      if (!ent) return '';
+      if (typeof ent === 'string') return ent;
+      if (typeof ent === 'object' && '_id' in ent && ent._id) return String(ent._id);
+      return String(ent);
+    };
 
     // For 'post' notifications, fetch post docs to provide a short preview and full post data
     const postEntityIds = notificationsRaw
-      .filter((n: any) => n && n.type === 'post' && n.entityType === 'post' && n.entityId)
-      .map((n: any) => {
-        const ent: any = n.entityId;
-        if (!ent) return undefined as any;
-        if (typeof ent === 'string') return ent;
-        if (typeof ent === 'object') {
-          if (ent._id) return String(ent._id);
-          if (typeof ent.toString === 'function') return ent.toString();
-        }
-        return String(ent);
-      })
-      .filter(Boolean) as string[];
+      .filter((n) => n && n.type === 'post' && n.entityType === 'post' && n.entityId)
+      .map((n) => resolveEntityId(n.entityId))
+      .filter(Boolean);
 
-    let postPreviewMap = new Map<string, string>();
-    let postMap = new Map<string, any>();
+    const postPreviewMap = new Map<string, string>();
+    const postMap = new Map<string, HydratedPost>();
     if (postEntityIds.length > 0) {
       try {
         const posts = await Post.find(
@@ -163,14 +195,12 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         ).lean();
 
         // Build preview map
-        postPreviewMap = new Map(
-          posts.map((p: any) => {
-            const text: string = p?.content?.text || '';
-            const trimmed = typeof text === 'string' ? text.trim() : '';
-            const truncated = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-            return [String(p._id), truncated];
-          })
-        );
+        for (const p of posts) {
+          const text: string = p?.content?.text || '';
+          const trimmed = typeof text === 'string' ? text.trim() : '';
+          const truncated = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+          postPreviewMap.set(String(p._id), truncated);
+        }
 
         const hydratedPosts = await postHydrationService.hydratePosts(posts, {
           viewerId: userId,
@@ -181,6 +211,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         hydratedPosts.forEach((post) => postMap.set(post.id, post));
       } catch (e) {
         // Non-fatal; proceed without post embedding if query fails
+        logger.warn('[Notifications] Failed to embed posts for notifications:', e);
       }
     }
 
@@ -188,9 +219,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const hasMore = notificationsRaw.length > limit;
     const notificationsToReturn = hasMore ? notificationsRaw.slice(0, limit) : notificationsRaw;
 
-    const notifications = notificationsToReturn.map((n: any) => {
+    const notifications = notificationsToReturn.map((n) => {
       const actor = profilesMap.get(n.actorId);
-      const entIdStr = String((n as any).entityId?._id || (n as any).entityId || '');
+      const entIdStr = resolveEntityId(n.entityId);
       const preview = (n.type === 'post' && n.entityType === 'post') ? postPreviewMap.get(entIdStr) : undefined;
       const embeddedPost = (n.type === 'post' && n.entityType === 'post') ? postMap.get(entIdStr) : undefined;
       return {
@@ -227,34 +258,91 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Create a notification (requires authentication)
+// Notification field whitelists — these mirror the schema enums in
+// `models/Notification.ts`. They are the ONLY values a client may set.
+const ALLOWED_NOTIFICATION_TYPES = new Set<INotification['type']>([
+  'like', 'reply', 'mention', 'follow', 'boost', 'quote', 'welcome', 'post', 'poke',
+]);
+const ALLOWED_ENTITY_TYPES = new Set<INotification['entityType']>([
+  'post', 'reply', 'profile',
+]);
+
+// Create a notification (requires authentication).
+//
+// SECURITY: the actor is ALWAYS the authenticated user — it is never read from
+// the request body. Only an explicit whitelist of fields is accepted; a raw
+// `req.body` is never spread into the document, preventing mass-assignment of
+// arbitrary notification fields (e.g. forging the actor or recipient state).
 router.post("/", async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+    // Throws/short-circuits via 401 if unauthenticated.
+    const actorId = getRequiredOxyUserId(req);
+
+    const body: unknown = req.body;
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ message: 'Invalid request body' });
+    }
+    const { recipientId, type, entityId, entityType } = body as Record<string, unknown>;
+
+    // Recipient: required, must be a non-empty valid Oxy/Mongo id, and must not
+    // be the actor (a user cannot notify themselves).
+    if (typeof recipientId !== 'string' || !mongoose.Types.ObjectId.isValid(recipientId)) {
+      return res.status(400).json({ message: 'Invalid recipientId' });
+    }
+    if (recipientId === actorId) {
+      return res.status(400).json({ message: 'Cannot create a self-notification' });
     }
 
-    const notification = new Notification(req.body);
-    await notification.save();
-    await emitNotification(req, notification);
-    // Enrich immediate response too
-    let actor: any = null;
+    // Type / entityType: must be in the schema enums.
+    if (typeof type !== 'string' || !ALLOWED_NOTIFICATION_TYPES.has(type as INotification['type'])) {
+      return res.status(400).json({ message: 'Invalid notification type' });
+    }
+    if (typeof entityType !== 'string' || !ALLOWED_ENTITY_TYPES.has(entityType as INotification['entityType'])) {
+      return res.status(400).json({ message: 'Invalid entityType' });
+    }
+
+    // entityId: required ObjectId (post/reply id, or the profile id for
+    // follow/poke notifications — Oxy user ids are ObjectId-shaped).
+    if (typeof entityId !== 'string' || !mongoose.Types.ObjectId.isValid(entityId)) {
+      return res.status(400).json({ message: 'Invalid entityId' });
+    }
+
+    const notification = new Notification({
+      recipientId,
+      actorId,
+      type,
+      entityId,
+      entityType,
+    });
+
     try {
-      if (notification.actorId && notification.actorId !== 'system') {
-        actor = await oxy.getUserById(notification.actorId);
+      await notification.save();
+    } catch (saveError) {
+      // The unique index (recipientId, actorId, type, entityId) makes repeated
+      // creates idempotent rather than an error.
+      if (saveError instanceof mongoose.mongo.MongoServerError && saveError.code === 11000) {
+        const existing = await Notification.findOne({ recipientId, actorId, type, entityId });
+        return res.status(200).json(existing ? existing.toObject() : { message: 'Notification already exists' });
       }
+      throw saveError;
+    }
+
+    await emitNotification(req, notification);
+
+    // Enrich immediate response with the actor profile.
+    let actor: ActorProfile | null = null;
+    try {
+      actor = await oxy.getUserById(actorId);
     } catch (e) {
       logger.warn('[Notifications] Failed to resolve actor for new notification:', e);
     }
     const payload = {
       ...notification.toObject(),
-      actorId_populated: actor ? {
-        ...toPopulatedActor(actor, notification.actorId),
-      } : undefined
+      actorId_populated: actor ? toPopulatedActor(actor, actorId) : undefined,
     };
     res.status(201).json(payload);
   } catch (error) {
+    logger.error('[Notifications] Error creating notification:', { userId: req.user?.id, error });
     res.status(500).json({ message: "Error creating notification" });
   }
 });

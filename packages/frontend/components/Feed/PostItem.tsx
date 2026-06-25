@@ -28,7 +28,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import { useImageUrl } from '@/hooks/useImageUrl';
 import { useImagePreload } from '@/hooks/useImagePreload';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostVote } from '@/hooks/usePostVote';
@@ -91,7 +90,7 @@ const PostItem: React.FC<PostItemProps> = ({
     isPostDetail: isPostDetailProp = false,
     feedDescriptor,
 }) => {
-    const { oxyServices, user: authUser } = useAuth();
+    const { user: authUser } = useAuth();
     const isPremium = (authUser as { premium?: { isPremium?: boolean } } | null)?.premium?.isPremium ?? false;
     const theme = useTheme();
     const { t, i18n } = useTranslation();
@@ -181,29 +180,33 @@ const PostItem: React.FC<PostItemProps> = ({
         ? content.attachments
         : undefined;
 
-    // The backend resolves `avatarUrl` to a FINAL, ready-to-render URL, so we use
-    // it directly. Defensive fallback: when `avatarUrl` is absent, resolve the
-    // legacy raw `avatar` value (an Oxy file id, or a remote URL) via useImageUrl
-    // (old cached responses during the transition window).
-    const finalAvatarUrl = typeof viewPost?.user?.avatarUrl === 'string' ? viewPost.user.avatarUrl : undefined;
-    const legacyAvatar = viewPost?.user?.avatar;
-    const legacyAvatarSource = !finalAvatarUrl && typeof legacyAvatar === 'string' ? legacyAvatar : undefined;
-    const resolvedLegacyAvatar = useImageUrl(legacyAvatarSource, 'thumb', oxyServices);
+    // Avatar source resolution is federation-aware and delegated to Bloom's
+    // Avatar (via the app-wide ImageResolver). FEDERATED/remote actors carry a
+    // remote http(s) avatar URL — passed straight through; the `variant` is
+    // ignored for absolute URLs. LOCAL actors carry an Oxy file id — passed as
+    // `source` with `variant="thumb"` so Bloom's resolver fetches the thumb
+    // rendition. We no longer pre-resolve the file id with `useImageUrl`.
+    //
+    // NOTE (durable upstream fix): the backend PostHydrationService should emit a
+    // clean file id for local actors and a remote URL for federated actors so the
+    // client never has to disambiguate. Until then we branch on `isFederated` and
+    // on whether the value is already an absolute URL.
+    const rawAvatar = viewPost?.user?.avatarUrl || viewPost?.user?.avatar;
+    const isRemoteAvatar =
+        typeof rawAvatar === 'string' &&
+        (viewPost?.user?.isFederated === true ||
+            rawAvatar.startsWith('http://') ||
+            rawAvatar.startsWith('https://'));
+    const avatarSource = typeof rawAvatar === 'string' ? rawAvatar : undefined;
+    const avatarVariant = isRemoteAvatar ? undefined : 'thumb';
 
-    const avatarUri = useMemo(() => {
-        if (finalAvatarUrl) return finalAvatarUrl;
-        return resolvedLegacyAvatar ?? legacyAvatarSource;
-    }, [finalAvatarUrl, resolvedLegacyAvatar, legacyAvatarSource]);
-
-    // Preload images for better perceived performance.
-    // Only the avatar URL is known up-front; media items are referenced by id
-    // and resolved inside PostAttachmentsRow, so we can't preload them here.
-    const imageUrls = useMemo(() => {
-        if (avatarUri && (avatarUri.startsWith('http://') || avatarUri.startsWith('https://'))) {
-            return [avatarUri];
-        }
-        return [];
-    }, [avatarUri]);
+    // Preload only when the avatar is already an absolute URL (remote/federated).
+    // Local file ids are resolved+cached by Bloom's resolver, and media items are
+    // referenced by id and resolved inside PostAttachmentsRow.
+    const imageUrls = useMemo(
+        () => (isRemoteAvatar && avatarSource ? [avatarSource] : []),
+        [isRemoteAvatar, avatarSource],
+    );
 
     useImagePreload(imageUrls, true);
 
@@ -579,7 +582,8 @@ const PostItem: React.FC<PostItemProps> = ({
                     date={metadata.createdAt}
                     showBoost={Boolean(viewPost.boost) && !isNested}
                     showReply={false}
-                    avatarUri={avatarUri}
+                    avatarSource={avatarSource}
+                    avatarVariant={avatarVariant}
                     onPressUser={goToUser}
                     onPressAvatar={goToUser}
                     onPressMenu={openMenu}

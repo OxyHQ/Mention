@@ -13,7 +13,7 @@ router.get("/", async (req: Request, res: Response) => {
     const days = parseInt((req.query.days as string) || '7', 10);
     const since = isNaN(days) ? undefined : new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const match: any = {
+    const match: Record<string, unknown> = {
       visibility: 'public',
       hashtags: { $exists: true, $ne: [] }
     };
@@ -22,7 +22,7 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     // Primary window aggregation (overall within optional `days`)
-    let agg = await (Post as any).aggregate([
+    let agg = await Post.aggregate<{ id: string; text: string; hashtag: string; count: number; created_at: Date; direction?: 'up' | 'down' | 'flat' }>([
       { $match: match },
       { $unwind: '$hashtags' },
       {
@@ -51,19 +51,19 @@ router.get("/", async (req: Request, res: Response) => {
     const recentStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const prevStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
-    const recentAgg = await (Post as any).aggregate([
+    const recentAgg = await Post.aggregate<{ _id: string; c: number }>([
       { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] }, createdAt: { $gte: recentStart } } },
       { $unwind: '$hashtags' },
       { $group: { _id: { $toLower: '$hashtags' }, c: { $sum: 1 } } }
     ]);
-    const prevAgg = await (Post as any).aggregate([
+    const prevAgg = await Post.aggregate<{ _id: string; c: number }>([
       { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] }, createdAt: { $gte: prevStart, $lt: recentStart } } },
       { $unwind: '$hashtags' },
       { $group: { _id: { $toLower: '$hashtags' }, c: { $sum: 1 } } }
     ]);
-    const recentMap = new Map<string, number>(recentAgg.map((x: any) => [x._id, x.c]));
-    const prevMap = new Map<string, number>(prevAgg.map((x: any) => [x._id, x.c]));
-    agg = agg.map((x: any) => {
+    const recentMap = new Map<string, number>(recentAgg.map((x) => [x._id, x.c]));
+    const prevMap = new Map<string, number>(prevAgg.map((x) => [x._id, x.c]));
+    agg = agg.map((x) => {
       const id = (x.id || '').toLowerCase();
       const r = recentMap.get(id) || 0;
       const p = prevMap.get(id) || 0;
@@ -74,31 +74,34 @@ router.get("/", async (req: Request, res: Response) => {
 
     // Fallback: if no stored hashtags yet, derive from post content.text
     if (!agg || agg.length === 0) {
-      const textMatch: any = {
+      const textMatch: Record<string, unknown> = {
         visibility: 'public',
         'content.text': { $exists: true, $ne: '' }
       };
       if (since) {
         textMatch.createdAt = { $gte: since };
       }
-      const posts = await (Post as any).find(textMatch).select({ 'content.text': 1, createdAt: 1 }).lean();
+      const posts = await Post.find(textMatch).select({ 'content.text': 1, createdAt: 1 }).lean();
       const counts: Record<string, { c: number; latest: Date }> = {};
       for (const p of posts) {
         const text: string = p?.content?.text || '';
+        // `IPost.createdAt` is declared as a string but mongoose stores a Date;
+        // normalize to a Date for comparison/sorting.
+        const createdAt = new Date(p.createdAt);
         const matches = text.match(/#([A-Za-z0-9_]+)/g) || [];
         for (const raw of matches) {
           const tag = raw.replace(/^#/, '').toLowerCase();
-          if (!counts[tag]) counts[tag] = { c: 0, latest: p.createdAt };
+          if (!counts[tag]) counts[tag] = { c: 0, latest: createdAt };
           counts[tag].c += 1;
-          if (p.createdAt > counts[tag].latest) counts[tag].latest = p.createdAt;
+          if (createdAt > counts[tag].latest) counts[tag].latest = createdAt;
         }
       }
       const fallbackArr = Object.entries(counts)
         .map(([id, v]) => ({ id, text: id, hashtag: `#${id}`, count: v.c, created_at: v.latest }))
-        .sort((a, b) => (b.count - a.count) || ((b.created_at as any) - (a.created_at as any)))
+        .sort((a, b) => (b.count - a.count) || (b.created_at.getTime() - a.created_at.getTime()))
         .slice(0, limit);
       // Compute simple direction for fallback (no previous window available): mark as 'up' if count > 0
-      agg = fallbackArr.map((x: any) => ({ ...x, direction: x.count > 0 ? 'up' : 'flat' }));
+      agg = fallbackArr.map((x) => ({ ...x, direction: (x.count > 0 ? 'up' : 'flat') as 'up' | 'flat' }));
     }
 
     res.json({ hashtags: agg });
@@ -120,12 +123,12 @@ router.post('/search', async (req: Request, res: Response) => {
       });
     }
 
-    const match: any = {
+    const match: Record<string, unknown> = {
       visibility: 'public',
       hashtags: { $exists: true, $ne: [] },
     };
 
-    const agg = await (Post as any).aggregate([
+    const agg = await Post.aggregate<{ tag: string }>([
       { $match: match },
       { $unwind: '$hashtags' },
       {
@@ -140,12 +143,12 @@ router.post('/search', async (req: Request, res: Response) => {
       { $project: { _id: 0, tag: '$_id' } }
     ]);
 
-    return res.json({ data: agg.map((x: any) => x.tag) });
-  } catch (error: any) {
+    return res.json({ data: agg.map((x) => x.tag) });
+  } catch (error) {
     logger.error('[Hashtags] Error in searchHashtags:', { error, searchQuery: req.body.query });
     return res.status(500).json({
       error: 'Server error',
-      message: `Error searching hashtags: ${error.message}`
+      message: `Error searching hashtags: ${error instanceof Error ? error.message : 'unknown error'}`
     });
   }
 });

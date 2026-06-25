@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
 import { PollIcon } from "@/assets/icons/poll-icon";
@@ -14,7 +14,7 @@ interface PollCreatorProps {
     onAddOption: () => void;
     onRemoveOption: (index: number) => void;
     onRemove: () => void;
-    style?: any;
+    style?: StyleProp<ViewStyle>;
     autoFocus?: boolean;
 }
 

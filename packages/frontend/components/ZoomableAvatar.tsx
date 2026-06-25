@@ -7,8 +7,10 @@ import {
   Modal,
   Platform,
   useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { Image, type ImageStyle } from 'expo-image';
 import { Image as RNImage } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -40,8 +42,8 @@ const DEFAULT_AVATAR_SOURCE = DefaultAvatar;
 interface ZoomableAvatarProps {
   source?: ImageSourcePropType | string | undefined | null;
   size?: number;
-  style?: any;
-  imageStyle?: any;
+  style?: StyleProp<ViewStyle>;
+  imageStyle?: StyleProp<ImageStyle>;
   className?: string;
 }
 

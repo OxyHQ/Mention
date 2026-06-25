@@ -82,7 +82,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
           // Fire-and-forget: avatars fill in reactively via useUserById
           void enrichMissingAvatars(
             users.slice(0, maxCards),
-            (id) => oxyServices.getUserById(id),
+            (ids) => oxyServices.getUsersByIds(ids),
             queryClient,
           );
         }

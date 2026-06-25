@@ -48,7 +48,7 @@ export function WhoToFollowWidget() {
           // Fire-and-forget: avatars fill in reactively via useUserById
           void enrichMissingAvatars(
             users.slice(0, MAX_DISPLAY_USERS),
-            (id) => oxyServices.getUserById(id),
+            (ids) => oxyServices.getUsersByIds(ids),
             queryClient,
           );
         }

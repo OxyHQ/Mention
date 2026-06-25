@@ -33,15 +33,13 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
 import { useAuth } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 
 const WindowHeight = Dimensions.get('window').height;
 
-const webCursorPointer = Platform.select({ web: { cursor: 'pointer' } }) as ViewStyle | undefined;
-
-type WebSidebarContainerStyle = Omit<ViewStyle, 'height' | 'position'> & {
-    position?: ViewStyle['position'] | 'sticky';
-    height?: ViewStyle['height'] | '100vh';
-};
+const webCursorPointer: ViewStyle | undefined = Platform.OS === 'web'
+    ? asViewStyle({ cursor: 'pointer' })
+    : undefined;
 
 // Under document-scroll on web the shell row is a tall flex container. A flex
 // child defaults to `align-items: stretch`, which would stretch this column to
@@ -49,7 +47,7 @@ type WebSidebarContainerStyle = Omit<ViewStyle, 'height' | 'position'> & {
 // so it scrolls away with the document. `alignSelf: 'flex-start'` constrains the
 // box to its own `100vh` height, sitting at the top of the tall row, so
 // `position: sticky; top: 0` pins it while only the center feed scrolls.
-const webStickyContainerStyle: WebSidebarContainerStyle = {
+const webStickyContainerStyle: WebViewStyle = {
     position: 'sticky',
     alignSelf: 'flex-start',
     overflow: 'hidden',
@@ -292,12 +290,9 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
 const styles = StyleSheet.create({
     container: {
         padding: 6,
-        ...(Platform.select({
-            web: webStickyContainerStyle,
-            default: {
-                height: WindowHeight,
-            },
-        }) as ViewStyle),
+        ...(Platform.OS === 'web'
+            ? asViewStyle(webStickyContainerStyle)
+            : { height: WindowHeight }),
         top: 0,
         zIndex: 1000,
     },

@@ -1,8 +1,8 @@
-import UserBehavior from '../models/UserBehavior';
+import UserBehavior, { IUserBehavior } from '../models/UserBehavior';
 import { Post } from '../models/Post';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
-import mongoose from 'mongoose';
+import mongoose, { HydratedDocument } from 'mongoose';
 import { MtnConfig, isVideoSurface } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 
@@ -333,7 +333,7 @@ export class UserPreferenceService {
    * Note: This is synchronous as it only modifies objects in memory
    */
   private updateAuthorPreference(
-    userBehavior: any,
+    userBehavior: HydratedDocument<IUserBehavior>,
     authorId: string,
     interactionType: string,
     weight: number,
@@ -343,7 +343,7 @@ export class UserPreferenceService {
     authorAffinityFactor: number = 1
   ): void {
     let authorPref = userBehavior.preferredAuthors.find(
-      (a: any) => a.authorId === authorId
+      (a) => a.authorId === authorId
     );
 
     if (!authorPref) {
@@ -403,7 +403,7 @@ export class UserPreferenceService {
     authorPref.weight = Math.min(1, (totalInteractions / 100) * recencyFactor * authorAffinityFactor);
 
     // Keep only top 100 authors by weight
-    userBehavior.preferredAuthors.sort((a: any, b: any) => b.weight - a.weight);
+    userBehavior.preferredAuthors.sort((a, b) => b.weight - a.weight);
     if (userBehavior.preferredAuthors.length > 100) {
       userBehavior.preferredAuthors = userBehavior.preferredAuthors.slice(0, 100);
     }
@@ -420,12 +420,12 @@ export class UserPreferenceService {
    * Note: synchronous — only modifies in-memory objects.
    */
   private decayAuthorPreference(
-    userBehavior: any,
+    userBehavior: HydratedDocument<IUserBehavior>,
     authorId: string,
     magnitude: number
   ): void {
     const authorPref = userBehavior.preferredAuthors.find(
-      (a: any) => a.authorId === authorId
+      (a) => a.authorId === authorId
     );
     if (!authorPref) {
       return; // No existing relationship — nothing to erode.
@@ -467,13 +467,13 @@ export class UserPreferenceService {
    * Note: This is synchronous as it only modifies objects in memory
    */
   private updateTopicPreference(
-    userBehavior: any,
+    userBehavior: HydratedDocument<IUserBehavior>,
     topic: string,
     weight: number,
     topicId?: string,
   ): void {
     let topicPref = userBehavior.preferredTopics.find(
-      (t: any) => t.topic === topic
+      (t) => t.topic === topic
     );
 
     if (!topicPref) {
@@ -500,7 +500,7 @@ export class UserPreferenceService {
     topicPref.weight = Math.min(1, (topicPref.interactionCount / 50) * recencyFactor);
 
     // Keep only top 200 topics
-    userBehavior.preferredTopics.sort((a: any, b: any) => b.weight - a.weight);
+    userBehavior.preferredTopics.sort((a, b) => b.weight - a.weight);
     if (userBehavior.preferredTopics.length > 200) {
       userBehavior.preferredTopics = userBehavior.preferredTopics.slice(0, 200);
     }
@@ -516,7 +516,7 @@ export class UserPreferenceService {
    * Note: synchronous — only modifies in-memory objects.
    */
   private updateRegionPreference(
-    userBehavior: any,
+    userBehavior: HydratedDocument<IUserBehavior>,
     region: string,
     weight: number,
   ): void {
@@ -524,7 +524,7 @@ export class UserPreferenceService {
       userBehavior.preferredRegions = [];
     }
     let regionPref = userBehavior.preferredRegions.find(
-      (r: any) => r.region === region,
+      (r) => r.region === region,
     );
 
     if (!regionPref) {
@@ -537,7 +537,7 @@ export class UserPreferenceService {
 
     // Most-engaged region first; bound the list (regions are a small, coarse
     // space — this cap is just a safety ceiling, not an expected trim point).
-    userBehavior.preferredRegions.sort((a: any, b: any) => b.count - a.count);
+    userBehavior.preferredRegions.sort((a, b) => b.count - a.count);
     if (userBehavior.preferredRegions.length > MtnConfig.preferences.maxPreferredRegions) {
       userBehavior.preferredRegions = userBehavior.preferredRegions.slice(
         0,
@@ -573,11 +573,11 @@ export class UserPreferenceService {
    * Note: This is synchronous as it only modifies objects in memory
    */
   private handleNegativeSignal(
-    userBehavior: any,
-    post: any,
+    userBehavior: HydratedDocument<IUserBehavior>,
+    post: InteractionPost,
     interactionType: string
   ): void {
-    const authorId = post.oxyUserId;
+    const authorId = post.oxyUserId ?? '';
 
     if (interactionType === 'hide') {
       if (!userBehavior.hiddenAuthors.includes(authorId)) {
@@ -602,7 +602,7 @@ export class UserPreferenceService {
 
     // Remove from preferred authors if present
     userBehavior.preferredAuthors = userBehavior.preferredAuthors.filter(
-      (a: any) => a.authorId !== authorId
+      (a) => a.authorId !== authorId
     );
     if (userBehavior.preferredAuthors.length > 0) {
       userBehavior.markModified('preferredAuthors');

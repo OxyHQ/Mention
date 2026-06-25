@@ -49,11 +49,17 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
     return handle.startsWith('@') ? handle.slice(1) : handle;
   }, [post]);
 
-  const avatarUri = useMemo(() => {
-    if (!post) return undefined;
-    const raw = post.user?.avatarUrl || post.user?.avatar;
-    if (!raw) return undefined;
-    return typeof raw === 'string' && raw.startsWith('http') ? raw : undefined;
+  // Federation-aware avatar source for Bloom's Avatar (via the app-wide
+  // ImageResolver): a FEDERATED/remote actor carries an absolute http(s) URL
+  // (rendered directly; variant ignored); a LOCAL actor carries an Oxy file id
+  // (resolved with `variant="thumb"`). Bloom disambiguates URL vs file id, so we
+  // pass the raw value through and only steer the variant.
+  const avatar = useMemo(() => {
+    const raw = post?.user?.avatarUrl || post?.user?.avatar;
+    if (typeof raw !== 'string' || !raw) return { source: undefined, variant: undefined };
+    const isRemote =
+      post?.user?.isFederated === true || raw.startsWith('http://') || raw.startsWith('https://');
+    return { source: raw, variant: isRemote ? undefined : 'thumb' };
   }, [post]);
 
   if (loading) {
@@ -78,7 +84,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   return (
     <View className="border-border bg-secondary relative rounded-2xl border px-4 py-3">
       <View className="flex-row items-start">
-        <Avatar source={avatarUri} size={28} style={{ marginRight: 10 }} />
+        <Avatar source={avatar.source} variant={avatar.variant} size={28} style={{ marginRight: 10 }} />
         <View className="flex-1 pr-6">
           <View className="flex-row items-center">
             {userName ? (

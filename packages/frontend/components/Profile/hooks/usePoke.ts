@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useAuth } from '@oxyhq/services';
 import { pokeService } from '@/services/pokeService';
+import { normalizeApiError } from '@/utils/apiError';
 import { useDeferredToggle } from './useDeferredToggle';
 
 export interface UsePokeReturn {
@@ -51,8 +52,8 @@ export function usePoke(
   const safeToggle = useCallback(async () => {
     try {
       await toggle();
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || t('poke.error', { defaultValue: 'Failed to poke' });
+    } catch (error: unknown) {
+      const errorMessage = normalizeApiError(error).message || t('poke.error', { defaultValue: 'Failed to poke' });
       toast(errorMessage, { type: 'error' });
     }
   }, [toggle, t]);

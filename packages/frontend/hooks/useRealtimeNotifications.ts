@@ -42,7 +42,7 @@ export const useRealtimeNotifications = () => {
         logger.info('Connected to notifications socket');
       });
 
-      socket.on('notification', (notification: any) => {
+      socket.on('notification', (notification: unknown) => {
         // Validate payload before acting
         const parsed = ZRawNotification.safeParse(notification);
         if (!parsed.success) {
@@ -55,7 +55,7 @@ export const useRealtimeNotifications = () => {
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
       });
 
-      socket.on('notificationUpdated', (notification: any) => {
+      socket.on('notificationUpdated', (notification: unknown) => {
         const parsed = ZRawNotification.safeParse(notification);
         if (!parsed.success) {
           logger.warn('Dropped invalid socket notificationUpdated');
