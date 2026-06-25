@@ -56,14 +56,17 @@ function parseHue(hslTriple: string | undefined): number | null {
  * when the preset's primary hue can't be parsed.
  */
 function buildDarkGradient(presetName: AppColorName): readonly [string, string] {
-    const hue = parseHue(APP_COLOR_PRESETS[presetName]?.dark['--primary']);
+    const hue = parseHue(APP_COLOR_PRESETS[presetName]?.dark?.['--primary']);
     if (hue === null) return FALLBACK_GRADIENT;
     return [`hsl(${hue} 60% 8%)`, DARK_STOP];
 }
 
 /** Validate an unknown value as a known preset name. */
 function isAppColorName(value: unknown): value is AppColorName {
-    return typeof value === 'string' && value in APP_COLOR_PRESETS;
+    return (
+        typeof value === 'string'
+        && Object.prototype.hasOwnProperty.call(APP_COLOR_PRESETS, value)
+    );
 }
 
 /**
