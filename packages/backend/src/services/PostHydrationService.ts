@@ -104,6 +104,31 @@ const DEFAULT_PRIVACY = {
   hideSaveCounts: false,
 };
 
+function canViewerAccessPost(post: RawPost, authorId: string, viewerContext: ViewerContext): boolean {
+  const viewerId = viewerContext.viewerId;
+  const isAuthor = Boolean(viewerId && viewerId === authorId);
+  const status = post.status ?? 'published';
+
+  // Drafts and scheduled posts are author-only. Referenced-post hydration is
+  // frequently driven by attacker-controlled ids (quote/boost), so never embed
+  // unpublished content for non-authors even if the caller accidentally fetched
+  // it by `_id`.
+  if (status !== 'published' && !isAuthor) {
+    return false;
+  }
+
+  const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility | string;
+  if (visibility === PostVisibility.PRIVATE) {
+    return isAuthor;
+  }
+
+  if (visibility === PostVisibility.FOLLOWERS_ONLY) {
+    return isAuthor || Boolean(viewerId && viewerContext.follows.has(authorId));
+  }
+
+  return true;
+}
+
 /**
  * URLs currently being resolved in the background by {@link PostHydrationService.warmLinkPreviews}.
  * Single-flight guard so concurrent feed requests never fetch the same remote
@@ -1293,6 +1318,10 @@ export class PostHydrationService {
       ? (federatedAuthorMap?.get(postId) ?? this.buildFederatedDomainAuthor(post))
       : undefined;
     const authorId = resolvedAuthorId ?? federatedFallback?.id ?? `federated:${postId}`;
+
+    if (!canViewerAccessPost(post, authorId, viewerContext)) {
+      return null;
+    }
 
     // Privacy checks only apply to local users (federated posts are public by definition)
     if (!isFederatedPost) {

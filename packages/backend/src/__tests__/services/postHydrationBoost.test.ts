@@ -25,6 +25,7 @@ const ORIGINAL_ID = '650000000000000000000002';
 const BOOSTER_OXY_ID = 'oxy-booster';
 const ORIGINAL_AUTHOR_OXY_ID = 'oxy-original-author';
 const VIEWER_ID = 'oxy-viewer';
+const ATTACKER_POST_ID = '650000000000000000000003';
 
 const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federatedActorFind } = vi.hoisted(() => ({
   getUserById: vi.fn(),
@@ -147,6 +148,23 @@ function originalRow() {
     metadata: { createdAt: new Date('2023-12-31T00:00:00Z') },
     createdAt: new Date('2023-12-31T00:00:00Z'),
     visibility: 'public',
+    hashtags: [],
+    mentions: [],
+  };
+}
+
+function quoteRow() {
+  return {
+    _id: ATTACKER_POST_ID,
+    oxyUserId: BOOSTER_OXY_ID,
+    type: 'post',
+    quoteOf: ORIGINAL_ID,
+    content: { text: 'attacker quote' },
+    stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
+    metadata: { createdAt: new Date('2024-01-02T00:00:00Z') },
+    createdAt: new Date('2024-01-02T00:00:00Z'),
+    visibility: 'public',
+    status: 'published',
     hashtags: [],
     mentions: [],
   };
@@ -311,5 +329,63 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.boost?.originalPost?.user?.instance).toBe('zpravobot.news');
     // Remote avatar is carried through (resolved, not dropped).
     expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
+  });
+
+  it('does not embed a quoted draft/private post for a non-author viewer', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          content: { text: 'secret draft body' },
+          visibility: 'private',
+          status: 'draft',
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await service.hydratePosts([quoteRow()], {
+      viewerId: VIEWER_ID,
+      maxDepth: 1,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated?.id).toBe(ATTACKER_POST_ID);
+    expect(hydrated?.quotedPost).toBeNull();
+    expect(hydrated?.originalPost).toBeNull();
+  });
+
+  it('still lets authors hydrate their own draft/private quoted posts', async () => {
+    service = new PostHydrationService();
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          content: { text: 'my own draft body' },
+          visibility: 'private',
+          status: 'draft',
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await service.hydratePosts([{
+      ...quoteRow(),
+      oxyUserId: ORIGINAL_AUTHOR_OXY_ID,
+    }], {
+      viewerId: ORIGINAL_AUTHOR_OXY_ID,
+      maxDepth: 1,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated?.quotedPost?.id).toBe(ORIGINAL_ID);
+    expect(hydrated?.quotedPost?.content?.text).toBe('my own draft body');
   });
 });
