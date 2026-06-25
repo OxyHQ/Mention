@@ -12,6 +12,7 @@ import { extractApMediaFromNote, type ApMediaType } from '../../utils/federation
 import { normalizeHashtag } from '../../utils/textProcessing';
 import { recordAccessAndMaybeEnqueue } from '../mediaCache/cacheStore';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../mediaCache/cacheWorker';
+import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 
 /**
  * Shared low-level helpers used by more than one federation sub-service
@@ -27,6 +28,8 @@ export type ExtractedMediaItem = { id: string; type: ApMediaType };
 export type ExtractedMediaAttachment = { type: 'media'; id: string; mediaType: ApMediaType };
 
 const SIGNED_FETCH_TIMEOUT_MS = 10000;
+const SIGNED_FETCH_MAX_REDIRECTS = 3;
+const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 export function isAbsoluteHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
@@ -136,28 +139,50 @@ export function domainFromAcct(acct: string): string | undefined {
 export async function signedFetch(url: string, accept: string): Promise<Response> {
   const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
   const { keyId } = await getPublicKey('instance');
-  const sigHeaders = await signRequest(keyId, 'GET', url);
 
-  const res = await fetch(url, {
-    headers: {
-      Accept: acceptHeader,
-      'User-Agent': USER_AGENT,
-      ...sigHeaders,
-    },
-    signal: AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
-  });
+  const fetchOnce = async (targetUrl: string, signed: boolean): Promise<Response> => {
+    const guard = await assertSafePublicUrl(targetUrl);
+    if (!guard.ok) {
+      throw new Error(`blocked unsafe ActivityPub fetch target: ${guard.reason}`);
+    }
+
+    const sigHeaders = signed ? await signRequest(keyId, 'GET', targetUrl) : {};
+    return fetch(targetUrl, {
+      headers: {
+        Accept: acceptHeader,
+        'User-Agent': USER_AGENT,
+        ...sigHeaders,
+      },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
+    });
+  };
+
+  const fetchFollowingRedirects = async (initialUrl: string, signed: boolean): Promise<Response> => {
+    let currentUrl = initialUrl;
+    for (let hop = 0; hop <= SIGNED_FETCH_MAX_REDIRECTS; hop++) {
+      const res = await fetchOnce(currentUrl, signed);
+      if (!REDIRECT_STATUS_CODES.has(res.status)) {
+        return res;
+      }
+
+      const location = res.headers.get('location');
+      if (hop === SIGNED_FETCH_MAX_REDIRECTS || !location) {
+        return res;
+      }
+      currentUrl = new URL(location, currentUrl).toString();
+    }
+
+    throw new Error('redirect loop exhausted');
+  };
+
+  const res = await fetchFollowingRedirects(url, true);
 
   // If the remote server returns a 5xx (e.g. it can't resolve our keyId to verify
   // the signature), retry without the signature as a fallback for public resources.
   if (res.status >= 500) {
     logger.info(`[FedSync] signedFetch got ${res.status} for ${url}, retrying unsigned`);
-    return fetch(url, {
-      headers: {
-        Accept: acceptHeader,
-        'User-Agent': USER_AGENT,
-      },
-      signal: AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
-    });
+    return fetchFollowingRedirects(url, false);
   }
 
   // A 401/403 on a signed request means the remote rejected OUR signature

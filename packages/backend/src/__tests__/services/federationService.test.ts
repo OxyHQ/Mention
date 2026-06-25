@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
   followExists: vi.fn(),
+  assertSafePublicUrl: vi.fn(),
 }));
 
 vi.mock('../../utils/federation/crypto', () => ({
@@ -44,6 +45,10 @@ vi.mock('../../models/FederatedFollow', () => ({
   default: {
     exists: mocks.followExists,
   },
+}));
+
+vi.mock('../../utils/ssrfGuard', () => ({
+  assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 
 vi.mock('../../models/FederationDeliveryQueue', () => ({
@@ -166,6 +171,7 @@ beforeEach(() => {
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   mocks.postExists.mockResolvedValue(null);
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
+  mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.likeCreate.mockResolvedValue({ _id: 'like_1' });
   mocks.likeFindOneAndDelete.mockReturnValue({
     lean: vi.fn().mockResolvedValue(null),
@@ -578,6 +584,32 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
       actorUri,
     );
 
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('blocks unsafe boosted object fetches before contacting the network', async () => {
+    const unsafeUri = 'http://127.0.0.1/latest/meta-data';
+    stubResolvedActor('oxy_bob');
+    mocks.postFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue(null),
+    });
+    mocks.postExists.mockResolvedValue(null);
+    mocks.assertSafePublicUrl.mockImplementation(async (url: string) => (
+      url === unsafeUri
+        ? { ok: false, reason: 'literal ip in blocked range' }
+        : { ok: true, ip: '93.184.216.34', family: 4 }
+    ));
+    const fetchMock = vi.fn(async () => jsonResponse({ type: 'Note' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await federationService.processInboxActivity(
+      { type: 'Announce', id: announceId, actor: actorUri, object: unsafeUri },
+      actorUri,
+    );
+
+    expect(mocks.assertSafePublicUrl).toHaveBeenCalledWith(unsafeUri);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
