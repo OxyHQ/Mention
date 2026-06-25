@@ -25,5 +25,7 @@ const PokeSchema = new Schema({
 PokeSchema.index({ pokerId: 1, pokedId: 1 }, { unique: true });
 // Fetch pokes received by a user
 PokeSchema.index({ pokedId: 1, createdAt: -1 });
+// Fetch pokes sent by a user
+PokeSchema.index({ pokerId: 1, createdAt: -1 });
 
 export default mongoose.model<IPoke>("Poke", PokeSchema);
