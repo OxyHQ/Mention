@@ -26,13 +26,14 @@ const BOOSTER_OXY_ID = 'oxy-booster';
 const ORIGINAL_AUTHOR_OXY_ID = 'oxy-original-author';
 const VIEWER_ID = 'oxy-viewer';
 
-const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federatedActorFind } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federatedActorFind, federatedActorQueryState } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
   postFind: vi.fn(),
   postFindOne: vi.fn(),
   federatedActorFind: vi.fn(),
+  federatedActorQueryState: { limit: undefined as number | undefined, maxTimeMS: undefined as number | undefined },
 }));
 
 vi.mock('../../../server', () => ({
@@ -60,10 +61,13 @@ vi.mock('../../utils/privacyHelpers', () => ({
 // A chainable Mongoose query stub. `.select().sort().limit().maxTimeMS().lean()`
 // all return `this`; `.lean()` resolves the provided rows (an array, or `null`
 // for the `findOne` paths that return a single doc / no doc).
-function chainable(rows: unknown[] | null) {
+function chainable(rows: unknown[] | null, onChain?: (method: string, value: unknown) => void) {
   const q: Record<string, unknown> = {};
   for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = () => q;
+    q[m] = (value: unknown) => {
+      onChain?.(m, value);
+      return q;
+    };
   }
   q.lean = async () => rows;
   q.then = undefined;
@@ -80,7 +84,12 @@ vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }))
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/FederatedActor', () => ({
-  default: { find: (...args: unknown[]) => chainable(federatedActorFind(...args)) },
+  default: {
+    find: (...args: unknown[]) => chainable(federatedActorFind(...args), (method, value) => {
+      if (method === 'limit') federatedActorQueryState.limit = value as number;
+      if (method === 'maxTimeMS') federatedActorQueryState.maxTimeMS = value as number;
+    }),
+  },
 }));
 vi.mock('../../models/UserSettings', () => ({
   UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
@@ -162,6 +171,8 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     postFind.mockReset();
     postFindOne.mockReset();
     federatedActorFind.mockReset();
+    federatedActorQueryState.limit = undefined;
+    federatedActorQueryState.maxTimeMS = undefined;
     // No remote actor records resolve by default — orphaned federated posts fall
     // back to the deterministic domain placeholder. Individual tests override.
     federatedActorFind.mockReturnValue([]);
@@ -358,6 +369,22 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.boost?.originalPost?.user?.instance).toBe('zpravobot.news');
     // Remote avatar is carried through (resolved, not dropped).
     expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
+
+    const calls = federatedActorFind.mock.calls;
+    const [query] = calls[calls.length - 1] ?? [];
+    expect(query).toEqual({
+      uri: {
+        $in: [
+          'https://zpravobot.news/users/TerribleMaps/statuses/123',
+          'https://zpravobot.news/users/TerribleMaps/statuses',
+          'https://zpravobot.news/users/TerribleMaps',
+          'https://zpravobot.news/users',
+        ],
+      },
+    });
+    expect(query).not.toHaveProperty('domain');
+    expect(federatedActorQueryState.limit).toBe(4);
+    expect(federatedActorQueryState.maxTimeMS).toBe(1000);
   });
 
   it('does not embed non-public boost originals when publicReferencesOnly is enabled', async () => {
