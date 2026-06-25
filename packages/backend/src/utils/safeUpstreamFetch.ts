@@ -97,13 +97,14 @@ function buildRequestOptions(
   pinnedFamily: 4 | 6,
   headers: Record<string, string>,
   signal: AbortSignal,
+  method: string = 'GET',
 ): https.RequestOptions {
   return {
     protocol: target.protocol,
     hostname: target.hostname,
     port: target.port || (target.protocol === 'https:' ? 443 : 80),
     path: `${target.pathname}${target.search}`,
-    method: 'GET',
+    method,
     headers,
     // Aborts the in-flight request when an external deadline fires.
     signal,
@@ -131,11 +132,12 @@ function buildRequestOptions(
   };
 }
 
-/** Perform a single upstream GET (no auto-redirect). */
+/** Perform a single upstream request (no auto-redirect). */
 function fetchOnce(
   options: https.RequestOptions,
   isHttps: boolean,
   headersTimeoutMs: number = UPSTREAM_HEADERS_TIMEOUT_MS,
+  body?: string | Buffer,
 ): Promise<IncomingMessage> {
   return new Promise<IncomingMessage>((resolve, reject) => {
     const transport = isHttps ? https : http;
@@ -145,7 +147,7 @@ function fetchOnce(
       req.destroy(new Error('upstream headers timeout'));
     });
     req.on('error', (err) => reject(err));
-    req.end();
+    req.end(body);
   });
 }
 
@@ -232,10 +234,14 @@ export interface SingleHopOptions {
   signal: AbortSignal;
   /** Time-to-first-byte deadline; defaults to {@link UPSTREAM_HEADERS_TIMEOUT_MS}. */
   headersTimeoutMs?: number;
+  /** HTTP method to use. Defaults to GET. */
+  method?: 'GET' | 'POST';
+  /** Optional request body for POST requests. */
+  body?: string | Buffer;
 }
 
 /**
- * Perform ONE SSRF-safe upstream GET. The URL is validated by
+ * Perform ONE SSRF-safe upstream request. The URL is validated by
  * {@link assertSafePublicUrl} and the TCP connection is PINNED to the validated
  * IP via a custom `lookup` — DNS is NOT re-resolved at connect time, closing the
  * DNS-rebind TOCTOU window.
@@ -259,8 +265,15 @@ export async function fetchUpstreamSingleHop(
   }
 
   const target = new URL(url);
-  const requestOptions = buildRequestOptions(target, guard.ip, guard.family, options.headers, options.signal);
-  const response = await fetchOnce(requestOptions, target.protocol === 'https:', options.headersTimeoutMs);
+  const requestOptions = buildRequestOptions(
+    target,
+    guard.ip,
+    guard.family,
+    options.headers,
+    options.signal,
+    options.method ?? 'GET',
+  );
+  const response = await fetchOnce(requestOptions, target.protocol === 'https:', options.headersTimeoutMs, options.body);
   return {
     response,
     status: response.statusCode ?? 0,

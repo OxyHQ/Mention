@@ -202,8 +202,12 @@ beforeEach(() => {
   // that assert on the `fetch(url, { headers })` shape keep exercising the real
   // signing/redirect logic — the only thing that changed is the transport.
   mocks.fetchUpstreamSingleHop.mockImplementation(
-    async (url: string, options: { headers: Record<string, string> }) => {
-      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+    async (url: string, options: { headers: Record<string, string>; method?: string; body?: BodyInit }) => {
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, {
+        headers: options.headers,
+        method: options.method,
+        body: options.body,
+      });
       const bodyBuffer = Buffer.from(await res.arrayBuffer());
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {
@@ -217,6 +221,62 @@ beforeEach(() => {
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
     uploadProfileBanner: mocks.uploadProfileBanner,
+  });
+});
+
+describe('federationService.deliverActivity', () => {
+  it('posts via the SSRF-safe single-hop fetcher instead of global fetch', async () => {
+    const fetchMock = vi.fn(async () => new Response('should not be used', { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const stream = new PassThrough();
+    stream.end('accepted');
+    mocks.fetchUpstreamSingleHop.mockResolvedValueOnce({
+      response: stream,
+      status: 202,
+      headers: {},
+    });
+
+    const delivered = await federationService.deliverActivity(
+      { type: 'Follow', id: 'https://mention.earth/ap/users/alice/follows/1' },
+      'https://remote.example/users/bob/inbox',
+      'oxy_alice',
+      'alice',
+    );
+
+    expect(delivered).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledWith(
+      'https://remote.example/users/bob/inbox',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/activity+json',
+          'User-Agent': expect.any(String),
+        }),
+        body: expect.stringContaining('"type":"Follow"'),
+      }),
+    );
+  });
+
+  it('returns false when the SSRF-safe fetcher rejects a blocked inbox URL', async () => {
+    const fetchMock = vi.fn(async () => new Response('should not be used', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    mocks.fetchUpstreamSingleHop.mockRejectedValueOnce(new Error('literal ip in blocked range'));
+
+    const delivered = await federationService.deliverActivity(
+      { type: 'Follow', id: 'https://mention.earth/ap/users/alice/follows/2' },
+      'http://127.0.0.1/internal-admin/inbox',
+      'oxy_alice',
+      'alice',
+    );
+
+    expect(delivered).toBe(false);
+    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledWith(
+      'http://127.0.0.1/internal-admin/inbox',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

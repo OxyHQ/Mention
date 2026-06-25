@@ -11,7 +11,7 @@ import {
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { contentTypeFamily, fetchUpstreamFollowingRedirects } from '../../utils/safeUpstreamFetch';
+import { contentTypeFamily, fetchUpstreamFollowingRedirects, fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { isAllowedMediaType } from '../mediaCache/mediaTypes';
 import UserSettings from '../../models/UserSettings';
 import {
@@ -34,6 +34,7 @@ const ACTOR_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const WEBFINGER_TIMEOUT_MS = 10000;
+const WEBFINGER_MAX_BYTES = 256 * 1024;
 
 function acctMatchesActorHost(acct: string | undefined, actorHost: string): acct is string {
   if (!acct) return false;
@@ -101,13 +102,18 @@ export class ActorService {
     const url = `https://${domain}/.well-known/webfinger?resource=${encodeURIComponent(resource)}`;
 
     try {
-      const res = await fetch(url, {
+      const { response, status } = await fetchUpstreamSingleHop(url, {
         headers: { Accept: 'application/jrd+json, application/json' },
         signal: AbortSignal.timeout(WEBFINGER_TIMEOUT_MS),
+        headersTimeoutMs: WEBFINGER_TIMEOUT_MS,
       });
-      if (!res.ok) return null;
+      if (status < 200 || status >= 300) {
+        response.destroy();
+        return null;
+      }
 
-      const data = await res.json() as {
+      const body = await readBoundedResponseBody(response, WEBFINGER_MAX_BYTES);
+      const data = JSON.parse(Buffer.from(body).toString('utf8')) as {
         links?: Array<{ rel?: string; type?: string; href?: string }>;
       };
       const link = data.links?.find(
