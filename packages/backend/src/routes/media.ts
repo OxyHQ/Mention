@@ -350,6 +350,15 @@ async function tryServePosterFromCache(remoteUrl: string, res: Response): Promis
   }
 }
 
+function shouldNegativeCacheClientError(status: number, hasRequestSpecificUpstreamHeaders: boolean): boolean {
+  if (hasRequestSpecificUpstreamHeaders) return false;
+
+  // Only memo stable "this asset is unavailable" statuses. Avoid transient or
+  // request-specific 4xx such as 400 (malformed Range/conditional validators) and
+  // 429 (remote rate limiting), which could otherwise poison the URL-only cache.
+  return status === 401 || status === 403 || status === 404 || status === 410 || status === 451;
+}
+
 // --- Route ------------------------------------------------------------------
 
 /**
@@ -371,16 +380,6 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     return;
   }
 
-  // --- Negative cache short-circuit ---
-  // Deleted/forbidden/hotlink-protected remote media keeps being re-requested on
-  // every feed render. If a recent fetch of THIS url already failed with a
-  // client-class (4xx) or connection error, answer 404 immediately without
-  // re-hitting the dead upstream. Degrades to a normal fetch when Redis is down.
-  if (await isNegativelyCached(rawUrl)) {
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
-    return;
-  }
-
   // --- Activity-based cache front (only when the cache is enabled) ---
   // When the federated media cache is disabled it is COMPLETELY INERT: we touch
   // FederatedMediaCache ZERO times (no lookup, no access bump, no enqueue) and
@@ -393,8 +392,13 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
   // seek semantics we only short-circuit for full (non-range) GETs; ranged
   // requests fall through to the existing range-aware remote stream while still
   // recording access.
+  const rangeHeader = req.headers.range;
+  const hasRange = typeof rangeHeader === 'string' && rangeHeader.length > 0;
+  const hasConditionalHeader =
+    typeof req.headers['if-none-match'] === 'string' || typeof req.headers['if-modified-since'] === 'string';
+  const hasRequestSpecificUpstreamHeaders = hasRange || hasConditionalHeader;
+
   if (isMediaCacheEnabled()) {
-    const hasRange = typeof req.headers.range === 'string' && req.headers.range.length > 0;
     if (!hasRange) {
       const cacheServed = await tryServeFromCache(rawUrl, res);
       if (cacheServed) return;
@@ -408,8 +412,19 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     }
   }
 
+  // --- Negative cache short-circuit ---
+  // Check this only after the normal cache front has had a chance to serve full
+  // requests, so a stale negative marker can never suppress already cached media.
+  // URL-only negative entries are also skipped for ranged/conditional requests:
+  // those forwarded headers can make an otherwise valid upstream reply with a
+  // request-specific 4xx/304/416 and must not poison or consume the URL cache.
+  if (!hasRequestSpecificUpstreamHeaders && (await isNegativelyCached(rawUrl))) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
+    return;
+  }
+
   const extras = {
-    range: typeof req.headers.range === 'string' ? req.headers.range : undefined,
+    range: hasRange && typeof rangeHeader === 'string' ? rangeHeader : undefined,
     ifNoneMatch: typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined,
     ifModifiedSince:
       typeof req.headers['if-modified-since'] === 'string' ? req.headers['if-modified-since'] : undefined,
@@ -485,7 +500,9 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
   if (statusClass === 'client-error') {
     response.resume();
     logger.debug('[MediaProxy] Upstream returned client-error status', { status: upstreamStatus });
-    void markNegativelyCached(rawUrl, 'client-error');
+    if (shouldNegativeCacheClientError(upstreamStatus, hasRequestSpecificUpstreamHeaders)) {
+      void markNegativelyCached(rawUrl, 'client-error');
+    }
     res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
     return;
   }

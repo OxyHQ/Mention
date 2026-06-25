@@ -41,6 +41,9 @@ function makeService() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.outboxUpdateOne.mockResolvedValue({});
+  mocks.outboxFindOne.mockReturnValue({
+    select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+  });
   mocks.outboxDeleteOne.mockResolvedValue({ catch: vi.fn() });
   mocks.outboxDeleteOne.mockReturnValue(Promise.resolve({}));
   mocks.pushEndorsements.mockResolvedValue(undefined);
@@ -105,6 +108,30 @@ describe('EndorsementSignalService.syncScope', () => {
     expect(setSent).toBeUndefined();
   });
 
+  it('retries pending remove edges captured from an earlier failed membership change', async () => {
+    mocks.listFindById.mockImplementation(
+      findByIdLean({ ownerOxyUserId: 'owner', memberOxyUserIds: ['keep'] }),
+    );
+    mocks.outboxFindOne.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue({
+          pendingRemoveOwnerId: 'owner',
+          pendingRemoveMemberIds: ['removed', 'owner'],
+        }),
+      }),
+    });
+
+    const service = makeService();
+    await service.syncScope('accountList', 'list_1');
+
+    expect(mocks.pushEndorsements).toHaveBeenCalledWith([
+      { ownerId: 'owner', memberId: 'removed', op: 'remove', sourceId: 'list_1' },
+      { ownerId: 'owner', memberId: 'keep', op: 'add', sourceId: 'list_1' },
+    ]);
+    const setSent = mocks.outboxUpdateOne.mock.calls.find((c) => c[1]?.$set?.status === 'sent');
+    expect(setSent?.[1].$unset).toEqual({ pendingRemoveOwnerId: '', pendingRemoveMemberIds: '' });
+  });
+
   it('pushes an empty add set (no-op) and marks sent when the scope no longer exists', async () => {
     mocks.packFindById.mockImplementation(findByIdLean(null));
 
@@ -114,6 +141,53 @@ describe('EndorsementSignalService.syncScope', () => {
     expect(mocks.pushEndorsements).toHaveBeenCalledWith([]);
     const setSent = mocks.outboxUpdateOne.mock.calls.find((c) => c[1]?.$set?.status === 'sent');
     expect(setSent).toBeDefined();
+  });
+});
+
+describe('EndorsementSignalService.syncScopeMembershipChange', () => {
+  it('pushes remove edges for pruned members and add edges for the current members', async () => {
+    mocks.listFindById.mockImplementation(
+      findByIdLean({ ownerOxyUserId: 'owner', memberOxyUserIds: ['keep', 'added'] }),
+    );
+
+    const service = makeService();
+    await service.syncScopeMembershipChange(
+      'accountList',
+      'list_1',
+      'owner',
+      ['removed', 'keep', 'owner'],
+      ['keep', 'added'],
+    );
+
+    const armUpdate = mocks.outboxUpdateOne.mock.calls[0][1];
+    expect(armUpdate.$addToSet).toEqual({ pendingRemoveMemberIds: { $each: ['removed'] } });
+    expect(mocks.pushEndorsements).toHaveBeenCalledWith([
+      { ownerId: 'owner', memberId: 'removed', op: 'remove', sourceId: 'list_1' },
+      { ownerId: 'owner', memberId: 'keep', op: 'add', sourceId: 'list_1' },
+      { ownerId: 'owner', memberId: 'added', op: 'add', sourceId: 'list_1' },
+    ]);
+  });
+
+  it('leaves captured removed members pending when the push fails', async () => {
+    mocks.packFindById.mockImplementation(
+      findByIdLean({ ownerOxyUserId: 'owner', memberOxyUserIds: ['keep'] }),
+    );
+    mocks.pushEndorsements.mockRejectedValue(new Error('oxy down'));
+    mocks.outboxFindOne.mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ attempts: 0 }) }),
+    });
+
+    const service = makeService();
+    await service.syncScopeMembershipChange('starterPack', 'pack_1', 'owner', ['removed', 'keep'], ['keep']);
+
+    const armUpdate = mocks.outboxUpdateOne.mock.calls[0][1];
+    expect(armUpdate.$addToSet).toEqual({ pendingRemoveMemberIds: { $each: ['removed'] } });
+    const failUpdate = mocks.outboxUpdateOne.mock.calls.find(
+      (c) => c[1]?.$set?.status === 'pending' && typeof c[1]?.$set?.attempts === 'number',
+    );
+    expect(failUpdate?.[1].$set.error).toBe('oxy down');
+    const setSent = mocks.outboxUpdateOne.mock.calls.find((c) => c[1]?.$set?.status === 'sent');
+    expect(setSent).toBeUndefined();
   });
 });
 
