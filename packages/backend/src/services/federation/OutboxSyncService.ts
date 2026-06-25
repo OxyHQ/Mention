@@ -289,6 +289,12 @@ export class OutboxSyncService {
     if (!actor.outboxUrl) {
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
     }
+    // Capture the narrowed value: `actor.outboxUrl` is `string | undefined`, and
+    // the guard above only narrows the property at the method-body level. The
+    // pagination closures below (`fetchAndProcessPage`) re-widen a property access
+    // back to `string | undefined` because TS cannot prove it is not reassigned.
+    // A `const` preserves the narrowing into those closures.
+    const outboxUrl = actor.outboxUrl;
 
     const options: Required<Pick<OutboxSyncOptions, 'limit' | 'maxPages' | 'startItemOffset'>>
       & Pick<OutboxSyncOptions, 'startPageUrl'> = typeof limitOrOptions === 'number'
@@ -304,9 +310,9 @@ export class OutboxSyncService {
 
     try {
       // Fetch the outbox collection (signed for authorized-fetch servers)
-      const res = await signedFetch(actor.outboxUrl, AP_CONTENT_TYPE);
+      const res = await signedFetch(outboxUrl, AP_CONTENT_TYPE);
       if (!res.ok) {
-        logger.info(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${actor.outboxUrl}`);
+        logger.info(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${outboxUrl}`);
         return { syncedCount: 0, shouldStampCooldown: false, reason: `outbox-http-${res.status}` };
       }
 
@@ -321,7 +327,7 @@ export class OutboxSyncService {
       const collectionParse = parseOrderedCollection(rawCollection);
       if (!collectionParse.ok) {
         logger.warn(
-          `[FedSync] outbox collection failed validation for ${actor.acct} (${actor.outboxUrl}); aborting sync: ${collectionParse.error.message}`,
+          `[FedSync] outbox collection failed validation for ${actor.acct} (${outboxUrl}); aborting sync: ${collectionParse.error.message}`,
         );
         return { syncedCount: 0, shouldStampCooldown: false, reason: 'invalid-collection' };
       }
@@ -336,6 +342,14 @@ export class OutboxSyncService {
       let nextCursor: OutboxSyncResult['nextCursor'];
       let reachedEnd = false;
       let paginationFailed = false;
+      // Set when a page is processed only partially this run — either the
+      // candidate limit was reached or the per-page inspection cap
+      // (`OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE`) bounded the scan before the page
+      // was exhausted. The returned cursor points back at the SAME page+offset,
+      // so the run must STOP and hand that cursor to the next run instead of
+      // re-fetching the same page to drain its remaining (possibly
+      // attacker-controlled) items in one pass.
+      let pausedMidPage = false;
       const visitedPageUrls = new Set<string>();
 
       const processPage = async (
@@ -349,6 +363,7 @@ export class OutboxSyncService {
           const nextItemOffset = await this.extractCandidates(items, candidates, limit, pageUrl, normalizedOffset);
           if (nextItemOffset < items.length) {
             nextCursor = { url: pageUrl, itemOffset: nextItemOffset };
+            pausedMidPage = true;
             return;
           }
         }
@@ -363,7 +378,7 @@ export class OutboxSyncService {
       };
 
       const fetchAndProcessPage = async (pageUrl: string, startItemOffset: number): Promise<void> => {
-        if (!isSameOriginHttpUrl(pageUrl, actor.outboxUrl)) {
+        if (!isSameOriginHttpUrl(pageUrl, outboxUrl)) {
           logger.info(`[FedSync] rejected cross-origin outbox page for ${actor.acct}: ${pageUrl}`);
           paginationFailed = true;
           nextCursor = undefined;
@@ -420,27 +435,29 @@ export class OutboxSyncService {
 
       const firstPageObject = asRecord(collection.first);
       const inlineItems = activityPubItems(collection);
-      if (options.startPageUrl && isSameOriginHttpUrl(options.startPageUrl, actor.outboxUrl)) {
+      if (options.startPageUrl && isSameOriginHttpUrl(options.startPageUrl, outboxUrl)) {
         nextCursor = { url: options.startPageUrl, itemOffset: Math.max(0, options.startItemOffset) };
       } else if (inlineItems.length > 0) {
-        await processPage(collection, actor.outboxUrl, 0);
+        await processPage(collection, outboxUrl, 0);
       } else if (firstPageObject && activityPubItems(firstPageObject).length > 0) {
-        await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? actor.outboxUrl, 0);
+        await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? outboxUrl, 0);
       } else {
         const firstPageUrl = activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
-        if (firstPageUrl && isSameOriginHttpUrl(firstPageUrl, actor.outboxUrl)) {
+        if (firstPageUrl && isSameOriginHttpUrl(firstPageUrl, outboxUrl)) {
           nextCursor = { url: firstPageUrl, itemOffset: 0 };
         }
       }
 
-      // Paginate through pages until we have enough candidates, run out of pages,
-      // or exhaust the per-run page budget. The returned cursor is opaque remote
+      // Paginate through pages until we have enough candidates, pause mid-page
+      // (candidate limit or per-page inspection cap), run out of pages, or
+      // exhaust the per-run page budget. The returned cursor is opaque remote
       // state: we persist it exactly and never synthesize pagination URLs.
       while (
         nextCursor
         && candidates.length < limit
         && !reachedEnd
         && !paginationFailed
+        && !pausedMidPage
       ) {
         const cursor = nextCursor;
         await fetchAndProcessPage(cursor.url, cursor.itemOffset);
