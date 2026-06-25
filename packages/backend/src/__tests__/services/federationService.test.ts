@@ -626,6 +626,10 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
   it('creates a native boost Post deduped by Announce id and increments boostsCount', async () => {
     stubResolvedActor('oxy_bob');
     stubResolvedPost('local_post_2');
+    // The boosted post must be public + published for the boost to be imported.
+    mocks.postFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ status: 'published', visibility: 'public' }),
+    });
     mocks.postExists.mockResolvedValue(null); // no existing boost
 
     await federationService.processInboxActivity(
