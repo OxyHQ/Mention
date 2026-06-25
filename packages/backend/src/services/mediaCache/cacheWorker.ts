@@ -181,7 +181,7 @@ async function processEntry(remoteUrl: string): Promise<void> {
 
     if (!outcome.ok) {
       // not-media / too-large / gone media are permanent for this URL → mark failed (proxy-only).
-      if (isPermanentDownloadFailure(outcome)) {
+      if (isPermanentCacheFailure(outcome)) {
         await FederatedMediaCache.updateOne(
           { remoteUrl },
           { $set: { state: 'failed' }, $unset: { nextAttemptAt: '' } },
@@ -306,8 +306,12 @@ export type PersistFederatedMediaResult =
       permanent: boolean;
     };
 
-function isPermanentDownloadFailure(outcome: Extract<DownloadOutcome, { ok: false }>): boolean {
+function isPermanentCacheFailure(outcome: Extract<DownloadOutcome, { ok: false }>): boolean {
   if (outcome.reason === 'not-media' || outcome.reason === 'too-large') return true;
+  return isPermanentlyUnavailableDownloadFailure(outcome);
+}
+
+function isPermanentlyUnavailableDownloadFailure(outcome: Extract<DownloadOutcome, { ok: false }>): boolean {
   if (outcome.reason === 'upstream-error' && (outcome.status === 404 || outcome.status === 410)) {
     return true;
   }
@@ -338,7 +342,7 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
         ok: false,
         reason: outcome.reason,
         status: outcome.status,
-        permanent: isPermanentDownloadFailure(outcome),
+        permanent: isPermanentlyUnavailableDownloadFailure(outcome),
       };
     }
 
