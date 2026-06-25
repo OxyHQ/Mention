@@ -64,6 +64,13 @@ interface HydrationOptions {
   includeLinkMetadata?: boolean;
   includeFullArticleBody?: boolean; // For feed, skip full article bodies
   includeFullMetadata?: boolean; // For feed, skip some metadata fields
+  /**
+   * When hydrating posts for public federation surfaces, referenced posts
+   * (boost/quote originals) must not bypass their own publication controls.
+   * Root posts are still supplied by the caller's query; this only constrains
+   * graph expansion by id.
+   */
+  publicReferencesOnly?: boolean;
 }
 
 interface HydratedGraphNode {
@@ -287,7 +294,12 @@ export class PostHydrationService {
       return [];
     }
 
-    const graph = await this.collectPostsWithDepth(initialPosts, maxDepth, viewerContext.blockedIds);
+    const graph = await this.collectPostsWithDepth(
+      initialPosts,
+      maxDepth,
+      viewerContext.blockedIds,
+      options.publicReferencesOnly === true,
+    );
 
     const postIds = Array.from(graph.keys());
     const postsForHydration = Array.from(graph.values());
@@ -568,6 +580,7 @@ export class PostHydrationService {
     initialPosts: RawPost[],
     maxDepth: number,
     blockedIds: Set<string>,
+    publicReferencesOnly: boolean,
   ): Promise<Map<string, HydratedGraphNode>> {
     const result = new Map<string, HydratedGraphNode>();
     const visited = new Set<string>();
@@ -633,8 +646,14 @@ export class PostHydrationService {
       }
 
       const nextIds = Array.from(nextIdMap.keys());
+      const referenceQuery: Record<string, unknown> = { _id: { $in: nextIds } };
+      if (publicReferencesOnly) {
+        referenceQuery.status = 'published';
+        referenceQuery.visibility = PostVisibility.PUBLIC;
+      }
+
       try {
-        const fetched = await Post.find({ _id: { $in: nextIds } })
+        const fetched = await Post.find(referenceQuery)
           .select('-metadata.likedBy -metadata.savedBy -translations')
           .lean();
 
