@@ -664,9 +664,9 @@ export class UserPreferenceService {
   }
 
   /**
-   * Get user behavior data
+   * Get user behavior data (lean). `null` when the viewer has none yet.
    */
-  async getUserBehavior(userId: string): Promise<any> {
+  async getUserBehavior(userId: string): Promise<IUserBehavior | null> {
     return await UserBehavior.findOne({ oxyUserId: userId }).lean();
   }
 

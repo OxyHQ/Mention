@@ -7,6 +7,8 @@
 
 import { FeedPostSlice, HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { FeedDescriptor } from '@mention/shared-types';
+import type { RankingUserBehavior, FeedRankingSettings } from '../../services/FeedRankingService';
+import type { OxyClient } from '../../utils/privacyHelpers';
 
 export interface FeedAPIResponse {
   slices: FeedPostSlice[];
@@ -24,9 +26,9 @@ export interface FeedFetchOptions {
 export interface FeedContext {
   currentUserId?: string;
   followingIds?: string[];
-  userBehavior?: any;
-  feedSettings?: any;
-  oxyClient?: any;
+  userBehavior?: RankingUserBehavior;
+  feedSettings?: FeedRankingSettings;
+  oxyClient?: OxyClient;
   /**
    * The viewer's DOMINANT learned coarse region (the highest-count
    * `userBehavior.preferredRegions` entry), resolved once by the controller via

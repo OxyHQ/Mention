@@ -22,6 +22,7 @@ import { MuteWord } from '../../models/MuteWord';
 import UserSettings from '../../models/UserSettings';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
+import type { IUserBehavior } from '../../models/UserBehavior';
 import type { TunerContext } from '../feed/FeedTuner';
 
 type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
@@ -151,7 +152,7 @@ class MtnFeedController {
       // parallel. `userBehavior` feeds personalized candidate generation
       // (For You multi-source) and ranking; it soft-fails to undefined.
       let followingIds: string[] = [];
-      let userBehavior: unknown;
+      let userBehavior: IUserBehavior | undefined;
       // The viewer's sensitive-content opt-in. Anonymous → false; loaded
       // soft-failing to false below so a settings error never relaxes the gate.
       let showSensitiveContent = false;
@@ -180,7 +181,7 @@ class MtnFeedController {
         }
 
         try {
-          userBehavior = await userPreferenceService.getUserBehavior(currentUserId);
+          userBehavior = (await userPreferenceService.getUserBehavior(currentUserId)) ?? undefined;
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load user behavior', error);
         }
@@ -192,9 +193,7 @@ class MtnFeedController {
       // undefined because post region is sparse). Threaded into context so the
       // For You region candidate source and the Explore relevance boost can use
       // it. A missing region is a strict no-op downstream.
-      const viewerRegion = userPreferenceService.getTopRegion(
-        userBehavior as { preferredRegions?: Array<{ region?: string; count?: number }> } | undefined,
-      );
+      const viewerRegion = userPreferenceService.getTopRegion(userBehavior);
 
       // Build context
       const context = {

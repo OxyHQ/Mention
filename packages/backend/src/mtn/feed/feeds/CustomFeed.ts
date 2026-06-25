@@ -121,8 +121,8 @@ export class CustomFeed implements FeedAPI {
       logger.warn('[CustomFeed] Failed to expand source lists', e);
     }
 
-    const conditions: any[] = [];
-    const query: any = { visibility: 'public', status: 'published' };
+    const conditions: Record<string, unknown>[] = [];
+    const query: Record<string, unknown> = { visibility: 'public', status: 'published' };
 
     if (authors.length > 0) {
       conditions.push({ oxyUserId: { $in: authors } });

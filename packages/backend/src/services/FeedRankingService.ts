@@ -28,7 +28,7 @@ interface BehaviorSets {
  * callers can pass minimal behavior objects. Every signal degrades to neutral
  * when a field is absent.
  */
-interface RankingUserBehavior {
+export interface RankingUserBehavior {
   preferredAuthors?: Array<{ authorId: string; weight: number }>;
   preferredTopics?: Array<{ topic: string; topicId?: unknown; weight: number }>;
   preferredPostTypes?: Partial<IUserBehavior['preferredPostTypes']>;
@@ -45,7 +45,7 @@ interface RankingUserBehavior {
  * All optional — every knob falls back to the `MtnConfig.ranking` default when
  * unset (see `routes/profileSettings.ts` for the write side).
  */
-interface FeedRankingSettings {
+export interface FeedRankingSettings {
   recency?: { halfLifeHours?: number; maxAgeHours?: number };
   diversity?: {
     enabled?: boolean;

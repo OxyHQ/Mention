@@ -42,7 +42,7 @@ export class SavedFeed implements FeedAPI {
     if (!context.currentUserId) return empty;
 
     // Get bookmarked post IDs
-    const bookmarkQuery: any = { userId: context.currentUserId };
+    const bookmarkQuery: Record<string, unknown> = { userId: context.currentUserId };
     if (cursor && mongoose.Types.ObjectId.isValid(cursor)) {
       bookmarkQuery._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
@@ -55,7 +55,7 @@ export class SavedFeed implements FeedAPI {
     const hasMore = bookmarks.length > limit;
     const bookmarksToProcess = hasMore ? bookmarks.slice(0, limit) : bookmarks;
 
-    const postIds = bookmarksToProcess.map((b: any) => b.postId).filter(Boolean);
+    const postIds = bookmarksToProcess.map((b) => b.postId).filter(Boolean);
     if (postIds.length === 0) return empty;
 
     const posts = await Post.find({ _id: { $in: postIds }, status: 'published' })
@@ -63,11 +63,11 @@ export class SavedFeed implements FeedAPI {
       .lean();
 
     // Preserve bookmark order
-    const postMap = new Map<string, any>();
+    const postMap = new Map<string, (typeof posts)[number]>();
     for (const post of posts) postMap.set(post._id.toString(), post);
     const ordered = postIds
-      .map((id: string) => postMap.get(id.toString()))
-      .filter(Boolean);
+      .map((id) => postMap.get(id.toString()))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
     const hydrated = await postHydrationService.hydratePosts(ordered, {
       viewerId: context.currentUserId,

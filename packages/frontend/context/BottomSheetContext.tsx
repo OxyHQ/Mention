@@ -2,7 +2,7 @@ import React, { createContext, useState, ReactNode, useRef, useCallback, useMemo
 import { StyleSheet, View } from "react-native";
 import BottomSheet, { type BottomSheetRef } from "@oxyhq/bloom/bottom-sheet";
 
-interface BottomSheetContextProps {
+export interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
     setBottomSheetContent: (content: ReactNode) => void;
     bottomSheetRef: React.RefObject<BottomSheetRef | null>;

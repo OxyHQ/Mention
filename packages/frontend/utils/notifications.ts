@@ -83,16 +83,20 @@ export async function getDevicePushToken(): Promise<DevicePushToken> {
   const Notifications = await getNotifications();
   if (!Notifications) return null;
   try {
-    // On Android managed builds with FCM configured, this returns the FCM token
-    const devicePushToken = await Notifications.getDevicePushTokenAsync();
-    // devicePushToken: { type: 'fcm' | 'apns', data: string }
-    if ((devicePushToken as any)?.data) {
-      return { token: (devicePushToken as any).data, type: (devicePushToken as any).type || (Platform.OS === 'ios' ? 'apns' : 'fcm') };
+    // On Android managed builds with FCM configured, this returns the FCM token.
+    // expo-notifications is dynamically imported (untyped here), so narrow the
+    // returned token to the two shapes we read across SDK versions.
+    const devicePushToken: { data?: string; token?: string; type?: string } | null | undefined =
+      await Notifications.getDevicePushTokenAsync();
+    const defaultType = Platform.OS === 'ios' ? 'apns' : 'fcm';
+    if (devicePushToken?.data) {
+      const type = devicePushToken.type === 'apns' || devicePushToken.type === 'fcm' ? devicePushToken.type : defaultType;
+      return { token: devicePushToken.data, type };
     }
     // Fallback shape on some SDK versions
-    const anyTok = devicePushToken as unknown as { token?: string; type?: string } | undefined;
-    if (anyTok?.token) {
-      return { token: anyTok.token, type: (anyTok.type as any) || (Platform.OS === 'ios' ? 'apns' : 'fcm') };
+    if (devicePushToken?.token) {
+      const type = devicePushToken.type === 'apns' || devicePushToken.type === 'fcm' ? devicePushToken.type : defaultType;
+      return { token: devicePushToken.token, type };
     }
   } catch (e) {
     logger.warn('Failed to get device push token', { error: e });

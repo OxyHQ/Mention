@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import React from 'react';
+import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 // Lazy load SourcesSheet - only loaded when user opens it
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 
@@ -15,10 +16,7 @@ interface UseSourcesSheetProps {
   updateSourceField: (id: string, field: 'url' | 'title', value: string) => void;
   removeSourceEntry: (id: string) => void;
   isValidSourceUrl: (url: string) => boolean;
-  bottomSheet: {
-    setBottomSheetContent: (content: any) => void;
-    openBottomSheet: (open: boolean) => void;
-  };
+  bottomSheet: Pick<BottomSheetContextProps, 'setBottomSheetContent' | 'openBottomSheet'>;
 }
 
 export const useSourcesSheet = ({

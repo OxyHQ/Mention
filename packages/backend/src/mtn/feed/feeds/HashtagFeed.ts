@@ -44,7 +44,7 @@ export class HashtagFeed implements FeedAPI {
   async fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse> {
     const { cursor, limit } = options;
 
-    const match: any = {
+    const match: Record<string, unknown> = {
       hashtags: this.tag,
       visibility: 'public',
       status: 'published',

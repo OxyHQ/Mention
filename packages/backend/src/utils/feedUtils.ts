@@ -53,7 +53,7 @@ export function validateAndNormalizeLimit(
  * Parse feed filters from request query parameters
  * Handles both JSON string and object formats, as well as filters[] prefix format
  */
-export function parseFeedFilters(reqQuery: any): Record<string, unknown> {
+export function parseFeedFilters(reqQuery: Record<string, unknown>): Record<string, unknown> {
   let filters: Record<string, unknown> | undefined = reqQuery.filters as Record<string, unknown> | undefined;
 
   // Parse filters if it's a string

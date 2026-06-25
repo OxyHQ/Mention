@@ -119,14 +119,16 @@ export class AuthorFeed implements FeedAPI {
       .lean();
     // Preserve like order
     const postMap = new Map(posts.map(p => [String(p._id), p]));
-    const ordered = ids.map(id => postMap.get(String(id))).filter(Boolean);
-    const hydrated = await postHydrationService.hydratePosts(ordered as any[], hydrateOpts);
+    const ordered = ids
+      .map(id => postMap.get(String(id)))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p));
+    const hydrated = await postHydrationService.hydratePosts(ordered, hydrateOpts);
     const nextCursor = hasMore ? ChronoCursor.build(likes[limit - 1]._id.toString()) : undefined;
     return { slices: [], items: hydrated, hasMore, nextCursor, totalCount: hydrated.length };
   }
 
-  private buildQuery(cursor?: string): any {
-    const query: any = {
+  private buildQuery(cursor?: string): Record<string, unknown> {
+    const query: Record<string, unknown> = {
       oxyUserId: this.authorId,
       visibility: PostVisibility.PUBLIC,
       status: 'published',

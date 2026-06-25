@@ -52,7 +52,7 @@ export class ListFeed implements FeedAPI {
     const memberIds = await this.getListMemberIds();
     if (!memberIds.length) return empty;
 
-    const match: any = {
+    const match: Record<string, unknown> = {
       oxyUserId: { $in: memberIds },
       visibility: 'public',
       status: 'published',

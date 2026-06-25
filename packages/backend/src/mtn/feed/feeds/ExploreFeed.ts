@@ -199,7 +199,7 @@ export class ExploreFeed implements FeedAPI {
     // opted in (`showSensitiveContent`), the exclusion is skipped so sensitive
     // posts are eligible.
     const allowSensitive = context.showSensitiveContent === true;
-    const match: any = {
+    const match: Record<string, unknown> = {
       visibility: 'public',
       status: 'published',
       createdAt: { $gte: trendingCutoff },

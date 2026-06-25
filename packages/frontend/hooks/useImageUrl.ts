@@ -16,7 +16,7 @@ import { oxyServices } from '@/lib/oxyServices';
 export function useImageUrl(
   fileId: string | undefined | null,
   variant?: string,
-  oxyServicesOverride?: any,
+  oxyServicesOverride?: unknown,
 ): string | undefined {
   const services = oxyServicesOverride ?? oxyServices;
 

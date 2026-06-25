@@ -46,7 +46,7 @@ export class FollowingFeed implements FeedAPI {
     const empty: FeedAPIResponse = { slices: [], items: [], hasMore: false, totalCount: 0 };
     if (!currentUserId || !followingIds?.length) return empty;
 
-    const match: any = {
+    const match: Record<string, unknown> = {
       oxyUserId: { $in: [currentUserId, ...followingIds] },
       visibility: { $in: ['public', 'followers_only'] },
       status: 'published',
