@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   entityFollowFind: vi.fn(),
   userBehaviorFindOne: vi.fn(),
   userSettingsFind: vi.fn(),
-  checkFollowAccess: vi.fn(),
+  getFollowingIdSet: vi.fn(),
   blockFind: vi.fn(),
   muteFind: vi.fn(),
   restrictFind: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('../../utils/redis', () => ({
 vi.mock('../../utils/privacyHelpers', () => ({
   ProfileVisibility: { PUBLIC: 'public', PRIVATE: 'private', FOLLOWERS_ONLY: 'followers_only' },
   requiresAccessCheck: (visibility: string | undefined) => visibility === 'private' || visibility === 'followers_only',
-  checkFollowAccess: mocks.checkFollowAccess,
+  getFollowingIdSet: mocks.getFollowingIdSet,
 }));
 
 // The authority blend dynamically imports these; stub them so the blend is a
@@ -78,7 +78,7 @@ function noSignals(): void {
   // topic-affinity, and negative-signal inputs all run empty.
   mocks.userBehaviorFindOne.mockImplementation(leanFindOne(null));
   mocks.userSettingsFind.mockImplementation(leanQuery([]));
-  mocks.checkFollowAccess.mockResolvedValue(false);
+  mocks.getFollowingIdSet.mockResolvedValue(new Set());
 }
 
 beforeEach(() => {
@@ -284,17 +284,40 @@ describe('ContentAffinityService.getContentCandidates', () => {
       { oxyUserId: 'followers_author', privacy: { profileVisibility: 'followers_only' } },
       { oxyUserId: 'followed_private_author', privacy: { profileVisibility: 'private' } },
     ]));
-    mocks.checkFollowAccess.mockImplementation(
-      async (_viewerId: string, targetId: string) => targetId === 'followed_private_author',
+    mocks.getFollowingIdSet.mockImplementation(
+      async (_viewerId: string) => new Set(['followed_private_author']),
     );
 
     const service = makeService();
     const result = await service.getContentCandidates('viewer_1');
 
     expect(result.map((c) => c.userId).sort()).toEqual(['followed_private_author', 'public_author']);
-    expect(mocks.checkFollowAccess).toHaveBeenCalledWith('viewer_1', 'private_author');
-    expect(mocks.checkFollowAccess).toHaveBeenCalledWith('viewer_1', 'followers_author');
-    expect(mocks.checkFollowAccess).toHaveBeenCalledWith('viewer_1', 'followed_private_author');
+    expect(mocks.getFollowingIdSet).toHaveBeenCalledTimes(1);
+    expect(mocks.getFollowingIdSet).toHaveBeenCalledWith('viewer_1');
+  });
+
+  it('batches profile ACL follow checks across all protected candidates', async () => {
+    mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'rust' }]));
+    const protectedCandidates = Array.from({ length: 75 }, (_, i) => ({
+      _id: `private_author_${i}`,
+      matchedTags: [['rust']],
+      postCount: i + 1,
+    }));
+    mocks.postAggregate.mockResolvedValue(protectedCandidates);
+    mocks.userSettingsFind.mockImplementation(leanQuery(
+      protectedCandidates.map((candidate) => ({
+        oxyUserId: candidate._id,
+        privacy: { profileVisibility: 'private' },
+      })),
+    ));
+    mocks.getFollowingIdSet.mockResolvedValue(new Set(['private_author_7']));
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1', { limit: 5 });
+
+    expect(result.map((c) => c.userId)).toEqual(['private_author_7']);
+    expect(mocks.getFollowingIdSet).toHaveBeenCalledTimes(1);
+    expect(mocks.getFollowingIdSet).toHaveBeenCalledWith('viewer_1');
   });
 
   it('resolves engagement authors only from published public target posts', async () => {

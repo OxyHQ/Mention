@@ -61,7 +61,7 @@ import Mute from '../models/Mute';
 import Restrict from '../models/Restrict';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
-import { checkFollowAccess, ProfileVisibility, requiresAccessCheck } from '../utils/privacyHelpers';
+import { getFollowingIdSet, ProfileVisibility, requiresAccessCheck } from '../utils/privacyHelpers';
 
 /** Recency window for content signals (days). */
 const WINDOW_DAYS = 30;
@@ -461,14 +461,16 @@ export class ContentAffinityService {
         );
       }
 
-      await Promise.all(
-        authorIds.map(async (authorId) => {
-          const visibility = visibilityByAuthor.get(authorId) ?? ProfileVisibility.PUBLIC;
-          if (!requiresAccessCheck(visibility)) return;
-          const hasAccess = authorId === viewerId || await checkFollowAccess(viewerId, authorId);
-          if (!hasAccess) merged.delete(authorId);
-        }),
-      );
+      const protectedAuthorIds = authorIds.filter((authorId) => {
+        const visibility = visibilityByAuthor.get(authorId) ?? ProfileVisibility.PUBLIC;
+        return requiresAccessCheck(visibility);
+      });
+      if (protectedAuthorIds.length === 0) return;
+
+      const followingIds = await getFollowingIdSet(viewerId);
+      for (const authorId of protectedAuthorIds) {
+        if (!followingIds.has(authorId)) merged.delete(authorId);
+      }
     } catch (error) {
       logger.warn('[ContentAffinity] candidate profile ACL filter failed; dropping candidates:', error);
       merged.clear();
