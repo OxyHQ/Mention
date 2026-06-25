@@ -20,6 +20,17 @@ function syncListEndorsements(listId: string): void {
     .catch((error) => logger.warn(`[Lists] endorsement sync failed for ${listId}:`, error));
 }
 
+function syncListMembershipChange(
+  listId: string,
+  ownerId: string,
+  previousMemberIds: string[],
+  nextMemberIds: string[],
+): void {
+  void endorsementSignalService
+    .syncScopeMembershipChange('accountList', listId, ownerId, previousMemberIds, nextMemberIds)
+    .catch((error) => logger.warn(`[Lists] endorsement membership sync failed for ${listId}:`, error));
+}
+
 type LeanAccountList = Pick<
   IAccountList,
   'ownerOxyUserId' | 'title' | 'description' | 'isPublic' | 'memberOxyUserIds' | 'subscriberCount' | 'createdAt' | 'updatedAt'
@@ -100,9 +111,14 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (title !== undefined) list.title = String(title);
     if (description !== undefined) list.description = String(description);
     if (isPublic !== undefined) list.isPublic = !!isPublic;
+    const previousMemberIds = [...(list.memberOxyUserIds || [])];
     if (Array.isArray(memberOxyUserIds)) list.memberOxyUserIds = memberOxyUserIds;
     await list.save();
-    syncListEndorsements(String(list._id));
+    if (Array.isArray(memberOxyUserIds)) {
+      syncListMembershipChange(String(list._id), list.ownerOxyUserId, previousMemberIds, list.memberOxyUserIds || []);
+    } else {
+      syncListEndorsements(String(list._id));
+    }
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update list' });
@@ -155,10 +171,11 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     const list = await AccountList.findById(req.params.id);
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
+    const previousMemberIds = [...(list.memberOxyUserIds || [])];
     const toRemove = new Set(Array.isArray(userIds) ? userIds : []);
     list.memberOxyUserIds = (list.memberOxyUserIds || []).filter(id => !toRemove.has(id));
     await list.save();
-    syncListEndorsements(String(list._id));
+    syncListMembershipChange(String(list._id), list.ownerOxyUserId, previousMemberIds, list.memberOxyUserIds || []);
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: 'Failed to remove members' });

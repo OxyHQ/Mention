@@ -1,3 +1,4 @@
+import type { IncomingMessage } from 'node:http';
 import { logger } from '../../utils/logger';
 import sanitizeHtml from 'sanitize-html';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
@@ -10,6 +11,8 @@ import {
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { decode as decodeEntities } from 'he';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { contentTypeFamily, fetchUpstreamFollowingRedirects } from '../../utils/safeUpstreamFetch';
+import { isAllowedMediaType } from '../mediaCache/mediaTypes';
 import UserSettings from '../../models/UserSettings';
 import {
   signedFetch,
@@ -32,12 +35,37 @@ const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const WEBFINGER_TIMEOUT_MS = 10000;
 
-
 function acctMatchesActorHost(acct: string | undefined, actorHost: string): acct is string {
+  if (!acct) return false;
   const domain = domainFromAcct(acct)?.toLowerCase();
   if (!domain) return false;
   const normalizedActorHost = actorHost.toLowerCase();
   return domain === normalizedActorHost || normalizedActorHost === `www.${domain}`;
+}
+
+/** Maximum bytes accepted for a remote federated actor banner image. */
+const ACTOR_BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
+
+async function readBoundedResponseBody(response: IncomingMessage, maxBytes: number): Promise<ArrayBuffer> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  try {
+    for await (const chunk of response) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buffer.byteLength;
+      if (totalBytes > maxBytes) {
+        response.destroy(new Error('remote banner exceeds size limit'));
+        throw new Error('remote banner exceeds size limit');
+      }
+      chunks.push(buffer);
+    }
+  } finally {
+    if (!response.destroyed) response.destroy();
+  }
+
+  const body = Buffer.concat(chunks, totalBytes);
+  return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
 }
 
 /**
@@ -255,13 +283,20 @@ export class ActorService {
           if (oxyId && fedActor.oxyUserId !== oxyId) {
             await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyId } });
           }
-          // Download and upload remote banner to Oxy (same pattern as avatar)
+          // Download and upload remote banner to Oxy (same pattern as avatar), but
+          // only through the shared SSRF-safe upstream fetcher: it validates the
+          // original URL and every redirect hop, pins DNS, and applies timeouts.
           if (oxyId && headerUrl) {
             try {
-              const imgRes = await fetch(headerUrl);
-              if (imgRes.ok) {
-                const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-                const buffer = await imgRes.arrayBuffer();
+              const deadline = AbortSignal.timeout(WEBFINGER_TIMEOUT_MS);
+              const { response: imgRes } = await fetchUpstreamFollowingRedirects(headerUrl, {}, deadline);
+              if ((imgRes.statusCode ?? 0) >= 200 && (imgRes.statusCode ?? 0) < 300) {
+                const contentType = contentTypeFamily(imgRes.headers);
+                if (!contentType.startsWith('image/') || !isAllowedMediaType(contentType)) {
+                  imgRes.destroy();
+                  throw new Error(`remote banner content-type not allowed: ${contentType || 'unknown'}`);
+                }
+                const buffer = await readBoundedResponseBody(imgRes, ACTOR_BANNER_MAX_BYTES);
                 const blob = new Blob([buffer], { type: contentType });
                 const asset = await oxyClient.uploadProfileBanner(blob, oxyId);
                 const fileId = asset?.file?.id;
@@ -272,6 +307,8 @@ export class ActorService {
                     { upsert: true },
                   );
                 }
+              } else {
+                imgRes.destroy();
               }
             } catch (bannerErr) {
               logger.debug(`Failed to sync banner for ${actorUri}:`, bannerErr);

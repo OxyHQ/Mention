@@ -90,6 +90,33 @@ beforeEach(() => {
 });
 
 describe('gatherForYouCandidates — union semantics', () => {
+  it('includes subscribed-list authors through a public-only source', async () => {
+    findRouter = (match) => {
+      const oxy = match.oxyUserId as { $in?: string[] } | undefined;
+      if (oxy?.$in?.includes('list-only')) return [makePost(oid(11), 'list-only')];
+      return [];
+    };
+
+    const pool = await gatherForYouCandidates({
+      viewerId: 'viewer',
+      followingIds: ['real-follow'],
+      subscribedListMemberIds: ['viewer', 'real-follow', 'list-only'],
+      userBehavior: {},
+      seenPostIds: [],
+      contentAffinityService: affinityStub([]),
+    });
+
+    expect(pool.map((p) => p.oxyUserId)).toContain('list-only');
+    const listSource = findCalls.find((match) => {
+      const oxy = match.oxyUserId as { $in?: string[] } | undefined;
+      return oxy?.$in?.includes('list-only');
+    });
+    expect(listSource).toMatchObject({
+      oxyUserId: { $in: ['list-only'] },
+      visibility: PostVisibility.PUBLIC,
+    });
+  });
+
   it('includes following + affinity + topic/language matches, not just global', async () => {
     const followingIds = ['follow-1'];
     const affinity = affinityStub(['affinity-1']);

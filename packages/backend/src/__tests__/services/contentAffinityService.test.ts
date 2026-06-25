@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   postAggregate: vi.fn(),
   entityFollowFind: vi.fn(),
   userBehaviorFindOne: vi.fn(),
+  userSettingsFind: vi.fn(),
+  checkFollowAccess: vi.fn(),
   blockFind: vi.fn(),
   muteFind: vi.fn(),
   restrictFind: vi.fn(),
@@ -18,12 +20,18 @@ vi.mock('../../models/Like', () => ({ default: { find: mocks.likeFind } }));
 vi.mock('../../models/Post', () => ({ Post: { find: mocks.postFind, aggregate: mocks.postAggregate } }));
 vi.mock('../../models/EntityFollow', () => ({ EntityFollow: { find: mocks.entityFollowFind } }));
 vi.mock('../../models/UserBehavior', () => ({ default: { findOne: mocks.userBehaviorFindOne } }));
+vi.mock('../../models/UserSettings', () => ({ default: { find: mocks.userSettingsFind } }));
 vi.mock('../../models/Block', () => ({ default: { find: mocks.blockFind } }));
 vi.mock('../../models/Mute', () => ({ default: { find: mocks.muteFind } }));
 vi.mock('../../models/Restrict', () => ({ default: { find: mocks.restrictFind } }));
 
 vi.mock('../../utils/redis', () => ({
   getRedisClient: mocks.getRedisClient,
+}));
+vi.mock('../../utils/privacyHelpers', () => ({
+  ProfileVisibility: { PUBLIC: 'public', PRIVATE: 'private', FOLLOWERS_ONLY: 'followers_only' },
+  requiresAccessCheck: (visibility: string | undefined) => visibility === 'private' || visibility === 'followers_only',
+  checkFollowAccess: mocks.checkFollowAccess,
 }));
 
 // The authority blend dynamically imports these; stub them so the blend is a
@@ -69,6 +77,8 @@ function noSignals(): void {
   // No maintained behavior aggregate by default (cold viewer) → preferred-author,
   // topic-affinity, and negative-signal inputs all run empty.
   mocks.userBehaviorFindOne.mockImplementation(leanFindOne(null));
+  mocks.userSettingsFind.mockImplementation(leanQuery([]));
+  mocks.checkFollowAccess.mockResolvedValue(false);
 }
 
 beforeEach(() => {
@@ -259,6 +269,51 @@ describe('ContentAffinityService.getContentCandidates', () => {
 
     const ids = result.map((c) => c.userId);
     expect(ids).toEqual(['good']);
+  });
+
+  it('filters private and followers-only profile candidates unless the viewer follows them', async () => {
+    mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'rust' }]));
+    mocks.postAggregate.mockResolvedValue([
+      { _id: 'public_author', matchedTags: [['rust']], postCount: 1 },
+      { _id: 'private_author', matchedTags: [['rust']], postCount: 1 },
+      { _id: 'followers_author', matchedTags: [['rust']], postCount: 1 },
+      { _id: 'followed_private_author', matchedTags: [['rust']], postCount: 1 },
+    ]);
+    mocks.userSettingsFind.mockImplementation(leanQuery([
+      { oxyUserId: 'private_author', privacy: { profileVisibility: 'private' } },
+      { oxyUserId: 'followers_author', privacy: { profileVisibility: 'followers_only' } },
+      { oxyUserId: 'followed_private_author', privacy: { profileVisibility: 'private' } },
+    ]));
+    mocks.checkFollowAccess.mockImplementation(
+      async (_viewerId: string, targetId: string) => targetId === 'followed_private_author',
+    );
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    expect(result.map((c) => c.userId).sort()).toEqual(['followed_private_author', 'public_author']);
+    expect(mocks.checkFollowAccess).toHaveBeenCalledWith('viewer_1', 'private_author');
+    expect(mocks.checkFollowAccess).toHaveBeenCalledWith('viewer_1', 'followers_author');
+    expect(mocks.checkFollowAccess).toHaveBeenCalledWith('viewer_1', 'followed_private_author');
+  });
+
+  it('resolves engagement authors only from published public target posts', async () => {
+    mocks.likeFind.mockImplementation(leanQuery([{ postId: 'p_public' }, { postId: 'p_private' }]));
+    mocks.postFind.mockImplementation((match: Record<string, unknown>) => {
+      if (match.type === 'boost') return leanQuery([])();
+      if (match.parentPostId) return leanQuery([])();
+      expect(match).toMatchObject({
+        _id: { $in: ['p_public', 'p_private'] },
+        status: 'published',
+        visibility: 'public',
+      });
+      return leanQuery([{ _id: 'p_public', oxyUserId: 'public_author' }])();
+    });
+
+    const service = makeService();
+    const result = await service.getContentCandidates('viewer_1');
+
+    expect(result.map((c) => c.userId)).toEqual(['public_author']);
   });
 
   it('respects the candidate cap', async () => {

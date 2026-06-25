@@ -9,7 +9,7 @@ import {
   FEDERATION_ENABLED,
   AP_CONTEXT,
   AP_CONTENT_TYPE,
-  AP_ACCEPT_TYPES,
+  isActivityPubAccept,
   actorUrl,
   inboxUrl,
   outboxUrl,
@@ -41,8 +41,7 @@ router.use(apRateLimiter);
  * Content negotiation: check if request wants ActivityPub JSON-LD.
  */
 function wantsActivityPub(req: Request): boolean {
-  const accept = req.headers.accept || '';
-  return AP_ACCEPT_TYPES.some((type) => accept.includes(type));
+  return isActivityPubAccept(req.headers.accept);
 }
 
 /** Extract username param safely as a string. */

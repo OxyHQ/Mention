@@ -7,10 +7,11 @@
 
 import { Request, Response } from 'express';
 import { isValidFeedDescriptor, MtnConfig } from '@mention/shared-types';
-import type { FeedDescriptor } from '@mention/shared-types';
+import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { feedAPIRegistry } from '../feed/FeedAPIRegistry';
 import { FeedTuner } from '../feed/FeedTuner';
+import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
 import { logger } from '../../utils/logger';
@@ -26,6 +27,11 @@ import type { IUserBehavior } from '../../models/UserBehavior';
 import type { TunerContext } from '../feed/FeedTuner';
 
 type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
+
+function syncFlattenedItemsWithSlices(response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>): void {
+  response.items = FeedResponseBuilder.flattenSlicesToItems(response.slices);
+  response.totalCount = response.items.length;
+}
 
 /**
  * Load the user's muted words/hashtags and map them into the tuner-preference
@@ -98,32 +104,6 @@ async function mergeFederatedFollowIds(
   }
 }
 
-/**
- * Merge member oxyUserIds from lists the user SUBSCRIBES to (a 'list' EntityFollow)
- * into the given followingIds array, deduplicating in-place.
- *
- * Following a list is a subscription, NOT a follow: this only changes which posts
- * the viewer SEES in their main feed (the author candidate set). It does not create
- * any follow relationship and does not alter follower/following counts.
- *
- * Excludes the viewer's own id and any id already present in followingIds.
- */
-async function mergeSubscribedListMemberIds(
-  localUserId: string,
-  followingIds: string[],
-): Promise<void> {
-  const memberIds = await listSubscriptionService.getSubscribedListMemberIds(localUserId);
-  if (memberIds.length === 0) return;
-
-  const existing = new Set(followingIds);
-  existing.add(localUserId);
-  for (const id of memberIds) {
-    if (!existing.has(id)) {
-      followingIds.push(id);
-      existing.add(id);
-    }
-  }
-}
 
 class MtnFeedController {
   /**
@@ -152,6 +132,7 @@ class MtnFeedController {
       // parallel. `userBehavior` feeds personalized candidate generation
       // (For You multi-source) and ranking; it soft-fails to undefined.
       let followingIds: string[] = [];
+      let subscribedListMemberIds: string[] = [];
       let userBehavior: IUserBehavior | undefined;
       // The viewer's sensitive-content opt-in. Anonymous → false; loaded
       // soft-failing to false below so a settings error never relaxes the gate.
@@ -175,7 +156,7 @@ class MtnFeedController {
         }
 
         try {
-          await mergeSubscribedListMemberIds(currentUserId, followingIds);
+          subscribedListMemberIds = await listSubscriptionService.getSubscribedListMemberIds(currentUserId);
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
         }
@@ -199,6 +180,7 @@ class MtnFeedController {
       const context = {
         currentUserId,
         followingIds,
+        subscribedListMemberIds,
         userBehavior,
         oxyClient,
         showSensitiveContent,
@@ -222,9 +204,11 @@ class MtnFeedController {
           return !authorId || !privacyState.excludedUserIds.has(authorId);
         });
         response.slices = response.slices.filter((slice: any) => {
-          const anchorAuthor = slice.items?.[0]?.author?.id || slice.items?.[0]?.oxyUserId;
+          const anchorPost = slice.items?.[0]?.post ?? slice.items?.[0];
+          const anchorAuthor = anchorPost?.author?.id || anchorPost?.oxyUserId;
           return !anchorAuthor || !privacyState.excludedUserIds.has(anchorAuthor);
         });
+        syncFlattenedItemsWithSlices(response);
       }
 
       // Apply tuner pipeline
@@ -240,6 +224,7 @@ class MtnFeedController {
             hideSensitive: false,
           },
         });
+        syncFlattenedItemsWithSlices(response);
       }
 
       res.json({
@@ -273,6 +258,7 @@ class MtnFeedController {
         : null;
 
       let followingIds: string[] = [];
+      let subscribedListMemberIds: string[] = [];
       if (currentUserId) {
         try {
           const followingRes = await oxyClient.getUserFollowing(currentUserId);
@@ -288,7 +274,7 @@ class MtnFeedController {
         }
 
         try {
-          await mergeSubscribedListMemberIds(currentUserId, followingIds);
+          subscribedListMemberIds = await listSubscriptionService.getSubscribedListMemberIds(currentUserId);
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
         }
@@ -297,6 +283,7 @@ class MtnFeedController {
       const context = {
         currentUserId,
         followingIds,
+        subscribedListMemberIds,
         oxyClient,
       };
 

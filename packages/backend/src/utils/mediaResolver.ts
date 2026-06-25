@@ -24,7 +24,8 @@ import { logger } from './logger';
  *        sees same-origin, cacheable, range-seekable bytes.
  *  - anything else → treated as an Oxy file id and turned into a CDN/stream URL
  *    via the SDK's synchronous `getFileDownloadUrl` (pure URL construction, no
- *    network), with a `thumb` variant for the thumbnail.
+ *    network), with image variants for image thumbnails/fullscreen and the
+ *    native `thumb` variant for video posters.
  *
  * This module NEVER throws: on any failure it degrades to the safest passthrough
  * (`{ url: ref }` or `undefined`).
@@ -201,6 +202,22 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
     .filter((item): item is MediaItem => Boolean(item) && typeof item.id === 'string' && item.id.length > 0)
     .map((item) => {
       const resolved = resolveMediaRef(item.id);
+
+      if (item.type === 'video' && !isAbsoluteHttpUrl(item.id)) {
+        try {
+          const posterUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_AVATAR);
+          return {
+            id: item.id,
+            type: item.type,
+            url: resolved.url || undefined,
+            thumbUrl: posterUrl,
+            posterUrl,
+          };
+        } catch (error) {
+          logger.warn('[mediaResolver] Failed to resolve video poster; falling back to media ref:', error);
+        }
+      }
+
       return {
         id: item.id,
         type: item.type,

@@ -27,6 +27,21 @@ export const AP_ACCEPT_TYPES = [
   'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
 ];
 
+/**
+ * Returns true when an Accept header asks for ActivityPub JSON.
+ *
+ * Some federated clients send plain `application/ld+json`, differently-cased
+ * media types, or profiled JSON-LD variants. Keep this intentionally aligned
+ * with the Cloudflare Pages profile worker to avoid profile URL ↔ actor URL
+ * redirect loops during ActivityPub discovery.
+ */
+export function isActivityPubAccept(accept: string | string[] | undefined): boolean {
+  if (!accept) return false;
+  const value = Array.isArray(accept) ? accept.join(',') : accept;
+  const lower = value.toLowerCase();
+  return lower.includes('activity+json') || lower.includes('ld+json');
+}
+
 export function actorUrl(username: string): string {
   return `https://${ACTOR_DOMAIN}/ap/users/${username}`;
 }

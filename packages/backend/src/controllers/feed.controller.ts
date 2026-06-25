@@ -47,6 +47,10 @@ import { threadSlicingService } from '../services/ThreadSlicingService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
 import { FEDERATION_ENABLED } from '../utils/federation/constants';
+import {
+  isWithinOutboxSyncCooldown,
+  shouldForceUntrackedOutboxSync,
+} from '../utils/federation/outboxSyncCooldown';
 
 /**
  * Minimum interval between background outbox re-syncs for the same federated
@@ -1070,13 +1074,15 @@ class FeedController {
           // Cooldown: skip the (expensive) outbox re-fetch+dedupe if we synced
           // this actor's outbox within the cooldown window. Profile views are
           // frequent; the outbox rarely changes between back-to-back views.
-          const lastSyncMs = actor.lastOutboxSyncAt?.getTime();
-          const shouldClassifyUntrackedOutbox =
-            !outboxStatus && typeof actor.postsCount === 'number' && actor.postsCount > 0;
+          const shouldClassifyUntrackedOutbox = shouldForceUntrackedOutboxSync({
+            outboxStatus,
+            postsCount: actor.postsCount,
+            lastOutboxSyncAt: actor.lastOutboxSyncAt,
+            cooldownMs: OUTBOX_SYNC_MIN_INTERVAL_MS,
+          });
           const syncedRecently = !refreshedActorForSync
             && !shouldClassifyUntrackedOutbox
-            && typeof lastSyncMs === 'number'
-            && Date.now() - lastSyncMs < OUTBOX_SYNC_MIN_INTERVAL_MS;
+            && isWithinOutboxSyncCooldown(actor.lastOutboxSyncAt, OUTBOX_SYNC_MIN_INTERVAL_MS);
           if (syncedRecently) {
             logger.info(`[FedSync] outbox sync skipped (cooldown) for ${actor.acct}`);
             return;
