@@ -1256,6 +1256,43 @@ export class PostHydrationService {
     return replierMap;
   }
 
+  private canViewerReadPost(
+    post: RawPost,
+    authorId: string,
+    viewerContext: ViewerContext,
+    isFederatedPost: boolean,
+  ): boolean {
+    const isOwner = Boolean(viewerContext.viewerId && viewerContext.viewerId === authorId);
+    if (isOwner) {
+      return true;
+    }
+
+    // Federated posts are imported only from public ActivityPub objects. Some
+    // older imported rows may not have a local status/visibility stamp, so keep
+    // them renderable unless they explicitly carry a non-public local state.
+    if (isFederatedPost) {
+      const status = post.status ? String(post.status) : 'published';
+      const visibility = post.visibility ? String(post.visibility) : PostVisibility.PUBLIC;
+      return status === 'published' && visibility === PostVisibility.PUBLIC;
+    }
+
+    const status = post.status ? String(post.status) : 'published';
+    if (status !== 'published') {
+      return false;
+    }
+
+    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as string;
+    if (visibility === PostVisibility.PUBLIC) {
+      return true;
+    }
+
+    if (visibility === PostVisibility.FOLLOWERS_ONLY) {
+      return Boolean(viewerContext.viewerId && viewerContext.follows.has(authorId));
+    }
+
+    return false;
+  }
+
   private async buildPostSummary(params: {
     post: RawPost;
     viewerContext: ViewerContext;
@@ -1293,6 +1330,14 @@ export class PostHydrationService {
       ? (federatedAuthorMap?.get(postId) ?? this.buildFederatedDomainAuthor(post))
       : undefined;
     const authorId = resolvedAuthorId ?? federatedFallback?.id ?? `federated:${postId}`;
+
+    // Never hydrate content that the current viewer is not allowed to read.
+    // This is especially important for nested boost/quote references, which are
+    // fetched by id during hydration and may be attached to otherwise-public
+    // payloads.
+    if (!this.canViewerReadPost(post, authorId, viewerContext, isFederatedPost)) {
+      return null;
+    }
 
     // Privacy checks only apply to local users (federated posts are public by definition)
     if (!isFederatedPost) {

@@ -131,6 +131,7 @@ function boostRow() {
     metadata: { createdAt: new Date('2024-01-01T00:00:00Z') },
     createdAt: new Date('2024-01-01T00:00:00Z'),
     visibility: 'public',
+    status: 'published',
     hashtags: [],
     mentions: [],
   };
@@ -147,6 +148,7 @@ function originalRow() {
     metadata: { createdAt: new Date('2023-12-31T00:00:00Z') },
     createdAt: new Date('2023-12-31T00:00:00Z'),
     visibility: 'public',
+    status: 'published',
     hashtags: [],
     mentions: [],
   };
@@ -241,6 +243,70 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       expect(hydrated.boost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(ORIGINAL_ID);
       expect(hydrated.originalPost?.id, `maxDepth ${depth}: top-level originalPost missing`).toBe(ORIGINAL_ID);
     }
+  });
+
+
+  it('does not embed a non-public boosted original for another viewer', async () => {
+    service = new PostHydrationService();
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          visibility: 'private',
+          status: 'draft',
+          content: { text: 'SECRET: draft body' },
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await hydrateBoost(VIEWER_ID);
+
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
+  it('does not embed a quoted private post from a public reply for an anonymous viewer', async () => {
+    service = new PostHydrationService();
+    const replyId = '650000000000000000000003';
+    const reply = {
+      _id: replyId,
+      oxyUserId: BOOSTER_OXY_ID,
+      type: 'text',
+      quoteOf: ORIGINAL_ID,
+      content: { text: 'public reply quoting private context' },
+      stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
+      createdAt: new Date('2024-01-02T00:00:00Z'),
+      visibility: 'public',
+      status: 'published',
+      hashtags: [],
+      mentions: [],
+    };
+
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          visibility: 'private',
+          status: 'draft',
+          content: { text: 'SECRET: private quoted body' },
+        }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await service.hydratePosts([reply], {
+      maxDepth: 1,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.quotedPost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
   });
 
   it('still embeds the original when the original has a NULL oxyUserId (orphaned federated actor)', async () => {
