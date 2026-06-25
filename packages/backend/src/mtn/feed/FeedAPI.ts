@@ -26,6 +26,12 @@ export interface FeedFetchOptions {
 export interface FeedContext {
   currentUserId?: string;
   followingIds?: string[];
+  /**
+   * Author ids from lists the viewer subscribes to. These are feed-inclusion
+   * candidates only and MUST NOT be treated as follow relationships for
+   * followers-only visibility checks.
+   */
+  subscribedListMemberIds?: string[];
   userBehavior?: RankingUserBehavior;
   feedSettings?: FeedRankingSettings;
   oxyClient?: OxyClient;

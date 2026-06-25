@@ -152,6 +152,18 @@ describe('ForYouFeed.fetch — never-blank fallback', () => {
     expect(res.items.length).toBeGreaterThan(0);
   });
 
+  it('only queries published posts in the popular fallback', async () => {
+    gatherMock.mockResolvedValue([]);
+    rankMock.mockResolvedValue([]);
+    aggregateMock.mockResolvedValue([{ _id: oid(100), oxyUserId: 'popular-author' }]);
+    hydratePostsMock.mockResolvedValue([{ id: oid(100).toString() }]);
+
+    const feed = new ForYouFeed();
+    await feed.fetch({ cursor: '0:000000000000000000000001', limit: 30 }, { currentUserId: 'viewer', followingIds: [] });
+
+    expect(popularMatch().status).toBe('published');
+  });
+
   it('falls back to fetchPopular when ranking produces zero deduped candidates', async () => {
     gatherMock.mockResolvedValue([{ _id: oid(1), oxyUserId: 'a' }]);
     rankMock.mockResolvedValue([]); // ranking dropped everything

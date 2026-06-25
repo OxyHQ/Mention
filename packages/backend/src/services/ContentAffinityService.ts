@@ -55,11 +55,13 @@ import Like from '../models/Like';
 import { Post, type IPost } from '../models/Post';
 import { EntityFollow } from '../models/EntityFollow';
 import UserBehavior, { type IUserBehavior } from '../models/UserBehavior';
+import UserSettings from '../models/UserSettings';
 import Block from '../models/Block';
 import Mute from '../models/Mute';
 import Restrict from '../models/Restrict';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
+import { checkFollowAccess, ProfileVisibility, requiresAccessCheck } from '../utils/privacyHelpers';
 
 /** Recency window for content signals (days). */
 const WINDOW_DAYS = 30;
@@ -99,7 +101,7 @@ const MAX_AUTHORS_PER_TOPIC = 200;
 const CACHE_TTL_SECONDS = 120;
 
 /** Redis key namespace for cached content-affinity candidates. */
-const CACHE_PREFIX = 'rec:affinity:v1:';
+const CACHE_PREFIX = 'rec:affinity:v2:';
 
 /**
  * Base weights per signal. Engagement is a direct, intentional signal and is
@@ -222,6 +224,13 @@ export class ContentAffinityService {
         }
       }
     }
+
+    if (merged.size === 0) {
+      await this.writeCache(cacheKey, []);
+      return [];
+    }
+
+    await this.filterCandidateProfileAccess(viewerId, merged);
 
     if (merged.size === 0) {
       await this.writeCache(cacheKey, []);
@@ -421,6 +430,49 @@ export class ContentAffinityService {
       return new Map();
     }
     return result;
+  }
+
+  /**
+   * Remove candidates whose Mention profile ACLs are not visible to the viewer.
+   * Oxy Ranking only receives boosted user ids, so local Mention-only profile
+   * visibility must be enforced before boosts leave this service. Missing
+   * settings default to public, matching the UserSettings schema default; query
+   * failures fail closed by clearing all candidates.
+   */
+  private async filterCandidateProfileAccess(
+    viewerId: string,
+    merged: Map<string, AuthorAccumulator>,
+  ): Promise<void> {
+    const authorIds = Array.from(merged.keys()).filter((id) => id !== viewerId);
+    if (authorIds.length === 0) return;
+
+    try {
+      const rows = await UserSettings.find(
+        { oxyUserId: { $in: authorIds } },
+        { oxyUserId: 1, 'privacy.profileVisibility': 1 },
+      ).lean();
+      const visibilityByAuthor = new Map<string, string>();
+      for (const row of rows) {
+        const authorId = typeof row?.oxyUserId === 'string' ? row.oxyUserId : '';
+        if (!authorId) continue;
+        visibilityByAuthor.set(
+          authorId,
+          row.privacy?.profileVisibility ?? ProfileVisibility.PUBLIC,
+        );
+      }
+
+      await Promise.all(
+        authorIds.map(async (authorId) => {
+          const visibility = visibilityByAuthor.get(authorId) ?? ProfileVisibility.PUBLIC;
+          if (!requiresAccessCheck(visibility)) return;
+          const hasAccess = authorId === viewerId || await checkFollowAccess(viewerId, authorId);
+          if (!hasAccess) merged.delete(authorId);
+        }),
+      );
+    } catch (error) {
+      logger.warn('[ContentAffinity] candidate profile ACL filter failed; dropping candidates:', error);
+      merged.clear();
+    }
   }
 
   /**
@@ -684,8 +736,21 @@ export class ContentAffinityService {
     try {
       const match: QueryFilter<IPost> =
         kind === 'boost'
-          ? { oxyUserId: viewerId, type: PostType.BOOST, boostOf: { $ne: null }, createdAt: { $gte: since } }
-          : { oxyUserId: viewerId, parentPostId: { $ne: null }, createdAt: { $gte: since } };
+          ? {
+            oxyUserId: viewerId,
+            type: PostType.BOOST,
+            boostOf: { $ne: null },
+            status: 'published',
+            visibility: 'public',
+            createdAt: { $gte: since },
+          }
+          : {
+            oxyUserId: viewerId,
+            parentPostId: { $ne: null },
+            status: 'published',
+            visibility: 'public',
+            createdAt: { $gte: since },
+          };
       const field = kind === 'boost' ? { boostOf: 1, _id: 0 } : { parentPostId: 1, _id: 0 };
 
       const rows = await Post.find(match, field)
@@ -714,7 +779,7 @@ export class ContentAffinityService {
     if (postIds.length === 0) return map;
     try {
       const rows = await Post.find(
-        { _id: { $in: postIds } },
+        { _id: { $in: postIds }, status: 'published', visibility: 'public' },
         { oxyUserId: 1 },
       ).lean();
       for (const row of rows) {

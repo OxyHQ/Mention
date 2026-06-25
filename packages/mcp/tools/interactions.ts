@@ -81,8 +81,14 @@ export function registerInteractionsTools(server: McpServer): void {
     },
     async ({ id }) => {
       try {
-        const result = await api.post(`/posts/${encodeURIComponent(id)}/boost`);
-        return { content: [{ type: "text" as const, text: `Post ${id} boosted.\n\n${formatPost(result as Record<string, unknown>)}` }] };
+        const result = await api.post(`/feed/boost`, {
+          originalPostId: id,
+          content: { text: "" },
+          mentions: [],
+          hashtags: [],
+        });
+        const boost = (result as { boost?: unknown }).boost ?? result;
+        return { content: [{ type: "text" as const, text: `Post ${id} boosted.\n\n${formatPost(boost as Record<string, unknown>)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }
@@ -99,8 +105,15 @@ export function registerInteractionsTools(server: McpServer): void {
     },
     async ({ id, text }) => {
       try {
-        const result = await api.post(`/posts/${encodeURIComponent(id)}/quote`, { content: { text } });
-        return { content: [{ type: "text" as const, text: `Quote post created.\n\n${formatPost(result as Record<string, unknown>)}` }] };
+        const result = await api.post(`/posts`, {
+          content: { text, media: [] },
+          hashtags: [],
+          mentions: [],
+          visibility: "public",
+          quoted_post_id: id,
+        });
+        const post = (result as { post?: unknown }).post ?? result;
+        return { content: [{ type: "text" as const, text: `Quote post created.\n\n${formatPost(post as Record<string, unknown>)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }

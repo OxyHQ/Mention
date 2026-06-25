@@ -10,11 +10,11 @@
  * Desired-state + idempotent + self-healing:
  *  - {@link syncScope} recomputes the CURRENT member set for one pack/list and
  *    pushes it as `add` edges for that scope.
- *  - When the scope no longer exists (or has no members), it pushes `remove`
- *    edges for the members it last knew about — but since we don't persist the
- *    previous set, deletion is handled by passing the removed members explicitly
- *    (see {@link syncScopeRemoval}); a plain delete with no known members is a
- *    no-op push that simply marks the outbox row sent.
+ *  - {@link syncScopeMembershipChange} captures members removed by an update
+ *    before MongoDB loses them, persists those pending retractions in the
+ *    outbox, and then re-syncs the scope.
+ *  - When the scope is deleted, the deletion path captures the final member set
+ *    and passes it explicitly to {@link syncScopeRemoval}.
  *
  * Reliability: every sync writes/refreshes an {@link EndorsementOutbox} row
  * FIRST, then attempts an immediate push. Success marks the row `sent`; failure
@@ -26,6 +26,7 @@ import AccountList from '../models/AccountList';
 import EndorsementOutbox, {
   getEndorsementNextAttempt,
   type EndorsementSource,
+  type IEndorsementOutbox,
 } from '../models/EndorsementOutbox';
 import { oxySignalsClient, type OxySignalsClient, type EndorsementEdge } from './OxySignalsClient';
 import { logger } from '../utils/logger';
@@ -75,17 +76,39 @@ export class EndorsementSignalService {
     }));
   }
 
+  /** Build `remove` edges for captured, no-longer-current members. */
+  private buildRemoveEdges(ownerId: string | undefined, memberIds: string[] | undefined, sourceId: string): EndorsementEdge[] {
+    if (!ownerId) return [];
+    const unique = new Set((memberIds ?? []).filter((id) => id && id !== ownerId));
+    return Array.from(unique).map((memberId) => ({
+      ownerId,
+      memberId,
+      op: 'remove' as const,
+      sourceId,
+    }));
+  }
+
   /**
    * Upsert/re-arm the outbox row for a scope so it is `pending` and due now.
    * Returns the row's current attempt count (0 for a fresh row).
    */
-  private async armOutbox(source: EndorsementSource, sourceId: string): Promise<void> {
+  private async armOutbox(
+    source: EndorsementSource,
+    sourceId: string,
+    removal?: { ownerId: string; memberIds: string[] },
+  ): Promise<void> {
+    const update: Record<string, unknown> = {
+      $set: { status: 'pending', nextAttemptAt: new Date() },
+      $setOnInsert: { attempts: 0 },
+    };
+    const removed = removal?.memberIds.filter((id) => id && id !== removal.ownerId) ?? [];
+    if (removal && removed.length > 0) {
+      update.$set = { ...(update.$set as Record<string, unknown>), pendingRemoveOwnerId: removal.ownerId };
+      update.$addToSet = { pendingRemoveMemberIds: { $each: removed } };
+    }
     await EndorsementOutbox.updateOne(
       { source, sourceId },
-      {
-        $set: { status: 'pending', nextAttemptAt: new Date() },
-        $setOnInsert: { attempts: 0 },
-      },
+      update,
       { upsert: true },
     );
   }
@@ -94,7 +117,10 @@ export class EndorsementSignalService {
   private async markSent(source: EndorsementSource, sourceId: string): Promise<void> {
     await EndorsementOutbox.updateOne(
       { source, sourceId },
-      { $set: { status: 'sent', attempts: 0, lastAttemptAt: new Date(), error: undefined } },
+      {
+        $set: { status: 'sent', attempts: 0, lastAttemptAt: new Date(), error: undefined },
+        $unset: { pendingRemoveOwnerId: '', pendingRemoveMemberIds: '' },
+      },
     );
   }
 
@@ -128,12 +154,55 @@ export class EndorsementSignalService {
     await this.armOutbox(source, sourceId);
 
     try {
-      const state = await this.loadScopeState(source, sourceId);
-      const edges = state ? this.buildAddEdges(state, sourceId) : [];
+      const [state, row] = await Promise.all([
+        this.loadScopeState(source, sourceId),
+        EndorsementOutbox.findOne({ source, sourceId })
+          .select('pendingRemoveOwnerId pendingRemoveMemberIds')
+          .lean<Pick<IEndorsementOutbox, 'pendingRemoveOwnerId' | 'pendingRemoveMemberIds'> | null>(),
+      ]);
+      const edges = [
+        ...this.buildRemoveEdges(row?.pendingRemoveOwnerId, row?.pendingRemoveMemberIds, sourceId),
+        ...(state ? this.buildAddEdges(state, sourceId) : []),
+      ];
       await this.signalsClient.pushEndorsements(edges);
       await this.markSent(source, sourceId);
     } catch (error) {
       logger.warn(`[EndorsementSignal] sync failed for ${source}:${sourceId}; left pending:`, error);
+      await this.markFailed(source, sourceId, error);
+    }
+  }
+
+  /**
+   * Re-sync a scope after a membership replacement/removal. The caller passes
+   * the pre-save and post-save member lists so members that disappeared can be
+   * emitted as durable `remove` edges even though they are no longer in MongoDB.
+   */
+  async syncScopeMembershipChange(
+    source: EndorsementSource,
+    sourceId: string,
+    ownerId: string,
+    previousMemberIds: string[],
+    nextMemberIds: string[],
+  ): Promise<void> {
+    const next = new Set(nextMemberIds);
+    const removed = Array.from(new Set(previousMemberIds.filter((id) => id && !next.has(id))));
+    await this.armOutbox(source, sourceId, { ownerId, memberIds: removed });
+
+    try {
+      const [state, row] = await Promise.all([
+        this.loadScopeState(source, sourceId),
+        EndorsementOutbox.findOne({ source, sourceId })
+          .select('pendingRemoveOwnerId pendingRemoveMemberIds')
+          .lean<Pick<IEndorsementOutbox, 'pendingRemoveOwnerId' | 'pendingRemoveMemberIds'> | null>(),
+      ]);
+      const edges = [
+        ...this.buildRemoveEdges(row?.pendingRemoveOwnerId ?? ownerId, row?.pendingRemoveMemberIds ?? removed, sourceId),
+        ...(state ? this.buildAddEdges(state, sourceId) : []),
+      ];
+      await this.signalsClient.pushEndorsements(edges);
+      await this.markSent(source, sourceId);
+    } catch (error) {
+      logger.warn(`[EndorsementSignal] membership sync failed for ${source}:${sourceId}; left pending:`, error);
       await this.markFailed(source, sourceId, error);
     }
   }

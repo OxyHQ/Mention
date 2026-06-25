@@ -11,7 +11,7 @@ import {
     PostRoomContent,
 } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
-import PostHeader from '../Post/PostHeader';
+import PostHeader, { HEADER_CONTENT_GAP } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
@@ -483,13 +483,13 @@ const PostItem: React.FC<PostItemProps> = ({
     // differ — never the avatar/name/handle/time/content position.
     const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
-    // Spacing below the header is driven by flex `gap` on a single content column,
-    // NOT per-block margins: gap only adds space BETWEEN actually-rendered children,
-    // so an absent block (e.g. no text) never leaves an orphaned gap. The header's
-    // identity column already groups the name row + body text at HEADER_CONTENT_GAP
-    // (4px); the post's content blocks (text-already-in-header, location, sources,
-    // media, actions) are the gap-siblings here at SECTION_GAP (12px).
+    // Keep text posts on the normal section rhythm, but let no-text posts hug
+    // their first external content block using the same small gap PostHeader uses
+    // between the identity row and inline body text. Subsequent external blocks
+    // still use the normal section gap.
     const Container: React.ElementType = isTappable ? Pressable : View;
+    const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || !isNested);
+    const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
 
     const postAuthor = viewPost.user.displayName;
     const postTextSummary = content.text
@@ -570,50 +570,52 @@ const PostItem: React.FC<PostItemProps> = ({
                         </Text>
                     </View>
                 )}
-                <View style={{ gap: SECTION_GAP }}>
-                <PostHeader
-                    user={{
-                        displayName: viewPost.user.displayName,
-                        handle: viewPost.user.handle || '',
-                        verified: viewPost.user.isVerified,
-                        isFederated: viewPost.user.isFederated,
-                        instance: viewPost.user.instance,
-                    }}
-                    date={metadata.createdAt}
-                    showBoost={Boolean(viewPost.boost) && !isNested}
-                    showReply={false}
-                    avatarSource={avatarSource}
-                    avatarVariant={avatarVariant}
-                    onPressUser={goToUser}
-                    onPressAvatar={goToUser}
-                    onPressMenu={openMenu}
-                    paddingHorizontal={isNested ? 0 : HPAD}
-                >
-                    {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
-                </PostHeader>
+                <View style={{ gap: headerToBlocksGap }}>
+                    <PostHeader
+                        user={{
+                            displayName: viewPost.user.displayName,
+                            handle: viewPost.user.handle || '',
+                            verified: viewPost.user.isVerified,
+                            isFederated: viewPost.user.isFederated,
+                            instance: viewPost.user.instance,
+                        }}
+                        date={metadata.createdAt}
+                        showBoost={Boolean(viewPost.boost) && !isNested}
+                        showReply={false}
+                        avatarSource={avatarSource}
+                        avatarVariant={avatarVariant}
+                        onPressUser={goToUser}
+                        onPressAvatar={goToUser}
+                        onPressMenu={openMenu}
+                        paddingHorizontal={isNested ? 0 : HPAD}
+                    >
+                        {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
+                    </PostHeader>
 
-                {hasValidLocation && location && (
-                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
-                        <PostLocation location={location} paddingHorizontal={0} />
-                    </View>
-                )}
+                    {hasBelowHeaderBlocks && (
+                        <View style={{ gap: SECTION_GAP }}>
+                            {hasValidLocation && location && (
+                                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                                    <PostLocation location={location} paddingHorizontal={0} />
+                                </View>
+                            )}
 
-                {hasSources && (
-                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
-                        <TouchableOpacity
-                            className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border"
-                            style={{ paddingHorizontal: 10, paddingVertical: 4 }}
-                            onPress={openSourcesSheet}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name="link-outline" size={14} color={theme.colors.primary} />
-                            <Text className="text-primary text-[13px] font-semibold">
-                                {t('post.sourcesChip', { defaultValue: 'Sources' })}
-                                {` (${sourcesList.length})`}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
+                            {hasSources && (
+                                <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                                    <TouchableOpacity
+                                        className="border-border bg-surface flex-row items-center gap-1.5 self-start rounded-xl border"
+                                        style={{ paddingHorizontal: 10, paddingVertical: 4 }}
+                                        onPress={openSourcesSheet}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name="link-outline" size={14} color={theme.colors.primary} />
+                                        <Text className="text-primary text-[13px] font-semibold">
+                                            {t('post.sourcesChip', { defaultValue: 'Sources' })}
+                                            {` (${sourcesList.length})`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
 
                 {shouldRenderMediaBlock && (
                     <View style={{ position: 'relative' }}>
@@ -731,6 +733,8 @@ const PostItem: React.FC<PostItemProps> = ({
                             onLikesPress={isDetailMain ? () => openEngagementList('likes') : undefined}
                             onBoostsPress={isDetailMain ? () => openEngagementList('boosts') : undefined}
                         />
+                    </View>
+                )}
                     </View>
                 )}
                 </View>

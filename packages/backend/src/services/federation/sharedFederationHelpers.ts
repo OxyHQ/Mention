@@ -423,7 +423,11 @@ export function mapApVisibility(to?: string[], cc?: string[]): PostVisibility {
 export async function resolvePostIdFromObjectUri(objectUri: string): Promise<string | null> {
   const localPostId = extractLocalPostIdFromApUri(objectUri);
   if (localPostId && mongoose.Types.ObjectId.isValid(localPostId)) {
-    const local = await Post.findById(localPostId, { _id: 1 }).lean();
+    const local = await Post.findOne({
+      _id: localPostId,
+      status: 'published',
+      visibility: PostVisibility.PUBLIC,
+    }, { _id: 1 }).lean();
     if (local) return String(local._id);
   }
 
