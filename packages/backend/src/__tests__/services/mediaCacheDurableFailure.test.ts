@@ -10,10 +10,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../utils/safeUpstreamFetch', async () => {
   class SsrfRejection extends Error {}
+  const contentTypeFamilyFromString = (raw: string | undefined) =>
+    typeof raw === 'string' ? (raw.split(';')[0]?.trim().toLowerCase() ?? '') : '';
   return {
     SsrfRejection,
     fetchUpstreamFollowingRedirects: mocks.fetchUpstreamFollowingRedirects,
-    contentTypeFamily: (headers: Record<string, unknown>) => String(headers['content-type'] ?? '').split(';')[0],
+    contentTypeFamilyFromString,
+    contentTypeFamily: (headers: Record<string, unknown>) =>
+      contentTypeFamilyFromString(
+        typeof headers['content-type'] === 'string' ? (headers['content-type'] as string) : undefined,
+      ),
   };
 });
 
@@ -53,7 +59,7 @@ describe('durable federated media failure classification', () => {
       upstreamResponse(200, { 'content-type': 'text/html', 'content-length': '42' }),
     );
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker',
+      '../../services/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -66,7 +72,7 @@ describe('durable federated media failure classification', () => {
       upstreamResponse(200, { 'content-type': 'image/jpeg', 'content-length': String(100 * 1024 * 1024) }),
     );
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker',
+      '../../services/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -77,7 +83,7 @@ describe('durable federated media failure classification', () => {
   it('still treats upstream 404/410 as permanently unavailable media', async () => {
     mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(upstreamResponse(410, {}));
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker',
+      '../../services/mediaCache/cacheWorker'
     );
 
     await expect(
