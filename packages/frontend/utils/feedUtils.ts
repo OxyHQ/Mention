@@ -67,6 +67,13 @@ export interface FeedIdentityParams {
     userId?: string;
     showOnlySaved?: boolean;
     filters?: FeedFilters;
+    /**
+     * Authenticated viewer that the feed response is authorized for. Feed
+     * contents are viewer-dependent, so retained in-memory slices must never
+     * be shared across logout/login or account-switch boundaries.
+     */
+    currentViewerId?: string;
+    isAuthenticated?: boolean;
 }
 
 /**
@@ -88,15 +95,18 @@ function serializeFeedFilters(filters?: FeedFilters): string {
  *
  * The same inputs always produce the same key (so scroll offset / cached items
  * restore correctly across an unmount→remount), while distinct feeds (different
- * type, user, saved view, or filters) produce distinct keys so they never share
- * state. `showOnlySaved` collapses to the `'saved'` effective type, matching the
- * effective-type logic in `useFeedState`.
+ * viewer, type, user, saved view, or filters) produce distinct keys so they never
+ * share state. `showOnlySaved` collapses to the `'saved'` effective type, matching
+ * the effective-type logic in `useFeedState`.
  */
 export function buildFeedScrollKey(params: FeedIdentityParams): string {
     const effectiveType = params.showOnlySaved ? 'saved' : params.type;
+    const viewerKey = params.isAuthenticated
+        ? `auth:${params.currentViewerId || 'pending'}`
+        : 'anon';
     const userId = params.userId ?? '';
     const filterKey = serializeFeedFilters(params.filters);
-    return `${effectiveType}|${userId}|${filterKey}`;
+    return `${viewerKey}|${effectiveType}|${userId}|${filterKey}`;
 }
 
 /**

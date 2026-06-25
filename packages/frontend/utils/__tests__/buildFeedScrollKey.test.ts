@@ -36,6 +36,34 @@ describe('buildFeedScrollKey', () => {
         expect(a).toBe(b);
     });
 
+    it('distinguishes feeds by authenticated viewer', () => {
+        expect(
+            buildFeedScrollKey({
+                type: 'for_you',
+                isAuthenticated: true,
+                currentViewerId: 'alice',
+            }),
+        ).not.toBe(
+            buildFeedScrollKey({
+                type: 'for_you',
+                isAuthenticated: true,
+                currentViewerId: 'bob',
+            }),
+        );
+    });
+
+    it('distinguishes authenticated and anonymous feeds for the same feed identity', () => {
+        expect(
+            buildFeedScrollKey({
+                type: 'for_you',
+                isAuthenticated: true,
+                currentViewerId: 'alice',
+            }),
+        ).not.toBe(
+            buildFeedScrollKey({ type: 'for_you', isAuthenticated: false }),
+        );
+    });
+
     it('distinguishes feeds by type', () => {
         expect(buildFeedScrollKey({ type: 'for_you' })).not.toBe(
             buildFeedScrollKey({ type: 'following' }),
