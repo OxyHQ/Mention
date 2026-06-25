@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
 import FederatedActor from '../models/FederatedActor';
@@ -219,8 +220,11 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // Query by oxyUserId (the canonical user identity in Oxy) for federated posts.
     // Falls back to the activity ID range query if the actor has no Oxy link yet.
     const query: Record<string, unknown> = actor.oxyUserId
-      ? { oxyUserId: actor.oxyUserId, federation: { $ne: null } }
-      : { 'federation.activityId': { $gte: actor.uri + '/', $lt: actor.uri + '/\uffff' } };
+      ? { oxyUserId: actor.oxyUserId, federation: { $ne: null }, visibility: PostVisibility.PUBLIC }
+      : {
+          'federation.activityId': { $gte: actor.uri + '/', $lt: actor.uri + '/\uffff' },
+          visibility: PostVisibility.PUBLIC,
+        };
     if (parsed.data.cursor) {
       query.createdAt = { $lt: new Date(parsed.data.cursor) };
     }
