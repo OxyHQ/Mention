@@ -40,7 +40,7 @@ export const ProfileStats = memo(function ProfileStats({
   }, [displayUsername]);
 
   return (
-    <View style={styles.container}>
+    <View className="gap-2.5" style={styles.container}>
       <TouchableOpacity
         style={styles.statItem}
         onPress={handleFollowingPress}
@@ -115,7 +115,6 @@ const styles = StyleSheet.create({
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 20,
   },
   statNumber: {
     fontSize: 15,
