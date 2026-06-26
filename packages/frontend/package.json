@@ -50,7 +50,7 @@
     "@livekit/react-native": "^2.9.6",
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^137.0.3",
-    "@oxyhq/bloom": "^0.19.0",
+    "@oxyhq/bloom": "^0.22.0",
     "@oxyhq/core": "^3.10.1",
     "@oxyhq/services": "^11.0.0",
     "@radix-ui/react-dropdown-menu": "^2.1.16",

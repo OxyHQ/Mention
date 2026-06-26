@@ -17,6 +17,17 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
+  /* Bloom design-token radius scale. Bloom components (e.g. ContentPanel from
+     @oxyhq/bloom/content-panel) emit `rounded-radius-28` literal utilities that
+     resolve from the Tailwind v4 `--radius-*` namespace. These mirror Bloom's
+     canonical RADIUS scale (@oxyhq/bloom/design-tokens, `bloomThemeCss()`),
+     which a v4 consumer registers in its own `@theme` block. */
+  --radius-radius-8: 8px;
+  --radius-radius-12: 12px;
+  --radius-radius-20: 20px;
+  --radius-radius-28: 28px;
+  --radius-radius-max: 9999px;
+
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

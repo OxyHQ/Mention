@@ -4,7 +4,7 @@ import { Slot, Stack, usePathname } from "expo-router";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { ContentPanel } from '@oxyhq/bloom/content-panel';
 
 import { BottomBar, BOTTOM_BAR_RESERVED_SPACE } from "@/components/BottomBar";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
@@ -13,7 +13,6 @@ import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RightBar } from "@/components/RightBar";
 import { SideBar } from "@/components/SideBar";
 import { SignInBanner } from "@/components/SignInBanner";
-import { ThemedView } from "@/components/ThemedView";
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 import ConnectionStatus from '@/components/common/ConnectionStatus';
 
@@ -25,7 +24,7 @@ import { BottomBarVisibilityProvider } from '@/context/BottomBarVisibilityContex
 import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
 import { ScreenColorProvider, useScreenColor } from '@/context/ScreenColorContext';
 import { VideosRailProvider } from '@/context/VideosRailContext';
-import { APP_COLOR_PRESETS, BloomColorScope, type AppColorName } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, BloomColorScope, useTheme, type AppColorName } from '@oxyhq/bloom/theme';
 import { ScrollRestorationProvider } from '@oxyhq/bloom/scroll';
 import { cn } from '@/lib/utils';
 
@@ -101,15 +100,20 @@ function isProfileRoute(pathname: string | null | undefined): boolean {
 
 const IS_WEB = Platform.OS === 'web';
 
-/** Spread (px) of the gutter-color mask painted around the rounded center frame. */
-const GUTTER_MASK_SPREAD = 40;
-
 const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthResolved: boolean }> = memo(({ isScreenNotMobile, isAuthenticated, isAuthResolved }) => {
   const { screenColor } = useScreenColor();
-  const theme = useTheme();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const onProfileRoute = isProfileRoute(pathname);
+
+  // Unscoped app theme. This `useTheme()` runs at the MainLayout level — OUTSIDE
+  // the `<BloomColorScope>` that wraps `<ContentPanel>` below — so
+  // `theme.colors.background` is the app-wide background, NOT the per-profile
+  // tinted one. It is passed to the panel as `maskColor` so the sticky gutter
+  // bleed-mask ring matches the unscoped outer gutter band; without it the panel
+  // reads the SCOPED background internally and a faint corner seam appears on
+  // profile routes.
+  const theme = useTheme();
 
   const activeScreenColor: AppColorName | undefined =
     onProfileRoute && screenColor && APP_COLOR_PRESETS[screenColor] ? screenColor : undefined;
@@ -195,86 +199,20 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
           style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
         >
         <BloomColorScope colorPreset={activeScreenColor} asChild>
-          <ThemedView
-            className={cn(
-              "flex-1 bg-background",
-              // WEB must NOT create an overflow context on the center column —
-              // overflow-hidden there would clip the document scroll and the
-              // sticky frame. Native keeps overflow-hidden + the side borders.
-              !IS_WEB && "overflow-hidden",
-              !IS_WEB && isScreenNotMobile && "border-x border-border",
-              // Desktop web: rounded card panel floating inside the gutter
-              // wrapper (full-bleed below the sidebar breakpoint / mobile). The
-              // panel surface (`bg-card` + `rounded-[28px]`) lives here, but it
-              // has NO border —
-              // the single continuous rounded border is owned by ONE frame
-              // overlay painted ABOVE all content (see below). Putting a border
-              // here too would double the line / leave seams where the opaque
-              // header & banner cover the panel's own top/bottom edge. (The
-              // feed-clipping `overflow-x-clip` is NOT here — it lives on the
-              // feed-content wrapper around `centerContent` so it never clips the
-              // sticky mask/border overlays' gutter box-shadow, mirroring how
-              // Mercaria puts overflow-x-clip on the content panel, not the
-              // frame.)
-              IS_WEB && isScreenNotMobile && "rounded-[28px] bg-card",
-            )}
+          {/* The framed app-content panel (rounded `bg-card` surface, the sticky
+              gutter bleed-mask box-shadow ring, and the single continuous rounded
+              border frame) is owned by Bloom's shared `ContentPanel`. `framed`
+              is on for desktop web (>=500px, the SAME breakpoint that shows the
+              sidebar + gutter margins); on native and mobile web it renders
+              full-bleed. `contentStyle` carries the mobile-web bottom inset that
+              clears the fixed BottomBar. */}
+          <ContentPanel
+            framed={IS_WEB && isScreenNotMobile}
+            maskColor={theme.colors.background}
+            contentStyle={{ paddingBottom: mobileWebBottomInset }}
           >
-            {/* Two SEPARATE desktop-web overlays (rendered only when
-                `isScreenNotMobile` — the SAME >=500px breakpoint that shows the
-                sidebar + gutter margins, so the frame never diverges from them),
-                both STICKY to the viewport with ~0 layout height (negative bottom
-                margin) so they frame the column without pushing content, and both
-                `pointer-events-none`. Conceptually split per the design:
-
-                (1) BLEED MASK — z-30, BELOW the chrome. Its `boxShadow` paints a
-                    ring of the GUTTER color (Bloom `background` token, never a
-                    hex) over FEED content that bleeds into the thin lateral
-                    gutter / rounded corners. `clip-path: inset(-12px)` keeps that
-                    ring off the side columns. It sits below the opaque header
-                    (bg-card) and banner so it only masks the FEED's bleed, never
-                    the chrome. No border. (`clipPath` MUST be the arbitrary class
-                    — RN-web drops it from the style object.)
-
-                (2) BORDER FRAME — z-[120], ABOVE everything (feed z-0, mask z-30,
-                    tab bar z-100, header z-101, banner z-110). It is JUST the 1px
-                    rounded `border-border` outline, transparent interior. Being a
-                    single element above all content, it draws ONE continuous
-                    rounded border around all four sides of the panel — no seams,
-                    no double lines, no per-chrome borders. The border is owned
-                    SOLELY by the container, exactly as requested. */}
-            {IS_WEB && isScreenNotMobile && (
-              <>
-                <View
-                  pointerEvents="none"
-                  className="web:sticky web:top-2 z-30 h-[calc(100dvh-16px)] w-full rounded-[28px] web:[margin-bottom:calc(-100dvh+16px)] web:[clip-path:inset(-12px)]"
-                  style={{ boxShadow: `0 0 0 ${GUTTER_MASK_SPREAD}px ${theme.colors.background}` }}
-                />
-                <View
-                  pointerEvents="none"
-                  className="web:sticky web:top-2 z-[120] h-[calc(100dvh-16px)] w-full rounded-[28px] border border-border web:[margin-bottom:calc(-100dvh+16px)]"
-                />
-              </>
-            )}
-            {/* Feed-content wrapper. On desktop web it carries `overflow-x-clip`
-                + the matching rounded corners so the feed (and any card) is
-                clipped to the rounded panel shape — content can never poke past
-                the corners/sides (mirrors Mercaria's content panel). `clip`
-                (NOT hidden/auto) clips the bleed WITHOUT creating a scroll
-                container or promoting the vertical axis, so the document scroll
-                and the descendants' `position: sticky` (header, banner) stay
-                intact. It is SEPARATE from the sticky mask/border overlays above
-                so their gutter box-shadow is never clipped. `flex-1` fills the
-                panel. */}
-            <View
-              className={cn(
-                "flex-1",
-                IS_WEB && isScreenNotMobile && "rounded-[28px] web:overflow-x-clip",
-              )}
-              style={mobileWebBottomInset ? { paddingBottom: mobileWebBottomInset } : undefined}
-            >
-              {centerContent}
-            </View>
-          </ThemedView>
+            {centerContent}
+          </ContentPanel>
         </BloomColorScope>
         </View>
         <RightBar />
