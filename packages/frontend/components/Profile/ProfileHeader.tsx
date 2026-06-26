@@ -139,8 +139,8 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
 }: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean }) {
   const theme = useTheme();
   return (
-    <View className="flex-row justify-between items-start mb-4 relative w-full">
-      <View className="flex-1 mr-4">
+    <View className="flex-row justify-between items-start mb-4 relative w-full gap-4">
+      <View className="flex-1">
         <UserNameComponent
           name={displayName}
           handle={username}

@@ -42,6 +42,7 @@ export const ProfileStats = memo(function ProfileStats({
   return (
     <View className="gap-2.5" style={styles.container}>
       <TouchableOpacity
+        className="gap-1"
         style={styles.statItem}
         onPress={handleFollowingPress}
         disabled={!displayUsername}
@@ -55,6 +56,7 @@ export const ProfileStats = memo(function ProfileStats({
       </TouchableOpacity>
 
       <TouchableOpacity
+        className="gap-1"
         style={styles.statItem}
         onPress={handleFollowersPress}
         disabled={!displayUsername}
@@ -68,6 +70,7 @@ export const ProfileStats = memo(function ProfileStats({
       </TouchableOpacity>
 
       <TouchableOpacity
+        className="gap-1"
         style={styles.statItem}
         onPress={onPostsPress}
       >
@@ -80,6 +83,7 @@ export const ProfileStats = memo(function ProfileStats({
       </TouchableOpacity>
 
       <TouchableOpacity
+        className="gap-1"
         style={styles.statItem}
         onPress={onBoostsPress}
       >
@@ -92,6 +96,7 @@ export const ProfileStats = memo(function ProfileStats({
       </TouchableOpacity>
 
       <TouchableOpacity
+        className="gap-1"
         style={styles.statItem}
         onPress={onRepliesPress}
       >
@@ -119,7 +124,6 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 15,
     fontWeight: '700',
-    marginRight: 4,
   },
   statLabel: {
     fontSize: 15,

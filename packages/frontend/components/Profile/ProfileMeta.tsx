@@ -39,11 +39,11 @@ export const ProfileMeta = memo(function ProfileMeta({
   }
 
   return (
-    <View className="flex-row flex-wrap mb-3">
+    <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
       {hasLocation && (
-        <View className="flex-row items-center mr-4 mb-1">
+        <View className="flex-row items-center gap-1">
           <LocationIcon size={16} className="text-muted-foreground" />
-          <Text className="text-muted-foreground text-[15px] ml-1">
+          <Text className="text-muted-foreground text-[15px]">
             {location}
           </Text>
         </View>
@@ -55,14 +55,14 @@ export const ProfileMeta = memo(function ProfileMeta({
         return (
           <TouchableOpacity
             key={index}
-            className="flex-row items-center mr-4 mb-1"
+            className="flex-row items-center gap-1"
             onPress={() => Linking.openURL(href)}
             activeOpacity={0.7}
           >
             <View style={{ transform: [{ rotate: '-45deg' }] }}>
               <LinkIcon size={16} className="text-muted-foreground" />
             </View>
-            <Text className="text-primary text-[15px] ml-1 underline">
+            <Text className="text-primary text-[15px] underline">
               {displayText}
             </Text>
           </TouchableOpacity>
@@ -71,7 +71,7 @@ export const ProfileMeta = memo(function ProfileMeta({
 
       {hasJoinDate && (
         <TouchableOpacity
-          className="flex-row items-center mr-4 mb-1"
+          className="flex-row items-center gap-1"
           onPress={() => {
             if (targetHandle) {
               router.push(`/@${targetHandle}/about`);
@@ -81,10 +81,10 @@ export const ProfileMeta = memo(function ProfileMeta({
           activeOpacity={0.7}
         >
           <CalendarIcon size={16} className="text-muted-foreground" />
-          <Text className="text-muted-foreground text-[15px] ml-1">
+          <Text className="text-muted-foreground text-[15px]">
             {t('profile.joined')} {formatJoinDate(createdAt!)}
           </Text>
-          <ChevronRightIcon size={16} className="text-muted-foreground" style={{ marginLeft: 4 }} />
+          <ChevronRightIcon size={16} className="text-muted-foreground" />
         </TouchableOpacity>
       )}
     </View>

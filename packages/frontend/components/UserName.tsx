@@ -32,21 +32,21 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
 
     const content = (
         <View style={[styles.container, style?.container]}>
-            <View style={styles.nameRow}>
+            <View className="gap-1" style={styles.nameRow}>
                 <Text className="text-foreground" style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
                     {name}
                 </Text>
                 {verified && (
-                    <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
                 {isFederated && (
-                    <FediverseIcon size={iconSize} color={theme.colors.text} style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <FediverseIcon size={iconSize} color={theme.colors.text} style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
                 {isAgent && (
-                    <AgentIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <AgentIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
                 {isAutomated && (
-                    <AutomatedIcon size={iconSize} className="text-muted-foreground" style={[styles.badgeIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <AutomatedIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
             </View>
             {handle ? (
@@ -108,9 +108,6 @@ const styles = StyleSheet.create({
     handle: {
         fontSize: 15,
         lineHeight: 20,
-    },
-    badgeIcon: {
-        marginLeft: 4,
     },
 });
 

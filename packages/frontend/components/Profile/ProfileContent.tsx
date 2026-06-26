@@ -152,10 +152,10 @@ export const ProfileContent = memo(function ProfileContent({
           {profileData.fields.map((field, i) => (
             <View
               key={i}
-              className="flex-row items-center py-1.5 border-b border-border"
+              className="flex-row items-center py-1.5 border-b border-border gap-2"
               style={{ borderBottomWidth: StyleSheet.hairlineWidth }}
             >
-              <Text className="text-muted-foreground text-[13px] font-semibold" style={{ width: 100, marginRight: 8 }} numberOfLines={1}>
+              <Text className="text-muted-foreground text-[13px] font-semibold" style={{ width: 100 }} numberOfLines={1}>
                 {field.name}
               </Text>
               <LinkifiedText
@@ -164,7 +164,7 @@ export const ProfileContent = memo(function ProfileContent({
                 style={{ fontSize: 14, flex: 1 }}
               />
               {field.verifiedAt && (
-                <Ionicons name="checkmark-circle" size={14} color="#2ecc71" style={{ marginLeft: 4 }} />
+                <Ionicons name="checkmark-circle" size={14} color="#2ecc71" />
               )}
             </View>
           ))}

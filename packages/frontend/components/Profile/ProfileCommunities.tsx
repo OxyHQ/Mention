@@ -40,9 +40,9 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
 
   return (
     <View className="bg-muted border border-border rounded-xl p-3 mb-3">
-      <View className="flex-row mb-3">
+      <View className="flex-row mb-3 gap-3">
         {community.icon && (
-          <View className="rounded-lg mr-3 overflow-hidden" style={{ width: 100, height: 100 }}>
+          <View className="rounded-lg overflow-hidden" style={{ width: 100, height: 100 }}>
             <Image
               source={{ uri: community.icon }}
               resizeMode="cover"

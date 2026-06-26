@@ -157,6 +157,11 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
 
     const isLoading = (mediaFeed?.isLoading || postsFeed?.isLoading) && videoItems.length === 0;
 
+    const gridItemStyle = useMemo(() => ({
+        width: itemSize,
+        height: itemSize,
+    }), [itemSize]);
+
     const renderItem = useCallback(({ item }: { item: VideoGridEntry }) => {
         const handlePress = () => {
             router.push(`/videos?postId=${item.postId}`);
@@ -165,7 +170,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         return (
             <TouchableOpacity
                 activeOpacity={0.8}
-                style={{ width: itemSize, height: itemSize, marginRight: GAP, marginBottom: GAP }}
+                style={gridItemStyle}
                 onPress={handlePress}
             >
                 <VideoPosterCell
@@ -176,7 +181,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                 />
             </TouchableOpacity>
         );
-    }, [itemSize, router, theme.colors.textSecondary]);
+    }, [itemSize, router, gridItemStyle, theme.colors.textSecondary]);
 
     const keyExtractor = useCallback((it: VideoGridEntry, index: number) =>
         `${it.postId}:${it.mediaIndex ?? index}`, []);
@@ -223,8 +228,8 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
                 nestedScrollEnabled={false}
                 getItemLayout={getItemLayout}
                 removeClippedSubviews
-                contentContainerStyle={{ paddingHorizontal: H_PADDING }}
-                columnWrapperStyle={NUM_COLUMNS > 1 ? { gap: GAP } : undefined}
+                contentContainerStyle={{ gap: GAP, paddingHorizontal: H_PADDING }}
+                columnWrapperStyle={{ gap: GAP }}
             />
         </View>
     );
