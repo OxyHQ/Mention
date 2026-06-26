@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 import { cn } from '@/lib/utils';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
 /**
  * Centralized panel insets + sticky chrome for the desktop-web rounded center
@@ -57,25 +58,40 @@ const CHROME_Z_INDEX = 101;
  * `web:z-[…]`, negative margins and pointer-events. Those layers keep their
  * `web:sticky` class and spread this style so the inset value still comes from
  * the single `PANEL_TOP_INSET` source of truth (no literal `web:top-2` per
- * screen). Empty on native, where those layers are absolute overlays.
+ * screen).
+ *
+ * Breakpoint-aware: the `PANEL_TOP_INSET` gutter only exists while the rounded
+ * shell frame is shown. That frame is gated on the SAME `useIsScreenNotMobile`
+ * (>=500px) breakpoint as the left sidebar, so once the shell drops to
+ * full-bleed (sidebar hidden) the gutter is gone and this inset collapses to 0
+ * — the chrome pins flush to the viewport top instead of leaving a stray gutter
+ * band. Empty on native, where those layers are absolute overlays.
  */
-export const panelStickyTopInset: ViewStyle = IS_WEB ? { top: PANEL_TOP_INSET } : {};
+export function usePanelStickyTopInset(): ViewStyle {
+    const framed = useIsScreenNotMobile();
+    return IS_WEB ? { top: framed ? PANEL_TOP_INSET : 0 } : {};
+}
 
 /**
  * Web-only `top` offset (px) for the SECOND tier of bespoke sticky chrome — a
- * row that must pin directly BELOW a `panelStickyTopInset` header band so the
+ * row that must pin directly BELOW a `usePanelStickyTopInset` header band so the
  * two stack instead of overlapping. This is the `level={1}` analogue of
- * `panelStickyTopInset` for layers that can't use the full <PanelStickyHeader>
+ * `usePanelStickyTopInset` for layers that can't use the full <PanelStickyHeader>
  * wrapper (e.g. the profile tab bar, which pins flush under the profile's
  * 0-flow-height header chrome — banner fade + action cluster + compact name).
- * Derived from the SAME constants as the home `level={1}` header
- * (`PANEL_TOP_INSET + PANEL_HEADER_HEIGHT` = `web:top-[56px]`), so the stacked
- * offset has one source of truth. Empty on native, where the header chrome is
- * an absolute overlay and the tab bar pins via `stickyHeaderIndices`.
+ * Derived from the SAME constants as the home `level={1}` header, so the stacked
+ * offset has one source of truth: framed = `PANEL_TOP_INSET + PANEL_HEADER_HEIGHT`
+ * (`web:top-[56px]`); full-bleed drops the top gutter so it pins at just
+ * `PANEL_HEADER_HEIGHT` (`web:top-[48px]`), in lockstep with the level-0 inset
+ * above. Empty on native, where the header chrome is an absolute overlay and the
+ * tab bar pins via `stickyHeaderIndices`.
  */
-export const panelStickyTabsTopInset: ViewStyle = IS_WEB
-    ? { top: PANEL_TOP_INSET + PANEL_HEADER_HEIGHT }
-    : {};
+export function usePanelStickyTabsTopInset(): ViewStyle {
+    const framed = useIsScreenNotMobile();
+    return IS_WEB
+        ? { top: framed ? PANEL_TOP_INSET + PANEL_HEADER_HEIGHT : PANEL_HEADER_HEIGHT }
+        : {};
+}
 
 type ChromeLevel = 0 | 1;
 
@@ -112,16 +128,20 @@ interface PanelStickyHeaderProps {
 }
 
 /**
- * The web sticky inset for a given chrome level. NativeWind needs the class
- * present as a string literal at build time, so the two levels are spelled out
- * rather than interpolated — but the OFFSET VALUES are derived from the
- * exported constants, so there is a single source of truth (`web:top-2` is
- * `PANEL_TOP_INSET` rem/4 = 8px; `web:top-[56px]` is `PANEL_TOP_INSET +
- * PANEL_HEADER_HEIGHT`).
+ * The web sticky inset for a given chrome level, in BOTH shell states. NativeWind
+ * needs the class present as a string literal at build time, so all four
+ * positions are spelled out rather than interpolated — but the OFFSET VALUES are
+ * still derived from the exported constants (single source of truth): `framed`
+ * pins at `PANEL_TOP_INSET` (`web:top-2` = 8px) / `PANEL_TOP_INSET +
+ * PANEL_HEADER_HEIGHT` (`web:top-[56px]`); `bleed` drops the top gutter to 0
+ * (`web:top-0`) / `PANEL_HEADER_HEIGHT` (`web:top-[48px]`). Which column is used
+ * is selected by the SAME `useIsScreenNotMobile` (>=500px) breakpoint that shows
+ * the left sidebar + the rounded shell frame, so the chrome's top gutter
+ * collapses to 0 in lockstep with the frame at full-bleed.
  */
-const STICKY_TOP_CLASS: Record<ChromeLevel, string> = {
-    0: 'web:top-2',
-    1: 'web:top-[56px]',
+const STICKY_TOP_CLASS: Record<'framed' | 'bleed', Record<ChromeLevel, string>> = {
+    framed: { 0: 'web:top-2', 1: 'web:top-[56px]' },
+    bleed: { 0: 'web:top-0', 1: 'web:top-[48px]' },
 };
 
 /**
@@ -138,15 +158,21 @@ export function PanelStickyHeader({
     style,
     className,
 }: PanelStickyHeaderProps) {
+    // The rounded shell frame (gutter inset + rounded corners) is shown only at
+    // the same >=500px breakpoint as the left sidebar. Below it the shell is
+    // full-bleed, so the chrome pins flush (`web:top-0`) with no rounded top
+    // corners instead of leaving a stray gutter band — the same `framed` signal
+    // drives the layout frame in `app/(app)/_layout.tsx`.
+    const framed = useIsScreenNotMobile();
     return (
         <Animated.View
             pointerEvents={pointerEventsNone ? 'none' : 'auto'}
             className={cn(
                 'left-0 right-0',
                 IS_WEB && 'web:sticky',
-                IS_WEB && STICKY_TOP_CLASS[level],
+                IS_WEB && STICKY_TOP_CLASS[framed ? 'framed' : 'bleed'][level],
                 IS_WEB && opaque && 'web:bg-card',
-                IS_WEB && rounded && 'web:rounded-t-[28px]',
+                IS_WEB && rounded && framed && 'web:rounded-t-[28px]',
                 IS_WEB && pointerEventsNone && 'web:pointer-events-none',
                 className,
             )}
@@ -191,13 +217,18 @@ const FOOTER_NATIVE_Z_INDEX = 999;
  * Sticky chrome pinned at the rounded panel's bottom gutter inset on web; a
  * bottom-anchored absolute overlay on native.
  *
- * WEB `web:bottom-2` (= PANEL_BOTTOM_INSET, NOT 0): the bleed-mask's 40px
- * gutter box-shadow covers the bottom `PANEL_BOTTOM_INSET` px of the viewport,
- * so a footer at bottom:0 would be clipped. The footer rounds its OWN bottom
- * corners (`md:rounded-b-[28px]`) to match the panel and `web:shrink-0` keeps it
- * from collapsing. The web `position: sticky` lives in the `web:sticky` class
- * (RN's typed `ViewStyle.position` has no `'sticky'`, so it is never written as
- * an inline style here). NATIVE: a bottom-anchored absolute overlay.
+ * WEB `web:bottom-2` (= PANEL_BOTTOM_INSET, NOT 0) while the rounded frame is
+ * shown: the bleed-mask's 40px gutter box-shadow covers the bottom
+ * `PANEL_BOTTOM_INSET` px of the viewport, so a footer at bottom:0 would be
+ * clipped, and the footer rounds its OWN bottom corners (`web:rounded-b-[28px]`)
+ * to match the panel. The frame is gated on the SAME `useIsScreenNotMobile`
+ * (>=500px) breakpoint as the left sidebar, so once the shell drops to
+ * full-bleed (sidebar hidden, no bleed mask) the footer pins flush
+ * (`web:bottom-0`) with no rounded corners — its bottom gutter collapses in
+ * lockstep with the frame. `web:shrink-0` keeps it from collapsing. The web
+ * `position: sticky` lives in the `web:sticky` class (RN's typed
+ * `ViewStyle.position` has no `'sticky'`, so it is never written as an inline
+ * style here). NATIVE: a bottom-anchored absolute overlay.
  */
 export function PanelStickyFooter({
     children,
@@ -205,11 +236,16 @@ export function PanelStickyFooter({
     className,
     style,
 }: PanelStickyFooterProps) {
+    // Same `framed` signal as PanelStickyHeader / the layout frame: the bottom
+    // gutter inset + rounded bottom corners exist only while the rounded shell
+    // frame is shown (>=500px). Below it the shell is full-bleed → pin flush.
+    const framed = useIsScreenNotMobile();
     return (
         <Animated.View
             className={cn(
                 'w-full',
-                IS_WEB && 'web:sticky web:bottom-2 web:shrink-0 md:rounded-b-[28px]',
+                IS_WEB && 'web:sticky web:shrink-0',
+                IS_WEB && (framed ? 'web:bottom-2 web:rounded-b-[28px]' : 'web:bottom-0'),
                 className,
             )}
             style={[

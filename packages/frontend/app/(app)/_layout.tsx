@@ -179,15 +179,18 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
         {/* Gutter wrapper (desktop web only). This is the `bg-background` band
             that shows AROUND the floating panel — 8px on top/right/bottom, 0 on
             the left so the panel meets the rail flush (mirrors Mercaria's
-            `md:p-2 md:pl-0`). The padding is the gutter; the rounded `bg-card`
+            `p-2 pl-0`). The padding is the gutter; the rounded `bg-card`
             panel below floats inside it with all four corners visible. Gated to
-            `md:` so mobile / <md stays full-bleed (no padding, the panel fills
+            the SAME `isScreenNotMobile` (>=500px) breakpoint that shows the left
+            sidebar — NOT the wider `md:` (768px) — so the gutter margins persist
+            for exactly as long as the sidebar does and the panel drops to
+            full-bleed only when the sidebar hides (no padding, the panel fills
             the column edge-to-edge). The wrapper carries the column's flex
             weight; the inner panel fills the padded box (`flex: 1`). */}
         <View
           className={cn(
             "bg-background",
-            IS_WEB && isScreenNotMobile && "md:p-2 md:pl-0",
+            IS_WEB && isScreenNotMobile && "p-2 pl-0",
           )}
           style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
         >
@@ -201,8 +204,9 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
               !IS_WEB && "overflow-hidden",
               !IS_WEB && isScreenNotMobile && "border-x border-border",
               // Desktop web: rounded card panel floating inside the gutter
-              // wrapper (full-bleed below md / mobile). The panel surface
-              // (`bg-card` + `rounded-[28px]`) lives here, but it has NO border —
+              // wrapper (full-bleed below the sidebar breakpoint / mobile). The
+              // panel surface (`bg-card` + `rounded-[28px]`) lives here, but it
+              // has NO border —
               // the single continuous rounded border is owned by ONE frame
               // overlay painted ABOVE all content (see below). Putting a border
               // here too would double the line / leave seams where the opaque
@@ -212,11 +216,13 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
               // sticky mask/border overlays' gutter box-shadow, mirroring how
               // Mercaria puts overflow-x-clip on the content panel, not the
               // frame.)
-              IS_WEB && isScreenNotMobile && "md:rounded-[28px] md:bg-card",
+              IS_WEB && isScreenNotMobile && "rounded-[28px] bg-card",
             )}
           >
-            {/* Two SEPARATE desktop-web overlays (gated `max-md:hidden`), both
-                STICKY to the viewport with ~0 layout height (negative bottom
+            {/* Two SEPARATE desktop-web overlays (rendered only when
+                `isScreenNotMobile` — the SAME >=500px breakpoint that shows the
+                sidebar + gutter margins, so the frame never diverges from them),
+                both STICKY to the viewport with ~0 layout height (negative bottom
                 margin) so they frame the column without pushing content, and both
                 `pointer-events-none`. Conceptually split per the design:
 
@@ -240,12 +246,12 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
               <>
                 <View
                   pointerEvents="none"
-                  className="max-md:hidden web:sticky web:top-2 z-30 h-[calc(100dvh-16px)] w-full rounded-[28px] web:[margin-bottom:calc(-100dvh+16px)] web:[clip-path:inset(-12px)]"
+                  className="web:sticky web:top-2 z-30 h-[calc(100dvh-16px)] w-full rounded-[28px] web:[margin-bottom:calc(-100dvh+16px)] web:[clip-path:inset(-12px)]"
                   style={{ boxShadow: `0 0 0 ${GUTTER_MASK_SPREAD}px ${theme.colors.background}` }}
                 />
                 <View
                   pointerEvents="none"
-                  className="max-md:hidden web:sticky web:top-2 z-[120] h-[calc(100dvh-16px)] w-full rounded-[28px] border border-border web:[margin-bottom:calc(-100dvh+16px)]"
+                  className="web:sticky web:top-2 z-[120] h-[calc(100dvh-16px)] w-full rounded-[28px] border border-border web:[margin-bottom:calc(-100dvh+16px)]"
                 />
               </>
             )}
@@ -262,7 +268,7 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
             <View
               className={cn(
                 "flex-1",
-                IS_WEB && isScreenNotMobile && "md:rounded-[28px] web:overflow-x-clip",
+                IS_WEB && isScreenNotMobile && "rounded-[28px] web:overflow-x-clip",
               )}
               style={mobileWebBottomInset ? { paddingBottom: mobileWebBottomInset } : undefined}
             >

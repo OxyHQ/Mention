@@ -34,7 +34,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-import { panelStickyTopInset, panelStickyTabsTopInset, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
+import { usePanelStickyTopInset, usePanelStickyTabsTopInset, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
 
 // Icons
 import { Search } from '@/assets/icons/search-icon';
@@ -125,6 +125,14 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const bottomSheet = useContext(BottomSheetContext);
+
+    // Web sticky-chrome top insets, resolved from the shared PanelChrome source
+    // of truth. They carry the panel's `PANEL_TOP_INSET` gutter while the rounded
+    // shell frame is shown (>=500px, same breakpoint as the sidebar) and collapse
+    // to 0 at full-bleed so the profile banner / header band / tab bar pin flush
+    // to the viewport top instead of leaving a stray gutter band.
+    const panelStickyTopInset = usePanelStickyTopInset();
+    const panelStickyTabsTopInset = usePanelStickyTabsTopInset();
 
     // Component references
     const FollowButtonComponent = (OxyServicesNS as { FollowButton?: FollowButtonComponent })
@@ -771,11 +779,14 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 {/* Tabs — sticky in the SECOND tier, pinned flush
                                     BELOW the header chrome band (`web:sticky` +
                                     `panelStickyTabsTopInset` = PANEL_TOP_INSET +
-                                    PANEL_HEADER_HEIGHT, the same 56px offset the home
-                                    screen's `level={1}` tab bar uses). The banner
-                                    fade, action cluster and compact-name overlay above
-                                    all pin at the FIRST tier (`panelStickyTopInset`,
-                                    PANEL_TOP_INSET); pinning the tab bar at that same
+                                    PANEL_HEADER_HEIGHT while framed, the same 56px
+                                    offset the home screen's `level={1}` tab bar uses;
+                                    it collapses to just PANEL_HEADER_HEIGHT at
+                                    full-bleed, in lockstep with the first-tier inset).
+                                    The banner fade, action cluster and compact-name
+                                    overlay above all pin at the FIRST tier
+                                    (`panelStickyTopInset`, PANEL_TOP_INSET while framed,
+                                    0 at full-bleed); pinning the tab bar at that same
                                     inset made the two bands occupy the same vertical
                                     space and OVERLAP. Stacking the tabs one header
                                     height down lands them directly under the header
