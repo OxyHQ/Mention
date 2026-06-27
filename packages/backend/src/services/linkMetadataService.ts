@@ -33,7 +33,8 @@ const DEFAULT_AWAIT_IMAGE_CACHE = false;
 
 /**
  * Service to fetch link metadata (Open Graph, Twitter Cards, etc.)
- * Uses url-metadata library for reliable extraction
+ * Fetches the page over the SSRF-safe single-hop fetcher and extracts Open
+ * Graph / Twitter Card tags from the HTML head locally (no third-party lib).
  */
 class LinkMetadataService {
   // Tight timeout for the remote page fetch. This now runs exclusively OFF the
