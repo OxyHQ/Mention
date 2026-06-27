@@ -201,6 +201,11 @@ export class ActorService {
         || normalizeFederatedAcct(`${username}@${actorHost}`)
         || `${String(username).toLowerCase()}@${actorHost}`;
       const domain = domainFromAcct(acct) || actorHost;
+      // Re-check against the RESOLVED host/acct (post-redirect / WebFinger), which
+      // can differ from the originally-requested URI host the early-return guard
+      // (~line 167, before any network I/O) already screened. WebFinger/redirects
+      // may land us on an own/blocked domain even when the requested URI did not —
+      // so this guard is NOT redundant with the early one and must stay.
       if (isBlockedDomain(domain) || isBlockedDomain(actorHost)) {
         logger.info(`[FedSync] fetchRemoteActor blocked domain ${domain} actorHost=${actorHost} for ${actorUri}`);
         return null;

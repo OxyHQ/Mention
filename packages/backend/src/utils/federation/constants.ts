@@ -1,4 +1,4 @@
-import { getDomain } from 'tldts';
+import { registrableApex } from '@oxyhq/core';
 import { logger } from '../logger';
 
 export const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
@@ -22,9 +22,16 @@ export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
  * non-production anchors. The trailing literal is only reached if the API URL is
  * malformed (no registrable domain) and no override is set.
  */
+const oxyApiHost = (() => {
+  try {
+    return new URL(OXY_API_URL).hostname;
+  } catch {
+    return OXY_API_URL;
+  }
+})();
 export const OXY_IDENTITY_APEX = (
   process.env.OXY_IDENTITY_APEX
-  || getDomain(OXY_API_URL)
+  || registrableApex(oxyApiHost)
   || 'oxy.so'
 ).toLowerCase();
 export const FEDERATION_ENABLED = process.env.FEDERATION_ENABLED !== 'false';

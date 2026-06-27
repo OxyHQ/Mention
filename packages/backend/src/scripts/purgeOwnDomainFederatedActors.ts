@@ -33,6 +33,7 @@
 import mongoose from 'mongoose';
 import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
+import { connectToDatabase } from '../utils/database';
 import { isBlockedDomain } from '../utils/federation/constants';
 import { logger } from '../utils/logger';
 
@@ -45,10 +46,7 @@ const DELETE_CHUNK_SIZE = 500;
 /** Sample of orphaned-follow URIs to print in the summary. */
 const REFERENCED_SAMPLE_LIMIT = 25;
 
-const DRY_RUN = (() => {
-  const raw = (process.env.DRY_RUN || '').trim().toLowerCase();
-  return raw === '1' || raw === 'true' || raw === 'yes';
-})();
+const DRY_RUN = ['1', 'true', 'yes'].includes((process.env.DRY_RUN || '').trim().toLowerCase());
 
 interface FederatedActorRow {
   _id: mongoose.Types.ObjectId;
@@ -78,13 +76,11 @@ function isOwnDomainActor(row: FederatedActorRow): boolean {
 
 async function purgeOwnDomainFederatedActors(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
-    await mongoose.connect(mongoUri, { dbName });
+    await connectToDatabase();
     logger.info(
-      `[purgeOwnDomainFederatedActors] connected to MongoDB (${dbName})${DRY_RUN ? ' — DRY_RUN (no writes)' : ''}`,
+      `[purgeOwnDomainFederatedActors] connected to MongoDB${DRY_RUN ? ' — DRY_RUN (no writes)' : ''}`,
     );
 
     let scanned = 0;
