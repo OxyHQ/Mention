@@ -15,6 +15,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { enqueueDelivery } from '../../queue/producers';
 import { actorService } from './ActorService';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
+import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
 const DELIVERY_RESPONSE_PREVIEW_MAX_BYTES = 1024;
@@ -113,6 +114,15 @@ export class FollowService {
     targetInbox: string,
     senderOxyUserId: string,
   ): Promise<void> {
+    // Defense-in-depth: never enqueue a durable delivery to an unsafe inbox
+    // URL. The per-send fetch in `deliverActivity` is already SSRF-pinned, but
+    // a blocked URL would otherwise sit in the queue and be retried forever.
+    const guard = await assertSafePublicUrl(targetInbox);
+    if (!guard.ok) {
+      logger.warn(`[FedDeliver] not queueing unsafe inbox URL ${targetInbox}: ${guard.reason}`);
+      return;
+    }
+
     const enqueued = await enqueueDelivery({
       activityJson: activity,
       targetInbox,
