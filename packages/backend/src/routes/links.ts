@@ -166,12 +166,14 @@ router.post('/refresh', linkRefreshRateLimiter, requireAuth, async (req: AuthReq
       });
     }
 
-    // Security validation
-    const securityCheck = validateUrlSecurity(url);
-    if (!securityCheck.valid) {
+    // Security validation (SSRF protection). Perform DNS/IP checks for this
+    // public server-side fetch endpoint before handing the URL to the service.
+    const securityCheck = await assertSafePublicUrl(url);
+    if (!securityCheck.ok) {
+      logger.warn('[Links] Security check failed:', { url, error: securityCheck.reason });
       return res.status(400).json({
         success: false,
-        message: securityCheck.error || 'URL security validation failed',
+        message: 'URL security validation failed',
       });
     }
 
