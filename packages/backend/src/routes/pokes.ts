@@ -113,23 +113,31 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    // Fetch existing pokes, followers, and following in parallel
-    const [existingPokes, followersResult, followingResult] = await Promise.all([
-      Poke.find({ pokerId: userId }).select('pokedId').lean(),
+    // Fetch followers and following in parallel. Do NOT load the caller's full
+    // poke history — only the poke state for the suggestion candidates is
+    // needed, and an unbounded `Poke.find({ pokerId })` scans every poke the
+    // caller has ever sent.
+    const [followersResult, followingResult] = await Promise.all([
       oxy.getUserFollowers(userId).catch(() => []),
       oxy.getUserFollowing(userId).catch(() => []),
     ]);
-    const alreadyPokedIds = new Set(existingPokes.map((p) => p.pokedId));
 
     const followerIds = extractUsersFromResult(followersResult, 'followers').map((user) => user.id);
     const followingIds = extractUsersFromResult(followingResult, 'following').map((user) => user.id);
 
-    // Merge and deduplicate, excluding self and already-poked
-    const candidateIds = [...new Set([...followerIds, ...followingIds])]
-      .filter((id) => id !== userId && !alreadyPokedIds.has(id));
+    // Merge and deduplicate the follow graph, excluding self.
+    const candidatePool = [...new Set([...followerIds, ...followingIds])]
+      .filter((id) => id !== userId);
 
-    // Limit to 20 suggestions
-    const limitedIds = candidateIds.slice(0, 20);
+    // Bound the poke-state lookup to the suggestion candidates instead of the
+    // caller's entire poke history.
+    const existingPokes = candidatePool.length > 0
+      ? await Poke.find({ pokerId: userId, pokedId: { $in: candidatePool } }).select('pokedId').lean()
+      : [];
+    const alreadyPokedIds = new Set(existingPokes.map((p) => p.pokedId));
+
+    // Exclude already-poked candidates, then limit to 20 suggestions.
+    const limitedIds = candidatePool.filter((id) => !alreadyPokedIds.has(id)).slice(0, 20);
     const profiles = await resolveUsers(limitedIds);
 
     const items = limitedIds.flatMap((id) => {
