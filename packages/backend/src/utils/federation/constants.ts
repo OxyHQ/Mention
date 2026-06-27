@@ -1,3 +1,4 @@
+import { getDomain } from 'tldts';
 import { logger } from '../logger';
 
 export const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
@@ -6,6 +7,26 @@ if (ACTOR_DOMAIN !== FEDERATION_DOMAIN) {
   logger.warn(`Federation domains differ: ACTOR_DOMAIN=${ACTOR_DOMAIN} FEDERATION_DOMAIN=${FEDERATION_DOMAIN}`);
 }
 export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+
+/**
+ * Oxy's identity apex — the anchor domain of the DID layer. Every Oxy/Mention
+ * user is ALSO published as `acct:<username>@<apex>` (e.g. `acct:alice@oxy.so`),
+ * so an actor on this apex is one of OUR OWN users, never a remote federated
+ * source. Treating it as remote makes `ActorService.fetchRemoteActor` create
+ * duplicate `FederatedActor` rows for local users and call Oxy
+ * `PUT /users/resolve` against the platform's own identities — hence it is
+ * folded into {@link isBlockedDomain} below.
+ *
+ * Derived from `OXY_API_URL`'s registrable domain via the Public Suffix List
+ * (`https://api.oxy.so` → `oxy.so`); overridable with `OXY_IDENTITY_APEX` for
+ * non-production anchors. The trailing literal is only reached if the API URL is
+ * malformed (no registrable domain) and no override is set.
+ */
+export const OXY_IDENTITY_APEX = (
+  process.env.OXY_IDENTITY_APEX
+  || getDomain(OXY_API_URL)
+  || 'oxy.so'
+).toLowerCase();
 export const FEDERATION_ENABLED = process.env.FEDERATION_ENABLED !== 'false';
 export const FEDERATION_MAX_CONTENT_LENGTH = parseInt(process.env.FEDERATION_MAX_CONTENT_LENGTH || '50000', 10);
 export const FEDERATION_DELIVERY_RETRIES = parseInt(process.env.FEDERATION_DELIVERY_RETRIES || '5', 10);
@@ -66,7 +87,11 @@ export function sharedInboxUrl(): string {
   return `https://${FEDERATION_DOMAIN}/ap/inbox`;
 }
 
-/** Own domains that must never be treated as remote federated sources. */
+/**
+ * Domains where WE mint ActivityPub URIs. Used to recognise our own post URIs
+ * (see {@link extractLocalPostIdFromApUri}); the Oxy identity apex is NOT here
+ * because Oxy does not mint Mention post URIs — it only publishes user DIDs.
+ */
 const LOCAL_DOMAINS = new Set([
   FEDERATION_DOMAIN.toLowerCase(),
   ACTOR_DOMAIN.toLowerCase(),
@@ -74,11 +99,15 @@ const LOCAL_DOMAINS = new Set([
 
 /**
  * Returns true if the domain should be rejected for federation.
- * Includes our own domains (prevents duplicate users) and explicitly blocked domains.
+ *
+ * Includes our own ActivityPub domains AND Oxy's identity apex
+ * ({@link OXY_IDENTITY_APEX}) — both publish our own users, so resolving an
+ * actor there would create duplicate `FederatedActor` rows for local users —
+ * plus any explicitly configured `FEDERATION_BLOCKED_DOMAINS`.
  */
 export function isBlockedDomain(domain: string): boolean {
   const d = domain.toLowerCase();
-  return LOCAL_DOMAINS.has(d) || FEDERATION_BLOCKED_DOMAINS.has(d);
+  return LOCAL_DOMAINS.has(d) || d === OXY_IDENTITY_APEX || FEDERATION_BLOCKED_DOMAINS.has(d);
 }
 
 export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;

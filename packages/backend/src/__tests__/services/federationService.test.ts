@@ -424,6 +424,30 @@ describe('federationService.fetchRemoteActor', () => {
     expect(mocks.uploadProfileBanner).not.toHaveBeenCalled();
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });
+
+  it('skips actors on the Oxy identity apex without fetching, creating a FederatedActor, or resolving an Oxy user', async () => {
+    // Oxy publishes every local user as `acct:<user>@oxy.so` via the DID layer,
+    // so an actor on our own identity apex must never be treated as a remote
+    // source — doing so duplicates a local user as a "federated" account. The
+    // guard must short-circuit BEFORE any network I/O; any fetch attempt here
+    // fails the test.
+    const fetchMock = vi.fn(async (url: string) => {
+      throw new Error(`unexpected fetch to own identity apex: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await federationService.fetchRemoteActor(
+      'https://oxy.so/u/69b2d3df5d12f58c9800d651',
+      false,
+      'alice@oxy.so',
+    );
+
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.fetchUpstreamSingleHop).not.toHaveBeenCalled();
+    expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+  });
 });
 
 describe('federationService.syncOutboxPostsDetailed', () => {

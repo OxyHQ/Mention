@@ -131,6 +131,18 @@ export class ActorService {
    */
   async fetchRemoteActor(actorUri: string, forceAvatarRefresh = false, acctHint?: string): Promise<IFederatedActor | null> {
     try {
+      // Reject our own/blocked domains before any network I/O. Oxy's identity
+      // apex publishes every local user as `acct:<user>@<apex>` (DID layer), so
+      // resolving such an actor would create a duplicate FederatedActor row for
+      // a local user and POST `/users/resolve` against the platform's own
+      // identity. A malformed URI throws here and is handled by the catch below,
+      // matching the prior behaviour where `signedFetch` would have failed.
+      const requestedHost = new URL(actorUri).hostname.toLowerCase();
+      if (isBlockedDomain(requestedHost)) {
+        logger.info(`[FedSync] fetchRemoteActor skipping own/blocked domain ${requestedHost} for ${actorUri}`);
+        return null;
+      }
+
       const canonicalAcctHint = normalizeFederatedAcct(acctHint);
       // Use signed fetch for servers that enforce authorized fetch (e.g., Threads)
       let res = await signedFetch(actorUri, AP_CONTENT_TYPE);
