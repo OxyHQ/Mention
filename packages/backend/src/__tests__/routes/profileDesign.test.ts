@@ -7,6 +7,13 @@ const { countDocuments, findOne } = vi.hoisted(() => ({
   findOne: vi.fn(),
 }));
 
+// `privacyHelpers` (loaded via importActual below) imports `oxy` from the
+// server entrypoint, which would otherwise pull the whole Express app into the
+// module graph and trigger a circular import (server.ts mounts the very route
+// under test). Stub it so the route can be imported in isolation — same pattern
+// as notificationActor.test.ts.
+vi.mock('../../../server', () => ({ oxy: {} }));
+
 vi.mock('../../models/Post', () => ({
   default: { countDocuments },
 }));
@@ -15,13 +22,20 @@ vi.mock('../../models/UserSettings', () => ({
   default: { findOne },
 }));
 
-vi.mock('../../utils/privacyHelpers', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/privacyHelpers')>('../../utils/privacyHelpers');
-  return {
-    ...actual,
-    checkFollowAccess: vi.fn().mockResolvedValue(true),
-  };
-});
+// Mock privacyHelpers directly (not via importActual) — the real module imports
+// `oxy` from the server entrypoint, and importActual loads the genuine dep tree,
+// re-triggering the server circular import. The three exports the route uses are
+// reproduced faithfully: requiresAccessCheck mirrors the real predicate.
+vi.mock('../../utils/privacyHelpers', () => ({
+  ProfileVisibility: {
+    PUBLIC: 'public',
+    PRIVATE: 'private',
+    FOLLOWERS_ONLY: 'followers_only',
+  },
+  requiresAccessCheck: (visibility?: string) =>
+    visibility === 'private' || visibility === 'followers_only',
+  checkFollowAccess: vi.fn().mockResolvedValue(true),
+}));
 
 import profileDesignRoutes from '../../routes/profileDesign';
 

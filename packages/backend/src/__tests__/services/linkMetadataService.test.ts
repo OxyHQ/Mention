@@ -1,31 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Readable } from 'stream';
 
 /**
  * Verifies the `awaitImageCache` option on `linkMetadataService.fetchMetadata`.
  *
- * The og:image returned by `url-metadata` is full-res. On a cache MISS:
+ * The og:image parsed from the page HTML is full-res. On a cache MISS:
  *  - default (no option / response path): `result.image` is the RAW absolute
  *    image url and the downscale runs fire-and-forget (cacheImage still invoked).
  *  - `{ awaitImageCache: true }` (off-response-path): `result.image` is the
  *    AWAITED downscaled CDN url returned by `cacheImage`.
  *
- * `url-metadata` and `imageCacheService` are mocked so no real network or S3 is
- * touched. `getCachedImage` returns null to force the MISS branch.
+ * The upstream HTML fetch (`fetchUpstreamSingleHop`, the SSRF-safe fetcher the
+ * service now parses metadata from directly) and `imageCacheService` are mocked
+ * so no real network or S3 is touched. `getCachedImage` returns null to force
+ * the MISS branch.
  */
 
 const OG_IMAGE = 'https://example.com/og-image-1200.png';
 const PAGE_URL = 'https://example.com/article';
 const DOWNSCALED_CDN_URL = 'https://cdn.mention.earth/link-previews/abc123.webp';
 
+const PAGE_HTML = [
+  '<!DOCTYPE html><html><head>',
+  '<title>Example Article</title>',
+  '<meta property="og:description" content="A description">',
+  `<meta property="og:image" content="${OG_IMAGE}">`,
+  '<meta property="og:site_name" content="Example">',
+  '</head><body>page</body></html>',
+].join('\n');
+
 const mocks = vi.hoisted(() => ({
-  urlMetadata: vi.fn(),
+  fetchUpstreamSingleHop: vi.fn(),
   getCachedImage: vi.fn(),
   cacheImage: vi.fn(),
 }));
 
-vi.mock('url-metadata', () => ({
-  default: mocks.urlMetadata,
-}));
+vi.mock('../../utils/safeUpstreamFetch', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>('../../utils/safeUpstreamFetch');
+  return {
+    ...actual,
+    fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,
+  };
+});
 
 vi.mock('../../services/imageCacheService', () => ({
   imageCacheService: {
@@ -38,12 +54,12 @@ import { linkMetadataService } from '../../services/linkMetadataService';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.urlMetadata.mockResolvedValue({
-    title: 'Example Article',
-    description: 'A description',
-    image: OG_IMAGE,
-    'og:site_name': 'Example',
-  });
+  // A fresh single-use HTML stream per call (a Readable can only be drained once).
+  mocks.fetchUpstreamSingleHop.mockImplementation(async () => ({
+    response: Readable.from([Buffer.from(PAGE_HTML)]),
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+  }));
   // Force the cache-MISS branch in every test.
   mocks.getCachedImage.mockResolvedValue(null);
   mocks.cacheImage.mockResolvedValue(DOWNSCALED_CDN_URL);
