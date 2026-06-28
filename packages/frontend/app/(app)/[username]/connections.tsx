@@ -14,6 +14,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { precacheProfileViews } from '@/lib/precacheProfiles';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -30,6 +31,14 @@ import { isAuthError } from '@/utils/authErrors';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
+
+/**
+ * How long a fetched who-may-know page stays fresh before React Query refetches
+ * it on remount/focus. The backend already caches per-viewer for ~90s; a
+ * slightly shorter client window keeps suggestions fresh without re-hitting the
+ * endpoint every time the user toggles between connection tabs.
+ */
+const RECOMMENDATIONS_STALE_TIME_MS = 60_000;
 
 interface ConnectionUser {
   id?: string;
@@ -100,7 +109,6 @@ function ConnectionsContent({
   const [error, setError] = useState<string | null>(null);
   const [followers, setFollowers] = useState<ConnectionUser[]>([]);
   const [following, setFollowing] = useState<ConnectionUser[]>([]);
-  const [recommendations, setRecommendations] = useState<ConnectionUser[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -178,33 +186,63 @@ function ConnectionsContent({
     }
   }, [profileData?.id, oxyServices]);
 
-  // Load recommendations (who may know)
-  const loadRecommendations = useCallback(async () => {
-    try {
-      setError(null);
-      const recommendationsList = await fetchRecommendations();
-      setRecommendations(recommendationsList);
-      precacheProfileViews(queryClient, recommendationsList);
-    } catch (err) {
-      // Recommendations are public; on an auth error show the empty state rather
-      // than a scary error for logged-out visitors.
-      if (isAuthError(err)) {
-        logger.warn('Auth error loading recommendations, showing empty state', { error: err });
-        setRecommendations([]);
-      } else {
-        const message = err instanceof globalThis.Error ? err.message : 'Failed to load recommendations';
-        setError(message);
-        logger.error('Error loading recommendations', { error: err });
+  // Who-may-know recommendations are personalized for the SIGNED-IN VIEWER (not
+  // the profile being viewed) by `GET /recommendations` — an optional-auth,
+  // public endpoint (popular profiles logged-out, mutual-overlap personalized
+  // when a bearer is attached; it soft-fails to an empty list and never 401s).
+  //
+  // React Query owns this load, keyed on the viewer identity, for reasons the
+  // previous hand-rolled effect + useState could not provide and which caused
+  // the intermittent empty list:
+  //
+  //  1. De-dup + per-key correctness. On web cold boot the session restores
+  //     asynchronously (~5-25s via /sso), and `loadCurrentTab` was recreated
+  //     every time EITHER `profileData?.id` or `user?.id` landed — re-firing the
+  //     fetch effect and launching 2-3 concurrent `fetchRecommendations()` calls
+  //     with no stale-guard or cancellation. The last response to resolve won
+  //     regardless of which request it belonged to, so an out-of-order anonymous
+  //     (or soft-failed empty) response could clobber the good authenticated one.
+  //     With the viewer in the query key, anonymous and authenticated fetches are
+  //     SEPARATE, deduped queries: a stale response can no longer overwrite the
+  //     current key's data.
+  //  2. Refetch when the session lands. The key changes `anon` -> `<viewerId>`,
+  //     so the personalized list loads automatically once cold boot completes.
+  //  3. `keepPreviousData` keeps the anonymous list visible during that
+  //     transition, so the list never flashes empty.
+  //
+  // This is intentionally NOT gated on `canUsePrivateApi`: the endpoint is public
+  // and must still serve popular profiles logged-out. The only gate is the active
+  // tab, so we fetch when (and only when) who-may-know is shown.
+  const recommendationsQuery = useQuery<ConnectionUser[]>({
+    queryKey: ['connections', 'recommendations', user?.id ?? 'anon'],
+    queryFn: async () => {
+      try {
+        const list = await fetchRecommendations();
+        precacheProfileViews(queryClient, list);
+        return list;
+      } catch (err) {
+        // Recommendations are public; an auth error (no usable bearer yet on cold
+        // boot) shows the empty state rather than a scary error. Non-auth errors
+        // propagate so React Query surfaces them and applies its bounded retry.
+        if (isAuthError(err)) {
+          logger.warn('Auth error loading recommendations, showing empty state', { error: err });
+          return [];
+        }
+        throw err;
       }
-    }
-    // `user?.id` is a dependency so recommendations refetch when the viewer's
-    // auth session resolves on cold boot: who-may-know suggestions are
-    // personalized for the signed-in viewer. `oxyServices` is a stable
-    // singleton, so without this the list loads once while anonymous and never
-    // updates after sign-in.
-  }, [oxyServices, user?.id]);
+    },
+    enabled: activeTab === 'who-may-know',
+    placeholderData: keepPreviousData,
+    staleTime: RECOMMENDATIONS_STALE_TIME_MS,
+  });
+  const recommendations = useMemo<ConnectionUser[]>(
+    () => recommendationsQuery.data ?? [],
+    [recommendationsQuery.data],
+  );
 
-  // Load data based on active tab
+  // Load data based on active tab. Recommendations (who-may-know) are owned by
+  // React Query above; only the public followers/following lists flow through
+  // this imperative path.
   const loadCurrentTab = useCallback(async () => {
     setLoading(true);
     try {
@@ -212,20 +250,19 @@ function ConnectionsContent({
         await loadFollowers();
       } else if (activeTab === 'following') {
         await loadFollowing();
-      } else if (activeTab === 'who-may-know') {
-        await loadRecommendations();
       }
     } finally {
       setLoading(false);
     }
-  }, [activeTab, loadFollowers, loadFollowing, loadRecommendations]);
+  }, [activeTab, loadFollowers, loadFollowing]);
 
   // Depend on profileData?.id (primitive) instead of profileData (object reference)
   // to avoid re-fetching when the profile object is re-created with identical content
-  // (e.g. after the actor cache is primed with the same data).
+  // (e.g. after the actor cache is primed with the same data). Who-may-know is
+  // excluded here — it is driven by `recommendationsQuery`, not this effect.
   const profileId = profileData?.id;
   useEffect(() => {
-    if (profileId || activeTab === 'who-may-know') {
+    if (profileId && activeTab !== 'who-may-know') {
       loadCurrentTab();
     }
   }, [activeTab, profileId, loadCurrentTab]);
@@ -430,20 +467,40 @@ function ConnectionsContent({
     { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
   ], [t]);
 
+  // Loading/error/refresh are sourced per-tab: who-may-know reads its React
+  // Query state, while followers/following keep using the imperative state.
+  const isRecommendationsTab = activeTab === 'who-may-know';
+  const { refetch: refetchRecommendations } = recommendationsQuery;
+  const recommendationsErrorMessage = recommendationsQuery.isError
+    ? recommendationsQuery.error instanceof globalThis.Error
+      ? recommendationsQuery.error.message
+      : t('connections.failedRecommendations', { defaultValue: 'Failed to load recommendations' })
+    : null;
+  const activeLoading = isRecommendationsTab ? recommendationsQuery.isPending : loading;
+  const activeError = isRecommendationsTab ? recommendationsErrorMessage : error;
+  const activeRefreshing = isRecommendationsTab ? recommendationsQuery.isFetching : loading;
+  const refreshCurrent = useCallback(() => {
+    if (activeTab === 'who-may-know') {
+      void refetchRecommendations();
+    } else {
+      void loadCurrentTab();
+    }
+  }, [activeTab, refetchRecommendations, loadCurrentTab]);
+
   const renderContent = () => {
-    if (error && currentData.length === 0 && !loading) {
+    if (activeError && currentData.length === 0 && !activeLoading) {
       return (
         <ErrorComponent
           title={t('Error', { defaultValue: 'Error' })}
-          message={error}
-          onRetry={loadCurrentTab}
+          message={activeError}
+          onRetry={refreshCurrent}
           hideBackButton={true}
           style={{ flex: 1, paddingVertical: 40 }}
         />
       );
     }
 
-    if (loading && currentData.length === 0) {
+    if (activeLoading && currentData.length === 0) {
       return (
         <View className="flex-1 items-center justify-center gap-3 px-4">
           <Loading className="text-primary" size="large" />
@@ -489,8 +546,8 @@ function ConnectionsContent({
         recycleItems={true}
         maintainVisibleContentPosition={true}
         contentContainerStyle={{ paddingBottom: 20 }}
-        refreshing={loading}
-        onRefresh={loadCurrentTab}
+        refreshing={activeRefreshing}
+        onRefresh={refreshCurrent}
       />
     );
   };
