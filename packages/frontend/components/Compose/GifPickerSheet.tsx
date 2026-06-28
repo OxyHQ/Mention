@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   TextInput,
-  Image,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -15,9 +14,8 @@ import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
 import { show as toast } from '@oxyhq/bloom/toast';
-import { Platform } from 'react-native';
+import VideoPlayer from '@/components/common/VideoPlayer';
 import { api } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';
 import { normalizeApiError } from '@/utils/apiError';
@@ -31,11 +29,11 @@ interface GifPickerSheetProps {
 
 interface GifItem {
   id: string;
+  klipyId: string;
   slug: string;
   title: string;
-  url: string;        // full-size animated gif — upload fallback
-  mp4Url: string;     // mp4 video — preferred upload (≈10–20× smaller, full color)
-  thumbnail: string;  // grid thumbnail
+  mp4Url: string;      // full-size mp4 — attached to the post via /gifs/use
+  previewUrl: string;  // small looping muted mp4 for the grid tile
   width: number;
   height: number;
 }
@@ -50,7 +48,6 @@ interface GifSearchResponse {
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { oxyServices, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [gifs, setGifs] = useState<GifItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,86 +98,23 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       setSelectedGif(gif.id);
       setUploading(true);
 
-      // Prefer the MP4 (≈10–20× smaller, full color, hardware-decoded) — it renders
-      // as an inline looping muted video, like X/Meta. Fall back to the animated gif
-      // when the backend didn't supply an mp4.
-      const uploadUrl = gif.mp4Url || gif.url;
-      const isMp4 = Boolean(gif.mp4Url);
-      const filename = `gif_${gif.id || gif.slug}.${isMp4 ? 'mp4' : 'gif'}`;
+      // The backend imports/normalizes the GIF and returns the SHARED Oxy file id
+      // to attach to the post — no client-side download or upload.
+      const res = await api.post<{ gifId: string; fileId: string; mp4Url: string }>('/gifs/use', {
+        klipyId: gif.klipyId,
+        slug: gif.slug,
+        title: gif.title,
+        mp4Url: gif.mp4Url,
+        previewUrl: gif.previewUrl,
+        width: gif.width,
+        height: gif.height,
+      });
 
-      if (Platform.OS === 'web') {
-        // For web, use fetch and create a File object
-        const response = await fetch(uploadUrl);
-        const blob = await response.blob();
+      const fileId = res.data?.fileId;
+      if (!fileId) throw new Error('GIF use failed - no file id');
 
-        // Create file object for web
-        const file = new File([blob], filename, { type: isMp4 ? 'video/mp4' : 'image/gif' });
-
-        // Upload via Oxy services
-        logger.debug(`Uploading GIF file (web): ${filename}`);
-        const uploadResponse = await oxyServices.uploadRawFile(file, 'public', {
-          folder: 'user_content',
-        });
-
-        logger.debug('Upload response (web) received');
-
-        // Extract file ID from Oxy response: file.key is the file identifier
-        const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
-
-        if (fileId) {
-          await onSelectGif(uploadUrl, fileId);
-          onClose();
-          return;
-        } else {
-          logger.error('Upload failed - no file ID returned');
-          throw new Error('Upload failed - no file ID returned');
-        }
-      } else {
-        // For React Native, try to use expo-file-system if available, otherwise use direct URL
-        let fileUri = uploadUrl;
-
-        try {
-          // Try to use expo-file-system to download the file locally first
-          const FileSystem = require('expo-file-system');
-          const localUri = `${FileSystem.cacheDirectory}${filename}`;
-
-          // Download the file
-          const downloadResult = await FileSystem.downloadAsync(uploadUrl, localUri);
-
-          if (downloadResult.uri) {
-            fileUri = downloadResult.uri;
-          }
-        } catch (fsError) {
-          // If expo-file-system is not available, use the remote URL directly
-          logger.warn('expo-file-system not available, using remote URL');
-        }
-
-        // Create file object for React Native upload
-        const file = {
-          uri: fileUri,
-          type: isMp4 ? 'video/mp4' : 'image/gif',
-          name: filename,
-        };
-
-        // Upload via Oxy services
-        logger.debug(`Uploading GIF file: ${file.name}`);
-        const uploadResponse = await oxyServices.uploadRawFile(file, 'public', {
-          folder: 'user_content',
-        });
-
-        logger.debug('Upload response received');
-
-        // Extract file ID from Oxy response: file.key is the file identifier
-        const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
-
-        if (fileId) {
-          await onSelectGif(uploadUrl, fileId);
-          onClose();
-        } else {
-          logger.error('Upload failed - no file ID returned');
-          throw new Error('Upload failed - no file ID returned');
-        }
-      }
+      await onSelectGif(res.data.mp4Url, fileId);
+      onClose();
     } catch (error: unknown) {
       logger.error('Error selecting GIF', { error });
       toast(normalizeApiError(error).message || t('Failed to add GIF'), { type: 'error' });
@@ -205,11 +139,18 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         disabled={uploading}
         activeOpacity={0.8}
       >
-        <Image
-          source={{ uri: item.thumbnail || item.url }}
-          className="w-full h-full"
-          resizeMode="cover"
-        />
+        {item.previewUrl ? (
+          <VideoPlayer
+            src={item.previewUrl}
+            autoPlay
+            loop
+            gif
+            contentFit="cover"
+            style={StyleSheet.absoluteFill}
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.secondary }]} />
+        )}
         {isUploading && (
           <View className="absolute inset-0 bg-black/50 justify-center items-center">
             <Loading className="text-primary" size="small" style={{ flex: undefined }} />
