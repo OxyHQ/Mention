@@ -46,6 +46,7 @@ export interface ProfileData {
   usernameChangeCount?: number;
   connectedVia?: string;
   links?: User['links'];
+  linksMetadata?: User['linksMetadata'];
   fields?: Array<{
     name?: string;
     value?: string;

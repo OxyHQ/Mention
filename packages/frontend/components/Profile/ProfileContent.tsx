@@ -11,11 +11,12 @@ import {
 } from './ProfileHeader';
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
+import { LinkSummary } from './LinkSummary';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle, normalizeProfileLinks } from '@oxyhq/core';
 
 /**
  * Main profile content section
@@ -171,10 +172,9 @@ export const ProfileContent = memo(function ProfileContent({
         </View>
       )}
 
-      {/* Meta info (location, links, join date) */}
+      {/* Meta info (location, join date) */}
       <ProfileMeta
         location={profileData.primaryLocation}
-        links={profileData.links}
         createdAt={profileData.createdAt}
         username={username}
         profileHandle={profileHandle}
@@ -196,6 +196,9 @@ export const ProfileContent = memo(function ProfileContent({
           onRepliesPress={onRepliesPress}
         />
       )}
+
+      {/* Links (Instagram-style summary row + bottom sheet) */}
+      <LinkSummary links={normalizeProfileLinks(profileData.linksMetadata, profileData.links)} />
 
       {/* Communities */}
       {profileData.communities &&

@@ -1,9 +1,8 @@
 import React, { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { LocationIcon } from '@/assets/icons/location-icon';
-import { LinkIcon } from '@/assets/icons/link-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import type { ProfileMetaProps } from './types';
@@ -11,11 +10,10 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 /**
  * Profile metadata component
- * Displays location, links, and join date
+ * Displays location and join date
  */
 export const ProfileMeta = memo(function ProfileMeta({
   location,
-  links,
   createdAt,
   username,
   profileHandle,
@@ -23,7 +21,6 @@ export const ProfileMeta = memo(function ProfileMeta({
   const { t } = useTranslation();
 
   const hasLocation = Boolean(location);
-  const hasLinks = links && links.length > 0;
   const hasJoinDate = Boolean(createdAt);
   const targetHandle = getNormalizedUserHandle({ username: profileHandle || username });
 
@@ -34,7 +31,7 @@ export const ProfileMeta = memo(function ProfileMeta({
     });
   }, []);
 
-  if (!hasLocation && !hasLinks && !hasJoinDate) {
+  if (!hasLocation && !hasJoinDate) {
     return null;
   }
 
@@ -48,26 +45,6 @@ export const ProfileMeta = memo(function ProfileMeta({
           </Text>
         </View>
       )}
-
-      {hasLinks && links!.map((link, index) => {
-        const href = link.startsWith('http') ? link : `https://${link}`;
-        const displayText = link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
-        return (
-          <TouchableOpacity
-            key={index}
-            className="flex-row items-center gap-1"
-            onPress={() => Linking.openURL(href)}
-            activeOpacity={0.7}
-          >
-            <View style={{ transform: [{ rotate: '-45deg' }] }}>
-              <LinkIcon size={16} className="text-muted-foreground" />
-            </View>
-            <Text className="text-primary text-[15px] underline">
-              {displayText}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
 
       {hasJoinDate && (
         <TouchableOpacity

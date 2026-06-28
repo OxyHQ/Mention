@@ -99,10 +99,9 @@ export interface ProfileActionsProps {
   showBottomSheet?: ShowBottomSheetFn;
 }
 
-// Profile meta props (location, links, join date)
+// Profile meta props (location, join date)
 export interface ProfileMetaProps {
   location?: string;
-  links?: string[];
   createdAt?: string;
   username: string;
   profileHandle?: string;
