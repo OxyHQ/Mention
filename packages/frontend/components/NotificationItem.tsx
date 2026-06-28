@@ -46,7 +46,7 @@ function normalizeEmbeddedPost(embedded: TEmbeddedPost): NotificationPost {
             id: embedded.user.id ?? '',
             handle: embedded.user.handle ?? '',
             displayName: embedded.user.displayName,
-            avatar: embedded.user.avatar,
+            avatarUrl: embedded.user.avatarUrl,
             isVerified: embedded.user.verified,
         },
         engagement: {

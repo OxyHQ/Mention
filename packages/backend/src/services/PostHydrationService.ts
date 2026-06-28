@@ -145,7 +145,6 @@ function summaryFromOxyUser(userId: string, userData: OxyUser): CachedUserSummar
       handle: username,
       displayName,
       avatarUrl: avatarValue,
-      avatar: avatarValue,
       badges: Array.isArray(userData.badges)
         ? userData.badges.map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined)).filter((b): b is string => typeof b === 'string')
         : undefined,
@@ -165,7 +164,6 @@ function fallbackSummary(userId: string): CachedUserSummary {
       handle: userId,
       displayName: userId,
       avatarUrl: undefined,
-      avatar: undefined,
       badges: undefined,
       isVerified: false,
     },
@@ -802,7 +800,6 @@ export class PostHydrationService {
           handle: best.acct || best.username || domain,
           displayName,
           avatarUrl: resolveAvatarUrl(best.avatarUrl),
-          avatar: resolveAvatarUrl(best.avatarUrl),
           badges: undefined,
           isVerified: false,
           isFederated: true,
@@ -844,7 +841,6 @@ export class PostHydrationService {
       handle: domain,
       displayName: domain,
       avatarUrl: undefined,
-      avatar: undefined,
       badges: undefined,
       isVerified: false,
       isFederated: true,
@@ -1298,8 +1294,8 @@ export class PostHydrationService {
       const avatars: string[] = [];
       for (const replierId of replierIds) {
         const user = userMap.get(replierId);
-        if (user?.avatar) {
-          avatars.push(user.avatar);
+        if (user?.avatarUrl) {
+          avatars.push(user.avatarUrl);
         }
       }
       if (avatars.length > 0) {
@@ -1388,7 +1384,6 @@ export class PostHydrationService {
       handle: authorId,
       displayName: authorId,
       avatarUrl: undefined,
-      avatar: undefined,
       badges: undefined,
       isVerified: false,
     };
@@ -1512,7 +1507,7 @@ export class PostHydrationService {
       sources: Array.isArray(baseContent.sources) ? baseContent.sources : undefined,
       location: baseContent.location,
       event: baseContent.event,
-      room: baseContent.room ?? baseContent.space,
+      room: baseContent.room,
       attachments: Array.isArray(baseContent.attachments) ? baseContent.attachments : undefined,
     };
   }
@@ -1566,7 +1561,7 @@ export class PostHydrationService {
       };
     }
 
-    const roomData = content.room ?? content.space;
+    const roomData = content.room;
     if (roomData) {
       attachments.room = {
         roomId: roomData.roomId,

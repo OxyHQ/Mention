@@ -371,15 +371,6 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 
     logger.info(`[ADMIN] Agora Broadcast deleted: ${id} by admin ${userId}`);
 
-    // Emit socket event so clients know the broadcast is gone
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('broadcast:deleted', {
-        roomId: id,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     res.json({ success: true, message: 'Agora Broadcast deleted successfully' });
   } catch (error) {
     logger.error('[ADMIN] Error deleting Agora Broadcast:', { userId: req.user?.id, roomId: req.params.id, error });
@@ -439,16 +430,6 @@ router.post('/:id/go-live', async (req: AuthRequest, res: Response) => {
     await room.save();
 
     logger.info(`[ADMIN] Agora Broadcast went live: ${id} by admin ${userId}`);
-
-    // Emit socket event
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('broadcast:live', {
-        roomId: id,
-        startedAt: room.startedAt,
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     res.json({
       message: 'Broadcast is now live',
@@ -511,16 +492,6 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
     });
 
     logger.info(`[ADMIN] Agora Broadcast ended: ${id} by admin ${userId}`);
-
-    // Emit socket event
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('broadcast:ended', {
-        roomId: id,
-        endedAt: room.endedAt,
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     res.json({
       message: 'Broadcast ended successfully',
@@ -594,18 +565,6 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
 
     logger.info(`[ADMIN] Stream set on broadcast ${id}: ${trimmedUrl} by admin ${userId}`);
 
-    // Notify listeners via socket
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('broadcast:stream:started', {
-        roomId: id,
-        title: room.streamTitle || null,
-        image: room.streamImage || null,
-        description: room.streamDescription || null,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     res.json({
       message: 'Stream started successfully',
       ingressId: ingress.ingressId,
@@ -659,15 +618,6 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
     await room.save();
 
     logger.info(`[ADMIN] Stream stopped on broadcast ${id} by admin ${userId}`);
-
-    // Notify listeners via socket
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('broadcast:stream:stopped', {
-        roomId: id,
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     res.json({ message: 'Stream stopped successfully' });
   } catch (error) {

@@ -296,13 +296,11 @@ export const usePostSubmission = ({
         code: normalized.code,
         message: normalized.message,
       });
-      // `error` keeps the legacy generic key for back-compat; `reason` is the
-      // specific classification (`validation` | `rateLimited` | `network` |
-      // `server`) and `message` carries the server's own text so the caller can
-      // render a meaningful, localized toast instead of one generic failure.
+      // `reason` is the specific classification (`validation` | `rateLimited` |
+      // `network` | `server`) and `message` carries the server's own text so the
+      // caller can render a meaningful, localized toast.
       return {
         success: false,
-        error: 'submission.failed',
         reason,
         message: normalized.message,
       };

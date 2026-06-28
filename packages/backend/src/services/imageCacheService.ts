@@ -388,67 +388,6 @@ class ImageCacheService {
   }
 
   /**
-   * Cache an optimized variant of an image with custom dimensions.
-   * Returns the cache key and content type, or null on failure.
-   */
-  async cacheOptimizedImage(imageUrl: string, options: ImageProcessingOptions): Promise<{ cacheKey: string; contentType: string } | null> {
-    try {
-      const normalizedUrl = this.normalizeImageUrl(imageUrl);
-      const { maxWidth, maxHeight, quality } = options;
-      const sizeKey = `${maxWidth ?? 0}x${maxHeight ?? 0}q${quality ?? 80}`;
-      const cacheKey = crypto.createHash('sha256').update(`${normalizedUrl}:${sizeKey}`).digest('hex');
-      const objectKey = this.getObjectKey(cacheKey);
-
-      // Check if already cached in S3
-      try {
-        const head = await getS3Client().send(new HeadObjectCommand({
-          Bucket: getBucket(),
-          Key: objectKey,
-        }));
-        const contentType = head.ContentType || 'image/webp';
-        return { cacheKey, contentType };
-      } catch (headError: any) {
-        // Not cached yet — continue to download and store
-        if (!(headError?.name === 'NotFound' || headError?.name === 'NoSuchKey' || headError?.$metadata?.httpStatusCode === 404)) {
-          throw headError;
-        }
-      }
-
-      // Download image
-      const imageBuffer = await this.downloadImage(normalizedUrl);
-
-      // Process with custom options
-      let processedResult: { buffer: Buffer; contentType: string } | null = null;
-      try {
-        processedResult = await this.processImage(imageBuffer, options);
-      } catch (error) {
-        if (isInputImageTooLargeError(error)) {
-          throw error;
-        }
-
-        logger.warn('[ImageCacheService] Image processing failed for optimized variant, using original:', {
-          url: normalizedUrl,
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
-
-      const finalBuffer = processedResult?.buffer ?? imageBuffer;
-      const contentType = processedResult?.contentType ?? this.detectContentType(imageBuffer);
-
-      await this.storeImage(finalBuffer, cacheKey, contentType);
-
-      logger.debug('[ImageCacheService] Optimized image cached in S3:', { url: normalizedUrl, cacheKey, sizeKey });
-      return { cacheKey, contentType };
-    } catch (error) {
-      logger.error('[ImageCacheService] Error caching optimized image:', {
-        url: imageUrl,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
-  }
-
-  /**
    * Clear all cached images (not supported in bulk for S3 — returns 0)
    * In production, use S3 lifecycle rules or the AWS console for bulk deletion.
    */

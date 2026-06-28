@@ -130,7 +130,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     sources: raw?.content?.sources,
     location: raw?.content?.location,
     event: raw?.content?.event,
-    room: raw?.content?.room ?? raw?.content?.space,
+    room: raw?.content?.room,
   };
 
   const user = raw?.user ?? {};

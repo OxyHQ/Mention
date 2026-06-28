@@ -55,7 +55,7 @@ interface AttachmentBuildOptions {
 }
 
 const ATTACHMENT_TYPES: PostAttachmentType[] = [
-  'media', 'poll', 'article', 'event', 'room', 'space', 'location', 'sources',
+  'media', 'poll', 'article', 'event', 'room', 'location', 'sources',
 ];
 
 // ---- Private helpers ----
@@ -233,7 +233,7 @@ export class PostSanitizationService {
   } | null {
     if (!rawRoomData || typeof rawRoomData !== 'object') return null;
     const roomData = rawRoomData as Record<string, unknown>;
-    const id = roomData.roomId ?? roomData.spaceId;
+    const id = roomData.roomId;
     if (typeof id !== 'string' || typeof roomData.title !== 'string') return null;
 
     return {
@@ -367,7 +367,6 @@ export class PostSanitizationService {
           if (includeEvent) addNonMedia('event');
           break;
         case 'room':
-        case 'space':
           if (includeRoom) addNonMedia('room');
           break;
         case 'location':

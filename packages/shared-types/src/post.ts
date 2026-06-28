@@ -44,8 +44,7 @@ export interface MediaItem {
   type: 'image' | 'video' | 'gif';
   /**
    * Final, ready-to-render media URL resolved server-side (CDN or our media
-   * proxy). Optional for backward compatibility: v1 clients keep reading `id`.
-   * v2+ backends populate this so the frontend never computes URLs.
+   * proxy). Backends populate this so the frontend never computes URLs from `id`.
    */
   url?: string;
   /** Final, ready-to-render thumbnail URL (smaller variant) when available. */
@@ -65,7 +64,7 @@ export interface MediaItem {
   fullUrl?: string;
 }
 
-export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'space' | 'podcast';
+export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'podcast';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -101,9 +100,6 @@ export interface PostRoomContent {
   host?: string;
 }
 
-/** @deprecated Use PostRoomContent instead */
-export type PostSpaceContent = PostRoomContent;
-
 /**
  * A Syra podcast SHOW attached to a post (or pinned on a profile). The metadata
  * is denormalized server-side from the Syra catalog (via @syra.fm/sdk getPodcast)
@@ -137,8 +133,6 @@ export interface PostContent {
   article?: PostArticleContent; // Optional article content authored with the post
   event?: PostEventContent; // Optional event content
   room?: PostRoomContent; // Optional room content
-  /** @deprecated Use room instead */
-  space?: PostRoomContent;
   podcast?: PostPodcastContent; // Optional Syra podcast show attached to the post
   attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
 }
@@ -481,17 +475,10 @@ export interface PostActorSummary {
   handle: string;
   displayName: string;
   /**
-   * Final, ready-to-render avatar URL. v2+ backends populate this (and the
-   * `avatar` alias) with a FINAL URL resolved server-side — NOT a raw Oxy file
-   * id or relative path. v1 clients that performed their own URL resolution
-   * remain compatible because the value is already an absolute URL.
+   * Final, ready-to-render avatar URL resolved server-side — NOT a raw Oxy file
+   * id or relative path.
    */
   avatarUrl?: string;
-  /**
-   * Alias of {@link PostActorSummary.avatarUrl}. v2+ backends populate this with
-   * the same FINAL URL (not a raw id) so legacy readers of `avatar` keep working.
-   */
-  avatar?: string;
   badges?: string[];
   isVerified?: boolean;
   isFederated?: boolean;
@@ -535,8 +522,6 @@ export interface PostAttachmentBundle {
   location?: GeoJSONPoint;
   event?: PostEventContent;
   room?: PostRoomContent;
-  /** @deprecated Use room instead */
-  space?: PostRoomContent;
   podcast?: PostPodcastContent;
 }
 

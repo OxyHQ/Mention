@@ -25,7 +25,7 @@ interface UserProfile {
 
 /**
  * Map a resolved {@link CachedUserSummary} to the public {@link UserProfile}
- * shape this route returns. `summary.avatar` is already a FINAL, ready-to-render
+ * shape this route returns. `summary.avatarUrl` is already a FINAL, ready-to-render
  * URL (resolved server-side via the avatar resolver) — the same value the feed
  * hydration path emits — so the frontend never constructs URLs.
  */
@@ -36,7 +36,7 @@ function profileFromSummary(oxyUserId: string, cached: CachedUserSummary | undef
     username: summary?.handle ?? oxyUserId,
     handle: summary?.handle ?? oxyUserId,
     displayName: summary?.displayName ?? oxyUserId,
-    avatar: typeof summary?.avatar === 'string' && summary.avatar.length > 0 ? summary.avatar : undefined,
+    avatar: typeof summary?.avatarUrl === 'string' && summary.avatarUrl.length > 0 ? summary.avatarUrl : undefined,
   };
 }
 

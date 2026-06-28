@@ -28,7 +28,6 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
 
   const [dateFrom, setDateFrom] = useState(filters.dateFrom || "");
   const [dateTo, setDateTo] = useState(filters.dateTo || "");
-  const [author, setAuthor] = useState(filters.author || "");
   const [minLikes, setMinLikes] = useState(filters.minLikes?.toString() || "");
   const [minBoosts, setMinBoosts] = useState(filters.minBoosts?.toString() || "");
   const [mediaType, setMediaType] = useState<MediaTypeOption>(
@@ -41,7 +40,6 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
 
     if (dateFrom) newFilters.dateFrom = dateFrom;
     if (dateTo) newFilters.dateTo = dateTo;
-    if (author) newFilters.author = author;
     if (minLikes) newFilters.minLikes = parseInt(minLikes, 10);
     if (minBoosts) newFilters.minBoosts = parseInt(minBoosts, 10);
     if (mediaType !== 'all') {
@@ -51,12 +49,11 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
     if (language) newFilters.language = language;
 
     onApply(newFilters);
-  }, [dateFrom, dateTo, author, minLikes, minBoosts, mediaType, language, onApply]);
+  }, [dateFrom, dateTo, minLikes, minBoosts, mediaType, language, onApply]);
 
   const handleClearLocal = useCallback(() => {
     setDateFrom("");
     setDateTo("");
-    setAuthor("");
     setMinLikes("");
     setMinBoosts("");
     setMediaType('all');
@@ -134,23 +131,6 @@ export function SearchFilters({ filters, onApply, onClear, visible }: SearchFilt
               />
             </View>
           </View>
-        </View>
-
-        {/* Author */}
-        <View style={{ marginBottom: SPACING.lg }}>
-          <Text
-            className="text-foreground font-semibold"
-            style={{ fontSize: FONT_SIZES.md, marginBottom: SPACING.sm }}
-          >
-            Author
-          </Text>
-          <TextInput
-            style={inputStyle}
-            placeholder={t('search.filters.usernamePlaceholder')}
-            placeholderTextColor={theme.colors.textSecondary}
-            value={author}
-            onChangeText={setAuthor}
-          />
         </View>
 
         {/* Media Type */}

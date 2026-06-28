@@ -197,7 +197,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             }
             break;
           case 'room':
-          case 'space':
             if (hasRoom && !results.some(item => item.type === 'room')) {
               results.push({ type: 'room' });
             }

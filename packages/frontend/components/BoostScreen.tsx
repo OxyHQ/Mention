@@ -148,7 +148,7 @@ const BoostScreen: React.FC = () => {
                 {/* Original Post */}
                 <View className="py-4 border-b border-border mb-4">
                     <View className="flex-row items-center mb-2">
-                        <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }} />
+                        <Avatar source={originalPost.user.avatarUrl} size={32} style={{ marginRight: 8 }} />
                         <View className="flex-1">
                             <UserName
                                 name={originalPost.user.displayName}

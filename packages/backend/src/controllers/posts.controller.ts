@@ -64,7 +64,7 @@ const mapActorSummary = (
     id: summary.id,
     displayName: summary.displayName,
     handle: summary.handle,
-    avatar: summary.avatar ?? summary.avatarUrl,
+    avatar: summary.avatarUrl,
     verified: Boolean(summary.isVerified),
   };
 };
@@ -171,7 +171,7 @@ const sanitizePodcast = (input: unknown): { syraPodcastId: string } | null => {
 const sanitizeRoomData = (roomData: unknown): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
   if (!roomData || typeof roomData !== 'object') return null;
   const obj = roomData as Record<string, unknown>;
-  const id = obj.roomId ?? obj.spaceId;
+  const id = obj.roomId;
   if (typeof id !== 'string' || typeof obj.title !== 'string') return null;
 
   return {
@@ -261,7 +261,7 @@ const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
   return normalized;
 };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'space', 'location', 'sources', 'podcast'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'location', 'sources', 'podcast'];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -382,7 +382,6 @@ const buildOrderedAttachments = ({
         if (includeEvent) addNonMedia('event');
         break;
       case 'room':
-      case 'space': // backward compat for old posts
         if (includeRoom) addNonMedia('room');
         break;
       case 'location':
@@ -624,8 +623,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.event = sanitizedEvent as import('@mention/shared-types').PostEventContent;
     }
 
-    // Handle room data (backward compat: also reads from space field)
-    const roomData = content?.room || content?.space || req.body.room || req.body.space;
+    // Handle room data
+    const roomData = content?.room || req.body.room;
     const sanitizedRoom = sanitizeRoomData(roomData);
     if (sanitizedRoom) {
       postContent.room = sanitizedRoom as import('@mention/shared-types').PostRoomContent;
@@ -853,8 +852,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.event = threadSanitizedEvent as import('@mention/shared-types').PostEventContent;
       }
 
-      // Handle room data (backward compat: also reads from space field)
-      const threadSanitizedRoom = sanitizeRoomData(content?.room || content?.space);
+      // Handle room data
+      const threadSanitizedRoom = sanitizeRoomData(content?.room);
       if (threadSanitizedRoom) {
         postContent.room = threadSanitizedRoom as import('@mention/shared-types').PostRoomContent;
       }
@@ -1254,7 +1253,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       includePoll: Boolean(post.content?.pollId),
       includeArticle: Boolean(post.content.article),
       includeEvent: Boolean(post.content?.event),
-      includeRoom: Boolean(post.content?.room || post.content?.space),
+      includeRoom: Boolean(post.content?.room),
       includeLocation: Boolean(post.content.location),
       includeSources: Boolean(post.content.sources && post.content.sources.length),
       includePodcast: Boolean(post.content?.podcast)

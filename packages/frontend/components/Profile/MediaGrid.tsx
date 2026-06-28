@@ -14,7 +14,6 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
-import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { isDbAvailable } from '@/db';
 import VideoPosterCell from '@/components/common/VideoPosterCell';
 import { isVideoMediaRef } from '@/utils/mediaTypes';
@@ -43,7 +42,7 @@ const INITIAL_RENDER_COUNT = 18;
 const WINDOW_SIZE = 7;
 
 const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
-    const { oxyServices, user } = useAuth();
+    const { user } = useAuth();
     const viewerId = user?.id;
     const router = useRouter();
     const theme = useTheme();
@@ -82,53 +81,40 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         }
     }, [userId, viewerId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
-    // Grid image thumbnail. Prefer the server-resolved final `thumbUrl` (fallback
-    // `url`) from the media object; fall back to the legacy client resolver for a
-    // raw id/url string (old cached responses without the new fields).
+    // Grid image thumbnail from the server-resolved media object (`thumbUrl`,
+    // fallback `url`).
     const resolveImageUri = useCallback(
-        (ref?: string | { thumbUrl?: string; url?: string; id?: string }): string | undefined => {
-            if (!ref) return undefined;
-            if (typeof ref !== 'string') {
-                const serverUrl = ref.thumbUrl || ref.url;
-                if (serverUrl) return serverUrl;
-            }
-            const path = typeof ref === 'string' ? ref : (ref.id || ref.url);
-            if (!path) return undefined;
-            const resolved = getCachedFileDownloadUrlSync(oxyServices, path, 'thumb');
-            return resolved || undefined;
+        (ref?: string | { thumbUrl?: string; url?: string }): string | undefined => {
+            if (!ref || typeof ref === 'string') return undefined;
+            return ref.thumbUrl || ref.url || undefined;
         },
-        [oxyServices]
+        []
     );
 
-    // Static video poster. Prefer the server-resolved final `posterUrl` (fallback
-    // `thumbUrl`); fall back to the legacy client resolver for a raw id/url string.
-    // Undefined → icon placeholder; a 404/error from the URL is handled by the
-    // cell's own image-error fallback.
+    // Static video poster from the server-resolved media object (`posterUrl`,
+    // fallback `thumbUrl`). Undefined → icon placeholder; a 404/error from the URL
+    // is handled by the cell's own image-error fallback.
     const resolveVideoPosterUri = useCallback(
-        (ref?: string | { posterUrl?: string; thumbUrl?: string; url?: string; id?: string }): string | undefined => {
-            if (!ref) return undefined;
-            if (typeof ref !== 'string') {
-                const serverUrl = ref.posterUrl || ref.thumbUrl;
-                if (serverUrl) return serverUrl;
-            }
-            const path = typeof ref === 'string' ? ref : (ref.id || ref.url);
-            return videoPosterUrl(path ?? '', oxyServices);
+        (ref?: string | { posterUrl?: string; thumbUrl?: string }): string | undefined => {
+            if (!ref || typeof ref === 'string') return undefined;
+            return ref.posterUrl || ref.thumbUrl || undefined;
         },
-        [oxyServices]
+        []
     );
 
     const mediaItems = useMemo<MediaGridEntry[]>(() => {
         const out: MediaGridEntry[] = [];
         const items = (mediaFeed?.items?.length ? mediaFeed.items : (postsFeed?.items || [])) as any[];
 
-        // A media reference is either a raw id/url string (legacy) or a media
-        // object carrying the server-resolved final URLs (`url`/`thumbUrl`/`posterUrl`).
-        type MediaRef = string | { id?: string; url?: string; src?: string; path?: string; thumbUrl?: string; posterUrl?: string };
+        // A `content.media` entry is a media object carrying the server-resolved
+        // final URLs (`url`/`thumbUrl`/`posterUrl`); a bare id/url string is also
+        // tolerated for the dedup/video-detection key.
+        type MediaRef = string | { id?: string; url?: string; thumbUrl?: string; posterUrl?: string };
 
         const pickIdOrUrl = (x: any): string | undefined => {
             if (!x) return undefined;
             if (typeof x === 'string') return x;
-            return x.id || x.url || x.src || x.path || undefined;
+            return x.id || x.url || undefined;
         };
 
         const pushUris = (targetId: string, sources: (MediaRef | undefined)[], postType?: string, mediaTypes?: (string | undefined)[]) => {
@@ -164,62 +150,18 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
         const extractFrom = (post: any, targetId: string) => {
             const postType = post?.type;
-            // Prefer the content.media objects: they carry the server-resolved final
-            // URLs (url/thumbUrl/posterUrl). Fall back to normalized id arrays only
-            // when the objects are absent (old cached responses).
+            // The server-resolved `content.media` objects carry the final URLs
+            // (url/thumbUrl/posterUrl) — the single source for grid thumbnails.
             const mediaArray: any[] = Array.isArray(post?.content?.media) ? post.content.media : [];
-            if (mediaArray.length) {
-                const mediaTypes = mediaArray.map((m: any) => (typeof m === 'object' && m.type) ? m.type : undefined);
-                pushUris(targetId, mediaArray, postType, mediaTypes);
-                return;
-            }
-
-            const normalized = (post?.allMediaIds && post.allMediaIds.length)
-                ? post.allMediaIds
-                : (post?.mediaIds || []);
-            if (normalized?.length) {
-                pushUris(targetId, normalized, postType);
-                return;
-            }
-            // Fallback to legacy structures
-            const collected: MediaRef[] = [];
-            const collectedTypes: (string | undefined)[] = [];
-            const pushFromArray = (arr?: any[], options: { fromMedia?: boolean; fromAttachments?: boolean } = {}) => {
-                if (!Array.isArray(arr) || !arr.length) return;
-                arr.forEach((m) => {
-                    if (options.fromAttachments && typeof m === 'object') {
-                        if (m.type !== 'media' || !m.id) return;
-                    }
-
-                    if (!pickIdOrUrl(m)) return;
-
-                    // Keep the object so server URLs survive; strings pass through.
-                    collected.push(m);
-
-                    if (typeof m === 'object') {
-                        if (options.fromAttachments && m.mediaType) {
-                            collectedTypes.push(m.mediaType);
-                        } else if (options.fromMedia && m.type) {
-                            collectedTypes.push(m.type);
-                        } else {
-                            collectedTypes.push(undefined);
-                        }
-                    } else {
-                        collectedTypes.push(undefined);
-                    }
-                });
-            };
-            pushFromArray(post?.content?.images);
-            pushFromArray(post?.content?.attachments, { fromAttachments: true });
-            pushFromArray(post?.content?.files);
-            pushFromArray(post?.media);
-            pushUris(targetId, collected, postType, collectedTypes.length > 0 ? collectedTypes : undefined);
+            if (!mediaArray.length) return;
+            const mediaTypes = mediaArray.map((m: any) => (typeof m === 'object' && m.type) ? m.type : undefined);
+            pushUris(targetId, mediaArray, postType, mediaTypes);
         };
 
         for (const p of items) {
             extractFrom(p, String(p.id));
 
-            const hasOwnMedia = !!(p?.allMediaIds?.length || p?.mediaIds?.length);
+            const hasOwnMedia = Array.isArray(p?.content?.media) && p.content.media.length > 0;
             if (hasOwnMedia) continue;
 
             // Boosted/quoted media: the transformed feed item already carries the

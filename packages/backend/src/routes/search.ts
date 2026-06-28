@@ -97,7 +97,6 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       type = "all",
       dateFrom,
       dateTo,
-      author,
       minLikes,
       minBoosts,
       mediaType,
@@ -133,8 +132,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       if (operators.from) {
         try {
           const profile = await oxyClient.getProfileByUsername(operators.from);
-          // Canonical id is `profile.id`; tolerate a legacy `_id` field if present.
-          const profileId = profile?.id ?? (profile as { _id?: string } | null)?._id;
+          const profileId = profile?.id;
           if (profileId) {
             filter.oxyUserId = String(profileId);
           } else {
@@ -189,14 +187,6 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         // Only attach the date filter when at least one valid bound was parsed.
         if (Object.keys(createdAtFilter).length > 0) {
           filter.createdAt = createdAtFilter;
-        }
-      }
-
-      // Author filter (from query param - kept for backward compat)
-      if (!operators.from && author && typeof author === 'string') {
-        const authorIds = author.split(',').map(id => id.trim()).filter(Boolean);
-        if (authorIds.length > 0) {
-          filter.oxyUserId = { $in: authorIds };
         }
       }
 
