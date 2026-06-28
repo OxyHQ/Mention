@@ -31,8 +31,10 @@ export const HEADER_CONTENT_GAP = 4;
 
 /**
  * Fixed height of a single Bluesky-style context row ("Reposted by" / "Pinned" /
- * "Replying to") rendered through {@link PostHeaderProps.contextTop}, so the rows
- * keep a consistent compact height.
+ * "Replying to") rendered through {@link PostHeaderProps.contextTop}. It is fixed
+ * (rather than intrinsic) so the avatar/menu vertical offset that re-aligns them
+ * with the name row stays exact and deterministic — no measurement, no `onLayout`.
+ * See `headerTopOffset` in the component body.
  */
 export const POST_CONTEXT_ROW_HEIGHT = 18;
 
@@ -55,7 +57,10 @@ interface PostHeaderProps {
    * Optional Bluesky-style context rows ("Reposted by" / "Pinned" / "Replying
    * to") rendered as the FIRST child of the name's content column — above the
    * name row, so the context text aligns with the display name (same column, no
-   * left padding needed). The avatar/menu stay top-aligned; the column grows down.
+   * left padding needed). Pass an ARRAY of fixed-height ({@link POST_CONTEXT_ROW_HEIGHT})
+   * rows; the avatar and the ⋯ menu are offset down by that height so they stay
+   * aligned with the name row, and `PostItem` applies the same offset to the
+   * thread line so it reaches the offset avatar.
    */
   contextTop?: React.ReactNode;
   /**
@@ -100,11 +105,18 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 
   const timeLabel = useMemo(() => formatTimeAgo(date || ''), [date]);
 
+  // `contextTop` rows are the first children of the flex-1 content column, so the
+  // name row is pushed down by each fixed-height context row plus the column gap.
+  // Offset the avatar + ⋯ menu by the same amount so they keep aligning with the
+  // NAME row (not the context row). Zero — and a no-op — when there is no context.
+  const contextRowCount = contextTop ? React.Children.toArray(contextTop).length : 0;
+  const headerTopOffset = contextRowCount * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
+
   return (
     <View style={{ paddingHorizontal }}>
       <View className="flex-row items-start justify-between">
         <ProfileHoverCard username={user.handle}>
-          <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
+          <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar} style={{ marginTop: headerTopOffset }}>
             <Avatar source={avatarSource} variant={avatarVariant} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }} />
           </TouchableOpacity>
         </ProfileHoverCard>
@@ -162,6 +174,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             accessibilityLabel="Post options"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             className="px-2"
+            style={{ marginTop: headerTopOffset }}
             onPress={onPressMenu}
           >
             <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />

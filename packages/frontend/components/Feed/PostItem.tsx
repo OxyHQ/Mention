@@ -594,6 +594,11 @@ const PostItem: React.FC<PostItemProps> = ({
         );
     }
 
+    // PostHeader offsets the avatar down by the context rows' total height to keep
+    // it aligned with the name row. Mirror that exact offset here so the thread
+    // line tracks the offset avatar instead of leaving a gap above it.
+    const headerTopOffset = contextRows.length * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
+
     return (
         <>
             <Container
@@ -619,7 +624,9 @@ const PostItem: React.FC<PostItemProps> = ({
                 {...(isTappable ? { onPress: goToPost } : {})}
             >
                 {isTappable && <SubtleHover />}
-                {/* Thread line above avatar — connects from previous post's bottom */}
+                {/* Thread line above avatar — connects from previous post's bottom.
+                    Extended by headerTopOffset so it reaches the avatar that
+                    PostHeader pushes down by the context rows' height. */}
                 {isThreadChild && !isNested && (
                     <View
                         style={{
@@ -627,19 +634,20 @@ const PostItem: React.FC<PostItemProps> = ({
                             top: 0,
                             left: THREAD_LINE_LEFT,
                             width: THREAD_LINE_W,
-                            height: 4,
+                            height: 4 + headerTopOffset,
                             backgroundColor: `${theme.colors.primary}30`,
                             borderRadius: THREAD_LINE_BORDER_RADIUS,
                             zIndex: THREAD_LINE_Z_INDEX,
                         }}
                     />
                 )}
-                {/* Thread line below avatar — connects to next post's top */}
+                {/* Thread line below avatar — connects to next post's top. Shifted
+                    down by headerTopOffset so it starts at the offset avatar's bottom. */}
                 {isThreadParent && !isNested && (
                     <View
                         style={{
                             position: 'absolute',
-                            top: (isThreadChild ? 4 : VPAD) + AVATAR_SIZE,
+                            top: (isThreadChild ? 4 : VPAD) + AVATAR_SIZE + headerTopOffset,
                             left: THREAD_LINE_LEFT,
                             width: THREAD_LINE_W,
                             bottom: 0,
