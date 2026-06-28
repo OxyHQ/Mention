@@ -34,6 +34,7 @@ import {
   extractActorUri,
   extractApMedia,
   extractApHashtags,
+  extractInReplyToUri,
   getRemoteHost,
   mapApVisibility,
   parseApPublished,
@@ -78,6 +79,15 @@ const OUTBOX_BOOST_IMPORT_CONCURRENCY = 4;
  * spending an entire run on attacker-controlled fan-out.
  */
 const OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE = 100;
+
+/**
+ * Hard upper bound on how far UP a federated reply chain the ancestor backfill
+ * walks (and how deep the thread-root resolution recurses). Federated threads
+ * are normally shallow; this cap guarantees a malformed or cyclic `inReplyTo`
+ * chain can never trigger a runaway fetch/recursion loop. When the cap is hit,
+ * the reply is left linked as far as we got (best-effort), never spinning.
+ */
+const MAX_ANCESTOR_DEPTH = 30;
 
 /**
  * A candidate extracted from a remote actor's outbox during backfill.
@@ -593,11 +603,22 @@ export class OutboxSyncService {
       // loose record shape since they are assembled field-by-field below and
       // inserted via `Post.collection.insertMany`.
       const newDocs: Record<string, unknown>[] = [];
+      // Federated replies inserted in this batch, to be linked into their threads
+      // AFTER the raw insert (so a self-thread whose root + replies arrive in the
+      // same batch resolve against the now-inserted parents). Captured separately
+      // from `newDocs` to avoid casting the loose insert-doc shape back to read
+      // its federation fields.
+      const repliesToLink: Array<{ activityId: string; inReplyToUri: string }> = [];
       for (const { note, activity, activityId } of noteCandidates) {
         if (existingIds.has(activityId)) continue;
 
         const rawContent = note.content || '';
         if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) continue;
+
+        // Normalize the AP `inReplyTo` (string IRI or embedded Link object) to a
+        // clean string URI. Stored on `federation.inReplyTo` and used by the
+        // post-insert thread-linking pass below to resolve `parentPostId`/`threadId`.
+        const inReplyToUri = extractInReplyToUri(note.inReplyTo);
 
         const rawText = htmlToPlainText(rawContent);
         const extracted = extractApMedia(note);
@@ -657,7 +678,7 @@ export class OutboxSyncService {
           federation: {
             activityId,
             actorUri,
-            inReplyTo: note.inReplyTo || undefined,
+            inReplyTo: inReplyToUri,
             url: note.url || note.id,
             sensitive: note.sensitive || false,
             spoilerText: note.summary || undefined,
@@ -694,6 +715,10 @@ export class OutboxSyncService {
           postClassification: baseline,
           ...(published ? { createdAt: published, updatedAt: published } : {}),
         });
+
+        if (inReplyToUri) {
+          repliesToLink.push({ activityId, inReplyToUri });
+        }
       }
 
       // Strip empty location/coordinates from content to avoid 2dsphere index errors
@@ -733,6 +758,27 @@ export class OutboxSyncService {
             throw err;
           }
         });
+      }
+
+      // Link federated replies into their threads. Done AFTER the insert so a
+      // self-thread whose root + replies arrive in the SAME batch resolves
+      // against the now-inserted parents, and so a parent outside this batch is
+      // backfilled (bounded) before linking. `resolveThreadLink` walks UP to the
+      // thread ROOT via each post's stored `federation.inReplyTo`, so every reply
+      // in the chain shares the same `threadId` regardless of intra-batch insert
+      // order — identical to the native reply rule.
+      for (const { activityId, inReplyToUri } of repliesToLink) {
+        try {
+          const link = await this.resolveThreadLink(inReplyToUri, 0, true);
+          if (!link) continue;
+          await Post.updateOne(
+            { 'federation.activityId': activityId },
+            { $set: { parentPostId: link.parentPostId, threadId: link.threadId } },
+          );
+        } catch (linkErr) {
+          const message = linkErr instanceof Error ? linkErr.message : String(linkErr);
+          logger.warn(`[FedSync] failed to link federated reply ${activityId} into its thread: ${message}`);
+        }
       }
 
       // Import boosts (Announce) attributed to the outbox owner. Each announce
@@ -841,7 +887,11 @@ export class OutboxSyncService {
         continue;
       }
       if (note.type !== 'Note' && note.type !== 'Article') continue;
-      if (note.inReplyTo) continue;
+      // Replies are NOT skipped: an actor's outbox is their OWN content, so their
+      // self-thread continuations (and replies to others) are imported and linked
+      // into threads by the post-insert linking pass. The `attributedTo` /
+      // `activityIdBelongsToActor` guards below still ensure only the actor's own
+      // notes become candidates.
 
       const activityId = note.id || activity.id;
       if (!activityId) continue;
@@ -969,6 +1019,89 @@ export class OutboxSyncService {
   }
 
   /**
+   * Public entry point for resolving a federated reply's `inReplyTo` URI to its
+   * local thread-linking fields (`parentPostId` + thread-root `threadId`), used
+   * by the inbox `handleCreate` path and the reconciliation script.
+   *
+   * Delegates to {@link resolveThreadLink} at depth 0. Pass
+   * `{ allowBackfill: false }` to resolve ONLY against posts already present
+   * locally (no network fetch / no ancestor import) — used by the reconciliation
+   * script's dry-run and its default local-only mode.
+   */
+  async ensureFederatedReplyLink(
+    inReplyToUri: string,
+    options: { allowBackfill?: boolean } = {},
+  ): Promise<{ parentPostId: string; threadId: string } | null> {
+    return this.resolveThreadLink(inReplyToUri, 0, options.allowBackfill ?? true);
+  }
+
+  /**
+   * Resolve an AP `inReplyTo` URI to a federated reply's local thread-linking
+   * fields: the parent Post `_id` (`parentPostId`) and the thread-ROOT id
+   * (`threadId`).
+   *
+   * `threadId` mirrors the NATIVE reply rule (`threadId = parent.threadId ??
+   * parent._id`): a parent that is already linked carries the root in its
+   * `threadId`; an as-yet-unlinked federated parent (e.g. a sibling inserted in
+   * the same outbox batch, or a pre-fix orphan) is walked UP via its stored
+   * `federation.inReplyTo` so every reply in the chain ends up with the SAME
+   * root `threadId` regardless of import order.
+   *
+   * Bounded ancestor backfill: when the parent is NOT present locally and
+   * `allowBackfill` is true, the parent Note is fetched + imported via
+   * {@link ensureFederatedNote} (signed, SSRF-safe, deduped by
+   * `federation.activityId` so an ancestor is never re-fetched), then
+   * re-resolved. The whole walk/backfill is hard-capped at
+   * {@link MAX_ANCESTOR_DEPTH} so a cyclic/malformed chain can never loop; on the
+   * cap, any fetch failure, or an unresolvable parent it returns null (best
+   * effort — the reply is simply left unlinked rather than spinning).
+   */
+  private async resolveThreadLink(
+    inReplyToUri: string,
+    depth: number,
+    allowBackfill: boolean,
+  ): Promise<{ parentPostId: string; threadId: string } | null> {
+    // 1. Parent already present locally (a local post OR an imported federated post)?
+    let parentPostId = await resolvePostIdFromObjectUri(inReplyToUri);
+
+    // 2. Missing parent → bounded backfill of the ancestor, then re-resolve.
+    if (!parentPostId) {
+      if (!allowBackfill) return null;
+      if (depth >= MAX_ANCESTOR_DEPTH) {
+        logger.warn(
+          `[FedSync] ancestor backfill depth cap (${MAX_ANCESTOR_DEPTH}) reached at ${inReplyToUri}; leaving reply unlinked`,
+        );
+        return null;
+      }
+      parentPostId = await this.ensureFederatedNote(inReplyToUri, depth + 1);
+      if (!parentPostId) return null;
+    }
+
+    // 3. Derive the thread-root id. A linked parent already points at the root;
+    //    an unlinked federated parent is walked up via its stored inReplyTo.
+    const parent = await Post.findById(parentPostId, {
+      threadId: 1,
+      'federation.inReplyTo': 1,
+    }).lean<{ _id: unknown; threadId?: string; federation?: { inReplyTo?: string } } | null>();
+    if (!parent) return null;
+
+    if (parent.threadId) {
+      return { parentPostId: String(parent._id), threadId: parent.threadId };
+    }
+
+    const parentInReplyToUri = extractInReplyToUri(parent.federation?.inReplyTo);
+    if (parentInReplyToUri && depth < MAX_ANCESTOR_DEPTH) {
+      const ancestorLink = await this.resolveThreadLink(parentInReplyToUri, depth + 1, allowBackfill);
+      if (ancestorLink) {
+        return { parentPostId: String(parent._id), threadId: ancestorLink.threadId };
+      }
+    }
+
+    // Parent has no resolvable ancestor → it IS the thread root.
+    return { parentPostId: String(parent._id), threadId: String(parent._id) };
+  }
+
+  /**
    * Ensure a federated Note/Article exists locally as a Post and return its
    * local Post `_id` (as a string). Fetches the object via `signedFetch` when it
    * is not already stored. Returns null when the object cannot be fetched or is
@@ -976,9 +1109,12 @@ export class OutboxSyncService {
    *
    * Used by boost import so a boost's `boostOf` always references a real local
    * Post `_id`, exactly like native reposts (which the hydration layer resolves
-   * by looking the original post up by `_id`).
+   * by looking the original post up by `_id`). Also used as the ancestor-backfill
+   * step of {@link resolveThreadLink}: when the fetched note is itself a reply,
+   * its own `parentPostId`/`threadId` are resolved (recursing up the chain, with
+   * the depth budget threaded through) so the imported ancestor is fully linked.
    */
-  private async ensureFederatedNote(objectUri: string): Promise<string | null> {
+  private async ensureFederatedNote(objectUri: string, depth = 0): Promise<string | null> {
     // Already stored?
     const existing = await Post.findOne(
       { 'federation.activityId': objectUri },
@@ -1030,16 +1166,24 @@ export class OutboxSyncService {
       { activityId: noteActivityId, actorUri: authorUri ?? undefined },
     );
 
+    // When this note is itself a reply, link it into its thread (resolving /
+    // backfilling its OWN parent chain up to the root). The depth budget is
+    // threaded through so the recursion stays bounded across the chain.
+    const inReplyToUri = extractInReplyToUri(note.inReplyTo);
+    const threadLink = inReplyToUri ? await this.resolveThreadLink(inReplyToUri, depth, true) : null;
+
     try {
       const created = await getPostCreator().create({
         oxyUserId: authorOxyUserId,
         federation: {
           activityId: noteActivityId,
-          inReplyTo: typeof note.inReplyTo === 'string' ? note.inReplyTo : undefined,
+          inReplyTo: inReplyToUri,
           url: typeof note.url === 'string' ? note.url : noteActivityId,
           sensitive: note.sensitive === true,
           spoilerText: typeof note.summary === 'string' ? note.summary : undefined,
         },
+        parentPostId: threadLink?.parentPostId ?? null,
+        threadId: threadLink?.threadId ?? null,
         content: {
           text,
           media: media.length > 0 ? media : undefined,
