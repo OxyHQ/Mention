@@ -18,7 +18,8 @@ import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
-import { getNormalizedUserHandle, normalizeProfileLinks } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxyhq/core';
+import { mergeBioAndProfileLinks } from '@/utils/mergeBioAndProfileLinks';
 
 /**
  * Main profile content section
@@ -210,7 +211,7 @@ export const ProfileContent = memo(function ProfileContent({
       <FollowedByRow profileId={profileData.id} username={profileHandle} />
 
       {/* Links (Instagram-style summary row + bottom sheet) */}
-      <LinkSummary links={normalizeProfileLinks(profileData.linksMetadata, profileData.links)} />
+      <LinkSummary links={mergeBioAndProfileLinks(profileData.linksMetadata, profileData.links, profileData.bio)} />
 
       {/* Communities */}
       {profileData.communities &&
