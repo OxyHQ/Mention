@@ -215,6 +215,10 @@
   "profile.song.saveError": "No se pudo actualizar tu canción del perfil",
   "profile.following": "Siguiendo",
   "profile.followers": "Seguidores",
+  "profile.followedBy.one": "Seguido por {{name1}}",
+  "profile.followedBy.two": "Seguido por {{name1}} y {{name2}}",
+  "profile.followedBy.many_one": "Seguido por {{name1}}, {{name2}} y {{count}} más",
+  "profile.followedBy.many_other": "Seguido por {{name1}}, {{name2}} y {{count}} más",
   "profile.communities": "Comunidades",
   "profile.members": "Miembros",
   "profile.memberCount": "{{count}} Miembros",
@@ -789,12 +793,19 @@
     }
   },
   "connections": {
+    "tabs": {
+      "inCommon": "En común"
+    },
     "emptyFollowers": "Aún no hay seguidores",
     "emptyFollowing": "Aún no sigue a nadie",
     "emptyRecommendations": "No hay recomendaciones disponibles",
+    "emptyInCommon": "No hay seguidores en común",
     "emptyFollowersSubtitle": "Cuando las personas sigan a {{name}}, aparecerán aquí.",
     "emptyFollowingSubtitle": "Cuando {{name}} siga a personas, aparecerán aquí.",
-    "emptyRecommendationsSubtitle": "Vuelve más tarde para ver sugerencias."
+    "emptyRecommendationsSubtitle": "Vuelve más tarde para ver sugerencias.",
+    "emptyInCommonSubtitle": "Las personas que sigues y que también siguen a esta cuenta aparecerán aquí.",
+    "failedRecommendations": "No se pudieron cargar las recomendaciones",
+    "failedInCommon": "No se pudieron cargar los seguidores en común"
   },
   "Who May Know": "Quizás conozcas",
   "chat.comingSoon": "Próximamente",

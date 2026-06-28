@@ -186,6 +186,10 @@
   "profile.song.saveError": "Couldn't update your profile song",
   "profile.following": "Following",
   "profile.followers": "Followers",
+  "profile.followedBy.one": "Followed by {{name1}}",
+  "profile.followedBy.two": "Followed by {{name1}} and {{name2}}",
+  "profile.followedBy.many_one": "Followed by {{name1}}, {{name2}} and {{count}} other",
+  "profile.followedBy.many_other": "Followed by {{name1}}, {{name2}} and {{count}} others",
   "profile.communities": "Communities",
   "profile.members": "Members",
   "profile.memberCount": "{{count}} Members",
@@ -894,12 +898,19 @@
     }
   },
   "connections": {
+    "tabs": {
+      "inCommon": "In common"
+    },
     "emptyFollowers": "No followers yet",
     "emptyFollowing": "Not following anyone yet",
     "emptyRecommendations": "No recommendations available",
+    "emptyInCommon": "No mutual followers",
     "emptyFollowersSubtitle": "When people follow {{name}}, they'll appear here.",
     "emptyFollowingSubtitle": "When {{name}} follows people, they'll appear here.",
-    "emptyRecommendationsSubtitle": "Check back later for suggestions."
+    "emptyRecommendationsSubtitle": "Check back later for suggestions.",
+    "emptyInCommonSubtitle": "People you follow who also follow this account will appear here.",
+    "failedRecommendations": "Failed to load recommendations",
+    "failedInCommon": "Failed to load mutual followers"
   },
   "Who May Know": "Who May Know",
   "For You": "For You",

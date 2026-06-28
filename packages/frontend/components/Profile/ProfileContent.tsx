@@ -12,6 +12,7 @@ import {
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { LinkSummary } from './LinkSummary';
+import { FollowedByRow } from './FollowedByRow';
 import { ProfileSong } from './ProfileSong';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
@@ -202,6 +203,9 @@ export const ProfileContent = memo(function ProfileContent({
       {(!isPrivate || isOwnProfile) && (
         <ProfileSong song={design.profileSong} isOwnProfile={isOwnProfile} />
       )}
+
+      {/* Social proof — mutual followers ("Followed by Ana, Luis and N others") */}
+      <FollowedByRow profileId={profileData.id} username={profileHandle} />
 
       {/* Links (Instagram-style summary row + bottom sheet) */}
       <LinkSummary links={normalizeProfileLinks(profileData.linksMetadata, profileData.links)} />

@@ -30,7 +30,7 @@ import { fetchRecommendations } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
-type TabType = 'followers' | 'following' | 'who-may-know';
+type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
 
 /**
  * How long a fetched who-may-know page stays fresh before React Query refetches
@@ -122,12 +122,14 @@ function ConnectionsContent({
   const getActiveTab = useCallback((): TabType => {
     if (pathname?.endsWith('/following')) return 'following';
     if (pathname?.endsWith('/who-may-know')) return 'who-may-know';
+    if (pathname?.endsWith('/in-common')) return 'in-common';
     return 'followers';
   }, [pathname]);
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     if (pathname?.endsWith('/following')) return 'following';
     if (pathname?.endsWith('/who-may-know')) return 'who-may-know';
+    if (pathname?.endsWith('/in-common')) return 'in-common';
     return 'followers';
   });
 
@@ -240,9 +242,46 @@ function ConnectionsContent({
     [recommendationsQuery.data],
   );
 
-  // Load data based on active tab. Recommendations (who-may-know) are owned by
-  // React Query above; only the public followers/following lists flow through
-  // this imperative path.
+  // "In common" = mutual followers between the SIGNED-IN VIEWER and the profile
+  // being viewed (people the viewer follows who also follow this profile). The
+  // SDK derives the viewer from the auth token, so — exactly like
+  // recommendations above — React Query owns this load keyed on the viewer
+  // identity (`anon` -> `<viewerId>`), `keepPreviousData` avoids an empty flash
+  // during the cold-boot session transition, and the endpoint soft-fails to an
+  // empty list (own profile / signed out / no mutuals) rather than throwing.
+  const inCommonQuery = useQuery<ConnectionUser[]>({
+    queryKey: ['connections', 'mutuals', profileData?.id ?? '', user?.id ?? 'anon'],
+    queryFn: async () => {
+      const targetId = profileData?.id;
+      if (!targetId) return [];
+      try {
+        const result = await oxyServices.getUserMutuals(targetId, { limit: 50 });
+        const list = result.mutuals;
+        precacheProfileViews(queryClient, list);
+        return list;
+      } catch (err) {
+        // Mutuals require a viewer; on an auth error (no usable bearer yet on
+        // cold boot) show the empty state rather than a scary error. Non-auth
+        // errors propagate so React Query surfaces them and retries.
+        if (isAuthError(err)) {
+          logger.warn('Auth error loading mutuals, showing empty state', { error: err });
+          return [];
+        }
+        throw err;
+      }
+    },
+    enabled: activeTab === 'in-common' && Boolean(profileData?.id),
+    placeholderData: keepPreviousData,
+    staleTime: RECOMMENDATIONS_STALE_TIME_MS,
+  });
+  const mutuals = useMemo<ConnectionUser[]>(
+    () => inCommonQuery.data ?? [],
+    [inCommonQuery.data],
+  );
+
+  // Load data based on active tab. The viewer-relative tabs (who-may-know and
+  // in-common) are owned by React Query above; only the public
+  // followers/following lists flow through this imperative path.
   const loadCurrentTab = useCallback(async () => {
     setLoading(true);
     try {
@@ -258,11 +297,12 @@ function ConnectionsContent({
 
   // Depend on profileData?.id (primitive) instead of profileData (object reference)
   // to avoid re-fetching when the profile object is re-created with identical content
-  // (e.g. after the actor cache is primed with the same data). Who-may-know is
-  // excluded here — it is driven by `recommendationsQuery`, not this effect.
+  // (e.g. after the actor cache is primed with the same data). Who-may-know and
+  // in-common are excluded here — they are driven by their React Query above,
+  // not this effect.
   const profileId = profileData?.id;
   useEffect(() => {
-    if (profileId && activeTab !== 'who-may-know') {
+    if (profileId && activeTab !== 'who-may-know' && activeTab !== 'in-common') {
       loadCurrentTab();
     }
   }, [activeTab, profileId, loadCurrentTab]);
@@ -401,10 +441,12 @@ function ConnectionsContent({
         return following;
       case 'who-may-know':
         return recommendations;
+      case 'in-common':
+        return mutuals;
       default:
         return [];
     }
-  }, [activeTab, followers, following, recommendations]);
+  }, [activeTab, followers, following, recommendations, mutuals]);
 
   const profileDisplayName = profileData?.design.displayName;
 
@@ -416,6 +458,8 @@ function ConnectionsContent({
         return t('connections.emptyFollowing', { defaultValue: 'Not following anyone yet' });
       case 'who-may-know':
         return t('connections.emptyRecommendations', { defaultValue: 'No recommendations available' });
+      case 'in-common':
+        return t('connections.emptyInCommon', { defaultValue: 'No mutual followers' });
       default:
         return '';
     }
@@ -439,6 +483,10 @@ function ConnectionsContent({
         return t('connections.emptyRecommendationsSubtitle', {
           defaultValue: 'Check back later for suggestions.',
         });
+      case 'in-common':
+        return t('connections.emptyInCommonSubtitle', {
+          defaultValue: "People you follow who also follow this account will appear here.",
+        });
       default:
         return '';
     }
@@ -456,6 +504,8 @@ function ConnectionsContent({
           : t('Following', { defaultValue: 'Following' });
       case 'who-may-know':
         return t('Who May Know', { defaultValue: 'Who May Know' });
+      case 'in-common':
+        return t('connections.tabs.inCommon', { defaultValue: 'In common' });
       default:
         return '';
     }
@@ -464,28 +514,38 @@ function ConnectionsContent({
   const tabs = useMemo(() => [
     { id: 'followers', label: t('Followers', { defaultValue: 'Followers' }) },
     { id: 'following', label: t('Following', { defaultValue: 'Following' }) },
+    { id: 'in-common', label: t('connections.tabs.inCommon', { defaultValue: 'In common' }) },
     { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
   ], [t]);
 
-  // Loading/error/refresh are sourced per-tab: who-may-know reads its React
-  // Query state, while followers/following keep using the imperative state.
+  // Loading/error/refresh are sourced per-tab: the viewer-relative tabs
+  // (who-may-know, in-common) read their React Query state, while
+  // followers/following keep using the imperative state.
   const isRecommendationsTab = activeTab === 'who-may-know';
+  const isInCommonTab = activeTab === 'in-common';
+  const isQueryTab = isRecommendationsTab || isInCommonTab;
   const { refetch: refetchRecommendations } = recommendationsQuery;
-  const recommendationsErrorMessage = recommendationsQuery.isError
-    ? recommendationsQuery.error instanceof globalThis.Error
-      ? recommendationsQuery.error.message
-      : t('connections.failedRecommendations', { defaultValue: 'Failed to load recommendations' })
+  const { refetch: refetchInCommon } = inCommonQuery;
+  const activeQuery = isInCommonTab ? inCommonQuery : recommendationsQuery;
+  const queryErrorMessage = activeQuery.isError
+    ? activeQuery.error instanceof globalThis.Error
+      ? activeQuery.error.message
+      : isInCommonTab
+        ? t('connections.failedInCommon', { defaultValue: 'Failed to load mutual followers' })
+        : t('connections.failedRecommendations', { defaultValue: 'Failed to load recommendations' })
     : null;
-  const activeLoading = isRecommendationsTab ? recommendationsQuery.isPending : loading;
-  const activeError = isRecommendationsTab ? recommendationsErrorMessage : error;
-  const activeRefreshing = isRecommendationsTab ? recommendationsQuery.isFetching : loading;
+  const activeLoading = isQueryTab ? activeQuery.isPending : loading;
+  const activeError = isQueryTab ? queryErrorMessage : error;
+  const activeRefreshing = isQueryTab ? activeQuery.isFetching : loading;
   const refreshCurrent = useCallback(() => {
-    if (activeTab === 'who-may-know') {
+    if (isInCommonTab) {
+      void refetchInCommon();
+    } else if (isRecommendationsTab) {
       void refetchRecommendations();
     } else {
       void loadCurrentTab();
     }
-  }, [activeTab, refetchRecommendations, loadCurrentTab]);
+  }, [isInCommonTab, isRecommendationsTab, refetchInCommon, refetchRecommendations, loadCurrentTab]);
 
   const renderContent = () => {
     if (activeError && currentData.length === 0 && !activeLoading) {
