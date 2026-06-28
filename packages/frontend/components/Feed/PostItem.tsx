@@ -513,6 +513,14 @@ const PostItem: React.FC<PostItemProps> = ({
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
     const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
 
+    // X where the header's display name begins, so the Bluesky-style context rows
+    // (Reposted by / Pinned / Replying to) line their TEXT up exactly with the name.
+    // PostHeader lays the avatar out at HPAD padding + 36px avatar + 12px marginRight;
+    // the literal 36 MUST match PostHeader's default `avatarSize` (PostItem passes no
+    // override). NOT AVATAR_OFFSET (64) — that assumes a 40px avatar and would land 4px
+    // right of the real 36px-avatar name. The icon then pulls left into the gutter.
+    const CONTENT_LEFT = HPAD + 36 + AVATAR_GAP;
+
     // The detail variant is layout-identical to the feed: the body stays indented
     // under the avatar column (AVATAR_OFFSET), aligned with the name. ONLY the
     // bottom action bar and the extra detail rows (timestamp + engagement stats)
@@ -601,34 +609,28 @@ const PostItem: React.FC<PostItemProps> = ({
                 {repostedBy && (
                     <TouchableOpacity
                         className="flex-row items-center mb-0.5"
-                        style={{ paddingLeft: HPAD }}
+                        style={{ paddingLeft: CONTENT_LEFT }}
                         activeOpacity={0.7}
                         onPress={goToReposter}
                         accessibilityRole="link"
                     >
-                        <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
-                            <BoostIcon size={14} color={theme.colors.textSecondary} />
-                        </View>
+                        <BoostIcon size={13} color={theme.colors.textSecondary} style={{ marginLeft: -16, marginRight: 3 }} />
                         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
                             {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName}
                         </Text>
                     </TouchableOpacity>
                 )}
                 {showPinned && (
-                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: HPAD }}>
-                        <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
-                            <PinIcon size={14} className="text-muted-foreground" />
-                        </View>
-                        <Text className="text-muted-foreground text-[13px] font-semibold">
+                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: CONTENT_LEFT }}>
+                        <PinIcon size={13} className="text-muted-foreground" style={{ marginLeft: -16, marginRight: 3 }} />
+                        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
                             {t('post.pinned', { defaultValue: 'Pinned' })}
                         </Text>
                     </View>
                 )}
                 {replyContextHandle && (
-                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: HPAD }}>
-                        <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
-                            <Ionicons name="return-down-forward-outline" size={14} color={theme.colors.textSecondary} />
-                        </View>
+                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: CONTENT_LEFT }}>
+                        <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} style={{ marginLeft: -16, marginRight: 3 }} />
                         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
                             {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
                         </Text>
