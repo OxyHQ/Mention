@@ -46,9 +46,9 @@ interface PostAttachmentMediaProps {
   /** Poster (thumbnail) shown over the video until the first frame plays. */
   poster?: string;
   /**
-   * Image only: fired with the measured on-screen rect of the tapped thumbnail so
-   * the gallery can animate the zoom from the image's origin. Videos render the
-   * full inline player (no tap-through to the reels viewer).
+   * Video: fired with no args (routes to the reels viewer).
+   * Image: fired with the measured on-screen rect of the tapped thumbnail so the
+   * gallery can animate the zoom from the image's origin.
    */
   onPress?: (rect?: MeasuredRect) => void;
   hasSingleMedia?: boolean;
@@ -63,9 +63,10 @@ interface PostAttachmentMediaProps {
 const PostAttachmentVideo: React.FC<{
   src: string;
   poster?: string;
+  onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, poster, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src, poster, onPress, hasSingleMedia, hasMultipleMedia }) => {
   return (
     <View
       className="border border-border bg-secondary rounded-[15px] overflow-hidden"
@@ -75,8 +76,6 @@ const PostAttachmentVideo: React.FC<{
         hasSingleMedia && { maxHeight: undefined, height: undefined },
       ]}
     >
-      {/* No `onPress`: renders the full inline player (play/pause, seek bar, time,
-          mute, fullscreen) like Bluesky's in-post video, not the Reels preview. */}
       <VideoPlayer
         src={src}
         poster={poster}
@@ -84,6 +83,7 @@ const PostAttachmentVideo: React.FC<{
         contentFit="contain"
         autoPlay={true}
         loop={true}
+        onPress={onPress}
       />
     </View>
   );
@@ -260,6 +260,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
       <PostAttachmentVideo
         src={src}
         poster={poster}
+        onPress={onPress}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}
       />

@@ -11,6 +11,7 @@ import {
   MEDIA_VARIANT_THUMB,
   MEDIA_VARIANT_FULL,
 } from '@mention/shared-types';
+import { useRouter } from 'expo-router';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import {
@@ -98,6 +99,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   linkMetadata,
   style
 }) => {
+  const router = useRouter();
   const { oxyServices } = useAuth();
 
   const mediaArray = useMemo(() => Array.isArray(media) ? media : [], [media]);
@@ -325,6 +327,16 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const hasMultipleMedia = mediaItems.length > 1;
   const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested');
+
+  // Open the fullscreen reels viewer seeded at the tapped video. The reels route
+  // selects the correct media item via the `mediaIndex` query param, so a post
+  // containing several videos (or a video among images) opens at the right one.
+  const handleVideoPress = useCallback((mediaId: string) => {
+    if (!postId) return;
+    const mediaIndex = mediaArray.findIndex(m => String(m?.id) === String(mediaId));
+    const query = mediaIndex >= 0 ? `?postId=${postId}&mediaIndex=${mediaIndex}` : `?postId=${postId}`;
+    router.push(`/videos${query}`);
+  }, [postId, mediaArray, router]);
 
   // Images-only subset (in render order) powering the zoom gallery. Each entry's
   // position is the index the gallery opens at when its thumbnail is tapped;
@@ -607,9 +619,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               poster={item.type === 'video' ? item.poster : undefined}
               postId={postId}
               onPress={
-                item.type === 'image'
-                  ? (rect?: MeasuredRect) => handleImagePress(mediaId, rect)
-                  : undefined
+                item.type === 'video'
+                  ? () => handleVideoPress(mediaId)
+                  : (rect?: MeasuredRect) => handleImagePress(mediaId, rect)
               }
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
