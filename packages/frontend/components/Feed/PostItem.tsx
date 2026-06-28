@@ -561,6 +561,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 )}
                 style={[
                     !isNested && styles.postContainer,
+                    !isNested && { borderBottomColor: theme.colors.border },
                     !isNested && {
                         paddingTop: VPAD,
                         paddingBottom: VPAD,
@@ -825,7 +826,6 @@ const PostItem: React.FC<PostItemProps> = ({
 const styles = StyleSheet.create({
     postContainer: {
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(0,0,0,0.08)',
     },
     nestedPostContainer: {
         borderWidth: StyleSheet.hairlineWidth,
