@@ -13,6 +13,7 @@ import {
     setFeedMemoryCache,
     clearFeedMemoryCache,
     subscribeToNewLocalPosts,
+    subscribeToRemovedLocalPosts,
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
 
@@ -309,6 +310,62 @@ export function useFeedState({
         localHasMore,
         localNextCursor,
     ]);
+
+    // Memory-mode feeds hold items in local React state and never read SQLite, so
+    // a post deleted via `postsStore.removePostEverywhere` (SQLite delete + version
+    // bump) would otherwise linger here until a manual refresh. Subscribe to the
+    // removal broadcast and drop the post from live items, slices, AND the retained
+    // cache — mirroring the SQLite path's reactive removal. Active for ALL
+    // memory-mode feeds (home, profile, scoped, saved) because a deleted post must
+    // vanish everywhere it appears, not just on home feeds.
+    useEffect(() => {
+        if (!useMemoryFeed) return;
+
+        return subscribeToRemovedLocalPosts((removedId) => {
+            setLocalItems((prev) => {
+                const next = prev.filter((p) => getItemKey(p) !== removedId);
+                return next.length === prev.length ? prev : next;
+            });
+
+            setLocalSlices((prev) => {
+                if (!prev) return prev;
+                let changed = false;
+                const next = prev
+                    .map((slice) => {
+                        const items = slice.items.filter((si) => getItemKey(si.post) !== removedId);
+                        if (items.length === slice.items.length) return slice;
+                        changed = true;
+                        return { ...slice, items };
+                    })
+                    .filter((slice) => slice.items.length > 0);
+                return changed ? next : prev;
+            });
+
+            // Keep the retained slice in sync so an unmount→remount can't resurrect
+            // the deleted post from the warm cache.
+            const existing = getFeedMemoryCache(feedScrollKey);
+            if (!existing) return;
+            const cachedItems = existing.items.filter((p) => getItemKey(p) !== removedId);
+            let slicesChanged = false;
+            const cachedSlices = existing.slices
+                ? existing.slices
+                    .map((slice) => {
+                        const items = slice.items.filter((si) => getItemKey(si.post) !== removedId);
+                        if (items.length !== slice.items.length) slicesChanged = true;
+                        return items.length === slice.items.length ? slice : { ...slice, items };
+                    })
+                    .filter((slice) => slice.items.length > 0)
+                : existing.slices;
+            const itemsChanged = cachedItems.length !== existing.items.length;
+            if (itemsChanged || slicesChanged) {
+                setFeedMemoryCache(feedScrollKey, {
+                    ...existing,
+                    items: cachedItems,
+                    slices: cachedSlices,
+                });
+            }
+        });
+    }, [useMemoryFeed, feedScrollKey]);
 
     const clearError = useCallback(() => {
         if (useMemoryFeed) {
