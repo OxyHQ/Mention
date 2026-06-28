@@ -12,6 +12,7 @@ import {
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { LinkSummary } from './LinkSummary';
+import { ProfileSong } from './ProfileSong';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
@@ -195,6 +196,11 @@ export const ProfileContent = memo(function ProfileContent({
           onBoostsPress={onBoostsPress}
           onRepliesPress={onRepliesPress}
         />
+      )}
+
+      {/* Profile song (Instagram-style row + picker sheet) */}
+      {(!isPrivate || isOwnProfile) && (
+        <ProfileSong song={design.profileSong} isOwnProfile={isOwnProfile} />
       )}
 
       {/* Links (Instagram-style summary row + bottom sheet) */}

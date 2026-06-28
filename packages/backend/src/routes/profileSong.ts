@@ -36,14 +36,22 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
 
     const tracks = await syraClient.searchTracks(query, { limit: SEARCH_RESULT_LIMIT });
 
-    const results = tracks.map((track) => ({
-      syraTrackId: track.id,
-      title: track.title,
-      artist: track.artistName,
-      artworkUrl: syraClient.artworkUrl(track),
-      durationSec: track.duration,
-      previewAvailable: track.previewAvailable === true,
-    }));
+    const results = tracks.map((track) => {
+      const previewAvailable = track.previewAvailable === true;
+      return {
+        syraTrackId: track.id,
+        title: track.title,
+        artist: track.artistName,
+        artworkUrl: syraClient.artworkUrl(track),
+        durationSec: track.duration,
+        previewAvailable,
+        // The Syra preview URL can only be built server-side (Syra base URL +
+        // SDK), so surface it here for the picker to audition a track before
+        // saving. Built at start 0 — the saved start offset is resolved + clamped
+        // server-side on PUT /profile/settings.
+        previewUrl: previewAvailable ? syraClient.previewUrl(track.id, 0) : undefined,
+      };
+    });
 
     return sendSuccessResponse(res, 200, results);
   } catch (err) {

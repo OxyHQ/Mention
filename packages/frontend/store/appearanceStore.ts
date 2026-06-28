@@ -24,6 +24,31 @@ export interface AppearanceSettings {
   primaryColor?: string;
 }
 
+/**
+ * A Syra track pinned to the profile (Instagram-style "profile song"). The
+ * metadata is denormalized and preview-verified server-side at save time, so the
+ * public profile-design payload carries it ready to render and play as-is.
+ */
+export interface ProfileSong {
+  syraTrackId: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string;
+  previewUrl: string;
+  startSec: number;
+  durationSec?: number;
+}
+
+/**
+ * The untrusted reference the owner submits when pinning a song. The server
+ * resolves the canonical metadata + preview URL from the Syra catalog and clamps
+ * `startSec`, so the client only sends the track id and the chosen start offset.
+ */
+export interface ProfileSongInput {
+  syraTrackId: string;
+  startSec: number;
+}
+
 export interface UserAppearance {
   oxyUserId: string;
   postsCount?: number;
@@ -35,6 +60,12 @@ export interface UserAppearance {
     coverPhotoEnabled?: boolean;
     minimalistMode?: boolean;
   };
+  /**
+   * Pinned profile song. The public profile-design DTO exposes it as a top-level
+   * field (denormalized + preview-verified server-side); `null`/absent means the
+   * user has not set one.
+   */
+  profileSong?: ProfileSong | null;
   followsYou?: boolean;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -50,6 +81,8 @@ export interface UserAppearanceUpdate {
   appearance?: Partial<AppearanceSettings>;
   profileHeaderImage?: string | null;
   profileCustomization?: UserAppearance['profileCustomization'];
+  /** `ProfileSongInput` to pin/replace the song, or `null` to remove it. */
+  profileSong?: ProfileSongInput | null;
   interests?: UserAppearance['interests'];
 }
 
@@ -133,6 +166,11 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
         }),
         ...(partial.profileCustomization && {
           profileCustomization: partial.profileCustomization,
+        }),
+        // `profileSong` accepts `null` (remove), so gate on key presence rather
+        // than truthiness. The server resolves canonical metadata + preview URL.
+        ...(Object.prototype.hasOwnProperty.call(partial, 'profileSong') && {
+          profileSong: partial.profileSong,
         }),
         ...(partial.interests && {
           interests: partial.interests,
