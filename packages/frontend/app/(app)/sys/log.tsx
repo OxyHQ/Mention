@@ -17,7 +17,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { getEntries, type LogEntry } from '@/lib/logger/logDump';
-import { formatRelativeTimeCompact } from '@/utils/dateUtils';
+import { formatTimeAgo } from '@/utils/dateUtils';
 
 const LogEntryRow = memo(function LogEntryRow({
   entry,
@@ -89,7 +89,7 @@ const LogEntryRow = memo(function LogEntryRow({
             />
           ))}
         <Text className="text-muted-foreground text-xs" style={{ minWidth: 28 }}>
-          {formatRelativeTimeCompact(entry.timestamp)}
+          {formatTimeAgo(entry.timestamp)}
         </Text>
       </Pressable>
       {expanded && hasMetadata && (

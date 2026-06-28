@@ -30,4 +30,4 @@ export function formatTime(timestamp: number): string {
   return `${hours}:${minutes}:${seconds}`
 }
 
-export { formatRelativeTimeCompact as timeAgo } from '@/utils/dateUtils'
+export { formatTimeAgo as timeAgo } from '@/utils/dateUtils'

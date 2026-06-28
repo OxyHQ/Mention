@@ -16,28 +16,163 @@ export const formatScheduledLabel = (date: Date): string => {
   }
 };
 
+type DateDiff = {
+  value: number;
+  unit: 'now' | 'second' | 'minute' | 'hour' | 'day' | 'month';
+  earlier: Date;
+  later: Date;
+};
+
+const NOW = 5;
+const MINUTE = 60;
+const HOUR = MINUTE * 60;
+const DAY = HOUR * 24;
+const MONTH_30 = DAY * 30;
+
 /**
- * Compact relative time: "now", "5m", "2h", "3d", "1w", "2mo", "1y"
- * Accepts either a millisecond timestamp (number) or an ISO date string.
+ * Returns the difference between `earlier` and `later` dates, based on
+ * opinionated rules (faithful port of Bluesky's `dateDiff`).
+ *
+ * - All months are considered exactly 30 days.
+ * - Dates assume `earlier` <= `later`, and will otherwise return 'now'.
+ * - All values round down (or up when `rounding === 'up'`).
  */
-export function formatRelativeTimeCompact(input: string | number): string {
-  const ts = typeof input === 'number' ? input : Date.parse(String(input));
-  if (Number.isNaN(ts)) return 'now';
-  const diff = Math.max(0, Date.now() - ts);
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return 'now';
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m`;
-  const hrs = Math.floor(min / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 5) return `${weeks}w`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo`;
-  const years = Math.floor(days / 365);
-  return `${years}y`;
+export function dateDiff(
+  earlier: number | string | Date,
+  later: number | string | Date,
+  rounding: 'up' | 'down' = 'down',
+): DateDiff {
+  let diff = {
+    value: 0,
+    unit: 'now' as DateDiff['unit'],
+  };
+  const e = new Date(earlier);
+  const l = new Date(later);
+  const diffSeconds = Math.floor((l.getTime() - e.getTime()) / 1000);
+
+  if (diffSeconds < NOW) {
+    diff = {
+      value: 0,
+      unit: 'now',
+    };
+  } else if (diffSeconds < MINUTE) {
+    diff = {
+      value: diffSeconds,
+      unit: 'second',
+    };
+  } else if (diffSeconds < HOUR) {
+    const value =
+      rounding === 'up'
+        ? Math.ceil(diffSeconds / MINUTE)
+        : Math.floor(diffSeconds / MINUTE);
+    diff = {
+      value,
+      unit: 'minute',
+    };
+  } else if (diffSeconds < DAY) {
+    const value =
+      rounding === 'up'
+        ? Math.ceil(diffSeconds / HOUR)
+        : Math.floor(diffSeconds / HOUR);
+    diff = {
+      value,
+      unit: 'hour',
+    };
+  } else if (diffSeconds < MONTH_30) {
+    const value =
+      rounding === 'up'
+        ? Math.ceil(diffSeconds / DAY)
+        : Math.floor(diffSeconds / DAY);
+    diff = {
+      value,
+      unit: 'day',
+    };
+  } else {
+    const value =
+      rounding === 'up'
+        ? Math.ceil(diffSeconds / MONTH_30)
+        : Math.floor(diffSeconds / MONTH_30);
+    diff = {
+      value,
+      unit: 'month',
+    };
+  }
+
+  return {
+    ...diff,
+    earlier: e,
+    later: l,
+  };
+}
+
+/**
+ * Accepts a `DateDiff` and returns the difference between `earlier` and
+ * `later` dates, formatted as a natural language string (faithful port of
+ * Bluesky's `formatDateDiff`).
+ *
+ * - All months are considered exactly 30 days.
+ * - Dates assume `earlier` <= `later`, and will otherwise return 'now'.
+ * - Differences >= 12 months are returned as a localized absolute date.
+ */
+export function formatDateDiff({
+  diff,
+  format = 'short',
+}: {
+  diff: DateDiff;
+  format?: 'short' | 'long';
+}): string {
+  const long = format === 'long';
+
+  switch (diff.unit) {
+    case 'now': {
+      return 'now';
+    }
+    case 'second': {
+      return long
+        ? `${diff.value} ${diff.value === 1 ? 'second' : 'seconds'}`
+        : `${diff.value}s`;
+    }
+    case 'minute': {
+      return long
+        ? `${diff.value} ${diff.value === 1 ? 'minute' : 'minutes'}`
+        : `${diff.value}m`;
+    }
+    case 'hour': {
+      return long
+        ? `${diff.value} ${diff.value === 1 ? 'hour' : 'hours'}`
+        : `${diff.value}h`;
+    }
+    case 'day': {
+      return long
+        ? `${diff.value} ${diff.value === 1 ? 'day' : 'days'}`
+        : `${diff.value}d`;
+    }
+    case 'month': {
+      if (diff.value < 12) {
+        return long
+          ? `${diff.value} ${diff.value === 1 ? 'month' : 'months'}`
+          : `${diff.value}mo`;
+      }
+      return new Date(diff.earlier).toLocaleDateString();
+    }
+  }
+}
+
+/**
+ * Compact relative time, faithful to Bluesky's `dateDiff`/`formatDateDiff`
+ * algorithm: "now", "12s", "5m", "2h", "20d", "3mo", then an absolute
+ * localized date (e.g. "6/11/2026") once 12 months have passed.
+ *
+ * Accepts a millisecond timestamp (number), an ISO date string, or a Date.
+ * NaN-safe: an unparseable input returns 'now'.
+ */
+export function formatTimeAgo(
+  input: number | string | Date,
+  opts?: { format?: 'short' | 'long' },
+): string {
+  if (Number.isNaN(new Date(input).getTime())) return 'now';
+  const diff = dateDiff(input, Date.now());
+  return formatDateDiff({ diff, format: opts?.format });
 }
 
 /**

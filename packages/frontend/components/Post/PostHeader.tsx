@@ -8,7 +8,7 @@ import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
-import { formatRelativeTimeCompact } from '@/utils/dateUtils';
+import { formatTimeAgo } from '@/utils/dateUtils';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
 const INDICATOR_ICON_SIZE = 14;
@@ -83,7 +83,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 }) => {
   const theme = useTheme();
 
-  const timeLabel = useMemo(() => formatRelativeTimeCompact(date || ''), [date]);
+  const timeLabel = useMemo(() => formatTimeAgo(date || ''), [date]);
 
   return (
     <View style={{ paddingHorizontal }}>
@@ -94,26 +94,39 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           </TouchableOpacity>
         </ProfileHoverCard>
         <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
-          <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
-            {/* Truncatable identity: name + handle shrink and ellipsize; the
-                trailing meta (\u00B7 time, indicators) stays fixed and visible. */}
-            <View className="flex-row items-center flex-shrink" style={{ gap: ROW_GAP, minWidth: 0 }}>
+          <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
+            {/* Bluesky-style identity line: the display name caps at ~70% width and
+                ellipsizes; the @handle gives way first (shrinks aggressively); the
+                trailing "\u00B7 time" never wraps and always stays visible. */}
+            <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
               <UserName
                 name={user.displayName}
                 verified={user.verified}
                 onPress={onPressUser}
-                style={{ container: { flexShrink: 1, minWidth: 0 } }}
+                style={{ container: { flexShrink: 0, maxWidth: '70%' } }}
               />
               {user.handle ? (
-                <Text className="text-muted-foreground text-[15px] flex-shrink" style={{ minWidth: 0 }} numberOfLines={1} ellipsizeMode="tail">
-                  @{user.handle}
+                <Text
+                  className="text-muted-foreground text-[15px] leading-tight"
+                  style={{ flexShrink: 10, minWidth: 0 }}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {`\u00A0@${user.handle}`}
                 </Text>
               ) : null}
               {user.isFederated ? (
-                <FediverseIcon size={13} className="text-muted-foreground" />
+                <FediverseIcon size={13} className="text-muted-foreground self-center ml-1" />
               ) : null}
             </View>
-            {!!timeLabel && <Text className="text-muted-foreground text-[15px]">{'\u00B7'} {timeLabel}</Text>}
+            {!!timeLabel && (
+              <Text
+                className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
+                style={{ flexShrink: 0 }}
+              >
+                {'\u00B7'} {timeLabel}
+              </Text>
+            )}
             {showBoost && (
               <View accessibilityRole="image" accessibilityLabel="Reposted">
                 <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />

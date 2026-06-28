@@ -30,8 +30,8 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
     // Use a slightly larger nudge for larger fonts (e.g., header titles) to improve visual alignment.
     const baselineNudge = Math.round(effectiveFontSize >= 18 ? effectiveFontSize * 0.18 : effectiveFontSize * 0.06);
 
-    const content = (
-        <View style={[styles.container, style?.container]}>
+    const inner = (
+        <>
             <View className="gap-1" style={styles.nameRow}>
                 <Text className="text-foreground" style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
                     {name}
@@ -62,23 +62,24 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                     </Text>
                 )
             ) : null}
-        </View>
+        </>
     );
 
     if (onPress) {
         // The Touchable is the actual flex child in the caller's row, so the
-        // caller's `container` style (e.g. PostHeader's `{ flexShrink: 1,
-        // minWidth: 0 }`) must land HERE for width-constrained truncation to
-        // reach the inner name Text. Without it the Touchable expands to the
-        // name's intrinsic width and nothing ellipsizes.
+        // caller's `container` style (e.g. PostHeader's `{ flexShrink: 0,
+        // maxWidth: '70%' }`) lands on the Touchable — that is where the width
+        // constraint must sit so truncation reaches the inner name Text. The
+        // inner column carries ONLY `styles.container`, so a percentage
+        // `maxWidth` is never applied twice (nested) and collapsed.
         return (
             <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={style?.container}>
-                {content}
+                <View style={styles.container}>{inner}</View>
             </TouchableOpacity>
         );
     }
 
-    return content;
+    return <View style={[styles.container, style?.container]}>{inner}</View>;
 };
 
 
