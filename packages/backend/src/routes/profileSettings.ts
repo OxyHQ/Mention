@@ -100,6 +100,9 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       } else if (appearance.primaryColor === null) {
         update.appearance.primaryColor = undefined;
       }
+      if (['default', 'more', 'muchMore', 'all'].includes(appearance.postTextExpand)) {
+        update.appearance.postTextExpand = appearance.postTextExpand;
+      }
     }
     
     if (typeof profileHeaderImage === 'string') {

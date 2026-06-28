@@ -2,9 +2,17 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
+/**
+ * How much of a post's body text shows before truncating with a "read more"
+ * link in feeds. Mention-only display preference applied client-side. `all`
+ * disables in-feed truncation entirely.
+ */
+export type PostTextExpand = 'default' | 'more' | 'muchMore' | 'all';
+
 export interface AppearanceSettings {
   themeMode: ThemeMode;
   primaryColor?: string;
+  postTextExpand?: PostTextExpand;
 }
 
 export interface LabelAction {
@@ -136,6 +144,7 @@ export interface IUserSettings extends UserSettingsData, Document {}
 const AppearanceSchema = new Schema<AppearanceSettings>({
   themeMode: { type: String, enum: ['light', 'dark', 'system', 'adaptive'], default: 'system' },
   primaryColor: { type: String, default: undefined },
+  postTextExpand: { type: String, enum: ['default', 'more', 'muchMore', 'all'], default: 'default' },
 }, { _id: false });
 
 const LabelActionSchema = new Schema<LabelAction>({

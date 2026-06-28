@@ -19,9 +19,17 @@ function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
   return value as T;
 }
 
+/**
+ * How much of a post's body text shows before truncating with a "read more"
+ * link in feeds. Mention-only display preference; `all` disables in-feed
+ * truncation. Maps to `previewChars` in `PostContentText`.
+ */
+export type PostTextExpand = 'default' | 'more' | 'muchMore' | 'all';
+
 export interface AppearanceSettings {
   themeMode: ThemeMode;
   primaryColor?: string;
+  postTextExpand?: PostTextExpand;
 }
 
 /**

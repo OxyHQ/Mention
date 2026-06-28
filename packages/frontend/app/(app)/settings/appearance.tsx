@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Image, Pressable } from 'react-native';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore, type PostTextExpand } from '@/store/appearanceStore';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -37,6 +37,7 @@ export default function AppearanceSettingsScreen() {
   const themeMode: ThemeMode = bloomMode === 'adaptive' || bloomMode === 'system'
     ? 'system'
     : bloomMode;
+  const postTextExpand: PostTextExpand = mySettings?.appearance?.postTextExpand ?? 'default';
   const [headerImageId, setHeaderImageId] = useState<string>(mySettings?.profileHeaderImage ?? '');
   const [settingsSaving, setSettingsSaving] = useState(false);
   const saving = settingsSaving || colorSaving;
@@ -64,22 +65,27 @@ export default function AppearanceSettingsScreen() {
 
   const preset = APP_COLOR_PRESETS[appColor];
 
-  const saveSettings = useCallback(async (updates: { themeMode?: ThemeMode; primaryColor?: string; headerImageId?: string }) => {
+  const saveSettings = useCallback(async (updates: { themeMode?: ThemeMode; primaryColor?: string; headerImageId?: string; postTextExpand?: PostTextExpand }) => {
     setSettingsSaving(true);
     const mode = updates.themeMode ?? themeMode;
     const color = updates.primaryColor ?? preset.hex;
     const header = updates.headerImageId ?? headerImageId;
+    const expand = updates.postTextExpand ?? postTextExpand;
     await updateMySettings({
-      appearance: { themeMode: mode, primaryColor: color || undefined },
+      appearance: { themeMode: mode, primaryColor: color || undefined, postTextExpand: expand },
       profileHeaderImage: header || null,
     });
     setSettingsSaving(false);
-  }, [themeMode, preset.hex, headerImageId, updateMySettings]);
+  }, [themeMode, preset.hex, headerImageId, postTextExpand, updateMySettings]);
 
   const onThemeModeChange = useCallback((mode: ThemeMode) => {
     setMode(mode);
     void saveSettings({ themeMode: mode });
   }, [saveSettings, setMode]);
+
+  const onPostTextExpandChange = useCallback((value: PostTextExpand) => {
+    void saveSettings({ postTextExpand: value });
+  }, [saveSettings]);
 
   const onColorChange = saveColor;
 
@@ -151,6 +157,36 @@ export default function AppearanceSettingsScreen() {
             </SegmentedControlItem>
             <SegmentedControlItem value="dark">
               <SegmentedControlItemText>{t('settings.theme.dark', 'Dark')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+          </SegmentedControl>
+        </View>
+
+        <SettingsListDivider />
+
+        {/* Post text length */}
+        <View className="px-5 py-3 gap-3">
+          <View className="flex-row items-center gap-3">
+            <Icon name="text-outline" size={22} color={colors.text} />
+            <Text className="text-[16px] text-foreground">
+              {t('settings.appearance.postTextLength', 'Post text length')}
+            </Text>
+          </View>
+          <SegmentedControl
+            label={t('settings.appearance.postTextLength', 'Post text length')}
+            type="radio"
+            value={postTextExpand}
+            onChange={onPostTextExpandChange}>
+            <SegmentedControlItem value="default">
+              <SegmentedControlItemText>{t('settings.appearance.postTextLength.default', 'Default')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+            <SegmentedControlItem value="more">
+              <SegmentedControlItemText>{t('settings.appearance.postTextLength.more', 'More')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+            <SegmentedControlItem value="muchMore">
+              <SegmentedControlItemText>{t('settings.appearance.postTextLength.muchMore', 'Much more')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+            <SegmentedControlItem value="all">
+              <SegmentedControlItemText>{t('settings.appearance.postTextLength.all', 'Show all')}</SegmentedControlItemText>
             </SegmentedControlItem>
           </SegmentedControl>
         </View>
