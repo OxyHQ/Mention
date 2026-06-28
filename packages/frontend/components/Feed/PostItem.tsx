@@ -139,10 +139,8 @@ const PostItem: React.FC<PostItemProps> = ({
     const eventContent = attachmentsBundle.event ?? content.event ?? null;
     const hasEvent = Boolean(eventContent);
 
-    // `room` is the canonical shape; `space` is the deprecated alias. Both are
-    // PostRoomContent; some legacy payloads also carry a raw `spaceId` field.
-    const roomContent: (PostRoomContent & { spaceId?: string }) | null =
-        attachmentsBundle.room ?? content.room ?? attachmentsBundle.space ?? content.space ?? null;
+    const roomContent: PostRoomContent | null =
+        attachmentsBundle.room ?? content.room ?? null;
 
     const podcastContent = attachmentsBundle.podcast ?? content.podcast ?? null;
 
@@ -194,7 +192,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // clean file id for local actors and a remote URL for federated actors so the
     // client never has to disambiguate. Until then we branch on `isFederated` and
     // on whether the value is already an absolute URL.
-    const rawAvatar = viewPost?.user?.avatarUrl || viewPost?.user?.avatar;
+    const rawAvatar = viewPost?.user?.avatarUrl;
     const isRemoteAvatar =
         typeof rawAvatar === 'string' &&
         (viewPost?.user?.isFederated === true ||
@@ -384,7 +382,7 @@ const PostItem: React.FC<PostItemProps> = ({
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, viewPostId]);
 
-    const roomId = roomContent?.roomId || roomContent?.spaceId;
+    const roomId = roomContent?.roomId;
     const handleRoomPress = useCallback(() => {
         if (roomId) joinLiveRoom(roomId);
     }, [joinLiveRoom, roomId]);

@@ -74,7 +74,6 @@ export interface SearchResults {
 export interface SearchFilters {
   dateFrom?: string;
   dateTo?: string;
-  author?: string;
   minLikes?: number;
   minBoosts?: number;
   mediaType?: 'image' | 'video' | 'gif';
@@ -171,12 +170,14 @@ class SearchService {
   }
 
   // Search hashtags — backend exposes POST /hashtags/search with body { query }
+  // and returns { data: string[] }. The linked client unwraps the `{ data }`
+  // envelope, so `res.data` is the tag-string array; map it to the result shape.
   async searchHashtags(query: string): Promise<SearchHashtagResult[]> {
     try {
-      const res = await authenticatedClient.post<{ data?: SearchHashtagResult[] }>("/hashtags/search", { query });
-      return res.data.data || [];
+      const res = await authenticatedClient.post<string[]>("/hashtags/search", { query });
+      return (res.data ?? []).map((tag) => ({ tag }));
     } catch (error) {
-      // Silently return empty array on error
+      logger.warn("Failed searching hashtags", { error });
       return [];
     }
   }

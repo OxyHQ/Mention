@@ -60,7 +60,6 @@ function summary(id: string, handle: string, displayName: string): CachedUserSum
       handle,
       displayName,
       avatarUrl: `https://cloud.oxy.so/${id}?variant=thumb`,
-      avatar: `https://cloud.oxy.so/${id}?variant=thumb`,
       isVerified: false,
     },
     followerCount: 0,

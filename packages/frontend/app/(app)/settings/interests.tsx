@@ -10,7 +10,6 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { authenticatedClient } from '@/utils/api';
-import { interests as allInterests } from '@/lib/interests';
 import { topicService } from '@/services/topicService';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
@@ -53,15 +52,11 @@ export default function InterestsSettingsScreen() {
         let cancelled = false;
         topicService.getCategories().then(categories => {
             if (cancelled) return;
-            if (categories.length > 0) {
-                setAvailableInterests(categories.map(c => ({ name: c.slug, displayName: c.displayName })));
-            } else {
-                setAvailableInterests(allInterests.map(i => ({ name: i, displayName: i })));
-            }
-        }).catch(() => {
-            if (!cancelled) {
-                setAvailableInterests(allInterests.map(i => ({ name: i, displayName: i })));
-            }
+            setAvailableInterests(categories.map(c => ({ name: c.slug, displayName: c.displayName })));
+        }).catch((error) => {
+            if (cancelled) return;
+            logger.error('Failed to load interest categories', { error });
+            setAvailableInterests([]);
         });
 
         return () => { cancelled = true; };

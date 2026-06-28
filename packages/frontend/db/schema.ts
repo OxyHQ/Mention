@@ -247,7 +247,6 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     linkPreview,
     user: {
       ...user,
-      avatar: user.avatarUrl ?? user.avatar,
       handle: user.handle,
       badges: user.badges,
       isVerified: user.isVerified,

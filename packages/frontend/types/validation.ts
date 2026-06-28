@@ -17,7 +17,7 @@ export const ZEmbeddedUser = z.object({
   id: z.string().optional(),
   displayName: z.string(),
   handle: z.string().optional(),
-  avatar: z.string().optional(),
+  avatarUrl: z.string().optional(),
   verified: z.boolean().optional(),
 });
 

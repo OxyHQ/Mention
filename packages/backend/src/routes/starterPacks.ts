@@ -73,8 +73,8 @@ async function enrichWithMemberAvatars(packs: LeanStarterPack[]): Promise<Starte
     try {
       const summaries = await resolveUserSummaries(Array.from(uniqueMemberIds));
       for (const [memberId, { summary }] of summaries) {
-        if (typeof summary.avatar === 'string' && summary.avatar.length > 0) {
-          avatarById.set(memberId, summary.avatar);
+        if (typeof summary.avatarUrl === 'string' && summary.avatarUrl.length > 0) {
+          avatarById.set(memberId, summary.avatarUrl);
         }
       }
     } catch (error) {

@@ -40,11 +40,8 @@ class TrendingService {
    * Initialize the service and start periodic calculations.
    */
   public initialize(): void {
-    // Drop legacy indexes from the previous schema before first calculation
-    this.dropLegacyIndexes().then(() => {
-      this.calculateTrending().catch(error => {
-        logger.error('[Trending] Initial calculation failed:', error);
-      });
+    this.calculateTrending().catch(error => {
+      logger.error('[Trending] Initial calculation failed:', error);
     });
 
     this.calculationInterval = setInterval(() => {
@@ -63,29 +60,6 @@ class TrendingService {
     if (this.calculationInterval) {
       clearInterval(this.calculationInterval);
       this.calculationInterval = null;
-    }
-  }
-
-  /**
-   * Drop legacy indexes from the previous schema (timeWindow-based).
-   */
-  private async dropLegacyIndexes(): Promise<void> {
-    try {
-      const collection = Trending.collection;
-      const indexes = await collection.indexes();
-      const legacyIndex = indexes.find(
-        (idx) => idx.key && 'timeWindow' in idx.key,
-      );
-      if (legacyIndex && legacyIndex.name) {
-        await collection.dropIndex(legacyIndex.name);
-        logger.info(`[Trending] Dropped legacy index: ${legacyIndex.name}`);
-        // Remove old documents that used the timeWindow schema
-        await Trending.deleteMany({ calculatedAt: { $exists: false } });
-        logger.info('[Trending] Cleaned up legacy documents without calculatedAt');
-      }
-    } catch (error) {
-      // Index may already be gone — safe to ignore
-      logger.debug('[Trending] Legacy index drop skipped:', error);
     }
   }
 

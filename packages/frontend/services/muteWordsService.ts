@@ -35,13 +35,6 @@ interface CreateMuteWordBody {
     actorTarget?: MuteWordActorTarget;
 }
 
-/** Shared success envelope returned by the backend. */
-interface ApiEnvelope<T> {
-    data: T;
-    message?: string;
-    success?: boolean;
-}
-
 const MUTE_WORDS_PATH = '/mute-words';
 
 /**
@@ -63,8 +56,10 @@ export function muteWordDisplayValue(word: SerializedMuteWord): string {
 export const muteWordsService = {
     /** Fetch all muted words for the current user, newest first. */
     async list(): Promise<SerializedMuteWord[]> {
-        const response = await authenticatedClient.get<ApiEnvelope<SerializedMuteWord[]>>(MUTE_WORDS_PATH);
-        return response.data.data ?? [];
+        // The linked client unwraps the backend `{ data }` envelope, so
+        // `response.data` is the array directly.
+        const response = await authenticatedClient.get<SerializedMuteWord[]>(MUTE_WORDS_PATH);
+        return response.data ?? [];
     },
 
     /**
@@ -80,13 +75,15 @@ export const muteWordsService = {
         const body: CreateMuteWordBody = isHashtag ? { value, targets: ['tag'] } : { value };
 
         logger.debug('Creating mute word', { isHashtag });
-        const response = await authenticatedClient.post<ApiEnvelope<SerializedMuteWord>>(MUTE_WORDS_PATH, body);
-        return response.data.data;
+        // The linked client unwraps the backend `{ data }` envelope, so
+        // `response.data` is the serialized record directly.
+        const response = await authenticatedClient.post<SerializedMuteWord>(MUTE_WORDS_PATH, body);
+        return response.data;
     },
 
     /** Remove a muted word by id. */
     async remove(id: string): Promise<void> {
         logger.debug('Removing mute word', { id });
-        await authenticatedClient.delete<ApiEnvelope<{ success: true }>>(`${MUTE_WORDS_PATH}/${id}`);
+        await authenticatedClient.delete<{ success: true }>(`${MUTE_WORDS_PATH}/${id}`);
     },
 };

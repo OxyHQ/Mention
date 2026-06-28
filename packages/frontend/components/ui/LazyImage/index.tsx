@@ -1,18 +1,11 @@
 /**
  * Enhanced LazyImage Component
- * Optimized image loading with progressive loading, size variants, and better caching
+ * Optimized image loading with progressive loading and better caching
  */
 
 import React, { useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Image, ImageProps, View, StyleSheet, ViewStyle, ImageStyle, StyleProp, Platform } from 'react-native';
 import { flattenStyleArray } from '@/utils/theme';
-
-/**
- * Size variant hint retained for call-site compatibility. The backend now
- * returns final, ready-to-render URLs (sizing/compression handled server-side),
- * so this is no longer used to derive a URL — it only documents intent.
- */
-export type ImageSize = 'thumb' | 'small' | 'medium' | 'large' | 'original';
 
 export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
   /** Image source URI or require() number */
@@ -27,8 +20,6 @@ export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
   containerStyle?: ViewStyle | ViewStyle[];
   /** Style for the Image itself */
   style?: StyleProp<ImageStyle>;
-  /** Image size variant for optimized loading */
-  size?: ImageSize;
   /** Enable progressive loading (show low-res first) */
   progressive?: boolean;
   /** Low resolution source for progressive loading */
@@ -53,7 +44,6 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
   threshold = 200,
   containerStyle,
   style,
-  size = 'medium',
   progressive = false,
   lowResSource,
   blurHash,

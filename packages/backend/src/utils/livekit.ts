@@ -226,12 +226,6 @@ export async function listRoomIngresses(roomId: string): Promise<IngressInfo[]> 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Backward-compatible aliases (old `space_{id}` naming)
-// These delegate to the legacy implementations so existing callers and the
-// spaceSocket module continue to work without changes.
-// ---------------------------------------------------------------------------
-
 /**
  * Delete an active ingress by its ID.
  */

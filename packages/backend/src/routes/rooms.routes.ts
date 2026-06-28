@@ -113,10 +113,6 @@ function emitStreamStarted(roomId: string, room: Pick<IRoom, 'streamTitle' | 'st
   };
 
   io.of('/rooms').to(`room:${roomId}`).emit('room:stream:started', roomPayload);
-  io.of('/spaces').to(`space:${roomId}`).emit('space:stream:started', {
-    ...roomPayload,
-    spaceId: roomId,
-  });
 }
 
 function emitStreamStopped(roomId: string) {
@@ -129,10 +125,6 @@ function emitStreamStopped(roomId: string) {
   };
 
   io.of('/rooms').to(`room:${roomId}`).emit('room:stream:stopped', roomPayload);
-  io.of('/spaces').to(`space:${roomId}`).emit('space:stream:stopped', {
-    ...roomPayload,
-    spaceId: roomId,
-  });
 }
 
 function sendLiveKitIngressError(
@@ -664,23 +656,14 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Emit socket event on /spaces namespace (backward compat)
+    // Notify the room's clients that recording started (when enabled).
     const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:started', {
-        spaceId: id,
+    if (io && recordingDoc) {
+      io.of('/rooms').to(`room:${id}`).emit('room:recording:started', {
         roomId: id,
-        startedAt: room.startedAt,
+        recordingId: String(recordingDoc._id),
         timestamp: new Date().toISOString(),
       });
-
-      if (recordingDoc) {
-        io.of('/rooms').to(`room:${id}`).emit('room:recording:started', {
-          roomId: id,
-          recordingId: String(recordingDoc._id),
-          timestamp: new Date().toISOString(),
-        });
-      }
     }
 
     // Signal the live-rooms widget: a room just went live.
@@ -763,17 +746,6 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
 
     logger.info(`Room ended: ${room._id}`);
 
-    // Emit socket event on /spaces namespace (backward compat)
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:ended', {
-        spaceId: id,
-        roomId: id,
-        endedAt: room.endedAt,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     // Signal the live-rooms widget: a room left the live set.
     emitLiveRoomsUpdated('ended');
 
@@ -855,16 +827,6 @@ router.post('/:id/stop', async (req: AuthRequest, res: Response) => {
 
     logger.info(`Room stopped (back to scheduled): ${room._id}`);
 
-    // Emit socket event so participants know the session ended
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:ended', {
-        spaceId: id,
-        roomId: id,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     // Signal the live-rooms widget: the room left the live set (back to scheduled).
     emitLiveRoomsUpdated('ended');
 
@@ -935,18 +897,6 @@ router.post('/:id/join', async (req: AuthRequest, res: Response) => {
 
     logger.debug(`User ${userId} joined room ${id}`);
 
-    // Emit socket event on /spaces namespace
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:participant:joined', {
-        spaceId: id,
-        roomId: id,
-        userId,
-        participantCount: room.participants.length,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     // Signal the live-rooms widget: participant count changed.
     emitLiveRoomsUpdated('participants');
 
@@ -993,18 +943,6 @@ router.post('/:id/leave', async (req: AuthRequest, res: Response) => {
     await room.save();
 
     logger.debug(`User ${userId} left room ${id}`);
-
-    // Emit socket event
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:participant:left', {
-        spaceId: id,
-        roomId: id,
-        userId,
-        participantCount: room.participants.length,
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     // Signal the live-rooms widget only when a live room's count changed.
     if (room.status === RoomStatus.LIVE) {
@@ -1070,17 +1008,6 @@ router.post('/:id/speakers', async (req: AuthRequest, res: Response) => {
 
     logger.info(`User ${speakerId} added as speaker in room ${id} by ${userId}`);
 
-    // Emit socket event
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:speaker:added', {
-        spaceId: id,
-        roomId: id,
-        speakerId,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     res.json({
       message: 'Speaker added successfully',
       room,
@@ -1133,17 +1060,6 @@ router.delete('/:id/speakers/:userId', async (req: AuthRequest, res: Response) =
     await room.save();
 
     logger.info(`User ${speakerId} removed as speaker from room ${id} by ${currentUserId}`);
-
-    // Emit socket event
-    const io = global.io;
-    if (io) {
-      io.of('/spaces').to(`space:${id}`).emit('space:speaker:removed', {
-        spaceId: id,
-        roomId: id,
-        speakerId,
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     res.json({
       message: 'Speaker removed successfully',

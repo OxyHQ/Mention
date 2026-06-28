@@ -55,7 +55,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   // (resolved with `variant="thumb"`). Bloom disambiguates URL vs file id, so we
   // pass the raw value through and only steer the variant.
   const avatar = useMemo(() => {
-    const raw = post?.user?.avatarUrl || post?.user?.avatar;
+    const raw = post?.user?.avatarUrl;
     if (typeof raw !== 'string' || !raw) return { source: undefined, variant: undefined };
     const isRemote =
       post?.user?.isFederated === true || raw.startsWith('http://') || raw.startsWith('https://');
