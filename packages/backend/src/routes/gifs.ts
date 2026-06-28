@@ -16,6 +16,7 @@ import {
   GIF_LIBRARY_WRITE_ENABLED,
   GIF_LOCAL_HITS_LIMIT,
 } from '../services/gifLibrary/constants';
+import { signGifMediaUrl, unwrapGifMediaUrl } from '../services/gifLibrary/gifMediaProxy';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import type { IGif } from '../models/Gif';
 import { logger } from '../utils/logger';
@@ -30,8 +31,9 @@ const router = express.Router();
  *  - IMPORTED — owned by Mention. `id` is our `Gif._id`; `mp4Url`/`previewUrl`
  *    are `cloud.oxy.so/<fileId>` (served from our own S3/CDN).
  *  - NOT-YET-IMPORTED — a Klipy passthrough surfaced for the first time. `id` is
- *    `''`; `mp4Url`/`previewUrl` point at Klipy so the picker still renders while
- *    the background import copies it into the library.
+ *    `''`; `mp4Url`/`previewUrl` are HMAC-SIGNED `/media/gif` URLs on OUR origin
+ *    that proxy the Klipy bytes (never raw Klipy CDN URLs), so the picker renders
+ *    while the background import copies it into the library.
  */
 export interface GifItem {
   id: string;
@@ -87,15 +89,25 @@ function toImportedGifItem(gif: IGif): GifItem {
   };
 }
 
-/** Map a not-yet-imported Klipy candidate to the client DTO (passthrough urls). */
-function toKlipyGifItem(candidate: GifImportCandidate): GifItem {
+/**
+ * Map a not-yet-imported Klipy candidate to the client DTO, routing its media
+ * through OUR signed `/media/gif` proxy so the client never receives a Klipy CDN
+ * URL. Returns null when the full mp4 cannot be signed (non-Klipy host or no
+ * signing key) — the caller then drops the tile rather than leak a raw URL.
+ */
+function toKlipyGifItem(candidate: GifImportCandidate): GifItem | null {
+  const mp4Url = signGifMediaUrl(candidate.mp4Url);
+  if (!mp4Url) return null;
+  // Preview falls back to the signed full mp4 when the small variant is missing
+  // or itself unsignable, so a tile always has a usable same-origin source.
+  const previewUrl = signGifMediaUrl(candidate.previewUrl || candidate.mp4Url) ?? mp4Url;
   return {
     id: '',
     klipyId: candidate.klipyId,
     slug: candidate.slug,
     title: candidate.title,
-    mp4Url: candidate.mp4Url,
-    previewUrl: candidate.previewUrl || candidate.mp4Url,
+    mp4Url,
+    previewUrl,
     width: candidate.width,
     height: candidate.height,
   };
@@ -127,9 +139,13 @@ async function buildMergedPayload(
 
   for (const candidate of candidates) {
     if (seen.has(candidate.klipyId)) continue;
-    seen.add(candidate.klipyId);
     const owned = importedMap.get(candidate.klipyId);
-    gifs.push(owned ? toImportedGifItem(owned) : toKlipyGifItem(candidate));
+    const item = owned ? toImportedGifItem(owned) : toKlipyGifItem(candidate);
+    // A not-yet-imported tile we cannot serve from our own origin is dropped
+    // rather than emitted with a leaking Klipy URL.
+    if (!item) continue;
+    seen.add(candidate.klipyId);
+    gifs.push(item);
   }
 
   // Fire-and-forget import of surfaced Klipy items we do not yet own. Detached:
@@ -240,28 +256,32 @@ router.post("/use", async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // The client sends back the DTO's `/media/gif` proxy URLs; unwrap them to the
+    // real Klipy URLs so the import downloads from Klipy directly (not via our
+    // own proxy). Raw URLs / empties pass through unchanged.
     const candidate: GifImportCandidate = {
       klipyId,
       slug: asString(body.slug),
       title: asString(body.title),
-      mp4Url: asString(body.mp4Url),
-      previewUrl: asString(body.previewUrl),
+      mp4Url: unwrapGifMediaUrl(asString(body.mp4Url)),
+      previewUrl: unwrapGifMediaUrl(asString(body.previewUrl)),
       width: asDimension(body.width),
       height: asDimension(body.height),
     };
 
-    // Safety valve: when the library write side is OFF, fall back to a pure Klipy
-    // passthrough (no import, no file id). The default is ON, so this is rare.
+    // Safety valve: when the library write side is OFF, fall back to a passthrough
+    // (no import, no file id). Still route media through our signed proxy so we
+    // never hand the client a raw Klipy URL. The default is ON, so this is rare.
     if (!GIF_LIBRARY_WRITE_ENABLED) {
-      return res.json({ gifId: '', fileId: '', mp4Url: candidate.mp4Url });
+      return res.json({ gifId: '', fileId: '', mp4Url: signGifMediaUrl(candidate.mp4Url) ?? '' });
     }
 
     const gif = await ensureImported(candidate);
     if (!gif) {
-      // Import failed (e.g. source unreachable) — degrade to Klipy passthrough so
-      // the composer still works rather than hard-failing the selection.
+      // Import failed (e.g. source unreachable) — degrade to a signed-proxy
+      // passthrough so the composer still works rather than hard-failing.
       logger.warn('[GIFs] ensureImported returned null; passthrough', { klipyId });
-      return res.json({ gifId: '', fileId: '', mp4Url: candidate.mp4Url });
+      return res.json({ gifId: '', fileId: '', mp4Url: signGifMediaUrl(candidate.mp4Url) ?? '' });
     }
 
     await recordUse(String(gif._id));

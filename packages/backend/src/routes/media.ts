@@ -16,6 +16,7 @@ import { isAllowedMediaType } from '../services/mediaCache/mediaTypes';
 import { isMediaCacheEnabled, resolveOxyDownloadUrl } from '../services/mediaCache/oxyMediaStore';
 import { isNegativelyCached, markNegativelyCached } from '../services/mediaCache/negativeCache';
 import { classifyUpstreamStatus } from './mediaProxyStatus';
+import { verifyGifMediaRequest } from '../services/gifLibrary/gifMediaProxy';
 
 const router = express.Router();
 
@@ -79,6 +80,31 @@ const POSTER_CONTENT_TYPE = 'image/jpeg';
 /** Upstream content-type family the poster endpoint will accept (video only). */
 const POSTER_REQUIRED_TYPE_PREFIX = 'video/';
 
+// --- GIF media proxy tunables -----------------------------------------------
+
+/**
+ * Max requests per IP per window for the signed GIF media proxy. Higher than the
+ * generic proxy budget because the picker grid renders many small GIF tiles per
+ * page (each tile is its own request).
+ */
+const GIF_RATE_LIMIT_MAX = 600;
+
+/**
+ * Hard cap on a single GIF mp4 body. GIFs-as-mp4 are tiny; this mirrors the
+ * import cap and bounds an abusive/oversized source.
+ */
+const GIF_MAX_CONTENT_BYTES = 32 * 1024 * 1024; // 32 MiB
+
+/**
+ * Cache directive for GIF media. The signed URL is content-stable (the HMAC is
+ * over the upstream URL with no per-request token), so the same GIF resolves to
+ * the same URL across responses and is safely long-cacheable + immutable.
+ */
+const GIF_MEDIA_CACHE_CONTROL = 'public, max-age=604800, immutable';
+
+/** Content type we relay for GIF media (we only ever sign Klipy `.mp4` variants). */
+const GIF_MEDIA_CONTENT_TYPE = 'video/mp4';
+
 /**
  * Forces the browser to render relayed media inline (never as a navigable
  * document) and discourages it from treating the bytes as an active document —
@@ -135,6 +161,24 @@ const mediaPosterRateLimiter = rateLimit({
   max: POSTER_RATE_LIMIT_MAX,
   keyGenerator: (req: Request) => ipKeyGenerator(req.ip || req.socket.remoteAddress || 'unknown'),
   message: { error: 'Too many media poster requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Dedicated store + limiter for the GIF media proxy. A distinct Redis prefix is
+// REQUIRED so it does not share/halve another limiter's budget
+// (rate-limit-redis double-count).
+const gifMediaStore = new RedisStore({
+  prefix: 'rl:media-gif:',
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
+const gifMediaRateLimiter = rateLimit({
+  store: gifMediaStore,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: GIF_RATE_LIMIT_MAX,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip || req.socket.remoteAddress || 'unknown'),
+  message: { error: 'Too many GIF media requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -733,6 +777,163 @@ router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response
   res.setHeader('Content-Length', poster.jpeg.length);
   setPublicMediaCors(res);
   res.status(HTTP_STATUS.OK).end(poster.jpeg);
+});
+
+/**
+ * GET /media/gif?u=<base64url(klipy mp4 url)>&s=<hmac>
+ *
+ * Public, unauthenticated. Streams a not-yet-imported Klipy GIF mp4 through our
+ * origin so the picker never points the client at Klipy's CDN. The route is
+ * UNAUTHENTICATED on purpose — GIF tiles are rendered by the video player, which
+ * sends no bearer token (exactly like the sibling `/media/proxy` and our public
+ * `cloud.oxy.so` CDN URLs). The HMAC signature IS the capability: only a URL we
+ * minted (from a Klipy asset we surfaced) can be fetched, so this is NOT an open
+ * proxy.
+ *
+ * SECURITY (layered):
+ *  1. `verifyGifMediaRequest` rejects any request whose signature we did not
+ *     produce, and any decoded URL whose host is not Klipy-owned;
+ *  2. `fetchUpstreamFollowingRedirects` re-validates every hop with the SSRF
+ *     guard (private/reserved-IP denylist) and pins the TCP connection;
+ *  3. body size is capped and the request has an absolute wall-clock deadline.
+ */
+router.get('/gif', gifMediaRateLimiter, async (req: Request, res: Response): Promise<void> => {
+  const upstreamUrl = verifyGifMediaRequest(req.query.u, req.query.s);
+  if (!upstreamUrl) {
+    res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Invalid or unsigned GIF media request' });
+    return;
+  }
+
+  // Forward range/conditional headers so the player can seek and caches revalidate.
+  const rangeHeader = req.headers.range;
+  const extras = {
+    range: typeof rangeHeader === 'string' && rangeHeader.length > 0 ? rangeHeader : undefined,
+    ifNoneMatch: typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined,
+    ifModifiedSince:
+      typeof req.headers['if-modified-since'] === 'string' ? req.headers['if-modified-since'] : undefined,
+  };
+
+  // Absolute request deadline (Slowloris defense): tears the request down
+  // regardless of socket activity.
+  const deadline = withRequestDeadline(res, MAX_REQUEST_DURATION_MS, (canRespond) => {
+    logger.warn('[GifMediaProxy] Aborting request past absolute deadline', {
+      maxMs: MAX_REQUEST_DURATION_MS,
+    });
+    if (canRespond) {
+      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream GIF timed out' });
+    }
+  });
+
+  let upstream: UpstreamResult;
+  try {
+    upstream = await fetchUpstreamFollowingRedirects(upstreamUrl, extras, deadline.signal);
+  } catch (error) {
+    if (res.headersSent || res.writableEnded) {
+      return;
+    }
+    if (error instanceof SsrfRejection) {
+      logger.warn('[GifMediaProxy] Rejected target', { reason: error.message });
+      res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
+      return;
+    }
+    logger.warn('[GifMediaProxy] Upstream fetch failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream GIF unavailable' });
+    return;
+  }
+
+  const { response } = upstream;
+  deadline.setActiveResponse(response);
+  const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
+  const statusClass = classifyUpstreamStatus(upstreamStatus);
+
+  // 304 from a conditional request: relay validators, no body.
+  if (statusClass === 'not-modified') {
+    response.resume();
+    relayHeader(res, 'ETag', response.headers.etag);
+    relayHeader(res, 'Last-Modified', response.headers['last-modified']);
+    res.setHeader('Cache-Control', GIF_MEDIA_CACHE_CONTROL);
+    setPublicMediaCors(res);
+    res.status(HTTP_STATUS.NOT_MODIFIED).end();
+    return;
+  }
+
+  // 416 Range Not Satisfiable: relay the Content-Range so the client can adjust.
+  if (statusClass === 'range-not-satisfiable') {
+    response.resume();
+    relayHeader(res, 'Content-Range', response.headers['content-range']);
+    res.status(HTTP_STATUS.RANGE_NOT_SATISFIABLE).end();
+    return;
+  }
+
+  // Any non-media status (4xx/5xx/unexpected): the asset is gone or the remote
+  // failed. Answer 502 (gateway problem) without leaking upstream details.
+  if (statusClass !== 'media') {
+    response.resume();
+    logger.warn('[GifMediaProxy] Upstream returned non-media status', { status: upstreamStatus });
+    res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream GIF unavailable' });
+    return;
+  }
+
+  // Reject over-large declared bodies up front (streamed bytes are also capped).
+  const declaredLength = Number(response.headers['content-length']);
+  if (Number.isFinite(declaredLength) && declaredLength > GIF_MAX_CONTENT_BYTES) {
+    response.destroy();
+    logger.warn('[GifMediaProxy] Upstream body exceeds cap', { declaredLength });
+    res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'GIF too large' });
+    return;
+  }
+
+  // --- Relay response headers (public, cacheable, range-aware) ---
+  // We only ever sign Klipy `.mp4` variants, so force the correct type rather
+  // than relaying Klipy's occasional `application/octet-stream`.
+  res.setHeader('Content-Type', GIF_MEDIA_CONTENT_TYPE);
+  res.setHeader('Cache-Control', GIF_MEDIA_CACHE_CONTROL);
+  setPublicMediaCors(res);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
+  res.setHeader('Accept-Ranges', response.headers['accept-ranges'] ?? 'bytes');
+  relayHeader(res, 'Content-Length', response.headers['content-length']);
+  relayHeader(res, 'Content-Range', response.headers['content-range']);
+  relayHeader(res, 'ETag', response.headers.etag);
+  relayHeader(res, 'Last-Modified', response.headers['last-modified']);
+
+  res.status(upstreamStatus === HTTP_STATUS.PARTIAL_CONTENT ? HTTP_STATUS.PARTIAL_CONTENT : HTTP_STATUS.OK);
+
+  // --- Stream the body (never buffer whole files) ---
+  response.setTimeout(UPSTREAM_SOCKET_TIMEOUT_MS, () => {
+    response.destroy(new Error('upstream socket idle timeout'));
+  });
+
+  let streamedBytes = 0;
+  let aborted = false;
+
+  response.on('data', (chunk: Buffer) => {
+    streamedBytes += chunk.length;
+    if (streamedBytes > GIF_MAX_CONTENT_BYTES && !aborted) {
+      aborted = true;
+      logger.warn('[GifMediaProxy] Aborting stream past size cap', { streamedBytes });
+      response.destroy();
+      res.destroy();
+    }
+  });
+
+  response.on('error', (error: Error) => {
+    logger.warn('[GifMediaProxy] Upstream stream error', { reason: error.message });
+    if (!res.headersSent) {
+      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream GIF unavailable' });
+    } else {
+      res.destroy();
+    }
+  });
+
+  // If the client disconnects, tear down the upstream socket to free resources.
+  res.on('close', () => {
+    if (!response.destroyed) response.destroy();
+  });
+
+  response.pipe(res);
 });
 
 export default router;
