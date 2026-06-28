@@ -264,7 +264,7 @@ const PostActions: React.FC<Props> = ({
   return (
     <View>
       {/* Icon row -- icon-only, left-aligned */}
-      <View className="flex-row items-center" style={{ gap: 18 }}>
+      <View className="flex-row items-center" style={{ gap: 12 }}>
         {voteStyle === 'pill' && onDownvote ? (
           <VotePill
             likeCount={likes}
@@ -358,6 +358,9 @@ const PostActions: React.FC<Props> = ({
             <Bookmark size={ICON_SIZE} className="text-muted-foreground" />
           )}
         </PressableScale>
+
+        {/* Spacer: pushes Translate + Insights to the right edge */}
+        <View className="flex-1" />
 
         {onTranslate && (
           <PressableScale
