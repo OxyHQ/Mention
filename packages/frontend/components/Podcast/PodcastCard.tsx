@@ -27,8 +27,9 @@ interface PodcastCardProps {
   showUrl?: string;
   /**
    * `'full'` — the full-width profile card (square artwork + title + PODCAST +
-   * author). `'card'` — a compact ~200px carousel card matching the article/event
-   * attachment cards (compose + feed).
+   * author). `'card'` — a 280px carousel card sharing the link attachment card's
+   * container chrome (border + bg-secondary + rounded-[14px]) so it reads as one
+   * family in the feed (compose + feed).
    */
   variant?: PodcastCardVariant;
   /** Overrides the default tap behavior (open show). Compose passes the picker opener. */
@@ -140,7 +141,7 @@ export const PodcastCard = memo(function PodcastCard({
   return (
     <Pressable
       className={cn(
-        'w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] p-4 justify-between',
+        'w-[280px] flex-row items-center gap-3 border border-border bg-secondary rounded-[14px] overflow-hidden p-3',
         className,
       )}
       style={style}
@@ -149,29 +150,27 @@ export const PodcastCard = memo(function PodcastCard({
       accessibilityRole="button"
       accessibilityLabel={t('profile.media.openInSyra')}
     >
-      <View className="flex-row items-center gap-3">
-        {artworkUrl ? (
-          <Image
-            source={{ uri: artworkUrl }}
-            style={{ width: 44, height: 44, borderRadius: 10 }}
-            contentFit="cover"
-            transition={120}
-          />
-        ) : (
-          <View
-            className="rounded-[10px] bg-secondary items-center justify-center"
-            style={{ width: 44, height: 44 }}
-          >
-            <SpeakerVolumeFull_Stroke2_Corner0_Rounded size="md" fill={colors.textSecondary} />
-          </View>
-        )}
-        <View className="flex-1 shrink">
-          <Text className="text-foreground text-[15px] font-bold" numberOfLines={2}>
-            {title}
-          </Text>
+      {artworkUrl ? (
+        <Image
+          source={{ uri: artworkUrl }}
+          style={{ width: 56, height: 56, borderRadius: 12 }}
+          contentFit="cover"
+          transition={120}
+        />
+      ) : (
+        <View
+          className="rounded-xl bg-background items-center justify-center"
+          style={{ width: 56, height: 56 }}
+        >
+          <SpeakerVolumeFull_Stroke2_Corner0_Rounded size="lg" fill={colors.textSecondary} />
         </View>
+      )}
+      <View className="flex-1 shrink">
+        <Text className="text-foreground text-[15px] font-bold" numberOfLines={2}>
+          {title}
+        </Text>
+        {label}
       </View>
-      {label}
     </Pressable>
   );
 });
