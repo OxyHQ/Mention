@@ -52,6 +52,48 @@ const LINK_METADATA_MAX_BYTES = Number(process.env.LINK_METADATA_MAX_BYTES ?? 10
 /** The HTML head-close marker the streaming read stops at (ASCII, case-insensitive). */
 const HEAD_CLOSE_MARKER = '</head>';
 
+/** Matches any Google host (with or without a `www.` prefix), e.g. `google.com`, `www.google.co.uk`. */
+const GOOGLE_HOST = /^(www\.)?google\.[a-z.]+$/;
+
+/**
+ * Detect an anti-bot / consent / login interstitial page that serves a 200
+ * response carrying no real Open Graph metadata.
+ *
+ * Following a redirect INTO such a page and parsing it produces junk — for
+ * example Google's `/sorry` anti-bot wall renders the original request URL as
+ * its `<title>`, which then looks like a usable preview and gets cached as a
+ * positive entry for the full TTL. The fetcher must reject these so the warm
+ * path records a SHORT negative marker (auto-recovering once the rate-limit
+ * window clears) instead of persisting the wall page.
+ *
+ * Detected walls (intentionally narrow — legitimate cross-domain redirects such
+ * as `youtu.be` → `youtube.com` must still be followed):
+ *  - Google's `/sorry` anti-bot / CAPTCHA wall on any `google.<tld>` host.
+ *  - Cookie-consent gates on any `consent.*` host (consent.google.com,
+ *    consent.youtube.com, …).
+ *  - The Google login wall at accounts.google.com.
+ */
+function isBlockedInterstitialUrl(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+
+  // Google anti-bot / CAPTCHA wall: google.<tld>/sorry/...
+  if (GOOGLE_HOST.test(host) && url.pathname.toLowerCase().startsWith('/sorry')) {
+    return true;
+  }
+
+  // Cookie-consent gate (consent.google.com, consent.youtube.com, …).
+  if (host.startsWith('consent.')) {
+    return true;
+  }
+
+  // Google login wall.
+  if (host === 'accounts.google.com') {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Service to fetch link metadata (Open Graph, Twitter Cards, etc.)
  * Fetches the page over the SSRF-safe single-hop fetcher and extracts Open
@@ -204,8 +246,24 @@ class LinkMetadataService {
           if (hop === maxRedirects) throw new Error('Too many redirects');
           const location = headers.location;
           if (!location || Array.isArray(location)) throw new Error('Invalid redirect location');
-          currentUrl = new URL(location, currentUrl).toString();
+          const nextUrl = new URL(location, currentUrl);
+          // Reject a redirect INTO an anti-bot / consent / login wall before
+          // following it: those pages 200 with no real metadata, so parsing them
+          // would cache junk. A transient throw makes the warm path record a
+          // short negative marker and retry later instead of caching the wall.
+          if (isBlockedInterstitialUrl(nextUrl)) {
+            throw new Error(`Blocked interstitial redirect: ${nextUrl.hostname}${nextUrl.pathname}`);
+          }
+          currentUrl = nextUrl.toString();
           continue;
+        }
+
+        // The fetch settled on a non-redirect response. If the resolved URL is
+        // itself an interstitial wall (e.g. passed in directly), reject rather
+        // than parse it as a successful page.
+        if (isBlockedInterstitialUrl(new URL(currentUrl))) {
+          response.destroy();
+          throw new Error(`Blocked interstitial page: ${new URL(currentUrl).hostname}`);
         }
 
         const contentTypeHeader = headers['content-type'] || '';

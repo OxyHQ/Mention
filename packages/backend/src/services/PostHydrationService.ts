@@ -9,7 +9,7 @@ import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { linkMetadataService } from './linkMetadataService';
-import { readPreviews, storePreview, markNoPreview } from './linkPreviewCache';
+import { readPreviews, storePreview, markNoPreview, isUsablePreview } from './linkPreviewCache';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { resolveAvatarUrl, resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
@@ -1084,10 +1084,11 @@ export class PostHydrationService {
               // AWAIT the image downscale and persist the OPTIMIZED CDN image
               // (not the raw full-res og:image) into the preview cache.
               const metadata = await linkMetadataService.fetchMetadata(url, { awaitImageCache: true });
-              const hasContent = Boolean(
-                metadata.title || metadata.description || metadata.image,
-              );
-              if (!hasContent) {
+              // A hollow result (no image/description, title is just the URL or
+              // host — e.g. the hostname fallback after an anti-bot wall) must be
+              // marked NEGATIVE (short TTL) rather than cached positive for 24h,
+              // so the URL re-resolves into a real preview on a later render.
+              if (!isUsablePreview(metadata)) {
                 await markNoPreview(url);
                 return;
               }

@@ -29,15 +29,29 @@ import mongoose from 'mongoose';
 import type { PostLinkPreview } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { linkMetadataService } from '../services/linkMetadataService';
-import { storePreview, markNoPreview } from '../services/linkPreviewCache';
+import { storePreview, markNoPreview, isUsablePreview } from '../services/linkPreviewCache';
 import { getRedisClient, closeRedisConnection } from '../utils/redis';
 import { logger } from '../utils/logger';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
 
-/** Remote fetches run in parallel — mirrors `warmLinkPreviews` WARM_CONCURRENCY. */
-const FETCH_CONCURRENCY = 5;
+/**
+ * Remote fetches run with deliberately LOW parallelism. The first run of this
+ * backfill fired ~7 req/s from a single datacenter IP, which tripped Google's
+ * `/sorry` anti-bot wall — those YouTube/`youtu.be` links 302'd to the wall and
+ * the junk page got cached as a "preview". Keep concurrency at 1–2 and pair it
+ * with {@link REQUEST_DELAY_MS} so the sustained rate stays well under the wall's
+ * threshold. Env-tunable without a redeploy.
+ */
+const FETCH_CONCURRENCY = Math.max(1, Number(process.env.BACKFILL_FETCH_CONCURRENCY ?? 1));
+
+/**
+ * Delay between successive fetch batches (ms). With concurrency 1 this is the
+ * pause between every request; together they cap the outbound rate well below
+ * ~1.5 req/s so Google does not rate-limit us into the `/sorry` interstitial.
+ */
+const REQUEST_DELAY_MS = Math.max(0, Number(process.env.BACKFILL_REQUEST_DELAY_MS ?? 1000));
 
 /** Matches any post text that references a YouTube URL (drives the Mongo scan). */
 const YOUTUBE_TEXT_MATCH = /(youtube\.com|youtu\.be)/i;
@@ -103,8 +117,11 @@ async function repopulate(url: string): Promise<boolean> {
     // Off the response path: AWAIT the image downscale so the persisted preview
     // serves the optimized CDN image (not the raw full-res og:image).
     const metadata = await linkMetadataService.fetchMetadata(url, { awaitImageCache: true });
-    const hasContent = Boolean(metadata.title || metadata.description || metadata.image);
-    if (!hasContent) {
+    // Only persist a POSITIVE entry when the preview is actually usable. A hollow
+    // result (no image/description, title is just the URL or host — e.g. the
+    // hostname fallback after an anti-bot wall) is marked NEGATIVE (short TTL) so
+    // it re-resolves later instead of sticking as junk for the full 24h TTL.
+    if (!isUsablePreview(metadata)) {
       await markNoPreview(url);
       return false;
     }
@@ -206,6 +223,11 @@ async function backfillYoutubeLinkPreviews(): Promise<void> {
       logger.info(
         `[backfillYoutubeLinkPreviews] progress: resolved ${Math.min(i + batch.length, urls.length)}/${urls.length}, repopulated ${repopulated}, skipped ${skippedNoContent}`,
       );
+      // Throttle between batches to stay well under Google's anti-bot rate limit
+      // (skip the wait after the final batch).
+      if (REQUEST_DELAY_MS > 0 && i + FETCH_CONCURRENCY < urls.length) {
+        await new Promise((resolve) => setTimeout(resolve, REQUEST_DELAY_MS));
+      }
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);

@@ -53,6 +53,53 @@ const NEGATIVE_TTL_SECONDS = Number(process.env.LINK_PREVIEW_NEG_TTL_SECONDS ?? 
 const READ_BUDGET_MS = Number(process.env.LINK_PREVIEW_READ_BUDGET_MS ?? 250);
 
 /**
+ * Whether a resolved preview is worth storing as a POSITIVE cache entry.
+ *
+ * A preview with no image, no description, and a title that is just the raw
+ * URL/hostname (the metadata fetcher's hostname fallback, or junk parsed from an
+ * anti-bot / consent wall) is not a usable preview: it renders as a bare link
+ * yet would stick for the full positive TTL, blocking the URL from ever being
+ * re-resolved into a real preview. Such hollow results must be marked NEGATIVE
+ * (short TTL → auto-recovers) instead.
+ *
+ * Usable when it has an image OR a description OR a title that is meaningful text
+ * (not effectively a URL or the bare host).
+ *
+ * Shared by the live warm path ({@link PostHydrationService.warmLinkPreviews})
+ * and the backfill script, so it lives here rather than at a single call site.
+ */
+export function isUsablePreview(p: {
+  title?: string;
+  description?: string;
+  image?: string;
+  url?: string;
+}): boolean {
+  if (p.image && p.image.trim().length > 0) return true;
+  if (p.description && p.description.trim().length > 0) return true;
+
+  const title = p.title?.trim();
+  if (!title) return false;
+
+  // A title that is itself a URL (or starts like one) is not a usable preview.
+  if (/^(https?:\/\/|www\.)/i.test(title)) return false;
+
+  // A title equal to the URL's host is the hostname fallback, not real metadata.
+  if (p.url) {
+    try {
+      const host = new URL(p.url).hostname.toLowerCase();
+      const titleLower = title.toLowerCase();
+      if (titleLower === host || titleLower === host.replace(/^www\./, '')) {
+        return false;
+      }
+    } catch {
+      // Unparseable url — the title is non-URL text, so treat it as usable.
+    }
+  }
+
+  return true;
+}
+
+/**
  * Hash the URL (SHA-256) so the key length is bounded and a long/raw URL is not
  * stored verbatim as a Redis key.
  */
