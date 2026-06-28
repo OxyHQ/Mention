@@ -145,7 +145,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           <TouchableOpacity
             accessibilityLabel="Post options"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            className="px-2 pt-1"
+            className="px-2"
             onPress={onPressMenu}
           >
             <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
