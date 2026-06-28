@@ -121,4 +121,45 @@ export function publishNewLocalPost(item: HydratedPost): void {
     }
 }
 
+// ── Local post-removal broadcast (memory-mode feeds) ─────────────────
+//
+// The symmetric counterpart of the new-post broadcast above. On the SQLite path,
+// `postsStore.removePostEverywhere` deletes the post from SQLite and bumps
+// `dataVersion`, so the feed selectors re-read and the post vanishes reactively.
+// Memory-mode feeds (web without COOP/COEP, where SQLite is unavailable) keep
+// their items in `useFeedState`'s local React state, which never reads SQLite —
+// so a deleted post would linger until a manual refresh.
+//
+// This broadcast bridges that gap: `removePostEverywhere` publishes the removed
+// id, every mounted memory-mode feed drops it from its live items + retained
+// slice, and the post disappears instantly — mirroring the SQLite behavior.
+
+/** A listener invoked with the id of a post removed from memory-mode feeds. */
+export type LocalRemovedPostListener = (postId: string) => void;
+
+const localRemovedPostListeners = new Set<LocalRemovedPostListener>();
+
+/**
+ * Subscribe to post removals so a memory-mode feed can drop them from its live
+ * items + retained slice. Returns an unsubscribe function. No-op for the SQLite
+ * path, which removes reactively via selectors after `removePostEverywhere`.
+ */
+export function subscribeToRemovedLocalPosts(listener: LocalRemovedPostListener): () => void {
+    localRemovedPostListeners.add(listener);
+    return () => {
+        localRemovedPostListeners.delete(listener);
+    };
+}
+
+/**
+ * Broadcast a post removal to all mounted memory-mode feeds. Called by
+ * `postsStore.removePostEverywhere` after deleting a post, mirroring the SQLite
+ * reactive removal for the in-memory path.
+ */
+export function publishRemovedLocalPost(postId: string): void {
+    for (const listener of localRemovedPostListeners) {
+        listener(postId);
+    }
+}
+
 export { useFeedScrollStore };

@@ -14,7 +14,8 @@ import { Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import type { HydratedPost, FeedType } from '@mention/shared-types';
+import type { HydratedPost } from '@mention/shared-types';
+import type { FeedItem } from '@/db';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
@@ -85,6 +86,7 @@ export function usePostActions({
     const bottomSheet = useContext(BottomSheetContext);
     const queryClient = useQueryClient();
     const removePostEverywhere = usePostsStore((s) => s.removePostEverywhere);
+    const reinsertPost = usePostsStore((s) => s.reinsertPost);
     const updatePostEverywhere = usePostsStore((s) => s.updatePostEverywhere);
 
     return useMemo(() => {
@@ -102,28 +104,34 @@ export function usePostActions({
                 cancelText: t('postActions.cancel'),
                 destructive: true,
             });
-            if (!confirmed) return;
+            if (!confirmed || !postId) return;
+
+            // Snapshot the post BEFORE removing it so a failed delete can roll the
+            // optimistic removal back. Prefer the richer cached copy; fall back to
+            // the post passed into the hook (the only copy available on web, where
+            // SQLite — and therefore the shared cache read — is unavailable).
+            const snapshot: FeedItem = usePostsStore.getState().getPostFromDb(postId) ?? viewPost;
+            const authorId = viewPost?.user?.id;
+
+            // Optimistic removal: drop it from every feed (SQLite reactive removal
+            // on native; memory-mode broadcast on web) so it vanishes instantly —
+            // Twitter/Threads-style — instead of lingering through the round-trip.
+            removePostEverywhere(postId);
+            if (isPostDetail) safeBack();
 
             try {
                 await feedService.deletePost(postId);
-            } catch (e) {
-                logger.error('Delete API failed', { error: e });
-                toast(t('postActions.failedToDeletePost'), { type: 'error' });
-                return;
-            }
-            try {
-                if (typeof removePostEverywhere === 'function') {
-                    removePostEverywhere(postId);
-                } else {
-                    const store = usePostsStore.getState();
-                    const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'boosts', 'likes', 'saved', 'for_you', 'following'];
-                    types.forEach((feedType) => {
-                        try { store.removePostLocally(postId, feedType); } catch (e) { logger.warn(`Failed to remove post from ${feedType} feed`); }
-                    });
+                // The pinned slot lives in React Query (ProfileTabs); refetch it so a
+                // deleted pinned post clears from the author's profile too.
+                if (authorId) {
+                    queryClient.invalidateQueries({ queryKey: queryKeys.pinnedPost(authorId) });
                 }
-                if (isPostDetail) safeBack();
-            } catch (err) {
-                logger.error('Error removing post locally', { error: err });
+            } catch (e) {
+                logger.error('Delete API failed — rolling back optimistic removal', { error: e });
+                // Roll back: the post still exists server-side, so re-insert it and
+                // surface the error instead of leaving the UI inconsistent.
+                reinsertPost(snapshot);
+                toast(t('postActions.failedToDeletePost'), { type: 'error' });
             }
         };
 
@@ -389,5 +397,5 @@ export function usePostActions({
             muteReportAction,
             copyLinkAction,
         };
-    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere, updatePostEverywhere, queryClient]);
+    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere, reinsertPost, updatePostEverywhere, queryClient]);
 }

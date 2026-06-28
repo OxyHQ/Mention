@@ -19,7 +19,7 @@ import {
 import { createScopedLogger } from '@/lib/logger';
 import { feedService } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
-import { publishNewLocalPost } from '@/stores/feedScrollStore';
+import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';
 
 // ── Database imports ─────────────────────────────────────────────
 import {
@@ -293,6 +293,9 @@ interface PostsStoreState {
   updatePostLocally: (postId: string, updates: Partial<FeedItem>) => void;
   updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => void;
   removePostEverywhere: (postId: string) => void;
+  // Rollback counterpart of `removePostEverywhere` — re-adds a post after a
+  // failed optimistic delete (SQLite feeds + memory-mode broadcast).
+  reinsertPost: (post: FeedItem) => void;
   removePostLocally: (postId: string, feedType: FeedType) => void;
   addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
   addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => void;
@@ -1136,9 +1139,38 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── removePostEverywhere ─────────────────────────────────
+    // Single removal authority. On the SQLite path this drops the post from every
+    // feed + the post cache and bumps `dataVersion`, so the selectors re-read and
+    // the post vanishes reactively. On the memory-mode path (web without SQLite)
+    // those SQLite calls are no-ops, so we also broadcast the removal to mounted
+    // memory feeds (mirror of `createPost` → `publishNewLocalPost`) — without this
+    // the post would linger in local React state until a manual refresh.
     removePostEverywhere: (postId: string) => {
       dbRemovePostFromAllFeeds(postId);
       dbDeletePost(postId);
+      publishRemovedLocalPost(postId);
+      set((s) => bumpVersion(s));
+    },
+
+    // ── reinsertPost ─────────────────────────────────────────
+    // Rollback counterpart of `removePostEverywhere`: re-add a previously-removed
+    // post after a failed optimistic delete. Mirrors `createPost`'s insertion
+    // (SQLite home/profile feeds at top + memory-mode broadcast) so the post
+    // reappears on both platforms. Position is restored to the top of the feed
+    // (the same semantics a freshly created own-post uses), which is acceptable on
+    // the rare delete-failure path.
+    reinsertPost: (post: FeedItem) => {
+      if (!post?.id || !isValidId(String(post.id))) return;
+      dbUpsertPost(post);
+      const feedKeys = ['posts', 'mixed', 'for_you', 'following'];
+      for (const key of feedKeys) {
+        dbAddFeedItemAtStart(key, post.id);
+      }
+      const userId = post.user?.id;
+      if (userId) {
+        dbAddFeedItemAtStart(buildFeedKey('posts', userId), post.id);
+      }
+      publishNewLocalPost(post);
       set((s) => bumpVersion(s));
     },
 
