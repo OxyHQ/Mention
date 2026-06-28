@@ -511,15 +511,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // Canonical post-item layout tokens (single source of truth: COMPONENT_SPACING.post).
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
-    const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
-
-    // X where the header's display name begins, so the Bluesky-style context rows
-    // (Reposted by / Pinned / Replying to) line their TEXT up exactly with the name.
-    // PostHeader lays the avatar out at HPAD padding + 36px avatar + 12px marginRight;
-    // the literal 36 MUST match PostHeader's default `avatarSize` (PostItem passes no
-    // override). NOT AVATAR_OFFSET (64) — that assumes a 40px avatar and would land 4px
-    // right of the real 36px-avatar name. The icon then pulls left into the gutter.
-    const CONTENT_LEFT = HPAD + 36 + AVATAR_GAP;
+    const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_OFFSET } = POST_ITEM_SPACING;
 
     // The detail variant is layout-identical to the feed: the body stays indented
     // under the avatar column (AVATAR_OFFSET), aligned with the name. ONLY the
@@ -556,12 +548,11 @@ const PostItem: React.FC<PostItemProps> = ({
             <Container
                 className={cn(
                     "group",
-                    !isNested && "bg-background",
+                    !isNested && "bg-background border-border",
                     isNested && "border-border bg-background",
                 )}
                 style={[
                     !isNested && styles.postContainer,
-                    !isNested && { borderBottomColor: theme.colors.border },
                     !isNested && {
                         paddingTop: VPAD,
                         paddingBottom: VPAD,
@@ -607,31 +598,41 @@ const PostItem: React.FC<PostItemProps> = ({
                         }}
                     />
                 )}
+                {/* Bluesky-style context rows (Reposted by / Pinned / Replying to): the TEXT
+                    lines up with the header display name. pl-[60px] = HPAD 12 + avatar 36 +
+                    gap 12 — the 36 MUST match PostHeader's default avatarSize (PostItem passes
+                    no override), NOT AVATAR_OFFSET (64, which assumes a 40px avatar). The icon
+                    pulls left (-ml-4 = -16px) into the avatar gutter. */}
                 {repostedBy && (
                     <TouchableOpacity
-                        className="flex-row items-center mb-0.5"
-                        style={{ paddingLeft: CONTENT_LEFT }}
+                        className="flex-row items-center mb-0.5 pl-[60px]"
                         activeOpacity={0.7}
                         onPress={goToReposter}
                         accessibilityRole="link"
                     >
-                        <BoostIcon size={13} color={theme.colors.textSecondary} style={{ marginLeft: -16, marginRight: 3 }} />
+                        <View className="-ml-4 mr-[3px]">
+                            <BoostIcon size={13} color={theme.colors.textSecondary} />
+                        </View>
                         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
                             {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName}
                         </Text>
                     </TouchableOpacity>
                 )}
                 {showPinned && (
-                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: CONTENT_LEFT }}>
-                        <PinIcon size={13} className="text-muted-foreground" style={{ marginLeft: -16, marginRight: 3 }} />
+                    <View className="flex-row items-center mb-0.5 pl-[60px]">
+                        <View className="-ml-4 mr-[3px]">
+                            <PinIcon size={13} className="text-muted-foreground" />
+                        </View>
                         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
                             {t('post.pinned', { defaultValue: 'Pinned' })}
                         </Text>
                     </View>
                 )}
                 {replyContextHandle && (
-                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: CONTENT_LEFT }}>
-                        <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} style={{ marginLeft: -16, marginRight: 3 }} />
+                    <View className="flex-row items-center mb-0.5 pl-[60px]">
+                        <View className="-ml-4 mr-[3px]">
+                            <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
+                        </View>
                         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
                             {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
                         </Text>

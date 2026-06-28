@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 
 interface Props {
@@ -13,9 +12,8 @@ interface State {
 }
 
 function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
-  const theme = useTheme();
   return (
-    <View style={[styles.container, { borderBottomColor: theme.colors.border }]}>
+    <View className="border-border" style={styles.container}>
       <Text style={styles.text}>This post could not be displayed.</Text>
       <TouchableOpacity onPress={onRetry} style={styles.retryButton}>
         <Text style={styles.retryText}>Tap to retry</Text>
