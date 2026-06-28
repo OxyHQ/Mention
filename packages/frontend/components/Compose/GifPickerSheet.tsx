@@ -30,39 +30,19 @@ interface GifPickerSheetProps {
 }
 
 interface GifItem {
-  id: string | number;
+  id: string;
   slug: string;
   title: string;
-  url: string;
-  thumbnail: string;
+  url: string;        // full-size — used for upload
+  thumbnail: string;  // grid thumbnail
   width: number;
   height: number;
 }
 
-interface GifMediaFile {
-  gif?: { url?: string; width?: number; height?: number };
-  webp?: { url?: string; width?: number; height?: number };
-  jpg?: { url?: string; width?: number; height?: number };
-}
-
-interface KlipyGifItem {
-  id?: string | number;
-  slug?: string;
-  title?: string;
-  width?: number;
-  height?: number;
-  file?: {
-    sm?: GifMediaFile;
-    md?: GifMediaFile;
-    hd?: GifMediaFile;
-  };
-}
-
-interface GifApiResponse {
-  result?: boolean;
-  data?: {
-    data?: KlipyGifItem[];
-  };
+interface GifSearchResponse {
+  gifs: GifItem[];
+  hasNext: boolean;
+  page: number;
 }
 
 
@@ -88,32 +68,9 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         ? { q: query.trim(), page: '1', per_page: '20' }
         : { page: '1', per_page: '20' };
 
-      const response = await api.get<GifApiResponse>(endpoint, params);
-      const data = response.data;
-
-      // Handle backend API response format: { result: true, data: { data: [...] } }
-      if (data.result && data.data?.data && Array.isArray(data.data.data)) {
-        // Map KLIPY response to our GifItem format
-        const mappedGifs: GifItem[] = data.data.data.map((gif) => {
-          // Use medium size for thumbnail, HD for full GIF
-          const thumbnailFile = gif.file?.md || gif.file?.sm || gif.file?.hd;
-          const fullFile = gif.file?.hd || gif.file?.md || gif.file?.sm;
-
-          return {
-            id: gif.id || String(Math.random()),
-            slug: gif.slug || '',
-            title: gif.title || '',
-            url: fullFile?.gif?.url || fullFile?.webp?.url || '',
-            thumbnail: thumbnailFile?.gif?.url || thumbnailFile?.webp?.url || thumbnailFile?.jpg?.url || '',
-            width: fullFile?.gif?.width || thumbnailFile?.gif?.width || 200,
-            height: fullFile?.gif?.height || thumbnailFile?.gif?.height || 200,
-          };
-        }).filter((gif: GifItem) => gif.url && gif.thumbnail); // Filter out items without URLs
-
-        setGifs(mappedGifs);
-      } else {
-        setGifs([]);
-      }
+      const response = await api.get<GifSearchResponse>(endpoint, params);
+      const items = response.data?.gifs;
+      setGifs(Array.isArray(items) ? items : []);
     } catch (error: unknown) {
       logger.error('Error fetching GIFs', { error });
       toast(normalizeApiError(error).message || t('Failed to load GIFs'), { type: 'error' });
