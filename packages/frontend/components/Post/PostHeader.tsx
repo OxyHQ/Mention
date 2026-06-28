@@ -95,15 +95,16 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         </ProfileHoverCard>
         <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
           <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
-            {/* Bluesky-style identity line: the display name caps at ~70% width and
-                ellipsizes; the @handle gives way first (shrinks aggressively); the
-                trailing "\u00B7 time" never wraps and always stays visible. */}
+            {/* Bluesky-style identity line: the display name takes the space it
+                needs (no hard width cap) and ellipsizes only in the extreme; the
+                @handle gives way first (shrinks aggressively); the trailing
+                "\u00B7 time" never wraps and always stays visible. */}
             <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
               <UserName
                 name={user.displayName}
                 verified={user.verified}
                 onPress={onPressUser}
-                style={{ container: { flexShrink: 0, maxWidth: '70%' } }}
+                style={{ container: { flexShrink: 1, minWidth: 0 } }}
               />
               {user.handle ? (
                 <Text
