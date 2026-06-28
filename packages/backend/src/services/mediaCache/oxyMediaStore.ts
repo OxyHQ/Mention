@@ -217,6 +217,28 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
   return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
 }
 
+/**
+ * Upload an OWNED GIF-library media object (full mp4 or small mp4 preview) to Oxy
+ * via the SAME service-token streaming upload path the federated media cache uses
+ * (`POST /assets/service/cache`). Reuses the exact streaming + 401-retry transport
+ * of {@link uploadCachedMedia} — it does NOT invent a second S3 write path.
+ *
+ * Two deliberate differences from {@link uploadCachedMedia}:
+ *  - It is gated by the GIF library's own `GIF_LIBRARY_WRITE_ENABLED` switch
+ *    (checked by the caller in `services/gifLibrary`), NOT by the federated
+ *    media-cache `isMediaCacheEnabled()` flag, so GIF imports stay on even when
+ *    the federated media cache is off (the GIF library defaults ON).
+ *  - The GIF library OWNS these objects: it never calls the cache eviction
+ *    DELETE (`/assets/service/cache/:id`) on a GIF file id, and GIF files are not
+ *    tracked in `FederatedMediaCache`, so the activity-based eviction job never
+ *    enumerates them. They are therefore durable despite sharing the reserved
+ *    cache namespace, which is exactly what `Gif` rows (referenced by persisted
+ *    posts) require.
+ */
+export async function uploadGifLibraryMedia(source: CachedMediaSource): Promise<UploadedAsset> {
+  return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
+}
+
 export interface FederatedMediaSource extends CachedMediaSource {
   ownerUserId: string;
   metadata?: Record<string, unknown>;
