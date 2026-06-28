@@ -29,11 +29,11 @@ interface PodcastPickerSheetProps {
 }
 
 async function searchPodcasts(query: string): Promise<PodcastSearchResult[]> {
-  const res = await api.get<{ data: PodcastSearchResult[] }>('profile/media/search', {
+  const res = await api.get<PodcastSearchResult[]>('profile/media/search', {
     type: 'podcast',
     q: query,
   });
-  return Array.isArray(res.data?.data) ? res.data.data : [];
+  return Array.isArray(res.data) ? res.data : [];
 }
 
 /** A single podcast search result row. Selecting it attaches the show. */

@@ -81,19 +81,19 @@ interface MediaPickerSheetProps {
 }
 
 async function searchSongs(query: string): Promise<SongSearchResult[]> {
-  const res = await api.get<{ data: SongSearchResult[] }>('profile/media/search', {
+  const res = await api.get<SongSearchResult[]>('profile/media/search', {
     type: 'song',
     q: query,
   });
-  return Array.isArray(res.data?.data) ? res.data.data : [];
+  return Array.isArray(res.data) ? res.data : [];
 }
 
 async function searchPodcasts(query: string): Promise<PodcastSearchResult[]> {
-  const res = await api.get<{ data: PodcastSearchResult[] }>('profile/media/search', {
+  const res = await api.get<PodcastSearchResult[]>('profile/media/search', {
     type: 'podcast',
     q: query,
   });
-  return Array.isArray(res.data?.data) ? res.data.data : [];
+  return Array.isArray(res.data) ? res.data : [];
 }
 
 function formatStartTime(totalSec: number): string {
