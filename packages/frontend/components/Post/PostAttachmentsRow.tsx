@@ -74,6 +74,7 @@ type AttachmentItem =
   | { type: 'podcast' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
   | { type: 'video'; mediaId: string; src: string; poster?: string }
+  | { type: 'gif'; mediaId: string; src: string }
   | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif' };
 
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
@@ -173,14 +174,28 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         // legacy client resolver from the RAW media id when absent (old data).
         const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
         results.push({ type: 'video', mediaId: id, src, poster });
+      } else if (resolvedType === 'gif') {
+        // Federated gifs carry an absolute http URL as their media id — a <video>
+        // can't play a remote `.gif`, so keep the animated-gif image render (via
+        // the proxy). Native gifs are an Oxy fileId pointing at an mp4: render an
+        // inline looping muted video (≈10–20× smaller, hardware-decoded).
+        if (/^https?:\/\//i.test(id)) {
+          const src = resolveMediaSrc(mediaItem, 'thumb');
+          if (!src) return;
+          const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
+          results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'gif' });
+        } else {
+          const src = resolveMediaSrc(mediaItem, 'playable');
+          if (!src) return;
+          results.push({ type: 'gif', mediaId: id, src });
+        }
       } else {
         // Thumbnail for the in-feed card; a larger variant for the lightbox so
         // opening fullscreen upgrades the image instead of reusing the thumb.
         const src = resolveMediaSrc(mediaItem, 'thumb');
         if (!src) return;
         const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
-        const kind = resolvedType === 'gif' ? 'gif' : 'image';
-        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: kind });
+        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'image' });
       }
     };
 
@@ -275,7 +290,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         }
       }
       if (insertIdx === -1) {
-        const firstMediaIdx = results.findIndex(item => item.type === 'image' || item.type === 'video');
+        const firstMediaIdx = results.findIndex(item => item.type === 'image' || item.type === 'video' || item.type === 'gif');
         insertIdx = firstMediaIdx !== -1 ? firstMediaIdx : results.length;
       }
       results.splice(insertIdx, 0, linkItem);
@@ -292,7 +307,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     const computed: Item[] = [...attachmentItems];
     const shouldIncludeNested = nestedPost && nestingDepth < 2;
     if (shouldIncludeNested) {
-      const firstMediaIdx = computed.findIndex(item => item.type === 'image' || item.type === 'video');
+      const firstMediaIdx = computed.findIndex(item => item.type === 'image' || item.type === 'video' || item.type === 'gif');
       const nestedItem: Item = { type: 'nested' };
       if (firstMediaIdx === -1) {
         computed.push(nestedItem);
@@ -304,7 +319,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   }, [attachmentItems, nestedPost, nestingDepth]);
 
   const mediaItems = useMemo(() =>
-    items.filter((item): item is Extract<Item, { type: 'image' | 'video' }> => item.type === 'image' || item.type === 'video'),
+    items.filter((item): item is Extract<Item, { type: 'image' | 'video' | 'gif' }> => item.type === 'image' || item.type === 'video' || item.type === 'gif'),
     [items]);
 
   const hasMultipleMedia = mediaItems.length > 1;
@@ -569,6 +584,20 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               nestedPost={nestedPost}
               nestingDepth={nestingDepth}
               width={nestedWidth}
+            />
+          );
+        }
+        if (item.type === 'gif') {
+          // Native gif = inline looping muted video; no reels routing, no lightbox.
+          return (
+            <PostAttachmentMedia
+              key={`gif-${item.mediaId ?? idx}`}
+              type="gif"
+              src={item.src}
+              mediaId={item.mediaId}
+              postId={postId}
+              hasSingleMedia={hasSingleMedia}
+              hasMultipleMedia={hasMultipleMedia}
             />
           );
         }

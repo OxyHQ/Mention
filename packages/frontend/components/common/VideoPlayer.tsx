@@ -24,6 +24,13 @@ interface VideoPlayerProps {
    * the inline controls overlay is suppressed, and only a mute/unmute toggle remains.
    */
   onPress?: () => void;
+  /**
+   * GIF mode (looping muted autoplay, like X/Meta). When set: the player is ALWAYS
+   * muted (ignores the global mute store), loops, autoplays, and renders NO controls,
+   * NO mute toggle, NO overlays, and is NOT tappable (no reels/lightbox). Use for
+   * GIFs stored as mp4. Leaves all other behavior untouched when unset.
+   */
+  gif?: boolean;
 }
 
 function formatTime(seconds: number): string {
@@ -44,8 +51,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   loop = false,
   poster,
   onPress,
+  gif = false,
 }) => {
-  const isPreviewMode = onPress !== undefined;
+  const isPreviewMode = onPress !== undefined && !gif;
   const { isMuted, toggleMuted } = useVideoMuteStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -71,18 +79,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const player = useVideoPlayer(src, (p) => {
     if (p) {
-      p.loop = loop;
-      p.muted = isMuted;
+      p.loop = gif ? true : loop;
+      p.muted = gif ? true : isMuted;
       p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
     }
   });
 
-  // Sync mute state from global store
+  // Sync mute state from global store (GIFs stay force-muted regardless).
   useEffect(() => {
     if (player) {
-      player.muted = isMuted;
+      player.muted = gif ? true : isMuted;
     }
-  }, [isMuted, player]);
+  }, [isMuted, player, gif]);
 
   // Listen to player events
   useEffect(() => {
@@ -250,7 +258,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         style={styles.video}
         contentFit={contentFit}
         nativeControls={false}
-        fullscreenOptions={{ enable: !isPreviewMode }}
+        fullscreenOptions={{ enable: !isPreviewMode && !gif }}
         allowsPictureInPicture={false}
       />
 
@@ -266,7 +274,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         />
       )}
 
-      {isPreviewMode ? (
+      {!gif && (isPreviewMode ? (
         <>
           {/* Whole-surface tap opens the immersive viewer (Instagram Reels style) */}
           <Pressable style={styles.tapArea} onPress={onPress} />
@@ -366,7 +374,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </View>
         )}
       </Pressable>
-      )}
+      ))}
     </View>
   );
 };

@@ -33,7 +33,8 @@ interface GifItem {
   id: string;
   slug: string;
   title: string;
-  url: string;        // full-size — used for upload
+  url: string;        // full-size animated gif — upload fallback
+  mp4Url: string;     // mp4 video — preferred upload (≈10–20× smaller, full color)
   thumbnail: string;  // grid thumbnail
   width: number;
   height: number;
@@ -100,17 +101,20 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       setSelectedGif(gif.id);
       setUploading(true);
 
-      // Fetch the GIF using the URL from KLIPY
-      const gifUrl = gif.url;
-      const filename = `gif_${gif.id || gif.slug}.gif`;
+      // Prefer the MP4 (≈10–20× smaller, full color, hardware-decoded) — it renders
+      // as an inline looping muted video, like X/Meta. Fall back to the animated gif
+      // when the backend didn't supply an mp4.
+      const uploadUrl = gif.mp4Url || gif.url;
+      const isMp4 = Boolean(gif.mp4Url);
+      const filename = `gif_${gif.id || gif.slug}.${isMp4 ? 'mp4' : 'gif'}`;
 
       if (Platform.OS === 'web') {
         // For web, use fetch and create a File object
-        const response = await fetch(gifUrl);
+        const response = await fetch(uploadUrl);
         const blob = await response.blob();
 
         // Create file object for web
-        const file = new File([blob], filename, { type: 'image/gif' });
+        const file = new File([blob], filename, { type: isMp4 ? 'video/mp4' : 'image/gif' });
 
         // Upload via Oxy services
         logger.debug(`Uploading GIF file (web): ${filename}`);
@@ -124,7 +128,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
 
         if (fileId) {
-          await onSelectGif(gifUrl, fileId);
+          await onSelectGif(uploadUrl, fileId);
           onClose();
           return;
         } else {
@@ -133,15 +137,15 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         }
       } else {
         // For React Native, try to use expo-file-system if available, otherwise use direct URL
-        let fileUri = gifUrl;
+        let fileUri = uploadUrl;
 
         try {
           // Try to use expo-file-system to download the file locally first
           const FileSystem = require('expo-file-system');
           const localUri = `${FileSystem.cacheDirectory}${filename}`;
 
-          // Download the GIF file
-          const downloadResult = await FileSystem.downloadAsync(gifUrl, localUri);
+          // Download the file
+          const downloadResult = await FileSystem.downloadAsync(uploadUrl, localUri);
 
           if (downloadResult.uri) {
             fileUri = downloadResult.uri;
@@ -154,7 +158,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         // Create file object for React Native upload
         const file = {
           uri: fileUri,
-          type: 'image/gif',
+          type: isMp4 ? 'video/mp4' : 'image/gif',
           name: filename,
         };
 
@@ -170,7 +174,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
 
         if (fileId) {
-          await onSelectGif(gifUrl, fileId);
+          await onSelectGif(uploadUrl, fileId);
           onClose();
         } else {
           logger.error('Upload failed - no file ID returned');

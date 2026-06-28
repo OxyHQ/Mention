@@ -83,6 +83,35 @@ const PostAttachmentVideo: React.FC<{
   );
 };
 
+// Inline looping muted GIF rendered as an mp4 video (like X/Meta). Mirrors
+// PostAttachmentVideo's container/sizing, but with gif semantics: always muted,
+// no controls, no mute toggle, and the surface is NOT tappable (no reels/lightbox).
+const PostAttachmentGif: React.FC<{
+  src: string;
+  hasSingleMedia?: boolean;
+  hasMultipleMedia?: boolean;
+}> = ({ src, hasSingleMedia, hasMultipleMedia }) => {
+  return (
+    <View
+      className="border border-border bg-secondary rounded-[15px] overflow-hidden"
+      style={[
+        webGrabCursorStyle,
+        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
+        hasSingleMedia && { maxHeight: undefined, height: undefined },
+      ]}
+    >
+      <VideoPlayer
+        src={src}
+        style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
+        contentFit="contain"
+        autoPlay={true}
+        loop={true}
+        gif={true}
+      />
+    </View>
+  );
+};
+
 const FULL_DIMENSION = '100%' as const;
 
 const PostAttachmentImage: React.FC<{
@@ -207,6 +236,16 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         src={src}
         poster={poster}
         onPress={onPress}
+        hasSingleMedia={hasSingleMedia}
+        hasMultipleMedia={hasMultipleMedia}
+      />
+    );
+  }
+
+  if (type === 'gif') {
+    return (
+      <PostAttachmentGif
+        src={src}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}
       />

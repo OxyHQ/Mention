@@ -17,6 +17,7 @@ export interface GifItem {
   title: string;
   url: string;        // full-size animated url
   thumbnail: string;  // smaller animated url for the grid
+  mp4Url: string;     // looping muted mp4 (X/Meta-style, ~10-20x smaller than the gif)
   width: number;
   height: number;
 }
@@ -44,6 +45,7 @@ function mapKlipyItems(items: KlipyGifItem[]): GifItem[] {
           thumbnailFile?.webp?.url ||
           thumbnailFile?.jpg?.url ||
           '',
+        mp4Url: fullFile?.mp4?.url || thumbnailFile?.mp4?.url || '',
         width: fullFile?.gif?.width || thumbnailFile?.gif?.width || DEFAULT_GIF_DIMENSION,
         height: fullFile?.gif?.height || thumbnailFile?.gif?.height || DEFAULT_GIF_DIMENSION,
       };
