@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Text, StyleProp, TextStyle, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { URL_PATTERN_SOURCE, toOpenableUrl, trimUrlTrailingPunct } from '@/utils/extractUrls';
 
 interface LinkifiedTextProps {
   text: string;
@@ -22,9 +23,12 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
     const elements: React.ReactNode[] = [];
 
     // 1) Mentions in format [@DisplayName](username) - from backend
-    // 2) URLs: http(s)://... or www....
+    // 2) URLs: http(s)://... or www.... (shared source from utils/extractUrls)
     // 3) Entities with preceding boundary capture: hashtags, cashtags
-    const pattern = /(\[@([^\]]+)\]\(([^)]+)\))|(https?:\/\/[^\s]+|www\.[^\s]+)|(^|[^A-Za-z0-9_])(#[A-Za-z][A-Za-z0-9_]*|\$[A-Z]{1,6}(?:\.[A-Z]{1,2})?)/g;
+    const pattern = new RegExp(
+      `(\\[@([^\\]]+)\\]\\(([^)]+)\\))|(${URL_PATTERN_SOURCE})|(^|[^A-Za-z0-9_])(#[A-Za-z][A-Za-z0-9_]*|\\$[A-Z]{1,6}(?:\\.[A-Z]{1,2})?)`,
+      'g',
+    );
 
     let lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -33,16 +37,6 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
     const pushText = (t: string) => {
       if (!t) return;
       elements.push(<Text key={`t-${key++}`}>{t}</Text>);
-    };
-
-    const trimUrlTrailingPunct = (raw: string) => {
-      let url = raw;
-      let trailing = '';
-      while (/[.,!?):;\]]$/.test(url)) {
-        trailing = url.slice(-1) + trailing;
-        url = url.slice(0, -1);
-      }
-      return { url, trailing };
     };
 
     while ((match = pattern.exec(text)) !== null) {
@@ -79,7 +73,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         pushText(text.slice(lastIndex, start));
 
         const { url, trailing } = trimUrlTrailingPunct(urlCandidate);
-        const href = url.startsWith('http') ? url : `https://${url}`;
+        const href = toOpenableUrl(url);
         elements.push(
           <Text
             key={`u-${key++}`}
