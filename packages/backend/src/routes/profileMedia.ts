@@ -2,7 +2,8 @@ import { Router, Response } from 'express';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { createSyraClient } from '@syra.fm/sdk';
 import { config } from '../config';
-import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
+import { sendErrorResponse } from '../utils/apiHelpers';
+import { sendPaginated } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -24,9 +25,14 @@ const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
 const SEARCH_RESULT_LIMIT = 20;
 
 /**
- * GET /api/profile/media/search?type=song|podcast&q=
+ * GET /api/profile/media/search?type=song|podcast&q=&offset=
  * Search the Syra public catalog for either preview-eligible tracks or podcast
- * shows, depending on `type`.
+ * shows, depending on `type`. Paginated for infinite scroll: `offset` advances
+ * through the matching set in `SEARCH_RESULT_LIMIT`-sized pages, and the
+ * response carries `{ data, pagination }` so the client can request the next
+ * page. `hasMore` comes from the Syra backend, not the page's row count (the
+ * SDK filters tracks to preview-eligible ones, so a page can be short while
+ * more results remain).
  */
 router.get('/search', async (req: AuthRequest, res: Response) => {
   try {
@@ -42,10 +48,15 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
       return sendErrorResponse(res, 400, 'Bad Request', 'Missing q parameter');
     }
 
-    if (type === 'song') {
-      const tracks = await syraClient.searchTracks(query, { limit: SEARCH_RESULT_LIMIT });
+    // Zero-based page offset for infinite scroll. Absent or malformed values
+    // start from the first page rather than erroring a scroll.
+    const rawOffset = typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
+    const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
 
-      const results = tracks.map((track) => {
+    if (type === 'song') {
+      const page = await syraClient.searchTracks(query, { limit: SEARCH_RESULT_LIMIT, offset });
+
+      const results = page.items.map((track) => {
         const previewAvailable = track.previewAvailable === true;
         return {
           syraTrackId: track.id,
@@ -62,19 +73,27 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
         };
       });
 
-      return sendSuccessResponse(res, 200, results);
+      return sendPaginated(res, results, {
+        hasMore: page.hasMore,
+        offset: page.offset,
+        limit: page.limit,
+      });
     }
 
-    const shows = await syraClient.searchPodcasts(query, { limit: SEARCH_RESULT_LIMIT });
+    const page = await syraClient.searchPodcasts(query, { limit: SEARCH_RESULT_LIMIT, offset });
 
-    const results = shows.map((show) => ({
+    const results = page.items.map((show) => ({
       syraPodcastId: show.id,
       title: show.title,
       author: show.author,
       artworkUrl: syraClient.podcastArtworkUrl(show),
     }));
 
-    return sendSuccessResponse(res, 200, results);
+    return sendPaginated(res, results, {
+      hasMore: page.hasMore,
+      offset: page.offset,
+      limit: page.limit,
+    });
   } catch (err) {
     logger.error('[ProfileMedia] Error searching Syra catalog:', { userId: req.user?.id, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to search profile media');

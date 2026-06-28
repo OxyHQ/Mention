@@ -1,15 +1,15 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { show as toast } from '@oxyhq/bloom/toast';
@@ -80,20 +80,53 @@ interface MediaPickerSheetProps {
   onClose: () => void;
 }
 
-async function searchSongs(query: string): Promise<SongSearchResult[]> {
-  const res = await api.get<SongSearchResult[]>('profile/media/search', {
-    type: 'song',
-    q: query,
-  });
-  return Array.isArray(res.data) ? res.data : [];
+/**
+ * One page of catalog search rows plus the offset to request next. The proxy
+ * returns a `{ data, pagination }` envelope which `@oxyhq/core`'s HttpService
+ * leaves un-unwrapped (the `pagination` key suppresses the `{ data }` unwrap),
+ * so the rows live at `res.data.data` and the page metadata at
+ * `res.data.pagination`. `nextOffset` advances by the page size (`limit`), not
+ * by `rows.length`: the SDK can return a short page while more results remain.
+ */
+interface SearchResultPage<T> {
+  rows: T[];
+  hasMore: boolean;
+  nextOffset: number;
 }
 
-async function searchPodcasts(query: string): Promise<PodcastSearchResult[]> {
-  const res = await api.get<PodcastSearchResult[]>('profile/media/search', {
+interface PaginatedSearchEnvelope<T> {
+  data: T[];
+  pagination: { hasMore: boolean; offset: number; limit: number };
+}
+
+async function fetchSongPage(query: string, offset: number): Promise<SearchResultPage<SongSearchResult>> {
+  const res = await api.get<PaginatedSearchEnvelope<SongSearchResult>>('profile/media/search', {
+    type: 'song',
+    q: query,
+    offset,
+  });
+  const rows = res.data?.data ?? [];
+  const pagination = res.data?.pagination;
+  return {
+    rows,
+    hasMore: pagination?.hasMore ?? false,
+    nextOffset: (pagination?.offset ?? 0) + (pagination?.limit ?? rows.length),
+  };
+}
+
+async function fetchPodcastPage(query: string, offset: number): Promise<SearchResultPage<PodcastSearchResult>> {
+  const res = await api.get<PaginatedSearchEnvelope<PodcastSearchResult>>('profile/media/search', {
     type: 'podcast',
     q: query,
+    offset,
   });
-  return Array.isArray(res.data) ? res.data : [];
+  const rows = res.data?.data ?? [];
+  const pagination = res.data?.pagination;
+  return {
+    rows,
+    hasMore: pagination?.hasMore ?? false,
+    nextOffset: (pagination?.offset ?? 0) + (pagination?.limit ?? rows.length),
+  };
 }
 
 function formatStartTime(totalSec: number): string {
@@ -234,6 +267,19 @@ const PodcastResultRow = memo(function PodcastResultRow({
   );
 });
 
+/** Spinner shown at the bottom of a results list while the next page loads. */
+const ResultsFooter = memo(function ResultsFooter({ loading }: { loading: boolean }) {
+  const { colors } = useTheme();
+  if (!loading) {
+    return null;
+  }
+  return (
+    <View className="items-center justify-center py-3">
+      <ActivityIndicator size="small" color={colors.primary} />
+    </View>
+  );
+});
+
 /**
  * Owner media picker rendered inside Mention's shared bottom sheet. A SONG /
  * PODCAST toggle switches between two flows over the same Syra catalog proxy
@@ -280,21 +326,43 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
     setDebouncedQuery('');
   }, []);
 
-  const songSearch = useQuery({
+  const songSearch = useInfiniteQuery({
     queryKey: ['profile-media-search', 'song', debouncedQuery],
-    queryFn: () => searchSongs(debouncedQuery),
+    queryFn: ({ pageParam }) => fetchSongPage(debouncedQuery, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.hasMore ? last.nextOffset : undefined),
     enabled: tab === 'song' && debouncedQuery.length > 0,
     staleTime: 60_000,
   });
-  const podcastSearch = useQuery({
+  const podcastSearch = useInfiniteQuery({
     queryKey: ['profile-media-search', 'podcast', debouncedQuery],
-    queryFn: () => searchPodcasts(debouncedQuery),
+    queryFn: ({ pageParam }) => fetchPodcastPage(debouncedQuery, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.hasMore ? last.nextOffset : undefined),
     enabled: tab === 'podcast' && debouncedQuery.length > 0,
     staleTime: 60_000,
   });
 
-  const songResults = useMemo(() => songSearch.data ?? [], [songSearch.data]);
-  const podcastResults = useMemo(() => podcastSearch.data ?? [], [podcastSearch.data]);
+  const songResults = useMemo(
+    () => songSearch.data?.pages.flatMap((page) => page.rows) ?? [],
+    [songSearch.data],
+  );
+  const podcastResults = useMemo(
+    () => podcastSearch.data?.pages.flatMap((page) => page.rows) ?? [],
+    [podcastSearch.data],
+  );
+
+  const loadMoreSongs = useCallback(() => {
+    if (songSearch.hasNextPage && !songSearch.isFetchingNextPage) {
+      void songSearch.fetchNextPage();
+    }
+  }, [songSearch.hasNextPage, songSearch.isFetchingNextPage, songSearch.fetchNextPage]);
+
+  const loadMorePodcasts = useCallback(() => {
+    if (podcastSearch.hasNextPage && !podcastSearch.isFetchingNextPage) {
+      void podcastSearch.fetchNextPage();
+    }
+  }, [podcastSearch.hasNextPage, podcastSearch.isFetchingNextPage, podcastSearch.fetchNextPage]);
 
   const maxStartSec = useMemo(
     () => Math.max(0, Math.floor(selectedSong?.durationSec ?? 0) - PREVIEW_WINDOW_SEC),
@@ -476,16 +544,23 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
               </Text>
             </View>
           ) : (
-            <ScrollView className="max-h-[300px]" showsVerticalScrollIndicator={false}>
-              {songResults.map((result) => (
+            <FlatList
+              data={songResults}
+              keyExtractor={(item) => item.syraTrackId}
+              renderItem={({ item }) => (
                 <SongResultRow
-                  key={result.syraTrackId}
-                  result={result}
-                  isSelected={selectedSong?.syraTrackId === result.syraTrackId}
+                  result={item}
+                  isSelected={selectedSong?.syraTrackId === item.syraTrackId}
                   onSelect={handleSelectSong}
                 />
-              ))}
-            </ScrollView>
+              )}
+              className="max-h-[300px]"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onEndReached={loadMoreSongs}
+              onEndReachedThreshold={0.4}
+              ListFooterComponent={<ResultsFooter loading={songSearch.isFetchingNextPage} />}
+            />
           )
         ) : podcastResults.length === 0 ? (
           <View className="items-center justify-center py-10 gap-2">
@@ -495,16 +570,23 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             </Text>
           </View>
         ) : (
-          <ScrollView className="max-h-[300px]" showsVerticalScrollIndicator={false}>
-            {podcastResults.map((result) => (
+          <FlatList
+            data={podcastResults}
+            keyExtractor={(item) => item.syraPodcastId}
+            renderItem={({ item }) => (
               <PodcastResultRow
-                key={result.syraPodcastId}
-                result={result}
-                isSelected={selectedPodcast?.syraPodcastId === result.syraPodcastId}
+                result={item}
+                isSelected={selectedPodcast?.syraPodcastId === item.syraPodcastId}
                 onSelect={handleSelectPodcast}
               />
-            ))}
-          </ScrollView>
+            )}
+            className="max-h-[300px]"
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onEndReached={loadMorePodcasts}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={<ResultsFooter loading={podcastSearch.isFetchingNextPage} />}
+          />
         )}
       </View>
 

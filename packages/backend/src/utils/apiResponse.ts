@@ -7,11 +7,20 @@ import { Response } from 'express';
 export interface ApiSuccessResponse<T = any> {
   success: true;
   data: T;
-  pagination?: {
-    nextCursor?: string;
-    hasMore: boolean;
-    totalCount?: number;
-  };
+  pagination?: PaginationMeta;
+}
+
+/**
+ * Pagination metadata. Supports both cursor-based (`nextCursor`) and
+ * offset-based (`offset` + `limit`, for infinite scroll) pagination; `hasMore`
+ * is the single signal shared by both styles.
+ */
+export interface PaginationMeta {
+  nextCursor?: string;
+  hasMore: boolean;
+  totalCount?: number;
+  offset?: number;
+  limit?: number;
 }
 
 export interface ApiErrorResponse {
@@ -40,7 +49,7 @@ export function sendSuccess<T>(res: Response, data: T, status = 200): void {
 export function sendPaginated<T>(
   res: Response,
   data: T[],
-  pagination: { nextCursor?: string; hasMore: boolean; totalCount?: number },
+  pagination: PaginationMeta,
   status = 200
 ): void {
   res.status(status).json({
