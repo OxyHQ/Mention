@@ -442,6 +442,29 @@ export function extractActorUri(attributedTo: unknown): string | undefined {
 }
 
 /**
+ * Extract the parent object URI from an AP `inReplyTo` value.
+ *
+ * `inReplyTo` is usually a plain IRI string, but some servers (Pleroma,
+ * PeerTube) emit an embedded `Link`/object carrying `id` or `href`. This
+ * normalizes both shapes to a single trimmed string URI (or `undefined` when
+ * absent/empty), so the value persisted in `federation.inReplyTo` is always a
+ * resolvable string — never a stringified `[object Object]` — and is usable
+ * directly by {@link resolvePostIdFromObjectUri} for thread linking.
+ */
+export function extractInReplyToUri(inReplyTo: unknown): string | undefined {
+  if (typeof inReplyTo === 'string') {
+    const trimmed = inReplyTo.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (inReplyTo && typeof inReplyTo === 'object') {
+    const record = inReplyTo as { id?: unknown; href?: unknown };
+    if (typeof record.id === 'string' && record.id.trim().length > 0) return record.id.trim();
+    if (typeof record.href === 'string' && record.href.trim().length > 0) return record.href.trim();
+  }
+  return undefined;
+}
+
+/**
  * Extract media attachments from an AP Note object.
  * Returns media items and attachment descriptors for the Post model.
  *

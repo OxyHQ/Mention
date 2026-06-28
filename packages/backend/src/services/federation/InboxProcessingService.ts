@@ -18,6 +18,7 @@ import {
   extractAnnouncedObjectUri,
   extractApHashtags,
   extractApMedia,
+  extractInReplyToUri,
   getRemoteHost,
   isDuplicateKeyError,
   mapApVisibility,
@@ -314,16 +315,28 @@ export class InboxProcessingService {
     // Missing/invalid/future → undefined → schema timestamps fall back to now.
     const originalCreatedAt = parseApPublished(object.published ?? activity.published);
 
+    // When this Note is a reply, resolve it to the local thread: parentPostId is
+    // the parent Post's _id and threadId is the thread ROOT id (mirroring the
+    // native reply rule). A parent not yet imported is backfilled (bounded) so
+    // the reply joins the existing thread instead of being orphaned. `inReplyTo`
+    // is normalized to a clean string URI (string IRI or embedded Link object).
+    const inReplyToUri = extractInReplyToUri(object.inReplyTo);
+    const threadLink = inReplyToUri
+      ? await outboxSyncService.ensureFederatedReplyLink(inReplyToUri)
+      : null;
+
     await getPostCreator().create({
       oxyUserId: actor.oxyUserId ?? null,
       federation: {
         activityId: object.id,
         actorUri,
-        inReplyTo: object.inReplyTo || undefined,
+        inReplyTo: inReplyToUri,
         url: object.url || object.id,
         sensitive: object.sensitive || false,
         spoilerText: object.summary || undefined,
       },
+      parentPostId: threadLink?.parentPostId ?? null,
+      threadId: threadLink?.threadId ?? null,
       content: {
         text,
         media: media.length > 0 ? media : undefined,
