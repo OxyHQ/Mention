@@ -216,6 +216,10 @@
   "profile.media.podcast.searchError": "Impossibile cercare i podcast. Riprova.",
   "profile.following": "Seguito",
   "profile.followers": "Follower",
+  "profile.followedBy.one": "Seguito da {{name1}}",
+  "profile.followedBy.two": "Seguito da {{name1}} e {{name2}}",
+  "profile.followedBy.many_one": "Seguito da {{name1}}, {{name2}} e altri {{count}}",
+  "profile.followedBy.many_other": "Seguito da {{name1}}, {{name2}} e altri {{count}}",
   "profile.communities": "Comunità",
   "profile.members": "Membri",
   "profile.memberCount": "{{count}} Membri",
@@ -791,12 +795,19 @@
     }
   },
   "connections": {
+    "tabs": {
+      "inCommon": "In comune"
+    },
     "emptyFollowers": "Ancora nessun follower",
     "emptyFollowing": "Non segue ancora nessuno",
     "emptyRecommendations": "Nessuna raccomandazione disponibile",
+    "emptyInCommon": "Nessun follower in comune",
     "emptyFollowersSubtitle": "Quando le persone seguiranno {{name}}, appariranno qui.",
     "emptyFollowingSubtitle": "Quando {{name}} seguirà delle persone, appariranno qui.",
-    "emptyRecommendationsSubtitle": "Torna più tardi per i suggerimenti."
+    "emptyRecommendationsSubtitle": "Torna più tardi per i suggerimenti.",
+    "emptyInCommonSubtitle": "Le persone che segui e che seguono anche questo account appariranno qui.",
+    "failedRecommendations": "Impossibile caricare le raccomandazioni",
+    "failedInCommon": "Impossibile caricare i follower in comune"
   },
   "Who May Know": "Persone che potresti conoscere",
   "chat.comingSoon": "Prossimamente",

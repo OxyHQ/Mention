@@ -13,6 +13,7 @@ import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { LinkSummary } from './LinkSummary';
 import { ProfileMedia } from './ProfileMedia';
+import { FollowedByRow } from './FollowedByRow';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
@@ -204,6 +205,9 @@ export const ProfileContent = memo(function ProfileContent({
       {(!isPrivate || isOwnProfile) && design.profileMedia?.type !== 'podcast' && (
         <ProfileMedia media={design.profileMedia ?? null} isOwnProfile={isOwnProfile} />
       )}
+
+      {/* Social proof — mutual followers ("Followed by Ana, Luis and N others") */}
+      <FollowedByRow profileId={profileData.id} username={profileHandle} />
 
       {/* Links (Instagram-style summary row + bottom sheet) */}
       <LinkSummary links={normalizeProfileLinks(profileData.linksMetadata, profileData.links)} />
