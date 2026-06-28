@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { useInfiniteQuery } from '@tanstack/react-query';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { show as toast } from '@oxyhq/bloom/toast';
@@ -21,9 +20,9 @@ import {
   SpeakerVolumeFull_Stroke2_Corner0_Rounded,
   Trash_Stroke2_Corner0_Rounded,
 } from '@oxyhq/bloom/icons';
-import { api } from '@/utils/api';
 import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/store/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
+import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import { createScopedLogger } from '@/lib/logger';
 import { SongPreviewButton } from './SongPreviewButton';
 
@@ -33,7 +32,6 @@ const logger = createScopedLogger('MediaPickerSheet');
 // the whole window stays inside the track. Mirrors the backend clamp.
 const PREVIEW_WINDOW_SEC = 30;
 const START_STEP_SEC = 5;
-const SEARCH_DEBOUNCE_MS = 350;
 
 type MediaTab = 'song' | 'podcast';
 
@@ -78,55 +76,6 @@ interface PodcastSelection {
 interface MediaPickerSheetProps {
   currentMedia: ProfileMedia | null;
   onClose: () => void;
-}
-
-/**
- * One page of catalog search rows plus the offset to request next. The proxy
- * returns a `{ data, pagination }` envelope which `@oxyhq/core`'s HttpService
- * leaves un-unwrapped (the `pagination` key suppresses the `{ data }` unwrap),
- * so the rows live at `res.data.data` and the page metadata at
- * `res.data.pagination`. `nextOffset` advances by the page size (`limit`), not
- * by `rows.length`: the SDK can return a short page while more results remain.
- */
-interface SearchResultPage<T> {
-  rows: T[];
-  hasMore: boolean;
-  nextOffset: number;
-}
-
-interface PaginatedSearchEnvelope<T> {
-  data: T[];
-  pagination: { hasMore: boolean; offset: number; limit: number };
-}
-
-async function fetchSongPage(query: string, offset: number): Promise<SearchResultPage<SongSearchResult>> {
-  const res = await api.get<PaginatedSearchEnvelope<SongSearchResult>>('profile/media/search', {
-    type: 'song',
-    q: query,
-    offset,
-  });
-  const rows = res.data?.data ?? [];
-  const pagination = res.data?.pagination;
-  return {
-    rows,
-    hasMore: pagination?.hasMore ?? false,
-    nextOffset: (pagination?.offset ?? 0) + (pagination?.limit ?? rows.length),
-  };
-}
-
-async function fetchPodcastPage(query: string, offset: number): Promise<SearchResultPage<PodcastSearchResult>> {
-  const res = await api.get<PaginatedSearchEnvelope<PodcastSearchResult>>('profile/media/search', {
-    type: 'podcast',
-    q: query,
-    offset,
-  });
-  const rows = res.data?.data ?? [];
-  const pagination = res.data?.pagination;
-  return {
-    rows,
-    hasMore: pagination?.hasMore ?? false,
-    nextOffset: (pagination?.offset ?? 0) + (pagination?.limit ?? rows.length),
-  };
 }
 
 function formatStartTime(totalSec: number): string {
@@ -267,19 +216,6 @@ const PodcastResultRow = memo(function PodcastResultRow({
   );
 });
 
-/** Spinner shown at the bottom of a results list while the next page loads. */
-const ResultsFooter = memo(function ResultsFooter({ loading }: { loading: boolean }) {
-  const { colors } = useTheme();
-  if (!loading) {
-    return null;
-  }
-  return (
-    <View className="items-center justify-center py-3">
-      <ActivityIndicator size="small" color={colors.primary} />
-    </View>
-  );
-});
-
 /**
  * Owner media picker rendered inside Mention's shared bottom sheet. A SONG /
  * PODCAST toggle switches between two flows over the same Syra catalog proxy
@@ -299,7 +235,6 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
 
   const [tab, setTab] = useState<MediaTab>(() => currentMedia?.type ?? 'song');
   const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedSong, setSelectedSong] = useState<SongSelection | null>(() =>
     songSelectionFromMedia(currentMedia),
   );
@@ -311,58 +246,28 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
   );
   const [saving, setSaving] = useState(false);
 
-  // Debounce the raw input into the query key (the only effect here — React
-  // Query owns the actual fetch, dedupe, and caching).
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [query]);
-
   const switchTab = useCallback((next: MediaTab) => {
     // Each tab searches a different catalog type, so clear the query when
     // switching. Per-tab selections persist so toggling back keeps the pick.
     setTab(next);
     setQuery('');
-    setDebouncedQuery('');
   }, []);
 
-  const songSearch = useInfiniteQuery({
-    queryKey: ['profile-media-search', 'song', debouncedQuery],
-    queryFn: ({ pageParam }) => fetchSongPage(debouncedQuery, pageParam),
-    initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.nextOffset : undefined),
-    enabled: tab === 'song' && debouncedQuery.length > 0,
-    staleTime: 60_000,
-  });
-  const podcastSearch = useInfiniteQuery({
-    queryKey: ['profile-media-search', 'podcast', debouncedQuery],
-    queryFn: ({ pageParam }) => fetchPodcastPage(debouncedQuery, pageParam),
-    initialPageParam: 0,
-    getNextPageParam: (last) => (last.hasMore ? last.nextOffset : undefined),
-    enabled: tab === 'podcast' && debouncedQuery.length > 0,
-    staleTime: 60_000,
-  });
-
-  const songResults = useMemo(
-    () => songSearch.data?.pages.flatMap((page) => page.rows) ?? [],
-    [songSearch.data],
+  // One paginated, debounced search per facet. Each hook only sees the shared
+  // input while its tab is active (`tab === '…' ? query : ''`); an inactive
+  // facet therefore keeps an empty debounced query, so toggling tabs never
+  // flashes the other tab's results or fires a stale fetch before the debounce
+  // catches up to the just-cleared input.
+  const songSearch = useInfiniteCatalogSearch<SongSearchResult>(
+    'song',
+    tab === 'song' ? query : '',
+    { enabled: tab === 'song' },
   );
-  const podcastResults = useMemo(
-    () => podcastSearch.data?.pages.flatMap((page) => page.rows) ?? [],
-    [podcastSearch.data],
+  const podcastSearch = useInfiniteCatalogSearch<PodcastSearchResult>(
+    'podcast',
+    tab === 'podcast' ? query : '',
+    { enabled: tab === 'podcast' },
   );
-
-  const loadMoreSongs = useCallback(() => {
-    if (songSearch.hasNextPage && !songSearch.isFetchingNextPage) {
-      void songSearch.fetchNextPage();
-    }
-  }, [songSearch.hasNextPage, songSearch.isFetchingNextPage, songSearch.fetchNextPage]);
-
-  const loadMorePodcasts = useCallback(() => {
-    if (podcastSearch.hasNextPage && !podcastSearch.isFetchingNextPage) {
-      void podcastSearch.fetchNextPage();
-    }
-  }, [podcastSearch.hasNextPage, podcastSearch.isFetchingNextPage, podcastSearch.fetchNextPage]);
 
   const maxStartSec = useMemo(
     () => Math.max(0, Math.floor(selectedSong?.durationSec ?? 0) - PREVIEW_WINDOW_SEC),
@@ -531,12 +436,12 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           <Text className="text-muted-foreground text-[15px] text-center py-10">
             {isSongTab ? t('profile.media.song.searchError') : t('profile.media.podcast.searchError')}
           </Text>
-        ) : debouncedQuery.length === 0 ? (
+        ) : !activeSearch.hasQuery ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">
             {isSongTab ? t('profile.media.song.searchHint') : t('profile.media.podcast.searchHint')}
           </Text>
         ) : isSongTab ? (
-          songResults.length === 0 ? (
+          songSearch.results.length === 0 ? (
             <View className="items-center justify-center py-10 gap-2">
               <MagnifyingGlassX_Stroke2_Corner0_Rounded size="xl" fill={colors.textSecondary} />
               <Text className="text-muted-foreground text-[15px]">
@@ -545,7 +450,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             </View>
           ) : (
             <FlatList
-              data={songResults}
+              data={songSearch.results}
               keyExtractor={(item) => item.syraTrackId}
               renderItem={({ item }) => (
                 <SongResultRow
@@ -557,12 +462,12 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
               className="max-h-[300px]"
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              onEndReached={loadMoreSongs}
+              onEndReached={songSearch.loadMore}
               onEndReachedThreshold={0.4}
               ListFooterComponent={<ResultsFooter loading={songSearch.isFetchingNextPage} />}
             />
           )
-        ) : podcastResults.length === 0 ? (
+        ) : podcastSearch.results.length === 0 ? (
           <View className="items-center justify-center py-10 gap-2">
             <MagnifyingGlassX_Stroke2_Corner0_Rounded size="xl" fill={colors.textSecondary} />
             <Text className="text-muted-foreground text-[15px]">
@@ -571,7 +476,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           </View>
         ) : (
           <FlatList
-            data={podcastResults}
+            data={podcastSearch.results}
             keyExtractor={(item) => item.syraPodcastId}
             renderItem={({ item }) => (
               <PodcastResultRow
@@ -583,7 +488,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             className="max-h-[300px]"
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            onEndReached={loadMorePodcasts}
+            onEndReached={podcastSearch.loadMore}
             onEndReachedThreshold={0.4}
             ListFooterComponent={<ResultsFooter loading={podcastSearch.isFetchingNextPage} />}
           />

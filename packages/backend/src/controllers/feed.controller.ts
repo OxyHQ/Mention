@@ -53,12 +53,7 @@ import {
   isWithinOutboxSyncCooldown,
   shouldForceUntrackedOutboxSync,
 } from '../utils/federation/outboxSyncCooldown';
-import { createSyraClient } from '@syra.fm/sdk';
-
-// Headless Syra catalog client used to verify + denormalize a podcast SHOW
-// attached to a reply server-side, mirroring the posts controller. Public reads
-// only (no auth); Bun/Node provide global fetch.
-const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
+import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 
 /**
  * Minimum interval between background outbox re-syncs for the same federated
@@ -1254,21 +1249,12 @@ class FeedController {
       // client's reference is untrusted: re-resolve + denormalize the show
       // server-side so a reply can never persist fabricated podcast metadata. An
       // unresolvable show — or any podcast missing a usable id — is dropped.
-      const replyPodcastId = typeof content !== 'string' && typeof content?.podcast?.syraPodcastId === 'string'
-        ? content.podcast.syraPodcastId.trim()
-        : '';
-      if (replyPodcastId) {
+      const replySanitizedPodcast = sanitizePodcast(typeof content === 'string' ? undefined : content?.podcast);
+      if (replySanitizedPodcast) {
         try {
-          const show = await syraClient.getPodcast(replyPodcastId);
-          replyContent.podcast = {
-            syraPodcastId: replyPodcastId,
-            title: show.title,
-            author: show.author,
-            artworkUrl: syraClient.podcastArtworkUrl(show),
-            showUrl: syraClient.podcastUrl(replyPodcastId),
-          };
+          replyContent.podcast = await resolvePodcastContent(replySanitizedPodcast.syraPodcastId);
         } catch (podcastError) {
-          logger.warn('createReply: failed to resolve Syra podcast; dropping', { userId: currentUserId, syraPodcastId: replyPodcastId, error: podcastError });
+          logger.warn('createReply: failed to resolve Syra podcast; dropping', { userId: currentUserId, syraPodcastId: replySanitizedPodcast.syraPodcastId, error: podcastError });
         }
       }
 

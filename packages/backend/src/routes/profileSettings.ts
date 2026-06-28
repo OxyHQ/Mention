@@ -10,16 +10,11 @@ import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/use
 import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
-import { createSyraClient, type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
-import { config } from '../config';
+import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
+import { syraClient } from '../utils/syraPodcast';
 import { logger } from '../utils/logger';
 
 const router = Router();
-
-// Headless Syra catalog client used to verify + denormalize a pinned profile
-// media item (song or podcast) server-side. Public reads only (no auth);
-// Bun/Node provide global fetch.
-const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
 
 /**
  * The public Syra preview is a fixed 30-second clip. A profile song's start

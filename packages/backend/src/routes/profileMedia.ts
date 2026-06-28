@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { createSyraClient } from '@syra.fm/sdk';
-import { config } from '../config';
+import { syraClient } from '../utils/syraPodcast';
 import { sendErrorResponse } from '../utils/apiHelpers';
 import { sendPaginated } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
@@ -16,9 +15,6 @@ const router = Router();
  * a podcast show — this search proxies both catalogs behind one endpoint.
  */
 router.use(requireAuth);
-
-// Headless Syra catalog client (public reads only; Bun/Node provide global fetch).
-const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
 
 // Cap returned rows so the picker stays snappy. The SDK already filters track
 // results to preview-eligible tracks, so every song result is playable.
