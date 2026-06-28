@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 
 interface Props {
@@ -9,6 +10,18 @@ interface Props {
 
 interface State {
   hasError: boolean;
+}
+
+function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.container, { borderBottomColor: theme.colors.border }]}>
+      <Text style={styles.text}>This post could not be displayed.</Text>
+      <TouchableOpacity onPress={onRetry} style={styles.retryButton}>
+        <Text style={styles.retryText}>Tap to retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 /**
@@ -32,14 +45,7 @@ export class PostErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      return (
-        <View style={styles.container}>
-          <Text style={styles.text}>This post could not be displayed.</Text>
-          <TouchableOpacity onPress={this.handleRetry} style={styles.retryButton}>
-            <Text style={styles.retryText}>Tap to retry</Text>
-          </TouchableOpacity>
-        </View>
-      );
+      return <PostErrorFallback onRetry={this.handleRetry} />;
     }
     return this.props.children;
   }
@@ -52,7 +58,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 60,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.08)',
   },
   text: {
     fontSize: 14,
