@@ -85,8 +85,8 @@ export const config = {
   },
   /**
    * Syra public catalog API. Used to verify + denormalize a user's pinned
-   * "profile song" server-side (via `@syra.fm/sdk`) and to proxy catalog search
-   * for the song picker. Public reads only — no auth.
+   * "profile media" (a song or podcast show) server-side (via `@syra.fm/sdk`)
+   * and to proxy catalog search for the media picker. Public reads only — no auth.
    */
   syra: {
     apiUrl: (process.env.SYRA_API_URL || 'https://api.syra.fm').replace(/\/+$/, ''),

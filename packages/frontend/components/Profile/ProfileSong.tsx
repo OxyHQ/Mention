@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useContext } from 'react';
+import React, { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
@@ -6,64 +6,29 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import {
   MusicNote_Stroke2_Corner0_Rounded,
   Pencil_Stroke2_Corner0_Rounded,
-  PlusLarge_Stroke2_Corner0_Rounded,
 } from '@oxyhq/bloom/icons';
-import type { ProfileSong as ProfileSongData } from '@/store/appearanceStore';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import type { ProfileSongMedia } from '@/store/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { SongPreviewButton } from './SongPreviewButton';
-import { SongPickerSheet } from './SongPickerSheet';
 
 interface ProfileSongProps {
-  song?: ProfileSongData | null;
+  song: ProfileSongMedia;
   isOwnProfile: boolean;
+  /** Opens the media picker (owner only) — wired from the `ProfileMedia` dispatcher. */
+  onEdit: () => void;
 }
 
 /**
- * Instagram-style profile song. Renders a compact row — a play/pause circle, the
- * track artwork, and "Title · Artist" on one line — that auditions a 30s preview
- * when tapped. Owners can open the picker (long-press the row or tap the edit
- * affordance); when no song is set, owners see an "Add a song" entry and other
- * viewers see nothing. Mirrors `LinkSummary`'s compact-row + bottom-sheet shape.
+ * Instagram-style profile song — the SONG branch of `ProfileMedia`. Renders a
+ * compact row (a play/pause circle, the track artwork, and "Title · Artist" on
+ * one line) that auditions a 30s preview when tapped. Owners can open the picker
+ * (long-press the row or tap the edit affordance). Placed right after the profile
+ * stats. Mirrors `LinkSummary`'s compact-row shape.
  */
-export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile }: ProfileSongProps) {
+export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdit }: ProfileSongProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const bottomSheet = useContext(BottomSheetContext);
-  const preview = useProfileSongPreview(song?.previewUrl);
-
-  const openPicker = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
-      <SongPickerSheet
-        currentSong={song ?? null}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, song]);
-
-  if (!song) {
-    // No song: owners get an "Add a song" entry; other viewers see nothing.
-    if (!isOwnProfile) {
-      return null;
-    }
-    return (
-      <Pressable
-        className="flex-row items-center gap-2 mb-3"
-        onPress={openPicker}
-        accessibilityRole="button"
-        accessibilityLabel={t('profile.song.add')}
-      >
-        <View
-          className="rounded-full bg-secondary items-center justify-center"
-          style={{ width: 32, height: 32 }}
-        >
-          <PlusLarge_Stroke2_Corner0_Rounded size="sm" fill={colors.primary} />
-        </View>
-        <Text className="text-primary text-[15px]">{t('profile.song.add')}</Text>
-      </Pressable>
-    );
-  }
+  const preview = useProfileSongPreview(song.previewUrl);
 
   return (
     <View className="flex-row items-center gap-2 mb-3">
@@ -71,12 +36,12 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile }: Pro
         isPlaying={preview.isPlaying}
         isLoading={preview.isLoading}
         onPress={preview.toggle}
-        accessibilityLabel={preview.isPlaying ? t('profile.song.pause') : t('profile.song.play')}
+        accessibilityLabel={preview.isPlaying ? t('profile.media.song.pause') : t('profile.media.song.play')}
       />
       <Pressable
         className="flex-row items-center gap-2 shrink"
         onPress={preview.toggle}
-        onLongPress={isOwnProfile ? openPicker : undefined}
+        onLongPress={isOwnProfile ? onEdit : undefined}
         accessibilityRole="button"
         accessibilityLabel={`${song.title} · ${song.artist}`}
       >
@@ -103,9 +68,9 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile }: Pro
       </Pressable>
       {isOwnProfile && (
         <Pressable
-          onPress={openPicker}
+          onPress={onEdit}
           accessibilityRole="button"
-          accessibilityLabel={t('profile.song.edit')}
+          accessibilityLabel={t('profile.media.edit')}
           hitSlop={8}
           className="p-1"
         >

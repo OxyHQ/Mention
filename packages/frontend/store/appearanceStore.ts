@@ -29,7 +29,8 @@ export interface AppearanceSettings {
  * metadata is denormalized and preview-verified server-side at save time, so the
  * public profile-design payload carries it ready to render and play as-is.
  */
-export interface ProfileSong {
+export interface ProfileSongMedia {
+  type: 'song';
   syraTrackId: string;
   title: string;
   artist: string;
@@ -40,14 +41,34 @@ export interface ProfileSong {
 }
 
 /**
- * The untrusted reference the owner submits when pinning a song. The server
- * resolves the canonical metadata + preview URL from the Syra catalog and clamps
- * `startSec`, so the client only sends the track id and the chosen start offset.
+ * A Syra podcast show pinned to the profile (Threads-style card). Resolved and
+ * denormalized server-side at save time; `showUrl` opens the show in Syra.
  */
-export interface ProfileSongInput {
-  syraTrackId: string;
-  startSec: number;
+export interface ProfilePodcastMedia {
+  type: 'podcast';
+  syraPodcastId: string;
+  title: string;
+  author?: string;
+  artworkUrl?: string;
+  showUrl: string;
 }
+
+/**
+ * A profile's pinned media — a Syra song OR a Syra podcast show, never both. The
+ * single `profileMedia` field makes the two kinds structurally exclusive: setting
+ * one replaces the other.
+ */
+export type ProfileMedia = ProfileSongMedia | ProfilePodcastMedia;
+
+/**
+ * The untrusted reference the owner submits when pinning media. The server
+ * resolves canonical metadata + preview/show URLs from the Syra catalog (and
+ * clamps `startSec` for songs), so the client only sends the catalog id (and the
+ * chosen start offset for a song). Setting one kind replaces the other.
+ */
+export type ProfileMediaInput =
+  | { type: 'song'; syraTrackId: string; startSec: number }
+  | { type: 'podcast'; syraPodcastId: string };
 
 export interface UserAppearance {
   oxyUserId: string;
@@ -61,11 +82,11 @@ export interface UserAppearance {
     minimalistMode?: boolean;
   };
   /**
-   * Pinned profile song. The public profile-design DTO exposes it as a top-level
-   * field (denormalized + preview-verified server-side); `null`/absent means the
-   * user has not set one.
+   * Pinned profile media (song XOR podcast). The public profile-design DTO
+   * exposes it as a top-level field (denormalized server-side); `null`/absent
+   * means the user has not set one.
    */
-  profileSong?: ProfileSong | null;
+  profileMedia?: ProfileMedia | null;
   followsYou?: boolean;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -81,8 +102,8 @@ export interface UserAppearanceUpdate {
   appearance?: Partial<AppearanceSettings>;
   profileHeaderImage?: string | null;
   profileCustomization?: UserAppearance['profileCustomization'];
-  /** `ProfileSongInput` to pin/replace the song, or `null` to remove it. */
-  profileSong?: ProfileSongInput | null;
+  /** `ProfileMediaInput` to pin/replace the media, or `null` to remove it. */
+  profileMedia?: ProfileMediaInput | null;
   interests?: UserAppearance['interests'];
 }
 
@@ -167,10 +188,12 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
         ...(partial.profileCustomization && {
           profileCustomization: partial.profileCustomization,
         }),
-        // `profileSong` accepts `null` (remove), so gate on key presence rather
-        // than truthiness. The server resolves canonical metadata + preview URL.
-        ...(Object.prototype.hasOwnProperty.call(partial, 'profileSong') && {
-          profileSong: partial.profileSong,
+        // `profileMedia` accepts `null` (remove), so gate on key presence rather
+        // than truthiness. The server resolves canonical metadata + URLs and
+        // returns the denormalized media on the design DTO (refetched via the
+        // appearance-query invalidation below — we don't read it off this PUT).
+        ...(Object.prototype.hasOwnProperty.call(partial, 'profileMedia') && {
+          profileMedia: partial.profileMedia,
         }),
         ...(partial.interests && {
           interests: partial.interests,

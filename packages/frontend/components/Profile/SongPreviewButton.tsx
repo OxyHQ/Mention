@@ -18,7 +18,7 @@ interface SongPreviewButtonProps {
 /**
  * Presentational play/pause circle for a profile-song preview. Stateless — the
  * owning component drives it from `useProfileSongPreview`. Shared by the profile
- * row (`ProfileSong`) and the picker result rows (`SongPickerSheet`).
+ * song row (`ProfileSong`) and the picker song result rows (`MediaPickerSheet`).
  */
 export const SongPreviewButton = memo(function SongPreviewButton({
   isPlaying,

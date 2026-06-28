@@ -47,7 +47,8 @@ export interface PrivacySettings {
  * time (never trusted from the client) so viewers can render the song row and
  * play its 30s preview without a round-trip to Syra.
  */
-export interface ProfileSong {
+export interface ProfileMediaSong {
+  type: 'song';
   syraTrackId: string;
   title: string;
   artist: string;
@@ -57,10 +58,32 @@ export interface ProfileSong {
   durationSec?: number;
 }
 
+/**
+ * A Syra podcast SHOW pinned to the profile. Like {@link ProfileMediaSong}, the
+ * metadata is denormalized server-side from the canonical Syra catalog at save
+ * time (never trusted from the client) so viewers can render the show card and
+ * deep-link into the Syra app without a round-trip to Syra.
+ */
+export interface ProfileMediaPodcast {
+  type: 'podcast';
+  syraPodcastId: string;
+  title: string;
+  author?: string;
+  artworkUrl?: string;
+  showUrl: string;
+}
+
+/**
+ * The single media item pinned to a profile — EITHER a song OR a podcast show,
+ * never both. The two shapes are discriminated by `type`; storing one
+ * automatically replaces the other (this is the mutual exclusion).
+ */
+export type ProfileMedia = ProfileMediaSong | ProfileMediaPodcast;
+
 export interface ProfileCustomization {
   coverPhotoEnabled?: boolean;
   minimalistMode?: boolean;
-  profileSong?: ProfileSong | null;
+  profileMedia?: ProfileMedia | null;
 }
 
 export interface InterestsSettings {
@@ -142,20 +165,32 @@ const PrivacySchema = new Schema<PrivacySettings>({
   labelPreferences: { type: LabelPreferencesSchema },
 }, { _id: false });
 
-const ProfileSongSchema = new Schema<ProfileSong>({
-  syraTrackId: { type: String, required: true },
+// One denormalized sub-schema holds BOTH media shapes; `type` discriminates and
+// the type-specific fields are individually optional (each shape is validated +
+// fully resolved server-side before it is written, so the schema only needs to
+// round-trip whichever shape was persisted). Storing one shape overwrites the
+// other because it is a single field.
+const ProfileMediaSchema = new Schema({
+  type: { type: String, enum: ['song', 'podcast'], required: true },
+  // Shared
   title: { type: String, required: true },
-  artist: { type: String, required: true },
   artworkUrl: { type: String },
-  previewUrl: { type: String, required: true },
-  startSec: { type: Number, required: true, default: 0 },
+  // Song-only
+  syraTrackId: { type: String },
+  artist: { type: String },
+  previewUrl: { type: String },
+  startSec: { type: Number },
   durationSec: { type: Number },
+  // Podcast-only
+  syraPodcastId: { type: String },
+  author: { type: String },
+  showUrl: { type: String },
 }, { _id: false });
 
 const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
   coverPhotoEnabled: { type: Boolean, default: true },
   minimalistMode: { type: Boolean, default: false },
-  profileSong: { type: ProfileSongSchema, default: null },
+  profileMedia: { type: ProfileMediaSchema, default: null },
 }, { _id: false });
 
 const InterestsSchema = new Schema<InterestsSettings>({

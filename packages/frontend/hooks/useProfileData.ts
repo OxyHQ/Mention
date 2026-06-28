@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth, useUserByUsername, queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
-import { useAppearanceStore, type UserAppearance, type ProfileSong } from '@/store/appearanceStore';
+import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/store/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 import type { Community } from '@/components/Profile/types';
 
@@ -16,8 +16,8 @@ export interface ProfileDesign {
   coverPhotoEnabled: boolean;
   minimalistMode: boolean;
   color?: string;
-  /** Pinned Syra "profile song", when the user has set one (and the viewer has access). */
-  profileSong?: ProfileSong;
+  /** Pinned Syra profile media — a song XOR a podcast — when the user has set one (and the viewer has access). */
+  profileMedia?: ProfileMedia;
 }
 
 export interface ProfileData {
@@ -91,8 +91,8 @@ function computeDesign(
       presetColor ||
       HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor ?? ''] ||
       'blue',
-    // The public design DTO normalizes "no song" to `null`/absent.
-    profileSong: appearance?.profileSong ?? undefined,
+    // The public design DTO normalizes "no media" to `null`/absent.
+    profileMedia: appearance?.profileMedia ?? undefined,
   };
 }
 

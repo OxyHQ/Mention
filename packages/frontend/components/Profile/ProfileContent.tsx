@@ -12,7 +12,7 @@ import {
 import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { LinkSummary } from './LinkSummary';
-import { ProfileSong } from './ProfileSong';
+import { ProfileMedia } from './ProfileMedia';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
@@ -198,9 +198,11 @@ export const ProfileContent = memo(function ProfileContent({
         />
       )}
 
-      {/* Profile song (Instagram-style row + picker sheet) */}
-      {(!isPrivate || isOwnProfile) && (
-        <ProfileSong song={design.profileSong} isOwnProfile={isOwnProfile} />
+      {/* Profile media — SONG branch (or the owner "add" entry) sits here, right
+          after the stats. The PODCAST branch renders as a card at the bottom of
+          the header instead (Threads-style), so it is skipped here. */}
+      {(!isPrivate || isOwnProfile) && design.profileMedia?.type !== 'podcast' && (
+        <ProfileMedia media={design.profileMedia ?? null} isOwnProfile={isOwnProfile} />
       )}
 
       {/* Links (Instagram-style summary row + bottom sheet) */}
@@ -212,6 +214,12 @@ export const ProfileContent = memo(function ProfileContent({
         (!isPrivate || isOwnProfile) && (
           <ProfileCommunities communities={profileData.communities} />
         )}
+
+      {/* Profile media — PODCAST branch renders last (the bottom of the header,
+          before the posts feed), matching the Threads card placement. */}
+      {(!isPrivate || isOwnProfile) && design.profileMedia?.type === 'podcast' && (
+        <ProfileMedia media={design.profileMedia} isOwnProfile={isOwnProfile} />
+      )}
     </View>
   );
 });
