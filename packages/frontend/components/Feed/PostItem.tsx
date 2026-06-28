@@ -605,7 +605,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     pulls left (-ml-4 = -16px) into the avatar gutter. */}
                 {repostedBy && (
                     <TouchableOpacity
-                        className="flex-row items-center mb-0.5 pl-[60px]"
+                        className="flex-row items-center mb-1 pl-[60px]"
                         activeOpacity={0.7}
                         onPress={goToReposter}
                         accessibilityRole="link"
@@ -619,7 +619,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     </TouchableOpacity>
                 )}
                 {showPinned && (
-                    <View className="flex-row items-center mb-0.5 pl-[60px]">
+                    <View className="flex-row items-center mb-1 pl-[60px]">
                         <View className="-ml-4 mr-[3px]">
                             <PinIcon size={13} className="text-muted-foreground" />
                         </View>
@@ -629,7 +629,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     </View>
                 )}
                 {replyContextHandle && (
-                    <View className="flex-row items-center mb-0.5 pl-[60px]">
+                    <View className="flex-row items-center mb-1 pl-[60px]">
                         <View className="-ml-4 mr-[3px]">
                             <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
                         </View>
