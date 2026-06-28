@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
+import { useActiveVideo } from '@/context/ActiveVideoContext';
 
 interface VideoPlayerProps {
   src: string;
@@ -55,6 +56,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
   const { isMuted, toggleMuted } = useVideoMuteStore();
+
+  // "Only the on-screen video plays" coordination (Bluesky web mechanism). GIFs
+  // do NOT participate — they always loop/autoplay — so they ignore `active`
+  // entirely. Outside a feed (no Provider) or on native, `useActiveVideo`
+  // returns `active: true`, preserving today's autoplay.
+  const { active, setActive, sendPosition } = useActiveVideo();
+  const effectiveActive = gif ? true : active;
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -76,6 +84,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoViewRef = useRef<InstanceType<typeof VideoView>>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressBarRef = useRef<View>(null);
+  // Root container — observed by an IntersectionObserver on web to report this
+  // player's viewport center-Y to the active-video coordinator.
+  const containerRef = useRef<View>(null);
 
   const player = useVideoPlayer(src, (p) => {
     if (p) {
@@ -132,9 +143,45 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [player, isSeeking]);
 
-  // Auto-play
+  // Web only: report this player's viewport position to the active-video
+  // coordinator via an IntersectionObserver (threshold 0.5), exactly like
+  // Bluesky. GIFs never compete (they always play), so they skip this entirely.
   useEffect(() => {
-    if (player && autoPlay) {
+    if (gif) return;
+    if (Platform.OS !== 'web') return;
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
+
+    // Resolve the underlying DOM node from the react-native-web View ref. RNW
+    // exposes it via `_nativeNode`/`getNode()` (neither is on the typed ref),
+    // with the ref itself as a last resort — narrow structurally, no `as any`.
+    const ref = containerRef.current as
+      | (View & { _nativeNode?: Element; getNode?: () => Element })
+      | null;
+    const element: Element | View | null =
+      ref?._nativeNode ?? ref?.getNode?.() ?? ref;
+    if (!element || (element as Partial<Element>).nodeType === undefined) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        sendPosition(
+          entry.boundingClientRect.y + entry.boundingClientRect.height / 2,
+        );
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(element as Element);
+    return () => observer.disconnect();
+  }, [gif, sendPosition]);
+
+  // Auto-play — gated on the active-video coordinator. Only the single active
+  // (on-screen) video plays; a non-active video pauses. GIFs are forced active
+  // so they always loop. Outside a feed / on native, `active` is always true,
+  // preserving today's autoplay.
+  useEffect(() => {
+    if (!player) return;
+    if (autoPlay && effectiveActive) {
       const play = async () => {
         try {
           await player.play();
@@ -143,6 +190,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       };
       play();
+    } else {
+      try {
+        player.pause();
+      } catch {
+        // Silently handle
+      }
     }
     return () => {
       if (player) {
@@ -153,7 +206,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       }
     };
-  }, [player, autoPlay]);
+  }, [player, autoPlay, effectiveActive]);
 
   // Controls auto-hide
   const scheduleHideControls = useCallback(() => {
@@ -193,13 +246,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           clearTimeout(hideControlsTimer.current);
         }
       } else {
+        // Manual play wins: claim active status so this becomes THE playing
+        // video (and any other on-screen video pauses), mirroring Bluesky.
+        setActive();
         player.play();
         scheduleHideControls();
       }
     } catch {
       // Silently handle
     }
-  }, [player, isPlaying, scheduleHideControls]);
+  }, [player, isPlaying, scheduleHideControls, setActive]);
 
   const handleMuteToggle = useCallback(() => {
     toggleMuted();
@@ -251,7 +307,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
 
   return (
-    <View style={[styles.container, style]}>
+    <View ref={containerRef} style={[styles.container, style]}>
       <VideoView
         ref={videoViewRef}
         player={player}

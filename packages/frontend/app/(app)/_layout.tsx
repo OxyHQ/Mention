@@ -24,6 +24,7 @@ import { BottomBarVisibilityProvider } from '@/context/BottomBarVisibilityContex
 import { DrawerProvider, useDrawer } from '@/context/DrawerContext';
 import { ScreenColorProvider, useScreenColor } from '@/context/ScreenColorContext';
 import { VideosRailProvider } from '@/context/VideosRailContext';
+import { ActiveVideoProvider } from '@/context/ActiveVideoContext';
 import { APP_COLOR_PRESETS, BloomColorScope, useTheme, type AppColorName } from '@oxyhq/bloom/theme';
 import { ScrollRestorationProvider } from '@oxyhq/bloom/scroll';
 import { cn } from '@/lib/utils';
@@ -233,6 +234,14 @@ export default function AppLayout() {
   return (
     <ScreenColorProvider>
     <VideosRailProvider>
+    {/* One shared "only the on-screen video plays" coordinator for the whole
+        (app) group — every feed VideoPlayer (home/explore/profile/post detail)
+        reports its viewport position to this single Provider so just the
+        centered video plays on web (Bluesky's mechanism). The immersive reels
+        screen uses its own player surface (not VideoPlayer) and the composer
+        previews use raw players, so neither participates. Native + gif videos
+        fall back to autoplay (see ActiveVideoContext). */}
+    <ActiveVideoProvider>
     <DrawerProvider>
     {/* One shared bottom-bar auto-hide signal for the whole (app) group — the
         BottomBar, the screen FABs and the home/explore headers all read it, and
@@ -254,6 +263,7 @@ export default function AppLayout() {
       )}
     </BottomBarVisibilityProvider>
     </DrawerProvider>
+    </ActiveVideoProvider>
     </VideosRailProvider>
     </ScreenColorProvider>
   );
