@@ -28,6 +28,7 @@ import { useImageUrl } from '@/hooks/useImageUrl';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
+import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
@@ -60,6 +61,7 @@ const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerShee
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
 const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
+const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
@@ -76,6 +78,7 @@ import { useThreadManager } from '@/hooks/useThreadManager';
 import { useArticleManager } from '@/hooks/useArticleManager';
 import { useEventManager } from '@/hooks/useEventManager';
 import { useRoomManager } from '@/hooks/useRoomManager';
+import { usePodcastManager } from '@/hooks/usePodcastManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { usePostSubmission } from '@/hooks/usePostSubmission';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
@@ -110,6 +113,7 @@ import {
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
+  PODCAST_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
   LINK_ATTACHMENT_KEY,
@@ -175,6 +179,7 @@ const ComposeScreen = () => {
   const articleManager = useArticleManager();
   const eventManager = useEventManager();
   const roomManager = useRoomManager();
+  const podcastManager = usePodcastManager();
 
   // Destructure for easier access (need these first for useAttachmentOrder)
   const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia } = mediaManager;
@@ -275,10 +280,19 @@ const ComposeScreen = () => {
     hasContent: roomHasContent,
     clearRoom,
   } = roomManager;
+  const {
+    podcast,
+    savePodcast,
+    removePodcast,
+    hasContent: podcastHasContent,
+    loadPodcastFromDraft,
+    clearPodcast,
+  } = podcastManager;
 
   const hasArticleContent = useMemo(() => articleHasContent(), [articleHasContent]);
   const hasEventContent = useMemo(() => eventHasContent(), [eventHasContent]);
   const hasRoomContent = useMemo(() => roomHasContent(), [roomHasContent]);
+  const hasPodcastContent = useMemo(() => podcastHasContent(), [podcastHasContent]);
 
   // Remaining local state
   const [postContent, setPostContent] = useState('');
@@ -338,6 +352,7 @@ const ComposeScreen = () => {
       setArticle(draft.article);
       setArticleDraftTitle(draft.articleDraftTitle);
       setArticleDraftBody(draft.articleDraftBody);
+      loadPodcastFromDraft(draft.podcast);
       setScheduledAt(draft.scheduledAt);
       if (draft.scheduledAt) {
         scheduledAtRef.current = draft.scheduledAt;
@@ -405,6 +420,8 @@ const ComposeScreen = () => {
     event,
     hasRoomContent,
     room: attachedRoom,
+    hasPodcastContent,
+    podcast,
     location,
     sources,
     mediaIds,
@@ -675,7 +692,7 @@ const ComposeScreen = () => {
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
 
-    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasRoomContent)) {
+    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasRoomContent || hasPodcastContent)) {
       toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
       return;
     }
@@ -702,6 +719,8 @@ const ComposeScreen = () => {
         hasEventContent,
         room: attachedRoom,
         hasRoomContent,
+        podcast,
+        hasPodcastContent,
         location,
         formattedSources,
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
@@ -769,6 +788,7 @@ const ComposeScreen = () => {
       clearArticle();
       clearEvent();
       clearRoom();
+      clearPodcast();
 
       // Navigate back after posting
       safeBack();
@@ -829,6 +849,7 @@ const ComposeScreen = () => {
         location,
         sources,
         article,
+        podcast,
         threadItems,
         mentions,
         postingMode,
@@ -844,7 +865,7 @@ const ComposeScreen = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, currentDraftId, autoSaveDraft, autoSaveTimeoutRef]);
+  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, podcast, currentDraftId, autoSaveDraft, autoSaveTimeoutRef]);
 
   // back navigation
 
@@ -1196,6 +1217,18 @@ const ComposeScreen = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, attachRoom]);
 
+  const openPodcastPicker = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <PodcastPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelect={savePodcast}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, savePodcast]);
+
   const handleSensitiveToggle = useCallback(() => {
     setIsSensitive(prev => !prev);
   }, []);
@@ -1314,7 +1347,8 @@ const ComposeScreen = () => {
                     sources.length > 0 ||
                     location !== null ||
                     hasArticleContent ||
-                    hasEventContent;
+                    hasEventContent ||
+                    hasPodcastContent;
                   if (hasContent && !isEditMode) {
                     discardControl.open();
                   } else {
@@ -1601,6 +1635,30 @@ const ComposeScreen = () => {
                             );
                           }
 
+                          if (key === PODCAST_ATTACHMENT_KEY) {
+                            if (!(hasPodcastContent && podcast)) return null;
+                            return (
+                              <AttachmentCarouselItem
+                                key={key}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={removePodcast}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              >
+                                <PodcastCard
+                                  variant="card"
+                                  title={podcast.title}
+                                  author={podcast.author}
+                                  artworkUrl={podcast.artworkUrl}
+                                  onPress={openPodcastPicker}
+                                  style={styles.articleAttachmentPreview}
+                                />
+                              </AttachmentCarouselItem>
+                            );
+                          }
+
                           if (key === LINK_ATTACHMENT_KEY) {
                             if (detectedLinks.length === 0) return null;
                             const link = detectedLinks[0];
@@ -1670,6 +1728,7 @@ const ComposeScreen = () => {
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
                       onRoomPress={handleMainRoomPress}
+                      onPodcastPress={openPodcastPicker}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -1678,6 +1737,7 @@ const ComposeScreen = () => {
                       hasArticle={hasArticleContent}
                       hasEvent={hasEventContent}
                       hasRoom={hasRoomContent}
+                      hasPodcast={hasPodcastContent}
                       hasSchedule={Boolean(scheduledAt)}
                       scheduleEnabled={scheduleEnabled}
                       hasSourceErrors={invalidSources}
@@ -2004,6 +2064,7 @@ const ComposeScreen = () => {
                   attachmentOrder,
                   scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
                   article,
+                  podcast,
                 });
                 safeBack();
               },
@@ -2040,6 +2101,7 @@ const ComposeScreen = () => {
                 clearArticle();
                 clearEvent();
                 clearRoom();
+                clearPodcast();
                 clearAllThreads();
                 clearAttachmentOrder();
                 setMentions([]);

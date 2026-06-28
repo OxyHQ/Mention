@@ -14,6 +14,7 @@ export interface Draft {
   location: { latitude: number; longitude: number; address?: string } | null;
   sources?: Array<{ id?: string; title?: string; url?: string }>;
   article?: { title?: string; body?: string } | null;
+  podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
   attachmentOrder?: string[];
   scheduledAt?: string | null;
   threadItems: Array<{

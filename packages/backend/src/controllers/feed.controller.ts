@@ -14,6 +14,7 @@ import {
   FeedType,
   PostType,
   PostVisibility,
+  PostContent,
   HydratedPost,
 } from '@mention/shared-types';
 import mongoose, { QueryFilter } from 'mongoose';
@@ -52,6 +53,12 @@ import {
   isWithinOutboxSyncCooldown,
   shouldForceUntrackedOutboxSync,
 } from '../utils/federation/outboxSyncCooldown';
+import { createSyraClient } from '@syra.fm/sdk';
+
+// Headless Syra catalog client used to verify + denormalize a podcast SHOW
+// attached to a reply server-side, mirroring the posts controller. Public reads
+// only (no auth); Bun/Node provide global fetch.
+const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
 
 /**
  * Minimum interval between background outbox re-syncs for the same federated
@@ -1155,7 +1162,10 @@ class FeedController {
     try {
   const { postId, content, mentions, hashtags } = req.body as CreateReplyRequest;
   // Accept content as either a string or an object; normalize to PostContent shape
-  const replyContent = typeof content === 'string' ? { text: content } : (content || { text: '' });
+  // The persisted reply content is the OUTPUT shape: the client-supplied podcast
+  // is only `{ syraPodcastId }` (input), so we drop it here and re-attach the
+  // server-denormalized show below; everything else carries over.
+  const replyContent: PostContent = typeof content === 'string' ? { text: content } : { ...(content ?? { text: '' }), podcast: undefined };
       const currentUserId = req.user?.id;
 
       if (!currentUserId) {
@@ -1239,6 +1249,28 @@ class FeedController {
 
   // Create reply post
       const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
+
+      // A reply may attach a single Syra podcast show. Like createPost, the
+      // client's reference is untrusted: re-resolve + denormalize the show
+      // server-side so a reply can never persist fabricated podcast metadata. An
+      // unresolvable show — or any podcast missing a usable id — is dropped.
+      const replyPodcastId = typeof content !== 'string' && typeof content?.podcast?.syraPodcastId === 'string'
+        ? content.podcast.syraPodcastId.trim()
+        : '';
+      if (replyPodcastId) {
+        try {
+          const show = await syraClient.getPodcast(replyPodcastId);
+          replyContent.podcast = {
+            syraPodcastId: replyPodcastId,
+            title: show.title,
+            author: show.author,
+            artworkUrl: syraClient.podcastArtworkUrl(show),
+            showUrl: syraClient.podcastUrl(replyPodcastId),
+          };
+        } catch (podcastError) {
+          logger.warn('createReply: failed to resolve Syra podcast; dropping', { userId: currentUserId, syraPodcastId: replyPodcastId, error: podcastError });
+        }
+      }
 
       // If reviewReplies is enabled, set visibility to pending or use a flag
       // For now, we'll still create it but mark it for review

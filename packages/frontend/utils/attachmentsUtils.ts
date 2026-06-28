@@ -11,6 +11,8 @@ export const buildAttachmentsPayload = (
     includeLocation?: boolean;
     includeSources?: boolean;
     includeRoom?: boolean;
+    /** When set, a `{ type: 'podcast', id }` descriptor is emitted at the podcast slot. */
+    podcastId?: string;
   }
 ): PostAttachmentDescriptor[] => {
   const descriptors: PostAttachmentDescriptor[] = [];
@@ -40,12 +42,19 @@ export const buildAttachmentsPayload = (
     });
   };
 
+  const addPodcast = () => {
+    if (!options.podcastId) return;
+    if (descriptors.some((d) => d.type === "podcast")) return;
+    descriptors.push({ type: "podcast", id: options.podcastId });
+  };
+
   const POLL_ATTACHMENT_KEY = "poll";
   const ARTICLE_ATTACHMENT_KEY = "article";
   const EVENT_ATTACHMENT_KEY = "event";
   const LOCATION_ATTACHMENT_KEY = "location";
   const SOURCES_ATTACHMENT_KEY = "sources";
   const ROOM_ATTACHMENT_KEY = "room";
+  const PODCAST_ATTACHMENT_KEY = "podcast";
   const MEDIA_ATTACHMENT_PREFIX = "media:";
   const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
   const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
@@ -75,6 +84,10 @@ export const buildAttachmentsPayload = (
       if (options.includeRoom) addNonMedia("room");
       return;
     }
+    if (key === PODCAST_ATTACHMENT_KEY) {
+      addPodcast();
+      return;
+    }
     if (isMediaAttachmentKey(key)) {
       const mediaId = getMediaIdFromAttachmentKey(key);
       addMedia(mediaId);
@@ -87,6 +100,7 @@ export const buildAttachmentsPayload = (
   if (options.includeLocation) addNonMedia("location");
   if (options.includeSources) addNonMedia("sources");
   if (options.includeRoom) addNonMedia("room");
+  addPodcast();
 
   mediaList.forEach((item) => {
     if (!usedMedia.has(item.id)) {

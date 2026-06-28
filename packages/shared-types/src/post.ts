@@ -65,7 +65,7 @@ export interface MediaItem {
   fullUrl?: string;
 }
 
-export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'space';
+export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'space' | 'podcast';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -104,6 +104,29 @@ export interface PostRoomContent {
 /** @deprecated Use PostRoomContent instead */
 export type PostSpaceContent = PostRoomContent;
 
+/**
+ * A Syra podcast SHOW attached to a post (or pinned on a profile). The metadata
+ * is denormalized server-side from the Syra catalog (via @syra.fm/sdk getPodcast)
+ * at write time — never trusted from the client. The card opens the show in Syra
+ * via `showUrl`.
+ */
+export interface PostPodcastContent {
+  syraPodcastId: string;
+  title: string;
+  author?: string;
+  artworkUrl?: string;
+  showUrl: string;
+}
+
+/**
+ * What a CLIENT sends when attaching a podcast: only the Syra show id. The
+ * server resolves + denormalizes the rest (title/author/artwork/showUrl) via
+ * @syra.fm/sdk, so the client never supplies — and is never trusted for — them.
+ */
+export interface PostPodcastInput {
+  syraPodcastId: string;
+}
+
 export interface PostContent {
   text?: string;
   media?: MediaItem[]; // Media items for images and videos
@@ -116,8 +139,18 @@ export interface PostContent {
   room?: PostRoomContent; // Optional room content
   /** @deprecated Use room instead */
   space?: PostRoomContent;
+  podcast?: PostPodcastContent; // Optional Syra podcast show attached to the post
   attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
 }
+
+/**
+ * Content shape a CLIENT submits when creating a post. Identical to
+ * {@link PostContent} except `podcast` carries only the id ({@link PostPodcastInput});
+ * the server denormalizes the full show metadata before persisting.
+ */
+export type PostContentInput = Omit<PostContent, 'podcast'> & {
+  podcast?: PostPodcastInput;
+};
 
 export interface PollData {
   question: string;
@@ -377,7 +410,7 @@ export interface CreatePostMetadata {
 }
 
 export interface CreatePostRequest {
-  content: PostContent;
+  content: PostContentInput;
   visibility?: PostVisibility;
   parentPostId?: string;
   threadId?: string;
@@ -398,7 +431,7 @@ export interface CreatePostRequest {
 }
 
 export interface CreateThreadPostRequest {
-  content: PostContent;
+  content: PostContentInput;
   visibility?: PostVisibility;
   tags?: string[];
   mentions?: string[];
@@ -504,6 +537,7 @@ export interface PostAttachmentBundle {
   room?: PostRoomContent;
   /** @deprecated Use room instead */
   space?: PostRoomContent;
+  podcast?: PostPodcastContent;
 }
 
 export interface PostLinkPreview {

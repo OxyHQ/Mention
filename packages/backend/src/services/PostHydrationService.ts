@@ -1577,6 +1577,16 @@ export class PostHydrationService {
       };
     }
 
+    if (content.podcast) {
+      attachments.podcast = {
+        syraPodcastId: content.podcast.syraPodcastId,
+        title: content.podcast.title,
+        author: content.podcast.author,
+        artworkUrl: content.podcast.artworkUrl,
+        showUrl: content.podcast.showUrl,
+      };
+    }
+
     return attachments;
   }
 

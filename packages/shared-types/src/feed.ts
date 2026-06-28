@@ -6,6 +6,7 @@
 import {
   HydratedPost,
   PostContent,
+  PostContentInput,
   PostVisibility,
   PostActorSummary,
 } from './post';
@@ -75,7 +76,7 @@ export interface FeedStats {
 // API request types
 export interface CreateReplyRequest {
   postId: string;
-  content: PostContent;
+  content: PostContentInput;
   visibility?: PostVisibility;
   mentions?: string[];
   hashtags?: string[];
@@ -83,7 +84,7 @@ export interface CreateReplyRequest {
 
 export interface CreateBoostRequest {
   originalPostId: string;
-  content?: PostContent;
+  content?: PostContentInput;
   visibility?: PostVisibility;
   mentions?: string[];
   hashtags?: string[];

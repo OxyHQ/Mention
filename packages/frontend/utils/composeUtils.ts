@@ -12,6 +12,7 @@ export const EVENT_ATTACHMENT_KEY = "event";
 export const LOCATION_ATTACHMENT_KEY = "location";
 export const SOURCES_ATTACHMENT_KEY = "sources";
 export const ROOM_ATTACHMENT_KEY = "room";
+export const PODCAST_ATTACHMENT_KEY = "podcast";
 export const LINK_ATTACHMENT_KEY = "link";
 export const MEDIA_ATTACHMENT_PREFIX = "media:";
 

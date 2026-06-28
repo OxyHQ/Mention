@@ -6,11 +6,13 @@ import {
   HydratedPostSummary,
   PollData,
   PostAttachmentDescriptor,
+  PostPodcastContent,
   PostSourceLink,
   MEDIA_VARIANT_THUMB,
   MEDIA_VARIANT_FULL,
 } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
+import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import {
   ZoomableImageGallery,
@@ -55,6 +57,7 @@ interface Props {
   onEventPress?: (() => void) | null;
   room?: { roomId: string; title: string; status?: 'scheduled' | 'live' | 'ended'; topic?: string; host?: string } | null;
   onRoomPress?: (() => void) | null;
+  podcast?: PostPodcastContent | null;
   location?: GeoJSONPoint | null;
   sources?: PostSourceLink[];
   onSourcesPress?: (() => void) | null;
@@ -68,6 +71,7 @@ type AttachmentItem =
   | { type: 'article' }
   | { type: 'event' }
   | { type: 'room' }
+  | { type: 'podcast' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
   | { type: 'video'; mediaId: string; src: string; poster?: string }
   | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif' };
@@ -87,6 +91,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   onEventPress,
   room,
   onRoomPress,
+  podcast,
   text,
   linkMetadata,
   style
@@ -101,6 +106,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasArticle = useMemo(() => Boolean(article && ((article.title?.trim?.() || article.body?.trim?.()))), [article]);
   const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
   const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
+  const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
   const hasLink = useMemo(() => Boolean(linkMetadata?.url), [linkMetadata]);
 
   // Resolve a media reference to a final render URL for a given context:
@@ -196,6 +202,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               results.push({ type: 'room' });
             }
             break;
+          case 'podcast':
+            if (hasPodcast && !results.some(item => item.type === 'podcast')) {
+              results.push({ type: 'podcast' });
+            }
+            break;
           case 'media':
             if (descriptor.id) {
               addMediaItem(descriptor.id, descriptor.mediaType);
@@ -210,6 +221,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (hasArticle) results.push({ type: 'article' });
       if (hasEvent) results.push({ type: 'event' });
       if (hasRoom) results.push({ type: 'room' });
+      if (hasPodcast) results.push({ type: 'podcast' });
       if (hasLink && linkMetadata) {
         results.push({
           type: 'link',
@@ -234,6 +246,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
     if (hasRoom && !results.some(item => item.type === 'room')) {
       results.push({ type: 'room' });
+    }
+    if (hasPodcast && !results.some(item => item.type === 'podcast')) {
+      results.push({ type: 'podcast' });
     }
 
     if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
@@ -261,7 +276,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
 
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasLink, linkMetadata, resolveMediaSrc, oxyServices]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasLink, linkMetadata, resolveMediaSrc, oxyServices]);
 
   type Item =
     | { type: 'nested' }
@@ -506,6 +521,19 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             />
           );
         }
+        if (item.type === 'podcast') {
+          if (!podcast) return null;
+          return (
+            <PodcastCard
+              key={`podcast-${idx}`}
+              variant="card"
+              title={podcast.title}
+              author={podcast.author}
+              artworkUrl={podcast.artworkUrl}
+              showUrl={podcast.showUrl}
+            />
+          );
+        }
         if (item.type === 'link') {
           return (
             <PostAttachmentLink
@@ -584,6 +612,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.onEventPress === nextProps.onEventPress &&
     prevProps.room === nextProps.room &&
     prevProps.onRoomPress === nextProps.onRoomPress &&
+    prevProps.podcast === nextProps.podcast &&
     prevProps.text === nextProps.text &&
     prevProps.linkMetadata?.url === nextProps.linkMetadata?.url &&
     prevProps.location === nextProps.location &&

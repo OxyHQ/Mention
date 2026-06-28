@@ -15,6 +15,7 @@ import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ArticleData } from '@/hooks/useArticleManager';
 import type { EventData } from '@/hooks/useEventManager';
 import type { RoomAttachmentData } from '@/hooks/useRoomManager';
+import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
 
 type ComposeLocation = {
   latitude: number;
@@ -34,6 +35,8 @@ interface BuildMainPostParams {
   hasEventContent: boolean;
   room: RoomAttachmentData | null;
   hasRoomContent: boolean;
+  podcast: PodcastAttachmentData | null;
+  hasPodcastContent: boolean;
   location: ComposeLocation | null;
   formattedSources: PostSourceLink[];
   attachmentOrder: string[];
@@ -59,6 +62,8 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     hasEventContent,
     room,
     hasRoomContent,
+    podcast,
+    hasPodcastContent,
     location,
     formattedSources,
     attachmentOrder,
@@ -73,6 +78,8 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
   const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
   const wasScheduled = Boolean(scheduledAt);
 
+  const podcastId = hasPodcastContent && podcast ? podcast.syraPodcastId : undefined;
+
   const attachmentsPayload = buildAttachmentsPayload(attachmentOrder, mediaIds, {
     includePoll: hasPoll,
     includeArticle: Boolean(hasArticleContent && article),
@@ -80,6 +87,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     includeRoom: Boolean(hasRoomContent && room),
     includeLocation: Boolean(location),
     includeSources: formattedSources.length > 0,
+    podcastId,
   });
 
   const articlePayload = hasArticleContent && article ? {
@@ -126,6 +134,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
           ...(room.host && { host: room.host }),
         }
       }),
+      ...(podcastId && { podcast: { syraPodcastId: podcastId } }),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
     },
     mentions: mentions.map(m => m.userId),

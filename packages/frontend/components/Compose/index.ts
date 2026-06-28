@@ -19,6 +19,7 @@ export { default as QuoteCard } from "./QuoteCard";
 export { default as DraftsSheet } from "./DraftsSheet";
 export { default as EmojiPickerSheet } from "./EmojiPickerSheet";
 export { default as GifPickerSheet } from "./GifPickerSheet";
+export { default as PodcastPickerSheet } from "./PodcastPickerSheet";
 export { default as ReplySettingsSheet } from "./ReplySettingsSheet";
 export { default as ScheduleSheet } from "./ScheduleSheet";
 export { default as SourcesSheet } from "./SourcesSheet";

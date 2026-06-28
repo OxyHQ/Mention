@@ -6,7 +6,7 @@ import { PlusLarge_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
 import type { ProfileMedia as ProfileMediaData } from '@/store/appearanceStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ProfileSong } from './ProfileSong';
-import { ProfilePodcastCard } from './ProfilePodcastCard';
+import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { MediaPickerSheet } from './MediaPickerSheet';
 
 interface ProfileMediaProps {
@@ -68,5 +68,15 @@ export const ProfileMedia = memo(function ProfileMedia({ media, isOwnProfile }: 
     return <ProfileSong song={media} isOwnProfile={isOwnProfile} onEdit={openPicker} />;
   }
 
-  return <ProfilePodcastCard podcast={media} isOwnProfile={isOwnProfile} onEdit={openPicker} />;
+  return (
+    <PodcastCard
+      variant="full"
+      title={media.title}
+      author={media.author}
+      artworkUrl={media.artworkUrl}
+      showUrl={media.showUrl}
+      isOwnProfile={isOwnProfile}
+      onEdit={openPicker}
+    />
+  );
 });

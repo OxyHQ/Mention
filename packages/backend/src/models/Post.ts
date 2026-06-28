@@ -63,7 +63,7 @@ export interface IPost extends Document {
 const AttachmentSchema = new Schema({
   type: {
     type: String,
-    enum: ['media', 'poll', 'article', 'event', 'location', 'sources', 'space'],
+    enum: ['media', 'poll', 'article', 'event', 'location', 'sources', 'space', 'podcast'],
     required: true
   },
   id: {
@@ -217,6 +217,40 @@ const PostContentSchema = new Schema({
     host: {
       type: String,
       required: false
+    }
+  },
+  // A single Syra podcast SHOW attached to the post. The client only references
+  // it by `syraPodcastId`; the canonical title/author/artwork and show URL are
+  // resolved + denormalized server-side from the Syra catalog (@syra.fm/sdk) at
+  // write time — never trusted from the client. Leaf paths are permissive
+  // (the create path enforces presence and populates the denormalized fields),
+  // mirroring the article/event/room nested objects above.
+  podcast: {
+    syraPodcastId: {
+      type: String,
+      required: false
+    },
+    title: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 300
+    },
+    author: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 200
+    },
+    artworkUrl: {
+      type: String,
+      required: false,
+      trim: true
+    },
+    showUrl: {
+      type: String,
+      required: false,
+      trim: true
     }
   },
   // Deprecated: old posts stored room data under "space" field

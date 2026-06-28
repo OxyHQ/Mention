@@ -11,7 +11,9 @@ import {
   SOURCES_ATTACHMENT_KEY,
   LINK_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
+  PODCAST_ATTACHMENT_KEY,
 } from '@/utils/composeUtils';
+import type { PodcastAttachmentData } from './usePodcastManager';
 
 interface Source {
   id: string;
@@ -27,6 +29,8 @@ interface UseAttachmentOrderProps {
   event: any;
   hasRoomContent: boolean;
   room: any;
+  hasPodcastContent: boolean;
+  podcast: PodcastAttachmentData | null;
   location: any;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
@@ -42,6 +46,8 @@ export const useAttachmentOrder = ({
   event,
   hasRoomContent,
   room,
+  hasPodcastContent,
+  podcast,
   location,
   sources,
   mediaIds,
@@ -58,6 +64,7 @@ export const useAttachmentOrder = ({
     if (hasArticleContent && article) keys.add(ARTICLE_ATTACHMENT_KEY);
     if (hasEventContent && event) keys.add(EVENT_ATTACHMENT_KEY);
     if (hasRoomContent && room) keys.add(ROOM_ATTACHMENT_KEY);
+    if (hasPodcastContent && podcast) keys.add(PODCAST_ATTACHMENT_KEY);
     if (location) keys.add(LOCATION_ATTACHMENT_KEY);
     if (sources.some(source => source?.url?.trim?.().length)) keys.add(SOURCES_ATTACHMENT_KEY);
     if (hasLink) keys.add(LINK_ATTACHMENT_KEY);
@@ -65,7 +72,7 @@ export const useAttachmentOrder = ({
       keys.add(createMediaAttachmentKey(media.id));
     });
     return keys;
-  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, location, sources, mediaIds, hasLink]);
+  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, hasPodcastContent, podcast, location, sources, mediaIds, hasLink]);
 
   // Track previous activeKeys to detect additions for stable ordering
   const prevActiveKeysRef = useRef<Set<string>>(activeKeys);

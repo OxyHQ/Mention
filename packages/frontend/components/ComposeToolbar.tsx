@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { View, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -13,6 +14,7 @@ import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { Ionicons } from '@expo/vector-icons';
+import { SpeakerVolumeFull_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
 
 interface ComposeToolbarProps {
     contentPaddingLeft?: number;
@@ -26,6 +28,7 @@ interface ComposeToolbarProps {
     onArticlePress?: () => void;
     onEventPress?: () => void;
     onRoomPress?: () => void;
+    onPodcastPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -34,6 +37,7 @@ interface ComposeToolbarProps {
     hasArticle?: boolean;
     hasEvent?: boolean;
     hasRoom?: boolean;
+    hasPodcast?: boolean;
     hasSchedule?: boolean;
     scheduleEnabled?: boolean;
     hasSourceErrors?: boolean;
@@ -52,6 +56,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onArticlePress,
     onEventPress,
     onRoomPress,
+    onPodcastPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -60,6 +65,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasArticle = false,
     hasEvent = false,
     hasRoom = false,
+    hasPodcast = false,
     hasSchedule = false,
     scheduleEnabled = true,
     hasSourceErrors = false,
@@ -67,6 +73,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
 }) => {
     const theme = useTheme();
     const haptic = useHaptics();
+    const { t } = useTranslation();
 
     const withHaptic = useCallback((handler?: () => void) => () => {
         haptic('Light');
@@ -200,6 +207,20 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                         name="radio-outline"
                         size={20}
                         color={disabled ? theme.colors.textTertiary : (hasRoom ? theme.colors.primary : theme.colors.textSecondary)}
+                    />
+                </PressableScale>
+            )}
+
+            {onPodcastPress && (
+                <PressableScale
+                    onPress={withHaptic(onPodcastPress)}
+                    disabled={disabled}
+                    className="p-1"
+                    accessibilityLabel={t('compose.podcast.add')}
+                >
+                    <SpeakerVolumeFull_Stroke2_Corner0_Rounded
+                        size="md"
+                        fill={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </PressableScale>
             )}

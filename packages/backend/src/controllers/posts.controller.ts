@@ -19,6 +19,12 @@ import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { aliaChat } from '../utils/alia';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
+import { createSyraClient, type PodcastSummary } from '@syra.fm/sdk';
+
+// Headless Syra catalog client used to verify + denormalize a podcast SHOW
+// attached to a post server-side. Public reads only (no auth); Bun/Node provide
+// global fetch. Mirrors the profile-media routes' usage of the SDK.
+const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -148,6 +154,20 @@ const sanitizeEventData = (eventData: unknown): { eventId?: string; name?: strin
   return sanitized;
 };
 
+/**
+ * Extract ONLY the untrusted `syraPodcastId` reference from a podcast attachment
+ * input. The canonical title/author/artwork and show URL are NEVER taken from
+ * the client — they are resolved + denormalized server-side from the Syra
+ * catalog after this returns. Returns `null` when no valid id is present.
+ */
+const sanitizePodcast = (input: unknown): { syraPodcastId: string } | null => {
+  if (!input || typeof input !== 'object') return null;
+  const obj = input as Record<string, unknown>;
+  const syraPodcastId = typeof obj.syraPodcastId === 'string' ? obj.syraPodcastId.trim() : '';
+  if (!syraPodcastId) return null;
+  return { syraPodcastId };
+};
+
 const sanitizeRoomData = (roomData: unknown): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
   if (!roomData || typeof roomData !== 'object') return null;
   const obj = roomData as Record<string, unknown>;
@@ -241,7 +261,7 @@ const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
   return normalized;
 };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'space', 'location', 'sources'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'space', 'location', 'sources', 'podcast'];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -298,6 +318,7 @@ interface AttachmentBuildOptions {
   includeRoom?: boolean;
   includeLocation?: boolean;
   includeSources?: boolean;
+  includePodcast?: boolean;
 }
 
 const buildOrderedAttachments = ({
@@ -308,7 +329,8 @@ const buildOrderedAttachments = ({
   includeEvent = false,
   includeRoom = false,
   includeLocation = false,
-  includeSources = false
+  includeSources = false,
+  includePodcast = false
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
   const descriptors: PostAttachmentDescriptor[] = [];
   const nonMediaTypes = new Set<PostAttachmentType>();
@@ -369,6 +391,9 @@ const buildOrderedAttachments = ({
       case 'sources':
         if (includeSources) addNonMedia('sources');
         break;
+      case 'podcast':
+        if (includePodcast) addNonMedia('podcast');
+        break;
       default:
         break;
     }
@@ -391,6 +416,7 @@ const buildOrderedAttachments = ({
   if (includeRoom) addNonMedia('room');
   if (includeSources) addNonMedia('sources');
   if (includeLocation) addNonMedia('location');
+  if (includePodcast) addNonMedia('podcast');
 
   media.forEach((item) => {
     const id = String(item.id);
@@ -605,6 +631,28 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.room = sanitizedRoom as import('@mention/shared-types').PostRoomContent;
     }
 
+    // Handle podcast data: a single Syra podcast show attached to the post. The
+    // client only sends an untrusted `{ syraPodcastId }` reference; the canonical
+    // title/author/artwork and show URL are resolved + denormalized server-side
+    // from the Syra catalog via @syra.fm/sdk — never trusted from the client.
+    const sanitizedPodcast = sanitizePodcast(content?.podcast || req.body.podcast);
+    if (sanitizedPodcast) {
+      let show: PodcastSummary;
+      try {
+        show = await syraClient.getPodcast(sanitizedPodcast.syraPodcastId);
+      } catch (podcastError) {
+        logger.warn('Failed to resolve Syra podcast for post', { userId, syraPodcastId: sanitizedPodcast.syraPodcastId, error: podcastError });
+        return res.status(400).json({ message: 'Unable to resolve the selected podcast' });
+      }
+      postContent.podcast = {
+        syraPodcastId: sanitizedPodcast.syraPodcastId,
+        title: show.title,
+        author: show.author,
+        artworkUrl: syraClient.podcastArtworkUrl(show),
+        showUrl: syraClient.podcastUrl(sanitizedPodcast.syraPodcastId),
+      };
+    }
+
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
     const computedAttachments = buildOrderedAttachments({
       rawAttachments: attachmentsInput || postContent.attachments,
@@ -614,7 +662,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       includeEvent: Boolean(postContent.event),
       includeRoom: Boolean(postContent.room),
       includeLocation: Boolean(postContent.location),
-      includeSources: Boolean(postContent.sources && postContent.sources.length)
+      includeSources: Boolean(postContent.sources && postContent.sources.length),
+      includePodcast: Boolean(postContent.podcast)
     });
 
     if (computedAttachments) {
@@ -810,6 +859,26 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.room = threadSanitizedRoom as import('@mention/shared-types').PostRoomContent;
       }
 
+      // Handle podcast data: verify + denormalize the Syra show server-side (as
+      // in createPost). The thread path is best-effort and never aborts the loop
+      // mid-creation, so an unresolvable show is dropped (logged) rather than
+      // 400'd — matching how the article/event/room attachments behave here.
+      const threadSanitizedPodcast = sanitizePodcast(content?.podcast);
+      if (threadSanitizedPodcast) {
+        try {
+          const show = await syraClient.getPodcast(threadSanitizedPodcast.syraPodcastId);
+          postContent.podcast = {
+            syraPodcastId: threadSanitizedPodcast.syraPodcastId,
+            title: show.title,
+            author: show.author,
+            artworkUrl: syraClient.podcastArtworkUrl(show),
+            showUrl: syraClient.podcastUrl(threadSanitizedPodcast.syraPodcastId),
+          };
+        } catch (podcastError) {
+          logger.warn('Failed to resolve Syra podcast for thread post; dropping', { userId, syraPodcastId: threadSanitizedPodcast.syraPodcastId, error: podcastError });
+        }
+      }
+
       // Handle poll creation
       let pollId = null;
       if (content?.poll) {
@@ -841,7 +910,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         includeEvent: Boolean(postContent.event),
         includeRoom: Boolean(postContent.room),
         includeLocation: Boolean(postContent.location),
-        includeSources: Boolean(postContent.sources && postContent.sources.length)
+        includeSources: Boolean(postContent.sources && postContent.sources.length),
+        includePodcast: Boolean(postContent.podcast)
       });
 
       if (computedAttachments) {
@@ -1186,7 +1256,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       includeEvent: Boolean(post.content?.event),
       includeRoom: Boolean(post.content?.room || post.content?.space),
       includeLocation: Boolean(post.content.location),
-      includeSources: Boolean(post.content.sources && post.content.sources.length)
+      includeSources: Boolean(post.content.sources && post.content.sources.length),
+      includePodcast: Boolean(post.content?.podcast)
     });
 
     if (updatedAttachments) {

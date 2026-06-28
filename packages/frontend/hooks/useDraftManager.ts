@@ -8,8 +8,10 @@ import {
   ARTICLE_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
+  PODCAST_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from '@/utils/composeUtils';
+import type { PodcastAttachmentData } from './usePodcastManager';
 
 interface DraftManagerProps {
   saveDraft: (draft: any) => Promise<string>;
@@ -25,6 +27,7 @@ interface DraftManagerProps {
     article: any;
     articleDraftTitle: string;
     articleDraftBody: string;
+    podcast: PodcastAttachmentData | null;
     scheduledAt: Date | null;
     attachmentOrder: string[];
     mentions: MentionData[];
@@ -50,6 +53,7 @@ export const useDraftManager = ({
     location: any;
     sources: any[];
     article: any;
+    podcast: PodcastAttachmentData | null;
     threadItems: any[];
     mentions: MentionData[];
     postingMode: 'thread' | 'beast';
@@ -57,7 +61,7 @@ export const useDraftManager = ({
     scheduledAt: Date | null;
     currentDraftId: string | null;
   }) => {
-    const shouldShowPollCreator = refs.showPollCreator || 
+    const shouldShowPollCreator = refs.showPollCreator ||
       (refs.pollOptions.length > 0 && refs.pollOptions.some(opt => opt.trim().length > 0));
 
     return {
@@ -80,6 +84,12 @@ export const useDraftManager = ({
       article: refs.article ? {
         ...(refs.article.title ? { title: refs.article.title } : {}),
         ...(refs.article.body ? { body: refs.article.body } : {}),
+      } : undefined,
+      podcast: refs.podcast ? {
+        syraPodcastId: refs.podcast.syraPodcastId,
+        title: refs.podcast.title,
+        ...(refs.podcast.author ? { author: refs.podcast.author } : {}),
+        ...(refs.podcast.artworkUrl ? { artworkUrl: refs.podcast.artworkUrl } : {}),
       } : undefined,
       threadItems: refs.threadItems.map(item => ({
         id: item.id,
@@ -118,6 +128,7 @@ export const useDraftManager = ({
     pollOptions: string[];
     location: any;
     article: any;
+    podcast: PodcastAttachmentData | null;
     sources: any[];
     threadItems: any[];
   }) => {
@@ -125,8 +136,9 @@ export const useDraftManager = ({
       refs.mediaIds.length > 0 ||
       (refs.pollOptions.length > 0 && refs.pollOptions.some(opt => opt.trim().length > 0)) ||
       refs.location ||
-      (refs.article && ((refs.article.title && refs.article.title.trim().length > 0) || 
+      (refs.article && ((refs.article.title && refs.article.title.trim().length > 0) ||
                         (refs.article.body && refs.article.body.trim().length > 0))) ||
+      Boolean(refs.podcast?.syraPodcastId) ||
       refs.sources.some(source => (source.title && source.title.trim().length > 0) || 
                                    (source.url && source.url.trim().length > 0)) ||
       refs.threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 ||
@@ -188,6 +200,16 @@ export const useDraftManager = ({
       articleDraftBody = draft.article.body || '';
     }
 
+    let podcastData: PodcastAttachmentData | null = null;
+    if (draft.podcast && typeof draft.podcast.syraPodcastId === 'string' && draft.podcast.syraPodcastId.length > 0) {
+      podcastData = {
+        syraPodcastId: draft.podcast.syraPodcastId,
+        title: draft.podcast.title || '',
+        author: draft.podcast.author,
+        artworkUrl: draft.podcast.artworkUrl,
+      };
+    }
+
     let scheduledAtData: Date | null = null;
     if (draft.scheduledAt) {
       const parsed = new Date(draft.scheduledAt);
@@ -203,6 +225,9 @@ export const useDraftManager = ({
     }
     if (articleData) {
       availableAttachmentKeys.push(ARTICLE_ATTACHMENT_KEY);
+    }
+    if (podcastData) {
+      availableAttachmentKeys.push(PODCAST_ATTACHMENT_KEY);
     }
     if (locationData) {
       availableAttachmentKeys.push(LOCATION_ATTACHMENT_KEY);
@@ -257,6 +282,7 @@ export const useDraftManager = ({
       article: articleData,
       articleDraftTitle,
       articleDraftBody,
+      podcast: podcastData,
       scheduledAt: scheduledAtData,
       attachmentOrder: sanitizedAttachmentOrder,
       mentions: mentionsData,
