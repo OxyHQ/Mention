@@ -625,8 +625,9 @@ const PostItem: React.FC<PostItemProps> = ({
             >
                 {isTappable && <SubtleHover />}
                 {/* Thread line above avatar — connects from previous post's bottom.
-                    Extended by headerTopOffset so it reaches the avatar that
-                    PostHeader pushes down by the context rows' height. */}
+                    Ends `headerTopOffset` below the top, leaving the same small gap
+                    before the avatar as the below-avatar line has (tracking the
+                    context-row offset that pushes the avatar down). */}
                 {isThreadChild && !isNested && (
                     <View
                         style={{
@@ -634,7 +635,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             top: 0,
                             left: THREAD_LINE_LEFT,
                             width: THREAD_LINE_W,
-                            height: 4 + headerTopOffset,
+                            height: headerTopOffset,
                             backgroundColor: `${theme.colors.primary}30`,
                             borderRadius: THREAD_LINE_BORDER_RADIUS,
                             zIndex: THREAD_LINE_Z_INDEX,
