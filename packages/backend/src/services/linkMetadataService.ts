@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { validateUrlLength, decodeHtmlEntities } from '../utils/urlSecurity';
 import { fetchUpstreamSingleHop, SsrfRejection } from '../utils/safeUpstreamFetch';
 import { imageCacheService } from './imageCacheService';
+import { linkMetadataProviders } from './linkMetadataProviders';
 
 export interface LinkMetadataResult {
   url: string;
@@ -130,6 +131,17 @@ class LinkMetadataService {
 
       logger.debug('[LinkMetadataService] Fetching metadata for:', normalizedUrl);
 
+      // oEmbed provider chain (YouTube/Vimeo/Spotify). Official oEmbed APIs return
+      // title/thumbnail server-side, avoiding the anti-bot wall our datacenter IP
+      // hits when scraping these hosts' HTML directly. A matching provider that
+      // returns a result short-circuits the generic scrape; a non-match or a null
+      // result (no extractable id, private/unknown media, fetch/parse failure)
+      // falls through to the generic scraper completely unchanged.
+      const providerResult = await this.resolveViaProvider(normalizedUrl, awaitImageCache);
+      if (providerResult) {
+        return await this.finalizeMetadata(providerResult, providerResult.url, awaitImageCache);
+      }
+
       const { metadata, finalUrl } = await this.fetchMetadataDocument(normalizedUrl);
 
       logger.debug('[LinkMetadataService] Extracted metadata:', {
@@ -148,58 +160,7 @@ class LinkMetadataService {
         favicon: metadata.favicon,
       };
 
-      // Decode HTML entities in text fields (these are rendered as text, not HTML)
-      if (result.title) result.title = decodeHtmlEntities(result.title);
-      if (result.description) result.description = decodeHtmlEntities(result.description);
-      if (result.siteName) result.siteName = decodeHtmlEntities(result.siteName);
-
-      // Resolve and cache image if URL is valid
-      if (result.image && result.image.trim().length > 0) {
-        try {
-          // Resolve relative image URLs to absolute URLs
-          const absoluteImageUrl = this.resolveImageUrl(result.image, finalUrl);
-          
-          // Check if already cached (non-blocking check)
-          const cachedUrl = await imageCacheService.getCachedImage(absoluteImageUrl);
-          if (cachedUrl) {
-            logger.debug('[LinkMetadataService] Using cached image:', cachedUrl);
-            result.image = cachedUrl;
-          } else if (awaitImageCache) {
-            // Off-response-path caller: AWAIT the downscale so the persisted
-            // preview serves the optimized CDN image, not the raw og:image.
-            const downscaledUrl = await imageCacheService.cacheImage(absoluteImageUrl);
-            if (downscaledUrl && downscaledUrl.length > 0) {
-              result.image = downscaledUrl;
-            } else {
-              // Caching failed — fall back to the raw url (still renderable).
-              logger.warn('[LinkMetadataService] Awaited image caching returned no url; using original:', {
-                image: absoluteImageUrl,
-              });
-              result.image = absoluteImageUrl;
-            }
-          } else {
-            // Response-path caller: return metadata immediately with the original
-            // URL and downscale the image in the background (fire-and-forget).
-            result.image = absoluteImageUrl;
-
-            imageCacheService.cacheImage(absoluteImageUrl).catch((error) => {
-              logger.warn('[LinkMetadataService] Background image caching failed:', error);
-            });
-          }
-        } catch (error) {
-          logger.warn('[LinkMetadataService] Image URL processing failed, using original URL:', error);
-          // Keep original image URL on error
-        }
-      }
-
-      logger.debug('[LinkMetadataService] Final metadata:', {
-        url: result.url,
-        hasImage: !!result.image,
-        hasTitle: !!result.title,
-        hasDescription: !!result.description,
-      });
-
-      return result;
+      return await this.finalizeMetadata(result, finalUrl, awaitImageCache);
     } catch (error: any) {
       logger.error('[LinkMetadataService] Error fetching metadata:', error);
       // Return basic metadata on error instead of throwing
@@ -219,6 +180,144 @@ class LinkMetadataService {
         };
       }
     }
+  }
+
+  /**
+   * Run the ordered oEmbed provider chain for a URL.
+   *
+   * Returns the first matching provider's resolved metadata, or `null` when no
+   * provider matches the host, the URL is unparseable, or the matching provider
+   * yields nothing (no extractable id, private/unknown media, or an oEmbed
+   * fetch/parse failure) — in which case the caller falls through to the generic
+   * HTML scrape.
+   *
+   * When the provider result carries no description AND the call is OFF the
+   * response path (`awaitImageCache === true`, i.e. background warm/refresh/
+   * backfill — never the fast GET /metadata path), a best-effort generic OG
+   * scrape fills the description. That enrichment is strictly best-effort: any
+   * failure (anti-bot wall, timeout, no description) leaves the description
+   * undefined and never fails or slows the provider result.
+   */
+  private async resolveViaProvider(
+    normalizedUrl: string,
+    awaitImageCache: boolean,
+  ): Promise<LinkMetadataResult | null> {
+    let parsed: URL;
+    try {
+      parsed = new URL(normalizedUrl);
+    } catch {
+      return null;
+    }
+
+    const provider = linkMetadataProviders.find((candidate) => candidate.matches(parsed));
+    if (!provider) return null;
+
+    let result: LinkMetadataResult | null;
+    try {
+      result = await provider.resolve(parsed);
+    } catch (error) {
+      logger.warn('[LinkMetadataService] oEmbed provider failed; falling back to generic scrape:', {
+        provider: provider.id,
+        error,
+      });
+      return null;
+    }
+    if (!result) return null;
+
+    if (!result.description && awaitImageCache) {
+      await this.enrichProviderDescription(result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Best-effort description fill for a provider result that lacks one. Reuses the
+   * generic document fetch + extractor and copies ONLY og/twitter description. A
+   * throw (interstitial guard, timeout, security rejection) or a missing
+   * description is swallowed — the provider result is returned regardless. Runs
+   * ONLY off the response path, so it never slows GET /metadata.
+   */
+  private async enrichProviderDescription(result: LinkMetadataResult): Promise<void> {
+    try {
+      const { metadata } = await this.fetchMetadataDocument(result.url);
+      const description = metadata['og:description'] || metadata['twitter:description'];
+      if (description && description.trim().length > 0) {
+        result.description = description;
+      }
+    } catch (error) {
+      logger.debug('[LinkMetadataService] Provider description enrichment skipped:', {
+        url: result.url,
+        error,
+      });
+    }
+  }
+
+  /**
+   * Shared finalize step for BOTH the oEmbed-provider and generic-scrape paths:
+   * decode HTML entities in text fields, then resolve + cache the image through
+   * the single S3/CDN image-cache path. Providers MUST NOT bypass this — a raw
+   * provider thumbnail is proxied to our CDN exactly like an og:image, so the
+   * client never contacts the provider's image host. `baseUrl` is the
+   * canonical/final URL used to resolve relative image URLs.
+   */
+  private async finalizeMetadata(
+    result: LinkMetadataResult,
+    baseUrl: string,
+    awaitImageCache: boolean,
+  ): Promise<LinkMetadataResult> {
+    // Decode HTML entities in text fields (these are rendered as text, not HTML)
+    if (result.title) result.title = decodeHtmlEntities(result.title);
+    if (result.description) result.description = decodeHtmlEntities(result.description);
+    if (result.siteName) result.siteName = decodeHtmlEntities(result.siteName);
+
+    // Resolve and cache image if URL is valid
+    if (result.image && result.image.trim().length > 0) {
+      try {
+        // Resolve relative image URLs to absolute URLs
+        const absoluteImageUrl = this.resolveImageUrl(result.image, baseUrl);
+
+        // Check if already cached (non-blocking check)
+        const cachedUrl = await imageCacheService.getCachedImage(absoluteImageUrl);
+        if (cachedUrl) {
+          logger.debug('[LinkMetadataService] Using cached image:', cachedUrl);
+          result.image = cachedUrl;
+        } else if (awaitImageCache) {
+          // Off-response-path caller: AWAIT the downscale so the persisted
+          // preview serves the optimized CDN image, not the raw og:image.
+          const downscaledUrl = await imageCacheService.cacheImage(absoluteImageUrl);
+          if (downscaledUrl && downscaledUrl.length > 0) {
+            result.image = downscaledUrl;
+          } else {
+            // Caching failed — fall back to the raw url (still renderable).
+            logger.warn('[LinkMetadataService] Awaited image caching returned no url; using original:', {
+              image: absoluteImageUrl,
+            });
+            result.image = absoluteImageUrl;
+          }
+        } else {
+          // Response-path caller: return metadata immediately with the original
+          // URL and downscale the image in the background (fire-and-forget).
+          result.image = absoluteImageUrl;
+
+          imageCacheService.cacheImage(absoluteImageUrl).catch((error) => {
+            logger.warn('[LinkMetadataService] Background image caching failed:', error);
+          });
+        }
+      } catch (error) {
+        logger.warn('[LinkMetadataService] Image URL processing failed, using original URL:', error);
+        // Keep original image URL on error
+      }
+    }
+
+    logger.debug('[LinkMetadataService] Final metadata:', {
+      url: result.url,
+      hasImage: !!result.image,
+      hasTitle: !!result.title,
+      hasDescription: !!result.description,
+    });
+
+    return result;
   }
 
   private async fetchMetadataDocument(initialUrl: string): Promise<{ metadata: Record<string, string>; finalUrl: string }> {

@@ -15,13 +15,18 @@ import { Readable } from 'stream';
  * PAST the old cap but before `</head>` and assert all three are extracted —
  * including across a chunk boundary that splits the `</head>` marker.
  *
+ * NOTE: YouTube URLs now resolve via the oEmbed provider chain (see
+ * `linkMetadataProviders`) and never reach this generic reader. The heavy-head
+ * reader is host-agnostic and still backs every other heavy-`<head>` site (and
+ * the oEmbed-failure fallback), so a non-provider host is used here.
+ *
  * The upstream fetch and image cache are mocked so no network or S3 is touched.
  */
 
 const OG_TITLE = 'Heavy Head Video Title';
 const OG_DESC = 'A description that lives deep inside a very large head element.';
-const OG_IMAGE = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg';
-const PAGE_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+const OG_IMAGE = 'https://images.example.com/vi/dQw4w9WgXcQ/maxresdefault.jpg';
+const PAGE_URL = 'https://blog.example.com/watch?v=dQw4w9WgXcQ';
 
 // ~600 KB of filler INSIDE the head, before the og tags, so the tags land well
 // past the old 512 KB cap. Wrapped in an HTML comment (no `<` other than `<!--`)
@@ -90,7 +95,7 @@ describe('linkMetadataService heavy-head extraction', () => {
     expect(result.description).toBe(OG_DESC);
     expect(result.image).toBe(OG_IMAGE);
     // Hostname fallback would have produced the bare host as the title.
-    expect(result.title).not.toBe('www.youtube.com');
+    expect(result.title).not.toBe('blog.example.com');
   });
 
   it('still detects </head> when the marker is split across a chunk boundary', async () => {

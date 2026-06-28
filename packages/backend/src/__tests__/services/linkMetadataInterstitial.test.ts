@@ -15,6 +15,13 @@ import { Readable } from 'stream';
  * throw → hostname fallback, not parsed junk) and the shared `isUsablePreview`
  * predicate refuses to store a hollow result as positive.
  *
+ * NOTE: `youtu.be`/`youtube.com` URLs now hit the oEmbed provider chain FIRST
+ * (see `linkMetadataProviders`). When that mocked endpoint also 302s (as here),
+ * the provider returns null and the generic scrape runs as the fallback — so the
+ * interstitial protection on the generic path is still exercised. The invariant
+ * is that the `/sorry` (or consent) wall is NEVER fetched or parsed, regardless
+ * of how many preflight calls precede it.
+ *
  * The upstream fetch and image cache are mocked so no network or S3 is touched.
  */
 
@@ -71,9 +78,10 @@ describe('linkMetadataService interstitial rejection', () => {
 
     const result = await linkMetadataService.fetchMetadata(YOUTU_BE_URL);
 
-    // The wall was rejected before being fetched/parsed: exactly one upstream
-    // call (the original redirect), never a fetch of /sorry.
-    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledTimes(1);
+    // The wall was rejected before being fetched/parsed: the /sorry URL only ever
+    // appears as a redirect Location and is NEVER itself requested.
+    const fetchedUrls = mocks.fetchUpstreamSingleHop.mock.calls.map((call) => String(call[0]));
+    expect(fetchedUrls.some((u) => u.includes('/sorry'))).toBe(false);
     // fetchMetadata's catch returns the bare-host fallback for the ORIGINAL url,
     // NOT the parsed wall junk (title would have been the youtube URL string).
     expect(result.title).toBe('youtu.be');
@@ -91,7 +99,9 @@ describe('linkMetadataService interstitial rejection', () => {
 
     const result = await linkMetadataService.fetchMetadata(YOUTU_BE_URL);
 
-    expect(mocks.fetchUpstreamSingleHop).toHaveBeenCalledTimes(1);
+    // The consent gate appears only as a redirect Location and is never fetched.
+    const fetchedUrls = mocks.fetchUpstreamSingleHop.mock.calls.map((call) => String(call[0]));
+    expect(fetchedUrls.some((u) => u.includes('consent.'))).toBe(false);
     expect(isUsablePreview(result)).toBe(false);
   });
 
