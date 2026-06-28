@@ -32,6 +32,27 @@ export interface FetchMetadataOptions {
 const DEFAULT_AWAIT_IMAGE_CACHE = false;
 
 /**
+ * Hard upper bound on bytes read from a remote page when extracting metadata.
+ *
+ * Heavy pages push their Open Graph tags far into the document — a YouTube
+ * `watch` page, for example, carries correct `og:*` tags in its static `<head>`
+ * but they sit ~630 KB in, with `</head>` closing near 640 KB inside a ~1.4 MB
+ * document. A small cap aborts before the tags are ever seen, leaving only the
+ * hostname fallback. This default is generous enough to reach those tags while
+ * still bounding worst-case memory.
+ *
+ * The read also early-terminates at `</head>` (see
+ * {@link LinkMetadataService.readLimitedResponse}), so a normal page reads only
+ * a few KB and the full document is never downloaded — this cap is purely the
+ * worst-case ceiling for a page whose head close never arrives. Tunable via env
+ * without a redeploy.
+ */
+const LINK_METADATA_MAX_BYTES = Number(process.env.LINK_METADATA_MAX_BYTES ?? 1024 * 1024);
+
+/** The HTML head-close marker the streaming read stops at (ASCII, case-insensitive). */
+const HEAD_CLOSE_MARKER = '</head>';
+
+/**
  * Service to fetch link metadata (Open Graph, Twitter Cards, etc.)
  * Fetches the page over the SSRF-safe single-hop fetcher and extracts Open
  * Graph / Twitter Card tags from the HTML head locally (no third-party lib).
@@ -194,7 +215,7 @@ class LinkMetadataService {
           return { metadata: {}, finalUrl: currentUrl };
         }
 
-        const html = await this.readLimitedResponse(response, 512 * 1024);
+        const html = await this.readLimitedResponse(response, LINK_METADATA_MAX_BYTES, true);
         return { metadata: this.extractMetadataFromHtml(html), finalUrl: currentUrl };
       } catch (error) {
         if (error instanceof SsrfRejection) {
@@ -210,23 +231,76 @@ class LinkMetadataService {
     throw new Error('Too many redirects');
   }
 
-  private async readLimitedResponse(response: IncomingMessage, maxBytes: number): Promise<string> {
+  /**
+   * Read a bounded amount of the response body for metadata extraction.
+   *
+   * Two early-stop conditions, both resolving (never rejecting) so the parser
+   * always receives whatever was read:
+   *  - `stopAtHeadClose`: as soon as `</head>` appears, the stream is destroyed
+   *    and the buffer resolved — all metadata lives in the head, so the rest of
+   *    the document (often the bulk of the bytes) is never downloaded. The match
+   *    is case-insensitive and boundary-safe: each chunk is searched together
+   *    with a small carryover from the previous one so a `</head>` split across
+   *    the chunk boundary is still detected.
+   *  - byte cap (`maxBytes`): on overflow the truncated buffer is resolved (not
+   *    rejected) so {@link extractMetadataFromHtml} still has data to parse.
+   *
+   * A single `settled` guard ensures data/end/error never double-resolve.
+   */
+  private async readLimitedResponse(
+    response: IncomingMessage,
+    maxBytes: number,
+    stopAtHeadClose = false,
+  ): Promise<string> {
     return await new Promise<string>((resolve, reject) => {
       const chunks: Buffer[] = [];
       let totalSize = 0;
+      let settled = false;
+
+      // `</head>` is 7 bytes; carrying its length minus one from the previous
+      // tail guarantees a marker split across the boundary is still matched.
+      const carrySize = HEAD_CLOSE_MARKER.length - 1;
+      let carry: Buffer = Buffer.alloc(0);
+
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        response.destroy();
+        resolve(Buffer.concat(chunks).toString('utf8'));
+      };
 
       response.on('data', (chunk: Buffer) => {
+        if (settled) return;
         totalSize += chunk.length;
-        if (totalSize > maxBytes) {
-          response.destroy();
-          reject(new Error('Metadata response too large'));
-          return;
-        }
         chunks.push(chunk);
+
+        if (stopAtHeadClose) {
+          // Search the small carryover joined with this chunk. `</head>` is
+          // pure ASCII, so a latin1 decode preserves bytes 1:1 and lowercasing
+          // yields an exact case-insensitive match. Cost is linear in the body.
+          const window = carry.length > 0 ? Buffer.concat([carry, chunk]) : chunk;
+          if (window.toString('latin1').toLowerCase().includes(HEAD_CLOSE_MARKER)) {
+            finish();
+            return;
+          }
+          carry = window.length > carrySize ? window.subarray(window.length - carrySize) : window;
+        }
+
+        if (totalSize > maxBytes) {
+          finish();
+        }
       });
 
-      response.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-      response.on('error', reject);
+      response.on('end', () => {
+        if (settled) return;
+        settled = true;
+        resolve(Buffer.concat(chunks).toString('utf8'));
+      });
+      response.on('error', (error: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      });
     });
   }
 
