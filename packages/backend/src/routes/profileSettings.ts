@@ -10,9 +10,21 @@ import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/use
 import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
+import { createSyraClient, type TrackSummary } from '@syra.fm/sdk';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+// Headless Syra catalog client used to verify + denormalize a pinned profile
+// song server-side. Public reads only (no auth); Bun/Node provide global fetch.
+const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
+
+/**
+ * The public Syra preview is a fixed 30-second clip. A profile song's start
+ * offset is clamped so the whole window stays inside the track.
+ */
+const PROFILE_SONG_PREVIEW_WINDOW_SEC = 30;
 
 /**
  * Profile Settings API
@@ -68,7 +80,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization, interests, feedSettings, notificationPreferences } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileCustomization, profileSong, interests, feedSettings, notificationPreferences } = req.body || {};
 
     const update: Record<string, any> = {};
     const unset: Record<string, ''> = {};
@@ -109,7 +121,52 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         update['profileCustomization.minimalistMode'] = profileCustomization.minimalistMode;
       }
     }
-    
+
+    // Profile song (Instagram-style pinned Syra track). The client sends only an
+    // untrusted reference `{ syraTrackId, startSec }` (or `null` to clear). We
+    // NEVER persist client-supplied metadata: the canonical title/artist/artwork
+    // and preview URL are resolved server-side from the Syra catalog via
+    // @syra.fm/sdk, and the song is rejected unless it exposes a public preview.
+    if (profileSong === null) {
+      unset['profileCustomization.profileSong'] = '';
+    } else if (profileSong && typeof profileSong === 'object' && !Array.isArray(profileSong)) {
+      const syraTrackId = typeof profileSong.syraTrackId === 'string' ? profileSong.syraTrackId.trim() : '';
+      if (!syraTrackId) {
+        return sendErrorResponse(res, 400, 'Bad Request', 'profileSong.syraTrackId is required');
+      }
+
+      const requestedStartSec = typeof profileSong.startSec === 'number' && Number.isFinite(profileSong.startSec)
+        ? Math.max(0, Math.trunc(profileSong.startSec))
+        : 0;
+
+      let track: TrackSummary;
+      try {
+        track = await syraClient.getTrack(syraTrackId);
+      } catch (err) {
+        logger.warn('[ProfileSettings] Failed to resolve Syra track for profile song:', { userId: oxyUserId, syraTrackId, error: err });
+        return sendErrorResponse(res, 400, 'Bad Request', 'Unable to resolve the selected song');
+      }
+
+      if (track.previewAvailable !== true) {
+        return sendErrorResponse(res, 400, 'Bad Request', 'The selected song does not have a public preview');
+      }
+
+      // Clamp the start offset to [0, max(0, duration - 30)] so the full 30s
+      // preview window always stays inside the track.
+      const maxStartSec = Math.max(0, Math.trunc(track.duration) - PROFILE_SONG_PREVIEW_WINDOW_SEC);
+      const clampedStartSec = Math.min(requestedStartSec, maxStartSec);
+
+      update['profileCustomization.profileSong'] = {
+        syraTrackId,
+        title: track.title,
+        artist: track.artistName,
+        artworkUrl: syraClient.artworkUrl(track),
+        previewUrl: syraClient.previewUrl(syraTrackId, clampedStartSec),
+        startSec: clampedStartSec,
+        durationSec: track.duration,
+      };
+    }
+
     if (privacy) {
       const privacyFields = [
         'profileVisibility',

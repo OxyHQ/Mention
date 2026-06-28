@@ -84,6 +84,14 @@ export const config = {
     timeoutMs: 30_000,
   },
   /**
+   * Syra public catalog API. Used to verify + denormalize a user's pinned
+   * "profile song" server-side (via `@syra.fm/sdk`) and to proxy catalog search
+   * for the song picker. Public reads only — no auth.
+   */
+  syra: {
+    apiUrl: (process.env.SYRA_API_URL || 'https://api.syra.fm').replace(/\/+$/, ''),
+  },
+  /**
    * AI-powered post classification (topics, sentiment, intent, quality/safety
    * signals). Provider/model selection lives INSIDE Alia (the Oxy multi-provider
    * AI gateway) — never stored on the post. Disabled by default; the service

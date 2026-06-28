@@ -69,6 +69,10 @@ export function extractPublicProfileData(doc: Partial<UserSettingsData> | null |
     } : undefined,
     profileHeaderImage: resolveProfileHeaderImage(doc?.profileHeaderImage),
     profileCustomization,
+    // Pinned Syra "profile song" — already denormalized + preview-verified at
+    // save time, so it is public-safe and rendered/played by viewers as-is.
+    // Normalize the stored `null` default to `undefined` so the DTO omits it.
+    profileSong: customization.profileSong ?? undefined,
   };
 }
 

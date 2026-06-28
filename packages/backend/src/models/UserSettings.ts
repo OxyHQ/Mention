@@ -41,9 +41,26 @@ export interface PrivacySettings {
   labelPreferences?: LabelPreferences;
 }
 
+/**
+ * A Syra track pinned to the profile (Instagram-style "profile song"). The
+ * metadata is denormalized server-side from the canonical Syra catalog at save
+ * time (never trusted from the client) so viewers can render the song row and
+ * play its 30s preview without a round-trip to Syra.
+ */
+export interface ProfileSong {
+  syraTrackId: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string;
+  previewUrl: string;
+  startSec: number;
+  durationSec?: number;
+}
+
 export interface ProfileCustomization {
   coverPhotoEnabled?: boolean;
   minimalistMode?: boolean;
+  profileSong?: ProfileSong | null;
 }
 
 export interface InterestsSettings {
@@ -125,9 +142,20 @@ const PrivacySchema = new Schema<PrivacySettings>({
   labelPreferences: { type: LabelPreferencesSchema },
 }, { _id: false });
 
+const ProfileSongSchema = new Schema<ProfileSong>({
+  syraTrackId: { type: String, required: true },
+  title: { type: String, required: true },
+  artist: { type: String, required: true },
+  artworkUrl: { type: String },
+  previewUrl: { type: String, required: true },
+  startSec: { type: Number, required: true, default: 0 },
+  durationSec: { type: Number },
+}, { _id: false });
+
 const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
   coverPhotoEnabled: { type: Boolean, default: true },
   minimalistMode: { type: Boolean, default: false },
+  profileSong: { type: ProfileSongSchema, default: null },
 }, { _id: false });
 
 const InterestsSchema = new Schema<InterestsSettings>({

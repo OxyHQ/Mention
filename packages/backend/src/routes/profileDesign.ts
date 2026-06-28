@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import UserSettings from '../models/UserSettings';
+import UserSettings, { type ProfileSong } from '../models/UserSettings';
 import Post from '../models/Post';
 import { extractPublicProfileData } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
@@ -30,6 +30,7 @@ interface PublicProfileDesignResponse {
     coverPhotoEnabled: boolean;
     minimalistMode: boolean;
   };
+  profileSong?: ProfileSong;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
   };

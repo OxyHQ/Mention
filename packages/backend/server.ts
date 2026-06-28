@@ -49,6 +49,7 @@ import statisticsRoutes from './src/routes/statistics.routes';
 import { OxyServices } from '@oxyhq/core';
 import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';
+import profileSongRoutes from './src/routes/profileSong';
 import subscriptionsRoutes from './src/routes/subscriptions';
 import pokesRoutes from './src/routes/pokes';
 import starterPacksRoutes from './src/routes/starterPacks';
@@ -787,6 +788,9 @@ authenticatedApiRouter.use("/statistics", statisticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
 authenticatedApiRouter.use("/labelers", labelerRoutes); // Composable moderation labels
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
+// Mounted BEFORE "/profile" so the more specific song-picker prefix matches
+// first (the Syra catalog search proxy) without falling through profileSettings.
+authenticatedApiRouter.use("/profile/song", profileSongRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 authenticatedApiRouter.use("/gifs", gifsRoutes);
