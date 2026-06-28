@@ -98,7 +98,11 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
   return {
     content: {
       text: postContent.trim(),
-      media: mediaIds.map(m => ({ id: m.id, type: m.type })),
+      media: mediaIds.map(m => ({
+        id: m.id,
+        type: m.type,
+        ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
+      })),
       ...(hasPoll && {
         poll: {
           question: pollTitle.trim() || postContent.trim() || 'Poll',
@@ -194,7 +198,11 @@ export const buildThreadPost = (item: ThreadItem): CreateThreadPostRequest => {
   return {
     content: {
       text: item.text.trim(),
-      media: item.mediaIds.map(m => ({ id: m.id, type: m.type })),
+      media: item.mediaIds.map(m => ({
+        id: m.id,
+        type: m.type,
+        ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
+      })),
       ...(threadHasPoll && {
         poll: {
           question: (item.pollTitle && item.pollTitle.trim()) || item.text.trim() || 'Poll',

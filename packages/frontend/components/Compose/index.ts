@@ -13,9 +13,11 @@ export { EventEditor } from "./EventEditor";
 export { LocationDisplay } from "./LocationDisplay";
 export { LinkPreview, LinkPreviewLoading } from "./LinkPreview";
 export { default as AttachmentCarouselItem } from "./AttachmentCarouselItem";
+export { ComposeAltButton } from "./ComposeAltButton";
 export { default as QuoteCard } from "./QuoteCard";
 
 // Re-export existing sheets
+export { default as AltTextSheet } from "./AltTextSheet";
 export { default as DraftsSheet } from "./DraftsSheet";
 export { default as EmojiPickerSheet } from "./EmojiPickerSheet";
 export { default as GifPickerSheet } from "./GifPickerSheet";

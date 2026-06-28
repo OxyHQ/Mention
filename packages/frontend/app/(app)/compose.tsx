@@ -57,6 +57,7 @@ import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 // Lazy load sheets - only loaded when user opens them
 const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
+const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -97,6 +98,7 @@ import {
   EventEditor,
   LocationDisplay,
   AttachmentCarouselItem,
+  ComposeAltButton,
 } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
@@ -182,7 +184,7 @@ const ComposeScreen = () => {
   const podcastManager = usePodcastManager();
 
   // Destructure for easier access (need these first for useAttachmentOrder)
-  const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia } = mediaManager;
+  const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia, setMediaAlt } = mediaManager;
   const {
     pollTitle,
     setPollTitle,
@@ -209,6 +211,7 @@ const ComposeScreen = () => {
     addThreadMediaMultiple,
     removeThreadMedia,
     moveThreadMedia,
+    setThreadMediaAlt,
     openThreadPollCreator,
     addThreadPollOption,
     updateThreadPollOption,
@@ -636,6 +639,7 @@ const ComposeScreen = () => {
           setMediaIds(media.map((m): ComposerMediaItem => ({
             id: m.id,
             type: toComposerMediaType(m.type),
+            ...(m.alt ? { alt: m.alt } : {}),
           })));
         }
         const mentions = post?.metadata?.mentions;
@@ -754,7 +758,11 @@ const ComposeScreen = () => {
         const editData = {
           content: {
             text: postContent,
-            media: mediaIds.map(m => ({ id: m.id, type: m.type })),
+            media: mediaIds.map(m => ({
+              id: m.id,
+              type: m.type,
+              ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
+            })),
           },
           hashtags: mainPost.hashtags || [],
           mentions: mainPost.mentions || [],
@@ -986,6 +994,20 @@ const ComposeScreen = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, addThreadMedia, t]);
 
+  const openThreadAltTextSheet = useCallback((threadId: string, mediaItem: ComposerMediaItem) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <AltTextSheet
+          imageUrl={oxyServices.getFileDownloadUrl(mediaItem.id)}
+          initialAlt={mediaItem.alt ?? ''}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSave={(alt: string) => setThreadMediaAlt(threadId, mediaItem.id, alt)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, oxyServices, setThreadMediaAlt]);
+
   const handleThreadEmojiPress = useCallback((threadId: string) => {
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
@@ -1181,6 +1203,20 @@ const ComposeScreen = () => {
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, t]);
+
+  const openAltTextSheet = useCallback((mediaItem: ComposerMediaItem) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <AltTextSheet
+          imageUrl={oxyServices.getFileDownloadUrl(mediaItem.id)}
+          initialAlt={mediaItem.alt ?? ''}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSave={(alt: string) => setMediaAlt(mediaItem.id, alt)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, oxyServices, setMediaAlt]);
 
   const handleMainEmojiPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -1705,6 +1741,13 @@ const ComposeScreen = () => {
                                     resizeMode="cover"
                                   />
                                 )}
+                                {mediaItem.type === 'image' ? (
+                                  <ComposeAltButton
+                                    hasAlt={Boolean(mediaItem.alt?.trim())}
+                                    raised={total > 1}
+                                    onPress={() => openAltTextSheet(mediaItem)}
+                                  />
+                                ) : null}
                               </AttachmentCarouselItem>
                             );
                           }
@@ -1844,6 +1887,7 @@ const ComposeScreen = () => {
                   onLocationRemove={handleThreadLocationRemove}
                   onMediaRemove={handleThreadMediaRemove}
                   onMediaMove={handleThreadMediaMove}
+                  onMediaAltPress={openThreadAltTextSheet}
                   onArticleRemove={handleThreadArticleRemove}
                   onEventRemove={handleThreadEventRemove}
                   onRoomRemove={handleThreadRoomRemove}

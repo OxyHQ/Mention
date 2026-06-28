@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, View, StyleSheet, ViewStyle, Platform } from 'react-native';
+import { Image, Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
@@ -35,6 +35,12 @@ const MIN_WIDTH = 100;
 interface PostAttachmentMediaProps {
   type: 'image' | 'video' | 'gif';
   src: string;
+  /**
+   * Image only: author-authored accessibility description (Bluesky-style "ALT").
+   * When present, renders a small "ALT" badge over the image and is used as the
+   * image's screen-reader accessibility label.
+   */
+  alt?: string;
   mediaId?: string;
   postId?: string;
   /** Poster (thumbnail) shown over the video until the first frame plays. */
@@ -116,9 +122,10 @@ const FULL_DIMENSION = '100%' as const;
 
 const PostAttachmentImage: React.FC<{
   src: string;
+  alt?: string;
   onPress?: (rect?: MeasuredRect) => void;
   registerHost?: RegisterThumbHost;
-}> = ({ src, onPress, registerHost }) => {
+}> = ({ src, alt, onPress, registerHost }) => {
   const theme = useTheme();
   const wrapperRef = useRef<View | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(
@@ -188,12 +195,15 @@ const PostAttachmentImage: React.FC<{
     containerStyles.push(webGrabCursorStyle);
   }
 
+  const hasAlt = typeof alt === 'string' && alt.trim().length > 0;
+
   const lazyImage = (
     <LazyImage
       source={{ uri: src }}
       containerStyle={containerStyles}
       style={styles.fullSize}
       resizeMode="cover"
+      accessibilityLabel={hasAlt ? alt : undefined}
       placeholder={
         <View
           className="bg-secondary justify-center items-center"
@@ -204,8 +214,22 @@ const PostAttachmentImage: React.FC<{
     />
   );
 
+  // Bluesky-style "ALT" badge: a small dark pill in the image's bottom-left
+  // corner, non-interactive so it never swallows the tap that opens the lightbox.
+  const imageContent = hasAlt ? (
+    <View>
+      {lazyImage}
+      <View
+        pointerEvents="none"
+        className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5"
+      >
+        <Text className="text-white text-[10px] font-bold">ALT</Text>
+      </View>
+    </View>
+  ) : lazyImage;
+
   if (!onPress) {
-    return lazyImage;
+    return imageContent;
   }
 
   return (
@@ -213,10 +237,10 @@ const PostAttachmentImage: React.FC<{
       ref={setHostRef}
       onPress={handlePress}
       accessibilityRole="imagebutton"
-      accessibilityLabel="Open image"
+      accessibilityLabel={hasAlt ? alt : 'Open image'}
       collapsable={false}
     >
-      {lazyImage}
+      {imageContent}
     </Pressable>
   );
 };
@@ -224,6 +248,7 @@ const PostAttachmentImage: React.FC<{
 const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   type,
   src,
+  alt,
   poster,
   onPress,
   hasSingleMedia,
@@ -252,7 +277,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     );
   }
 
-  return <PostAttachmentImage src={src} onPress={onPress} registerHost={registerHost} />;
+  return <PostAttachmentImage src={src} alt={alt} onPress={onPress} registerHost={registerHost} />;
 };
 
 const styles = StyleSheet.create({

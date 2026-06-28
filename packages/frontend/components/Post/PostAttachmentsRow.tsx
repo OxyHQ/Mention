@@ -37,6 +37,8 @@ import {
 interface MediaObj {
   id: string;
   type: 'image' | 'video' | 'gif';
+  /** Author-authored accessibility description (Bluesky-style "ALT"). Images only. */
+  alt?: string;
   url?: string;
   thumbUrl?: string;
   posterUrl?: string;
@@ -75,7 +77,7 @@ type AttachmentItem =
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
   | { type: 'video'; mediaId: string; src: string; poster?: string }
   | { type: 'gif'; mediaId: string; src: string }
-  | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif' };
+  | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string };
 
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
@@ -195,7 +197,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         const src = resolveMediaSrc(mediaItem, 'thumb');
         if (!src) return;
         const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
-        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'image' });
+        const alt = typeof mediaItem.alt === 'string' && mediaItem.alt.trim() ? mediaItem.alt : undefined;
+        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'image', alt });
       }
     };
 
@@ -343,7 +346,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const galleryImages = useMemo<GalleryImage[]>(
     () => mediaItems
       .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
-      .map(item => ({ uri: item.fullSrc })),
+      .map(item => ({ uri: item.fullSrc, alt: item.alt })),
     [mediaItems]
   );
 
@@ -611,6 +614,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               key={`${item.type}-${mediaId ?? idx}`}
               type={item.type}
               src={item.src}
+              alt={item.type === 'image' ? item.alt : undefined}
               mediaId={mediaId}
               poster={item.type === 'video' ? item.poster : undefined}
               postId={postId}

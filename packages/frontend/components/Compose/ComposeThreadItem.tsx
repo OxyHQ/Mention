@@ -18,9 +18,10 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { VideoPreview, PollCreator, LocationDisplay } from '@/components/Compose';
+import { VideoPreview, PollCreator, LocationDisplay, ComposeAltButton } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import type { ThreadItem } from '@/hooks/useThreadManager';
+import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
@@ -56,6 +57,7 @@ interface ComposeThreadItemProps {
   onLocationRemove: (threadId: string) => void;
   onMediaRemove: (threadId: string, mediaId: string) => void;
   onMediaMove: (threadId: string, mediaId: string, direction: 'left' | 'right') => void;
+  onMediaAltPress: (threadId: string, mediaItem: ComposerMediaItem) => void;
   onArticleRemove: (threadId: string) => void;
   onEventRemove: (threadId: string) => void;
   onRoomRemove: (threadId: string) => void;
@@ -97,6 +99,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   onLocationRemove,
   onMediaRemove,
   onMediaMove,
+  onMediaAltPress,
   onArticleRemove,
   onEventRemove,
   onRoomRemove,
@@ -308,6 +311,13 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                         resizeMode="cover"
                       />
                     )}
+                    {mediaItem.type === 'image' ? (
+                      <ComposeAltButton
+                        hasAlt={Boolean(mediaItem.alt?.trim())}
+                        raised={mediaCount > 1}
+                        onPress={() => onMediaAltPress(threadId, mediaItem)}
+                      />
+                    ) : null}
                     {mediaCount > 1 ? (
                       <View style={[styles.mediaReorderControls, pointerEventsBoxNone]}>
                         <TouchableOpacity

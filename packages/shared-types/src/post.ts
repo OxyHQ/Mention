@@ -43,6 +43,13 @@ export interface MediaItem {
   id: string;
   type: 'image' | 'video' | 'gif';
   /**
+   * Accessibility description (alt text) for images, authored by the post creator
+   * (Bluesky-style "ALT" feature). Optional passthrough — stored on the post and
+   * returned in the DTO so the client can render the description and an "ALT"
+   * badge. Not a URL; never resolved/rewritten.
+   */
+  alt?: string;
+  /**
    * Final, ready-to-render media URL resolved server-side (CDN or our media
    * proxy). Backends populate this so the frontend never computes URLs from `id`.
    */

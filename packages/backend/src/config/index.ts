@@ -73,6 +73,7 @@ export const config = {
     maxHashtagLength: 100,
     maxHashtagsPerPost: 30,
     maxTextLength: 25000, // Maximum post text length (characters)
+    maxAltTextLength: 2000, // Maximum per-image accessibility (alt) text length (characters)
   },
   search: {
     maxDateRangeDays: 365,

@@ -191,8 +191,9 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
 
 /**
  * Enrich a list of {@link MediaItem}s with final `url`/`thumbUrl`/`posterUrl`/
- * `fullUrl`, preserving each item's `id` and `type`. Items without an `id` are
- * dropped.
+ * `fullUrl`, preserving each item's `id`, `type`, and `alt` (accessibility
+ * description — passed through unchanged, it is not a URL and needs no
+ * resolution). Items without an `id` are dropped.
  */
 export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaItem[] {
   if (!Array.isArray(items) || items.length === 0) {
@@ -202,6 +203,9 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
     .filter((item): item is MediaItem => Boolean(item) && typeof item.id === 'string' && item.id.length > 0)
     .map((item) => {
       const resolved = resolveMediaRef(item.id);
+      // Accessibility description — passthrough only (never a URL). Omitted when
+      // absent so the field stays off items that have no alt text.
+      const altField = item.alt ? { alt: item.alt } : {};
 
       if (item.type === 'video' && !isAbsoluteHttpUrl(item.id)) {
         try {
@@ -209,6 +213,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
           return {
             id: item.id,
             type: item.type,
+            ...altField,
             url: resolved.url || undefined,
             thumbUrl: posterUrl,
             posterUrl,
@@ -226,6 +231,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
         return {
           id: item.id,
           type: item.type,
+          ...altField,
           url: original,
           thumbUrl: original,
           posterUrl: original,
@@ -236,6 +242,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
       return {
         id: item.id,
         type: item.type,
+        ...altField,
         url: resolved.url || undefined,
         thumbUrl: resolved.thumbUrl,
         posterUrl: resolved.posterUrl,

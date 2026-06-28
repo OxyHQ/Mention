@@ -21,7 +21,12 @@ export const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACH
 export const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
 
 export type ComposerMediaType = "image" | "video" | "gif";
-export type ComposerMediaItem = { id: string; type: ComposerMediaType };
+/**
+ * A media attachment staged in the composer. `alt` is the accessibility
+ * description (Bluesky-style "ALT") and is only meaningful for `type: 'image'`;
+ * it travels to the backend as `content.media[].alt`.
+ */
+export type ComposerMediaItem = { id: string; type: ComposerMediaType; alt?: string };
 
 export const toComposerMediaType = (value?: string, mime?: string): ComposerMediaType => {
   const lowerValue = typeof value === "string" ? value.toLowerCase() : "";

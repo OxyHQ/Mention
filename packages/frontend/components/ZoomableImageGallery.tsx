@@ -67,6 +67,11 @@ const WEB_POINTER_CLASS = 'web:[user-select:none] web:cursor-pointer';
 export interface GalleryImage {
   /** Source URI rendered both as the post thumbnail and the zoomed image. */
   uri: string;
+  /**
+   * Author-authored accessibility description (Bluesky-style "ALT"). When present,
+   * shown as a caption at the bottom of the fullscreen viewer for the active image.
+   */
+  alt?: string;
 }
 
 export interface ZoomableImageGalleryHandle {
@@ -185,6 +190,10 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
   // and flies back the image actually on screen.
   const activeRatio = pageRatios[activeIndex] ?? openRatio;
   const activeFit = useMemo(() => fitForRatio(activeRatio), [fitForRatio, activeRatio]);
+
+  // Alt text (accessibility description) of the image currently on screen, shown
+  // as a caption at the bottom of the viewer (Bluesky-style lightbox footer).
+  const activeAlt = images[activeIndex]?.alt?.trim() || undefined;
 
   const ensureRatio = useCallback((index: number, uri: string) => {
     const cached = getAspectRatio(uri);
@@ -566,6 +575,21 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
               </View>
             </Animated.View>
           )}
+
+          {activeAlt ? (
+            <Animated.View
+              style={[
+                styles.altCaptionWrap,
+                images.length > 1 && styles.altCaptionWrapWithIndicator,
+                backdropStyle,
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.altCaptionPill}>
+                <Text style={styles.altCaptionText} numberOfLines={4}>{activeAlt}</Text>
+              </View>
+            </Animated.View>
+          ) : null}
         </Animated.View>
       </GestureDetector>
     </GestureHandlerRootView>
@@ -652,6 +676,30 @@ const styles = StyleSheet.create({
   },
   dotInactive: {
     backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  altCaptionWrap: {
+    position: 'absolute',
+    bottom: 48,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  // Lifted above the page counter + dots when the multi-image indicator shows.
+  altCaptionWrapWithIndicator: {
+    bottom: 110,
+  },
+  altCaptionPill: {
+    maxWidth: 600,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  altCaptionText: {
+    color: '#fff',
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
 

@@ -1450,8 +1450,9 @@ export class PostHydrationService {
 
   /**
    * Normalize a raw `content.media` array (strings or objects from lean docs)
-   * into typed {@link MediaItem}s carrying only `id`/`type`. URL resolution is
-   * applied separately via {@link resolveMediaItems}.
+   * into typed {@link MediaItem}s carrying `id`/`type` plus the optional `alt`
+   * (accessibility description). URL resolution is applied separately via
+   * {@link resolveMediaItems}, which passes `alt` through unchanged.
    */
   private normalizeMediaItems(rawMedia: unknown): import('@mention/shared-types').MediaItem[] | undefined {
     if (!Array.isArray(rawMedia)) {
@@ -1469,6 +1470,7 @@ export class PostHydrationService {
             return {
               id: String(obj.id),
               type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image',
+              ...(typeof obj.alt === 'string' && obj.alt.length > 0 ? { alt: obj.alt } : {}),
             };
           }
         }

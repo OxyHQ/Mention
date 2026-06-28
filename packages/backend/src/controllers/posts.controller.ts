@@ -40,6 +40,7 @@ const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
 const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
+const MAX_ALT_TEXT_LENGTH = config.posts.maxAltTextLength;
 
 /**
  * Map a resolved {@link PostActorSummary} to the engagement-users response shape
@@ -179,6 +180,8 @@ interface NormalizedMediaItem {
   id: string;
   type: 'image' | 'video' | 'gif';
   mime?: string;
+  /** Accessibility description (alt text) for the image; trimmed + length-capped. */
+  alt?: string;
 }
 
 /** Untrusted media entry shape accepted from the request body before normalization. */
@@ -191,6 +194,7 @@ interface RawMediaInput {
   mediaType?: unknown;
   mime?: unknown;
   contentType?: unknown;
+  alt?: unknown;
 }
 
 const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
@@ -230,11 +234,17 @@ const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
         resolvedType = 'image';
       }
 
+      // Accessibility description (alt text). Explicitly whitelisted, trimmed, and
+      // length-capped — never spread from the raw body. Empty/whitespace-only
+      // values are dropped so the field stays absent rather than an empty string.
+      const altRaw = typeof obj.alt === 'string' ? obj.alt.trim().slice(0, MAX_ALT_TEXT_LENGTH) : '';
+
       seen.add(id);
       normalized.push({
         id,
         type: resolvedType,
-        ...(mimeValue ? { mime: String(mimeValue) } : {})
+        ...(mimeValue ? { mime: String(mimeValue) } : {}),
+        ...(altRaw ? { alt: altRaw } : {})
       });
     }
   });

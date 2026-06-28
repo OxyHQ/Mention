@@ -87,6 +87,14 @@ export const useMediaManager = () => {
     });
   }, []);
 
+  const setMediaAlt = useCallback((mediaId: string, alt: string) => {
+    setMediaIds((prev) =>
+      prev.map((m) =>
+        m.id === mediaId ? { ...m, alt: alt.trim().length > 0 ? alt : undefined } : m
+      )
+    );
+  }, []);
+
   const clearMedia = useCallback(() => {
     setMediaIds([]);
   }, []);
@@ -98,6 +106,7 @@ export const useMediaManager = () => {
     addMultipleMedia,
     removeMedia,
     moveMedia,
+    setMediaAlt,
     clearMedia,
   };
 };

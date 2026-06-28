@@ -122,6 +122,26 @@ export const useThreadManager = () => {
     );
   }, []);
 
+  const setThreadMediaAlt = useCallback(
+    (threadId: string, mediaId: string, alt: string) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId
+            ? {
+                ...item,
+                mediaIds: item.mediaIds.map((m) =>
+                  m.id === mediaId
+                    ? { ...m, alt: alt.trim().length > 0 ? alt : undefined }
+                    : m
+                ),
+              }
+            : item
+        )
+      );
+    },
+    []
+  );
+
   const moveThreadMedia = useCallback(
     (threadId: string, mediaId: string, direction: "left" | "right") => {
       setThreadItems((prev) =>
@@ -459,6 +479,7 @@ export const useThreadManager = () => {
     addThreadMediaMultiple,
     removeThreadMedia,
     moveThreadMedia,
+    setThreadMediaAlt,
     openThreadPollCreator,
     addThreadPollOption,
     updateThreadPollOption,
