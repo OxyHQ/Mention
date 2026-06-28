@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { Loading } from '@oxyhq/bloom/loading';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { LogoIcon } from "@/assets/logo";
 import { confirmDialog } from "@/utils/alerts";
 import { createScopedLogger } from "@/lib/logger";
 import { useBloomTheme } from '@oxyhq/bloom/theme';
@@ -136,6 +137,7 @@ export default function SettingsScreen() {
                     </View>
                 ) : (
                     <View className="items-center px-6 py-6 gap-3">
+                        <LogoIcon size={48} className="text-foreground" />
                         <Text className="text-2xl font-bold text-foreground text-center">
                             {t('settings.account.signedOutTitle', { defaultValue: 'Sign in to Mention' })}
                         </Text>
