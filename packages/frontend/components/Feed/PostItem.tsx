@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import {
     HydratedPost,
     HydratedPostSummary,
+    PostActorSummary,
     PostAttachmentDescriptor,
     PostAttachmentBundle,
     PostContent,
@@ -36,6 +37,7 @@ import { usePostBoost } from '@/hooks/usePostBoost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
+import { BoostIcon } from '@/assets/icons/boost-icon';
 import { api } from '@/utils/api';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
@@ -62,6 +64,24 @@ interface PostItemProps {
     isThreadChild?: boolean;
     isThreadLastChild?: boolean;
     /**
+     * When this row is a reply surfaced into a feed for context (slice reason
+     * `replyContext`), the parent author it replies to. Renders a muted
+     * "Replying to @handle" row in the avatar-gutter lane above the header,
+     * mirroring the Pinned row layout (Bluesky-style context rows, all muted).
+     */
+    replyContextAuthor?: { handle?: string; displayName?: string };
+    /**
+     * When this row is a PURE repost (boost) surfaced into a feed, the actor who
+     * reposted it. The main post body is the ORIGINAL post (passed as `post`);
+     * this renders a muted, tappable "Reposted by {displayName}" context row in
+     * the avatar-gutter lane ABOVE the header — and above the Pinned/reply-context
+     * rows (repost is the outermost reason). Because the original carries no
+     * `boost`, the inline header boost glyph stays off, so this is the single
+     * repost affordance (no duplicate indicator). Quote posts use `quotedPost`
+     * nesting instead and never set this prop.
+     */
+    repostedBy?: PostActorSummary;
+    /**
      * Render the FOCUSED post-detail variant: full-width body, the larger spread-out
      * action bar (with the full absolute timestamp + engagement-stats rows), and a
      * non-tappable container. Passed ONLY by the post-detail screen for the focused
@@ -87,6 +107,8 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadParent = false,
     isThreadChild = false,
     isThreadLastChild = false,
+    replyContextAuthor,
+    repostedBy,
     isPostDetail: isPostDetailProp = false,
     feedDescriptor,
 }) => {
@@ -246,6 +268,19 @@ const PostItem: React.FC<PostItemProps> = ({
             router.push(`/@${handle}`);
         }
     }, [router, viewPost.user?.handle]);
+
+    // "Reposted by X" row → the BOOSTER's profile. Stop propagation so it doesn't
+    // also trigger the outer container press (which opens the ORIGINAL post detail).
+    const goToReposter = useCallback((event?: GestureResponderEvent) => {
+        event?.stopPropagation?.();
+        const handle = getNormalizedUserHandle({
+            handle: repostedBy?.handle,
+            username: repostedBy?.handle,
+        });
+        if (handle) {
+            router.push(`/@${handle}`);
+        }
+    }, [router, repostedBy?.handle]);
 
     // Pass the originating feed descriptor as the engagement `source` so the
     // backend can attribute a like/save/boost to the surface it happened on
@@ -492,6 +527,8 @@ const PostItem: React.FC<PostItemProps> = ({
     const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || !isNested);
     const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
 
+    const replyContextHandle = replyContextAuthor?.handle || replyContextAuthor?.displayName;
+
     const postAuthor = viewPost.user.displayName;
     const postTextSummary = content.text
         ? content.text.length > 80
@@ -561,6 +598,22 @@ const PostItem: React.FC<PostItemProps> = ({
                         }}
                     />
                 )}
+                {repostedBy && (
+                    <TouchableOpacity
+                        className="flex-row items-center mb-0.5"
+                        style={{ paddingLeft: HPAD }}
+                        activeOpacity={0.7}
+                        onPress={goToReposter}
+                        accessibilityRole="link"
+                    >
+                        <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
+                            <BoostIcon size={14} color={theme.colors.textSecondary} />
+                        </View>
+                        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                            {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName}
+                        </Text>
+                    </TouchableOpacity>
+                )}
                 {showPinned && (
                     <View className="flex-row items-center mb-0.5" style={{ paddingLeft: HPAD }}>
                         <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
@@ -568,6 +621,16 @@ const PostItem: React.FC<PostItemProps> = ({
                         </View>
                         <Text className="text-muted-foreground text-[13px] font-semibold">
                             {t('post.pinned', { defaultValue: 'Pinned' })}
+                        </Text>
+                    </View>
+                )}
+                {replyContextHandle && (
+                    <View className="flex-row items-center mb-0.5" style={{ paddingLeft: HPAD }}>
+                        <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
+                            <Ionicons name="return-down-forward-outline" size={14} color={theme.colors.textSecondary} />
+                        </View>
+                        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                            {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
                         </Text>
                     </View>
                 )}
@@ -819,6 +882,9 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prevProps.isThreadChild === nextProps.isThreadChild &&
         prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
         prevProps.isPostDetail === nextProps.isPostDetail &&
-        prevProps.feedDescriptor === nextProps.feedDescriptor
+        prevProps.feedDescriptor === nextProps.feedDescriptor &&
+        // Same original post id can be reposted by different actors across rows;
+        // compare the booster so a recycled row never shows a stale "Reposted by".
+        prevProps.repostedBy?.id === nextProps.repostedBy?.id
     );
 });

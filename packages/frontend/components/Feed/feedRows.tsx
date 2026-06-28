@@ -4,6 +4,8 @@ import type { useRouter } from 'expo-router';
 import {
     FeedType,
     HydratedPost,
+    HydratedPostSummary,
+    PostActorSummary,
     Reply,
     FeedBoost as Boost,
     FeedPostSlice,
@@ -259,28 +261,34 @@ export function renderFeedRow(row: FeedRow, { router, primaryColor, feedDescript
         : undefined;
     const nestPadding = row.nestingDepth > 0 ? { paddingLeft: 16 * row.nestingDepth } : undefined;
 
+    // PURE repost (boost): render the ORIGINAL post directly (its author, content,
+    // media, actions) with a "Reposted by X" context row on top — NOT the original
+    // nested inside an empty boost shell. The post id, thread links, and error
+    // boundary all target the ORIGINAL so engagement and tap-to-open hit it. Quote
+    // posts carry `quotedPost` (not `boost`) and are untouched. If the boost's
+    // original is missing (deleted), fall back to rendering the boost item as-is.
+    const boostCtx = (post as { boost?: { originalPost?: HydratedPostSummary | null; actor?: PostActorSummary } }).boost;
+    const boostedOriginal = boostCtx?.originalPost;
+    const renderedPost: FeedItem = boostedOriginal ?? post;
+    const renderedPostId = renderedPost.id;
+
     const content = (
-        <PostErrorBoundary postId={post.id}>
-            {replyContextAuthor && (
-                <View style={styles.replyContextLabel}>
-                    <Text className="text-muted-foreground text-xs">
-                        Replying to <Text className="text-primary text-xs">@{replyContextAuthor.handle || replyContextAuthor.displayName}</Text>
-                    </Text>
-                </View>
-            )}
+        <PostErrorBoundary postId={renderedPostId}>
             <PostItem
-                post={post}
+                post={renderedPost}
                 isThreadParent={row.isThreadParent}
                 isThreadChild={row.isThreadChild}
                 isThreadLastChild={row.isThreadLastChild}
                 nestingDepth={row.nestingDepth}
+                replyContextAuthor={boostedOriginal ? undefined : replyContextAuthor}
+                repostedBy={boostedOriginal ? boostCtx?.actor : undefined}
                 feedDescriptor={feedDescriptor}
             />
             {showThreadLink && (
                 <Pressable
                     className="border-border"
                     style={styles.showThreadLink}
-                    onPress={() => router.push(`/p/${post.id}`)}
+                    onPress={() => router.push(`/p/${renderedPostId}`)}
                 >
                     <Text className="text-primary text-sm font-medium">
                         Show this thread
@@ -290,7 +298,7 @@ export function renderFeedRow(row: FeedRow, { router, primaryColor, feedDescript
             {showMoreReplies && (
                 <Pressable
                     style={[styles.showMoreReplies, nestPadding]}
-                    onPress={() => router.push(`/p/${post.id}`)}
+                    onPress={() => router.push(`/p/${renderedPostId}`)}
                 >
                     <Text className="text-primary text-sm font-medium">
                         Show more replies ({row.truncatedChildCount})
@@ -339,12 +347,6 @@ const styles = StyleSheet.create({
         paddingLeft: POST_ITEM_SPACING.AVATAR_OFFSET,
         paddingRight: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    replyContextLabel: {
-        // Align with PostItem content (after avatar): HPAD + AVATAR_SIZE + AVATAR_GAP = 64
-        paddingLeft: POST_ITEM_SPACING.AVATAR_OFFSET,
-        paddingTop: 8,
-        paddingBottom: 2,
     },
     nestedRow: {
         position: 'relative',
