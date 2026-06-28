@@ -50,15 +50,6 @@ export const AppProviders = memo(function AppProviders({
           clientId={OXY_CLIENT_ID}
           storageKeyPrefix="mention"
           queryClient={queryClient}
-          // Mention supports anonymous public browse (the "For You" feed renders
-          // signed-out, with "Sign In" prompts). Suppress only the TERMINAL
-          // cold-boot /sso bounce for a truly anonymous visitor — every other
-          // restore step (callback consume, FedCM silent, /auth/silent iframe,
-          // stored-session, cookie-restore) still runs, so a returning signed-in
-          // user is silently restored. Without this, an anonymous web visitor is
-          // force-bounced to auth.<apex>/sso (a 400/"Sign-in error" on localhost),
-          // hijacking the public home. SDK-owned behavior (@oxyhq/services 10.4.0+).
-          disableAutoSso
         >
           <I18nextProvider i18n={i18n}>
             <AgoraProvider config={agoraConfig}>
