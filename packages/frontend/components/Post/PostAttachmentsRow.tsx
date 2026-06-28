@@ -119,8 +119,15 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   // requests the SAME variant the server now uses for that context so the two
   // paths agree (the `MEDIA_VARIANT_*` taxonomy in `@mention/shared-types`).
   const resolveMediaSrc = useCallback((mediaItem: MediaObj, context: 'thumb' | 'large' | 'playable') => {
+    const isGif = mediaItem.type === 'gif';
     if (context === 'playable') {
       const serverUrl = mediaItem.url || mediaItem.thumbUrl;
+      if (serverUrl) return serverUrl;
+    } else if (isGif) {
+      // GIFs animate only at the no-variant original; the thumb/full image
+      // variants are static first-frame webp. Prefer the original for every
+      // display context (card + lightbox).
+      const serverUrl = mediaItem.url || mediaItem.fullUrl || mediaItem.thumbUrl;
       if (serverUrl) return serverUrl;
     } else if (context === 'large') {
       const serverUrl = mediaItem.fullUrl || mediaItem.url || mediaItem.thumbUrl;
@@ -131,7 +138,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
     const id = String(mediaItem.id || '');
     if (!id) return '';
-    const fallbackVariant = context === 'playable'
+    const fallbackVariant = (context === 'playable' || isGif)
       ? undefined
       : (context === 'large' ? MEDIA_VARIANT_FULL : MEDIA_VARIANT_THUMB);
     try {

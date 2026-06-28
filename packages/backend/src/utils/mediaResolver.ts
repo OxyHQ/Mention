@@ -218,6 +218,21 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
         }
       }
 
+      if (item.type === 'gif' && !isAbsoluteHttpUrl(item.id)) {
+        // GIFs must animate. The Oxy image variants are STATIC — oxy-api
+        // variantService runs sharp() WITHOUT { animated:true }, so every variant is
+        // the first frame. Point all display URLs at the no-variant animated original.
+        const original = resolved.url || undefined;
+        return {
+          id: item.id,
+          type: item.type,
+          url: original,
+          thumbUrl: original,
+          posterUrl: original,
+          fullUrl: original,
+        };
+      }
+
       return {
         id: item.id,
         type: item.type,
