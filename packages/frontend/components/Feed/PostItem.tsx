@@ -12,7 +12,7 @@ import {
     PostRoomContent,
 } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
-import PostHeader, { HEADER_CONTENT_GAP } from '../Post/PostHeader';
+import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
@@ -543,6 +543,57 @@ const PostItem: React.FC<PostItemProps> = ({
     const THREAD_LINE_LEFT = HPAD + AVATAR_SIZE / 2 - 1;
     const THREAD_LINE_W = THREAD_LINE_WIDTH;
 
+    // Bluesky-style context rows (Reposted by / Pinned / Replying to), rendered as
+    // the first children of PostHeader's content column so the text aligns with the
+    // display name (no more pl-[60px] — same column as the name). Each row is fixed
+    // to POST_CONTEXT_ROW_HEIGHT so PostHeader can offset the avatar/menu back onto
+    // the name row deterministically. The icon keeps `-ml-4` to poke left into the
+    // avatar gutter; repost is the outermost reason, then pinned, then reply.
+    const contextRows: React.ReactNode[] = [];
+    if (repostedBy) {
+        contextRows.push(
+            <TouchableOpacity
+                key="reposted"
+                className="flex-row items-center"
+                style={{ height: POST_CONTEXT_ROW_HEIGHT }}
+                activeOpacity={0.7}
+                onPress={goToReposter}
+                accessibilityRole="link"
+            >
+                <View className="-ml-4 mr-[3px]">
+                    <BoostIcon size={13} color={theme.colors.textSecondary} />
+                </View>
+                <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName}
+                </Text>
+            </TouchableOpacity>,
+        );
+    }
+    if (showPinned) {
+        contextRows.push(
+            <View key="pinned" className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
+                <View className="-ml-4 mr-[3px]">
+                    <PinIcon size={13} className="text-muted-foreground" />
+                </View>
+                <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                    {t('post.pinned', { defaultValue: 'Pinned' })}
+                </Text>
+            </View>,
+        );
+    }
+    if (replyContextHandle) {
+        contextRows.push(
+            <View key="reply" className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
+                <View className="-ml-4 mr-[3px]">
+                    <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
+                </View>
+                <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                    {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
+                </Text>
+            </View>,
+        );
+    }
+
     return (
         <>
             <Container
@@ -598,46 +649,6 @@ const PostItem: React.FC<PostItemProps> = ({
                         }}
                     />
                 )}
-                {/* Bluesky-style context rows (Reposted by / Pinned / Replying to): the TEXT
-                    lines up with the header display name. pl-[60px] = HPAD 12 + avatar 36 +
-                    gap 12 — the 36 MUST match PostHeader's default avatarSize (PostItem passes
-                    no override), NOT AVATAR_OFFSET (64, which assumes a 40px avatar). The icon
-                    pulls left (-ml-4 = -16px) into the avatar gutter. */}
-                {repostedBy && (
-                    <TouchableOpacity
-                        className="flex-row items-center mb-1 pl-[60px]"
-                        activeOpacity={0.7}
-                        onPress={goToReposter}
-                        accessibilityRole="link"
-                    >
-                        <View className="-ml-4 mr-[3px]">
-                            <BoostIcon size={13} color={theme.colors.textSecondary} />
-                        </View>
-                        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                            {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName}
-                        </Text>
-                    </TouchableOpacity>
-                )}
-                {showPinned && (
-                    <View className="flex-row items-center mb-1 pl-[60px]">
-                        <View className="-ml-4 mr-[3px]">
-                            <PinIcon size={13} className="text-muted-foreground" />
-                        </View>
-                        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                            {t('post.pinned', { defaultValue: 'Pinned' })}
-                        </Text>
-                    </View>
-                )}
-                {replyContextHandle && (
-                    <View className="flex-row items-center mb-1 pl-[60px]">
-                        <View className="-ml-4 mr-[3px]">
-                            <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
-                        </View>
-                        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                            {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
-                        </Text>
-                    </View>
-                )}
                 <View style={{ gap: headerToBlocksGap }}>
                     <PostHeader
                         user={{
@@ -650,6 +661,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         date={metadata.createdAt}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
+                        contextTop={contextRows.length > 0 ? contextRows : undefined}
                         avatarSource={avatarSource}
                         avatarVariant={avatarVariant}
                         onPressUser={goToUser}
