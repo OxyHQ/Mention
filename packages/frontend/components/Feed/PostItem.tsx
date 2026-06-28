@@ -545,10 +545,10 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // Bluesky-style context rows (Reposted by / Pinned / Replying to), rendered as
     // the first children of PostHeader's content column so the text aligns with the
-    // display name (no more pl-[60px] — same column as the name). Each row is fixed
-    // to POST_CONTEXT_ROW_HEIGHT so PostHeader can offset the avatar/menu back onto
-    // the name row deterministically. The icon keeps `-ml-4` to poke left into the
-    // avatar gutter; repost is the outermost reason, then pinned, then reply.
+    // display name (no more pl-[60px] — same column as the name). Each row is a
+    // consistent POST_CONTEXT_ROW_HEIGHT tall; the avatar stays top-aligned (the
+    // column grows down). The icon keeps `-ml-4` to poke left into the avatar
+    // gutter; repost is the outermost reason, then pinned, then reply.
     const contextRows: React.ReactNode[] = [];
     if (repostedBy) {
         contextRows.push(
