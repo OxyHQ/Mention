@@ -770,6 +770,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     const createdPostObjects: object[] = [];
     let mainPostId: string | null = null;
+    let previousPostId: string | null = null;
 
     for (let i = 0; i < posts.length; i++) {
       const postData = posts[i];
@@ -913,11 +914,12 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           viewsCount: 0,
           sharesCount: 0
         },
-        // For thread mode: first post is main, others are linked to it
+        // For thread mode: chain each continuation post to the immediately
+        // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent
-        ...(mode === 'thread' && i > 0 && mainPostId ? {
-          parentPostId: mainPostId,
-          threadId: mainPostId
+        ...(mode === 'thread' && i > 0 && previousPostId ? {
+          parentPostId: previousPostId,   // chain to the immediately-previous post
+          threadId: mainPostId            // shared root for the whole thread
         } : {})
       });
 
@@ -955,6 +957,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       if (i === 0) {
         mainPostId = String(post._id);
       }
+
+      // Track the latest post so the next iteration chains onto it
+      previousPostId = String(post._id);
 
       createdPostObjects.push(post.toObject());
     }
