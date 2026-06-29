@@ -12,6 +12,17 @@ import { WebView } from 'react-native-webview';
 import { getPlayerAspect, type EmbedPlayerParams } from '@/utils/embedPlayer';
 import { ExternalEmbedPoster } from './ExternalEmbedPoster';
 
+// Exact hostname allowlist for in-WebView navigation on YouTube embeds.
+// Hostname comparison (not substring matching) so a crafted URL such as
+// `https://evil.com/?x=www.youtube.com` cannot pass the navigation gate.
+const YOUTUBE_NAV_HOSTS = new Set([
+  'www.youtube-nocookie.com',
+  'youtube-nocookie.com',
+  'www.youtube.com',
+  'youtube.com',
+  'm.youtube.com',
+]);
+
 export interface ExternalEmbedPlayerProps {
   params: EmbedPlayerParams;
   /** Link-preview thumbnail shown before the player is mounted. */
@@ -83,13 +94,18 @@ export function ExternalEmbedPlayer({
   );
 
   // Only load what we requested. YouTube embeds redirect within the
-  // youtube-nocookie / youtube.com origins, so allow those for the youtube
-  // sources; everything else must match the player URI exactly.
+  // youtube-nocookie / youtube.com origins, so allow those (by exact hostname)
+  // for the youtube sources; everything else must match the player URI exactly.
   const onShouldStartLoadWithRequest = useCallback(
-    (event: { url: string }) =>
-      event.url === params.playerUri ||
-      (params.source.startsWith('youtube') &&
-        (event.url.includes('youtube-nocookie.com') || event.url.includes('www.youtube.com'))),
+    (event: { url: string }) => {
+      if (event.url === params.playerUri) return true;
+      if (!params.source.startsWith('youtube')) return false;
+      try {
+        return YOUTUBE_NAV_HOSTS.has(new URL(event.url).hostname);
+      } catch {
+        return false;
+      }
+    },
     [params.playerUri, params.source],
   );
 

@@ -24,28 +24,37 @@ function getDoc(oxyUserId: string): Record<string, unknown> {
   return doc;
 }
 
+// Keys that could pollute Object.prototype if assigned via dot-notation.
+const FORBIDDEN_DOT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function setDot(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split('.');
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
+    if (FORBIDDEN_DOT_KEYS.has(parts[i])) return;
     const next = cur[parts[i]];
     if (typeof next !== 'object' || next === null) {
       cur[parts[i]] = {};
     }
     cur = cur[parts[i]] as Record<string, unknown>;
   }
-  cur[parts[parts.length - 1]] = value;
+  const last = parts[parts.length - 1];
+  if (FORBIDDEN_DOT_KEYS.has(last)) return;
+  cur[last] = value;
 }
 
 function unsetDot(obj: Record<string, unknown>, path: string): void {
   const parts = path.split('.');
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
+    if (FORBIDDEN_DOT_KEYS.has(parts[i])) return;
     const next = cur[parts[i]];
     if (typeof next !== 'object' || next === null) return;
     cur = next as Record<string, unknown>;
   }
-  delete cur[parts[parts.length - 1]];
+  const last = parts[parts.length - 1];
+  if (FORBIDDEN_DOT_KEYS.has(last)) return;
+  delete cur[last];
 }
 
 // Auth: inject a fixed authenticated user so the route runs without real tokens.
