@@ -13,6 +13,8 @@ import {
 } from '@mention/shared-types';
 import PostItem from './PostItem';
 import { PostErrorBoundary } from './PostErrorBoundary';
+import { SubtleHover } from '@/components/SubtleHover';
+import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { createScopedLogger } from '@/lib/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
@@ -63,6 +65,13 @@ export interface FeedRow {
     sliceReason?: FeedSliceReason;
     nestingDepth: number;
     truncatedChildCount: number;
+    /**
+     * For rows that belong to a real multi-post thread (slice with >1 item), the
+     * id of the thread's ROOT post (the first slice item). Tapping any post of
+     * the thread opens this root so the whole thread is shown. Undefined for
+     * standalone posts (single-item slices), which open their own detail.
+     */
+    threadRootId?: string;
 }
 
 export const MAX_THREAD_NESTING_DEPTH = 3;
@@ -99,6 +108,12 @@ export function buildFeedRows({
     if (slices && slices.length > 0) {
         const rows: FeedRow[] = [];
         for (const slice of slices) {
+            // Real threads (multi-post slices) share one root: the FIRST item's
+            // post. Every row of the thread carries it so a tap opens the whole
+            // thread at its root. Standalone slices (one item) leave it undefined.
+            const threadRootId = slice.items.length > 1
+                ? String(slice.items[0]?.post?.id ?? '')
+                : undefined;
             for (let i = 0; i < slice.items.length; i++) {
                 const sliceItem = slice.items[i];
                 const post = sliceItem.post as FeedItem;
@@ -120,6 +135,7 @@ export function buildFeedRows({
                     sliceReason: slice.reason,
                     nestingDepth: 0,
                     truncatedChildCount: 0,
+                    threadRootId,
                 });
             }
         }
@@ -244,6 +260,33 @@ export interface RenderFeedRowDeps {
 }
 
 /**
+ * The "Show this thread" affordance below an incomplete thread's last post.
+ * It participates in the thread-wide hover unit: hovering it lights up every
+ * post of the thread (and itself), and hovering any post lights it up too. Its
+ * own subscription is scoped via a zustand selector so it only re-renders when
+ * THIS slice's active state flips. A standalone component (not inline in
+ * `renderFeedRow`, which is a plain function) so the hook is tracked by React.
+ */
+const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({ sliceKey, onPress }) => {
+    const active = useThreadHoverStore((s) => s.hoveredSliceKey === sliceKey);
+    const setHoveredSlice = useThreadHoverStore((s) => s.setHoveredSlice);
+    return (
+        <Pressable
+            className="border-border"
+            style={styles.showThreadLink}
+            onPress={onPress}
+            onHoverIn={() => setHoveredSlice(sliceKey)}
+            onHoverOut={() => setHoveredSlice(null)}
+        >
+            <SubtleHover active={active} />
+            <Text className="text-primary text-sm font-medium">
+                Show this thread
+            </Text>
+        </Pressable>
+    );
+};
+
+/**
  * Render a single feed row (PostItem + thread/slice affordances). Shared by both
  * platform Feed implementations so the row markup never diverges.
  */
@@ -284,17 +327,15 @@ export function renderFeedRow(row: FeedRow, { router, primaryColor, feedDescript
                 replyContextAuthor={boostedOriginal ? undefined : replyContextAuthor}
                 repostedBy={boostedOriginal ? boostCtx?.actor : undefined}
                 feedDescriptor={feedDescriptor}
+                sliceKey={row.sliceKey}
+                threadRootId={row.threadRootId}
+                isThread={row.isThreadParent || row.isThreadChild}
             />
             {showThreadLink && (
-                <Pressable
-                    className="border-border"
-                    style={styles.showThreadLink}
+                <ShowThreadLink
+                    sliceKey={row.sliceKey}
                     onPress={() => router.push(`/p/${renderedPostId}`)}
-                >
-                    <Text className="text-primary text-sm font-medium">
-                        Show this thread
-                    </Text>
-                </Pressable>
+                />
             )}
             {showMoreReplies && (
                 <Pressable

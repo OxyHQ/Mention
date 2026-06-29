@@ -43,6 +43,7 @@ import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } fro
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@/components/SubtleHover';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
+import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
@@ -101,6 +102,17 @@ interface PostItemProps {
      * this feed. Absent for non-feed renders (post detail, nested previews).
      */
     feedDescriptor?: string;
+    /**
+     * Thread "unit" wiring (feed rows only). All rows of one thread share the
+     * same `sliceKey`; `isThread` is true when this row is part of a multi-post
+     * thread, and `threadRootId` is the thread's root post id. Together they make
+     * the whole thread behave as one unit: hovering any post highlights every
+     * post of the thread (via the shared `threadHoverStore`), and tapping any
+     * post opens the thread at its root. Absent/false for standalone posts.
+     */
+    sliceKey?: string;
+    threadRootId?: string;
+    isThread?: boolean;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -118,6 +130,9 @@ const PostItem: React.FC<PostItemProps> = ({
     repostedBy,
     isPostDetail: isPostDetailProp = false,
     feedDescriptor,
+    sliceKey,
+    threadRootId,
+    isThread = false,
 }) => {
     const { user: authUser } = useAuth();
     const isPremium = (authUser as { premium?: { isPremium?: boolean } } | null)?.premium?.isPremium ?? false;
@@ -247,6 +262,19 @@ const PostItem: React.FC<PostItemProps> = ({
     const onDetailRoute = (pathname || '').startsWith('/p/');
     const isDetailMain = isPostDetailProp && !isNested;
     const isTappable = isNested || !onDetailRoute;
+
+    // A thread (multi-post slice) behaves as one unit: every row shares one
+    // `sliceKey`, hovering any row highlights them all, and tapping any row opens
+    // the thread at its `threadRootId`. Standalone posts have no slice wiring and
+    // keep per-post hover + their own detail target.
+    const isThreadUnit = Boolean(isThread && sliceKey);
+    const setHoveredSlice = useThreadHoverStore((s) => s.setHoveredSlice);
+    // Scoped selector: only THIS slice's active boolean — a post re-renders only
+    // when its own active state flips, never on unrelated hover changes.
+    const isThreadHoverActive = useThreadHoverStore(
+        (s) => isThreadUnit && s.hoveredSliceKey === sliceKey,
+    );
+
     const goToPost = useCallback((event?: GestureResponderEvent) => {
         // A nested item is its OWN tap target: opening it must NOT also trigger the
         // outer post's press. On React Native Web the press bubbles through the DOM,
@@ -262,9 +290,12 @@ const PostItem: React.FC<PostItemProps> = ({
             if (feedDescriptor) {
                 reportFeedInteraction(feedDescriptor, viewPostId, 'click');
             }
-            router.push(`/p/${viewPostId}`);
+            // Thread posts open the whole thread at its root; standalone posts
+            // open their own detail.
+            const targetPostId = isThreadUnit && threadRootId ? threadRootId : viewPostId;
+            router.push(`/p/${targetPostId}`);
         }
-    }, [router, viewPostId, isTappable, feedDescriptor, isNested]);
+    }, [router, viewPostId, isTappable, feedDescriptor, isNested, isThreadUnit, threadRootId]);
 
     const goToUser = useCallback(() => {
         const handle = getNormalizedUserHandle({
@@ -630,8 +661,16 @@ const PostItem: React.FC<PostItemProps> = ({
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
                 {...(isTappable ? { onPress: goToPost } : {})}
+                {...(isThreadUnit
+                    ? {
+                        onHoverIn: () => setHoveredSlice(sliceKey ?? null),
+                        onHoverOut: () => setHoveredSlice(null),
+                    }
+                    : {})}
             >
-                {isTappable && <SubtleHover />}
+                {isTappable && (isThreadUnit
+                    ? <SubtleHover active={isThreadHoverActive} />
+                    : <SubtleHover />)}
                 {/* Thread line above avatar — connects from previous post's bottom.
                     Ends `headerTopOffset` below the top, leaving the same small gap
                     before the avatar as the below-avatar line has (tracking the
@@ -916,6 +955,9 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prevProps.attachedBelow === nextProps.attachedBelow &&
         prevProps.isPostDetail === nextProps.isPostDetail &&
         prevProps.feedDescriptor === nextProps.feedDescriptor &&
+        prevProps.sliceKey === nextProps.sliceKey &&
+        prevProps.threadRootId === nextProps.threadRootId &&
+        prevProps.isThread === nextProps.isThread &&
         // Same original post id can be reposted by different actors across rows;
         // compare the booster so a recycled row never shows a stale "Reposted by".
         prevProps.repostedBy?.id === nextProps.repostedBy?.id
