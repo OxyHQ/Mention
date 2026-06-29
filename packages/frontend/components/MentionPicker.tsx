@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@oxyhq/services";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { logger } from '@/lib/logger';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 export interface MentionUser {
     id: string;
@@ -141,7 +142,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                                         style={styles.userName}
                                         numberOfLines={1}
                                     >
-                                        {hasName ? item.displayName : `@${item.username}`}
+                                        {displayNameOrHandle(item.displayName, `@${item.username}`)}
                                     </Text>
                                     {item.verified && (
                                         <Text style={styles.verifiedBadge}>✓</Text>

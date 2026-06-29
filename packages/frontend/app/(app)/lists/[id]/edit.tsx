@@ -18,6 +18,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@/lib/logger';
 import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxyhq/core';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 interface MemberProfile {
   id: string;
@@ -83,7 +84,7 @@ export default function EditListMembersScreen() {
         .map((profile) => ({
           id: profile.id,
           username: profile.username,
-          name: { displayName: profile.name.displayName ?? profile.username },
+          name: { displayName: displayNameOrHandle(profile.name.displayName, profile.username) },
           avatar: profile.avatar ?? undefined,
         }));
       setMembers(profiles);
@@ -119,7 +120,7 @@ export default function EditListMembersScreen() {
         setResults(res.data.map((profile: User) => ({
           id: profile.id,
           username: profile.username,
-          name: { displayName: profile.name.displayName ?? profile.username },
+          name: { displayName: displayNameOrHandle(profile.name.displayName, profile.username) },
           avatar: profile.avatar ?? undefined,
         })));
       } catch (e) {

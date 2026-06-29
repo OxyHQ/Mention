@@ -23,6 +23,7 @@ import { precacheProfileView } from '@/lib/precacheProfiles';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 type NotificationPost = React.ComponentProps<typeof PostItem>['post'];
 
@@ -214,7 +215,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     );
 
     const buildTitle = useCallback((type: string, name: string) => {
-        const display = name || transformedNotification.actorName || (actorHandle ? `@${actorHandle}` : 'Someone');
+        const display = displayNameOrHandle(name, transformedNotification.actorName || (actorHandle ? `@${actorHandle}` : 'Someone'));
         switch (type) {
             case 'like':
                 return t('notification.like', { actorName: display });

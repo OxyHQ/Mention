@@ -5,6 +5,7 @@ import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 /**
  * ProfileCard Component
@@ -81,7 +82,7 @@ export function ProfileCard({
             className="text-base font-semibold"
             style={{ lineHeight: 20 }}
             numberOfLines={1}>
-            {hasName ? profile.name.displayName : `@${profile.username}`}
+            {displayNameOrHandle(profile.name.displayName, `@${profile.username}`)}
           </ThemedText>
           <View className="flex-row items-center gap-1">
             {hasName && (
