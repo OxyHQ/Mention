@@ -252,8 +252,8 @@ const Feed = ((props: FeedProps) => {
 
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item: row }: { item: FeedRow; index: number }) => {
-        return renderFeedRow(row, { router, primaryColor: theme.colors.primary, feedDescriptor });
-    }, [router, theme.colors.primary, feedDescriptor]);
+        return renderFeedRow(row, { router, threadLineColor: theme.colors.border, feedDescriptor });
+    }, [router, theme.colors.border, feedDescriptor]);
 
     // Impression tracking: reconcile the full viewable set on each change.
     // FlashList REQUIRES a stable onViewableItemsChanged identity (it warns/throws

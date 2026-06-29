@@ -250,7 +250,7 @@ export function feedRowType(row: FeedRow): string {
 
 export interface RenderFeedRowDeps {
     router: ReturnType<typeof useRouter>;
-    primaryColor: string;
+    threadLineColor: string;
     /**
      * Descriptor of the feed this row belongs to. Threaded into `PostItem` so a
      * tap that opens the post detail reports a `click` interaction attributed to
@@ -290,7 +290,7 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({ s
  * Render a single feed row (PostItem + thread/slice affordances). Shared by both
  * platform Feed implementations so the row markup never diverges.
  */
-export function renderFeedRow(row: FeedRow, { router, primaryColor, feedDescriptor }: RenderFeedRowDeps): React.ReactElement | null {
+export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescriptor }: RenderFeedRowDeps): React.ReactElement | null {
     const post = row.item;
     if (!post || !post.id) {
         logger.warn('Invalid post item', { post });
@@ -353,7 +353,7 @@ export function renderFeedRow(row: FeedRow, { router, primaryColor, feedDescript
     if (nestPadding) {
         return (
             <View style={[styles.nestedRow, nestPadding]}>
-                <View style={[styles.nestedThreadLine, { backgroundColor: `${primaryColor}30` }]} />
+                <View style={[styles.nestedThreadLine, { backgroundColor: threadLineColor }]} />
                 {content}
             </View>
         );
