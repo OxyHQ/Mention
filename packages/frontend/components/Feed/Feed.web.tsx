@@ -210,7 +210,7 @@ function EmbeddedWebFeed(props: FeedProps) {
                 <View style={merged.contentContainerStyle}>
                     {feedRows.map((row) => (
                         <View key={feedRowKey(row)}>
-                            {renderFeedRow(row, { router, primaryColor: theme.colors.primary })}
+                            {renderFeedRow(row, { router, threadLineColor: theme.colors.border })}
                         </View>
                     ))}
                 </View>
@@ -473,7 +473,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                                             transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
                                         }}
                                     >
-                                        {renderFeedRow(row, { router, primaryColor: theme.colors.primary, feedDescriptor })}
+                                        {renderFeedRow(row, { router, threadLineColor: theme.colors.border, feedDescriptor })}
                                     </div>
                                 );
                             })}

@@ -683,7 +683,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             left: THREAD_LINE_LEFT,
                             width: THREAD_LINE_W,
                             height: headerTopOffset,
-                            backgroundColor: `${theme.colors.primary}30`,
+                            backgroundColor: theme.colors.border,
                             borderRadius: THREAD_LINE_BORDER_RADIUS,
                             zIndex: THREAD_LINE_Z_INDEX,
                         }}
@@ -699,7 +699,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             left: THREAD_LINE_LEFT,
                             width: THREAD_LINE_W,
                             bottom: 0,
-                            backgroundColor: `${theme.colors.primary}30`,
+                            backgroundColor: theme.colors.border,
                             borderRadius: THREAD_LINE_BORDER_RADIUS,
                             zIndex: THREAD_LINE_Z_INDEX,
                         }}
