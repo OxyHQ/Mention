@@ -64,6 +64,12 @@ interface PostItemProps {
     isThreadChild?: boolean;
     isThreadLastChild?: boolean;
     /**
+     * When something is rendered flush below this post (e.g. a "Show this thread"
+     * link), drop the container's bottom border + padding so the post connects to
+     * it as one block. The element below then owns the single bottom separator.
+     */
+    attachedBelow?: boolean;
+    /**
      * When this row is a reply surfaced into a feed for context (slice reason
      * `replyContext`), the parent author it replies to. Renders a muted
      * "Replying to @handle" row in the avatar-gutter lane above the header,
@@ -107,6 +113,7 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadParent = false,
     isThreadChild = false,
     isThreadLastChild = false,
+    attachedBelow = false,
     replyContextAuthor,
     repostedBy,
     isPostDetail: isPostDetailProp = false,
@@ -617,6 +624,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     // Thread spacing adjustments
                     isThreadParent && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
                     isThreadChild && !isThreadLastChild && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
+                    attachedBelow && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
                     isThreadChild && !isNested && { paddingTop: 4 },
                     style,
                 ]}
@@ -905,6 +913,7 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prevProps.isThreadParent === nextProps.isThreadParent &&
         prevProps.isThreadChild === nextProps.isThreadChild &&
         prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
+        prevProps.attachedBelow === nextProps.attachedBelow &&
         prevProps.isPostDetail === nextProps.isPostDetail &&
         prevProps.feedDescriptor === nextProps.feedDescriptor &&
         // Same original post id can be reposted by different actors across rows;

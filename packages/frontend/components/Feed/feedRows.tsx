@@ -279,6 +279,7 @@ export function renderFeedRow(row: FeedRow, { router, primaryColor, feedDescript
                 isThreadParent={row.isThreadParent}
                 isThreadChild={row.isThreadChild}
                 isThreadLastChild={row.isThreadLastChild}
+                attachedBelow={showThreadLink}
                 nestingDepth={row.nestingDepth}
                 replyContextAuthor={boostedOriginal ? undefined : replyContextAuthor}
                 repostedBy={boostedOriginal ? boostCtx?.actor : undefined}
