@@ -13,6 +13,7 @@ import {
 } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
+import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import {
   ZoomableImageGallery,
@@ -567,6 +568,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               description={item.description}
               image={item.image}
               siteName={item.siteName}
+              constrainedHeight={items.length > 1 ? MEDIA_CARD_HEIGHT : undefined}
             />
           );
         }

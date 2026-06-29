@@ -8,6 +8,13 @@ interface PostAttachmentLinkProps {
   description?: string;
   image?: string;
   siteName?: string;
+  /**
+   * When set, the card is bound to this height and the cover image flexes to
+   * fill it (`coverFill`) so the link matches the media row's item height when
+   * it shares the horizontal attachment row. Left undefined when the link is
+   * the sole attachment, keeping the card's intrinsic sizing.
+   */
+  constrainedHeight?: number;
   style?: ViewStyle;
 }
 
@@ -21,6 +28,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   description,
   image,
   siteName,
+  constrainedHeight,
   style,
 }) => {
   return (
@@ -31,7 +39,8 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       image={image}
       siteName={siteName}
       className="w-[280px]"
-      style={[webGrabCursorStyle, style]}
+      coverFill={constrainedHeight !== undefined}
+      style={[constrainedHeight !== undefined ? { height: constrainedHeight } : null, webGrabCursorStyle, style]}
     />
   );
 };
