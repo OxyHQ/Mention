@@ -278,10 +278,6 @@ const PostDetailScreen: React.FC = () => {
                     onComposePress={handleOpenReply}
                     promptText={t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })}
                 />
-
-                <View className="px-4 pt-4 pb-2">
-                    <Text className="text-lg font-semibold text-foreground">{t('Replies')}</Text>
-                </View>
             </View>
         );
     }, [post, ancestors, handleOpenReply, user, t]);
