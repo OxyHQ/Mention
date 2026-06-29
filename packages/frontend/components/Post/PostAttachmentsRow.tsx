@@ -25,12 +25,15 @@ import type { MeasureThumb } from '@/components/ZoomableImageGallery';
 import {
   PostAttachmentArticle,
   PostAttachmentLink,
+  PostAttachmentExternalEmbed,
   PostAttachmentMedia,
   PostAttachmentPoll,
   PostAttachmentNested,
   PostAttachmentEvent,
   PostAttachmentRoom,
 } from './Attachments';
+import { parseEmbedPlayerFromUrl } from '@/utils/embedPlayer';
+import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 
 // Runtime media reference. The server now resolves final URLs (`url`, `thumbUrl`,
 // `posterUrl`, `fullUrl`); `id` remains for the legacy fallback path (old cached
@@ -102,6 +105,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 }) => {
   const router = useRouter();
   const { oxyServices } = useAuth();
+  // Per-provider external-embed prefs, read once (selector) so the link branch
+  // can decide between the inline player and the static card without a hook in
+  // the render loop.
+  const embedPrefs = useExternalEmbedsStore((state) => state.prefs);
 
   const mediaArray = useMemo(() => Array.isArray(media) ? media : [], [media]);
   const attachmentDescriptors = useMemo(() => Array.isArray(attachments) ? attachments : [], [attachments]);
@@ -554,6 +561,23 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           );
         }
         if (item.type === 'link') {
+          // Embeddable provider URL (and not hidden by the viewer) → render the
+          // inline external player as the post's primary media. Otherwise keep
+          // the static link-preview card.
+          const embedParams = parseEmbedPlayerFromUrl(item.url);
+          if (embedParams && embedPrefs[embedParams.source] !== 'hide') {
+            return (
+              <PostAttachmentExternalEmbed
+                key={`embed-${idx}`}
+                url={item.url}
+                title={item.title}
+                description={item.description}
+                image={item.image}
+                siteName={item.siteName}
+                width={nestedWidth}
+              />
+            );
+          }
           return (
             <PostAttachmentLink
               key={`link-${idx}`}

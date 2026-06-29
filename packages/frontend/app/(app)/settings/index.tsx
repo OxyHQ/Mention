@@ -192,6 +192,12 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/settings/accessibility')}
                     />
                     <SettingsListItem
+                        icon={<RowIcon name="play-circle-outline" />}
+                        title={t('settings.externalMedia.title', { defaultValue: 'External Media Preferences' })}
+                        description={t('settings.externalMedia.description', { defaultValue: 'Inline players for YouTube, Spotify, and more' })}
+                        onPress={() => router.push('/settings/external-media')}
+                    />
+                    <SettingsListItem
                         icon={<RowIcon name="chatbubbles-outline" />}
                         title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
                         description={t('settings.threadPreferences.description', { defaultValue: 'Reply sorting, thread display' })}

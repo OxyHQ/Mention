@@ -4,6 +4,7 @@ import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/uti
 import { createScopedLogger } from '@/lib/logger';
 import { useAuth } from '@oxyhq/services';
 import type { FeedSettings } from '@/hooks/useFeedSettings';
+import type { ExternalEmbedsSettings } from '@mention/shared-types';
 
 const logger = createScopedLogger('usePrivacySettings');
 
@@ -62,6 +63,7 @@ export interface UserSettingsResponse {
     privacy?: PrivacySettings;
     feedSettings?: FeedSettings;
     notificationPreferences?: NotificationPreferences;
+    externalEmbeds?: ExternalEmbedsSettings;
     createdAt?: string;
     updatedAt?: string;
 }

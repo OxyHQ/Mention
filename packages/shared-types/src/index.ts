@@ -32,6 +32,9 @@ export * from './analytics';
 // Feed types
 export * from './feed';
 
+// External media embed preferences
+export * from './externalEmbeds';
+
 // Custom feeds (user-created timelines)
 export * from './customFeed';
 
