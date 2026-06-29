@@ -28,6 +28,7 @@ import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 import { fetchRecommendations } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
+import { displayNameOrHandle } from '@/utils/displayName';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
@@ -397,7 +398,7 @@ function ConnectionsContent({
           <Avatar source={avatarSource || undefined} size={48} />
           <View className="ml-3 flex-1">
             <ThemedText className="font-semibold text-base text-foreground" numberOfLines={1}>
-              {hasName ? item.name?.displayName : `@${handle}`}
+              {displayNameOrHandle(item.name?.displayName, `@${handle}`)}
             </ThemedText>
             {hasName ? (
               <ThemedText className="pt-0.5 text-sm text-muted-foreground" numberOfLines={1}>

@@ -48,6 +48,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -567,7 +568,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const replyContextHandle = replyContextAuthor?.handle || replyContextAuthor?.displayName;
 
-    const postAuthor = viewPost.user.displayName?.trim() || `@${viewPost.user.handle}`;
+    const postAuthor = displayNameOrHandle(viewPost.user.displayName, `@${viewPost.user.handle}`);
     const postTextSummary = content.text
         ? content.text.length > 80
             ? content.text.substring(0, 80) + '...'
@@ -602,7 +603,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     <BoostIcon size={13} color={theme.colors.textSecondary} />
                 </View>
                 <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName?.trim() || `@${repostedBy.handle}`}
+                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(repostedBy.displayName, `@${repostedBy.handle}`)}
                 </Text>
             </TouchableOpacity>,
         );

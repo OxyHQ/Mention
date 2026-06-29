@@ -5,6 +5,7 @@ import type { User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/store/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 import type { Community } from '@/components/Profile/types';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
@@ -82,7 +83,7 @@ function computeDesign(
       : undefined;
 
   return {
-    displayName: profile.name.displayName ?? profile.username,
+    displayName: displayNameOrHandle(profile.name.displayName, profile.username),
     bannerUrl: appearance?.profileHeaderImage,
     avatar: profile.avatar ?? undefined,
     coverPhotoEnabled: appearance?.profileCustomization?.coverPhotoEnabled ?? true,

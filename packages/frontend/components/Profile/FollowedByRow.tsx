@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import { useMutualFollowers } from '@/hooks/useMutualFollowers';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 interface FollowedByRowProps {
   /** Id of the profile being viewed. */
@@ -32,7 +33,7 @@ export const FollowedByRow = memo(function FollowedByRow({ profileId, username }
         id: mutual.id,
         uri: mutual.avatar,
         // Fall back to the handle when a mutual has no display name.
-        displayName: mutual.name.displayName?.trim() || mutual.username,
+        displayName: displayNameOrHandle(mutual.name.displayName, mutual.username),
         username: mutual.username,
       })),
     [mutuals],
@@ -44,8 +45,8 @@ export const FollowedByRow = memo(function FollowedByRow({ profileId, username }
     return null;
   }
 
-  const name1 = mutuals[0].name.displayName?.trim() || mutuals[0].username;
-  const name2 = mutuals[1] ? (mutuals[1].name.displayName?.trim() || mutuals[1].username) : undefined;
+  const name1 = displayNameOrHandle(mutuals[0].name.displayName, mutuals[0].username);
+  const name2 = mutuals[1] ? displayNameOrHandle(mutuals[1].name.displayName, mutuals[1].username) : undefined;
 
   let label: string;
   if (total === 1 || !name2) {

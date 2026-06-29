@@ -18,6 +18,7 @@ import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 
 import SEO from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@/lib/logger';
 import { queryClient } from '@/lib/queryClient';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
@@ -72,7 +73,7 @@ export default function StarterPackDetailScreen() {
           .map((profile) => ({
             id: profile.id,
             username: profile.username,
-            displayName: profile.name.displayName ?? profile.username,
+            displayName: displayNameOrHandle(profile.name.displayName, profile.username),
             avatar: profile.avatar ?? undefined,
           }));
         setMembers(profiles);

@@ -24,6 +24,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
+import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { queryClient } from '@/lib/queryClient';
@@ -105,7 +106,7 @@ export default function EditStarterPackScreen() {
         .map((profile) => ({
           id: profile.id,
           username: profile.username,
-          name: { displayName: profile.name.displayName ?? profile.username },
+          name: { displayName: displayNameOrHandle(profile.name.displayName, profile.username) },
           avatar: profile.avatar ?? undefined,
         }));
       setMembers(profiles);
@@ -141,7 +142,7 @@ export default function EditStarterPackScreen() {
         setResults(res.data.map((profile: User) => ({
           id: profile.id,
           username: profile.username,
-          name: { displayName: profile.name.displayName ?? profile.username },
+          name: { displayName: displayNameOrHandle(profile.name.displayName, profile.username) },
           avatar: profile.avatar ?? undefined,
         })));
       } catch (e) {

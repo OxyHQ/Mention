@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@/lib/logger';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 interface User {
   id: string;
@@ -95,7 +96,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
         <View className="flex-1">
           <View className="flex-row items-center">
             <Text className="text-foreground text-base font-semibold" numberOfLines={1}>
-              {hasName ? item.displayName : `@${item.handle}`}
+              {displayNameOrHandle(item.displayName, `@${item.handle}`)}
             </Text>
             {item.verified && (
               <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />
