@@ -82,7 +82,7 @@ function computeDesign(
       : undefined;
 
   return {
-    displayName: profile.name.displayName,
+    displayName: profile.name.displayName ?? profile.username,
     bannerUrl: appearance?.profileHeaderImage,
     avatar: profile.avatar ?? undefined,
     coverPhotoEnabled: appearance?.profileCustomization?.coverPhotoEnabled ?? true,

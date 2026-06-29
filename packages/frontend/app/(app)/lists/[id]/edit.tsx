@@ -83,7 +83,7 @@ export default function EditListMembersScreen() {
         .map((profile) => ({
           id: profile.id,
           username: profile.username,
-          name: profile.name,
+          name: { displayName: profile.name.displayName ?? profile.username },
           avatar: profile.avatar ?? undefined,
         }));
       setMembers(profiles);
@@ -119,7 +119,7 @@ export default function EditListMembersScreen() {
         setResults(res.data.map((profile: User) => ({
           id: profile.id,
           username: profile.username,
-          name: profile.name,
+          name: { displayName: profile.name.displayName ?? profile.username },
           avatar: profile.avatar ?? undefined,
         })));
       } catch (e) {

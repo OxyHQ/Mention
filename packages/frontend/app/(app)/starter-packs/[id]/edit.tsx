@@ -105,7 +105,7 @@ export default function EditStarterPackScreen() {
         .map((profile) => ({
           id: profile.id,
           username: profile.username,
-          name: { displayName: profile.name.displayName },
+          name: { displayName: profile.name.displayName ?? profile.username },
           avatar: profile.avatar ?? undefined,
         }));
       setMembers(profiles);
@@ -141,7 +141,7 @@ export default function EditStarterPackScreen() {
         setResults(res.data.map((profile: User) => ({
           id: profile.id,
           username: profile.username,
-          name: { displayName: profile.name.displayName },
+          name: { displayName: profile.name.displayName ?? profile.username },
           avatar: profile.avatar ?? undefined,
         })));
       } catch (e) {

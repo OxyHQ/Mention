@@ -72,7 +72,7 @@ export default function StarterPackDetailScreen() {
           .map((profile) => ({
             id: profile.id,
             username: profile.username,
-            displayName: profile.name.displayName,
+            displayName: profile.name.displayName ?? profile.username,
             avatar: profile.avatar ?? undefined,
           }));
         setMembers(profiles);
