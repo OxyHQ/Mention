@@ -29,7 +29,6 @@ export type PeriodicTaskName =
   | 'refreshStaleActors'
   | 'syncFollowedActorsPosts'
   | 'syncRecentOutboxBackfills'
-  | 'backfillFederatedPostOxyUserIds'
   | 'runMediaCacheWorker'
   | 'runMediaCacheEviction'
   | 'computeInterestScores'

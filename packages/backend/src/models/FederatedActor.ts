@@ -26,7 +26,6 @@ export interface IFederatedActor extends Document {
   username: string;
   domain: string;
   acct: string;
-  displayName?: string;
   summary?: string;
   avatarUrl?: string;
   headerUrl?: string;
@@ -63,7 +62,6 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   username: { type: String, required: true },
   domain: { type: String, required: true, index: true },
   acct: { type: String, required: true, unique: true, index: true },
-  displayName: { type: String },
   summary: { type: String },
   avatarUrl: { type: String },
   headerUrl: { type: String },

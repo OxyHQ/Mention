@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { User as OxyUser } from '@oxyhq/core';
 import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
@@ -9,7 +10,7 @@ import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
 import { FEDERATION_ENABLED } from '../utils/federation/constants';
 import { postHydrationService } from '../services/PostHydrationService';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
@@ -62,6 +63,49 @@ function hasUnavailableCurrentOutbox(actor: { outboxUrl?: string; outboxBackfill
     && actor.outboxBackfill?.outboxUrl === actor.outboxUrl
     && actor.outboxBackfill.status === 'unavailable',
   );
+}
+
+/**
+ * Resolve the canonical Oxy `name.displayName` for a batch of federated actors,
+ * keyed by actor URI.
+ *
+ * Display names are owned by the Oxy API (`name.displayName`) and are the SINGLE
+ * source of truth — Mention never reads a local `FederatedActor` name copy.
+ * Actors are batch-resolved by their `oxyUserId` through the service client
+ * (mirrors `PostHydrationService.resolveUserSummaries`). An actor whose Oxy user
+ * is missing from the response is omitted, so the caller falls back to the
+ * actor's `@<acct>` handle.
+ */
+async function resolveActorDisplayNamesByUri(
+  actors: Array<{ uri: string; oxyUserId?: string }>,
+): Promise<Map<string, string>> {
+  const byUri = new Map<string, string>();
+  const oxyUserIds = Array.from(
+    new Set(actors.map((a) => a.oxyUserId).filter((id): id is string => Boolean(id))),
+  );
+  if (oxyUserIds.length === 0) return byUri;
+
+  let users: OxyUser[] = [];
+  try {
+    users = await getServiceOxyClient().getUsersByIds(oxyUserIds);
+  } catch (err) {
+    logger.warn('Failed to resolve Oxy display names for federated actors:', err);
+    return byUri;
+  }
+
+  const nameByOxyId = new Map<string, string>();
+  for (const user of users) {
+    const id = String((user as { id?: unknown }).id ?? '');
+    const displayName = user.name.displayName;
+    if (id && displayName) nameByOxyId.set(id, displayName);
+  }
+
+  for (const actor of actors) {
+    if (!actor.oxyUserId) continue;
+    const displayName = nameByOxyId.get(actor.oxyUserId);
+    if (displayName) byUri.set(actor.uri, displayName);
+  }
+  return byUri;
 }
 
 // --- Routes ---
@@ -141,15 +185,17 @@ router.get('/following', async (req: AuthRequest, res: Response) => {
     const actorUris = follows.map((f) => f.remoteActorUri);
     const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean();
     const actorMap = new Map(actors.map((a) => [a.uri, a]));
+    const displayNameByUri = await resolveActorDisplayNamesByUri(actors);
 
     const results = follows.map((f) => {
       const actor = actorMap.get(f.remoteActorUri);
+      const handleFallback = actor ? `@${actor.acct}` : f.remoteActorUri;
       return {
         actorUri: f.remoteActorUri,
         handle: actor?.username || 'unknown',
         instance: actor?.domain || 'unknown',
-        fullHandle: actor ? `@${actor.acct}` : f.remoteActorUri,
-        displayName: actor?.displayName ?? actor?.username ?? 'Unknown',
+        fullHandle: handleFallback,
+        displayName: (actor && displayNameByUri.get(actor.uri)) || handleFallback,
         avatarUrl: actor?.avatarUrl,
         isFollowing: f.status === 'accepted',
         isFollowPending: f.status === 'pending',
@@ -182,15 +228,17 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
     const actorUris = follows.map((f) => f.remoteActorUri);
     const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean();
     const actorMap = new Map(actors.map((a) => [a.uri, a]));
+    const displayNameByUri = await resolveActorDisplayNamesByUri(actors);
 
     const results = follows.map((f) => {
       const actor = actorMap.get(f.remoteActorUri);
+      const handleFallback = actor ? `@${actor.acct}` : f.remoteActorUri;
       return {
         actorUri: f.remoteActorUri,
         handle: actor?.username || 'unknown',
         instance: actor?.domain || 'unknown',
-        fullHandle: actor ? `@${actor.acct}` : f.remoteActorUri,
-        displayName: actor?.displayName ?? actor?.username ?? 'Unknown',
+        fullHandle: handleFallback,
+        displayName: (actor && displayNameByUri.get(actor.uri)) || handleFallback,
         avatarUrl: actor?.avatarUrl,
       };
     });

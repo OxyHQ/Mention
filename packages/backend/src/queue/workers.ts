@@ -122,9 +122,6 @@ async function processPeriodicJob(job: Job<PeriodicJobData>): Promise<void> {
     case 'syncRecentOutboxBackfills':
       await federationJobScheduler.syncRecentOutboxBackfills();
       break;
-    case 'backfillFederatedPostOxyUserIds':
-      await federationJobScheduler.backfillFederatedPostOxyUserIds();
-      break;
     case 'runMediaCacheWorker':
       await federationJobScheduler.runMediaCacheWorker();
       break;

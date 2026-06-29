@@ -104,7 +104,6 @@ export const DELIVERY_DRAIN_PAGE_SIZE = 500;
 export const PERIODIC_REFRESH_STALE_ACTORS = 'federation:refresh-stale-actors';
 export const PERIODIC_SYNC_FOLLOWED_OUTBOX = 'federation:sync-followed-outbox';
 export const PERIODIC_RECENT_OUTBOX_BACKFILL = 'federation:recent-outbox-backfill';
-export const PERIODIC_BACKFILL_OXY_USER_IDS = 'federation:backfill-oxy-user-ids';
 export const PERIODIC_MEDIA_CACHE_WORKER = 'federation:media-cache-worker';
 export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
 
@@ -127,14 +126,6 @@ export const PERIODIC_FLUSH_ENDORSEMENT_OUTBOX = 'recommendations:flush-endorsem
 export const REFRESH_STALE_ACTORS_INTERVAL_MS = 6 * MS_PER_HOUR;
 export const SYNC_FOLLOWED_OUTBOX_INTERVAL_MS = 15 * MS_PER_MINUTE;
 export const RECENT_OUTBOX_BACKFILL_INTERVAL_MS = 15 * MS_PER_MINUTE;
-
-/**
- * Cadence for the one-shot-style oxyUserId backfill. The legacy scheduler ran
- * this once at +10s after boot. As a repeatable job it runs hourly; the task
- * itself is a no-op once there is nothing left to backfill (it early-returns on
- * an empty result set), so a slow cadence keeps the safety net without cost.
- */
-export const BACKFILL_OXY_USER_IDS_INTERVAL_MS = 1 * MS_PER_HOUR;
 
 /**
  * Interest-score recompute cadence. Engagement aggregation over a 30-day window

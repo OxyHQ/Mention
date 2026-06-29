@@ -26,14 +26,12 @@ const BOOSTER_OXY_ID = 'oxy-booster';
 const ORIGINAL_AUTHOR_OXY_ID = 'oxy-original-author';
 const VIEWER_ID = 'oxy-viewer';
 
-const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federatedActorFind, federatedActorQueryState } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
   postFind: vi.fn(),
   postFindOne: vi.fn(),
-  federatedActorFind: vi.fn(),
-  federatedActorQueryState: { limit: undefined as number | undefined, maxTimeMS: undefined as number | undefined },
 }));
 
 vi.mock('../../../server', () => ({
@@ -45,7 +43,11 @@ vi.mock('../../../server', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds, getLinkPreviews: vi.fn(async () => ({})) }),
+  getServiceOxyClient: () => ({
+    getUsersByIds,
+    getLinkPreviews: vi.fn(async () => ({})),
+    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+  }),
 }));
 
 // Privacy helpers: no blocks/restricts, empty follows. The authenticated path
@@ -61,13 +63,10 @@ vi.mock('../../utils/privacyHelpers', () => ({
 // A chainable Mongoose query stub. `.select().sort().limit().maxTimeMS().lean()`
 // all return `this`; `.lean()` resolves the provided rows (an array, or `null`
 // for the `findOne` paths that return a single doc / no doc).
-function chainable(rows: unknown[] | null, onChain?: (method: string, value: unknown) => void) {
+function chainable(rows: unknown[] | null) {
   const q: Record<string, unknown> = {};
   for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
-    q[m] = (value: unknown) => {
-      onChain?.(m, value);
-      return q;
-    };
+    q[m] = () => q;
   }
   q.lean = async () => rows;
   q.then = undefined;
@@ -83,14 +82,6 @@ vi.mock('../../models/Post', () => ({
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/FederatedActor', () => ({
-  default: {
-    find: (...args: unknown[]) => chainable(federatedActorFind(...args), (method, value) => {
-      if (method === 'limit') federatedActorQueryState.limit = value as number;
-      if (method === 'maxTimeMS') federatedActorQueryState.maxTimeMS = value as number;
-    }),
-  },
-}));
 vi.mock('../../models/UserSettings', () => ({
   UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
 }));
@@ -164,12 +155,6 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     getUsersByIds.mockReset();
     postFind.mockReset();
     postFindOne.mockReset();
-    federatedActorFind.mockReset();
-    federatedActorQueryState.limit = undefined;
-    federatedActorQueryState.maxTimeMS = undefined;
-    // No remote actor records resolve by default — orphaned federated posts fall
-    // back to the deterministic domain placeholder. Individual tests override.
-    federatedActorFind.mockReturnValue([]);
 
     // Both authors resolve via the bulk Oxy fetch.
     getUsersByIds.mockResolvedValue([
@@ -295,12 +280,12 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     }
   });
 
-  it('still embeds the original when the original has a NULL oxyUserId (orphaned federated actor)', async () => {
+  it('drops a federated boost original that has no oxyUserId (invariant: no orphans)', async () => {
     service = new PostHydrationService();
 
-    // The original exists locally, is public and federated, but its author actor
-    // was never linked to an Oxy user (oxyUserId null) — the prod case where the
-    // boost rendered blank even at maxDepth:1.
+    // Stage 1 made "every federated post has an oxyUserId" a true invariant, so
+    // an original whose author was never linked to an Oxy user no longer renders
+    // via a local-actor fallback — it is dropped, and the boost has no original.
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
       if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
@@ -317,68 +302,56 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     const [hydrated] = await hydrateBoost(undefined);
 
-    expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
-    expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
-    // The orphaned original gets a federation-domain placeholder author.
-    expect(hydrated.boost?.originalPost?.user?.displayName).toBe('zpravobot.news');
-    expect(hydrated.boost?.originalPost?.user?.isFederated).toBe(true);
+    // The boost itself still hydrates (the booster is a real Oxy user), but the
+    // authorless original is dropped rather than rendered with a fabricated name.
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
   });
 
-  it('carries the REMOTE actor displayName + avatarUrl when the FederatedActor resolves (orphaned)', async () => {
+  it('renders the Oxy name.displayName for a resolved federated boost original', async () => {
     service = new PostHydrationService();
 
-    const activityId = 'https://zpravobot.news/users/TerribleMaps/statuses/123';
+    const FEDERATED_AUTHOR_OXY_ID = 'oxy-terrible-maps';
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
       if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
         return [{
           ...originalRow(),
-          oxyUserId: null,
-          federation: { activityId },
+          oxyUserId: FEDERATED_AUTHOR_OXY_ID,
+          federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
         }];
       }
       return [];
     });
-    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
 
-    // The remote actor IS known locally (orphaned: not linked to an Oxy user).
-    // `uri` is a prefix of the post's federation.activityId — the canonical link.
-    federatedActorFind.mockReturnValue([
+    // The federated author is now a real, resolved Oxy user. Oxy owns the clean
+    // `name.displayName`, which is the SOLE name source — Mention never reads a
+    // local FederatedActor name copy.
+    getUsersByIds.mockResolvedValue([
+      makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster'),
       {
-        uri: 'https://zpravobot.news/users/TerribleMaps',
-        username: 'TerribleMaps',
-        displayName: 'Terrible Maps',
-        avatarUrl: 'https://zpravobot.news/system/accounts/avatars/terrible.png',
-        domain: 'zpravobot.news',
-        acct: 'TerribleMaps@zpravobot.news',
+        id: FEDERATED_AUTHOR_OXY_ID,
+        username: 'TerribleMaps@zpravobot.news',
+        name: { displayName: 'Terrible Maps' },
+        avatar: 'terrible-maps-avatar-file-id',
+        isFederated: true,
+        federation: { domain: 'zpravobot.news' },
+        badges: [],
+        verified: false,
+        isVerified: false,
       },
     ]);
 
     const [hydrated] = await hydrateBoost(undefined);
 
     expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
-    // The REMOTE actor's real display name — NOT the bare domain.
+    // The Oxy `name.displayName` — the single source of truth.
     expect(hydrated.boost?.originalPost?.user?.displayName).toBe('Terrible Maps');
     expect(hydrated.boost?.originalPost?.user?.isFederated).toBe(true);
     expect(hydrated.boost?.originalPost?.user?.instance).toBe('zpravobot.news');
-    // Remote avatar is carried through (resolved, not dropped).
+    // The federated avatar (re-hosted as an Oxy file id) is carried through.
     expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
-
-    const calls = federatedActorFind.mock.calls;
-    const [query] = calls[calls.length - 1] ?? [];
-    expect(query).toEqual({
-      uri: {
-        $in: [
-          'https://zpravobot.news/users/TerribleMaps/statuses/123',
-          'https://zpravobot.news/users/TerribleMaps/statuses',
-          'https://zpravobot.news/users/TerribleMaps',
-          'https://zpravobot.news/users',
-        ],
-      },
-    });
-    expect(query).not.toHaveProperty('domain');
-    expect(federatedActorQueryState.limit).toBe(4);
-    expect(federatedActorQueryState.maxTimeMS).toBe(1000);
   });
 
   it('does not embed non-public boost originals when publicReferencesOnly is enabled', async () => {

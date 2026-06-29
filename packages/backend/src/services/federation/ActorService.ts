@@ -280,7 +280,6 @@ export class ActorService {
         username,
         domain,
         acct,
-        displayName: decodeEntities(actor.name || username),
         summary: actor.summary ? htmlToPlainText(actor.summary) : '',
         avatarUrl,
         headerUrl,
@@ -435,8 +434,7 @@ export class ActorService {
 
     const missingProfile = !existing
       || !existing.avatarUrl
-      || !existing.headerUrl
-      || !existing.displayName;
+      || !existing.headerUrl;
     const lastFetchedMs = existing?.lastFetchedAt?.getTime();
     const refreshedRecently = typeof lastFetchedMs === 'number'
       && Date.now() - lastFetchedMs < ACTOR_REFRESH_MIN_INTERVAL_MS;

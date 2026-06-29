@@ -4,7 +4,6 @@ import { FEDERATION_ENABLED } from '../utils/federation/constants';
 import FederatedActor, { type FederatedOutboxBackfillState } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
-import { Post } from '../models/Post';
 import { federationService, isPermanentlyUnavailableOutboxReason } from './FederationService';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
@@ -20,7 +19,6 @@ import {
   PERIODIC_REFRESH_STALE_ACTORS,
   PERIODIC_SYNC_FOLLOWED_OUTBOX,
   PERIODIC_RECENT_OUTBOX_BACKFILL,
-  PERIODIC_BACKFILL_OXY_USER_IDS,
   PERIODIC_MEDIA_CACHE_WORKER,
   PERIODIC_MEDIA_CACHE_EVICTION,
   PERIODIC_COMPUTE_INTEREST_SCORES,
@@ -28,7 +26,6 @@ import {
   REFRESH_STALE_ACTORS_INTERVAL_MS,
   SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
   RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
-  BACKFILL_OXY_USER_IDS_INTERVAL_MS,
   COMPUTE_INTEREST_SCORES_INTERVAL_MS,
   FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS,
   DELIVERY_DRAIN_PAGE_SIZE,
@@ -43,9 +40,6 @@ const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /** Legacy (no-Redis) Mongo delivery-retry loop cadence. */
 const DELIVERY_RETRY_INTERVAL_MS = 60 * 1000; // 1 minute
-
-/** Legacy startup delay before the one-shot oxyUserId backfill runs. */
-const BACKFILL_STARTUP_DELAY_MS = 10 * 1000; // 10 seconds
 
 /** Legacy startup delay before the initial outbox sync + recent backfill run. */
 const INITIAL_SYNC_STARTUP_DELAY_MS = 30 * 1000; // 30 seconds
@@ -88,13 +82,11 @@ class FederationJobScheduler {
   private endorsementOutboxInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
-  private backfillTimeout: ReturnType<typeof setTimeout> | null = null;
   private initialSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Overlap guards — prevent concurrent runs when intervals fire faster than jobs complete
   private isSyncFollowedActorsPostsRunning = false;
   private isSyncRecentOutboxBackfillsRunning = false;
-  private isBackfillFederatedPostOxyUserIdsRunning = false;
   private isRetryFailedDeliveriesRunning = false;
   private isMediaCacheWorkerRunning = false;
   private isMediaCacheEvictionRunning = false;
@@ -203,12 +195,6 @@ class FederationJobScheduler {
     }, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS);
 
     // Stagger startup tasks to let DB connections warm up
-    this.backfillTimeout = setTimeout(() => {
-      this.backfillFederatedPostOxyUserIds().catch((err) =>
-        logger.error('Backfill federated post oxyUserIds failed:', err)
-      );
-    }, BACKFILL_STARTUP_DELAY_MS);
-
     this.initialSyncTimeout = setTimeout(() => {
       this.syncFollowedActorsPosts().catch((err) =>
         logger.error('Initial outbox sync failed:', err)
@@ -244,7 +230,6 @@ class FederationJobScheduler {
     await upsert(PERIODIC_REFRESH_STALE_ACTORS, REFRESH_STALE_ACTORS_INTERVAL_MS, 'refreshStaleActors');
     await upsert(PERIODIC_SYNC_FOLLOWED_OUTBOX, SYNC_FOLLOWED_OUTBOX_INTERVAL_MS, 'syncFollowedActorsPosts');
     await upsert(PERIODIC_RECENT_OUTBOX_BACKFILL, RECENT_OUTBOX_BACKFILL_INTERVAL_MS, 'syncRecentOutboxBackfills');
-    await upsert(PERIODIC_BACKFILL_OXY_USER_IDS, BACKFILL_OXY_USER_IDS_INTERVAL_MS, 'backfillFederatedPostOxyUserIds');
     await upsert(PERIODIC_COMPUTE_INTEREST_SCORES, COMPUTE_INTEREST_SCORES_INTERVAL_MS, 'computeInterestScores');
     await upsert(PERIODIC_FLUSH_ENDORSEMENT_OUTBOX, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS, 'flushEndorsementOutbox');
 
@@ -368,10 +353,6 @@ class FederationJobScheduler {
       clearInterval(this.endorsementOutboxInterval);
       this.endorsementOutboxInterval = null;
     }
-    if (this.backfillTimeout) {
-      clearTimeout(this.backfillTimeout);
-      this.backfillTimeout = null;
-    }
     if (this.initialSyncTimeout) {
       clearTimeout(this.initialSyncTimeout);
       this.initialSyncTimeout = null;
@@ -391,7 +372,6 @@ class FederationJobScheduler {
       PERIODIC_REFRESH_STALE_ACTORS,
       PERIODIC_SYNC_FOLLOWED_OUTBOX,
       PERIODIC_RECENT_OUTBOX_BACKFILL,
-      PERIODIC_BACKFILL_OXY_USER_IDS,
       PERIODIC_MEDIA_CACHE_WORKER,
       PERIODIC_MEDIA_CACHE_EVICTION,
       PERIODIC_COMPUTE_INTEREST_SCORES,
@@ -722,73 +702,6 @@ class FederationJobScheduler {
       `[FedSync] recent backfill ${actor.acct}: status=${String(update.$set['outboxBackfill.status'])} ` +
       `processed=${processedCount}/${OUTBOX_RECENT_BACKFILL_LIMIT} imported=${importedCount} existing=${existingCount}`,
     );
-  }
-
-  /**
-   * Backfill oxyUserId only when a post already stores a verified ActivityPub
-   * actor URI from its original inbox/outbox import. Older posts that only have
-   * an activityId are intentionally skipped: activity IDs are attacker-controlled
-   * strings and are not proof of authorship.
-   *
-   * Public so the BullMQ periodic worker can invoke it.
-   */
-  async backfillFederatedPostOxyUserIds(): Promise<void> {
-    if (this.isBackfillFederatedPostOxyUserIdsRunning) {
-      logger.debug('[FedSync] backfillFederatedPostOxyUserIds already running, skipping');
-      return;
-    }
-    this.isBackfillFederatedPostOxyUserIdsRunning = true;
-    try {
-      const posts = await Post.find({
-        federation: { $ne: null },
-        'federation.actorUri': { $exists: true, $ne: null },
-        $or: [{ oxyUserId: null }, { oxyUserId: { $exists: false } }],
-      })
-        .select('federation.actorUri')
-        .limit(500)
-        .lean();
-
-      if (posts.length === 0) return;
-
-      logger.info(`[FedSync] Backfilling oxyUserId for ${posts.length} federated posts with verified actor URIs`);
-
-      const postActorMap = new Map<string, string[]>();
-      for (const post of posts) {
-        const actorUri = (post.federation as { actorUri?: string } | undefined)?.actorUri;
-        if (!actorUri) continue;
-        const postIds = postActorMap.get(actorUri) ?? [];
-        postIds.push(String(post._id));
-        postActorMap.set(actorUri, postIds);
-      }
-
-      if (postActorMap.size === 0) return;
-
-      const actors = await FederatedActor.find({
-        uri: { $in: [...postActorMap.keys()] },
-        oxyUserId: { $ne: null },
-      })
-        .select('uri oxyUserId')
-        .lean();
-
-      const bulkOps: Array<{ updateMany: { filter: Record<string, unknown>; update: Record<string, unknown> } }> = [];
-      for (const actor of actors) {
-        const postIds = postActorMap.get(actor.uri);
-        if (!postIds?.length || !actor.oxyUserId) continue;
-        bulkOps.push({
-          updateMany: {
-            filter: { _id: { $in: postIds }, 'federation.actorUri': actor.uri },
-            update: { $set: { oxyUserId: actor.oxyUserId } },
-          },
-        });
-      }
-
-      if (bulkOps.length === 0) return;
-
-      const result = await Post.bulkWrite(bulkOps, { ordered: false });
-      logger.info(`[FedSync] Backfill complete: updated ${result.modifiedCount}/${posts.length} posts`);
-    } finally {
-      this.isBackfillFederatedPostOxyUserIdsRunning = false;
-    }
   }
 
   /**
