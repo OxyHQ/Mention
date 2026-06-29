@@ -20,9 +20,8 @@ import { logger } from '../utils/logger';
  * no count at all) rather than risking unbounded inflation — view counting is a
  * best-effort ranking signal, never a correctness-critical write.
  *
- * Mirrors the design of {@link ./mediaCache/negativeCache} and
- * {@link ./linkPreviewCache}: shared Redis singleton, graceful fallback, TTL set
- * atomically with the marker.
+ * Mirrors the design of {@link ./mediaCache/negativeCache}: shared Redis
+ * singleton, graceful fallback, TTL set atomically with the marker.
  */
 
 /** Redis key prefix for per-(viewer, post) view-seen markers. */

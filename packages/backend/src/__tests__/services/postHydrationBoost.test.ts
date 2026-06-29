@@ -45,7 +45,7 @@ vi.mock('../../../server', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds }),
+  getServiceOxyClient: () => ({ getUsersByIds, getLinkPreviews: vi.fn(async () => ({})) }),
 }));
 
 // Privacy helpers: no blocks/restricts, empty follows. The authenticated path
@@ -107,12 +107,6 @@ vi.mock('../../services/userSummaryCache', () => ({
   mset: vi.fn(async (entries: Map<string, CachedUserSummary>) => {
     for (const [id, value] of entries) cacheStore.set(id, value);
   }),
-}));
-
-vi.mock('../../services/linkPreviewCache', () => ({
-  readPreviews: vi.fn(async () => new Map()),
-  storePreview: vi.fn(async () => undefined),
-  markNoPreview: vi.fn(async () => undefined),
 }));
 
 import { PostHydrationService } from '../../services/PostHydrationService';

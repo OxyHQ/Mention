@@ -90,7 +90,7 @@ import { useMultiRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
-import { LinkPreview } from '@/components/Compose/LinkPreview';
+import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
 import {
   PollCreator,
   VideoPreview,
@@ -1710,9 +1710,15 @@ const ComposeScreen = () => {
                                   const newContent = postContent.replace(urlPattern, '').trim();
                                   setPostContent(newContent);
                                 }}
-                                wrapperStyle={[styles.linkAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                wrapperStyle={styles.linkAttachmentWrapper}
                               >
-                                <LinkPreview link={link} />
+                                <LinkPreviewCard
+                                  url={link.url}
+                                  title={link.title}
+                                  description={link.description}
+                                  image={link.image}
+                                  siteName={link.siteName}
+                                />
                               </AttachmentCarouselItem>
                             );
                           }
@@ -2712,14 +2718,13 @@ const styles = StyleSheet.create({
   mediaReorderButtonDisabled: {
     opacity: 0.4,
   },
-  // Link attachment styles
+  // Link attachment styles — the Bloom LinkPreviewCard owns its own border,
+  // radius and surface, so the carousel wrapper only positions the card and its
+  // move/remove controls.
   linkAttachmentWrapper: {
     position: 'relative',
     alignSelf: 'flex-start',
     width: MEDIA_CARD_WIDTH,
-    borderRadius: 15,
-    borderWidth: 1,
-    overflow: 'hidden',
   },
   // Mode toggle styles
   modeToggleContainer: {

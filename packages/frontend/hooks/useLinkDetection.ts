@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '@oxyhq/services';
 import { LinkMetadata } from '../stores/linksStore';
 import { useLinksStore } from '../stores/linksStore';
-import { linkMetadataService } from '../services/linkMetadataService';
+import { logger } from '@/lib/logger';
 
 /**
  * Hook to detect links in text and fetch their metadata
@@ -12,6 +13,7 @@ export const useLinkDetection = (text: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  const { oxyServices } = useAuth();
   const { getCached, upsertLink } = useLinksStore();
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -61,22 +63,33 @@ export const useLinkDetection = (text: string) => {
       return cached;
     }
 
-    // Fetch metadata
+    // Resolve the preview through the Oxy SDK. Oxy owns resolution and re-hosts
+    // the preview image on `cloud.oxy.so`, so the returned `image` is a trusted
+    // absolute URL that is rendered directly (no app-side proxy). `wait: true`
+    // asks the server to resolve synchronously instead of returning a `pending`
+    // placeholder, so the composer gets metadata in one round-trip.
     try {
-      const metadata = await linkMetadataService.fetchMetadata(url);
+      const preview = await oxyServices.getLinkPreview(url, { wait: true });
       if (signal?.aborted) return null;
-      
-      if (metadata) {
-        upsertLink(metadata);
-        return metadata;
-      }
+
+      const metadata: LinkMetadata = {
+        url,
+        title: preview.title,
+        description: preview.description,
+        image: preview.image,
+        siteName: preview.siteName,
+        favicon: preview.favicon,
+        fetchedAt: Date.now(),
+      };
+      upsertLink(metadata);
+      return metadata;
     } catch (err) {
       if (signal?.aborted) return null;
-      // Silently handle errors - will show basic link preview
+      // A failed unfurl is non-actionable for the composer — show no preview.
+      logger.debug('Link preview resolution failed', { url, error: err });
+      return null;
     }
-
-    return null;
-  }, [getCached, upsertLink]);
+  }, [getCached, upsertLink, oxyServices]);
 
   /**
    * Process text and fetch metadata for all detected links

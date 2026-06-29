@@ -13,8 +13,7 @@ import { logger } from '../utils/logger';
  * caching the ready-to-render summary collapses that fan-out to a single batched
  * Oxy call for the cache MISSES only.
  *
- * Design constraints (mirror {@link ./linkPreviewCache} and
- * {@link ./mediaCache/negativeCache}):
+ * Design constraints (mirror {@link ./mediaCache/negativeCache}):
  *  - Uses the shared {@link getRedisClient} singleton — never opens a new socket.
  *  - When Redis is unavailable (no `REDIS_URL`, or the server is down) every
  *    operation degrades to a no-op via {@link withRedisFallback}: hydration still

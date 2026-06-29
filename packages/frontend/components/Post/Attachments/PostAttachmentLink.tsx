@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, ViewStyle, Platform } from 'react-native';
-import { LinkPreview } from '../../Compose/LinkPreview';
+import { ViewStyle, Platform } from 'react-native';
+import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
 
 interface PostAttachmentLinkProps {
   url: string;
@@ -24,21 +24,15 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   style,
 }) => {
   return (
-    <View
-      className="border border-border bg-secondary rounded-[14px] overflow-hidden w-[280px]"
+    <LinkPreviewCard
+      url={url}
+      title={title}
+      description={description}
+      image={image}
+      siteName={siteName}
+      className="w-[280px]"
       style={[webGrabCursorStyle, style]}
-    >
-      <LinkPreview
-        link={{
-          url,
-          title,
-          description,
-          image,
-          siteName,
-          fetchedAt: Date.now(),
-        }}
-      />
-    </View>
+    />
   );
 };
 

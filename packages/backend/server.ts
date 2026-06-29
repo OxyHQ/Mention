@@ -55,7 +55,6 @@ import pokesRoutes from './src/routes/pokes';
 import starterPacksRoutes from './src/routes/starterPacks';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
-import linksRoutes from './src/routes/links';
 import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
 import muteWordsRoutes from './src/routes/muteWords.routes';
@@ -766,7 +765,6 @@ publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 // GET /profile/design/:userId - public profile design data (no auth required)
 publicApiRouter.use("/profile/design", profileDesignRoutes);
 publicApiRouter.use("/articles", articlesRoutes);
-publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (optional auth for tracking)
 publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth required)
 publicApiRouter.use("/topics", topicsRoutes); // Topic collection (no auth required)
 publicApiRouter.use("/federation", optionalAuth, federationApiRoutes); // Write endpoints enforce auth internally

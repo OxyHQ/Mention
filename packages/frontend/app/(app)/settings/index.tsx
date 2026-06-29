@@ -224,12 +224,6 @@ export default function SettingsScreen() {
 
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="link-outline" />}
-                        title={t('settings.data.linkManagement')}
-                        description={t('settings.data.linkManagementDesc', { defaultValue: 'Link previews and cache' })}
-                        onPress={() => router.push('/settings/links')}
-                    />
-                    <SettingsListItem
                         icon={<RowIcon name="help-circle-outline" />}
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}

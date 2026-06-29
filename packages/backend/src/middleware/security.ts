@@ -78,37 +78,6 @@ const bruteForceProtection: RequestHandler = slowDown({
   skip: isRateLimitExempt,
 });
 
-// Rate limiter for link refresh operations (stricter limits)
-// Link refresh is expensive (fetching HTML, downloading images, processing)
-const linkRefreshStore = new RedisStore({ 
-  prefix: 'rate-limit:link-refresh:',
-  windowMs: 60 * 60 * 1000 // 1 hour
-});
-export const linkRefreshRateLimiter = rateLimit({
-  store: linkRefreshStore,
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: (req: Request) => getRateLimitMax(req, 50, 20),
-  keyGenerator: (req: Request) => generateRateLimitKey(req, 'link-refresh'),
-  message: "Too many link refresh requests. Please wait before refreshing more links.",
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Rate limiter for clearing cache (very strict - should be rare)
-const linkCacheClearStore = new RedisStore({ 
-  prefix: 'rate-limit:link-cache-clear:',
-  windowMs: 60 * 60 * 1000 // 1 hour
-});
-export const linkCacheClearRateLimiter = rateLimit({
-  store: linkCacheClearStore,
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: (req: Request) => getRateLimitMax(req, 10, 5),
-  keyGenerator: (req: Request) => generateRateLimitKey(req, 'link-cache-clear'),
-  message: "Too many cache clear requests. Please wait before clearing cache again.",
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
 // Rate limiter for feed endpoints (per user: 100 requests/minute)
 const feedStore = new RedisStore({ 
   prefix: 'rate-limit:feed:',
