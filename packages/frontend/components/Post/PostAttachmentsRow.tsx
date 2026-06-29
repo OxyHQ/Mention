@@ -32,7 +32,7 @@ import {
   PostAttachmentEvent,
   PostAttachmentRoom,
 } from './Attachments';
-import { parseEmbedPlayerFromUrl } from '@/utils/embedPlayer';
+import { parseEmbedPlayerFromUrl, canEmbed, type EmbedPlayerParams } from '@/utils/embedPlayer';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 
 // Runtime media reference. The server now resolves final URLs (`url`, `thumbUrl`,
@@ -78,7 +78,7 @@ type AttachmentItem =
   | { type: 'event' }
   | { type: 'room' }
   | { type: 'podcast' }
-  | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
+  | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string; embedParams?: EmbedPlayerParams }
   | { type: 'video'; mediaId: string; src: string; poster?: string }
   | { type: 'gif'; mediaId: string; src: string }
   | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string };
@@ -171,6 +171,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           description: linkMetadata.description,
           image: linkMetadata.image,
           siteName: linkMetadata.siteName,
+          // Parse the embed provider once here (memoized on `linkMetadata`) so
+          // the render loop doesn't run `new URL()` + regex on every frame.
+          embedParams: parseEmbedPlayerFromUrl(linkMetadata.url),
         }
       : null;
     const mediaById = new Map<string, MediaObj>();
@@ -563,9 +566,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         if (item.type === 'link') {
           // Embeddable provider URL (and not hidden by the viewer) → render the
           // inline external player as the post's primary media. Otherwise keep
-          // the static link-preview card.
-          const embedParams = parseEmbedPlayerFromUrl(item.url);
-          if (embedParams && embedPrefs[embedParams.source] !== 'hide') {
+          // the static link-preview card. The parse is precomputed on the item;
+          // the pref read stays in render so the decision reacts to pref changes.
+          const embedPref = item.embedParams ? embedPrefs[item.embedParams.source] : undefined;
+          if (canEmbed(item.embedParams, embedPref)) {
             return (
               <PostAttachmentExternalEmbed
                 key={`embed-${idx}`}

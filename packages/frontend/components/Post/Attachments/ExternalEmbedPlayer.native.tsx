@@ -60,6 +60,9 @@ export function ExternalEmbedPlayer({
     [params.type, width, thumb],
   );
 
+  // Stable source object so the WebView isn't handed a new `{ uri }` each render.
+  const webViewSource = useMemo(() => ({ uri: params.playerUri }), [params.playerUri]);
+
   const viewRef = useAnimatedRef<Animated.View>();
   const frameCallback = useFrameCallback(() => {
     const measurement = measure(viewRef);
@@ -113,7 +116,7 @@ export function ExternalEmbedPlayer({
     <Animated.View ref={viewRef} collapsable={false} style={[{ width: '100%' }, aspect, styles.surface]}>
       {active ? (
         <WebView
-          source={{ uri: params.playerUri }}
+          source={webViewSource}
           javaScriptEnabled
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}

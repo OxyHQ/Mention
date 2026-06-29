@@ -14,7 +14,7 @@
 
 import { Platform } from 'react-native';
 import { Dimensions } from 'react-native';
-import type { EmbedPlayerSource, EmbedPlayerType } from '@mention/shared-types';
+import type { EmbedPlayerSource, EmbedPlayerType, ExternalEmbedPref } from '@mention/shared-types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -31,12 +31,7 @@ export interface EmbedPlayerParams {
   playerUri: string;
   isGif?: boolean;
   source: EmbedPlayerSource;
-  metaUri?: string;
   hideDetails?: boolean;
-  dimensions?: {
-    height: number;
-    width: number;
-  };
 }
 
 const giphyRegex = /media(?:[0-4]\.giphy\.com|\.giphy\.com)/i;
@@ -118,45 +113,28 @@ export function parseEmbedPlayerFromUrl(url: string): EmbedPlayerParams | undefi
     }
   }
 
-  // spotify
+  // spotify — the path segment (playlist/album/track/episode/show) names the
+  // embed kind and is reused verbatim in the embed path; `track`/`episode`/`show`
+  // all render as `spotify_song`.
   if (urlp.hostname === 'open.spotify.com') {
     const [, typeOrLocale, idOrType, id] = urlp.pathname.split('/');
 
     if (idOrType) {
-      if (typeOrLocale === 'playlist' || idOrType === 'playlist') {
-        return {
-          type: 'spotify_playlist',
-          source: 'spotify',
-          playerUri: `https://open.spotify.com/embed/playlist/${id ?? idOrType}`,
-        };
-      }
-      if (typeOrLocale === 'album' || idOrType === 'album') {
-        return {
-          type: 'spotify_album',
-          source: 'spotify',
-          playerUri: `https://open.spotify.com/embed/album/${id ?? idOrType}`,
-        };
-      }
-      if (typeOrLocale === 'track' || idOrType === 'track') {
-        return {
-          type: 'spotify_song',
-          source: 'spotify',
-          playerUri: `https://open.spotify.com/embed/track/${id ?? idOrType}`,
-        };
-      }
-      if (typeOrLocale === 'episode' || idOrType === 'episode') {
-        return {
-          type: 'spotify_song',
-          source: 'spotify',
-          playerUri: `https://open.spotify.com/embed/episode/${id ?? idOrType}`,
-        };
-      }
-      if (typeOrLocale === 'show' || idOrType === 'show') {
-        return {
-          type: 'spotify_song',
-          source: 'spotify',
-          playerUri: `https://open.spotify.com/embed/show/${id ?? idOrType}`,
-        };
+      const spotifyEmbedTypes: Record<string, EmbedPlayerType> = {
+        playlist: 'spotify_playlist',
+        album: 'spotify_album',
+        track: 'spotify_song',
+        episode: 'spotify_song',
+        show: 'spotify_song',
+      };
+      for (const [segment, type] of Object.entries(spotifyEmbedTypes)) {
+        if (typeOrLocale === segment || idOrType === segment) {
+          return {
+            type,
+            source: 'spotify',
+            playerUri: `https://open.spotify.com/embed/${segment}/${id ?? idOrType}`,
+          };
+        }
       }
     }
   }
@@ -249,7 +227,6 @@ export function parseEmbedPlayerFromUrl(url: string): EmbedPlayerParams | undefi
           source: 'giphy',
           isGif: true,
           hideDetails: true,
-          metaUri: `https://giphy.com/gifs/${gifId}`,
           playerUri: `https://i.giphy.com/media/${gifId}/200.webp`,
         };
       }
@@ -268,7 +245,6 @@ export function parseEmbedPlayerFromUrl(url: string): EmbedPlayerParams | undefi
           source: 'giphy',
           isGif: true,
           hideDetails: true,
-          metaUri: `https://giphy.com/gifs/${trackingOrId}`,
           playerUri: `https://i.giphy.com/media/${trackingOrId}/200.webp`,
         };
       } else if (filename && gifFilenameRegex.test(filename)) {
@@ -277,35 +253,26 @@ export function parseEmbedPlayerFromUrl(url: string): EmbedPlayerParams | undefi
           source: 'giphy',
           isGif: true,
           hideDetails: true,
-          metaUri: `https://giphy.com/gifs/${idOrFilename}`,
           playerUri: `https://i.giphy.com/media/${idOrFilename}/200.webp`,
         };
       }
     }
   }
 
-  // i.giphy.com direct media links (may end in .webp, not just .gif)
+  // i.giphy.com direct media links (may end in .webp, not just .gif). The path
+  // is either `/media/<file>` or a bare `/<file>`; the gif id is the filename
+  // stem in both cases.
   if (urlp.hostname === 'i.giphy.com' || urlp.hostname === 'www.i.giphy.com') {
     const [, mediaOrFilename, filename] = urlp.pathname.split('/');
+    const gifSegment = mediaOrFilename === 'media' && filename ? filename : mediaOrFilename;
 
-    if (mediaOrFilename === 'media' && filename) {
-      const gifId = filename.split('.')[0];
+    if (gifSegment) {
+      const gifId = gifSegment.split('.')[0];
       return {
         type: 'giphy_gif',
         source: 'giphy',
         isGif: true,
         hideDetails: true,
-        metaUri: `https://giphy.com/gifs/${gifId}`,
-        playerUri: `https://i.giphy.com/media/${gifId}/200.webp`,
-      };
-    } else if (mediaOrFilename) {
-      const gifId = mediaOrFilename.split('.')[0];
-      return {
-        type: 'giphy_gif',
-        source: 'giphy',
-        isGif: true,
-        hideDetails: true,
-        metaUri: `https://giphy.com/gifs/${gifId}`,
         playerUri: `https://i.giphy.com/media/${gifId}/200.webp`,
       };
     }
@@ -449,3 +416,15 @@ export function getPlayerAspect({
       return { aspectRatio: 16 / 9 };
   }
 }
+
+/**
+ * The single embed-vs-link predicate: a URL renders its inline external player
+ * when it maps to a supported provider (`params` parsed) AND the viewer hasn't
+ * hidden that provider (`pref !== 'hide'`). The attachment row's decision and
+ * the embed wrapper's internal guard both route through here so the rule lives
+ * in one place.
+ */
+export const canEmbed = (
+  params: EmbedPlayerParams | undefined,
+  pref: ExternalEmbedPref | undefined,
+): params is EmbedPlayerParams => !!params && pref !== 'hide';

@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useDialogControl } from '@oxyhq/bloom/dialog';
-import { parseEmbedPlayerFromUrl } from '@/utils/embedPlayer';
+import { parseEmbedPlayerFromUrl, canEmbed } from '@/utils/embedPlayer';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { ExternalEmbedPlayer } from './ExternalEmbedPlayer';
@@ -66,7 +66,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   const onDeactivate = useCallback(() => setActive(false), []);
 
   // Unsupported provider or a hidden one → fall back to the static link card.
-  if (!params || pref === 'hide') {
+  if (!canEmbed(params, pref)) {
     return (
       <PostAttachmentLink
         url={url}
