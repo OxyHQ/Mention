@@ -50,7 +50,7 @@ export type UserNameComponent = React.ComponentType<UserNameProps>;
 
 // Profile header props (shared between default and minimalist)
 export interface ProfileHeaderBaseProps {
-  displayName: string;
+  displayName?: string;
   username?: string;
   avatarUri?: string;
   verified?: boolean;

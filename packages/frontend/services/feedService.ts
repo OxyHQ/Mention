@@ -57,7 +57,7 @@ interface FeedDataEnvelope {
 }
 
 interface PostEngagementUsersResponse {
-  users: Array<{ id: string; displayName: string; handle: string; avatar?: string; verified: boolean }>;
+  users: Array<{ id: string; displayName?: string; handle: string; avatar?: string; verified: boolean }>;
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;

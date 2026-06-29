@@ -16,7 +16,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface User {
   id: string;
-  displayName: string;
+  displayName?: string;
   handle: string;
   avatar?: string;
   verified: boolean;
@@ -82,6 +82,9 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
   }, [onClose, router]);
 
   const renderUser = useCallback(({ item }: { item: User }) => {
+    // A real display name is the bold primary with the muted @handle below; with
+    // no display name the @handle becomes the bold primary, shown ONCE.
+    const hasName = !!item.displayName?.trim();
     return (
       <TouchableOpacity
         className="flex-row items-center px-4 py-3"
@@ -92,15 +95,17 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
         <View className="flex-1">
           <View className="flex-row items-center">
             <Text className="text-foreground text-base font-semibold" numberOfLines={1}>
-              {item.displayName}
+              {hasName ? item.displayName : `@${item.handle}`}
             </Text>
             {item.verified && (
               <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />
             )}
           </View>
-          <Text className="text-muted-foreground text-sm mt-0.5" numberOfLines={1}>
-            @{item.handle}
-          </Text>
+          {hasName ? (
+            <Text className="text-muted-foreground text-sm mt-0.5" numberOfLines={1}>
+              @{item.handle}
+            </Text>
+          ) : null}
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
       </TouchableOpacity>

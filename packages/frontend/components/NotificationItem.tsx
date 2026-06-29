@@ -191,8 +191,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     setActorName(ensured.name.displayName);
                     setActorAvatar(ensured.avatar ?? undefined);
                 } else if (!cancelled) {
-                    actorCacheRef.current.set(String(id), { name: String(id), avatar: undefined });
-                    setActorName(String(id));
+                    // Could not resolve a profile — leave the name empty so the
+                    // title falls back to the actor handle (or a neutral label),
+                    // never the raw user id.
+                    actorCacheRef.current.set(String(id), { name: '', avatar: undefined });
+                    setActorName('');
                 }
             } catch {
                 // Fallback: keep id or existing
@@ -203,8 +206,15 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         return () => { cancelled = true; };
     }, [actorName, notification.actorId, oxyServices]);
 
+    // Actor handle, used as the fallback label when no display name resolves —
+    // preferred over a generic word or the raw user id.
+    const actorHandle = useMemo(
+        () => notification.actorId_populated?.username || actorUsernameFrom(notification.actorId) || '',
+        [notification.actorId_populated, notification.actorId],
+    );
+
     const buildTitle = useCallback((type: string, name: string) => {
-        const display = name || transformedNotification.actorName || 'Someone';
+        const display = name || transformedNotification.actorName || (actorHandle ? `@${actorHandle}` : 'Someone');
         switch (type) {
             case 'like':
                 return t('notification.like', { actorName: display });
@@ -228,7 +238,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             default:
                 return t('notification.like', { actorName: display });
         }
-    }, [t, transformedNotification.actorName]);
+    }, [t, transformedNotification.actorName, actorHandle]);
 
     const getNotificationIcon = (type: string): IoniconName => {
         switch (type) {

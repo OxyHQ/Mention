@@ -52,12 +52,13 @@ const MAX_ALT_TEXT_LENGTH = config.posts.maxAltTextLength;
 const mapActorSummary = (
   userId: string,
   summary: PostActorSummary | undefined,
-): { id: string; displayName: string; handle: string; avatar?: string; verified: boolean } => {
+): { id: string; displayName?: string; handle: string; avatar?: string; verified: boolean } => {
   if (!summary) {
-    return { id: userId, displayName: userId, handle: userId, avatar: undefined, verified: false };
+    return { id: userId, handle: userId, avatar: undefined, verified: false };
   }
   return {
     id: summary.id,
+    // May be absent — the client renders the (always-present) handle instead.
     displayName: summary.displayName,
     handle: summary.handle,
     avatar: summary.avatarUrl,

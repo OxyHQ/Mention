@@ -39,7 +39,7 @@ export const HEADER_CONTENT_GAP = 4;
 export const POST_CONTEXT_ROW_HEIGHT = 18;
 
 interface User {
-  displayName: string;
+  displayName?: string;
   handle: string;
   verified?: boolean;
   isFederated?: boolean;
@@ -104,6 +104,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const theme = useTheme();
 
   const timeLabel = useMemo(() => formatTimeAgo(date || ''), [date]);
+  const hasDisplayName = !!user.displayName?.trim();
 
   // `contextTop` rows are the first children of the flex-1 content column, so the
   // name row is pushed down by each fixed-height context row plus the column gap.
@@ -125,15 +126,17 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
             {/* Bluesky-style identity line: the display name takes the space it
                 needs (no width cap); the @handle gives way first (shrinks
-                aggressively); the trailing "\u00B7 time" never wraps and stays visible. */}
+                aggressively); the trailing "\u00B7 time" never wraps and stays visible.
+                With NO display name the @handle becomes the bold primary (rendered
+                ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
             <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
               <UserName
-                name={user.displayName}
+                name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
                 verified={user.verified}
                 onPress={onPressUser}
                 style={{ container: { flexShrink: 0 } }}
               />
-              {user.handle ? (
+              {hasDisplayName && user.handle ? (
                 <Text
                   className="text-muted-foreground text-[15px] leading-tight"
                   style={{ flexShrink: 10, minWidth: 0 }}

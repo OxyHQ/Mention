@@ -161,7 +161,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
             const newMention: MentionData = {
                 userId: user.id,
                 username: user.username,
-                displayName: user.displayName,
+                displayName: user.displayName?.trim() || user.username,
             };
 
             const updatedMentions = [...mentions, newMention];

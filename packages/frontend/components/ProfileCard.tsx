@@ -17,7 +17,7 @@ export interface ProfileCardData {
   id: string;
   username: string;
   name: {
-    displayName: string;
+    displayName?: string;
   };
   avatar?: string | null;
   verified?: boolean;
@@ -45,6 +45,7 @@ export function ProfileCard({
   style,
 }: ProfileCardProps) {
   const router = useRouter();
+  const hasName = !!profile.name?.displayName?.trim();
 
   const handlePress = () => {
     if (onPress) {
@@ -73,19 +74,24 @@ export function ProfileCard({
           verified={profile.verified}
         />
         <View className="flex-1 gap-1">
+          {/* A real display name is the bold primary with the muted @handle below;
+              with no display name the @handle becomes the bold primary, shown
+              ONCE (the muted handle line is suppressed). */}
           <ThemedText
             className="text-base font-semibold"
             style={{ lineHeight: 20 }}
             numberOfLines={1}>
-            {profile.name.displayName}
+            {hasName ? profile.name.displayName : `@${profile.username}`}
           </ThemedText>
           <View className="flex-row items-center gap-1">
-            <ThemedText
-              className="text-muted-foreground text-sm"
-              style={{ lineHeight: 18 }}
-              numberOfLines={1}>
-              @{profile.username}
-            </ThemedText>
+            {hasName && (
+              <ThemedText
+                className="text-muted-foreground text-sm"
+                style={{ lineHeight: 18 }}
+                numberOfLines={1}>
+                @{profile.username}
+              </ThemedText>
+            )}
             {profile.isFederated && (
               <FediverseIcon size={13} className="text-muted-foreground" />
             )}

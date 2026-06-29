@@ -116,7 +116,10 @@ const DEFAULT_PRIVACY = {
  */
 function summaryFromOxyUser(userId: string, userData: OxyUser): CachedUserSummary {
   const username: string = String(userData?.username || userData?.handle || userId);
-  const displayName: string = userData.name.displayName;
+  // May be absent — the renderer falls back to the (always-present) handle. Do
+  // NOT synthesize a name from the handle here; the handle fallback lives once,
+  // client-side, on `PostActorSummary.handle`.
+  const displayName: string | undefined = userData.name?.displayName;
   const profileImage = (userData as { profileImage?: unknown }).profileImage;
   const rawAvatar: string | undefined = typeof userData?.avatar === 'string'
     ? userData.avatar
@@ -1548,7 +1551,9 @@ export class PostHydrationService {
     for (const mentionId of declaredMentionIds) {
       const mentionUser = mentionCache.get(mentionId);
       if (mentionUser) {
-        replacements.set(mentionId, `[@${mentionUser.displayName}](${mentionUser.handle})`);
+        // A mention with no display name renders as `@handle` — never `@undefined`.
+        const mentionLabel = mentionUser.displayName?.trim() || mentionUser.handle;
+        replacements.set(mentionId, `[@${mentionLabel}](${mentionUser.handle})`);
       }
     }
 
