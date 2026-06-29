@@ -43,7 +43,7 @@
     "@babel/plugin-syntax-import-meta": "^7.10.4",
     "@babel/plugin-transform-dynamic-import": "^8.0.1",
     "@babel/plugin-transform-export-namespace-from": "^7.27.1",
-    "@bitdrift/react-native": "^0.12.8",
+    "@bitdrift/react-native": "^0.12.10",
     "@expo/vector-icons": "^15.1.1",
     "@floating-ui/react-dom": "^2.1.8",
     "@legendapp/list": "^2.0.19",
