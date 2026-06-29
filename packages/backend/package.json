@@ -39,7 +39,7 @@
     "express-validator": "^7.3.1",
     "firebase-admin": "^13.7.0",
     "he": "^1.2.0",
-    "helmet": "^8.1.0",
+    "helmet": "^8.2.0",
     "i18n": "^0.15.3",
     "ioredis": "5.11.1",
     "jsonwebtoken": "^9.0.3",
