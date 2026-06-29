@@ -1,6 +1,11 @@
 import { createHash } from 'crypto';
 import { getInboxQueue, getDeliveryQueue } from './queues';
-import { DELIVERY_JOB_ATTEMPTS, DELIVERY_BACKOFF_STRATEGY } from './constants';
+import {
+  DELIVERY_JOB_ATTEMPTS,
+  DELIVERY_BACKOFF_STRATEGY,
+  INBOX_JOB_ATTEMPTS,
+  INBOX_BACKOFF_BASE_MS,
+} from './constants';
 import type { InboxJobData, DeliveryJobData } from './types';
 
 /**
@@ -35,8 +40,18 @@ export async function enqueueInboxActivity(data: InboxJobData): Promise<boolean>
   const activityId = typeof data.activity.id === 'string' ? data.activity.id : undefined;
   if (!activityId) return false;
 
+  // Bounded retry: inbound processing is mostly local DB work, but it can DEFER
+  // when a federated post's actor is not yet resolved to an Oxy user
+  // (`ActorResolutionPendingError`) — e.g. Oxy was unreachable. Retrying with
+  // exponential backoff lets a later attempt insert the post with a real author
+  // instead of an orphan. A permanently-unresolvable actor (dead remote
+  // instance) exhausts the attempts and the activity is dropped — never stored
+  // as an orphan. Without these options the inbox job would run only ONCE
+  // (BullMQ's default), so a transient defer would lose the activity.
   await queue.add('inbox', data, {
     jobId: `inbox:${shortHash(`${data.verifiedActorUri}|${activityId}`)}`,
+    attempts: INBOX_JOB_ATTEMPTS,
+    backoff: { type: 'exponential', delay: INBOX_BACKOFF_BASE_MS },
   });
   return true;
 }

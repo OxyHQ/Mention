@@ -14,7 +14,12 @@ vi.mock('../../queue/queues', () => ({
 }));
 
 import { enqueueInboxActivity, enqueueDelivery } from '../../queue/producers';
-import { DELIVERY_JOB_ATTEMPTS, DELIVERY_BACKOFF_STRATEGY } from '../../queue/constants';
+import {
+  DELIVERY_JOB_ATTEMPTS,
+  DELIVERY_BACKOFF_STRATEGY,
+  INBOX_JOB_ATTEMPTS,
+  INBOX_BACKOFF_BASE_MS,
+} from '../../queue/constants';
 
 /** Mirror the producer's jobId hash (sha256 hex, first 40 chars). */
 function shortHash(input: string): string {
@@ -40,7 +45,11 @@ describe('enqueueInboxActivity', () => {
     expect(mocks.inboxAdd).toHaveBeenCalledWith(
       'inbox',
       { activity, verifiedActorUri: 'https://remote/users/bob' },
-      { jobId: expectedJobId },
+      {
+        jobId: expectedJobId,
+        attempts: INBOX_JOB_ATTEMPTS,
+        backoff: { type: 'exponential', delay: INBOX_BACKOFF_BASE_MS },
+      },
     );
   });
 

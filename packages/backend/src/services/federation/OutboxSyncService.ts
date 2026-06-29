@@ -634,11 +634,20 @@ export class OutboxSyncService {
         // off the doc and the schema default (now) applies.
         const published = parseApPublished(note.published ?? activity.published);
 
-        // Resolve author's Oxy User ID
+        // Resolve author's Oxy User ID. The Oxy link is MANDATORY: a federated
+        // post must carry a real Oxy author, never a null one. When the author
+        // didn't resolve (Oxy unreachable / pending), SKIP this note instead of
+        // inserting an orphan — best-effort backfill re-imports it on the next
+        // run once the actor resolves. Throwing here would abort the whole batch
+        // over a single unresolvable item, so the outbox path skips rather than
+        // defers (unlike the inbox `Create` path, which retries the job).
         const actorUri = actor.uri;
-        const resolvedOxyUserId = actorOxyMap.get(actorUri) || null;
+        const resolvedOxyUserId = actorOxyMap.get(actorUri);
         if (!resolvedOxyUserId) {
-          logger.debug(`[FedSync] no oxyUserId resolved for actorUri=${actorUri} activityId=${activityId}`);
+          logger.info(
+            `[FedSync] skipping outbox note ${activityId}: author ${actorUri} not yet resolved to an Oxy user (no orphan)`,
+          );
+          continue;
         }
         const { media, attachments } = await materializeFederatedMedia(
           extracted.media,
@@ -1146,11 +1155,23 @@ export class OutboxSyncService {
 
     // Resolve the original author's actor → Oxy user id so the boosted post is
     // attributed correctly (same resolution path as handleCreate/syncOutbox).
+    // The Oxy link is MANDATORY: rather than persist an orphan with a null
+    // author, SKIP (return null) when the author can't be resolved yet. The boost
+    // / ancestor link is simply not created this pass; it is re-attempted later
+    // once the actor resolves. This best-effort helper runs in batch contexts
+    // (outbox import, ancestor backfill), so it skips rather than throwing.
     const authorUri = extractActorUri(note.attributedTo);
-    let authorOxyUserId: string | null = null;
-    if (authorUri) {
-      const authorActor = await actorService.getOrFetchActor(authorUri);
-      authorOxyUserId = authorActor?.oxyUserId ?? null;
+    if (!authorUri) {
+      logger.info(`[FedSync] boosted/ancestor object ${objectUri} has no attributable author; skipping (no orphan)`);
+      return null;
+    }
+    const authorActor = await actorService.getOrFetchActor(authorUri);
+    const authorOxyUserId = authorActor?.oxyUserId;
+    if (!authorOxyUserId) {
+      logger.info(
+        `[FedSync] author ${authorUri} for ${objectUri} not yet resolved to an Oxy user; skipping (no orphan)`,
+      );
+      return null;
     }
 
     const text = htmlToPlainText(rawContent);

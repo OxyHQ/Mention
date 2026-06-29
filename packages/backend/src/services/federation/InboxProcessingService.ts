@@ -12,6 +12,7 @@ import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { extractApLanguage, extractApLanguages } from '../../utils/federation/apLanguage';
 import { getPostCreator } from '../serviceRegistry';
 import { actorService } from './ActorService';
+import { requireActorOxyUserId } from './ActorResolutionPendingError';
 import { outboxSyncService } from './OutboxSyncService';
 import { followService } from './FollowService';
 import {
@@ -293,15 +294,22 @@ export class InboxProcessingService {
     const existingPost = await Post.exists({ 'federation.activityId': object.id });
     if (existingPost) return;
 
+    // The Oxy link is MANDATORY: a federated post must carry a real Oxy author,
+    // never a null one. Resolve the actor and REQUIRE its `oxyUserId`. When the
+    // actor is missing or has no `oxyUserId` (Oxy unreachable when the actor was
+    // resolved), `requireActorOxyUserId` throws `ActorResolutionPendingError` so
+    // the BullMQ inbox job fails and retries with backoff — on a later attempt
+    // (Oxy reachable) the actor resolves and the post inserts with a real author.
+    // We NEVER insert an orphan post with a null author.
     const actor = await actorService.getOrFetchActor(actorUri);
-    if (!actor) return;
+    const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${object.id}`);
 
     const hashtags = extractApHashtags(object);
     const extracted = extractApMedia(object);
     const { media, attachments } = await materializeFederatedMedia(
       extracted.media,
       extracted.attachments,
-      actor.oxyUserId,
+      authorOxyUserId,
       { activityId: object.id, actorUri },
     );
 
@@ -326,7 +334,7 @@ export class InboxProcessingService {
       : null;
 
     await getPostCreator().create({
-      oxyUserId: actor.oxyUserId ?? null,
+      oxyUserId: authorOxyUserId,
       federation: {
         activityId: object.id,
         actorUri,
