@@ -31,6 +31,11 @@ const logger = createScopedLogger('externalEmbedsStore');
 
 const CACHE_KEY = '@mention_external_embeds';
 
+// `hydrate` fires twice across the auth transition (`canFetch` false→true). The
+// AsyncStorage cache only seeds the initial state, so read it at most once; the
+// authoritative server fetch still runs when `canFetch` becomes true.
+let cacheRead = false;
+
 interface ExternalEmbedsState {
   prefs: ExternalEmbedsSettings;
   /** True once the first hydrate (cache + optional server fetch) has settled. */
@@ -56,13 +61,17 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
 
   async hydrate(canFetch: boolean) {
     // 1. Cache first — fast, offline-safe, and correct for anonymous viewers.
-    try {
-      const cached = await AsyncStorage.getItem(CACHE_KEY);
-      if (cached) {
-        set({ prefs: JSON.parse(cached) as ExternalEmbedsSettings });
+    //    Guarded so the duplicate hydrate on the auth transition doesn't re-read.
+    if (!cacheRead) {
+      cacheRead = true;
+      try {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) {
+          set({ prefs: JSON.parse(cached) as ExternalEmbedsSettings });
+        }
+      } catch (error) {
+        logger.debug('Failed to read cached external-embed prefs', { error });
       }
-    } catch (error) {
-      logger.debug('Failed to read cached external-embed prefs', { error });
     }
 
     // 2. Server is authoritative — but only reachable once the private API is up.
@@ -101,11 +110,10 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
 
     try {
       await authenticatedClient.put('/profile/settings', { externalEmbeds: patch });
-      try {
-        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next));
-      } catch (error) {
+      // Best-effort cache write — it doesn't gate the mutation, so don't await it.
+      void AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch((error) => {
         logger.debug('Failed to cache external-embed prefs', { error });
-      }
+      });
     } catch (error) {
       logger.error('Failed to persist external-embed prefs', { error });
       set({ prefs: previous });
