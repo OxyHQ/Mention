@@ -11,6 +11,7 @@ import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
+import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource } from '@mention/shared-types';
 import { syraClient } from '../utils/syraPodcast';
 import { logger } from '../utils/logger';
 
@@ -76,7 +77,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization, profileMedia, interests, feedSettings, notificationPreferences } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileCustomization, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds } = req.body || {};
 
     const update: Record<string, any> = {};
     const unset: Record<string, ''> = {};
@@ -303,6 +304,25 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
           update[`notificationPreferences.${field}`] = notificationPreferences[field];
         }
       });
+    }
+
+    // Per-provider external-embed preferences (tri-state: 'show' | 'hide';
+    // omitting/clearing a key falls back to "ask on first play"). Each key is
+    // validated against the canonical EXTERNAL_EMBED_SOURCES whitelist so the
+    // client can never write an arbitrary field: 'show'/'hide' set the dotted
+    // path, null unsets it, anything else is ignored silently.
+    if (externalEmbeds && typeof externalEmbeds === 'object' && !Array.isArray(externalEmbeds)) {
+      const embeds = externalEmbeds as Record<string, unknown>;
+      for (const key of Object.keys(embeds)) {
+        if (!(EXTERNAL_EMBED_SOURCES as readonly string[]).includes(key)) continue;
+        const source = key as EmbedPlayerSource;
+        const value = embeds[source];
+        if (value === 'show' || value === 'hide') {
+          update[`externalEmbeds.${source}`] = value;
+        } else if (value === null) {
+          unset[`externalEmbeds.${source}`] = '';
+        }
+      }
     }
 
     const operation: Record<string, Record<string, any>> = {};

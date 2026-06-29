@@ -54,6 +54,7 @@ import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom
 
 // Hooks
 import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
+import { useHydrateExternalEmbeds } from '@/stores/externalEmbedsStore';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
@@ -177,6 +178,7 @@ function AuthRouter() {
   const segments = useSegments();
 
   useServerAppearanceSync();
+  useHydrateExternalEmbeds();
 
   // Forward OS share-sheet payloads into `/compose`. No-op on web
   // (handled by the manifest Share Target).

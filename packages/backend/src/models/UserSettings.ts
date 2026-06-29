@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import type { ExternalEmbedsSettings } from '@mention/shared-types';
 
 export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
@@ -135,6 +136,13 @@ export interface UserSettingsData {
   interests?: InterestsSettings;
   feedSettings?: FeedSettings;
   notificationPreferences?: NotificationPreferences;
+  /**
+   * Per-provider preference for whether third-party media embeds (YouTube,
+   * Spotify, GIPHY, …) auto-load their inline player. Absent providers default
+   * to "ask on first play". Single source of truth for the keys/shape lives in
+   * `@mention/shared-types` (`ExternalEmbedsSettings`).
+   */
+  externalEmbeds?: ExternalEmbedsSettings;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -234,6 +242,23 @@ const FeedSettingsSchema = new Schema<FeedSettings>({
   },
 }, { _id: false });
 
+// Per-provider external-embed preferences. Each field is an optional tri-state
+// (`'show'`/`'hide'`; absent = "ask on first play"). The provider keys mirror
+// `EXTERNAL_EMBED_SOURCES` in `@mention/shared-types`, which is the canonical
+// list consumed by the frontend and the PUT /profile/settings whitelist.
+const ExternalEmbedsSchema = new Schema<ExternalEmbedsSettings>({
+  youtube: { type: String, enum: ['show', 'hide'] },
+  youtubeShorts: { type: String, enum: ['show', 'hide'] },
+  vimeo: { type: String, enum: ['show', 'hide'] },
+  twitch: { type: String, enum: ['show', 'hide'] },
+  giphy: { type: String, enum: ['show', 'hide'] },
+  spotify: { type: String, enum: ['show', 'hide'] },
+  appleMusic: { type: String, enum: ['show', 'hide'] },
+  soundcloud: { type: String, enum: ['show', 'hide'] },
+  flickr: { type: String, enum: ['show', 'hide'] },
+  bandcamp: { type: String, enum: ['show', 'hide'] },
+}, { _id: false });
+
 const UserSettingsSchema = new Schema<IUserSettings>({
   oxyUserId: { type: String, required: true, index: true, unique: true },
   appearance: { type: AppearanceSchema, default: () => ({ themeMode: 'system' }) },
@@ -243,6 +268,7 @@ const UserSettingsSchema = new Schema<IUserSettings>({
   interests: { type: InterestsSchema },
   feedSettings: { type: FeedSettingsSchema },
   notificationPreferences: { type: NotificationPreferencesSchema },
+  externalEmbeds: { type: ExternalEmbedsSchema },
 }, { timestamps: true, versionKey: false });
 
 export const UserSettings = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);
