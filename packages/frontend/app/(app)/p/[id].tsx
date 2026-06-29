@@ -31,6 +31,11 @@ import SEO from '@/components/SEO';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 
+// Hard cap on how far up the reply chain we walk when building the ancestor
+// thread, guarding against a runaway/cyclic chain. Threads are short in practice
+// (a handful of hops); this is purely a safety ceiling.
+const MAX_ANCESTOR_DEPTH = 30;
+
 const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
@@ -61,7 +66,10 @@ const PostDetailScreen: React.FC = () => {
     const [fetchedPost, setFetchedPost] = useState<PostDetailEntity | null>(null);
     const post = cachedPost ?? fetchedPost;
 
-    const [parentPost, setParentPost] = useState<PostDetailEntity | null>(null);
+    // The full ancestor chain above the focused post, ordered ROOT FIRST … the
+    // immediate parent LAST. Rendered as one connected thread above the focused
+    // post (Bluesky-style). Empty for a root post (no parent).
+    const [ancestors, setAncestors] = useState<PostDetailEntity[]>([]);
     // Only block first paint when there is no cached post to render. A cache hit
     // paints immediately and revalidates in the background (stale-while-revalidate).
     const [loading, setLoading] = useState(() => !cachedPost);
@@ -109,24 +117,57 @@ const PostDetailScreen: React.FC = () => {
         const postId = String(id);
         const hadCache = !!usePostsStore.getState().getPostFromDb(postId);
 
+        // Drop any ancestor chain belonging to a previously-viewed post so the new
+        // focused post never momentarily renders under stale parents on navigation.
+        setAncestors([]);
+
         // Track view in background (non-blocking) regardless of cache state.
         if (user) {
             statisticsService.trackPostView(postId).catch(() => {});
         }
 
-        const loadParent = async (parentPostId: string | undefined) => {
-            if (!parentPostId) return;
-            const cachedParent = usePostsStore.getState().getPostFromDb(parentPostId);
-            if (cachedParent) {
-                if (!cancelled) setParentPost(cachedParent);
+        // Walk the reply chain UP from the focused post to the root, building the
+        // ordered ancestor array (root first … immediate parent last). Each hop
+        // reads the shared cache first and only fetches on a miss, so a fully
+        // cached chain resolves in one tight pass. Resilient + bounded:
+        //   - a missing/deleted ancestor just stops the chain (render what loaded);
+        //   - a cycle (id already visited) breaks the walk;
+        //   - the walk is capped at MAX_ANCESTOR_DEPTH hops.
+        // Boosts have no `parentPostId`, so they yield an empty chain — the boost
+        // renders standalone with its original embedded (replies target the
+        // original via `replyTargetId`, unchanged).
+        const loadAncestors = async (startParentId: string | undefined) => {
+            if (!startParentId) {
+                if (!cancelled) setAncestors([]);
                 return;
             }
-            try {
-                const parentResponse = await getPostById(parentPostId);
-                if (!cancelled) setParentPost(parentResponse);
-            } catch {
-                // A missing/deleted parent is non-fatal — render the post alone.
+            const chain: PostDetailEntity[] = []; // bottom-up: immediate parent first
+            const visited = new Set<string>([postId]);
+            let nextId: string | undefined = startParentId;
+            let depth = 0;
+
+            while (nextId && depth < MAX_ANCESTOR_DEPTH) {
+                if (visited.has(nextId)) break; // cycle guard
+                visited.add(nextId);
+
+                let ancestor = usePostsStore.getState().getPostFromDb(nextId) as PostDetailEntity | null;
+                if (!ancestor) {
+                    try {
+                        ancestor = await getPostById(nextId);
+                    } catch {
+                        // Missing/deleted ancestor — stop and keep what we have.
+                        break;
+                    }
+                }
+                if (cancelled) return;
+                if (!ancestor) break;
+
+                chain.push(ancestor);
+                nextId = ancestor.parentPostId ? String(ancestor.parentPostId) : undefined;
+                depth++;
             }
+
+            if (!cancelled) setAncestors(chain.reverse()); // root first
         };
 
         const run = async () => {
@@ -137,20 +178,20 @@ const PostDetailScreen: React.FC = () => {
                 // the background so engagement/viewer state is fresh; the reactive
                 // store read (`cachedPost`) picks up the refreshed post.
                 const cached = usePostsStore.getState().getPostFromDb(postId);
-                loadParent(cached?.parentPostId);
+                loadAncestors(cached?.parentPostId);
                 revalidatePostById(postId).then((fresh) => {
-                    if (!cancelled && fresh?.parentPostId) loadParent(fresh.parentPostId);
+                    if (!cancelled && fresh?.parentPostId) loadAncestors(fresh.parentPostId);
                 });
                 return;
             }
 
-            // Cache miss — blocking fetch, then load the parent (if any).
+            // Cache miss — blocking fetch, then load the ancestor chain (if any).
             try {
                 setLoading(true);
                 const response = await getPostById(postId);
                 if (cancelled) return;
                 setFetchedPost(response);
-                loadParent(response?.parentPostId);
+                loadAncestors(response?.parentPostId);
             } catch {
                 if (!cancelled) setError('Failed to load post');
             } finally {
@@ -188,31 +229,47 @@ const PostDetailScreen: React.FC = () => {
     const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
     const postImage = getPostImage();
 
-    // List header for Feed: parent post + main post + compose prompt + replies heading
+    // List header for Feed: ancestor thread + focused post + compose prompt + replies heading
     const listHeader = useMemo(() => {
         if (!post) return null;
+        const hasAncestors = ancestors.length > 0;
         return (
             <View>
-                {parentPost && post.parentPostId && (
-                    <View className="border-b pb-3 mb-2 border-border">
-                        <Text className="text-sm px-4 py-2 font-medium text-muted-foreground">Replying to</Text>
-                        <PostItem
-                            post={parentPost}
-                            onReply={handleOpenReply}
-                        />
-                        <View className="w-0.5 h-3 ml-8 mt-1 bg-border" />
-                    </View>
-                )}
+                {/* Ancestor chain rendered top-to-bottom (root first) as ONE
+                    connected thread. Each ancestor draws the thread line DOWN from
+                    its avatar (`isThreadParent`) and, for every hop below the root,
+                    receives the incoming line from above (`isThreadChild`), so the
+                    line is continuous root → … → immediate parent. `attachedBelow`
+                    drops each ancestor's bottom border/padding so they connect flush
+                    with no separators between them or into the focused post. */}
+                {ancestors.map((ancestor, index) => (
+                    <PostItem
+                        key={String(ancestor.id ?? index)}
+                        post={ancestor}
+                        isThreadParent
+                        isThreadChild={index > 0}
+                        attachedBelow
+                        onReply={handleOpenReply}
+                    />
+                ))}
 
                 {/* The focused post renders through the SAME PostItem as the feed,
                     gated by the `isPostDetail` variant (full-width body, larger spread
                     action bar, full timestamp + engagement-stats rows). This covers
                     BOTH a normal post and a boost (booster header + "boosted" + the
                     original as a nested, tappable sub-card → `/p/<originalId>`). The
-                    focused main post is non-tappable; only its nested card navigates. */}
+                    focused main post is non-tappable; only its nested card navigates.
+                    When there are ancestors it is the LAST node of the thread:
+                    `isThreadChild` brings the line down into it (and tightens the top
+                    gap to connect flush to the immediate parent), while
+                    `isThreadLastChild` keeps its bottom border so it stays visually
+                    separated from the compose prompt below. It is intentionally NOT a
+                    thread parent — see the replies-connection note below. */}
                 <PostItem
                     post={post}
                     isPostDetail
+                    isThreadChild={hasAncestors}
+                    isThreadLastChild={hasAncestors}
                     onReply={handleOpenReply}
                 />
 
@@ -227,7 +284,7 @@ const PostDetailScreen: React.FC = () => {
                 </View>
             </View>
         );
-    }, [post, parentPost, handleOpenReply, user, t]);
+    }, [post, ancestors, handleOpenReply, user, t]);
 
     if (!loading && (error || !post)) {
         return (
