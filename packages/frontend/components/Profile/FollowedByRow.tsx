@@ -31,7 +31,8 @@ export const FollowedByRow = memo(function FollowedByRow({ profileId, username }
       mutuals.map((mutual) => ({
         id: mutual.id,
         uri: mutual.avatar,
-        displayName: mutual.name.displayName,
+        // Fall back to the handle when a mutual has no display name.
+        displayName: mutual.name.displayName?.trim() || mutual.username,
         username: mutual.username,
       })),
     [mutuals],
@@ -43,8 +44,8 @@ export const FollowedByRow = memo(function FollowedByRow({ profileId, username }
     return null;
   }
 
-  const name1 = mutuals[0].name.displayName;
-  const name2 = mutuals[1]?.name.displayName;
+  const name1 = mutuals[0].name.displayName?.trim() || mutuals[0].username;
+  const name2 = mutuals[1] ? (mutuals[1].name.displayName?.trim() || mutuals[1].username) : undefined;
 
   let label: string;
   if (total === 1 || !name2) {

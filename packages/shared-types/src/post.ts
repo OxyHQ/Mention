@@ -480,7 +480,12 @@ export interface PostFilters {
 export interface PostActorSummary {
   id: string;
   handle: string;
-  displayName: string;
+  /**
+   * Canonical Oxy `name.displayName`. OPTIONAL: an actor may have no display
+   * name (the API may stop synthesizing one). Renderers MUST fall back to the
+   * (always-present) `handle` — never show a blank name or the handle twice.
+   */
+  displayName?: string;
   /**
    * Final, ready-to-render avatar URL resolved server-side — NOT a raw Oxy file
    * id or relative path.

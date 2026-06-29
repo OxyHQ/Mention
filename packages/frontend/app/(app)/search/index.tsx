@@ -233,7 +233,7 @@ export default function SearchIndex() {
 
     const renderUserItem = useCallback((user: SearchUserResult) => {
         const username = user.username || user.handle || '';
-        if (!username || !user.name?.displayName) return null;
+        if (!username) return null;
         const isFederated = user.isFederated || user.type === 'federated';
         const instance = user.instance || user.federation?.domain;
 

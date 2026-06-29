@@ -382,7 +382,10 @@ function ConnectionsContent({
     const avatarSource = item?.avatar ?? item.profilePicture;
     const bio = item?.profile?.bio || item?.bio;
     const userId = String(item.id || item._id || item.userID || '');
-    if (!userId || !item.name?.displayName) return null;
+    if (!userId) return null;
+    // A real display name is the bold primary with the muted @handle below; with
+    // no display name the @handle becomes the bold primary, shown ONCE.
+    const hasName = !!item.name?.displayName?.trim();
 
     return (
       <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
@@ -394,11 +397,13 @@ function ConnectionsContent({
           <Avatar source={avatarSource || undefined} size={48} />
           <View className="ml-3 flex-1">
             <ThemedText className="font-semibold text-base text-foreground" numberOfLines={1}>
-              {item.name.displayName}
+              {hasName ? item.name?.displayName : `@${handle}`}
             </ThemedText>
-            <ThemedText className="pt-0.5 text-sm text-muted-foreground" numberOfLines={1}>
-              @{handle}
-            </ThemedText>
+            {hasName ? (
+              <ThemedText className="pt-0.5 text-sm text-muted-foreground" numberOfLines={1}>
+                @{handle}
+              </ThemedText>
+            ) : null}
             {bio ? (
               <ThemedText className="pt-1 text-sm leading-[18px] text-muted-foreground" numberOfLines={2}>
                 {bio}

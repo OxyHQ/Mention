@@ -152,12 +152,11 @@ const BoostScreen: React.FC = () => {
                         <View className="flex-1">
                             <UserName
                                 name={originalPost.user.displayName}
+                                handle={originalPost.user.handle}
                                 verified={originalPost.user.verified}
                                 variant="small"
+                                style={{ handle: { fontSize: 13 } }}
                             />
-                            {originalPost.user.handle ? (
-                                <Text className="text-muted-foreground text-[13px]">@{originalPost.user.handle}</Text>
-                            ) : null}
                         </View>
                     </View>
                     <Text className="text-foreground text-[15px]" style={{ lineHeight: 20 }}>{originalPost.content}</Text>

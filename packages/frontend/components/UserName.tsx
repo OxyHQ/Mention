@@ -30,12 +30,24 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
     // Use a slightly larger nudge for larger fonts (e.g., header titles) to improve visual alignment.
     const baselineNudge = Math.round(effectiveFontSize >= 18 ? effectiveFontSize * 0.18 : effectiveFontSize * 0.06);
 
+    // Single source of truth for the "display name else handle, once" rule:
+    //  - a real display name owns the bold primary slot, with the muted `@handle`
+    //    line trailing below (as before);
+    //  - with NO display name the `@handle` takes the bold primary slot ONCE and
+    //    the separate muted handle line is suppressed (never blank, never doubled);
+    //  - with neither, nothing renders.
+    const hasName = !!name?.trim();
+    const primaryText = hasName ? name : (handle ? `@${handle}` : undefined);
+    const showHandleLine = hasName && !!handle;
+
     const inner = (
         <>
             <View className="gap-1" style={styles.nameRow}>
-                <Text className="text-foreground" style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
-                    {name}
-                </Text>
+                {primaryText != null && (
+                    <Text className="text-foreground" style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
+                        {primaryText}
+                    </Text>
+                )}
                 {verified && (
                     <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
@@ -49,7 +61,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                     <AutomatedIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
             </View>
-            {handle ? (
+            {showHandleLine ? (
                 isFederated ? (
                     <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
                         <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">

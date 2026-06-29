@@ -567,7 +567,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const replyContextHandle = replyContextAuthor?.handle || replyContextAuthor?.displayName;
 
-    const postAuthor = viewPost.user.displayName;
+    const postAuthor = viewPost.user.displayName?.trim() || `@${viewPost.user.handle}`;
     const postTextSummary = content.text
         ? content.text.length > 80
             ? content.text.substring(0, 80) + '...'
@@ -602,7 +602,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     <BoostIcon size={13} color={theme.colors.textSecondary} />
                 </View>
                 <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName}
+                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {repostedBy.displayName?.trim() || `@${repostedBy.handle}`}
                 </Text>
             </TouchableOpacity>,
         );

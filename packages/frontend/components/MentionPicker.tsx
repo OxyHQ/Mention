@@ -17,7 +17,7 @@ import { logger } from '@/lib/logger';
 export interface MentionUser {
     id: string;
     username: string;
-    displayName: string;
+    displayName?: string;
     avatar?: string;
     verified?: boolean;
 }
@@ -62,14 +62,13 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                     verified?: boolean;
                 }) => {
                     const username = profile.username || profile.handle || '';
-                    const displayName = profile.name?.displayName;
-                    if (!username || !displayName) {
+                    if (!username) {
                         return [];
                     }
                     return [{
                         id: profile.id || profile._id || username,
                         username,
-                        displayName,
+                        displayName: profile.name?.displayName,
                         avatar: profile.avatar || profile.profilePicture || undefined,
                         verified: profile.verified || false,
                     }];
@@ -117,7 +116,12 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                     data={users}
                     keyExtractor={(item) => item.id}
                     keyboardShouldPersistTaps="handled"
-                    renderItem={({ item }) => (
+                    renderItem={({ item }) => {
+                        // A real display name is the bold primary with the muted
+                        // @handle below; with no display name the @handle becomes
+                        // the bold primary, shown ONCE.
+                        const hasName = !!item.displayName?.trim();
+                        return (
                         <TouchableOpacity
                             className="border-b-border"
                             style={styles.userItem}
@@ -137,22 +141,25 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                                         style={styles.userName}
                                         numberOfLines={1}
                                     >
-                                        {item.displayName}
+                                        {hasName ? item.displayName : `@${item.username}`}
                                     </Text>
                                     {item.verified && (
                                         <Text style={styles.verifiedBadge}>✓</Text>
                                     )}
                                 </View>
-                                <Text
-                                    className="text-muted-foreground"
-                                    style={styles.userHandle}
-                                    numberOfLines={1}
-                                >
-                                    @{item.username}
-                                </Text>
+                                {hasName ? (
+                                    <Text
+                                        className="text-muted-foreground"
+                                        style={styles.userHandle}
+                                        numberOfLines={1}
+                                    >
+                                        @{item.username}
+                                    </Text>
+                                ) : null}
                             </View>
                         </TouchableOpacity>
-                    )}
+                        );
+                    }}
                 />
             )}
         </View>
