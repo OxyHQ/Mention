@@ -159,7 +159,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         try {
             const cachedUser = queryClient.getQueryData<User>(queryKeys.users.detail(String(id)));
             if (cachedUser) {
-                const resolvedName = cachedUser.name.displayName;
+                const resolvedName = cachedUser.name.displayName ?? '';
                 setActorName(resolvedName);
                 setActorAvatar(cachedUser.avatar ?? undefined);
                 actorCacheRef.current.set(String(id), { name: resolvedName, avatar: cachedUser.avatar ?? undefined });
@@ -187,8 +187,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     staleTime: 5 * 60 * 1000,
                 });
                 if (!cancelled && ensured) {
-                    actorCacheRef.current.set(String(id), { name: ensured.name.displayName, avatar: ensured.avatar ?? undefined });
-                    setActorName(ensured.name.displayName);
+                    actorCacheRef.current.set(String(id), { name: ensured.name.displayName ?? '', avatar: ensured.avatar ?? undefined });
+                    setActorName(ensured.name.displayName ?? '');
                     setActorAvatar(ensured.avatar ?? undefined);
                 } else if (!cancelled) {
                     // Could not resolve a profile — leave the name empty so the

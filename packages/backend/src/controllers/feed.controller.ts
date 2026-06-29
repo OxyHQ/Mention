@@ -153,7 +153,7 @@ class FeedController {
       uniqueUserIds.map(async (userId) => {
         const userData = await oxyClient.getUserById(userId);
         const username = userData.username || 'user';
-        return { userId, username, displayName: userData.name.displayName };
+        return { userId, username, displayName: userData.name.displayName ?? username };
       })
     );
 
