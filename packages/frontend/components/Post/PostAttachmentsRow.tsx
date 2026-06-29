@@ -327,7 +327,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     [items]);
 
   const hasMultipleMedia = mediaItems.length > 1;
-  const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested');
+  const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested' || item.type === 'link');
 
   // Open the fullscreen reels viewer seeded at the tapped video. The reels route
   // selects the correct media item via the `mediaIndex` query param, so a post
