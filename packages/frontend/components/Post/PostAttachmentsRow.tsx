@@ -154,6 +154,18 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const attachmentItems = useMemo(() => {
     const results: AttachmentItem[] = [];
+    // Built once; pushed by the non-descriptor branch below, or inserted by the
+    // fallback for the descriptor branch — the two paths are mutually exclusive.
+    const linkItem: AttachmentItem | null = hasLink && linkMetadata
+      ? {
+          type: 'link',
+          url: linkMetadata.url,
+          title: linkMetadata.title,
+          description: linkMetadata.description,
+          image: linkMetadata.image,
+          siteName: linkMetadata.siteName,
+        }
+      : null;
     const mediaById = new Map<string, MediaObj>();
     const usedMedia = new Set<string>();
 
@@ -247,16 +259,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (hasEvent) results.push({ type: 'event' });
       if (hasRoom) results.push({ type: 'room' });
       if (hasPodcast) results.push({ type: 'podcast' });
-      if (hasLink && linkMetadata) {
-        results.push({
-          type: 'link',
-          url: linkMetadata.url,
-          title: linkMetadata.title,
-          description: linkMetadata.description,
-          image: linkMetadata.image,
-          siteName: linkMetadata.siteName,
-        });
-      }
+      if (linkItem) results.push(linkItem);
     }
 
     mediaArray.forEach((m) => {
@@ -276,16 +279,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       results.push({ type: 'podcast' });
     }
 
-    if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
-      const linkItem: AttachmentItem = {
-        type: 'link',
-        url: linkMetadata.url,
-        title: linkMetadata.title,
-        description: linkMetadata.description,
-        image: linkMetadata.image,
-        siteName: linkMetadata.siteName,
-      };
-
+    if (linkItem && !results.some(item => item.type === 'link')) {
       let insertIdx = -1;
       for (let i = results.length - 1; i >= 0; i--) {
         if (results[i].type === 'poll' || results[i].type === 'article') {
