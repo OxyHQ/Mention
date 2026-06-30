@@ -82,12 +82,8 @@ const PostDetailScreen: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
 
-    // The TAIL of the OP's self-thread — the last continuation (cN). When the
-    // focused post is a self-thread root, replies and the compose-reply prompt
-    // attach to the tail (Bluesky behavior): the replies feed then queries the
-    // tail's children and so never re-renders the spine continuations as replies
-    // (c1, a direct child of the root, would otherwise duplicate). Undefined for
-    // a non-thread post.
+    // The TAIL of the OP's self-thread — the last continuation (cN). Undefined for
+    // a non-thread post (no continuation spine).
     const threadTailId = continuations.length > 0
         ? String(continuations[continuations.length - 1].id)
         : undefined;
@@ -95,20 +91,31 @@ const PostDetailScreen: React.FC = () => {
     // A boost (`type:'boost'`) is its OWN post with an empty body whose content is
     // the original it boosted — so `/p/<boostId>` renders as the booster's post
     // with the original embedded as a nested sub-card (the same way the feed row
-    // renders a boost). A boost has no direct replies of its own; replies attach
-    // to the original, so the replies thread below targets the original's id. For
-    // a self-thread root, replies attach to the thread tail; otherwise they attach
-    // to the focused post itself.
-    const replyTargetId = post?.boost?.originalPost?.id
+    // renders a boost). A boost has no replies of its own; replies attach to the
+    // original, so both reply targets below resolve to the original's id.
+    const boostOriginalId = post?.boost?.originalPost?.id
         ? String(post.boost.originalPost.id)
-        : (threadTailId ?? String(id));
+        : undefined;
+
+    // Target that drives the REPLIES FEED query: the focused post itself (the
+    // self-thread ROOT when this is a thread). The backend expands a self-thread
+    // root into its whole continuation spine and returns external replies to ANY
+    // spine node (root … cN), EXCLUDING the OP's own continuations — so this must be
+    // the root, NOT the tail. For a non-thread post the root IS the focused post.
+    const repliesQueryTargetId = boostOriginalId ?? String(id);
+
+    // Target a NEW reply attaches to: the thread TAIL (cN) when this is a self-thread
+    // (Bluesky — reply to the latest thread post), else the focused post. Because the
+    // spine-aware replies feed includes the tail's children, a reply composed here
+    // surfaces in the replies list.
+    const composeReplyTargetId = boostOriginalId ?? (threadTailId ?? String(id));
 
     // Memoize filters for replies feed
     const feedFilters = useMemo(() => ({
-        postId: replyTargetId,
-        parentPostId: replyTargetId,
+        postId: repliesQueryTargetId,
+        parentPostId: repliesQueryTargetId,
         sort: SORT_TO_API[sortOrder],
-    }), [replyTargetId, sortOrder]);
+    }), [repliesQueryTargetId, sortOrder]);
 
     const openReplyPreferences = useCallback(() => {
         setBottomSheetContent(<ReplyPreferencesSheet />);
@@ -116,9 +123,10 @@ const PostDetailScreen: React.FC = () => {
     }, [setBottomSheetContent, openBottomSheet]);
 
     const handleOpenReply = useCallback(() => {
-        // Replies attach to the original, never to the boost record.
-        if (replyTargetId) router.push(`/compose?replyToPostId=${replyTargetId}`);
-    }, [replyTargetId]);
+        // A new reply attaches to the thread tail (or the focused post / boost
+        // original), never to the boost record itself.
+        if (composeReplyTargetId) router.push(`/compose?replyToPostId=${composeReplyTargetId}`);
+    }, [composeReplyTargetId]);
 
     // Load the post. When the feed already cached it, the post is rendered
     // synchronously above (`cachedPost`) and this effect only revalidates it in
@@ -166,8 +174,8 @@ const PostDetailScreen: React.FC = () => {
         //   - a cycle (id already visited) breaks the walk;
         //   - the walk is capped at MAX_ANCESTOR_DEPTH hops.
         // Boosts have no `parentPostId`, so they yield an empty chain — the boost
-        // renders standalone with its original embedded (replies target the
-        // original via `replyTargetId`, unchanged).
+        // renders standalone with its original embedded (reply targets resolve to
+        // the original via `boostOriginalId`, unchanged).
         const loadAncestors = async (startParentId: string | undefined) => {
             if (!startParentId) {
                 if (!cancelled) setAncestors([]);
@@ -319,8 +327,9 @@ const PostDetailScreen: React.FC = () => {
                     so they connect flush with no separators. The LAST continuation
                     (the thread tail) closes the thread with `isThreadLastChild`,
                     keeping its bottom border to separate the tail from the compose
-                    prompt below. Replies attach to this tail (see `replyTargetId`),
-                    so the continuations never double up in the replies feed. */}
+                    prompt below. A new reply attaches to this tail (see
+                    `composeReplyTargetId`); the spine-aware replies feed excludes the
+                    OP continuations, so they never double up in the replies list. */}
                 {continuations.map((continuation, index) => {
                     const isLast = index === continuations.length - 1;
                     return (
@@ -428,7 +437,7 @@ const PostDetailScreen: React.FC = () => {
                         listHeaderComponent={listHeader}
                         hideHeader={true}
                         threaded={treeView}
-                        threadPostId={replyTargetId}
+                        threadPostId={repliesQueryTargetId}
                         contentContainerStyle={styles.feedContent}
                     />
                 )}

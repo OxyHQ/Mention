@@ -1854,6 +1854,39 @@ class FeedController {
    */
   // Debug method removed for production
 
+  /**
+   * Resolve the ordered self-thread continuation documents for a self-thread root.
+   *
+   * Single source of truth for the spine query shared by BOTH
+   * {@link getThreadContinuations} (renders the connected spine on the post-detail
+   * screen) and {@link getRepliesFeed} (expands a root into its whole spine so
+   * external replies to ANY spine node surface — Bluesky behavior). The match shape
+   * mirrors ThreadSlicingService.fetchThreadChildren: every post in this thread by
+   * the SAME author that hangs off the chain (`parentPostId` present), public +
+   * published, in chronological (= thread) order, capped at
+   * MAX_THREAD_CONTINUATION_DEPTH.
+   *
+   * Returns the lean documents (not just ids) so the continuation endpoint hydrates
+   * them in a single query, while the replies feed maps them to ids — avoiding the
+   * extra round-trip an id-only helper would force on `getThreadContinuations`. The
+   * caller must already have verified `root` is a self-thread root
+   * (`root.threadId === String(root._id)`).
+   */
+  private getSelfThreadContinuations(root: Pick<IPost, 'oxyUserId' | 'threadId'>) {
+    return Post.find({
+      threadId: String(root.threadId),
+      oxyUserId: root.oxyUserId,
+      parentPostId: { $ne: null, $exists: true },
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    })
+      .select(this.FEED_FIELDS)
+      .sort({ createdAt: 1 })
+      .limit(MAX_THREAD_CONTINUATION_DEPTH)
+      .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+      .lean();
+  }
+
   async getRepliesFeed(req: AuthRequest, res: Response) {
     try {
       const nestedFilters = req.query.filters as ParsedQs | undefined;
@@ -1869,15 +1902,47 @@ class FeedController {
       const sort = req.query.sort as string | undefined;
       const cursor = req.query.cursor as string | undefined;
 
+      // Detect whether the parent is a self-thread ROOT. A self-thread root anchors
+      // its own id as `threadId` (see createThread); for such a post the replies feed
+      // must surface external replies to ANY node of the OP's continuation spine
+      // (root … cN) — Bluesky behavior — not just the root's direct children. The
+      // findById is guarded on a valid ObjectId so a non-ObjectId parentId (and any
+      // non-root post) simply skips spine expansion and keeps the single-parent query.
+      const parent = mongoose.isValidObjectId(parentId)
+        ? await Post.findById(parentId)
+          .select('_id oxyUserId threadId')
+          .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+          .lean()
+        : null;
+      const isSelfThreadRoot = !!parent?.threadId && String(parent.threadId) === String(parent._id);
+
+      // The OP's own continuations are rendered as the connected spine on the client,
+      // so they must NOT also appear as replies. Each continuation hangs off another
+      // spine node (c1.parentPostId === root, c2.parentPostId === c1, …) and would
+      // otherwise match the expanded parent filter, so exclude them by id. The root
+      // has no parentPostId and can never appear as a reply.
+      const continuationIds = isSelfThreadRoot && parent
+        ? (await this.getSelfThreadContinuations(parent)).map((c) => String(c._id))
+        : [];
+
       const query: QueryFilter<IPost> = {
-        parentPostId: String(parentId),
+        parentPostId: continuationIds.length > 0
+          ? { $in: [String(parentId), ...continuationIds] }
+          : String(parentId),
         visibility: PostVisibility.PUBLIC,
         status: 'published',
       };
 
+      const idConditions: { $nin?: mongoose.Types.ObjectId[]; $lt?: mongoose.Types.ObjectId } = {};
+      if (continuationIds.length > 0) {
+        idConditions.$nin = continuationIds.map((cid) => new mongoose.Types.ObjectId(cid));
+      }
       if (cursor) {
         const cursorId = parseFeedCursor(cursor);
-        if (cursorId) query._id = { $lt: cursorId };
+        if (cursorId) idConditions.$lt = cursorId;
+      }
+      if (idConditions.$nin || idConditions.$lt) {
+        query._id = idConditions;
       }
 
       const feedFieldsProject = Object.fromEntries(
@@ -1987,21 +2052,10 @@ class FeedController {
         return res.json({ items: [] });
       }
 
-      // Identical query shape to ThreadSlicingService.fetchThreadChildren: every
-      // post in this thread by the SAME author that hangs off the chain
-      // (parentPostId present), in chronological (= thread) order.
-      const continuations = await Post.find({
-        threadId: String(root.threadId),
-        oxyUserId: root.oxyUserId,
-        parentPostId: { $ne: null, $exists: true },
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-      })
-        .select(this.FEED_FIELDS)
-        .sort({ createdAt: 1 })
-        .limit(MAX_THREAD_CONTINUATION_DEPTH)
-        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-        .lean();
+      // Single source of truth for the spine query (shared with getRepliesFeed,
+      // which expands a root into this same spine to surface external replies to
+      // any node). Identical match shape to ThreadSlicingService.fetchThreadChildren.
+      const continuations = await this.getSelfThreadContinuations(root);
 
       if (continuations.length === 0) {
         return res.json({ items: [] });
