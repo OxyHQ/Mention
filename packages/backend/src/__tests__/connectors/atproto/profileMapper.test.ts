@@ -84,14 +84,13 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     const actor = await fetchAndUpsertAtprotoProfile(DID);
 
     expect(mocks.xrpcGet).toHaveBeenCalledWith('public.api.bsky.app', 'app.bsky.actor.getProfile', { actor: DID });
-    // Upsert keyed on the DID, carrying protocol + externalId + handle acct.
+    // Upsert keyed on the DID, carrying protocol + uri (the DID) + handle acct.
     expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
       { uri: DID },
       expect.objectContaining({
         $set: expect.objectContaining({
           protocol: 'atproto',
           uri: DID,
-          externalId: DID,
           acct: 'alice.bsky.social',
           headerUrl: PROFILE.banner,
         }),

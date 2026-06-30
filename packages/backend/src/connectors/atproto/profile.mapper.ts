@@ -72,7 +72,6 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
         $set: {
           protocol: 'atproto',
           uri: did,
-          externalId: did,
           username,
           domain,
           acct: actor.handle,

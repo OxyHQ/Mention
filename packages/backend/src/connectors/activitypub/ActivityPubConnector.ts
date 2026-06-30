@@ -105,7 +105,14 @@ class ActivityPubConnector implements NetworkConnector {
   async fetchPosts(externalId: string, opts: FetchPostsOptions = {}): Promise<FetchPostsResult> {
     const actor = await actorService.getOrFetchActor(externalId);
     if (!actor?.outboxUrl) return { posts: [] };
-    const result = await outboxSyncService.syncOutboxPostsDetailed(actor, opts.limit ?? 20);
+    // Forward the incoming opaque cursor as `startPageUrl` so pagination advances:
+    // `fetchPosts` returns `result.nextCursor?.url`, and `syncOutboxPostsDetailed`
+    // resumes at `startPageUrl` (validated same-origin against the outbox). Absent
+    // cursor → first page.
+    const result = await outboxSyncService.syncOutboxPostsDetailed(actor, {
+      limit: opts.limit ?? 20,
+      startPageUrl: opts.cursor,
+    });
     return { posts: [], cursor: result.nextCursor?.url };
   }
 
