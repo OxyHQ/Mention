@@ -47,7 +47,7 @@
     "jsonwebtoken": "^9.0.3",
     "jwt-decode": "^4.0.0",
     "livekit-server-sdk": "^2.15.0",
-    "mongoose": "^9.3.1",
+    "mongoose": "^8.17.0",
     "multer": "^2.1.1",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",

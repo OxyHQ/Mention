@@ -49,7 +49,7 @@
  * to empty on error so a single failing query never sinks the whole computation.
  */
 
-import type { QueryFilter } from 'mongoose';
+import type { FilterQuery } from 'mongoose';
 import { PostType, MtnConfig, isVideoSurface } from '@mention/shared-types';
 import Like from '../models/Like';
 import { Post, type IPost } from '../models/Post';
@@ -736,7 +736,7 @@ export class ContentAffinityService {
     kind: 'reply' | 'boost',
   ): Promise<string[]> {
     try {
-      const match: QueryFilter<IPost> =
+      const match: FilterQuery<IPost> =
         kind === 'boost'
           ? {
             oxyUserId: viewerId,

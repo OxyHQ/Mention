@@ -17,7 +17,7 @@ import {
   PostContent,
   HydratedPost,
 } from '@mention/shared-types';
-import mongoose, { QueryFilter } from 'mongoose';
+import mongoose, { FilterQuery } from 'mongoose';
 import { IPost } from '../models/Post';
 import { IAccountList } from '../models/AccountList';
 import { io } from '../../server';
@@ -448,7 +448,7 @@ class FeedController {
       }
 
       // Build query
-      let query: QueryFilter<IPost>;
+      let query: FilterQuery<IPost>;
       if (feedType === 'saved' && savedPostIds.length > 0) {
         // For saved posts, use a simple query that only filters by saved post IDs
         // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
@@ -767,7 +767,7 @@ class FeedController {
       // Handle Likes feed separately (posts the user liked)
       if (type === 'likes') {
         // Paginate likes by Like document _id (chronological like order)
-        const likeQuery: QueryFilter<ILike> = { userId };
+        const likeQuery: FilterQuery<ILike> = { userId };
         const cursorId = parseFeedCursor(cursor);
         if (cursorId) {
           likeQuery._id = { $lt: cursorId };
@@ -1984,7 +1984,7 @@ class FeedController {
         ? (await this.getSelfThreadContinuations(parent)).map((c) => String(c._id))
         : [];
 
-      const query: QueryFilter<IPost> = {
+      const query: FilterQuery<IPost> = {
         parentPostId: continuationIds.length > 0
           ? { $in: [String(parentId), ...continuationIds] }
           : String(parentId),
