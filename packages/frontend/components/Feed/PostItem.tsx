@@ -144,7 +144,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const bottomSheet = useContext(BottomSheetContext);
     const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
-    const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
     const [translatedText, setTranslatedText] = useState<string | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
     const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
@@ -755,86 +754,66 @@ const PostItem: React.FC<PostItemProps> = ({
                             )}
 
                 {shouldRenderMediaBlock && (
-                    <View style={{ position: 'relative' }}>
-                        {isSensitiveContent && !sensitiveRevealed && (
-                            <TouchableOpacity
-                                style={styles.sensitiveOverlay}
-                                onPress={() => setSensitiveRevealed(true)}
-                                activeOpacity={0.8}
-                            >
-                                <View className="items-center gap-1">
-                                    <Ionicons name="eye-off" size={24} color="#fff" />
-                                    <Text style={styles.sensitiveOverlayTitle}>
-                                        {t('post.sensitiveContent', { defaultValue: 'Sensitive content' })}
-                                    </Text>
-                                    <Text style={styles.sensitiveOverlaySubtitle}>
-                                        {t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' })}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-                        )}
-                        <View style={isSensitiveContent && !sensitiveRevealed ? { opacity: 0.05 } : undefined}>
-                            <PostAttachmentsRow
-                                media={Array.isArray(mediaItems) ? mediaItems : []}
-                                attachments={attachmentDescriptors}
-                                nestedPost={nestedPost ?? null}
-                                leftOffset={AVATAR_OFFSET}
-                                pollData={pollData}
-                                pollId={pollId ? String(pollId) : undefined}
-                                nestingDepth={nestingDepth}
-                                postId={viewPostId}
-                                article={
-                                    articleContent
-                                        ? {
-                                            title: articleContent.title,
-                                            body: articleContent.body ?? articleContent.excerpt,
-                                            articleId: articleContent.articleId,
-                                        }
-                                        : null
+                    <PostAttachmentsRow
+                        sensitive={isSensitiveContent}
+                        media={Array.isArray(mediaItems) ? mediaItems : []}
+                        attachments={attachmentDescriptors}
+                        nestedPost={nestedPost ?? null}
+                        leftOffset={AVATAR_OFFSET}
+                        pollData={pollData}
+                        pollId={pollId ? String(pollId) : undefined}
+                        nestingDepth={nestingDepth}
+                        postId={viewPostId}
+                        article={
+                            articleContent
+                                ? {
+                                    title: articleContent.title,
+                                    body: articleContent.body ?? articleContent.excerpt,
+                                    articleId: articleContent.articleId,
                                 }
-                                onArticlePress={hasArticle ? openArticleSheet : undefined}
-                                event={
-                                    eventContent
-                                        ? {
-                                            eventId: eventContent.eventId,
-                                            name: eventContent.name,
-                                            date: eventContent.date,
-                                            location: eventContent.location,
-                                            description: eventContent.description,
-                                        }
-                                        : null
+                                : null
+                        }
+                        onArticlePress={hasArticle ? openArticleSheet : undefined}
+                        event={
+                            eventContent
+                                ? {
+                                    eventId: eventContent.eventId,
+                                    name: eventContent.name,
+                                    date: eventContent.date,
+                                    location: eventContent.location,
+                                    description: eventContent.description,
                                 }
-                                room={
-                                    roomContent && roomId
-                                        ? {
-                                            roomId,
-                                            title: roomContent.title,
-                                            status: roomContent.status,
-                                            topic: roomContent.topic,
-                                            host: roomContent.host,
-                                        }
-                                        : null
+                                : null
+                        }
+                        room={
+                            roomContent && roomId
+                                ? {
+                                    roomId,
+                                    title: roomContent.title,
+                                    status: roomContent.status,
+                                    topic: roomContent.topic,
+                                    host: roomContent.host,
                                 }
-                                onRoomPress={roomId ? handleRoomPress : undefined}
-                                podcast={podcastContent}
-                                location={location}
-                                sources={sourcesList}
-                                onSourcesPress={hasSources ? openSourcesSheet : undefined}
-                                text={content.text}
-                                linkMetadata={
-                                    linkPreview
-                                        ? {
-                                            url: linkPreview.url,
-                                            title: linkPreview.title,
-                                            description: linkPreview.description,
-                                            image: linkPreview.image,
-                                            siteName: linkPreview.siteName,
-                                        }
-                                        : null
+                                : null
+                        }
+                        onRoomPress={roomId ? handleRoomPress : undefined}
+                        podcast={podcastContent}
+                        location={location}
+                        sources={sourcesList}
+                        onSourcesPress={hasSources ? openSourcesSheet : undefined}
+                        text={content.text}
+                        linkMetadata={
+                            linkPreview
+                                ? {
+                                    url: linkPreview.url,
+                                    title: linkPreview.title,
+                                    description: linkPreview.description,
+                                    image: linkPreview.image,
+                                    siteName: linkPreview.siteName,
                                 }
-                            />
-                        </View>
-                    </View>
+                                : null
+                        }
+                    />
                 )}
 
                 {!isNested && (
@@ -903,29 +882,6 @@ const styles = StyleSheet.create({
         padding: 12,
         // No top margin: the nested card's spacing from the outer header/content is
         // owned by the parent content column's flex `gap` (see PostItem render).
-    },
-    sensitiveOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 10,
-        backgroundColor: 'rgba(0,0,0,0.85)',
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: 120,
-    },
-    sensitiveOverlayTitle: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '600',
-        marginTop: 4,
-    },
-    sensitiveOverlaySubtitle: {
-        color: 'rgba(255,255,255,0.6)',
-        fontSize: 13,
     },
 });
 

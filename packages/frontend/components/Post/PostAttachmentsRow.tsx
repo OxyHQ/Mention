@@ -69,6 +69,12 @@ interface Props {
   onSourcesPress?: (() => void) | null;
   text?: string;
   linkMetadata?: { url: string; title?: string; description?: string; image?: string; siteName?: string } | null;
+  /**
+   * Per-post sensitivity flag. When true, every image/video/gif cell renders
+   * behind its own blurred "Tap to reveal" cover that the viewer uncovers
+   * independently. Non-media attachments (polls, links, articles…) are unaffected.
+   */
+  sensitive?: boolean;
   style?: ViewStyle;
 }
 
@@ -101,6 +107,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   podcast,
   text,
   linkMetadata,
+  sensitive,
   style
 }) => {
   const router = useRouter();
@@ -625,6 +632,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               postId={postId}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
+              sensitive={sensitive}
             />
           );
         }
@@ -650,6 +658,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
+              sensitive={sensitive}
             />
           );
         }
@@ -680,7 +689,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.linkMetadata?.url === nextProps.linkMetadata?.url &&
     prevProps.location === nextProps.location &&
     prevProps.sources === nextProps.sources &&
-    prevProps.onSourcesPress === nextProps.onSourcesPress
+    prevProps.onSourcesPress === nextProps.onSourcesPress &&
+    prevProps.sensitive === nextProps.sensitive
   );
 });
 

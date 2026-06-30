@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
@@ -58,6 +61,13 @@ interface PostAttachmentMediaProps {
    * row's per-index registry so the gallery can fly back to it on dismiss.
    */
   registerHost?: RegisterThumbHost;
+  /**
+   * When true, this single media cell is gated behind a blurred "Sensitive
+   * content — Tap to reveal" cover. The flag is per-post (every media item in a
+   * sensitive post receives it), but each cell reveals INDEPENDENTLY: uncovering
+   * one image/video never reveals the others.
+   */
+  sensitive?: boolean;
 }
 
 const PostAttachmentVideo: React.FC<{
@@ -245,6 +255,46 @@ const PostAttachmentImage: React.FC<{
   );
 };
 
+const SENSITIVE_BLUR_INTENSITY = 80;
+
+/**
+ * Per-item "Sensitive content — Tap to reveal" cover. Rendered ON TOP of the
+ * already-painted media so the hidden state is a real blurred preview, not a
+ * flat box: on native expo-blur applies a GPU blur (`experimentalBlurMethod`),
+ * on web its BlurView fork applies a CSS `backdrop-filter: blur()` over the
+ * media behind it. `tint="dark"` adds the dim layer. The whole cover is one
+ * Pressable that reveals ONLY its own cell and, while present, intercepts taps
+ * so the media's lightbox/reels press handler cannot fire until revealed.
+ */
+const SensitiveMediaCover: React.FC<{ onReveal: () => void }> = ({ onReveal }) => {
+  const { t } = useTranslation();
+  return (
+    <Pressable
+      onPress={onReveal}
+      style={styles.sensitiveCover}
+      accessibilityRole="button"
+      accessibilityLabel={t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' })}
+      hitSlop={8}
+    >
+      <BlurView
+        intensity={SENSITIVE_BLUR_INTENSITY}
+        tint="dark"
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
+      />
+      <View className="items-center gap-1">
+        <Ionicons name="eye-off" size={24} color="#fff" />
+        <Text className="text-white text-[15px] font-semibold">
+          {t('post.sensitiveContent', { defaultValue: 'Sensitive content' })}
+        </Text>
+        <Text className="text-white/60 text-[13px]">
+          {t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' })}
+        </Text>
+      </View>
+    </Pressable>
+  );
+};
+
 const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   type,
   src,
@@ -254,9 +304,15 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   hasSingleMedia,
   hasMultipleMedia,
   registerHost,
+  sensitive,
 }) => {
+  // Per-cell reveal state: each media item owns its own boolean, so revealing
+  // one never reveals the rest of the row.
+  const [revealed, setRevealed] = useState(false);
+
+  let media: React.ReactNode;
   if (type === 'video') {
-    return (
+    media = (
       <PostAttachmentVideo
         src={src}
         poster={poster}
@@ -265,19 +321,30 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         hasMultipleMedia={hasMultipleMedia}
       />
     );
-  }
-
-  if (type === 'gif') {
-    return (
+  } else if (type === 'gif') {
+    media = (
       <PostAttachmentGif
         src={src}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}
       />
     );
+  } else {
+    media = <PostAttachmentImage src={src} alt={alt} onPress={onPress} registerHost={registerHost} />;
   }
 
-  return <PostAttachmentImage src={src} alt={alt} onPress={onPress} registerHost={registerHost} />;
+  if (!sensitive) {
+    return media;
+  }
+
+  // Keep the media mounted under the cover so revealing does not remount/reload
+  // it — the cover simply unmounts, uncovering the already-painted media.
+  return (
+    <View style={styles.sensitiveWrapper}>
+      {media}
+      {!revealed && <SensitiveMediaCover onReveal={() => setRevealed(true)} />}
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -296,6 +363,23 @@ const styles = StyleSheet.create({
   videoMultipleMedia: {
     height: MEDIA_CARD_HEIGHT,
     alignSelf: 'flex-start',
+  },
+  // Hugs the media's intrinsic size in the horizontal row so the absolute cover
+  // matches the cell exactly.
+  sensitiveWrapper: {
+    alignSelf: 'flex-start',
+  },
+  sensitiveCover: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: MEDIA_CARD_RADIUS,
+    overflow: 'hidden',
   },
 });
 
