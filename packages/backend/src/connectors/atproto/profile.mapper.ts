@@ -1,0 +1,133 @@
+import { logger } from '../../utils/logger';
+import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
+import { resolveOxyExternalUser } from '../identity';
+import type { NormalizedExternalActor } from '../types';
+import { xrpcGet } from './xrpcClient';
+import { PUBLIC_APPVIEW } from './constants';
+
+/**
+ * Maps an `app.bsky.actor.getProfile` response into a network-neutral actor,
+ * upserts the backing `FederatedActor` row (`protocol:'atproto'`), and mints /
+ * stamps the Oxy user it maps to through the shared identity bridge.
+ */
+
+/** The subset of `app.bsky.actor.defs#profileViewDetailed` this connector reads. */
+export interface AtprotoProfileView {
+  did?: string;
+  handle?: string;
+  displayName?: string;
+  description?: string;
+  avatar?: string;
+  banner?: string;
+  followersCount?: number;
+  followsCount?: number;
+  postsCount?: number;
+}
+
+/** Split an atproto handle (a DNS name) into a display username + instance domain. */
+function splitHandle(handle: string): { username: string; domain: string } {
+  const dot = handle.indexOf('.');
+  if (dot <= 0) return { username: handle, domain: handle };
+  return { username: handle, domain: handle.slice(dot + 1) };
+}
+
+/** Map a getProfile response to the network-neutral actor shape (pure). */
+export function mapProfileToNormalizedActor(profile: AtprotoProfileView): NormalizedExternalActor | null {
+  const did = typeof profile.did === 'string' ? profile.did : '';
+  const handle = typeof profile.handle === 'string' ? profile.handle : '';
+  if (!did || !handle) return null;
+
+  return {
+    network: 'atproto',
+    externalId: did,
+    handle,
+    displayName: profile.displayName || undefined,
+    avatarUrl: profile.avatar || undefined,
+    bannerUrl: profile.banner || undefined,
+    bio: profile.description || undefined,
+    followersCount: typeof profile.followersCount === 'number' ? profile.followersCount : undefined,
+    followingCount: typeof profile.followsCount === 'number' ? profile.followsCount : undefined,
+    postsCount: typeof profile.postsCount === 'number' ? profile.postsCount : undefined,
+  };
+}
+
+/**
+ * Upsert the `FederatedActor` row for a normalized atproto actor and resolve its
+ * Oxy user. Returns the actor with `oxyUserId` populated when Oxy resolved it.
+ *
+ * Fails soft: if `resolveOxyExternalUser` returns null (e.g. oxy-api does not yet
+ * accept a `did:` `actorUri`), the actor row is still upserted but `oxyUserId`
+ * stays undefined — callers MUST NOT import posts for an unresolved author (no
+ * orphan posts), exactly like the ActivityPub no-orphan invariant.
+ */
+export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promise<NormalizedExternalActor> {
+  const did = actor.externalId;
+  const { username, domain } = splitHandle(actor.handle);
+
+  let fedActor: IFederatedActor | null = null;
+  try {
+    fedActor = await FederatedActor.findOneAndUpdate(
+      { uri: did },
+      {
+        $set: {
+          protocol: 'atproto',
+          uri: did,
+          externalId: did,
+          username,
+          domain,
+          acct: actor.handle,
+          summary: actor.bio ?? '',
+          avatarUrl: actor.avatarUrl,
+          headerUrl: actor.bannerUrl,
+          type: 'Person',
+          followersCount: actor.followersCount ?? 0,
+          followingCount: actor.followingCount ?? 0,
+          postsCount: actor.postsCount ?? 0,
+          lastFetchedAt: new Date(),
+        },
+      },
+      { upsert: true, returnDocument: 'after', lean: true },
+    ) as IFederatedActor | null;
+  } catch (err) {
+    // A rare unique-key collision (a handle reassigned across DIDs) must not
+    // abort discovery — log and continue with no stamped row.
+    logger.warn(`[atproto] failed to upsert FederatedActor for ${did}`, err);
+  }
+
+  const existingOxyId = fedActor?.oxyUserId ?? undefined;
+  const oxyId = await resolveOxyExternalUser({ ...actor, oxyUserId: existingOxyId });
+  if (!oxyId) {
+    // Hard runtime dependency: oxy-api `PUT /users/resolve` must accept a `did:`
+    // actorUri. Until it does this returns null — fail soft (no throw, no orphan).
+    logger.warn(`[atproto] Oxy user unresolved for ${did}; importing skipped until oxy-api accepts did: actorUri`);
+    return { ...actor, oxyUserId: undefined };
+  }
+
+  if (fedActor && fedActor.oxyUserId !== oxyId) {
+    await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyId } });
+  }
+  return { ...actor, oxyUserId: oxyId };
+}
+
+/**
+ * Fetch a Bluesky profile (`app.bsky.actor.getProfile`), normalize it, upsert the
+ * `FederatedActor`, and resolve its Oxy user. `actor` may be a handle or a DID.
+ * Returns null when the profile cannot be fetched / mapped.
+ */
+export async function fetchAndUpsertAtprotoProfile(actor: string): Promise<NormalizedExternalActor | null> {
+  let profile: AtprotoProfileView;
+  try {
+    profile = await xrpcGet<AtprotoProfileView>(PUBLIC_APPVIEW, 'app.bsky.actor.getProfile', { actor });
+  } catch (err) {
+    logger.debug(`[atproto] getProfile failed for ${actor}`, err);
+    return null;
+  }
+
+  const normalized = mapProfileToNormalizedActor(profile);
+  if (!normalized) {
+    logger.debug(`[atproto] getProfile for ${actor} returned an unmappable profile`);
+    return null;
+  }
+
+  return upsertAtprotoActor(normalized);
+}

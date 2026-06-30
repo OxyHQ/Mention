@@ -3,6 +3,8 @@ import type { NetworkConnector } from './types';
 import { ConnectorRegistry } from './ConnectorRegistry';
 import { activityPubConnector } from './activitypub/ActivityPubConnector';
 import { FEDERATION_ENABLED } from './activitypub/constants';
+import { atprotoConnector } from './atproto/AtprotoConnector';
+import { ATPROTO_ENABLED } from './atproto/constants';
 
 /**
  * Network-connector bootstrap.
@@ -21,12 +23,20 @@ import { FEDERATION_ENABLED } from './activitypub/constants';
  *
  * Connectors gate on their own env flags:
  *  - ActivityPub  → `FEDERATION_ENABLED` (default on; `false` disables).
- *  - atproto      → added in a later phase (its own gate).
+ *  - atproto      → `ATPROTO_ENABLED` (default OFF; `true` enables Bluesky read).
+ *
+ * Order matters for `connectorFor`/`resolve`: ActivityPub is registered first so
+ * a fediverse `@user@host` acct is claimed by it, and the atproto connector
+ * claims the remaining shapes (bare handles / DIDs / AT-URIs).
  */
 const connectors: NetworkConnector[] = [];
 
 if (FEDERATION_ENABLED) {
   connectors.push(activityPubConnector);
+}
+
+if (ATPROTO_ENABLED) {
+  connectors.push(atprotoConnector);
 }
 
 export const connectorRegistry = new ConnectorRegistry(connectors);

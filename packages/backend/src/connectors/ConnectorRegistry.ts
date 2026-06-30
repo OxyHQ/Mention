@@ -55,9 +55,22 @@ export class ConnectorRegistry implements PostFederator {
     return this.connectors.find((connector) => connector.matches(subject));
   }
 
-  /** Resolve a handle through the connector that claims it. */
+  /**
+   * Resolve a handle/URI/DID through the FIRST enabled connector that claims it,
+   * returning a normalized actor with its Oxy user (`oxyUserId`) resolved. The
+   * connector's own `resolve` usually mints the identity while upserting; this
+   * runs `mapIdentity` as a fallback so the returned actor always carries an
+   * `oxyUserId` when one could be resolved.
+   */
   async resolve(handle: string): Promise<NormalizedExternalActor | null> {
     const connector = this.connectorFor(handle);
-    return connector ? connector.resolve(handle) : null;
+    if (!connector) return null;
+    const actor = await connector.resolve(handle);
+    if (!actor) return null;
+    if (!actor.oxyUserId) {
+      const oxyUserId = await connector.mapIdentity(actor);
+      if (oxyUserId) return { ...actor, oxyUserId };
+    }
+    return actor;
   }
 }

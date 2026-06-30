@@ -94,8 +94,9 @@ export interface LocalPostEventPayload {
 
 /**
  * A local domain event handed to connectors for outbound delivery. Discriminated
- * by `kind`; starts with `post.create` (a new local post to federate) and grows
- * as more outbound flows (likes, reposts, follows, deletes) are wired.
+ * by `kind`; starts with `post.create` (a new local post to federate) and the
+ * follow lifecycle, and grows as more outbound flows (likes, reposts, deletes)
+ * are wired.
  */
 export type LocalNetworkEvent =
   | {
@@ -103,6 +104,18 @@ export type LocalNetworkEvent =
       post: LocalPostEventPayload;
       actorOxyUserId: string;
       actorUsername: string;
+    }
+  | {
+      kind: 'follow.add';
+      localOxyUserId: string;
+      localUsername: string;
+      targetActorUri: string;
+    }
+  | {
+      kind: 'follow.remove';
+      localOxyUserId: string;
+      localUsername: string;
+      targetActorUri: string;
     };
 
 /** Context passed alongside an inbound payload to {@link NetworkConnector.receive}. */

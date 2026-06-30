@@ -49,6 +49,8 @@ import { threadSlicingService } from '../services/ThreadSlicingService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../connectors/activitypub/ActivityPubConnector';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
+import { ATPROTO_ENABLED } from '../connectors/atproto/constants';
+import { connectorRegistry } from '../connectors';
 import {
   isWithinOutboxSyncCooldown,
   shouldForceUntrackedOutboxSync,
@@ -869,7 +871,7 @@ class FeedController {
       // The only request-path work is a single cheap indexed DB lookup
       // (`FederatedActor.findOne`) to decide whether to mark the feed pending.
       let fedSyncPending = false;
-      if (posts.length === 0 && !cursor && FEDERATION_ENABLED) {
+      if (posts.length === 0 && !cursor && (FEDERATION_ENABLED || ATPROTO_ENABLED)) {
         const syncUserId = userId;
         const cachedActor = await FederatedActor.findOne({ oxyUserId: syncUserId })
           .lean<IFederatedActor>();
@@ -969,10 +971,25 @@ class FeedController {
    * caller (the work runs detached).
    */
   private runFederatedProfileSyncInBackground(syncUserId: string, cachedActor?: IFederatedActor): void {
-    if (!FEDERATION_ENABLED) return;
+    if (!FEDERATION_ENABLED && !ATPROTO_ENABLED) return;
 
     void (async () => {
       try {
+        // Dispatch by the cached actor's network. atproto profiles backfill
+        // through the atproto connector's pull-based author feed (no AP outbox
+        // dance); the rest of this method is the ActivityPub outbox flow.
+        if (cachedActor?.protocol === 'atproto') {
+          if (cachedActor.externalId) {
+            const connector = connectorRegistry.connectorFor(cachedActor.externalId);
+            if (connector) {
+              await connector.fetchPosts(cachedActor.externalId, { limit: this.FED_OUTBOX_SYNC_LIMIT });
+            }
+          }
+          return;
+        }
+
+        if (!FEDERATION_ENABLED) return;
+
         let actor: IFederatedActor | null = cachedActor ?? null;
         let refreshedActorForSync = false;
         let oxyIdentity:

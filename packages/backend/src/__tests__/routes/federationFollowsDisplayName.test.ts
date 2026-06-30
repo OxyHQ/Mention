@@ -18,9 +18,10 @@ const { followFind, actorFind, getUsersByIds } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
 }));
 
-// The route module imports the server entrypoint transitively (FederationService,
-// PostHydrationService); stub the heavy/circular deps so it can be imported in
-// isolation — same pattern as profileDesign.test.ts.
+// The route module imports the server entrypoint and the connector registry
+// transitively (ActivityPub + atproto connectors, PostHydrationService); stub the
+// heavy/circular deps so it can be imported in isolation — same pattern as
+// profileDesign.test.ts.
 vi.mock('../../../server', () => ({ oxy: {} }));
 
 vi.mock('@oxyhq/core/server', () => ({
@@ -28,6 +29,18 @@ vi.mock('@oxyhq/core/server', () => ({
 }));
 
 vi.mock('../../connectors/activitypub/constants', () => ({ FEDERATION_ENABLED: true }));
+vi.mock('../../connectors/atproto/constants', () => ({ ATPROTO_ENABLED: false }));
+
+// The connector registry + resolve classifier pull the full connector graph;
+// these list-only routes never invoke them, so stub them out.
+vi.mock('../../connectors/index', () => ({
+  connectorRegistry: {
+    list: () => [],
+    connectorFor: () => undefined,
+    resolve: vi.fn(async () => null),
+  },
+}));
+vi.mock('../../connectors/resolve', () => ({ classifyQuery: vi.fn(() => 'activitypub') }));
 
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -61,7 +74,7 @@ vi.mock('../../models/FederatedActor', () => ({
   default: { find: (...args: unknown[]) => leanable(actorFind(...args)) },
 }));
 
-import federationApiRoutes from '../../routes/federation.api.routes';
+import federationApiRoutes from '../../connectors/connectors.routes';
 
 interface FollowResult {
   actorUri: string;

@@ -409,15 +409,20 @@ export class FollowService {
     // remote POST.
     await FederatedFollow.deleteOne({ _id: follow._id });
 
+    // `inboxUrl` is schema-optional (atproto actors have none); an AP actor we
+    // are sending Undo(Follow) to always has one. When neither inbox is known the
+    // local follow is already removed — just skip the outbound delivery.
     const targetInbox = actor.sharedInboxUrl ?? actor.inboxUrl;
-    void this.deliverActivity(activity, targetInbox, localOxyUserId, localUsername)
-      .then((delivered) => {
-        if (!delivered) return this.queueDelivery(activity, targetInbox, localOxyUserId);
-      })
-      .catch((err) => {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[FedSync] background undo-follow delivery failed for ${remoteActorUri}: ${message}`);
-      });
+    if (targetInbox) {
+      void this.deliverActivity(activity, targetInbox, localOxyUserId, localUsername)
+        .then((delivered) => {
+          if (!delivered) return this.queueDelivery(activity, targetInbox, localOxyUserId);
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`[FedSync] background undo-follow delivery failed for ${remoteActorUri}: ${message}`);
+        });
+    }
 
     return true;
   }
@@ -433,6 +438,13 @@ export class FollowService {
   ): Promise<void> {
     const actor = await FederatedActor.findOne({ uri: remoteActorUri }).lean();
     if (!actor) return;
+    // `inboxUrl` is schema-optional (atproto actors have none); an AP actor we
+    // are sending Accept(Follow) to always has one. Guard so the absent case is
+    // a logged no-op instead of delivering to `undefined`.
+    if (!actor.inboxUrl) {
+      logger.warn(`[FedSync] cannot send Accept(Follow) to ${remoteActorUri}: actor has no inboxUrl`);
+      return;
+    }
 
     const localActorUri = actorUrl(localUsername);
 
