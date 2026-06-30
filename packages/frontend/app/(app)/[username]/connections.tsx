@@ -26,7 +26,8 @@ import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
-import { fetchRecommendations } from '@/lib/recommendations';
+import { useRecommendations } from '@/hooks/useRecommendations';
+import { type ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { getNormalizedUserHandle } from '@oxyhq/core';
@@ -65,6 +66,25 @@ interface ConnectionUser {
   };
   profile?: {
     bio?: string;
+  };
+}
+
+/**
+ * Adapt a shared-recommendations {@link RecommendedProfile} to the local
+ * {@link ConnectionUser} row shape used by followers/following/mutuals. Explicit
+ * (rather than a cast) because `RecommendedProfile`'s `[key: string]: unknown`
+ * index signature makes it non-assignable to `ConnectionUser`'s typed fields.
+ */
+function toConnectionUser(profile: RecommendedProfile): ConnectionUser {
+  return {
+    id: profile.id,
+    username: profile.username,
+    avatar: profile.avatar,
+    bio: profile.bio,
+    isFederated: profile.isFederated,
+    instance: profile.instance,
+    federation: profile.federation ? { domain: profile.federation.domain } : undefined,
+    name: profile.name,
   };
 }
 
@@ -215,32 +235,13 @@ function ConnectionsContent({
   //
   // This is intentionally NOT gated on `canUsePrivateApi`: the endpoint is public
   // and must still serve popular profiles logged-out. The only gate is the active
-  // tab, so we fetch when (and only when) who-may-know is shown.
-  const recommendationsQuery = useQuery<ConnectionUser[]>({
-    queryKey: ['connections', 'recommendations', user?.id ?? 'anon'],
-    queryFn: async () => {
-      try {
-        const list = await fetchRecommendations();
-        precacheProfileViews(queryClient, list);
-        return list;
-      } catch (err) {
-        // Recommendations are public; an auth error (no usable bearer yet on cold
-        // boot) shows the empty state rather than a scary error. Non-auth errors
-        // propagate so React Query surfaces them and applies its bounded retry.
-        if (isAuthError(err)) {
-          logger.warn('Auth error loading recommendations, showing empty state', { error: err });
-          return [];
-        }
-        throw err;
-      }
-    },
-    enabled: activeTab === 'who-may-know',
-    placeholderData: keepPreviousData,
-    staleTime: RECOMMENDATIONS_STALE_TIME_MS,
-  });
+  // tab, so we fetch when (and only when) who-may-know is shown. Routed through
+  // the shared `useRecommendations` hook so this tab reads the SAME cache entry
+  // as the explore Who-to-follow tab and the right-rail widget.
+  const recommendationsQuery = useRecommendations({ enabled: activeTab === 'who-may-know' });
   const recommendations = useMemo<ConnectionUser[]>(
-    () => recommendationsQuery.data ?? [],
-    [recommendationsQuery.data],
+    () => recommendationsQuery.recommendations.map(toConnectionUser),
+    [recommendationsQuery.recommendations],
   );
 
   // "In common" = mutual followers between the SIGNED-IN VIEWER and the profile
@@ -532,22 +533,28 @@ function ConnectionsContent({
   const isQueryTab = isRecommendationsTab || isInCommonTab;
   const { refetch: refetchRecommendations } = recommendationsQuery;
   const { refetch: refetchInCommon } = inCommonQuery;
-  const activeQuery = isInCommonTab ? inCommonQuery : recommendationsQuery;
-  const queryErrorMessage = activeQuery.isError
-    ? activeQuery.error instanceof globalThis.Error
-      ? activeQuery.error.message
+  // The two viewer-relative tabs read from different sources — `inCommonQuery` is
+  // a raw React Query result, `recommendationsQuery` is the shared hook's shape —
+  // so the active async state is selected per-tab rather than via a single union.
+  const activeIsError = isInCommonTab ? inCommonQuery.isError : recommendationsQuery.isError;
+  const activeErrorObj = isInCommonTab ? inCommonQuery.error : recommendationsQuery.error;
+  const activeIsPending = isInCommonTab ? inCommonQuery.isPending : recommendationsQuery.isLoading;
+  const activeIsFetching = isInCommonTab ? inCommonQuery.isFetching : recommendationsQuery.isFetching;
+  const queryErrorMessage = activeIsError
+    ? activeErrorObj instanceof globalThis.Error
+      ? activeErrorObj.message
       : isInCommonTab
         ? t('connections.failedInCommon', { defaultValue: 'Failed to load mutual followers' })
         : t('connections.failedRecommendations', { defaultValue: 'Failed to load recommendations' })
     : null;
-  const activeLoading = isQueryTab ? activeQuery.isPending : loading;
+  const activeLoading = isQueryTab ? activeIsPending : loading;
   const activeError = isQueryTab ? queryErrorMessage : error;
-  const activeRefreshing = isQueryTab ? activeQuery.isFetching : loading;
+  const activeRefreshing = isQueryTab ? activeIsFetching : loading;
   const refreshCurrent = useCallback(() => {
     if (isInCommonTab) {
       void refetchInCommon();
     } else if (isRecommendationsTab) {
-      void refetchRecommendations();
+      refetchRecommendations();
     } else {
       void loadCurrentTab();
     }

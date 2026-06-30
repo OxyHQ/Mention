@@ -21,6 +21,8 @@ import {
     saveRecommendationFilters,
 } from '@/lib/recommendationFilters';
 import { updatePrivacySettingsCache, type PrivacySettings, type UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import { queryClient } from '@/lib/queryClient';
+import { RECOMMENDATION_FILTERS_QUERY_KEY } from '@/hooks/useRecommendations';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 
 const FILTER_TOGGLES: Array<{
@@ -95,6 +97,10 @@ export default function PrivacySettingsScreen() {
         const updated = { ...recFilters, [key]: value };
         setRecFilters(updated);
         saveRecommendationFilters(updated);
+        // Prime the shared filters query so `useRecommendations` re-derives its
+        // `excludeTypes` cache key and refetches every recommendation surface
+        // (explore tab, widget, suggestions) reactively — no manual invalidation.
+        queryClient.setQueryData(RECOMMENDATION_FILTERS_QUERY_KEY, updated);
     };
 
     const updatePrivacyToggle = async (field: 'showSensitiveContent', value: boolean) => {

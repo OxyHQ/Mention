@@ -10,7 +10,7 @@
  */
 
 import { api } from '@/utils/api';
-import { getRecommendationFilters } from '@/lib/recommendationFilters';
+import { getRecommendationFilters, type RecommendationFilters } from '@/lib/recommendationFilters';
 
 /** A user type the recommendations endpoint can exclude via `excludeTypes`. */
 export type RecommendationExcludeType = 'federated' | 'agent' | 'automated';
@@ -58,20 +58,34 @@ export interface ProfileData {
   [key: string]: unknown;
 }
 
+/**
+ * One page of recommendations plus the cursor metadata the backend returns.
+ * Paginate by echoing `nextCursor` back as the next request's `cursor`;
+ * `hasMore === false` (⇒ `nextCursor === null`) means stop.
+ */
+export interface RecommendationsPage {
+  recommendations: ProfileData[];
+  /** Opaque cursor for the next page, or `null` when there are no more pages. */
+  nextCursor: string | null;
+  /** Offset of the next page (informational mirror of the cursor), or `null`. */
+  nextOffset: number | null;
+  hasMore: boolean;
+}
+
 interface RecommendationsResponse {
   recommendations?: ProfileData[];
+  nextCursor?: string | null;
+  nextOffset?: number | null;
+  hasMore?: boolean;
 }
 
 /**
- * Derive the `excludeTypes` CSV from the viewer's persisted recommendation
- * filters. Centralized here so every surface shares the exact same derivation.
+ * Map a {@link RecommendationFilters} object to the `excludeTypes` list the
+ * endpoint accepts. The single, synchronous derivation shared by both the async
+ * {@link resolveExcludeTypes} (which reads persisted filters) and the React
+ * Query `useRecommendations` hook (which keys its cache on the derived CSV).
  */
-async function resolveExcludeTypes(
-  override?: RecommendationExcludeType[],
-): Promise<RecommendationExcludeType[]> {
-  if (override) return override;
-
-  const filters = await getRecommendationFilters();
+export function deriveExcludeTypes(filters: RecommendationFilters): RecommendationExcludeType[] {
   const excludeTypes: RecommendationExcludeType[] = [];
   if (!filters.showFederated) excludeTypes.push('federated');
   if (!filters.showAgents) excludeTypes.push('agent');
@@ -80,22 +94,41 @@ async function resolveExcludeTypes(
 }
 
 /**
- * Fetch "who to follow" recommendations from the Mention backend.
+ * Derive the `excludeTypes` list from the viewer's persisted recommendation
+ * filters. Centralized here so every surface shares the exact same derivation.
+ */
+async function resolveExcludeTypes(
+  override?: RecommendationExcludeType[],
+): Promise<RecommendationExcludeType[]> {
+  if (override) return override;
+  return deriveExcludeTypes(await getRecommendationFilters());
+}
+
+/**
+ * Fetch one page of "who to follow" recommendations from the Mention backend.
  *
  * When `excludeTypes` is omitted, it is derived from the viewer's persisted
- * recommendation filters via {@link getRecommendationFilters}. The endpoint is
- * public, so callers do not need to gate on `canUsePrivateApi`.
+ * recommendation filters via {@link getRecommendationFilters}. Pass `cursor`
+ * (the previous page's {@link RecommendationsPage.nextCursor}) to page forward.
+ * The endpoint is public, so callers do not need to gate on `canUsePrivateApi`.
  */
-export async function fetchRecommendations(opts?: {
+export async function fetchRecommendationsPage(opts?: {
   excludeTypes?: RecommendationExcludeType[];
   limit?: number;
-}): Promise<ProfileData[]> {
+  cursor?: string;
+}): Promise<RecommendationsPage> {
   const excludeTypes = await resolveExcludeTypes(opts?.excludeTypes);
 
   const params: Record<string, unknown> = {};
   if (excludeTypes.length > 0) params.excludeTypes = excludeTypes.join(',');
   if (typeof opts?.limit === 'number') params.limit = opts.limit;
+  if (opts?.cursor) params.cursor = opts.cursor;
 
   const res = await api.get<RecommendationsResponse>('/recommendations', params);
-  return res.data.recommendations ?? [];
+  return {
+    recommendations: res.data.recommendations ?? [],
+    nextCursor: res.data.nextCursor ?? null,
+    nextOffset: res.data.nextOffset ?? null,
+    hasMore: res.data.hasMore ?? false,
+  };
 }

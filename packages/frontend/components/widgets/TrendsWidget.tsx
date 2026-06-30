@@ -13,7 +13,7 @@ import { shareLink } from '@/utils/shareLink';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 
 const MAX_TRENDS_DISPLAYED = 5;
-const TRENDING_ROUTE = '/trending';
+const TRENDING_ROUTE = '/explore/trending';
 
 interface TrendsWidgetProps {
   variant?: 'card' | 'inline';

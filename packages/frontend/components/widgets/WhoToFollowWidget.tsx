@@ -1,90 +1,31 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useMemo, useCallback } from "react";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { useAuth, FollowButton } from "@oxyhq/services";
+import { FollowButton } from "@oxyhq/services";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedText } from "@/components/ThemedText";
 import { BaseWidget } from "./BaseWidget";
 import { useUserById } from "@/hooks/useCachedUser";
-import { queryClient } from "@/lib/queryClient";
-import { precacheProfileViews } from "@/lib/precacheProfiles";
-import { enrichMissingAvatars } from "@/utils/userEnrichment";
 import { getUserPlaceholderColor } from "@/utils/userPlaceholderColor";
 import UserName from '@/components/UserName';
-import { logger } from '@/lib/logger';
-import { fetchRecommendations, type ProfileData } from '@/lib/recommendations';
-import { isAuthError } from '@/utils/authErrors';
+import { useRecommendations } from '@/hooks/useRecommendations';
+import { type ProfileData } from '@/lib/recommendations';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const MAX_DISPLAY_USERS = 5;
 
 export function WhoToFollowWidget() {
-  const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<ProfileData[]>([]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const loadRecommendations = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const users = await fetchRecommendations();
-
-        if (!mounted) return;
-
-        setRecommendations(users);
-
-        if (users.length > 0) {
-          precacheProfileViews(queryClient, users);
-
-          // Fire-and-forget: avatars fill in reactively via useUserById
-          void enrichMissingAvatars(
-            users.slice(0, MAX_DISPLAY_USERS),
-            (ids) => oxyServices.getUsersByIds(ids),
-            queryClient,
-          );
-        }
-      } catch (err) {
-        if (!mounted) return;
-        // Auth errors should never surface here now that recommendations are
-        // public, but if one slips through, degrade to the empty state rather
-        // than showing a scary error to logged-out visitors.
-        if (isAuthError(err)) {
-          logger.warn("WhoToFollowWidget: auth error fetching recommendations, showing empty state");
-          setRecommendations([]);
-        } else {
-          const errorMessage = err instanceof Error ? err.message : "Failed to fetch recommendations";
-          setError(errorMessage);
-          logger.error("Error fetching recommendations");
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadRecommendations();
-
-    return () => {
-      mounted = false;
-    };
-    // Re-run when the auth identity resolves: `oxyServices` is a stable
-    // singleton, so on cold boot this otherwise fires once while anonymous and
-    // never refetches the (personalized) recommendations after the session
-    // restores. `user?.id` flips from undefined → the real id on resolve.
-  }, [oxyServices, user?.id]);
+  // Shared cache: this widget reads a small slice of the same recommendations
+  // entry the explore tab and other surfaces use, so it never re-fetches per mount.
+  const { recommendations, isLoading: loading, error } = useRecommendations();
 
   const handleShowMore = useCallback(() => {
-    router.push("/explore");
+    router.push("/explore/who-to-follow");
   }, [router]);
 
   const displayedUsers = useMemo(
@@ -116,7 +57,7 @@ export function WhoToFollowWidget() {
       <BaseWidget title={t("Who to follow")}>
         <View className="py-2 items-center gap-2">
           <ThemedText className="text-destructive text-[13px]">
-            {error}
+            {error.message}
           </ThemedText>
         </View>
       </BaseWidget>
@@ -179,7 +120,7 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
       style={[styles.webCursor, showBorder && styles.itemBorder]}
     >
       <TouchableOpacity className="flex-row items-center flex-1" onPress={handlePress} disabled={!displayHandle} activeOpacity={0.7}>
-        <Avatar source={profileData.avatar || cachedUser?.avatar} size={34} placeholderColor={getUserPlaceholderColor(cachedUser)} />
+        <Avatar source={profileData.avatar || cachedUser?.avatar} size={34} variant="thumb" placeholderColor={getUserPlaceholderColor(cachedUser)} />
         <View className="ml-2.5 flex-1 mr-2">
           <UserName
             name={profileData.name.displayName}

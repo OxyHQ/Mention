@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View, Share } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
@@ -7,34 +7,18 @@ import { useAuth, FollowButton } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { useUserById } from '@/hooks/useCachedUser';
-import { queryClient } from '@/lib/queryClient';
-import { precacheProfileViews } from '@/lib/precacheProfiles';
-import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { VirtualList } from '@oxyhq/bloom/list';
 import { ThemedText } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorDisplay } from '@/components/Error';
+import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { logger } from '@/lib/logger';
-import { fetchRecommendations, type ProfileData } from '@/lib/recommendations';
-import { isAuthError } from '@/utils/authErrors';
+import { useInfiniteRecommendations } from '@/hooks/useRecommendations';
+import { type ProfileData } from '@/lib/recommendations';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const APP_URL = 'https://mention.earth';
-
-/**
- * A single recommended profile from the Mention backend. The shared
- * {@link ProfileData} is the source of truth; we keep the looser `_id` variant
- * that may appear when items come from other actor sources.
- */
-type RecommendedUser = ProfileData & {
-  _id?: string;
-};
-
-/** Resolve a user's id from either the canonical `id` or Mongo `_id`. */
-function getUserId(user: Pick<RecommendedUser, 'id' | '_id'>): string {
-  return String(user.id ?? user._id ?? '');
-}
 
 interface WhoToFollowTabProps {
   /**
@@ -46,13 +30,42 @@ interface WhoToFollowTabProps {
 }
 
 export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}) {
-  const { oxyServices, user } = useAuth();
+  const { user } = useAuth();
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<RecommendedUser[]>([]);
+  // Cursor-paginated recommendations: this tab loads more on scroll-end. The
+  // single-page `useRecommendations` still backs the widgets; this infinite
+  // variant shares the same fetch/precache/enrich core and dedups by id.
+  const {
+    recommendations,
+    isLoading: loading,
+    error,
+    refetch,
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteRecommendations();
+
+  const handleLoadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Footer carries BOTH the web load-more trigger (Bloom's web VirtualList is a
+  // window virtualizer with no `onEndReached`) and the next-page spinner. On
+  // native the list paginates via `onEndReached`; the sentinel is inert there.
+  const renderFooter = useCallback(
+    () => (
+      <View style={styles.footer}>
+        <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={hasNextPage} />
+        {isFetchingNextPage ? <Loading className="text-primary" size="small" /> : null}
+      </View>
+    ),
+    [handleLoadMore, hasNextPage, isFetchingNextPage],
+  );
 
   const getInviteMessage = useCallback(() => {
     const userHandle = user?.username || '';
@@ -104,48 +117,9 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     }
   }, [getInviteMessage, t]);
 
-  const fetchAndEnrich = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const users = (await fetchRecommendations()).filter((u) => getUserId(u).length > 0);
-      setRecommendations(users);
-      if (users.length > 0) {
-        precacheProfileViews(queryClient, users);
-        // Fire-and-forget: missing avatars fill in reactively via useUserById.
-        void enrichMissingAvatars(
-          users.map((u) => ({ ...u, id: getUserId(u) })),
-          (ids) => oxyServices.getUsersByIds(ids),
-          queryClient,
-        );
-      }
-    } catch (err: unknown) {
-      // Recommendations are public; on the rare auth error keep `error` null so
-      // the empty state shows instead of a scary red error for logged-out users.
-      if (isAuthError(err)) {
-        logger.warn('WhoToFollowTab: auth error fetching recommendations, showing empty state');
-      } else {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch recommendations';
-        setError(errorMessage);
-        logger.error('Error fetching recommendations');
-      }
-    } finally {
-      setLoading(false);
-    }
-    // `user?.id` is in the deps so the callback identity changes when the auth
-    // session resolves on cold boot. Without it, `oxyServices` is a stable
-    // singleton and the effect below fires once while anonymous, never
-    // refetching the personalized recommendations after sign-in lands.
-  }, [oxyServices, user?.id]);
-
-  useEffect(() => {
-    fetchAndEnrich();
-  }, [fetchAndEnrich]);
-
-  const renderUser = useCallback(({ item }: { item: RecommendedUser }) => {
-    const id = getUserId(item);
-    if (!id) return null;
-    return <FollowRow item={item} userId={id} />;
+  const renderUser = useCallback(({ item }: { item: ProfileData }) => {
+    if (!item.id) return null;
+    return <FollowRow item={item} userId={item.id} />;
   }, []);
 
   const listHeader = useMemo(
@@ -191,8 +165,8 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     return (
       <ErrorDisplay
         title={t('Error', { defaultValue: 'Error' })}
-        message={error}
-        onRetry={fetchAndEnrich}
+        message={error.message}
+        onRetry={refetch}
         hideBackButton={true}
         style={styles.errorContainer}
       />
@@ -204,8 +178,9 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
       <VirtualList
         data={recommendations}
         renderItem={renderUser}
-        keyExtractor={(item: RecommendedUser) => getUserId(item) || item.username || ''}
+        keyExtractor={(item: ProfileData) => item.id || item.username || ''}
         ListHeaderComponent={listHeader}
+        ListFooterComponent={renderFooter}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <ThemedText className="text-muted-foreground">
@@ -213,6 +188,8 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
             </ThemedText>
           </View>
         }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
         removeClippedSubviews={false}
         maxToRenderPerBatch={10}
         windowSize={10}
@@ -221,14 +198,14 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
         maintainVisibleContentPosition={true}
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        refreshing={loading}
-        onRefresh={fetchAndEnrich}
+        refreshing={isRefetching}
+        onRefresh={refetch}
       />
     </View>
   );
 }
 
-const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId: string }) => {
+const FollowRow = React.memo(({ item, userId }: { item: ProfileData; userId: string }) => {
   const router = useRouter();
   const cachedUser = useUserById(userId);
 
@@ -254,7 +231,7 @@ const FollowRow = React.memo(({ item, userId }: { item: RecommendedUser; userId:
         disabled={!handle}
         activeOpacity={0.7}
       >
-        <Avatar source={item.avatar || cachedUser?.avatar} size={40} />
+        <Avatar source={item.avatar || cachedUser?.avatar} size={40} variant="thumb" />
         <View style={styles.rowTextWrap}>
           <ThemedText className="text-foreground" style={styles.rowTitle}>
             {item.name.displayName}
@@ -306,6 +283,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+  },
+  footer: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   row: {
     flexDirection: 'row',

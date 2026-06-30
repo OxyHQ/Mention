@@ -1,6 +1,7 @@
-import React, { memo, useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { memo, useState, useMemo, useCallback } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import { queryClient } from '@/lib/queryClient';
@@ -9,8 +10,8 @@ import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
 import { logger } from '@/lib/logger';
-import { fetchRecommendations, type ProfileData } from '@/lib/recommendations';
-import { isAuthError } from '@/utils/authErrors';
+import { type ProfileData } from '@/lib/recommendations';
+import { useRecommendations } from '@/hooks/useRecommendations';
 
 interface SuggestedUsersProps {
   visible?: boolean;
@@ -20,16 +21,10 @@ interface SuggestedUsersProps {
   hideDismiss?: boolean;
 }
 
-/**
- * A recommended/similar profile. The shared {@link ProfileData} is the source
- * of truth; its index signature keeps it assignable both to the cache helpers
- * (`precacheProfileViews` / `enrichMissingAvatars`) and to the
- * `SuggestedUserData` card shape, and also accommodates the looser `User`
- * objects returned by the `getSimilarProfiles` similarity path.
- */
-type RecommendedUser = ProfileData;
-
 const DEFAULT_MAX_CARDS = 10;
+
+/** Similar-profiles stay fresh for 5 minutes (mirrors the recommendations cache). */
+const SIMILAR_PROFILES_STALE_TIME_MS = 5 * 60_000;
 
 export const SuggestedUsers = memo(function SuggestedUsers({
   visible = true,
@@ -38,77 +33,57 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   maxCards = DEFAULT_MAX_CARDS,
   hideDismiss,
 }: SuggestedUsersProps) {
-  const { oxyServices } = useAuth();
+  const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
 
-  const [loading, setLoading] = useState(true);
-  const [recommendations, setRecommendations] = useState<SuggestedUserData[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-  const fetchInFlightRef = useRef(false);
 
-  useEffect(() => {
-    if (!visible) return;
+  const hasSource = Boolean(sourceUserId);
 
-    if (fetchInFlightRef.current) return;
-    fetchInFlightRef.current = true;
-
-    let mounted = true;
-
-    const loadSuggestions = async () => {
-      try {
-        setLoading(true);
-        let users: RecommendedUser[];
-        if (sourceUserId) {
-          try {
-            // `getSimilarProfiles` returns the SDK `User` shape (optional id);
-            // narrow through `unknown` to the looser `RecommendedUser`, the same
-            // erasure the recommendations path already produces.
-            const similar: unknown = await oxyServices.getSimilarProfiles(sourceUserId);
-            users = Array.isArray(similar) ? similar : [];
-          } catch (error) {
-            logger.warn('SuggestedUsers: getSimilarProfiles failed, falling back to recommendations', { error });
-            users = await fetchRecommendations();
-          }
-        } else {
-          users = await fetchRecommendations();
-        }
-        if (!mounted) return;
-
-        setRecommendations(users);
-
-        if (users.length > 0) {
-          precacheProfileViews(queryClient, users);
-
-          // Fire-and-forget: avatars fill in reactively via useUserById
-          void enrichMissingAvatars(
-            users.slice(0, maxCards),
-            (ids) => oxyServices.getUsersByIds(ids),
-            queryClient,
-          );
-        }
-      } catch (err) {
-        if (!mounted) return;
-        // Recommendations are public; on the rare auth error degrade quietly to
-        // the empty state (component renders nothing) instead of logging it loud.
-        if (isAuthError(err)) {
-          logger.warn('SuggestedUsers: auth error fetching recommendations, showing empty state', { error: err });
-        } else {
-          logger.error('SuggestedUsers: error fetching recommendations', { error: err });
-        }
-      } finally {
-        fetchInFlightRef.current = false;
-        if (mounted) {
-          setLoading(false);
-        }
+  // Similarity path: when a `sourceUserId` is given, suggest profiles similar to
+  // it. Keyed on the source + viewer so it stays deduped/cached and reloads when
+  // the session lands. Falls back to shared recommendations on error (below).
+  const similarQuery = useQuery<ProfileData[]>({
+    queryKey: ['similarProfiles', sourceUserId ?? '', user?.id ?? 'anon'],
+    queryFn: async () => {
+      const src = sourceUserId;
+      if (!src) return [];
+      // `getSimilarProfiles` returns the SDK `User` shape (optional id); narrow
+      // through `unknown` to the looser `ProfileData`, the same erasure the
+      // recommendations path produces.
+      const similar: unknown = await oxyServices.getSimilarProfiles(src);
+      const list: ProfileData[] = Array.isArray(similar) ? similar : [];
+      if (list.length > 0) {
+        precacheProfileViews(queryClient, list);
+        void enrichMissingAvatars(
+          list.slice(0, maxCards),
+          (ids) => oxyServices.getUsersByIds(ids),
+          queryClient,
+        );
       }
-    };
+      return list;
+    },
+    enabled: visible && hasSource,
+    staleTime: SIMILAR_PROFILES_STALE_TIME_MS,
+  });
 
-    loadSuggestions();
+  if (similarQuery.isError) {
+    logger.warn('SuggestedUsers: getSimilarProfiles failed, falling back to recommendations', {
+      error: similarQuery.error,
+    });
+  }
 
-    return () => {
-      mounted = false;
-    };
-  }, [oxyServices, visible, sourceUserId]);
+  // Shared recommendations: the default source (no `sourceUserId`) AND the
+  // fallback when the similarity lookup errors. Disabled otherwise so a
+  // successful similarity result doesn't trigger an extra recommendations fetch.
+  const { recommendations } = useRecommendations({
+    enabled: visible && (!hasSource || similarQuery.isError),
+  });
+
+  const sourceUsers = useMemo<ProfileData[]>(
+    () => (hasSource && !similarQuery.isError ? similarQuery.data ?? [] : recommendations),
+    [hasSource, similarQuery.isError, similarQuery.data, recommendations],
+  );
 
   const handleDismiss = useCallback((userId: string) => {
     setDismissedIds((prev) => {
@@ -120,16 +95,16 @@ export const SuggestedUsers = memo(function SuggestedUsers({
 
   const displayedUsers = useMemo(() => {
     const result: SuggestedUserData[] = [];
-    for (const user of recommendations) {
+    for (const candidate of sourceUsers) {
       if (result.length >= maxCards) break;
-      if (dismissedIds.has(user.id)) continue;
-      if (sourceUserId && user.id === sourceUserId) continue;
-      result.push(user);
+      if (dismissedIds.has(candidate.id)) continue;
+      if (sourceUserId && candidate.id === sourceUserId) continue;
+      result.push(candidate);
     }
     return result;
-  }, [recommendations, dismissedIds, sourceUserId, maxCards]);
+  }, [sourceUsers, dismissedIds, sourceUserId, maxCards]);
 
-  if (!visible || loading || displayedUsers.length === 0) {
+  if (!visible || displayedUsers.length === 0) {
     return null;
   }
 
@@ -138,8 +113,8 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       <ThemedText className="text-foreground text-[15px] font-bold px-4 mb-1">
         {title || t('Suggested for you')}
       </ThemedText>
-      {displayedUsers.map((user) => (
-        <SuggestedUserCard key={user.id} user={user} onDismiss={handleDismiss} hideDismiss={hideDismiss} />
+      {displayedUsers.map((suggested) => (
+        <SuggestedUserCard key={suggested.id} user={suggested} onDismiss={handleDismiss} hideDismiss={hideDismiss} />
       ))}
     </View>
   );

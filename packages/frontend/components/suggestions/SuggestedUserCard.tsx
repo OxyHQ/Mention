@@ -58,7 +58,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
       disabled={!handle}
       activeOpacity={0.7}
     >
-      <Avatar source={user.avatar || cachedUser?.avatar} size={40} />
+      <Avatar source={user.avatar || cachedUser?.avatar} size={40} variant="thumb" />
       <View className="flex-1 ml-3 mr-3">
         <UserName
           name={user.name.displayName}

@@ -69,8 +69,11 @@ import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersist
 import '../global.css';
 
 // Resolve file IDs to download URLs for Bloom components that call useImageResolver().
-function resolveImageSource(fileId: string): string | undefined {
-  const url = getCachedFileDownloadUrlSync(oxyServices, fileId, 'thumb');
+// Honors the rendition `variant` Bloom forwards (e.g. 'thumb' for list/grid
+// avatars, a larger rendition for detail headers); defaults to 'thumb' when a
+// caller omits it so small avatars stay light by default.
+function resolveImageSource(fileId: string, variant?: string): string | undefined {
+  const url = getCachedFileDownloadUrlSync(oxyServices, fileId, variant ?? 'thumb');
   return url && url.startsWith('http') ? url : undefined;
 }
 
