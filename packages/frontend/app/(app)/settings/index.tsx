@@ -175,6 +175,12 @@ export default function SettingsScreen() {
                             description={t('settings.feed.description', { defaultValue: 'Content preferences, feed algorithm' })}
                             onPress={() => router.push('/settings/feed')}
                         />
+                        <SettingsListItem
+                            icon={<RowIcon name="cube-outline" />}
+                            title={t('settings.node.title', { defaultValue: 'Your Mention node' })}
+                            description={t('settings.node.description', { defaultValue: 'Your own copy of your signed posts' })}
+                            onPress={() => router.push('/settings/node')}
+                        />
                     </SettingsListGroup>
                 )}
 
