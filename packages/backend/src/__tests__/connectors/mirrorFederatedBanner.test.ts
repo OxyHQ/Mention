@@ -43,13 +43,13 @@ describe('mirrorFederatedBanner', () => {
       media: { oxyFileId: 'banner_file_1', contentType: 'image/png', sizeBytes: 1234 },
     });
 
-    const stored = await mirrorFederatedBanner(
+    const result = await mirrorFederatedBanner(
       'https://files.mastodon.social/banner.png',
       'oxy-user-1',
       'https://mastodon.social/users/alice',
     );
 
-    expect(stored).toBe(true);
+    expect(result).toEqual({ ok: true, permanent: false });
     // Goes through the SAME service-token public-upload path as federated post
     // media — NOT the user-authenticated SDK `uploadProfileBanner` (which 401s).
     expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
@@ -68,16 +68,17 @@ describe('mirrorFederatedBanner', () => {
     );
   });
 
-  it('warns and returns false on a transient mirror failure (no header stored)', async () => {
+  it('warns and reports a transient (retryable) failure (no header stored)', async () => {
     mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false, reason: 'upstream-error' });
 
-    const stored = await mirrorFederatedBanner(
+    const result = await mirrorFederatedBanner(
       'https://files.mastodon.social/banner.png',
       'oxy-user-2',
       'https://mastodon.social/users/bob',
     );
 
-    expect(stored).toBe(false);
+    // `permanent: false` tells the backfill caller this is worth a retry.
+    expect(result).toEqual({ ok: false, permanent: false });
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to mirror banner for https://mastodon.social/users/bob',
@@ -85,28 +86,30 @@ describe('mirrorFederatedBanner', () => {
     );
   });
 
-  it('stays quiet and returns false on a permanent mirror failure', async () => {
+  it('stays quiet and reports a permanent failure', async () => {
     mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: true, reason: 'not-media' });
 
-    const stored = await mirrorFederatedBanner(
+    const result = await mirrorFederatedBanner(
       'https://files.mastodon.social/banner.txt',
       'oxy-user-3',
       'https://mastodon.social/users/carol',
     );
 
-    expect(stored).toBe(false);
+    // `permanent: true` tells the backfill caller NOT to retry.
+    expect(result).toEqual({ ok: false, permanent: true });
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 
-  it('guards a non-http url without touching the media path', async () => {
-    const stored = await mirrorFederatedBanner(
+  it('guards a non-http url as a permanent failure without touching the media path', async () => {
+    const result = await mirrorFederatedBanner(
       'data:image/png;base64,iVBORw0KGgo=',
       'oxy-user-4',
       'https://mastodon.social/users/dave',
     );
 
-    expect(stored).toBe(false);
+    // A non-http url will never become valid → permanent, no retry.
+    expect(result).toEqual({ ok: false, permanent: true });
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalled();

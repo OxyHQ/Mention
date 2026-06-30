@@ -62,6 +62,9 @@ export async function resolveOxyExternalUser(
     if (!oxyId) return null;
 
     if (actor.bannerUrl) {
+      // Best-effort on the live path: the outcome (stored / transient / permanent)
+      // only matters to the one-shot backfill, which inspects the return to decide
+      // whether to retry. Failures here are already logged inside the helper.
       await mirrorFederatedBanner(actor.bannerUrl, oxyId, actor.externalId);
     }
 
@@ -86,22 +89,30 @@ export async function resolveOxyExternalUser(
  * `POST /assets/upload` and is rejected `401 UNAUTHORIZED` on the service client,
  * so the banner was never stored.
  *
- * Best-effort: returns `true` when the banner was stored, `false` otherwise
- * (non-http url, mirror failure, or transient/permanent persist failure).
- * Transient failures are surfaced at `warn`; permanently-unavailable banners
- * (dead/oversized/non-image) stay quiet, mirroring `materializeFederatedMedia`.
+ * Best-effort: returns `{ ok: true }` when the banner was stored, otherwise
+ * `{ ok: false, permanent }`. `permanent` distinguishes a transient failure
+ * (bad service credential, upstream 5xx, upload rejection — worth retrying) from
+ * a permanently-unavailable banner (dead/oversized/non-image — never retry), so
+ * the backfill caller can decide whether to back off and retry. A non-http url is
+ * `permanent: true` (it will never become valid). Transient failures are surfaced
+ * at `warn`; permanent ones stay quiet, mirroring `materializeFederatedMedia`.
  *
- * Shared by the live actor-resolution path (`resolveOxyExternalUser`) and the
- * one-shot `backfillFederatedBanners` script so both go through ONE
- * implementation.
+ * Shared by the live actor-resolution path (`resolveOxyExternalUser`, which
+ * ignores the result) and the one-shot `backfillFederatedBanners` script (which
+ * inspects `permanent` to drive retry) so both go through ONE implementation.
  */
+export interface MirrorBannerResult {
+  ok: boolean;
+  permanent: boolean;
+}
+
 export async function mirrorFederatedBanner(
   bannerUrl: string,
   oxyUserId: string,
   actorUri: string,
-): Promise<boolean> {
+): Promise<MirrorBannerResult> {
   if (!isAbsoluteHttpUrl(bannerUrl)) {
-    return false;
+    return { ok: false, permanent: true };
   }
 
   const remoteHost = getRemoteHost(bannerUrl);
@@ -117,7 +128,7 @@ export async function mirrorFederatedBanner(
       { $set: { profileHeaderImage: result.media.oxyFileId } },
       { upsert: true },
     );
-    return true;
+    return { ok: true, permanent: false };
   }
 
   if (!result.permanent) {
@@ -131,5 +142,5 @@ export async function mirrorFederatedBanner(
     });
   }
 
-  return false;
+  return { ok: false, permanent: result.permanent };
 }
