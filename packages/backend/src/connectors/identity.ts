@@ -26,29 +26,6 @@ const REMOTE_BANNER_FETCH_TIMEOUT_MS = 10000;
 const ACTOR_BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
 
 /**
- * Derive the federated user's instance domain from the normalized actor. AP
- * handles are `user@domain`; otherwise fall back to the host of the protocol id.
- * Reproduces the prior `domainFromAcct(acct) || actorHost` value for AP actors.
- *
- * For atproto the handle is itself a bare DNS name (e.g. `alice.bsky.social`) and
- * the protocol id is a `did:` (which has no URL host), so neither the `@` split
- * nor the URL host yields a domain — fall back to the handle (the domain).
- */
-function deriveDomain(actor: NormalizedExternalActor): string {
-  const at = actor.handle.lastIndexOf('@');
-  if (at > 0 && at < actor.handle.length - 1) {
-    return actor.handle.slice(at + 1).toLowerCase();
-  }
-  try {
-    const host = new URL(actor.externalId).hostname.toLowerCase();
-    if (host) return host;
-  } catch {
-    // Unparseable protocol id (e.g. a DID) — fall through to the handle.
-  }
-  return actor.handle.toLowerCase();
-}
-
-/**
  * Resolve/mint the Oxy user a normalized external actor maps to.
  *
  * Upserts the federated user via `PUT /users/resolve` (service-token scoped) so
@@ -70,12 +47,15 @@ export async function resolveOxyExternalUser(
   const forceAvatarRefresh = opts.forceAvatarRefresh ?? false;
   try {
     const oxyClient = getServiceOxyClient();
-    const domain = deriveDomain(actor);
+    // The connector owns deriving the canonical `local@domain` username and the
+    // instance domain for its protocol, so this bridge stays protocol-agnostic:
+    // it never has to guess a domain out of a bare atproto handle or a hostless
+    // DID. oxy-api binds the two (username domain must equal `domain`).
     const oxyUser: { _id?: string; id?: string } | null = await oxyClient.makeServiceRequest('PUT', '/users/resolve', {
       type: 'federated',
-      username: actor.handle,
+      username: actor.federatedUsername,
       actorUri: actor.externalId,
-      domain,
+      domain: actor.instanceDomain,
       displayName: actor.displayName,
       avatar: actor.avatarUrl,
       bio: actor.bio,

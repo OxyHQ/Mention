@@ -68,6 +68,8 @@ const ACTOR: NormalizedExternalActor = {
   network: 'atproto',
   externalId: DID,
   handle: 'alice.bsky.social',
+  federatedUsername: 'alice.bsky.social@bsky.social',
+  instanceDomain: 'bsky.social',
   oxyUserId: 'oxy-alice',
 };
 
@@ -172,14 +174,25 @@ describe('importAuthorFeed', () => {
         oxyUserId: 'oxy-alice',
         federation: expect.objectContaining({ activityId: atUri('a'), actorUri: DID }),
         visibility: 'public',
+        // The imported post is stamped with the actor's INSTANCE domain
+        // (`bsky.social`), not the bare full handle (`alice.bsky.social`),
+        // matching the AP `Post.instanceDomain = actor host` convention.
+        instanceDomain: 'bsky.social',
         skipNotifications: true,
         skipSocketEmit: true,
         skipFederationDelivery: true,
         createdAt: new Date('2024-01-01T00:00:00.000Z'),
       }),
     );
-    // Media materialization ran for the imported post.
+    // Media materialization ran for the imported post, scoped to the resolved
+    // Oxy owner — so its remote bsky CDN media mirrors into Oxy S3 (not proxied).
     expect(mocks.materialize).toHaveBeenCalledTimes(1);
+    expect(mocks.materialize).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.any(Array),
+      'oxy-alice',
+      expect.objectContaining({ activityId: atUri('a'), actorUri: DID }),
+    );
   });
 
   it('returns empty without creating when the actor has no resolved Oxy user', async () => {

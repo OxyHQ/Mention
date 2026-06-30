@@ -24,11 +24,25 @@ export interface AtprotoProfileView {
   postsCount?: number;
 }
 
-/** Split an atproto handle (a DNS name) into a display username + instance domain. */
-function splitHandle(handle: string): { username: string; domain: string } {
+/**
+ * Split an atproto handle (a DNS name) into its display username, instance
+ * domain, and the canonical `local@domain` username Oxy stores it under.
+ *
+ * A Bluesky handle is a bare DNS name. Its instance domain is the handle minus
+ * its first label — but ONLY when that leaves a real ≥2-label domain:
+ *   - `alice.bsky.social` (3 labels) → instance `bsky.social`.
+ *   - `example.com` (a 2-label apex custom domain) is its OWN instance — stripping
+ *     would leave the bare TLD `com`, so the full handle stays the domain.
+ * The federated Oxy username is `<handle>@<instance-domain>`
+ * (`alice.bsky.social@bsky.social`, `example.com@example.com`) — the exact form
+ * oxy-api's `PUT /users/resolve` binds (username domain must equal `domain`).
+ */
+function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
   const dot = handle.indexOf('.');
-  if (dot <= 0) return { username: handle, domain: handle };
-  return { username: handle, domain: handle.slice(dot + 1) };
+  // Strip the first label only if the remainder is still a multi-label domain.
+  const parent = dot > 0 ? handle.slice(dot + 1) : handle;
+  const domain = parent.includes('.') ? parent : handle;
+  return { username: handle, domain, federatedUsername: `${handle}@${domain}` };
 }
 
 /** Map a getProfile response to the network-neutral actor shape (pure). */
@@ -37,10 +51,15 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
   const handle = typeof profile.handle === 'string' ? profile.handle : '';
   if (!did || !handle) return null;
 
+  const { domain, federatedUsername } = splitHandle(handle);
   return {
     network: 'atproto',
     externalId: did,
     handle,
+    // A DID carries no host, so the Oxy identity is keyed on the handle's parent
+    // domain. These are what the shared identity bridge sends to oxy-api.
+    federatedUsername,
+    instanceDomain: domain,
     displayName: profile.displayName || undefined,
     avatarUrl: profile.avatar || undefined,
     bannerUrl: profile.banner || undefined,

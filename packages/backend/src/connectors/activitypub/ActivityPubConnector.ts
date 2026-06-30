@@ -157,6 +157,10 @@ class ActivityPubConnector implements NetworkConnector {
       network: 'activitypub',
       externalId: actor.uri,
       handle: actor.acct,
+      // For AP the acct IS the canonical `user@domain` Oxy username, and the
+      // stored `domain` is its instance host.
+      federatedUsername: actor.acct,
+      instanceDomain: actor.domain,
       // Display names are owned by the Oxy API (`name.displayName`); a federated
       // actor row carries no local name copy.
       avatarUrl: actor.avatarUrl,

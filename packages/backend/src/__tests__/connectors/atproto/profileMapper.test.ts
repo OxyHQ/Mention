@@ -61,6 +61,10 @@ describe('mapProfileToNormalizedActor', () => {
       network: 'atproto',
       externalId: DID,
       handle: 'alice.bsky.social',
+      // The canonical `local@domain` Oxy username + the handle's parent domain —
+      // exactly what oxy-api's `PUT /users/resolve` binds for an atproto actor.
+      federatedUsername: 'alice.bsky.social@bsky.social',
+      instanceDomain: 'bsky.social',
       displayName: 'Alice',
       avatarUrl: PROFILE.avatar,
       bannerUrl: PROFILE.banner,
@@ -69,6 +73,12 @@ describe('mapProfileToNormalizedActor', () => {
       followingCount: 7,
       postsCount: 99,
     });
+  });
+
+  it('derives the instance domain from a bare custom-domain handle', () => {
+    const actor = mapProfileToNormalizedActor({ ...PROFILE, handle: 'example.com' });
+    expect(actor?.federatedUsername).toBe('example.com@example.com');
+    expect(actor?.instanceDomain).toBe('example.com');
   });
 
   it('returns null when did or handle is missing', () => {
@@ -96,6 +106,19 @@ describe('fetchAndUpsertAtprotoProfile', () => {
         }),
       }),
       expect.objectContaining({ upsert: true }),
+    );
+    // Oxy resolution is handed the canonical federated identity (`handle@domain`
+    // username + instance domain) — the exact shape oxy-api's username↔domain
+    // binding requires for a `did:` actor. Passing the bare handle here would
+    // make `PUT /users/resolve` 400 → no oxyUserId → no posts and proxied media.
+    expect(mocks.resolveOxyExternalUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        externalId: DID,
+        federatedUsername: 'alice.bsky.social@bsky.social',
+        instanceDomain: 'bsky.social',
+        avatarUrl: PROFILE.avatar,
+        bannerUrl: PROFILE.banner,
+      }),
     );
     // Oxy user resolved + stamped (the upsert returned no prior oxyUserId).
     expect(mocks.updateOne).toHaveBeenCalledWith({ _id: 'fa1' }, { $set: { oxyUserId: 'oxy-alice' } });
