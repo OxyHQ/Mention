@@ -22,14 +22,34 @@ export interface FederatedOutboxBackfillState {
 }
 
 export interface IFederatedActor extends Document {
+  /**
+   * The external network this actor belongs to. ActivityPub (Mastodon/fediverse)
+   * actors default here; atproto (Bluesky) actors carry `'atproto'`. Lets every
+   * protocol-agnostic query (`/federation/*` follow/post routes, the profile-sync
+   * dispatcher) route an actor to the connector that owns it.
+   */
+  protocol: 'activitypub' | 'atproto';
   uri: string;
+  /**
+   * Stable protocol id, distinct from the web-facing `uri`. For atproto this is
+   * the actor's DID (`did:plc:...` / `did:web:...`); for ActivityPub it equals
+   * `uri` (the actor URI). Sparse-unique so a DID maps to exactly one row.
+   */
+  externalId?: string;
   username: string;
   domain: string;
   acct: string;
   summary?: string;
   avatarUrl?: string;
   headerUrl?: string;
-  inboxUrl: string;
+  /**
+   * ActivityPub inbox URL. REQUIRED in practice for AP actors (every AP ingest
+   * path sets it), but optional on the schema because atproto actors have no AP
+   * inbox — they are read/discovered through the AppView, never delivered to over
+   * ActivityPub. AP delivery code reads `sharedInboxUrl ?? inboxUrl` and guards
+   * the absent case.
+   */
+  inboxUrl?: string;
   outboxUrl?: string;
   sharedInboxUrl?: string;
   followersUrl?: string;
@@ -58,14 +78,16 @@ export interface IFederatedActor extends Document {
 }
 
 const FederatedActorSchema = new Schema<IFederatedActor>({
+  protocol: { type: String, enum: ['activitypub', 'atproto'], default: 'activitypub', index: true },
   uri: { type: String, required: true, unique: true, index: true },
+  externalId: { type: String, index: { unique: true, sparse: true } },
   username: { type: String, required: true },
   domain: { type: String, required: true, index: true },
   acct: { type: String, required: true, unique: true, index: true },
   summary: { type: String },
   avatarUrl: { type: String },
   headerUrl: { type: String },
-  inboxUrl: { type: String, required: true },
+  inboxUrl: { type: String },
   outboxUrl: { type: String },
   sharedInboxUrl: { type: String },
   followersUrl: { type: String },

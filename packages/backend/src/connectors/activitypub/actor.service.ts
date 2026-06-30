@@ -250,6 +250,10 @@ export class ActorService {
       const headerUrl = firstStringUrl(actor.image);
 
       const update: Partial<IFederatedActor> = {
+        protocol: 'activitypub',
+        // For ActivityPub the stable protocol id IS the actor URI, so externalId
+        // mirrors `uri` (atproto rows carry the DID here instead).
+        externalId: actor.id,
         uri: actor.id,
         username,
         domain,

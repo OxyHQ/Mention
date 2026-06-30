@@ -115,9 +115,18 @@ class ActivityPubConnector implements NetworkConnector {
       case 'post.create':
         await followService.federateNewPost(event.post, event.actorOxyUserId, event.actorUsername);
         break;
+      case 'follow.add':
+        // Sends a Follow activity + records the outbound FederatedFollow. The
+        // `{ success, pending }` it returns is surfaced by the route via the
+        // actor's `manuallyApprovesFollowers` flag (route reads it post-deliver).
+        await followService.sendFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
+        break;
+      case 'follow.remove':
+        await followService.sendUndoFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
+        break;
       default: {
-        const exhaustive: never = event.kind;
-        throw new Error(`ActivityPubConnector: unhandled local event ${String(exhaustive)}`);
+        const exhaustive: never = event;
+        throw new Error(`ActivityPubConnector: unhandled local event ${JSON.stringify(exhaustive)}`);
       }
     }
   }

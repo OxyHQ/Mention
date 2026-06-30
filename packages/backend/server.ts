@@ -77,7 +77,7 @@ import recommendationsRoutes from './src/routes/recommendations';
 import './src/connectors';
 import webfingerRoutes from './src/connectors/activitypub/routes/wellKnown.routes';
 import federationRoutes from './src/connectors/activitypub/routes/ap.routes';
-import federationApiRoutes from './src/routes/federation.api.routes';
+import federationApiRoutes from './src/connectors/connectors.routes';
 
 // MTN Protocol
 import { registerAllFeeds } from './src/mtn/feed/registerFeeds';

@@ -29,6 +29,10 @@ const ACTOR_BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
  * Derive the federated user's instance domain from the normalized actor. AP
  * handles are `user@domain`; otherwise fall back to the host of the protocol id.
  * Reproduces the prior `domainFromAcct(acct) || actorHost` value for AP actors.
+ *
+ * For atproto the handle is itself a bare DNS name (e.g. `alice.bsky.social`) and
+ * the protocol id is a `did:` (which has no URL host), so neither the `@` split
+ * nor the URL host yields a domain — fall back to the handle (the domain).
  */
 function deriveDomain(actor: NormalizedExternalActor): string {
   const at = actor.handle.lastIndexOf('@');
@@ -36,10 +40,12 @@ function deriveDomain(actor: NormalizedExternalActor): string {
     return actor.handle.slice(at + 1).toLowerCase();
   }
   try {
-    return new URL(actor.externalId).hostname.toLowerCase();
+    const host = new URL(actor.externalId).hostname.toLowerCase();
+    if (host) return host;
   } catch {
-    return actor.handle.toLowerCase();
+    // Unparseable protocol id (e.g. a DID) — fall through to the handle.
   }
+  return actor.handle.toLowerCase();
 }
 
 /**
