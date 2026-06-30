@@ -39,7 +39,13 @@ vi.mock('../../services/ContentAffinityService', () => ({
   ContentAffinityService: class {},
 }));
 
-import { RecommendationService, buildBoostsFromCandidates } from '../../services/RecommendationService';
+import {
+  RecommendationService,
+  buildBoostsFromCandidates,
+  encodeRecommendationCursor,
+  decodeRecommendationCursor,
+  MAX_RECOMMENDATION_OFFSET,
+} from '../../services/RecommendationService';
 
 /** Build a lean-find mock that returns `rows` from `.lean()`. */
 function leanFind(rows: unknown[]) {
@@ -63,7 +69,7 @@ beforeEach(() => {
   mocks.getMentionOxyClientId.mockReturnValue('app_1');
   // Redis not ready by default → cache disabled (miss + no write).
   mocks.getRedisClient.mockReturnValue({ isReady: false, get: mocks.redisGet, set: mocks.redisSet });
-  mocks.rank.mockResolvedValue([]);
+  mocks.rank.mockResolvedValue({ profiles: [], rawCount: 0 });
   // No content candidates by default → no boosts.
   mocks.getContentCandidates.mockResolvedValue([]);
 });
@@ -96,9 +102,12 @@ describe('RecommendationService.getRecommendations', () => {
     mocks.blockFind.mockImplementation(leanFind([{ blockedId: 'b1' }]));
     mocks.muteFind.mockImplementation(leanFind([]));
     mocks.restrictFind.mockImplementation(leanFind([]));
-    mocks.rank.mockResolvedValue([
-      { id: 'r1', name: { displayName: 'Rec One' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-    ]);
+    mocks.rank.mockResolvedValue({
+      profiles: [
+        { id: 'r1', name: { displayName: 'Rec One' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+      ],
+      rawCount: 1,
+    });
 
     const service = makeService();
     const result = await service.getRecommendations({ viewerId: 'self_1', limit: 5, excludeTypes: ['agent'] });
@@ -134,26 +143,35 @@ describe('RecommendationService.getRecommendations', () => {
   });
 
   it('returns a cached page WITHOUT calling the ranking client (cache hit)', async () => {
-    const cached = [
-      { id: 'cached', name: { displayName: 'Cached' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-    ];
-    mocks.redisGet.mockResolvedValue(JSON.stringify(cached));
+    const cachedResult = {
+      recommendations: [
+        { id: 'cached', name: { displayName: 'Cached' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+      ],
+      nextCursor: 'Y3Vyc29y',
+      nextOffset: 10,
+      hasMore: true,
+    };
+    mocks.redisGet.mockResolvedValue(JSON.stringify(cachedResult));
     mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
 
     const service = makeService();
     const result = await service.getRecommendations({ limit: 10 });
 
-    expect(result.recommendations).toEqual(cached);
+    // The cache hit returns the FULL result (pagination metadata included).
+    expect(result).toEqual(cachedResult);
     expect(mocks.rank).not.toHaveBeenCalled();
   });
 
-  it('writes to cache on a miss', async () => {
+  it('writes the full result (with pagination metadata) to cache on a miss', async () => {
     mocks.redisGet.mockResolvedValue(null);
     mocks.redisSet.mockResolvedValue('OK');
     mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
-    mocks.rank.mockResolvedValue([
-      { id: 'r1', name: { displayName: 'R1' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-    ]);
+    mocks.rank.mockResolvedValue({
+      profiles: [
+        { id: 'r1', name: { displayName: 'R1' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+      ],
+      rawCount: 1,
+    });
 
     const service = makeService();
     await service.getRecommendations({ limit: 10 });
@@ -161,16 +179,136 @@ describe('RecommendationService.getRecommendations', () => {
     expect(mocks.redisSet).toHaveBeenCalledTimes(1);
     const [key, value, options] = mocks.redisSet.mock.calls[0];
     expect(typeof key).toBe('string');
-    expect(JSON.parse(value)[0].id).toBe('r1');
+    const cached = JSON.parse(value);
+    expect(cached.recommendations[0].id).toBe('r1');
+    expect(cached).toHaveProperty('hasMore');
     expect(options).toHaveProperty('EX');
   });
 
-  it('soft-fails to an empty result when the ranking client throws', async () => {
+  it('soft-fails to an empty, fully-shaped result when the ranking client throws', async () => {
     mocks.rank.mockRejectedValue(new Error('oxy down'));
 
     const service = makeService();
     const result = await service.getRecommendations({ viewerId: 'self_1', limit: 10 });
-    expect(result).toEqual({ recommendations: [] });
+    expect(result).toEqual({ recommendations: [], nextCursor: null, nextOffset: null, hasMore: false });
+  });
+});
+
+describe('RecommendationService pagination', () => {
+  beforeEach(() => {
+    mocks.blockFind.mockImplementation(leanFind([]));
+    mocks.muteFind.mockImplementation(leanFind([]));
+    mocks.restrictFind.mockImplementation(leanFind([]));
+  });
+
+  /** Build N minimal ranked profiles. */
+  function profiles(n: number) {
+    return Array.from({ length: n }, (_unused, i) => ({
+      id: `r${i}`,
+      name: { displayName: `R${i}` },
+      mutualCount: 0,
+      verified: false,
+      isFederated: false,
+      isAgent: false,
+      isAutomated: false,
+      _count: { followers: 0, following: 0 },
+    }));
+  }
+
+  it('threads the requested offset through to the ranking client', async () => {
+    const service = makeService();
+    await service.getRecommendations({ viewerId: 'self_1', limit: 10, offset: 30 });
+    expect(mocks.rank.mock.calls[0][0].offset).toBe(30);
+  });
+
+  it('clamps a negative/invalid offset to 0', async () => {
+    const service = makeService();
+    await service.getRecommendations({ limit: 10, offset: -5 });
+    expect(mocks.rank.mock.calls[0][0].offset).toBe(0);
+  });
+
+  it('caps the offset at MAX_RECOMMENDATION_OFFSET', async () => {
+    const service = makeService();
+    await service.getRecommendations({ limit: 10, offset: 999999 });
+    expect(mocks.rank.mock.calls[0][0].offset).toBe(MAX_RECOMMENDATION_OFFSET);
+  });
+
+  it('reports hasMore + nextOffset/nextCursor when a FULL page comes back', async () => {
+    mocks.rank.mockResolvedValue({ profiles: profiles(10), rawCount: 10 });
+
+    const service = makeService();
+    const result = await service.getRecommendations({ viewerId: 'self_1', limit: 10, offset: 20 });
+
+    expect(result.hasMore).toBe(true);
+    expect(result.nextOffset).toBe(30); // offset (20) + rawCount (10)
+    expect(result.nextCursor).toBe(encodeRecommendationCursor(30));
+    // A round-trip through the cursor yields the same next offset.
+    expect(decodeRecommendationCursor(result.nextCursor as string)).toBe(30);
+  });
+
+  it('advances the cursor by the RAW upstream count, not the mapped length', async () => {
+    // Upstream returned a full page of 10 but Mention only kept 8 (2 dropped).
+    mocks.rank.mockResolvedValue({ profiles: profiles(8), rawCount: 10 });
+
+    const service = makeService();
+    const result = await service.getRecommendations({ limit: 10, offset: 0 });
+
+    expect(result.recommendations).toHaveLength(8);
+    expect(result.hasMore).toBe(true);
+    expect(result.nextOffset).toBe(10); // advanced by rawCount, not by 8
+  });
+
+  it('reports the end of the list (no next page) on a SHORT page', async () => {
+    mocks.rank.mockResolvedValue({ profiles: profiles(4), rawCount: 4 });
+
+    const service = makeService();
+    const result = await service.getRecommendations({ limit: 10, offset: 0 });
+
+    expect(result.hasMore).toBe(false);
+    expect(result.nextOffset).toBeNull();
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('stops paging once the next offset would exceed the cap', async () => {
+    // A full page whose next offset (990 + 20) overshoots the cap (1000).
+    mocks.rank.mockResolvedValue({ profiles: profiles(20), rawCount: 20 });
+
+    const service = makeService();
+    const result = await service.getRecommendations({ limit: 20, offset: 990 });
+
+    expect(result.hasMore).toBe(false);
+    expect(result.nextOffset).toBeNull();
+  });
+
+  it('keys the cache per offset so pages never collide', async () => {
+    mocks.redisSet.mockResolvedValue('OK');
+    mocks.redisGet.mockResolvedValue(null);
+    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+    mocks.rank.mockResolvedValue({ profiles: profiles(10), rawCount: 10 });
+
+    const service = makeService();
+    await service.getRecommendations({ viewerId: 'self_1', limit: 10, offset: 0 });
+    await service.getRecommendations({ viewerId: 'self_1', limit: 10, offset: 10 });
+
+    const key0 = mocks.redisSet.mock.calls[0][0];
+    const key1 = mocks.redisSet.mock.calls[1][0];
+    expect(key0).not.toBe(key1);
+    expect(key0).toContain(':o:0:');
+    expect(key1).toContain(':o:10:');
+  });
+});
+
+describe('recommendation cursor codec', () => {
+  it('round-trips an offset through encode/decode', () => {
+    for (const offset of [0, 1, 20, 250, 1000]) {
+      expect(decodeRecommendationCursor(encodeRecommendationCursor(offset))).toBe(offset);
+    }
+  });
+
+  it('returns null for a malformed/garbage cursor', () => {
+    expect(decodeRecommendationCursor('not-a-real-cursor!!')).toBeNull();
+    expect(decodeRecommendationCursor(Buffer.from('-3', 'utf8').toString('base64url'))).toBeNull();
+    expect(decodeRecommendationCursor(Buffer.from('abc', 'utf8').toString('base64url'))).toBeNull();
   });
 });
 
@@ -227,9 +365,12 @@ describe('RecommendationService content-affinity boosts', () => {
 
   it('soft-fails to empty boosts (and still returns recs) when affinity throws', async () => {
     mocks.getContentCandidates.mockRejectedValue(new Error('affinity down'));
-    mocks.rank.mockResolvedValue([
-      { id: 'r1', name: { displayName: 'R1' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-    ]);
+    mocks.rank.mockResolvedValue({
+      profiles: [
+        { id: 'r1', name: { displayName: 'R1' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+      ],
+      rawCount: 1,
+    });
 
     const service = makeService();
     const result = await service.getRecommendations({ viewerId: 'self_1', limit: 10 });

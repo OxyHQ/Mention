@@ -73,6 +73,41 @@ describe('OxyRankingClient.rank', () => {
     expect(userId).toBe('viewer_99');
   });
 
+  it('forwards a positive pagination offset in the request body', async () => {
+    mocks.makeServiceRequest.mockResolvedValue({ data: [] });
+    const client = new OxyRankingClient();
+
+    await client.rank({ limit: 20, offset: 40 });
+
+    const body = mocks.makeServiceRequest.mock.calls[0][2];
+    expect(body.offset).toBe(40);
+  });
+
+  it('omits offset when it is zero or absent', async () => {
+    mocks.makeServiceRequest.mockResolvedValue({ data: [] });
+    const client = new OxyRankingClient();
+
+    await client.rank({ limit: 20, offset: 0 });
+    expect('offset' in mocks.makeServiceRequest.mock.calls[0][2]).toBe(false);
+
+    mocks.makeServiceRequest.mockClear();
+    await client.rank({ limit: 20 });
+    expect('offset' in mocks.makeServiceRequest.mock.calls[0][2]).toBe(false);
+  });
+
+  it('returns the raw upstream count alongside the mapped profiles', async () => {
+    // Three raw items, one of which is malformed (no displayName) → dropped from
+    // `profiles` but still counted in `rawCount` so the caller can page correctly.
+    mocks.makeServiceRequest.mockResolvedValue({
+      data: [makeItem({ id: 'a' }), makeItem({ id: 'b' }), makeItem({ id: 'c', name: { first: 'X' } })],
+    });
+    const client = new OxyRankingClient();
+
+    const page = await client.rank({ limit: 3 });
+    expect(page.profiles.map((p) => p.id)).toEqual(['a', 'b']);
+    expect(page.rawCount).toBe(3);
+  });
+
   it('falls back to MENTION_OXY_CLIENT_ID when no clientId is passed', async () => {
     mocks.makeServiceRequest.mockResolvedValue({ data: [] });
     const client = new OxyRankingClient();
@@ -110,8 +145,8 @@ describe('OxyRankingClient.rank', () => {
 
     const result = await client.rank({ limit: 10, viewerId: 'v1' });
 
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
+    expect(result.profiles).toHaveLength(1);
+    expect(result.profiles[0]).toMatchObject({
       id: 'u1',
       username: 'alice',
       name: { displayName: 'Alice' },
@@ -130,7 +165,7 @@ describe('OxyRankingClient.rank', () => {
     const client = new OxyRankingClient();
 
     const result = await client.rank({ limit: 10 });
-    expect(result.map((r) => r.id)).toEqual(['u2']);
+    expect(result.profiles.map((r) => r.id)).toEqual(['u2']);
   });
 
   it('drops items missing an id or a canonical displayName', async () => {
@@ -144,7 +179,7 @@ describe('OxyRankingClient.rank', () => {
     const client = new OxyRankingClient();
 
     const result = await client.rank({ limit: 10 });
-    expect(result.map((r) => r.id)).toEqual(['good']);
+    expect(result.profiles.map((r) => r.id)).toEqual(['good']);
   });
 
   it('propagates a transport error (soft-fail policy lives in the service)', async () => {

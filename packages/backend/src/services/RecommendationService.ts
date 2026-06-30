@@ -39,6 +39,15 @@ export const DEFAULT_RECOMMENDATION_LIMIT = 20;
 /** Hard cap on page size regardless of the caller's `limit`. */
 export const MAX_RECOMMENDATION_LIMIT = 50;
 
+/**
+ * Hard cap on the pagination offset. Bounds how deep a caller may scan into the
+ * ranked list so a hostile/buggy client cannot request an arbitrarily large
+ * offset (which Oxy would translate into a deep skip over the candidate union).
+ * Generous enough for real "who to follow" infinite scroll (e.g. 50 pages of 20
+ * or 20 pages of 50).
+ */
+export const MAX_RECOMMENDATION_OFFSET = 1000;
+
 /** Per-viewer cache TTL (seconds). Short so personalization stays fresh. */
 const CACHE_TTL_SECONDS = 90;
 
@@ -51,13 +60,58 @@ export interface GetRecommendationsInput {
   viewerId?: string;
   /** Requested page size (clamped to [1, MAX_RECOMMENDATION_LIMIT]). */
   limit?: number;
+  /** Pagination offset (clamped to [0, MAX_RECOMMENDATION_OFFSET]). */
+  offset?: number;
   /** User types to exclude (parsed from the `excludeTypes` CSV query param). */
   excludeTypes?: RecommendationExcludeType[];
 }
 
-/** Response payload — always this shape, even on soft-failure. */
+/**
+ * Response payload — always this shape, even on soft-failure. The pagination
+ * fields drive the frontend's infinite scroll: `hasMore` gates the next fetch
+ * and `nextCursor`/`nextOffset` address the next page. Both `nextCursor` and
+ * `nextOffset` are `null` whenever `hasMore` is `false`.
+ */
 export interface RecommendationsResult {
   recommendations: RankedProfile[];
+  /** Opaque cursor for the next page; pass back as `?cursor=`. Null at the end. */
+  nextCursor: string | null;
+  /** Numeric offset for the next page; pass back as `?offset=`. Null at the end. */
+  nextOffset: number | null;
+  /** Whether another page may exist after this one. */
+  hasMore: boolean;
+}
+
+/** The soft-fail / empty page payload (no results, no next page). */
+const EMPTY_RESULT: RecommendationsResult = {
+  recommendations: [],
+  nextCursor: null,
+  nextOffset: null,
+  hasMore: false,
+};
+
+/**
+ * Encode a numeric offset into the opaque cursor the frontend echoes back. The
+ * scheme is intentionally simple (base64url of the decimal offset) — it is NOT a
+ * security boundary, only a stable, URL-safe token so the API can evolve the
+ * cursor format later without the frontend depending on a raw integer.
+ */
+export function encodeRecommendationCursor(offset: number): string {
+  return Buffer.from(String(offset), 'utf8').toString('base64url');
+}
+
+/**
+ * Decode a cursor produced by {@link encodeRecommendationCursor} back into a
+ * non-negative offset. Returns `null` for any malformed/invalid cursor so the
+ * caller can fall back to the first page rather than error the discovery surface.
+ * `Buffer.from(..., 'base64url')` decodes leniently and never throws, so no
+ * try/catch is needed.
+ */
+export function decodeRecommendationCursor(cursor: string): number | null {
+  const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+  const parsed = Number.parseInt(decoded, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) return null;
+  return parsed;
 }
 
 /** Clamp a requested limit into the supported range. */
@@ -68,15 +122,33 @@ function clampLimit(limit?: number): number {
   return Math.min(Math.floor(limit), MAX_RECOMMENDATION_LIMIT);
 }
 
+/** Clamp a requested offset into the supported range (`[0, MAX]`). */
+function clampOffset(offset?: number): number {
+  if (typeof offset !== 'number' || !Number.isFinite(offset) || offset <= 0) {
+    return 0;
+  }
+  return Math.min(Math.floor(offset), MAX_RECOMMENDATION_OFFSET);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
  * Build the per-viewer cache key. Includes the viewer (or `anon`), the limit,
- * and the SORTED excludeTypes so two requests with the same effective inputs
- * share a cache entry while anon and authed NEVER collide.
+ * the pagination offset, and the SORTED excludeTypes so two requests with the
+ * same effective inputs share a cache entry while anon and authed NEVER collide
+ * and different pages (offsets) NEVER overwrite each other.
  */
-function buildCacheKey(viewerId: string | undefined, limit: number, excludeTypes: string[]): string {
+function buildCacheKey(
+  viewerId: string | undefined,
+  limit: number,
+  offset: number,
+  excludeTypes: string[],
+): string {
   const viewerPart = viewerId ? `u:${viewerId}` : 'anon';
   const typesPart = excludeTypes.length > 0 ? [...excludeTypes].sort().join(',') : 'none';
-  return `${CACHE_PREFIX}${viewerPart}:l:${limit}:t:${typesPart}`;
+  return `${CACHE_PREFIX}${viewerPart}:l:${limit}:o:${offset}:t:${typesPart}`;
 }
 
 /**
@@ -168,15 +240,22 @@ export class RecommendationService {
     }
   }
 
-  /** Read a cached page. Returns null on miss or any cache error (graceful). */
-  private async readCache(key: string): Promise<RankedProfile[] | null> {
+  /**
+   * Read a cached page (the full {@link RecommendationsResult}, including its
+   * pagination metadata). Returns null on miss, a shape mismatch, or any cache
+   * error (graceful).
+   */
+  private async readCache(key: string): Promise<RecommendationsResult | null> {
     try {
       const client = getRedisClient();
       if (!client?.isReady) return null;
       const raw = await client.get(key);
       if (!raw) return null;
       const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as RankedProfile[]) : null;
+      if (isRecord(parsed) && Array.isArray(parsed.recommendations)) {
+        return parsed as unknown as RecommendationsResult;
+      }
+      return null;
     } catch (error) {
       logger.debug('[RecommendationService] cache read failed:', error);
       return null;
@@ -184,7 +263,7 @@ export class RecommendationService {
   }
 
   /** Write a page to cache. Best-effort; never throws. */
-  private async writeCache(key: string, value: RankedProfile[]): Promise<void> {
+  private async writeCache(key: string, value: RecommendationsResult): Promise<void> {
     try {
       const client = getRedisClient();
       if (!client?.isReady) return;
@@ -221,13 +300,14 @@ export class RecommendationService {
    */
   async getRecommendations(input: GetRecommendationsInput): Promise<RecommendationsResult> {
     const limit = clampLimit(input.limit);
+    const offset = clampOffset(input.offset);
     const excludeTypes = input.excludeTypes ?? [];
     const viewerId = input.viewerId;
 
-    const cacheKey = buildCacheKey(viewerId, limit, excludeTypes);
+    const cacheKey = buildCacheKey(viewerId, limit, offset, excludeTypes);
     const cached = await this.readCache(cacheKey);
     if (cached) {
-      return { recommendations: cached };
+      return cached;
     }
 
     // Exclusions and content-affinity boosts are independent and viewer-scoped;
@@ -238,19 +318,37 @@ export class RecommendationService {
     ]);
 
     try {
-      const recommendations = await this.rankingClient.rank({
+      const { profiles, rawCount } = await this.rankingClient.rank({
         clientId: getMentionOxyClientId(),
         viewerId,
         limit,
+        offset,
         excludeIds,
         excludeTypes,
         boosts: boosts.length > 0 ? boosts : undefined,
       });
-      await this.writeCache(cacheKey, recommendations);
-      return { recommendations };
+
+      // Offset pagination: a FULL upstream page (rawCount >= limit) implies a next
+      // page may exist. Advance the cursor by the raw count Oxy returned (NOT the
+      // mapped `profiles.length`) so any dropped malformed items never shift the
+      // window into duplicates/skips. Stop offering a next page once it would
+      // exceed the offset cap, so the cursor can never loop on a clamped offset.
+      const candidateNextOffset = offset + rawCount;
+      const hasMore = rawCount >= limit && candidateNextOffset <= MAX_RECOMMENDATION_OFFSET;
+      const nextOffset = hasMore ? candidateNextOffset : null;
+      const nextCursor = nextOffset !== null ? encodeRecommendationCursor(nextOffset) : null;
+
+      const result: RecommendationsResult = {
+        recommendations: profiles,
+        nextCursor,
+        nextOffset,
+        hasMore,
+      };
+      await this.writeCache(cacheKey, result);
+      return result;
     } catch (error) {
       logger.error('[RecommendationService] ranking failed; returning empty result:', error);
-      return { recommendations: [] };
+      return { ...EMPTY_RESULT };
     }
   }
 }

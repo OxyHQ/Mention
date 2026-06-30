@@ -34,6 +34,7 @@ import type { PeriodicTaskName } from '../queue/types';
 import { interestScoreService } from './InterestScoreService';
 import { endorsementSignalService } from './EndorsementSignalService';
 import { oxy } from '../../server';
+import type { User } from '@oxyhq/core';
 
 /** Staleness threshold after which an actor profile is re-fetched. */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -728,15 +729,29 @@ class FederationJobScheduler {
 
       logger.debug(`Retrying ${pending.length} pending deliveries`);
 
+      // Resolve every distinct sender in ONE batched round-trip rather than a
+      // per-delivery getUserById (up to 200 deliveries, with duplicate senders
+      // re-fetched). `oxy` is the service OxyServices singleton exported from
+      // server.ts. This module is only loaded via
+      // `require('./src/services/FederationJobScheduler')` at server bootstrap
+      // (after `oxy` and the services are constructed), so the static import
+      // binding is always live by the time a retry runs — same rationale as the
+      // delivery worker in queue/workers.ts.
+      const uniqueSenderIds = [...new Set(pending.map((d) => d.senderOxyUserId))];
+      const senders = new Map<string, User>();
+      try {
+        const resolved = await oxy.getUsersByIds(uniqueSenderIds);
+        for (const sender of resolved) {
+          if (sender?.id) senders.set(sender.id, sender);
+        }
+      } catch (err) {
+        logger.warn('[FedSync] Failed to batch-resolve delivery senders:', err);
+      }
+
       for (const delivery of pending) {
         try {
-          // Need the sender's username to sign the request. `oxy` is the
-          // service OxyServices singleton exported from server.ts. This module
-          // is only loaded via `require('./src/services/FederationJobScheduler')`
-          // at server bootstrap (after `oxy` and the services are constructed),
-          // so the static import binding is always live by the time a retry runs
-          // — same rationale as the delivery worker in queue/workers.ts.
-          const user = await oxy.getUserById(delivery.senderOxyUserId);
+          // Need the sender's username to sign the request.
+          const user = senders.get(delivery.senderOxyUserId);
           if (!user?.username) {
             await FederationDeliveryQueue.updateOne(
               { _id: delivery._id },

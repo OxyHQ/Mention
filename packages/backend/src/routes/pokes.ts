@@ -11,14 +11,16 @@ const router = Router();
 /** Resolve an array of Oxy user IDs into profile objects (best-effort). */
 async function resolveUsers(ids: string[]): Promise<Map<string, User>> {
   const map = new Map<string, User>();
-  await Promise.all(
-    ids.map(async (id) => {
-      try {
-        const user = await oxy.getUserById(id);
-        if (user) map.set(id, user);
-      } catch { /* skip unresolvable */ }
-    }),
-  );
+  if (ids.length === 0) return map;
+  try {
+    // Single batched round-trip instead of one getUserById per id.
+    const users = await oxy.getUsersByIds(ids);
+    for (const user of users) {
+      if (user?.id) map.set(user.id, user);
+    }
+  } catch (error) {
+    logger.warn('[Pokes] Failed to resolve users in batch:', { count: ids.length, error });
+  }
   return map;
 }
 

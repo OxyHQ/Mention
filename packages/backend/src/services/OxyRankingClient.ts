@@ -116,6 +116,19 @@ export interface RankedProfile {
   };
 }
 
+/**
+ * Result of a single ranking request: the mapped, frontend-ready profiles for
+ * the page plus the RAW count of items Oxy returned (before Mention dropped any
+ * malformed entries). The raw count — not `profiles.length` — is what the caller
+ * uses to derive `hasMore` and advance the offset cursor, so dropped malformed
+ * items never cause a duplicate or a skipped good item across pages.
+ */
+export interface RankPage {
+  profiles: RankedProfile[];
+  /** Number of items Oxy returned for this page, before mapping/dropping. */
+  rawCount: number;
+}
+
 /** JSON body sent to `POST /profiles/recommendations`. */
 interface RecommendationRequestBody {
   clientId?: string;
@@ -196,11 +209,13 @@ function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
 export class OxyRankingClient {
   /**
    * Rank profiles for a viewer. Builds the request body, forwards the viewer id
-   * (when present) for personalization, calls Oxy with the service token, and
-   * maps the response to Mention's frontend DTO. THROWS on transport/HTTP
-   * failure — the RecommendationService owns the soft-fail policy.
+   * (when present) for personalization and the pagination `offset`, calls Oxy
+   * with the service token, and maps the response to Mention's frontend DTO.
+   * Returns the mapped page plus the raw upstream count (for offset pagination).
+   * THROWS on transport/HTTP failure — the RecommendationService owns the
+   * soft-fail policy.
    */
-  async rank(options: RankOptions): Promise<RankedProfile[]> {
+  async rank(options: RankOptions): Promise<RankPage> {
     const clientId = options.clientId ?? getMentionOxyClientId();
 
     const body: RecommendationRequestBody = {
@@ -225,18 +240,19 @@ export class OxyRankingClient {
     );
 
     const items = extractItems(response);
-    const mapped: RankedProfile[] = [];
+    const profiles: RankedProfile[] = [];
     for (const item of items) {
       const profile = toRankedProfile(item);
-      if (profile) mapped.push(profile);
+      if (profile) profiles.push(profile);
     }
 
     logger.debug(
-      `[OxyRankingClient] ranked ${mapped.length}/${items.length} profiles ` +
-      `(viewer=${options.viewerId ?? 'anon'}, clientId=${clientId ?? 'default'})`,
+      `[OxyRankingClient] ranked ${profiles.length}/${items.length} profiles ` +
+      `(viewer=${options.viewerId ?? 'anon'}, clientId=${clientId ?? 'default'}, ` +
+      `offset=${options.offset ?? 0})`,
     );
 
-    return mapped;
+    return { profiles, rawCount: items.length };
   }
 }
 

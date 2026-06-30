@@ -157,49 +157,6 @@ class FeedController {
   private readonly FED_OUTBOX_SYNC_LIMIT = 20;
 
   /**
-   * Replace [mention:userId] placeholders in text with [@displayName](username) format
-   * This allows the frontend to render the display name without @ but keep it clickable
-   */
-  private async replaceMentionPlaceholders(text: string, mentions: string[]): Promise<string> {
-    if (!text || !mentions || mentions.length === 0) {
-      return text;
-    }
-
-    // Batch-fetch all mentioned users in parallel (fixes N+1 query)
-    const uniqueUserIds = [...new Set(mentions)];
-    const userDataMap = new Map<string, { username: string; displayName: string }>();
-
-    const results = await Promise.allSettled(
-      uniqueUserIds.map(async (userId) => {
-        const userData = await oxyClient.getUserById(userId);
-        const username = userData.username || 'user';
-        return { userId, username, displayName: userData.name.displayName ?? username };
-      })
-    );
-
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        userDataMap.set(result.value.userId, {
-          username: result.value.username,
-          displayName: result.value.displayName,
-        });
-      }
-    }
-
-    let resultText = text;
-    for (const userId of mentions) {
-      const userData = userDataMap.get(userId) || { username: userId, displayName: userId };
-      const placeholder = `[mention:${userId}]`;
-      resultText = resultText.replace(
-        new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-        `[@${userData.displayName}](${userData.username})`
-      );
-    }
-
-    return resultText;
-  }
-
-  /**
    * Transform posts to include full profile data and engagement stats
    * 
    * @param posts - Raw post documents from database
