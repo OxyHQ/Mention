@@ -286,7 +286,10 @@ export async function importAuthorFeed(
     logger.warn(`[atproto] importAuthorFeed called for ${did} without a resolved Oxy user; skipping (no orphan)`);
     return { posts: [] };
   }
-  const instanceDomain = actor.handle;
+  // Stamp the actor's instance domain (e.g. `bsky.social`) on imported posts —
+  // matching the AP convention (`Post.instanceDomain` = the actor's host), not
+  // the bare full handle.
+  const instanceDomain = actor.instanceDomain;
 
   let feed: AtprotoAuthorFeed;
   try {

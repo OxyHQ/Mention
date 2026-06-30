@@ -27,6 +27,22 @@ export interface NormalizedExternalActor {
   externalId: string;
   /** Fediverse-style handle (`user@domain` for AP; the atproto handle/DID otherwise). */
   handle: string;
+  /**
+   * The canonical `local@domain` username this actor is stored under in Oxy — the
+   * exact value passed to `PUT /users/resolve`. Each connector derives it for its
+   * own protocol so the shared identity bridge never has to guess: AP uses the
+   * acct (`user@domain`); atproto synthesizes `<handle>@<instance-domain>` (e.g.
+   * `alice.bsky.social@bsky.social`). It MUST equal `instanceDomain` after the
+   * `@` so oxy-api's username↔domain binding holds.
+   */
+  federatedUsername: string;
+  /**
+   * The instance/origin domain this actor's identity belongs to — the `domain`
+   * passed to `PUT /users/resolve` and stamped on imported `Post.instanceDomain`.
+   * AP: the actor host (e.g. `mastodon.social`); atproto: the handle's parent
+   * domain (e.g. `bsky.social`), since a DID carries no host.
+   */
+  instanceDomain: string;
   displayName?: string;
   avatarUrl?: string;
   bannerUrl?: string;

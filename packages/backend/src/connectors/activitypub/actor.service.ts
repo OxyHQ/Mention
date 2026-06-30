@@ -299,6 +299,10 @@ export class ActorService {
             network: 'activitypub',
             externalId: actor.id,
             handle: acct,
+            // For AP the acct IS the canonical `user@domain` Oxy username, and
+            // `domain` is its instance host — both already verified above.
+            federatedUsername: acct,
+            instanceDomain: domain,
             displayName: decodeEntities(actor.name || username),
             avatarUrl,
             bannerUrl: headerUrl,
