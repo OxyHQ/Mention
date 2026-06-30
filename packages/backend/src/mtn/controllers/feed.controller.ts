@@ -6,7 +6,7 @@
  */
 
 import { Request, Response } from 'express';
-import { isValidFeedDescriptor, MtnConfig } from '@mention/shared-types';
+import { isValidFeedDescriptor, MtnConfig, createPostUri } from '@mention/shared-types';
 import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { feedAPIRegistry } from '../feed/FeedAPIRegistry';
@@ -296,7 +296,7 @@ class MtnFeedController {
       const latest = await feedApi.peekLatest(context);
       res.json({
         success: true,
-        data: latest ? { uri: `mtn://${latest.user?.id}/mtn.social.post/${latest.id}`, post: latest } : null,
+        data: latest ? { uri: createPostUri(String(latest.user?.id), String(latest.id)), post: latest } : null,
       });
     } catch (error) {
       logger.error('[MtnFeedController] peekLatest error', error);

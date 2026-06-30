@@ -20,6 +20,15 @@ import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { aliaChat } from '../utils/alia';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
+import {
+  emitPostCreated,
+  emitLikeCreated,
+  emitTombstone,
+  emitBookmarkCreated,
+  likeRecordUri,
+  bookmarkRecordUri,
+  postRecordUri,
+} from '../services/mtn/MentionRecordEmitter';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -897,7 +906,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         delete postContent.attachments;
       }
 
-      const post: InstanceType<typeof Post> = new Post({
+      // Route every thread post through PostCreationService so Stage-A
+      // classification AND the MTN dual-write (signed `app.mention.feed.post`
+      // record per thread post, with reply.root/reply.parent for continuations)
+      // live in ONE place. The thread keeps its own per-post mention
+      // notifications and its own single main-post socket emit below, so we
+      // suppress PCS's notification/socket/federation stages to preserve the
+      // EXACT pre-existing side-effect behavior (the response is byte-identical).
+      const isThreadContinuation = mode === 'thread' && i > 0 && Boolean(previousPostId);
+      const post = await postCreationService.create({
         oxyUserId: userId,
         content: postContent,
         hashtags: uniqueTags,
@@ -907,20 +924,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         reviewReplies: reviewReplies || false,
         quotesDisabled: quotesDisabled || false,
         metadata: buildPostMetadata(metadata),
-        stats: {
-          likesCount: 0,
-          boostsCount: 0,
-          commentsCount: 0,
-          viewsCount: 0,
-          sharesCount: 0
-        },
         // For thread mode: chain each continuation post to the immediately
         // previous post (sequential thread), with a shared threadId root.
-        // For beast mode: all posts are independent
-        ...(mode === 'thread' && i > 0 && previousPostId ? {
-          parentPostId: previousPostId,   // chain to the immediately-previous post
-          threadId: mainPostId            // shared root for the whole thread
-        } : {})
+        // For beast mode: all posts are independent.
+        ...(isThreadContinuation ? { parentPostId: previousPostId, threadId: mainPostId } : {}),
+        skipNotifications: true,
+        skipSocketEmit: true,
+        skipFederationDelivery: true,
       });
 
       // Thread mode: the ROOT post (i === 0) anchors the thread on its OWN _id so
@@ -928,13 +938,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // lets ThreadSlicingService recognise the root (threadId set, no
       // parentPostId) and pull its same-author continuations into a single
       // connected slice; without it the root never matches and the thread renders
-      // as loose posts. Mongoose assigns _id at construction, so it is available
-      // here. Single-post "threads" and beast mode stay unlinked.
+      // as loose posts. The id is only available after creation, so anchor it with
+      // a follow-up update. (This native self-thread marker is NOT part of the MTN
+      // post record — the root's signed record is correctly a top-level post.)
       if (mode === 'thread' && i === 0 && posts.length > 1) {
         post.threadId = String(post._id);
+        await post.save();
       }
-
-      await post.save();
 
       if (pendingArticleDoc) {
         try {
@@ -1264,6 +1274,15 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     await post.save();
 
+    // MTN dual-write: an edit re-emits the `app.mention.feed.post` record under
+    // the SAME rkey (the post id). The chain is append-only and materialization
+    // is last-writer-wins by chain order, so the new record supersedes the old
+    // version. Only LOCAL posts emit (an edited federated post never had a record;
+    // the 30-minute edit window above only applies to owner-scoped native posts).
+    if (post.federation == null && post.oxyUserId) {
+      await emitPostCreated(post);
+    }
+
     // Hydrate the updated post for consistent frontend response shape.
     // PostHydrationService is the single source of truth for post DTOs; we do NOT
     // hand-build a `user` object here (that would leak the raw oxyUserId as the
@@ -1367,6 +1386,16 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = post._id.toString();
+
+    // MTN dual-write: deleting a LOCAL post tombstones its
+    // `app.mention.feed.post` record. (Federated posts never emitted a record.)
+    if (post.federation == null && post.oxyUserId) {
+      await emitTombstone({
+        authorOxyUserId: post.oxyUserId,
+        tombstoneRkey: postId,
+        subjectUri: postRecordUri(post.oxyUserId, postId),
+      });
+    }
 
     // Cascading cleanup — best-effort, don't fail the request
     try {
@@ -1484,7 +1513,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
     // No existing vote — create new
     logger.debug(`User ${userId} voting ${value} on post ${postId}`);
-    await Like.create({ userId, postId, value, source: surface });
+    const createdLike = await Like.create({ userId, postId, value, source: surface });
 
     const statField = value === 1 ? 'stats.likesCount' : 'stats.downvotesCount';
     const likedPost = await Post.findByIdAndUpdate(
@@ -1492,6 +1521,17 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       { $inc: { [statField]: 1 } },
       { new: true }
     ).lean();
+
+    // MTN dual-write: an upvote (value === 1) emits an `app.mention.feed.like`
+    // record. Downvotes are not "likes" and are not part of the MTN like lexicon.
+    if (value === 1) {
+      await emitLikeCreated({
+        likerOxyUserId: userId,
+        likeRkey: String(createdLike._id),
+        likedPostId: postId,
+        likedPostOwnerOxyUserId: likedPost?.oxyUserId?.toString?.(),
+      });
+    }
 
     // Record interaction for user preference learning
     try {
@@ -1564,6 +1604,16 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       { new: true }
     ).lean();
 
+    // MTN dual-write: removing an upvote tombstones its `app.mention.feed.like`
+    // record. (A removed downvote has no like record to supersede.)
+    if (voteValue === 1) {
+      await emitTombstone({
+        authorOxyUserId: userId,
+        tombstoneRkey: String(existingLike._id),
+        subjectUri: likeRecordUri(userId, String(existingLike._id)),
+      });
+    }
+
     const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
 
     res.json({
@@ -1611,15 +1661,25 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     logger.debug(`User ${userId} saving post ${postId} (not already saved)`);
 
     // Create save record
-    await Bookmark.create({ userId, postId });
+    const createdBookmark = await Bookmark.create({ userId, postId });
 
     // Also update post metadata.savedBy for consistency
-    await Post.findByIdAndUpdate(
+    const savedPost = await Post.findByIdAndUpdate(
       postId,
       {
         $addToSet: { 'metadata.savedBy': userId }
-      }
-    );
+      },
+      { new: true }
+    ).select('oxyUserId').lean();
+
+    // MTN dual-write: a save emits a PRIVATE `app.mention.feed.bookmark` record
+    // (excluded from any public log export).
+    await emitBookmarkCreated({
+      ownerOxyUserId: userId,
+      bookmarkRkey: String(createdBookmark._id),
+      bookmarkedPostId: postId,
+      bookmarkedPostOwnerOxyUserId: savedPost?.oxyUserId?.toString?.(),
+    });
 
     // Record interaction for user preference learning
     logger.debug(`Recording interaction for user ${userId}, post ${postId}`);
@@ -1649,8 +1709,8 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     const postId = req.params.id as string;
 
     // Remove save record
-    const result = await Bookmark.deleteOne({ userId, postId });
-    if (result.deletedCount === 0) {
+    const removedBookmark = await Bookmark.findOneAndDelete({ userId, postId });
+    if (!removedBookmark) {
       return res.json({ message: 'Post not saved' });
     }
 
@@ -1661,6 +1721,14 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
         $pull: { 'metadata.savedBy': userId }
       }
     );
+
+    // MTN dual-write: an unsave tombstones the bookmark's
+    // `app.mention.feed.bookmark` record (private — same private chain).
+    await emitTombstone({
+      authorOxyUserId: userId,
+      tombstoneRkey: String(removedBookmark._id),
+      subjectUri: bookmarkRecordUri(userId, String(removedBookmark._id)),
+    });
 
     res.json({ message: 'Post unsaved successfully' });
   } catch (error) {
