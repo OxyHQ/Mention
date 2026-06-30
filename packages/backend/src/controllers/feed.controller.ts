@@ -979,10 +979,10 @@ class FeedController {
         // through the atproto connector's pull-based author feed (no AP outbox
         // dance); the rest of this method is the ActivityPub outbox flow.
         if (cachedActor?.protocol === 'atproto') {
-          if (cachedActor.externalId) {
-            const connector = connectorRegistry.connectorFor(cachedActor.externalId);
+          if (cachedActor.uri) {
+            const connector = connectorRegistry.connectorFor(cachedActor.uri);
             if (connector) {
-              await connector.fetchPosts(cachedActor.externalId, { limit: this.FED_OUTBOX_SYNC_LIMIT });
+              await connector.fetchPosts(cachedActor.uri, { limit: this.FED_OUTBOX_SYNC_LIMIT });
             }
           }
           return;

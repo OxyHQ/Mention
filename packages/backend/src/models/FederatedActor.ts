@@ -29,13 +29,13 @@ export interface IFederatedActor extends Document {
    * dispatcher) route an actor to the connector that owns it.
    */
   protocol: 'activitypub' | 'atproto';
-  uri: string;
   /**
-   * Stable protocol id, distinct from the web-facing `uri`. For atproto this is
-   * the actor's DID (`did:plc:...` / `did:web:...`); for ActivityPub it equals
-   * `uri` (the actor URI). Sparse-unique so a DID maps to exactly one row.
+   * The actor's stable protocol id and unique key. For ActivityPub this is the
+   * actor URI; for atproto it is the actor's DID (`did:plc:...` / `did:web:...`).
+   * Both connectors key their upserts on `uri`, and protocol-agnostic queries
+   * (the `connectorFor` dispatch, follow records) resolve actors through it.
    */
-  externalId?: string;
+  uri: string;
   username: string;
   domain: string;
   acct: string;
@@ -80,7 +80,6 @@ export interface IFederatedActor extends Document {
 const FederatedActorSchema = new Schema<IFederatedActor>({
   protocol: { type: String, enum: ['activitypub', 'atproto'], default: 'activitypub', index: true },
   uri: { type: String, required: true, unique: true, index: true },
-  externalId: { type: String, index: { unique: true, sparse: true } },
   username: { type: String, required: true },
   domain: { type: String, required: true, index: true },
   acct: { type: String, required: true, unique: true, index: true },

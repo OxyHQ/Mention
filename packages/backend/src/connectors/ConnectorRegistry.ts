@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 import type { PostFederator } from '../services/serviceRegistry';
 import type {
   NetworkConnector,
@@ -31,14 +32,20 @@ export class ConnectorRegistry implements PostFederator {
    * Federate a newly created local post outbound to every enabled connector.
    * Each connector decides what delivery means for its network (ActivityPub
    * delivers to remote followers; future connectors write their own records).
-   * One connector's failure does not abort the others.
+   *
+   * Delivery is fanned out with `Promise.allSettled` so one connector's failure
+   * (e.g. a transient ActivityPub network error) does NOT abort delivery to the
+   * others and does NOT propagate back to `PostCreationService` — the local post
+   * is already persisted; outbound federation is best-effort. Each rejected
+   * connector is logged with its id; the method resolves once every connector has
+   * been attempted.
    */
   async federateNewPost(
     post: LocalPostEventPayload,
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {
-    await Promise.all(
+    const results = await Promise.allSettled(
       this.connectors.map((connector) =>
         connector.deliver({
           kind: 'post.create',
@@ -48,6 +55,14 @@ export class ConnectorRegistry implements PostFederator {
         }),
       ),
     );
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        logger.error(
+          `[connectors] federateNewPost delivery failed for connector "${this.connectors[index].id}":`,
+          result.reason,
+        );
+      }
+    });
   }
 
   /** The connector that owns `subject` (a handle / URI / DID), if any. */

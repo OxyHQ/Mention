@@ -395,10 +395,10 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // dispatched by the actor's network.
     if (posts.length === 0 && !parsed.data.cursor) {
       if (actor.protocol === 'atproto') {
-        if (actor.externalId) {
-          const connector = connectorRegistry.connectorFor(actor.externalId);
+        if (actor.uri) {
+          const connector = connectorRegistry.connectorFor(actor.uri);
           if (connector) {
-            connector.fetchPosts(actor.externalId, { limit }).catch((err) => {
+            connector.fetchPosts(actor.uri, { limit }).catch((err) => {
               logger.warn('Background atproto author-feed sync failed:', err);
             });
             return res.json({ posts: [], hasMore: false, syncing: true });
