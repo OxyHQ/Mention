@@ -47,7 +47,7 @@
     "@expo/vector-icons": "^15.1.1",
     "@floating-ui/react-dom": "^2.1.8",
     "@legendapp/list": "^2.0.19",
-    "@livekit/react-native": "^2.9.6",
+    "@livekit/react-native": "^2.11.1",
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^137.0.3",
     "@oxyhq/bloom": "^0.25.0",
