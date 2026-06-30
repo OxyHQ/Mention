@@ -543,4 +543,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export default VideoPlayer;
+// Owns an expensive expo-video player instance, mounted per video cell in feeds
+// and the reels viewer. Memoized so a parent re-render with unchanged props does
+// not tear down / recreate the player or re-run its effects.
+export default React.memo(VideoPlayer);

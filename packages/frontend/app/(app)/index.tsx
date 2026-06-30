@@ -6,7 +6,8 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import Feed from '@/components/Feed/Feed';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
@@ -54,7 +55,6 @@ const HomeScreen: React.FC = () => {
     const isScreenNotMobile = useIsScreenNotMobile();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
-    const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const headerHeight = PANEL_HEADER_HEIGHT;
 
@@ -65,59 +65,58 @@ const HomeScreen: React.FC = () => {
     const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
     const headerOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
 
-    const loadFeeds = React.useCallback(async () => {
-        if (!canUsePrivateApi) return;
+    // Pinned/custom feeds load once through React Query, keyed on the auth
+    // identity, replacing the old useEffect + useFocusEffect pair that fired four
+    // requests on mount and an uncached refetch on every screen focus. Cached and
+    // deduped; refetches only after the stale window. The inner Promise.all keeps
+    // the two list requests parallel.
+    const pinnedFeedsQuery = useQuery<PinnedFeed[]>({
+        queryKey: ['customFeeds', 'home', user?.id],
+        enabled: canUsePrivateApi,
+        staleTime: 5 * 60 * 1000,
+        queryFn: async () => {
+            try {
+                const pinned = (await getData<string[]>(PINNED_KEY)) || [];
 
-        try {
-            const pinned = (await getData<string[]>(PINNED_KEY)) || [];
+                const [mineFeeds, publicFeeds] = await Promise.all([
+                    customFeedsService.list({ mine: true }),
+                    customFeedsService.list({ publicOnly: true })
+                ]);
 
-            const [mineFeeds, publicFeeds] = await Promise.all([
-                customFeedsService.list({ mine: true }),
-                customFeedsService.list({ publicOnly: true })
-            ]);
+                const myFeedsList = mineFeeds.items || [];
+                const publicFeedsList = publicFeeds.items || [];
 
-            const myFeedsList = mineFeeds.items || [];
-            const publicFeedsList = publicFeeds.items || [];
-
-            const allFeedsMap = new Map<string, FeedReference>();
-            [...myFeedsList, ...publicFeedsList].forEach((feed: FeedReference) => {
-                const feedId = String(feed._id || feed.id);
-                if (!allFeedsMap.has(feedId)) {
-                    allFeedsMap.set(feedId, feed);
-                }
-            });
-            const allFeeds = Array.from(allFeedsMap.values());
-
-            const pinnedFeedData = pinned
-                .map((id) => {
-                    const feedId = id.replace('custom:', '');
-                    const feed = allFeeds.find((f) => String(f._id || f.id) === feedId);
-                    if (feed) {
-                        return {
-                            id,
-                            title: feed.title || 'Untitled Feed',
-                            feedId
-                        };
+                const allFeedsMap = new Map<string, FeedReference>();
+                [...myFeedsList, ...publicFeedsList].forEach((feed: FeedReference) => {
+                    const feedId = String(feed._id || feed.id);
+                    if (!allFeedsMap.has(feedId)) {
+                        allFeedsMap.set(feedId, feed);
                     }
-                    return null;
-                })
-                .filter(Boolean) as PinnedFeed[];
+                });
+                const allFeeds = Array.from(allFeedsMap.values());
 
-            setPinnedFeeds(pinnedFeedData);
-        } catch (error: unknown) {
-            logger.warn('Failed to load pinned feeds', { error });
-        }
-    }, [canUsePrivateApi]);
+                return pinned
+                    .map((id) => {
+                        const feedId = id.replace('custom:', '');
+                        const feed = allFeeds.find((f) => String(f._id || f.id) === feedId);
+                        if (feed) {
+                            return {
+                                id,
+                                title: feed.title || 'Untitled Feed',
+                                feedId
+                            };
+                        }
+                        return null;
+                    })
+                    .filter(Boolean) as PinnedFeed[];
+            } catch (error: unknown) {
+                logger.warn('Failed to load pinned feeds', { error });
+                return [];
+            }
+        },
+    });
 
-    useEffect(() => {
-        loadFeeds();
-    }, [loadFeeds]);
-
-    useFocusEffect(
-        React.useCallback(() => {
-            loadFeeds();
-        }, [loadFeeds])
-    );
+    const pinnedFeeds = pinnedFeedsQuery.data ?? [];
 
     useEffect(() => {
         // Only force-reset auth-only tabs once auth is RESOLVED. During the

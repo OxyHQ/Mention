@@ -383,4 +383,8 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PostAttachmentMedia;
+// One per media cell in a feed row. Memoized so it (and the VideoPlayer it mounts)
+// skips re-rendering when the attachments row re-renders without this cell's props
+// changing — effective because PostAttachmentsRow now passes a stable per-media
+// `onPress` and the rest of the props are primitives/stable refs.
+export default React.memo(PostAttachmentMedia);

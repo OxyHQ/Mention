@@ -444,7 +444,10 @@ const PostActions: React.FC<Props> = ({
   );
 };
 
-export default PostActions;
+// Mounted once per feed row. Memoized so an unrelated re-render of a sibling row
+// (or the parent feed) does not re-render every action bar — effective because
+// PostItem now hands it a stable `engagement` object and memoized callbacks.
+export default React.memo(PostActions);
 
 const styles = StyleSheet.create({
   iconButton: {

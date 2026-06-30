@@ -194,7 +194,13 @@ const PostItem: React.FC<PostItemProps> = ({
     const location = attachmentsBundle.location ?? content.location ?? null;
     const hasValidLocation = Boolean(location?.coordinates && location.coordinates.length >= 2);
 
-    const mediaItems = attachmentsBundle.media ?? content.media ?? [];
+    // Stable identity for the media array so the memoized PostAttachmentsRow can
+    // skip re-rendering on an unrelated like/save/translate. A bare `?? []` would
+    // hand it a fresh array each render and defeat its React.memo. Always an array.
+    const mediaItems = useMemo(() => {
+        const m = attachmentsBundle.media ?? content.media;
+        return Array.isArray(m) ? m : [];
+    }, [attachmentsBundle.media, content.media]);
 
     const nestedPost = useMemo(() => {
         if (!viewPost) return null;
@@ -211,7 +217,7 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [viewPost]);
 
     const shouldRenderMediaBlock =
-        (Array.isArray(mediaItems) && mediaItems.length > 0) ||
+        mediaItems.length > 0 ||
         Boolean(nestedPost) ||
         Boolean(pollData) ||
         Boolean(articleContent) ||
@@ -533,19 +539,90 @@ const PostItem: React.FC<PostItemProps> = ({
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, postActions]);
 
+    // Memoize the structured props handed to the memoized children so they keep a
+    // stable identity across re-renders. The inline object/array literals these
+    // replace were rebuilt every render, defeating the React.memo on
+    // PostAttachmentsRow (media/video subtree) and PostActions — so a like/save/
+    // translate re-rendered the whole attachment subtree unnecessarily.
+    const articleProp = useMemo(
+        () =>
+            articleContent
+                ? {
+                      title: articleContent.title,
+                      body: articleContent.body ?? articleContent.excerpt,
+                      articleId: articleContent.articleId,
+                  }
+                : null,
+        [articleContent],
+    );
+
+    const eventProp = useMemo(
+        () =>
+            eventContent
+                ? {
+                      eventId: eventContent.eventId,
+                      name: eventContent.name,
+                      date: eventContent.date,
+                      location: eventContent.location,
+                      description: eventContent.description,
+                  }
+                : null,
+        [eventContent],
+    );
+
+    const roomProp = useMemo(
+        () =>
+            roomContent && roomId
+                ? {
+                      roomId,
+                      title: roomContent.title,
+                      status: roomContent.status,
+                      topic: roomContent.topic,
+                      host: roomContent.host,
+                  }
+                : null,
+        [roomContent, roomId],
+    );
+
+    const linkMetadataProp = useMemo(
+        () =>
+            linkPreview
+                ? {
+                      url: linkPreview.url,
+                      title: linkPreview.title,
+                      description: linkPreview.description,
+                      image: linkPreview.image,
+                      siteName: linkPreview.siteName,
+                  }
+                : null,
+        [linkPreview],
+    );
+
+    const engagementSummary: PostEngagementSummary | undefined = viewPost?.engagement;
+    const actionsEngagement = useMemo(
+        () => ({
+            replies: engagementSummary?.replies ?? 0,
+            boosts: engagementSummary?.boosts ?? 0,
+            likes: engagementSummary?.likes ?? 0,
+            downvotes: engagementSummary?.downvotes ?? 0,
+            saves: engagementSummary?.saves ?? null,
+            views: engagementSummary?.views ?? null,
+            recentReplierAvatars: engagementSummary?.recentReplierAvatars,
+        }),
+        [
+            engagementSummary?.replies,
+            engagementSummary?.boosts,
+            engagementSummary?.likes,
+            engagementSummary?.downvotes,
+            engagementSummary?.saves,
+            engagementSummary?.views,
+            engagementSummary?.recentReplierAvatars,
+        ],
+    );
+
     if (!viewPost || !viewPost.user) {
         return null;
     }
-
-    const engagement: PostEngagementSummary = viewPost.engagement ?? {
-        likes: 0,
-        downvotes: 0,
-        boosts: 0,
-        replies: 0,
-        saves: null,
-        views: null,
-        impressions: null,
-    };
 
     // Canonical post-item layout tokens (single source of truth: COMPONENT_SPACING.post).
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
@@ -756,7 +833,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 {shouldRenderMediaBlock && (
                     <PostAttachmentsRow
                         sensitive={isSensitiveContent}
-                        media={Array.isArray(mediaItems) ? mediaItems : []}
+                        media={mediaItems}
                         attachments={attachmentDescriptors}
                         nestedPost={nestedPost ?? null}
                         leftOffset={AVATAR_OFFSET}
@@ -764,70 +841,24 @@ const PostItem: React.FC<PostItemProps> = ({
                         pollId={pollId ? String(pollId) : undefined}
                         nestingDepth={nestingDepth}
                         postId={viewPostId}
-                        article={
-                            articleContent
-                                ? {
-                                    title: articleContent.title,
-                                    body: articleContent.body ?? articleContent.excerpt,
-                                    articleId: articleContent.articleId,
-                                }
-                                : null
-                        }
+                        article={articleProp}
                         onArticlePress={hasArticle ? openArticleSheet : undefined}
-                        event={
-                            eventContent
-                                ? {
-                                    eventId: eventContent.eventId,
-                                    name: eventContent.name,
-                                    date: eventContent.date,
-                                    location: eventContent.location,
-                                    description: eventContent.description,
-                                }
-                                : null
-                        }
-                        room={
-                            roomContent && roomId
-                                ? {
-                                    roomId,
-                                    title: roomContent.title,
-                                    status: roomContent.status,
-                                    topic: roomContent.topic,
-                                    host: roomContent.host,
-                                }
-                                : null
-                        }
+                        event={eventProp}
+                        room={roomProp}
                         onRoomPress={roomId ? handleRoomPress : undefined}
                         podcast={podcastContent}
                         location={location}
                         sources={sourcesList}
                         onSourcesPress={hasSources ? openSourcesSheet : undefined}
                         text={content.text}
-                        linkMetadata={
-                            linkPreview
-                                ? {
-                                    url: linkPreview.url,
-                                    title: linkPreview.title,
-                                    description: linkPreview.description,
-                                    image: linkPreview.image,
-                                    siteName: linkPreview.siteName,
-                                }
-                                : null
-                        }
+                        linkMetadata={linkMetadataProp}
                     />
                 )}
 
                 {!isNested && (
                     <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
                         <PostActions
-                            engagement={{
-                                replies: engagement.replies ?? 0,
-                                boosts: engagement.boosts ?? 0,
-                                likes: engagement.likes ?? 0,
-                                downvotes: engagement.downvotes ?? 0,
-                                saves: engagement.saves ?? null,
-                                views: engagement.views ?? null,
-                                recentReplierAvatars: engagement.recentReplierAvatars,
-                            }}
+                            engagement={actionsEngagement}
                             isLiked={isLiked}
                             isDownvoted={isDownvoted}
                             isBoosted={isBoosted}

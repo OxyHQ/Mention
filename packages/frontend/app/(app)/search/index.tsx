@@ -27,6 +27,7 @@ import {
     type SearchUserResult,
 } from "@/services/searchService";
 import { Loading } from '@oxyhq/bloom/loading';
+import { FlashList } from '@shopify/flash-list';
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
@@ -62,6 +63,18 @@ const EMPTY_RESULTS: LocalSearchResults = {
     lists: [],
     saved: [],
 };
+
+// One flattened, virtualized row model so the results render through a single
+// FlashList (off-screen rows — notably the heavy <PostItem> cards — stay
+// unmounted) while preserving the multi-section "all" layout. `kind` doubles as
+// the FlashList recycle bucket so a post card is never recycled into a profile row.
+type SearchRow =
+    | { kind: "header"; key: string; title: string }
+    | { kind: "user"; key: string; user: SearchUserResult }
+    | { kind: "post"; key: string; post: SearchPostResult }
+    | { kind: "feed"; key: string; feed: SearchFeedResult }
+    | { kind: "hashtag"; key: string; hashtag: SearchHashtagResult }
+    | { kind: "list"; key: string; list: SearchListResult };
 
 export default function SearchIndex() {
     const { t } = useTranslation();
@@ -419,19 +432,82 @@ export default function SearchIndex() {
         );
     };
 
-    const renderSection = <T,>(title: string, items: T[], renderItem: (item: T) => React.ReactNode, showTitle: boolean) => {
-        if (items.length === 0) return null;
-        return (
-            <View style={styles.section}>
-                {showTitle && (
-                    <Text className="text-xl font-bold text-foreground" style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.md }}>
-                        {title}
-                    </Text>
-                )}
-                {items.map(renderItem)}
-            </View>
+    // Flatten the per-section results into one virtualized list. In the "all" tab
+    // a section header row precedes each non-empty section (matching the previous
+    // titled-section layout); a single-category tab omits the headers. Empty while
+    // loading so the spinner (list header) shows alone.
+    const resultRows = useMemo<SearchRow[]>(() => {
+        if (!query.trim() || loading) return [];
+        const rows: SearchRow[] = [];
+        const isAll = activeTab === "all";
+
+        const pushSection = (visible: boolean, title: string, sectionRows: SearchRow[]) => {
+            if (!visible || sectionRows.length === 0) return;
+            if (isAll) rows.push({ kind: "header", key: `header-${title}`, title });
+            rows.push(...sectionRows);
+        };
+
+        pushSection(
+            isAll || activeTab === "users",
+            t("search.sections.users", "People"),
+            results.users
+                .filter((u) => Boolean(u.username || u.handle))
+                .map((u): SearchRow => ({ kind: "user", key: `user-${u.id || u.username}`, user: u })),
         );
-    };
+        pushSection(
+            isAll || activeTab === "posts",
+            t("search.sections.posts", "Posts"),
+            results.posts.map((p): SearchRow => ({ kind: "post", key: `post-${p.id}`, post: p })),
+        );
+        pushSection(
+            isAll || activeTab === "feeds",
+            t("search.sections.feeds", "Feeds"),
+            results.feeds.map((f): SearchRow => ({ kind: "feed", key: `feed-${f.id || f._id}`, feed: f })),
+        );
+        pushSection(
+            isAll || activeTab === "hashtags",
+            t("search.sections.hashtags", "Hashtags"),
+            results.hashtags.map((h): SearchRow => ({ kind: "hashtag", key: `hashtag-${h.tag}`, hashtag: h })),
+        );
+        pushSection(
+            isAll || activeTab === "lists",
+            t("search.sections.lists", "Lists"),
+            results.lists.map((l): SearchRow => ({ kind: "list", key: `list-${l.id || l._id}`, list: l })),
+        );
+        pushSection(
+            isAll || activeTab === "saved",
+            t("search.sections.saved", "Saved"),
+            results.saved.map((p): SearchRow => ({ kind: "post", key: `saved-${p.id || p._id}`, post: p })),
+        );
+
+        return rows;
+    }, [query, loading, activeTab, results, t]);
+
+    const renderRow = useCallback(({ item }: { item: SearchRow }): React.ReactElement | null => {
+        switch (item.kind) {
+            case "header":
+                return (
+                    <Text className="text-xl font-bold text-foreground" style={styles.sectionHeader}>
+                        {item.title}
+                    </Text>
+                );
+            case "user":
+                return renderUserItem(item.user);
+            case "post":
+                return <PostItem post={item.post} />;
+            case "feed":
+                return renderFeedItem(item.feed);
+            case "hashtag":
+                return renderHashtagItem(item.hashtag);
+            case "list":
+                return renderListItem(item.list);
+            default:
+                return null;
+        }
+    }, [renderUserItem, renderFeedItem, renderHashtagItem, renderListItem]);
+
+    const keyExtractor = useCallback((item: SearchRow) => item.key, []);
+    const getItemType = useCallback((item: SearchRow) => item.kind, []);
 
     // Whether to show the idle state (no query, focused)
     const showIdleState = !loading && !query.trim();
@@ -499,33 +575,13 @@ export default function SearchIndex() {
                         scrollEnabled={true}
                     />
 
-                    <ScrollView
-                        className="flex-1"
-                        contentContainerStyle={showIdleState && !showSearchHistory ? styles.resultsContentEmpty : undefined}
-                        keyboardShouldPersistTaps="handled"
-                        keyboardDismissMode="on-drag"
-                    >
-                        {/* Cross-network actor (Mastodon / Bluesky) — rendered above
-                            the local results and independent of the local-search
-                            loading state, since the resolve runs in parallel. */}
-                        {renderExternalSection()}
-
-                        {loading && (
-                            <View className="flex-1 items-center justify-center" style={{ minHeight: 300 }}>
-                                <Loading className="text-primary" size="large" />
-                            </View>
-                        )}
-
-                        {!loading && query.trim() && !currentTabHasResults && !hasExternalContent && (
-                            <EmptyState
-                                title={t("search.noResults", "No results found")}
-                                subtitle={t("search.tryDifferent", "Try searching for something else")}
-                                customIcon={<Search size={48} className="text-muted-foreground" />}
-                            />
-                        )}
-
-                        {/* Idle state: search history + operator hints */}
-                        {showIdleState && (
+                    {showIdleState ? (
+                        <ScrollView
+                            className="flex-1"
+                            contentContainerStyle={!showSearchHistory ? styles.resultsContentEmpty : undefined}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
+                        >
                             <View className="flex-1" style={{ paddingTop: SPACING.sm }}>
                                 {/* Recent searches */}
                                 {showSearchHistory && (
@@ -605,67 +661,43 @@ export default function SearchIndex() {
                                     />
                                 )}
                             </View>
-                        )}
-
-                        {!loading && currentTabHasResults && (
-                            <>
-                                {/* Users/People section appears ABOVE posts in "all" tab */}
-                                {(activeTab === "all" || activeTab === "users") &&
-                                    renderSection(
-                                        t("search.sections.users", "People"),
-                                        results.users,
-                                        renderUserItem,
-                                        activeTab === "all",
-                                    )
+                        </ScrollView>
+                    ) : (
+                        <View style={styles.resultsList}>
+                            <FlashList
+                                data={resultRows}
+                                keyExtractor={keyExtractor}
+                                getItemType={getItemType}
+                                renderItem={renderRow}
+                                keyboardShouldPersistTaps="handled"
+                                keyboardDismissMode="on-drag"
+                                showsVerticalScrollIndicator={false}
+                                contentContainerStyle={styles.resultsListContent}
+                                ListHeaderComponent={
+                                    <View>
+                                        {/* Cross-network actor (Mastodon / Bluesky) — above the
+                                            local results, independent of the local-search loading
+                                            state since the resolve runs in parallel. */}
+                                        {renderExternalSection()}
+                                        {loading && (
+                                            <View className="flex-1 items-center justify-center" style={{ minHeight: 300 }}>
+                                                <Loading className="text-primary" size="large" />
+                                            </View>
+                                        )}
+                                    </View>
                                 }
-
-                                {(activeTab === "all" || activeTab === "posts") &&
-                                    renderSection(
-                                        t("search.sections.posts", "Posts"),
-                                        results.posts,
-                                        (post: SearchPostResult) => <PostItem key={post.id} post={post} />,
-                                        activeTab === "all",
-                                    )
+                                ListEmptyComponent={
+                                    !loading && query.trim() && !currentTabHasResults && !hasExternalContent ? (
+                                        <EmptyState
+                                            title={t("search.noResults", "No results found")}
+                                            subtitle={t("search.tryDifferent", "Try searching for something else")}
+                                            customIcon={<Search size={48} className="text-muted-foreground" />}
+                                        />
+                                    ) : null
                                 }
-
-                                {(activeTab === "all" || activeTab === "feeds") &&
-                                    renderSection(
-                                        t("search.sections.feeds", "Feeds"),
-                                        results.feeds,
-                                        renderFeedItem,
-                                        activeTab === "all",
-                                    )
-                                }
-
-                                {(activeTab === "all" || activeTab === "hashtags") &&
-                                    renderSection(
-                                        t("search.sections.hashtags", "Hashtags"),
-                                        results.hashtags,
-                                        renderHashtagItem,
-                                        activeTab === "all",
-                                    )
-                                }
-
-                                {(activeTab === "all" || activeTab === "lists") &&
-                                    renderSection(
-                                        t("search.sections.lists", "Lists"),
-                                        results.lists,
-                                        renderListItem,
-                                        activeTab === "all",
-                                    )
-                                }
-
-                                {(activeTab === "all" || activeTab === "saved") &&
-                                    renderSection(
-                                        t("search.sections.saved", "Saved"),
-                                        results.saved,
-                                        (post: SearchPostResult) => <PostItem key={post.id || post._id} post={post} />,
-                                        activeTab === "all",
-                                    )
-                                }
-                            </>
-                        )}
-                    </ScrollView>
+                            />
+                        </View>
+                    )}
                 </SafeAreaView>
             </ThemedView>
         </>
@@ -694,6 +726,17 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
+    },
+    resultsList: {
+        flex: 1,
+        minHeight: 0,
+    },
+    resultsListContent: {
+        paddingBottom: SPACING.base,
+    },
+    sectionHeader: {
+        paddingHorizontal: SPACING.base,
+        paddingVertical: SPACING.md,
     },
     section: {
         marginBottom: SPACING.base,

@@ -428,6 +428,24 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     galleryRef.current?.open(galleryImages, index, rect);
   }, [galleryImages, imageIndexByMediaId]);
 
+  // Stable per-media press handler keyed by mediaId so PostAttachmentMedia's
+  // React.memo can skip a cell when the row re-renders without its media changing.
+  // The factory (and its cache) is rebuilt only when the underlying handlers
+  // change — i.e. when the media set changes — so handlers never go stale.
+  const pressHandlerByMedia = useMemo(() => {
+    const cache = new Map<string, (rect?: MeasuredRect) => void>();
+    return (mediaId: string, kind: 'video' | 'image'): ((rect?: MeasuredRect) => void) => {
+      const existing = cache.get(mediaId);
+      if (existing) return existing;
+      const handler: (rect?: MeasuredRect) => void =
+        kind === 'video'
+          ? () => handleVideoPress(mediaId)
+          : (rect?: MeasuredRect) => handleImagePress(mediaId, rect);
+      cache.set(mediaId, handler);
+      return handler;
+    };
+  }, [handleVideoPress, handleImagePress]);
+
   const screenWidth = Dimensions.get('window').width;
   const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
 
@@ -650,11 +668,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               mediaId={mediaId}
               poster={item.type === 'video' ? item.poster : undefined}
               postId={postId}
-              onPress={
-                item.type === 'video'
-                  ? () => handleVideoPress(mediaId)
-                  : (rect?: MeasuredRect) => handleImagePress(mediaId, rect)
-              }
+              onPress={pressHandlerByMedia(mediaId, item.type)}
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}

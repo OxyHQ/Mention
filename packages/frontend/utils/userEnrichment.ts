@@ -36,3 +36,33 @@ export function enrichMissingAvatars(
       // Avatar enrichment is best-effort: placeholders stay in place on failure.
     });
 }
+
+/**
+ * Warm the React Query user cache for a set of user ids in a SINGLE bulk request,
+ * skipping ids already cached. Each fetched profile is written to
+ * `queryKeys.users.detail(id)` so per-row reads (e.g. a list whose rows resolve a
+ * user by id) hit the warm cache instead of firing one HTTP request per row — the
+ * classic N+1. Best-effort: resolves to `[]` on failure so callers degrade to
+ * their own per-row resolution.
+ */
+export function prewarmUsersByIds(
+  ids: readonly string[],
+  getUsersByIds: (ids: string[]) => Promise<User[]>,
+  queryClient: QueryClient,
+): Promise<User[]> {
+  const toFetch = Array.from(new Set(ids.filter((id) => id.length > 0))).filter(
+    (id) => !queryClient.getQueryData(queryKeys.users.detail(id)),
+  );
+  if (toFetch.length === 0) return Promise.resolve([]);
+
+  return getUsersByIds(toFetch)
+    .then((fetched) => {
+      for (const user of fetched) {
+        if (user?.id) {
+          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
+        }
+      }
+      return fetched;
+    })
+    .catch(() => []);
+}

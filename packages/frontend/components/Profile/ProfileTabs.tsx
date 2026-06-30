@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -179,30 +179,26 @@ const ProfileFeeds = memo(function ProfileFeeds({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [feeds, setFeeds] = useState<ProfileFeedItem[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!profileId) return;
-    let cancelled = false;
-
-    const fetchFeeds = async () => {
+  // React Query (keyed on the profile + ownership) replaces the per-tab
+  // useEffect+useState fetch, so revisiting the tab/profile reads cache instead of
+  // refetching. Mirrors the pinnedPostQuery above.
+  const { data: feeds = [], isPending: loading } = useQuery<ProfileFeedItem[]>({
+    queryKey: ['profileFeeds', profileId, isOwnProfile],
+    enabled: Boolean(profileId),
+    queryFn: async () => {
       try {
         const params = isOwnProfile
           ? { mine: true }
           : { userId: profileId };
         const res = await customFeedsService.list(params);
-        if (!cancelled) setFeeds(res.items || []);
+        return res.items || [];
       } catch (e) {
         logger.warn('Failed to load profile feeds');
-      } finally {
-        if (!cancelled) setLoading(false);
+        return [];
       }
-    };
-    fetchFeeds();
-
-    return () => { cancelled = true; };
-  }, [profileId, isOwnProfile]);
+    },
+  });
 
   if (loading) {
     return (
@@ -253,43 +249,36 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [packs, setPacks] = useState<StarterPackCardData[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!profileId) return;
-    let cancelled = false;
-
-    const fetchPacks = async () => {
+  // React Query (keyed on the profile + ownership) replaces the per-tab
+  // useEffect+useState fetch, so revisiting the tab/profile reads cache instead of
+  // refetching. Mirrors the pinnedPostQuery above.
+  const { data: packs = [], isPending: loading } = useQuery<StarterPackCardData[]>({
+    queryKey: ['profileStarterPacks', profileId, isOwnProfile],
+    enabled: Boolean(profileId),
+    queryFn: async () => {
       try {
         const params = isOwnProfile ? { mine: true } : { userId: profileId };
         const res = await starterPacksService.list(params);
-        if (!cancelled) {
-          const items: StarterPackCardData[] = (res.items || []).map((pack: Record<string, unknown>) => {
-            const memberIds = (pack.memberOxyUserIds || []) as string[];
-            return {
-              id: String(pack._id || pack.id),
-              name: (pack.name as string) || 'Untitled Pack',
-              description: pack.description as string | undefined,
-              creator: (pack.creator || pack.owner) as StarterPackCardData['creator'],
-              memberCount: memberIds.length,
-              useCount: (pack.useCount as number) || 0,
-              memberAvatars: (pack.memberAvatars || []) as string[],
-              totalMembers: memberIds.length,
-            };
-          });
-          setPacks(items);
-        }
+        return (res.items || []).map((pack: Record<string, unknown>) => {
+          const memberIds = (pack.memberOxyUserIds || []) as string[];
+          return {
+            id: String(pack._id || pack.id),
+            name: (pack.name as string) || 'Untitled Pack',
+            description: pack.description as string | undefined,
+            creator: (pack.creator || pack.owner) as StarterPackCardData['creator'],
+            memberCount: memberIds.length,
+            useCount: (pack.useCount as number) || 0,
+            memberAvatars: (pack.memberAvatars || []) as string[],
+            totalMembers: memberIds.length,
+          };
+        });
       } catch (e) {
         logger.warn('Failed to load profile starter packs');
-      } finally {
-        if (!cancelled) setLoading(false);
+        return [];
       }
-    };
-    fetchPacks();
-
-    return () => { cancelled = true; };
-  }, [profileId, isOwnProfile]);
+    },
+  });
 
   if (loading) {
     return (
@@ -334,50 +323,43 @@ const ProfileLists = memo(function ProfileLists({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [lists, setLists] = useState<ListCardData[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!profileId) return;
-    let cancelled = false;
-
-    const fetchLists = async () => {
+  // React Query (keyed on the profile + ownership) replaces the per-tab
+  // useEffect+useState fetch, so revisiting the tab/profile reads cache instead of
+  // refetching. Mirrors the pinnedPostQuery above.
+  const { data: lists = [], isPending: loading } = useQuery<ListCardData[]>({
+    queryKey: ['profileLists', profileId, isOwnProfile],
+    enabled: Boolean(profileId),
+    queryFn: async () => {
       try {
         const params = isOwnProfile ? { mine: true } : { userId: profileId };
         const res = await listsService.list(params);
-        if (!cancelled) {
-          const items: ListCardData[] = (res.items || []).map((l: Record<string, unknown>) => {
-            const listId = String(l._id || l.id);
-            const owner = (l.owner || l.createdBy || l.creator) as Record<string, string> | undefined;
-            return {
-              id: listId,
-              uri: (l.uri as string) || `list:${listId}`,
-              name: (l.title as string) || 'Untitled List',
-              description: l.description as string | undefined,
-              avatar: l.avatar as string | undefined,
-              creator: owner
-                ? {
-                    username: owner.username || '',
-                    displayName: owner.displayName,
-                    avatar: owner.avatar,
-                  }
-                : undefined,
-              purpose: l.purpose === 'modlist' ? 'modlist' : 'curatelist',
-              itemCount: ((l.memberOxyUserIds || []) as string[]).length,
-            };
-          });
-          setLists(items);
-        }
+        return (res.items || []).map((l: Record<string, unknown>) => {
+          const listId = String(l._id || l.id);
+          const owner = (l.owner || l.createdBy || l.creator) as Record<string, string> | undefined;
+          return {
+            id: listId,
+            uri: (l.uri as string) || `list:${listId}`,
+            name: (l.title as string) || 'Untitled List',
+            description: l.description as string | undefined,
+            avatar: l.avatar as string | undefined,
+            creator: owner
+              ? {
+                  username: owner.username || '',
+                  displayName: owner.displayName,
+                  avatar: owner.avatar,
+                }
+              : undefined,
+            purpose: l.purpose === 'modlist' ? 'modlist' : 'curatelist',
+            itemCount: ((l.memberOxyUserIds || []) as string[]).length,
+          };
+        });
       } catch (e) {
         logger.warn('Failed to load profile lists');
-      } finally {
-        if (!cancelled) setLoading(false);
+        return [];
       }
-    };
-    fetchLists();
-
-    return () => { cancelled = true; };
-  }, [profileId, isOwnProfile]);
+    },
+  });
 
   if (loading) {
     return (

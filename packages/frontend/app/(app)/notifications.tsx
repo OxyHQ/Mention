@@ -36,13 +36,14 @@ import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Bell } from '@/assets/icons/bell-icon';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
+import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
 const notificationLogger = createScopedLogger('Notifications');
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts' | 'pokes';
 
 const NotificationsScreen: React.FC = () => {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, oxyServices } = useAuth();
     const queryClient = useQueryClient();
     const router = useRouter();
     const [refreshing, setRefreshing] = useState(false);
@@ -154,6 +155,33 @@ const NotificationsScreen: React.FC = () => {
         () => validateNotifications(notificationsData?.notifications ?? []),
         [notificationsData]
     );
+
+    // Notifications whose actor the backend did NOT populate would each fire their
+    // own `getProfileById` from inside NotificationItem — an N+1 across the page.
+    // Collect those distinct actor ids and warm the React Query user cache with ONE
+    // bulk `getUsersByIds`, so every per-row read hits the warm cache instead.
+    const unpopulatedActorIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const n of validatedNotifications) {
+            if (n.actorId_populated) continue;
+            const actorId = n.actorId;
+            const id = typeof actorId === 'string'
+                ? actorId
+                : (actorId && typeof actorId === 'object'
+                    ? String((actorId as { _id?: unknown; id?: unknown })._id ?? (actorId as { id?: unknown }).id ?? '')
+                    : '');
+            // Only resolvable Oxy ids (24-hex) — handles/empty fall back to per-row.
+            if (id && /^[a-fA-F0-9]{24}$/.test(id)) ids.add(id);
+        }
+        return Array.from(ids);
+    }, [validatedNotifications]);
+
+    useQuery({
+        queryKey: ['notifications', 'actorWarm', unpopulatedActorIds],
+        queryFn: () => prewarmUsersByIds(unpopulatedActorIds, (ids) => oxyServices.getUsersByIds(ids), queryClient),
+        enabled: isAuthenticated && !!oxyServices && unpopulatedActorIds.length > 0,
+        staleTime: 5 * 60 * 1000,
+    });
 
     const filteredNotifications = useMemo(() => {
         switch (activeTab) {

@@ -154,17 +154,24 @@ const PostDetailScreen: React.FC = () => {
             statisticsService.trackPostView(postId).catch(() => {});
         }
 
-        // Fetch the author's self-thread continuation spine (root → c1 … cN). The
-        // backend returns [] for any post that is not a self-thread root, so this
-        // runs unconditionally and leaves non-thread posts unchanged. Best-effort:
-        // a failure just yields no spine (the thread renders as before).
-        feedService.getThreadContinuations(postId)
-            .then((spine) => {
-                if (!cancelled) setContinuations(spine);
-            })
-            .catch(() => {
-                if (!cancelled) setContinuations([]);
-            });
+        // Fetch the author's self-thread continuation spine (root → c1 … cN) ONLY
+        // for a self-thread root. `metadata.isThread` is `Boolean(post.threadId)`:
+        // when false the post has no threadId and so can never be a self-thread
+        // root — the backend returns [] for it — so we skip the request entirely.
+        // When true we still ask (a thread REPLY also carries a threadId; the
+        // backend returns [] for non-roots). The spine was reset to [] above, so the
+        // skip path is a no-op. Best-effort: a failure just yields no spine.
+        const loadContinuations = (target: PostDetailEntity | null | undefined) => {
+            const isSelfThreadRoot = !!target && 'metadata' in target && target.metadata?.isThread === true;
+            if (!isSelfThreadRoot) return;
+            feedService.getThreadContinuations(postId)
+                .then((spine) => {
+                    if (!cancelled) setContinuations(spine);
+                })
+                .catch(() => {
+                    if (!cancelled) setContinuations([]);
+                });
+        };
 
         // Walk the reply chain UP from the focused post to the root, building the
         // ordered ancestor array (root first … immediate parent last). Each hop
@@ -218,6 +225,7 @@ const PostDetailScreen: React.FC = () => {
                 // the background so engagement/viewer state is fresh; the reactive
                 // store read (`cachedPost`) picks up the refreshed post.
                 const cached = usePostsStore.getState().getPostFromDb(postId);
+                loadContinuations(cached);
                 loadAncestors(cached?.parentPostId);
                 revalidatePostById(postId).then((fresh) => {
                     if (!cancelled && fresh?.parentPostId) loadAncestors(fresh.parentPostId);
@@ -225,12 +233,14 @@ const PostDetailScreen: React.FC = () => {
                 return;
             }
 
-            // Cache miss — blocking fetch, then load the ancestor chain (if any).
+            // Cache miss — blocking fetch, then load the continuation spine + the
+            // ancestor chain (both gated on what the fetched post actually is).
             try {
                 setLoading(true);
                 const response = await getPostById(postId);
                 if (cancelled) return;
                 setFetchedPost(response);
+                loadContinuations(response);
                 loadAncestors(response?.parentPostId);
             } catch {
                 if (!cancelled) setError('Failed to load post');

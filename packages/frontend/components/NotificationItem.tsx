@@ -109,7 +109,7 @@ interface NotificationItemProps {
     onMarkAsRead: (notificationId: string) => void;
 }
 
-export const NotificationItem: React.FC<NotificationItemProps> = ({
+const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     notification,
     onMarkAsRead,
 }) => {
@@ -364,6 +364,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         </PressableScale>
     );
 };
+
+// One row per notification in a virtualized list. Memoized so a realtime update to
+// one notification (or a list re-render) doesn't re-render every row — effective
+// because the parent passes a stable `notification` and a memoized `onMarkAsRead`.
+export const NotificationItem = React.memo(NotificationItemComponent);
 
 // Component for post notifications using PostItem
 const PostNotificationItem: React.FC<{
