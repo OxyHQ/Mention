@@ -8,6 +8,18 @@ export interface StarterPackCreator {
   avatar?: string;
 }
 
+/**
+ * Resolved member summary embedded on a starter pack DETAIL item. Hydrated
+ * server-side (identity + fully-resolved avatar URL) because the bulk user
+ * lookup requires a service credential the browser does not have.
+ */
+export interface StarterPackMember {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatar?: string;
+}
+
 export interface StarterPackSummary {
   id?: string;
   _id?: string;
@@ -18,6 +30,8 @@ export interface StarterPackSummary {
   memberCount?: number;
   /** Pre-resolved member avatar URLs (up to 8) returned by the list endpoint. */
   memberAvatars?: string[];
+  /** Hydrated members (identity + avatar URL) returned by the detail endpoint. */
+  members?: StarterPackMember[];
   useCount?: number;
   /** Resolved owner summary (`creator` is the canonical field; `owner` is a legacy alias). */
   creator?: StarterPackCreator;

@@ -15,7 +15,7 @@ import {
   Trash_Stroke2_Corner0_Rounded as TrashIcon,
   CircleX_Stroke2_Corner0_Rounded as ErrorIcon,
 } from '@oxyhq/bloom/icons';
-import { queryKeys, useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -27,7 +27,6 @@ import { confirmDestructive } from '@/utils/alerts';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxyhq/core';
 
 interface MemberProfile {
@@ -90,33 +89,24 @@ export default function EditStarterPackScreen() {
       }
       setName(pack.name ?? '');
       setDescription(pack.description ?? '');
-      const memberIds = Array.isArray(pack.memberOxyUserIds) ? pack.memberOxyUserIds : [];
-      // Single bulk fetch (no per-id N+1); prime the shared React Query cache so
-      // downstream profile reads for these members hit the cache.
-      const fetched = await oxyServices.getUsersByIds(memberIds);
-      for (const profile of fetched) {
-        if (profile?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(profile.id), profile);
-        }
-      }
-      const byId = new Map(fetched.map((profile) => [profile.id, profile]));
-      const profiles = memberIds
-        .map((uid) => byId.get(uid))
-        .filter((profile): profile is User => Boolean(profile))
-        .map((profile) => ({
-          id: profile.id,
-          username: profile.username,
-          name: { displayName: displayNameOrHandle(profile.name.displayName, profile.username) },
-          avatar: profile.avatar ?? undefined,
-        }));
-      setMembers(profiles);
+      // Members are hydrated server-side (identity + fully-resolved avatar URL);
+      // the browser has no service credential for the bulk user lookup, so we
+      // read them straight from the detail response instead of resolving ids.
+      setMembers(
+        (pack.members ?? []).map((m) => ({
+          id: m.id,
+          username: m.username,
+          name: { displayName: displayNameOrHandle(m.displayName, m.username) },
+          avatar: m.avatar ?? undefined,
+        })),
+      );
     } catch (e) {
       logger.warn('Failed to load starter pack for editing', { error: e });
       setError('Could not load this starter pack');
     } finally {
       setLoading(false);
     }
-  }, [packId, oxyServices, user?.id]);
+  }, [packId, user?.id]);
 
   useEffect(() => {
     load();

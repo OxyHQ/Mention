@@ -2,7 +2,7 @@ import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import StarterPack, { IStarterPack } from '../models/StarterPack';
 import { escapeRegex } from '../utils/textProcessing';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 
@@ -45,6 +45,56 @@ type LeanStarterPack = Pick<
 interface StarterPackListItem extends LeanStarterPack {
   memberAvatars: string[];
   memberCount: number;
+}
+
+/** A ready-to-render member in the `GET /starter-packs/:id` detail response. */
+interface StarterPackMember {
+  id: string;
+  username: string;
+  displayName?: string;
+  /** Fully-resolved avatar URL (e.g. `cloud.oxy.so/<id>?variant=`), not a raw file id. */
+  avatar?: string;
+}
+
+/**
+ * Resolve a starter pack's members to ready-to-render summaries server-side, in
+ * the SAME order as `memberOxyUserIds`.
+ *
+ * Member identity MUST be resolved on the backend: {@link resolveUserSummaries}
+ * goes through the Oxy bulk `/users/by-ids` endpoint, which requires a SERVICE
+ * credential that only exists on the server. A browser client calling
+ * `getUsersByIds` silently resolves nothing (the SDK swallows the missing-token
+ * error and returns `[]`), which is exactly what left the detail screen showing
+ * "0 accounts". This mirrors the list path's {@link enrichWithMemberAvatars}.
+ *
+ * Ids that don't resolve to a real Oxy user (deleted/unknown — the resolver
+ * returns its minimal fallback summary) are skipped so we never render a row
+ * with the raw id as both name and handle. Best-effort: a resolution failure
+ * returns `[]` so the detail still renders (the caller keeps `memberCount`).
+ */
+async function hydratePackMembers(memberIds: string[]): Promise<StarterPackMember[]> {
+  if (memberIds.length === 0) return [];
+  try {
+    const summaries = await resolveUserSummaries(memberIds);
+    const members: StarterPackMember[] = [];
+    for (const id of memberIds) {
+      const resolved = summaries.get(id);
+      if (!resolved || isFallbackUserSummary(id, resolved.summary)) continue;
+      members.push({
+        id,
+        username: resolved.summary.handle,
+        displayName: resolved.summary.displayName,
+        avatar: resolved.summary.avatarUrl,
+      });
+    }
+    return members;
+  } catch (error) {
+    logger.warn('[StarterPacks] Failed to resolve members for detail', {
+      memberCount: memberIds.length,
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    return [];
+  }
 }
 
 /**
@@ -173,7 +223,12 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const pack = await StarterPack.findById(req.params.id).lean();
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
-    res.json(pack);
+    // Hydrate members server-side (the browser has no service credential for the
+    // bulk user lookup). `members` is ordered to match `memberOxyUserIds`;
+    // `memberCount` mirrors the list response for label parity.
+    const memberIds = pack.memberOxyUserIds ?? [];
+    const members = await hydratePackMembers(memberIds);
+    res.json({ ...pack, members, memberCount: memberIds.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get starter pack' });
   }

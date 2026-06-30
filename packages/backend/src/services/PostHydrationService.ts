@@ -169,7 +169,7 @@ function fallbackSummary(userId: string): CachedUserSummary {
  * resolve to a fallback must be left as their raw placeholder rather than
  * rendered with the raw id as a name. Kept in lockstep with `fallbackSummary`.
  */
-function isFallbackUserSummary(userId: string, summary: PostActorSummary): boolean {
+export function isFallbackUserSummary(userId: string, summary: PostActorSummary): boolean {
   return summary.handle === userId && summary.displayName === userId;
 }
 

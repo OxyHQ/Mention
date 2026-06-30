@@ -10,7 +10,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth, FollowButton, queryKeys } from '@oxyhq/services';
+import { useAuth, FollowButton } from '@oxyhq/services';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -20,8 +20,7 @@ import SEO from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@/lib/logger';
-import { queryClient } from '@/lib/queryClient';
-import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface MemberProfile {
   id: string;
@@ -36,12 +35,15 @@ interface StarterPackDetail {
   memberOxyUserIds?: string[];
   ownerOxyUserId?: string;
   useCount: number;
+  /** Members hydrated server-side: identity + fully-resolved avatar URL. */
+  members?: { id: string; username: string; displayName?: string; avatar?: string }[];
+  memberCount?: number;
 }
 
 export default function StarterPackDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
-  const { user, oxyServices } = useAuth();
+  const { user } = useAuth();
   const safeBack = useSafeBack();
   const haptics = useHaptics();
   const [pack, setPack] = useState<StarterPackDetail | null>(null);
@@ -52,48 +54,36 @@ export default function StarterPackDetailScreen() {
   const isOwner = pack ? user?.id === pack.ownerOxyUserId : false;
 
   const load = useCallback(async () => {
-    // Show the spinner on every (re)run so a refetch triggered when the auth
-    // session resolves replaces the stale error/empty state instead of leaving
-    // the previous one on screen.
+    // Show the spinner on every (re)run (e.g. a refocus refetch) so it replaces
+    // any stale error/empty state instead of leaving the previous one on screen.
     setLoading(true);
     setError(null);
     try {
       const p = await starterPacksService.get(String(id)) as StarterPackDetail;
       setPack(p);
-
-      if (p.memberOxyUserIds?.length) {
-        // Single bulk fetch (no per-id N+1); prime the shared React Query cache
-        // so downstream profile reads for these members hit the cache.
-        const fetched = await oxyServices.getUsersByIds(p.memberOxyUserIds);
-        for (const profile of fetched) {
-          if (profile?.id) {
-            queryClient.setQueryData(queryKeys.users.detail(profile.id), profile);
-          }
-        }
-        const byId = new Map(fetched.map((profile) => [profile.id, profile]));
-        const profiles = p.memberOxyUserIds
-          .map((uid) => byId.get(uid))
-          .filter((profile): profile is User => Boolean(profile))
-          .map((profile) => ({
-            id: profile.id,
-            username: profile.username,
-            displayName: displayNameOrHandle(profile.name.displayName, profile.username),
-            avatar: profile.avatar ?? undefined,
-          }));
-        setMembers(profiles);
-      } else {
-        setMembers([]);
-      }
+      // Members arrive already hydrated (identity + fully-resolved avatar URL)
+      // from the backend, which owns the service credential for the bulk user
+      // lookup. The browser client cannot resolve them itself, so we render the
+      // server-provided members directly.
+      setMembers(
+        (p.members ?? []).map((m) => ({
+          id: m.id,
+          username: m.username,
+          displayName: displayNameOrHandle(m.displayName, m.username),
+          avatar: m.avatar ?? undefined,
+        })),
+      );
     } catch (e) {
       logger.warn('Failed to load starter pack', { error: e });
       setError('Failed to load starter pack');
     } finally {
       setLoading(false);
     }
-    // `user?.id` is in the deps so this re-runs when the SSO session resolves on
-    // cold boot / reload / shared-link entry. Without it the read fires once
-    // before the bearer is ready, 401s, and stays on "Failed to load" forever.
-  }, [id, oxyServices, user?.id]);
+    // The detail read is a public (optional-auth) endpoint and returns the same
+    // hydrated members anonymously, so it does not need to re-run on the SSO
+    // session landing. `isOwner` (Edit button) and the FollowButtons read auth
+    // state reactively on their own.
+  }, [id]);
 
   useFocusEffect(
     useCallback(() => {
