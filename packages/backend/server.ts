@@ -69,6 +69,7 @@ import entityFollowRoutes from './src/routes/entity-follow.routes';
 import adminRoutes from './src/routes/admin';
 import mediaRoutes from './src/routes/media';
 import recommendationsRoutes from './src/routes/recommendations';
+import mtnNodesRoutes from './src/routes/mtn-nodes.routes';
 
 // Federation (ActivityPub) — network connectors. Importing the connectors index
 // instantiates the enabled connectors and registers the connector registry as
@@ -776,6 +777,7 @@ publicApiRouter.use("/feeds", optionalAuth, customFeedsRoutes); // Public feed d
 publicApiRouter.use("/rooms", optionalAuth, roomsRoutes); // Public room discovery; write routes enforce auth internally
 publicApiRouter.use("/recommendations", optionalAuth, recommendationsRoutes); // Cross-app profile recommendations (personalized when authed)
 publicApiRouter.use("/starter-packs", optionalAuth, starterPacksRoutes); // Public read/discovery + shared pack links; write routes enforce auth internally
+publicApiRouter.use("/mtn/nodes", optionalAuth, mtnNodesRoutes); // MTN user-node registry: authed me/managed routes enforce auth internally; ingest-notify is a public 202 hint
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
@@ -1003,6 +1005,16 @@ function startSchedulers(): void {
   } catch (error) {
     logger.warn("Failed to start federation job scheduler", error);
   }
+
+  // MTN Node Scheduler (B3 bidirectional node sync: leader-gated liveness probes
+  // + ingest of pull nodes / export to push nodes). Background only — NEVER on a
+  // request path; the feed/hydration hot path never queries a node.
+  try {
+    const { mentionNodeScheduler } = require("./src/services/mtn/MentionNodeScheduler");
+    mentionNodeScheduler.start();
+  } catch (error) {
+    logger.warn("Failed to start MTN node scheduler", error);
+  }
 }
 
 /**
@@ -1055,6 +1067,13 @@ function stopSchedulers(): void {
     federationJobScheduler.stop();
   } catch (error) {
     logger.warn("Failed to stop federation job scheduler", error);
+  }
+
+  try {
+    const { mentionNodeScheduler } = require("./src/services/mtn/MentionNodeScheduler");
+    mentionNodeScheduler.stop();
+  } catch (error) {
+    logger.warn("Failed to stop MTN node scheduler", error);
   }
 }
 
