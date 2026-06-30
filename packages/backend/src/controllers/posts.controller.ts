@@ -923,6 +923,17 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         } : {})
       });
 
+      // Thread mode: the ROOT post (i === 0) anchors the thread on its OWN _id so
+      // the whole self-thread — root included — shares one threadId. This is what
+      // lets ThreadSlicingService recognise the root (threadId set, no
+      // parentPostId) and pull its same-author continuations into a single
+      // connected slice; without it the root never matches and the thread renders
+      // as loose posts. Mongoose assigns _id at construction, so it is available
+      // here. Single-post "threads" and beast mode stay unlinked.
+      if (mode === 'thread' && i === 0 && posts.length > 1) {
+        post.threadId = String(post._id);
+      }
+
       await post.save();
 
       if (pendingArticleDoc) {

@@ -92,9 +92,11 @@ describe('createThread — sequential chain linkage', () => {
     const id0 = String(post0._id);
     const id1 = String(post1._id);
 
-    // Root post: no parent, no thread link.
+    // Root post: no parent, but it ANCHORS the thread on its own id so the whole
+    // self-thread (root included) shares one threadId — this is what lets
+    // ThreadSlicingService recognise the root and connect the slice.
     expect(post0.parentPostId).toBeUndefined();
-    expect(post0.threadId).toBeUndefined();
+    expect(post0.threadId).toBe(id0);
 
     // Post 1 chains onto post 0; thread root is post 0.
     expect(post1.parentPostId).toBe(id0);
@@ -103,6 +105,27 @@ describe('createThread — sequential chain linkage', () => {
     // Post 2 chains onto post 1 (NOT post 0 — the fan-out bug); thread root stays post 0.
     expect(post2.parentPostId).toBe(id1);
     expect(post2.threadId).toBe(id0);
+  });
+
+  it('leaves a single-post thread-mode call unlinked (no threadId on the lone root)', async () => {
+    const req = {
+      user: { id: 'author_1' },
+      body: {
+        mode: 'thread',
+        posts: [{ content: { text: 'Solo post' } }],
+      },
+    };
+
+    const { res, payload } = buildResponse();
+    await createThread(req as never, res as never);
+
+    expect(payload.status).toBe(201);
+    const posts = payload.value?.posts ?? [];
+    expect(posts).toHaveLength(1);
+
+    // A 1-post "thread" has no continuations to connect, so the root is NOT anchored.
+    expect(posts[0].parentPostId).toBeUndefined();
+    expect(posts[0].threadId).toBeUndefined();
   });
 
   it('does not link beast-mode posts (each post is independent)', async () => {
