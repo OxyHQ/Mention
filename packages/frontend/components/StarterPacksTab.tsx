@@ -5,7 +5,7 @@ import { useAuth } from '@oxyhq/services';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
-import LegendList from '@/components/LegendList';
+import { VirtualList } from '@oxyhq/bloom/list';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 
@@ -87,7 +87,7 @@ export function StarterPacksTab() {
   };
 
   return (
-    <LegendList
+    <VirtualList
       data={packs}
       renderItem={renderItem}
       keyExtractor={(item: StarterPackSummary) => String(item._id || item.id)}

@@ -13,7 +13,7 @@ import { View, TouchableOpacity, Share, Platform, StyleSheet } from 'react-nativ
 import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
-import LegendList from '@/components/LegendList';
+import { VirtualList } from '@oxyhq/bloom/list';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { precacheProfileViews } from '@/lib/precacheProfiles';
@@ -589,7 +589,7 @@ function ConnectionsContent({
     }
 
     return (
-      <LegendList
+      <VirtualList
         data={currentData}
         renderItem={renderUser}
         keyExtractor={(item: ConnectionUser) => String(item.id || item._id || item.userID || item.username)}

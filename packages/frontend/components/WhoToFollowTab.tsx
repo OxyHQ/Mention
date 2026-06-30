@@ -11,7 +11,7 @@ import { queryClient } from '@/lib/queryClient';
 import { precacheProfileViews } from '@/lib/precacheProfiles';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { useTheme } from '@oxyhq/bloom/theme';
-import LegendList from '@/components/LegendList';
+import { VirtualList } from '@oxyhq/bloom/list';
 import { ThemedText } from '@/components/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorDisplay } from '@/components/Error';
@@ -201,7 +201,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
 
   return (
     <View className="flex-1 bg-background" style={styles.container}>
-      <LegendList
+      <VirtualList
         data={recommendations}
         renderItem={renderUser}
         keyExtractor={(item: RecommendedUser) => getUserId(item) || item.username || ''}

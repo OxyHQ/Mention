@@ -23,7 +23,7 @@ type LayoutScrollContextValue = {
     scrollEventThrottle: number;
     /**
      * Imperatively update the shared scrollY based on a synthetic scroll event.
-     * Provides a fallback for components that cannot use Animated.event (e.g. LegendList web)
+     * Provides a fallback for components that cannot use Animated.event (e.g. the web document scroller)
      */
     handleScroll: (event: ScrollEvent) => void;
     /**
