@@ -2,19 +2,20 @@
  * MTN record builders — map Mention's native shapes to `app.mention.feed.*`
  * lexicon payloads (the signed `record` body).
  *
- * Pure functions: every input is passed in (no DB access) so they are trivially
- * unit-testable and never add I/O to the dual-write side-effect path. The
- * payloads are the wire projection of a native row — they intentionally carry
- * ONLY the fields the lexicon defines, validated by the matching
- * `mention*RecordSchema` before signing.
+ * The builders themselves are PURE functions: every input is passed in (no DB
+ * access) so they are trivially unit-testable and never add I/O to the
+ * dual-write side-effect path. The payloads are the wire projection of a native
+ * row — they intentionally carry ONLY the fields the lexicon defines, validated
+ * by the matching `mention*RecordSchema` before signing.
  *
- * B1 SCOPE NOTE — media embed: post media is stored on the Post by Oxy file
- * `id`, but the lexicon `embed.blob.sha256` is a CONTENT address. Resolving
- * `fileId → File.sha256` needs an Oxy lookup, which the media-unification phase
- * (B2/B3) wires in. To keep the signed record HONEST (never a fileId where a
- * sha256 belongs) and the write path I/O-free, the post builder OMITS `embed` in
- * B1 — the blob refs land when the media chokepoint is unified. Everything else
- * the lexicon defines is populated.
+ * MEDIA EMBED — content addressing: post media is stored on the Post by Oxy file
+ * `id`, but the lexicon `embed.blob.sha256` is a CONTENT address. {@link
+ * resolvePostMediaEmbed} (the ONE I/O step in this module) resolves each media
+ * item's `fileId → sha256` via the service-scoped Oxy SDK, then `buildPostRecord`
+ * folds the resolved `embed` in. The lookup is fail-soft: when it errors (e.g. the
+ * Mention federation credential lacks the `files:read` scope), the resolver
+ * yields no embed and the record is emitted WITHOUT media — the dual-write stays
+ * best-effort and a missing blob never blocks the post.
  */
 
 import type { IPost } from '../../models/Post';
@@ -26,10 +27,14 @@ import {
   type MentionTombstoneRecord,
   type MentionBookmarkRecord,
   type MtnFacet,
+  type MtnMediaEmbed,
+  type MtnEmbedMediaItem,
   type MtnReplyRef,
   type MtnSourceLink,
   type MtnGeoPoint,
 } from '@mention/shared-types';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { logger } from '../../utils/logger';
 
 /** A post's reply context with the OWNER oxyUserId of the referenced posts. */
 export interface ReplyContext {
@@ -80,16 +85,90 @@ function buildLangs(post: IPost): string[] | undefined {
   return post.language ? [post.language] : undefined;
 }
 
+/** Map a native MediaItem `type` to the lexicon blob `mediaType` (same enum). */
+const MEDIA_TYPE_TO_BLOB_KIND: Record<'image' | 'video' | 'gif', MtnEmbedMediaItem['blob']['mediaType']> = {
+  image: 'image',
+  video: 'video',
+  gif: 'gif',
+};
+
+/**
+ * A bare Oxy file id is a content-addressable upload. Skip client-side temp ids
+ * and absolute URLs (federated/external media has no Oxy `sha256`) — mirrors the
+ * `ensureProfileMediaPublic` guard. A local-authored post (the only kind that
+ * emits a record) carries real Oxy file ids, but this stays defensive.
+ */
+function isResolvableFileId(id: string | undefined): id is string {
+  return typeof id === 'string' && id.length > 0 && !id.startsWith('temp-') && !/^https?:\/\//i.test(id);
+}
+
+/**
+ * Resolve a post's native `content.media` (Oxy file ids) into a lexicon media
+ * `embed` whose blobs are CONTENT-addressed by `sha256`, via the service-scoped
+ * SDK's `getServiceAssetMetadataByIds` (one batched call per post).
+ *
+ * FAIL-SOFT: any error (notably a `files:read`-scope 403 on the Mention
+ * federation credential) or an empty/unresolvable media set yields `undefined`
+ * so `buildPostRecord` emits the record WITHOUT an embed. The signed record is
+ * always honest — it never carries a fileId where a `sha256` belongs — and the
+ * dual-write stays best-effort: a missing blob NEVER blocks the post.
+ */
+export async function resolvePostMediaEmbed(post: IPost): Promise<MtnMediaEmbed | undefined> {
+  const media = post.content?.media;
+  if (!Array.isArray(media) || media.length === 0) return undefined;
+
+  // Only bare Oxy file ids are content-addressable; preserve order for the embed.
+  const resolvable = media.filter((m) => isResolvableFileId(m?.id));
+  const fileIds = resolvable.map((m) => m.id);
+  if (fileIds.length === 0) return undefined;
+
+  try {
+    const metadata = await getServiceOxyClient().getServiceAssetMetadataByIds(fileIds);
+    const sha256ById = new Map(metadata.map((m) => [m.id, m]));
+
+    const items: MtnEmbedMediaItem[] = [];
+    for (const m of resolvable) {
+      const meta = sha256ById.get(m.id);
+      // Skip an item whose sha256 did not resolve (a failed/trashed asset) rather
+      // than emit a partial/dishonest blob.
+      if (!meta || typeof meta.sha256 !== 'string' || meta.sha256.length === 0) continue;
+      const blob: MtnEmbedMediaItem['blob'] = {
+        sha256: meta.sha256,
+        mediaType: MEDIA_TYPE_TO_BLOB_KIND[m.type],
+      };
+      if (typeof meta.mime === 'string' && meta.mime.length > 0) blob.mime = meta.mime;
+      if (typeof meta.size === 'number' && Number.isFinite(meta.size) && meta.size >= 0) blob.size = meta.size;
+      const item: MtnEmbedMediaItem = { blob };
+      if (typeof m.alt === 'string' && m.alt.length > 0) item.alt = m.alt;
+      items.push(item);
+    }
+
+    if (items.length === 0) return undefined;
+    return { type: 'media', items };
+  } catch (error) {
+    // Best-effort: a failed asset-metadata lookup must never block emitting the
+    // record. The federation credential may not yet have the `files:read` scope.
+    logger.warn('mentionRecordBuilders: resolvePostMediaEmbed failed; emitting record without media embed', {
+      postId: String(post._id),
+      mediaCount: fileIds.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
+
 /**
  * Build an `app.mention.feed.post` record payload from a native Post.
  *
  * `facets` is accepted explicitly (Mention does not yet store byte-range facets
- * on the Post; the caller passes them when available). `embed` is omitted in B1
- * (see the media note above).
+ * on the Post; the caller passes them when available). `embed` is the pre-resolved
+ * content-addressed media embed from {@link resolvePostMediaEmbed} — the only
+ * field requiring an Oxy lookup, so it is resolved by the (async) caller and
+ * passed in to keep this builder pure.
  */
 export function buildPostRecord(
   post: IPost,
-  options: { reply?: ReplyContext; facets?: MtnFacet[] } = {},
+  options: { reply?: ReplyContext; facets?: MtnFacet[]; embed?: MtnMediaEmbed } = {},
 ): MentionPostRecord {
   const record: MentionPostRecord = {
     text: post.content?.text ?? '',
@@ -100,6 +179,8 @@ export function buildPostRecord(
   if (reply) record.reply = reply;
 
   if (options.facets && options.facets.length > 0) record.facets = options.facets;
+
+  if (options.embed && options.embed.items.length > 0) record.embed = options.embed;
 
   const langs = buildLangs(post);
   if (langs && langs.length > 0) record.langs = langs;

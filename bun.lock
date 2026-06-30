@@ -109,7 +109,7 @@
         "@mention/shared-types": "file:../shared-types",
         "@napi-rs/image": "^1.12.0",
         "@oxyhq/contracts": "^0.7.0",
-        "@oxyhq/core": "^5.0.0",
+        "@oxyhq/core": "^5.1.0",
         "@oxyhq/protocol": "^0.1.1",
         "@socket.io/redis-adapter": "^8.3.0",
         "@syra.fm/sdk": "^0.3.0",
@@ -3515,7 +3515,7 @@
 
     "@mention/backend/@mention/shared-types": ["@mention/shared-types@file:packages/shared-types", { "dependencies": { "@oxyhq/contracts": "^0.7.0", "zod": "^4.4.3" }, "devDependencies": { "@types/node": "^25.5.0", "typescript": "^5.9.3" } }],
 
-    "@mention/backend/@oxyhq/core": ["@oxyhq/core@5.0.0", "", { "dependencies": { "@oxyhq/contracts": "^0.7.0", "@oxyhq/protocol": "^0.1.0", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.5", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-K/M754X+DSof2Cja3Wio4AxLqCZS5zmqUKiuQoiDE+WTVL6s1PWOwEip0Q9SktnyjoW1RxcGK9iEn6pAWC+hTw=="],
+    "@mention/backend/@oxyhq/core": ["@oxyhq/core@5.1.0", "", { "dependencies": { "@oxyhq/contracts": "^0.7.0", "@oxyhq/protocol": "^0.1.1", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.5", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-/bBeqKzroMMLS9wF8L2MCP9+YVCfBWw1YrFSh6x9d7gckfqlIEMtMs8LcXaFP3+YNSfEz0iOpoKBwjWmzv3AIg=="],
 
     "@modelcontextprotocol/sdk/ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 

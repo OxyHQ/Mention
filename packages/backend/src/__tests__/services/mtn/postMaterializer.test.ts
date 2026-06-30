@@ -274,6 +274,30 @@ describe('projectRecord — post', () => {
     expect(content.media).toEqual([{ id: 'file-abc', type: 'image' }]);
   });
 
+  it('READ-SIDE DEFERRED: a record that CARRIES a blob embed never writes content.media', async () => {
+    // The write side now emits content-addressed blob refs, but the read side
+    // cannot turn a bare sha256 back into a servable fileId/URL (no reverse
+    // upstream index). The materializer must NOT write content.media from the
+    // embed — for a NEW post that means no media key at all (no fake URLs), and
+    // for an existing post the fileId media is preserved (other test below).
+    const recordWithEmbed = {
+      ...postRecord,
+      embed: {
+        type: 'media',
+        items: [{ blob: { sha256: 'sha-from-chain', mediaType: 'image', mime: 'image/png', size: 42 } }],
+      },
+    };
+
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
+    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+
+    const doc = h.posts.get(POST_RKEY);
+    const content = doc?.content as { text: string; media?: unknown };
+    expect(content.text).toBe(postRecord.text);
+    // No media materialized from the blob embed (deferred read side, no fake URL).
+    expect(content.media).toBeUndefined();
+  });
+
   it('rejects an invalid inner record with reason invalid_record', async () => {
     // `text` is required by mentionPostRecordSchema; omit it.
     const result = await projectRecord(
