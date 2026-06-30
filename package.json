@@ -54,7 +54,7 @@
     "@react-native/metro-babel-transformer": "0.85.3",
     "@react-native/metro-config": "0.85.3",
     "@oxyhq/bloom": "^0.25.0",
-    "@oxyhq/core": "^5.1.1",
+    "@oxyhq/core": "^5.2.0",
     "@oxyhq/services": "^13.0.3",
     "mongoose": "9.3.1",
     "ioredis": "5.10.1",

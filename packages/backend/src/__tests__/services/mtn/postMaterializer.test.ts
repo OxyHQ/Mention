@@ -100,6 +100,20 @@ vi.mock('../../../models/Post', () => ({
 vi.mock('../../../models/Like', () => ({ default: h.Like }));
 vi.mock('../../../models/Bookmark', () => ({ default: h.Bookmark }));
 
+// Mock the service-scoped Oxy client so the read-side blob resolver's REVERSE
+// lookup (`getServiceAssetMetadataBySha256`, sha256 → fileId) is fully
+// controllable and performs no real I/O. Hoisted so it predates the import.
+const oxyMock = vi.hoisted(() => ({
+  getServiceAssetMetadataBySha256: vi.fn<
+    (sha256s: string[]) => Promise<
+      Array<{ sha256: string; id: string; mime: string; size: number; status: 'active' | 'trash'; url?: string }>
+    >
+  >(),
+}));
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => oxyMock,
+}));
+
 import { projectRecord } from '../../../services/mtn/PostMaterializer';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { baselineContentClassifier } from '../../../services/BaselineContentClassifier';
@@ -158,6 +172,10 @@ beforeEach(() => {
   h.Like.findByIdAndDelete.mockClear();
   h.Bookmark.findByIdAndUpdate.mockClear();
   h.Bookmark.findByIdAndDelete.mockClear();
+  // Default: no blob resolves (records without embeds are unaffected). Tests that
+  // exercise the resolver override this per-case.
+  oxyMock.getServiceAssetMetadataBySha256.mockReset();
+  oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([]);
 });
 
 describe('projectRecord — post', () => {
@@ -274,17 +292,83 @@ describe('projectRecord — post', () => {
     expect(content.media).toEqual([{ id: 'file-abc', type: 'image' }]);
   });
 
-  it('READ-SIDE DEFERRED: a record that CARRIES a blob embed never writes content.media', async () => {
-    // The write side now emits content-addressed blob refs, but the read side
-    // cannot turn a bare sha256 back into a servable fileId/URL (no reverse
-    // upstream index). The materializer must NOT write content.media from the
-    // embed — for a NEW post that means no media key at all (no fake URLs), and
-    // for an existing post the fileId media is preserved (other test below).
+  it('READ-SIDE: resolves a blob embed (sha256) → fileId MediaItem via reverse lookup', async () => {
+    // The write side emits content-addressed blob refs; the read side resolves
+    // each sha256 back to its live Oxy fileId and writes a native content.media
+    // MediaItem, so the post renders through the normal CDN path.
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
+      { sha256: 'sha-img', id: 'file-img', mime: 'image/png', size: 42, status: 'active' },
+      { sha256: 'sha-vid', id: 'file-vid', mime: 'video/mp4', size: 99, status: 'active' },
+    ]);
+
     const recordWithEmbed = {
       ...postRecord,
       embed: {
         type: 'media',
-        items: [{ blob: { sha256: 'sha-from-chain', mediaType: 'image', mime: 'image/png', size: 42 } }],
+        items: [
+          { blob: { sha256: 'sha-img', mediaType: 'image', mime: 'image/png', size: 42 }, alt: 'a cat' },
+          { blob: { sha256: 'sha-vid', mediaType: 'video', mime: 'video/mp4', size: 99 } },
+        ],
+      },
+    };
+
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
+    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+
+    // The reverse lookup is called once with the embed's distinct sha256s.
+    expect(oxyMock.getServiceAssetMetadataBySha256).toHaveBeenCalledTimes(1);
+    expect(oxyMock.getServiceAssetMetadataBySha256).toHaveBeenCalledWith(['sha-img', 'sha-vid']);
+
+    const doc = h.posts.get(POST_RKEY);
+    const content = doc?.content as { text: string; media: Array<{ id: string; type: string; alt?: string }> };
+    expect(content.text).toBe(postRecord.text);
+    // Each blob became a fileId MediaItem (id = resolved fileId, type = mediaType),
+    // order + alt preserved.
+    expect(content.media).toEqual([
+      { id: 'file-img', type: 'image', alt: 'a cat' },
+      { id: 'file-vid', type: 'video' },
+    ]);
+  });
+
+  it('READ-SIDE FAIL-SOFT: an unresolvable sha256 is dropped (no fake URL)', async () => {
+    // Only one of two blobs resolves; the other (unknown/trashed) is omitted by
+    // the upstream batch. The materializer drops it rather than inventing a URL.
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
+      { sha256: 'sha-ok', id: 'file-ok', mime: 'image/jpeg', size: 10, status: 'active' },
+      // sha-trash present but trashed → not renderable, treated as unresolvable.
+      { sha256: 'sha-trash', id: 'file-trash', mime: 'image/jpeg', size: 11, status: 'trash' },
+      // sha-missing simply absent from the response.
+    ]);
+
+    const recordWithEmbed = {
+      ...postRecord,
+      embed: {
+        type: 'media',
+        items: [
+          { blob: { sha256: 'sha-ok', mediaType: 'image' } },
+          { blob: { sha256: 'sha-trash', mediaType: 'image' } },
+          { blob: { sha256: 'sha-missing', mediaType: 'image' } },
+        ],
+      },
+    };
+
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
+    expect(result.ok).toBe(true);
+
+    const doc = h.posts.get(POST_RKEY);
+    const content = doc?.content as { media: Array<{ id: string; type: string }> };
+    // Only the single resolvable, active blob survived.
+    expect(content.media).toEqual([{ id: 'file-ok', type: 'image' }]);
+  });
+
+  it('READ-SIDE FAIL-SOFT: a reverse-lookup error never aborts projection (no media written)', async () => {
+    oxyMock.getServiceAssetMetadataBySha256.mockRejectedValue(new Error('403 forbidden: files:read'));
+
+    const recordWithEmbed = {
+      ...postRecord,
+      embed: {
+        type: 'media',
+        items: [{ blob: { sha256: 'sha-x', mediaType: 'image' } }],
       },
     };
 
@@ -294,8 +378,37 @@ describe('projectRecord — post', () => {
     const doc = h.posts.get(POST_RKEY);
     const content = doc?.content as { text: string; media?: unknown };
     expect(content.text).toBe(postRecord.text);
-    // No media materialized from the blob embed (deferred read side, no fake URL).
+    // Lookup failed → no media materialized, no throw.
     expect(content.media).toBeUndefined();
+  });
+
+  it('READ-SIDE ZERO-REGRESSION: an empty resolution preserves existing fileId media', async () => {
+    // Existing post already carries fileId media. The incoming record carries a
+    // blob embed whose sha256 does NOT resolve → resolver returns [] → the upsert
+    // must NOT write content.media, so the existing media survives.
+    h.posts.set(POST_RKEY, {
+      _id: POST_RKEY,
+      oxyUserId: SUBJECT_OXY_ID,
+      content: { text: 'original', media: [{ id: 'file-existing', type: 'image' }] },
+    });
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([]); // nothing resolves
+
+    const recordWithEmbed = {
+      ...postRecord,
+      embed: {
+        type: 'media',
+        items: [{ blob: { sha256: 'sha-unresolved', mediaType: 'image' } }],
+      },
+    };
+
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
+    expect(result.ok).toBe(true);
+
+    const doc = h.posts.get(POST_RKEY);
+    const content = doc?.content as { text: string; media: Array<{ id: string; type: string }> };
+    expect(content.text).toBe(postRecord.text);
+    // Existing fileId media preserved (resolver returned nothing → no write).
+    expect(content.media).toEqual([{ id: 'file-existing', type: 'image' }]);
   });
 
   it('rejects an invalid inner record with reason invalid_record', async () => {

@@ -59,6 +59,32 @@ export const MENTION_NODE_INGEST_FETCH_TIMEOUT_MS = 8_000;
 /** Max bytes read from a single `/oxy/log` response before the stream is cut. */
 export const MENTION_NODE_INGEST_MAX_BYTES = 2 * 1024 * 1024; // 2 MiB
 
+/* -------------------------------------------------------------------------- */
+/*  Node-blob mirror (content-addressed media bytes node → Oxy S3)            */
+/* -------------------------------------------------------------------------- */
+
+const BYTES_PER_MIB = 1024 * 1024;
+
+/**
+ * Max media items per ingested post record we will attempt to mirror from the
+ * node. Bounds the per-record fetch+upload work so a single hostile/oversized
+ * record can never balloon a background ingest run. A normal post carries a
+ * handful of media items; this is a generous ceiling.
+ */
+export const MENTION_NODE_BLOB_MIRROR_MAX_ITEMS = 8;
+
+/**
+ * Max bytes of a single blob we will pull from a node and mirror into Oxy S3.
+ * Matches the federated media cache's video ceiling so node-sourced video is
+ * treated identically to ActivityPub video. A blob whose advertised `size` (or
+ * fetched byte length) exceeds this is skipped (left unresolvable → no media,
+ * never a partial/oversized upload).
+ */
+export const MENTION_NODE_BLOB_MIRROR_MAX_BYTES = 200 * BYTES_PER_MIB;
+
+/** Time-to-first-byte deadline for a single `getBlob` fetch from a node. */
+export const MENTION_NODE_BLOB_FETCH_TIMEOUT_MS = 15_000;
+
 /** Records pushed per export batch (bounds the outbound working set). */
 export const MENTION_NODE_EXPORT_BATCH = 100;
 

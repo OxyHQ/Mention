@@ -55,21 +55,33 @@
  * unconfigured (dev/pre-prod) witnessing is skipped (logged once) but ingest
  * still proceeds.
  *
- * ## DEFERRED — blob / media sync
+ * ## Blob / media sync
  *
- * A node serves blobs by `sha256`, but Mention has NO reverse `sha256 → fileId`/
- * `url` resolver yet (the same gap that deferred the blob-ref READ side in PR
- * #280). So for an ingested post record whose `embed` carries blob refs, the
- * RECORD + text + thread structure + likes + reposts are materialized fully now;
- * the media BYTES are deferred — `PostMaterializer.resolveEmbedToMedia` is a no-op
- * until the upstream reverse content-address index lands. No fake URL is invented;
- * an existing post's fileId media survives re-projection.
+ * A node serves media bytes by `sha256` (content address); Mention's feed renders
+ * by Oxy `fileId`. For an ingested post record whose `embed` carries blob refs,
+ * the blobs are MIRRORED into Oxy S3 (owned by the record's author) BEFORE
+ * materialization via {@link mirrorNodeBlobsForRecord} — it pulls each
+ * not-yet-resolvable blob's bytes from the node (`NodeClient.getBlob`) and uploads
+ * them through the existing durable federated-media path. After mirroring, the
+ * read-side resolver (`PostMaterializer.resolveEmbedToMedia`) turns each `sha256`
+ * back into a servable `fileId` via the reverse content-address lookup, so the
+ * post renders byte-identically to native media. The mirror is bounded,
+ * background-only, fail-soft, idempotent, and gated on the federated-media write
+ * flag — a blob the node cannot serve (or that fails to mirror) simply yields a
+ * text-only render until a later run; no fake URL is invented.
  */
 
 import { canonicalize, computeRecordId, signMessage } from '@oxyhq/protocol';
 import { NodeClient, type NodeFetch } from '@oxyhq/protocol/node';
 import { safeFetch } from '@oxyhq/core/server';
-import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from '@oxyhq/contracts';
+import {
+  signedRecordEnvelopeSchema,
+  type SignedRecordEnvelope,
+} from '@oxyhq/contracts';
+import {
+  MENTION_POST_COLLECTION,
+  mentionPostRecordSchema,
+} from '@mention/shared-types';
 import MentionUserNode from '../../models/MentionUserNode';
 import MentionSignedRecord from '../../models/MentionSignedRecord';
 import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
@@ -77,6 +89,8 @@ import { logger } from '../../utils/logger';
 import { getHead, getPublicLogSince } from './MentionRepoLogService';
 import { verifyAndStoreRecord } from './MentionRecordService';
 import { projectRecord } from './PostMaterializer';
+import { mirrorNodeBlobsForRecord, type NodeBlobFetcher } from './mtnNodeBlobMirror';
+import { parseUserDid } from './mentionDid';
 import {
   getMentionCustodialPrivateKey,
   getMentionCustodialPublicKey,
@@ -176,12 +190,33 @@ async function witnessRecord(oxyUserId: string, recordId: string, ingestedAt: nu
 }
 
 /**
+ * Best-effort mirror of an ingested POST record's content-addressed media blobs
+ * from the node into Oxy S3, so the materializer's reverse `sha256 → fileId`
+ * resolver can render them. Runs BEFORE {@link materialize} so the blobs are
+ * resolvable on the first projection. A non-post record, a record without an
+ * embed, or any mirror failure is a clean no-op (the mirror itself never throws).
+ */
+async function mirrorBlobs(envelope: SignedRecordEnvelope, getBlob: NodeBlobFetcher): Promise<void> {
+  if (envelope.collection !== MENTION_POST_COLLECTION) return;
+  const parsed = mentionPostRecordSchema.safeParse(envelope.record);
+  if (!parsed.success || !parsed.data.embed) return;
+  // The subject DID owns the mirrored assets; the materializer resolves the same
+  // owner from the envelope, so reuse the envelope's subject as the oxyUserId.
+  const ownerOxyUserId = parseUserDid(envelope.subject);
+  if (!ownerOxyUserId) return;
+  await mirrorNodeBlobsForRecord(parsed.data, ownerOxyUserId, getBlob);
+}
+
+/**
  * Materialize a verified+stored record into the feed-readable store. Best-effort
  * and non-throwing (the materializer itself never throws); a projection failure
- * is logged but never aborts the ingest run.
+ * is logged but never aborts the ingest run. For a post record carrying media
+ * blobs, the node bytes are mirrored into Oxy S3 FIRST (see {@link mirrorBlobs})
+ * so the post's media resolves on this projection.
  */
-async function materialize(envelope: SignedRecordEnvelope): Promise<void> {
+async function materialize(envelope: SignedRecordEnvelope, getBlob: NodeBlobFetcher): Promise<void> {
   try {
+    await mirrorBlobs(envelope, getBlob);
     const result = await projectRecord(envelope);
     if (!result.ok) {
       logger.debug('MentionNodeSync: projectRecord skipped an ingested record', {
@@ -267,14 +302,19 @@ async function storeForkMirror(env: SignedRecordEnvelope, oxyUserId: string, rec
  * returned {@link IngestOutcome}. `verifyAndStoreRecord` does the heavy lifting
  * (re-verify + atomic append + head advance); its rejection reason routes the
  * record to LWW-skip, fork-preserve, or hard-reject. On any persisted record the
- * envelope is materialized into the feed store + counter-signed.
+ * envelope is materialized into the feed store + counter-signed; `getBlob` lets
+ * the materialize step mirror a post's content-addressed media from the node.
  */
-async function ingestEnvelope(env: SignedRecordEnvelope, oxyUserId: string): Promise<IngestOutcome> {
+async function ingestEnvelope(
+  env: SignedRecordEnvelope,
+  oxyUserId: string,
+  getBlob: NodeBlobFetcher,
+): Promise<IngestOutcome> {
   const result = await verifyAndStoreRecord(env);
 
   if (result.ok) {
     const recordId = result.recordId;
-    await materialize(env);
+    await materialize(env, getBlob);
     await witnessRecord(oxyUserId, recordId, Date.now());
     return { kind: 'appended', seq: typeof result.seq === 'number' ? result.seq : -1, recordId };
   }
@@ -291,7 +331,7 @@ async function ingestEnvelope(env: SignedRecordEnvelope, oxyUserId: string): Pro
         if (incomingWinsLww({ issuedAt: env.issuedAt, recordId }, existing)) {
           const stored = await storeForkMirror(env, oxyUserId, recordId);
           if (stored) {
-            await materialize(env);
+            await materialize(env, getBlob);
             await witnessRecord(oxyUserId, recordId, Date.now());
             logger.info('MentionNodeSync: LWW tiebreak adopted incoming record', {
               oxyUserId,
@@ -315,7 +355,7 @@ async function ingestEnvelope(env: SignedRecordEnvelope, oxyUserId: string): Pro
       const recordId = await computeRecordId(env);
       const stored = await storeForkMirror(env, oxyUserId, recordId);
       if (stored) {
-        await materialize(env);
+        await materialize(env, getBlob);
         await witnessRecord(oxyUserId, recordId, Date.now());
       }
       logger.warn('MentionNodeSync: detected a chain fork; preserved both branches', {
@@ -360,6 +400,10 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
     }
 
     const client = makeNodeClient(node.endpoint);
+    // The content-addressed blob fetcher for the materialize step's media mirror.
+    // Bound here so the (untrusted, SSRF-guarded) node transport stays the one
+    // place that talks to the node.
+    const getBlob: NodeBlobFetcher = (sha256) => client.getBlob(sha256);
 
     // Compare the node's head against Mention's local head. When Mention is
     // already at or ahead of the node, there is nothing to pull — stamp the time.
@@ -411,7 +455,7 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
           continue;
         }
 
-        const outcome = await ingestEnvelope(env, oxyUserId);
+        const outcome = await ingestEnvelope(env, oxyUserId, getBlob);
         if (outcome.kind === 'appended') {
           cursor = outcome.seq >= 0 ? outcome.seq : cursor;
         } else if (outcome.kind === 'fork') {
