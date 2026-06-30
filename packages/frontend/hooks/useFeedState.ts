@@ -486,7 +486,14 @@ export function useFeedState({
             // from-scratch fetch here would replace the cached items (including
             // pages > 1) with just page 1, losing the user's scroll context.
             // The seed is consumed once so a later forceRefresh still refetches.
-            if (useMemoryFeed && !forceRefresh && seededCacheRef.current) {
+            //
+            // EXCEPTION — replies feeds always revalidate. A thread's replies
+            // list seeds instantly from `localItems` (no flash) but must then
+            // fetch fresh so server-side changes (new/deleted/duplicate replies)
+            // show on SPA navigation, not only on a hard reload that wipes the
+            // memory store. Freshness wins over scroll preservation here, and a
+            // replies list has no deep-scroll/pagination context worth keeping.
+            if (useMemoryFeed && !forceRefresh && seededCacheRef.current && type !== 'replies') {
                 logger.debug('Skipping — memory feed warm-started from cache');
                 seededCacheRef.current = undefined;
                 isFetchingRef.current = false;
