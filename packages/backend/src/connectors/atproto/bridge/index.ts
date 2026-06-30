@@ -30,6 +30,7 @@
 
 export {
   getAtprotoIdentity,
+  getAtprotoIdentityByOxyUserId,
   buildBridgeDidDocumentView,
   bridgeHandle,
   bridgePdsEndpoint,

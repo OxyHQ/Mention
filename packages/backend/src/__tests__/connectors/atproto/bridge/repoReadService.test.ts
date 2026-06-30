@@ -160,6 +160,22 @@ describe('listRecords', () => {
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
     expect(page.records.map((r) => r.rkey)).toEqual(['ok']);
   });
+
+  it('reads ONLY the requested collection + tombstones (not every feed collection)', async () => {
+    mockLedger([]);
+    await listRecords(OWNER, 'app.bsky.feed.like');
+    const query = mockFind.mock.calls[0]?.[0] as {
+      oxyUserId: string;
+      verified: boolean;
+      $or: Array<Record<string, unknown>>;
+    };
+    expect(query.oxyUserId).toBe(OWNER);
+    expect(query.verified).toBe(true);
+    expect(query.$or).toEqual([
+      { nsid: MENTION_LIKE_COLLECTION },
+      { nsid: MENTION_TOMBSTONE_COLLECTION },
+    ]);
+  });
 });
 
 describe('getRecord', () => {
@@ -169,6 +185,40 @@ describe('getRecord', () => {
     ]);
     const record = await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
     expect(record?.value).toMatchObject({ text: 'hi' });
+  });
+
+  it('queries ONLY the requested rkey + tombstones (targeted, not a full scan)', async () => {
+    mockLedger([
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('hi'), createdAt: '2026-06-30T01:00:00.000Z' }),
+    ]);
+    await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
+    const query = mockFind.mock.calls[0]?.[0] as {
+      oxyUserId: string;
+      verified: boolean;
+      $or: Array<Record<string, unknown>>;
+    };
+    expect(query.oxyUserId).toBe(OWNER);
+    expect(query.verified).toBe(true);
+    // The feed-collection clause is narrowed to the single rkey; tombstones are
+    // still read in full (they delete by subject, not by their own rkey).
+    expect(query.$or).toEqual([
+      { nsid: MENTION_POST_COLLECTION, rkey: 'p1' },
+      { nsid: MENTION_TOMBSTONE_COLLECTION },
+    ]);
+  });
+
+  it('applies LWW for the requested rkey (newest edit wins)', async () => {
+    mockLedger([
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('edited'), createdAt: '2026-06-30T02:00:00.000Z' }),
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('original'), createdAt: '2026-06-30T01:00:00.000Z' }),
+    ]);
+    const record = await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
+    expect(record?.value).toMatchObject({ text: 'edited' });
+  });
+
+  it('returns null for an unknown / private collection without a ledger read', async () => {
+    expect(await getRecord(OWNER, 'app.mention.feed.bookmark', 'b1')).toBeNull();
+    expect(mockFind).not.toHaveBeenCalled();
   });
 
   it('returns null for a tombstoned record', async () => {

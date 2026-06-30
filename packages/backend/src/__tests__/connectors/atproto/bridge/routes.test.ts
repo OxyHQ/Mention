@@ -18,6 +18,7 @@ const mockListRecords = vi.fn();
 const mockGetRecord = vi.fn();
 const mockGetHead = vi.fn();
 const mockGetAtprotoIdentity = vi.fn();
+const mockGetAtprotoIdentityByOxyUserId = vi.fn();
 const mockBuildDidView = vi.fn();
 const mockResolveOxyUser = vi.fn();
 
@@ -47,6 +48,7 @@ vi.mock('../../../../services/mtn/MentionRepoLogService', () => ({
 
 vi.mock('../../../../connectors/atproto/bridge/identityService', () => ({
   getAtprotoIdentity: (...a: unknown[]) => mockGetAtprotoIdentity(...a),
+  getAtprotoIdentityByOxyUserId: (...a: unknown[]) => mockGetAtprotoIdentityByOxyUserId(...a),
   buildBridgeDidDocumentView: (...a: unknown[]) => mockBuildDidView(...a),
   bridgePdsEndpoint: () => 'https://mention.earth',
 }));
@@ -72,15 +74,18 @@ beforeAll(async () => {
   app.use('/.well-known', mod.wellKnownBridgeRouter);
 });
 
+const IDENTITY = {
+  did: OWNER_DID,
+  oxyUserId: OWNER,
+  handle: 'alice.mention.earth',
+  pdsEndpoint: 'https://mention.earth',
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockResolveOxyUser.mockResolvedValue({ id: OWNER, username: 'alice' });
-  mockGetAtprotoIdentity.mockResolvedValue({
-    did: OWNER_DID,
-    oxyUserId: OWNER,
-    handle: 'alice.mention.earth',
-    pdsEndpoint: 'https://mention.earth',
-  });
+  mockGetAtprotoIdentity.mockResolvedValue(IDENTITY);
+  mockGetAtprotoIdentityByOxyUserId.mockResolvedValue(IDENTITY);
 });
 
 describe('com.atproto.repo.listRecords', () => {
@@ -167,6 +172,38 @@ describe('com.atproto.repo.describeRepo', () => {
       handleIsCorrect: true,
     });
   });
+
+  it('resolves the handle from the OWNER ID, not by string-splitting a DID repo', async () => {
+    // Regression: a `did:web:oxy.so:u:<id>` repo contains dots (in `oxy.so`). The
+    // identity MUST be derived from the resolved owner id — never from
+    // `repo.split('.')[0]` (which would yield `did:web:oxy`).
+    const res = await request(app).get('/xrpc/com.atproto.repo.describeRepo').query({ repo: OWNER_DID });
+    expect(res.status).toBe(200);
+    expect(res.body.handle).toBe('alice.mention.earth');
+    expect(res.body.did).toBe(OWNER_DID);
+    // The by-id identity path was called with the already-resolved owner id.
+    expect(mockGetAtprotoIdentityByOxyUserId).toHaveBeenCalledWith(OWNER);
+    // The corrupted-username by-handle path was NOT taken.
+    expect(mockGetAtprotoIdentity).not.toHaveBeenCalled();
+  });
+
+  it('resolves a handle repo to the correct did/handle', async () => {
+    const res = await request(app)
+      .get('/xrpc/com.atproto.repo.describeRepo')
+      .query({ repo: 'alice.mention.earth' });
+    expect(res.status).toBe(200);
+    expect(res.body.handle).toBe('alice.mention.earth');
+    expect(res.body.did).toBe(OWNER_DID);
+    expect(mockResolveOxyUser).toHaveBeenCalledWith('alice');
+    expect(mockGetAtprotoIdentityByOxyUserId).toHaveBeenCalledWith(OWNER);
+  });
+
+  it('404s when the owner id maps to no identity', async () => {
+    mockGetAtprotoIdentityByOxyUserId.mockResolvedValueOnce(null);
+    const res = await request(app).get('/xrpc/com.atproto.repo.describeRepo').query({ repo: OWNER_DID });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('RepoNotFound');
+  });
 });
 
 describe('com.atproto.sync.getLatestCommit', () => {
@@ -231,5 +268,40 @@ describe('GET /.well-known/atproto-did', () => {
       .set('Host', 'alice.mention.earth');
     expect(res.status).toBe(200);
     expect(res.text).toBe(OWNER_DID);
+    expect(mockGetAtprotoIdentity).toHaveBeenCalledWith('alice');
+  });
+
+  it('strips the port before resolving the subdomain label', async () => {
+    const res = await request(app)
+      .get('/.well-known/atproto-did')
+      .set('Host', 'alice.mention.earth:8443');
+    expect(res.status).toBe(200);
+    expect(res.text).toBe(OWNER_DID);
+    expect(mockGetAtprotoIdentity).toHaveBeenCalledWith('alice');
+  });
+
+  it('404s the apex domain (no subdomain → no user handle, never invents one)', async () => {
+    const res = await request(app)
+      .get('/.well-known/atproto-did')
+      .set('Host', 'mention.earth');
+    expect(res.status).toBe(404);
+    // The apex's first label (`mention`) must NOT be treated as a username.
+    expect(mockGetAtprotoIdentity).not.toHaveBeenCalled();
+  });
+
+  it('404s a host that is not under the bridge domain', async () => {
+    const res = await request(app)
+      .get('/.well-known/atproto-did')
+      .set('Host', 'alice.example.com');
+    expect(res.status).toBe(404);
+    expect(mockGetAtprotoIdentity).not.toHaveBeenCalled();
+  });
+
+  it('404s a nested subdomain under the bridge domain', async () => {
+    const res = await request(app)
+      .get('/.well-known/atproto-did')
+      .set('Host', 'a.b.mention.earth');
+    expect(res.status).toBe(404);
+    expect(mockGetAtprotoIdentity).not.toHaveBeenCalled();
   });
 });

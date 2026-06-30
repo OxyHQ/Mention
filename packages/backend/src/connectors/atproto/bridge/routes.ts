@@ -28,6 +28,7 @@ import { ANY_DID_RE } from '../constants';
 import {
   ATPROTO_BRIDGE_ENABLED,
   BRIDGE_BSKY_COLLECTIONS,
+  BRIDGE_DOMAIN,
   type BridgeBskyCollection,
 } from './constants';
 import {
@@ -37,6 +38,7 @@ import {
 } from './repoReadService';
 import {
   getAtprotoIdentity,
+  getAtprotoIdentityByOxyUserId,
   buildBridgeDidDocumentView,
   bridgePdsEndpoint,
 } from './identityService';
@@ -183,17 +185,20 @@ router.get('/com.atproto.repo.describeRepo', async (req: Request, res: Response)
     const oxyUserId = await resolveRepoOwner(parsed.data.repo);
     if (!oxyUserId) return xrpcError(res, 404, 'RepoNotFound', 'repo not found');
 
-    // The repo param may be a DID or a handle; re-resolve the canonical identity
-    // facts by username so the response always carries the bridge handle + DID.
-    const username = parsed.data.repo.includes('.') ? parsed.data.repo.split('.')[0] : parsed.data.repo;
-    const identity = await getAtprotoIdentity(username);
+    // Derive the canonical identity facts from the ALREADY-RESOLVED owner id, not
+    // by string-splitting the raw repo param. The param may be a DID
+    // (`did:web:oxy.so:u:<id>`, where a naive `.split('.')` would corrupt the
+    // username) or a handle; both resolve to the same `oxyUserId`, and the bridge
+    // handle + DID are derived from the user's current Oxy username.
+    const identity = await getAtprotoIdentityByOxyUserId(oxyUserId);
+    if (!identity) return xrpcError(res, 404, 'RepoNotFound', 'repo not found');
 
     res.set('Cache-Control', 'public, max-age=60');
     return res.json({
-      did: identity?.did ?? `did:web:placeholder`,
-      handle: identity?.handle ?? username,
+      did: identity.did,
+      handle: identity.handle,
       collections: BRIDGE_DESCRIBE_COLLECTIONS,
-      handleIsCorrect: Boolean(identity),
+      handleIsCorrect: true,
     });
   } catch (err) {
     logger.error('[atproto-bridge] describeRepo failed', err);
@@ -251,6 +256,26 @@ router.get('/com.atproto.sync.getRepo', (_req: Request, res: Response) => {
 });
 
 /**
+ * Extract the bridge username from a request host. A valid bridge handle host is
+ * exactly `<username>.<bridge domain>` (a SINGLE subdomain label under the bridge
+ * domain). The apex domain itself (`<bridge domain>`, no subdomain) and any
+ * deeper / foreign host return null — the apex's first label is the registrable
+ * name, NOT a username, so blindly taking `host.split('.')[0]` would invent a
+ * bogus handle. The compare is case-insensitive and port-stripped.
+ */
+function bridgeUsernameFromHost(rawHost: string): string | null {
+  const host = rawHost.split(':')[0].toLowerCase();
+  const domain = BRIDGE_DOMAIN.toLowerCase();
+  const suffix = `.${domain}`;
+  if (!host.endsWith(suffix)) return null;
+
+  const username = host.slice(0, -suffix.length);
+  // Exactly one label: reject an empty label and any nested subdomain.
+  if (username.length === 0 || username.includes('.')) return null;
+  return username;
+}
+
+/**
  * GET /.well-known/atproto-did  (mounted at the `.well-known` level — see
  * `wellKnownBridgeRouter`). Resolves the requesting host's handle to the user's
  * Oxy DID. The handle is taken from the `Host` header (`<username>.<bridge
@@ -258,10 +283,11 @@ router.get('/com.atproto.sync.getRepo', (_req: Request, res: Response) => {
  * `https://<username>.<bridge domain>/.well-known/atproto-did` gets the DID.
  */
 async function atprotoDidHandler(req: Request, res: Response): Promise<Response> {
-  // The handle is the request host; the username is its first label.
+  // The handle is the request host; the username is the single subdomain label
+  // under the bridge domain. An apex-domain request carries no user handle.
   const host = (req.headers['x-forwarded-host'] as string | undefined) || req.headers.host || '';
-  const username = host.split(':')[0]?.split('.')[0] ?? '';
-  if (!username) return xrpcError(res, 400, 'InvalidRequest', 'no handle host');
+  const username = bridgeUsernameFromHost(host);
+  if (!username) return xrpcError(res, 404, 'NotFound', 'no handle host');
 
   try {
     const identity = await getAtprotoIdentity(username);
