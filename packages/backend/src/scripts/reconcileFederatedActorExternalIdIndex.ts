@@ -1,45 +1,46 @@
 /**
  * One-shot reconciliation: converge the `externalId` index on the
- * `federatedactors` collection to EXACTLY the model's intended spec.
+ * `federatedactors` collection to EXACTLY what the `FederatedActor` model
+ * declares — which today is NOTHING.
  *
  * Why this exists
  * ---------------
- * The atproto (Bluesky) connector introduced an `externalId` field (the remote
- * DID) on `FederatedActor`, intended to be a SPARSE + UNIQUE index — sparse so
- * the many ActivityPub actors that carry NO `externalId` (null/absent) don't
- * collide on a unique constraint. If prod instead carries a LEGACY/ORPHANED
- * `externalId_1` index whose options drifted from that spec (most dangerously a
- * NON-sparse unique index), every AP actor write with a null/absent `externalId`
- * collides → E11000 → federated actor creation breaks platform-wide.
+ * An earlier atproto (Bluesky) iteration added an `externalId` field (the remote
+ * DID) to `FederatedActor` with a sparse+unique index. PR #277 (commit 9a77475e)
+ * then CONSOLIDATED that away: the model now keys every actor on `uri`, and
+ * `externalId` survives only as an in-memory DTO property (`NormalizedExternalActor`,
+ * mapped to `actor.uri`) — it is NEVER persisted or queried on the collection.
  *
- * `autoIndex`/`autoCreate` are DISABLED in production (see
- * `src/utils/database.ts`), so mongoose does NOT sync indexes on boot: a wrong
- * index neither self-heals nor self-removes there. This script is the explicit,
- * audited convergence step.
+ * The model is the source of truth, and it declares NO `externalId` index. So a
+ * leftover `externalId_1` index in prod is an ORPHAN: it backs no model field,
+ * cannot self-remove (`autoIndex`/`autoCreate` are OFF in production — see
+ * `src/utils/database.ts`), and a non-sparse-unique variant E11000s on the many
+ * AP actors that carry no `externalId` (null/absent) -> breaks federated actor
+ * creation. The correct convergence is therefore DROP-ONLY: remove the orphan,
+ * do NOT recreate it.
  *
- * Intended spec (derived, not guessed)
- * ------------------------------------
- * The script reads the intended `externalId` index spec from the live
- * `FederatedActor` schema (`schema.indexes()`). If the model declares an
- * `externalId`-keyed index, that declaration is authoritative. If the model does
- * NOT declare one (the field has been consolidated onto `uri` in the canonical
- * model), the script falls back to the connector lineage's canonical spec —
- * `{ unique: true, sparse: true }` — which is also exactly the safe shape that a
- * non-sparse-unique orphan must be converged to. Either way the collection is
- * NEVER left without a correct `externalId` index.
+ * Model-driven (no hardcoded spec)
+ * --------------------------------
+ * The intended state is read from the live `FederatedActor` schema
+ * (`schema.indexes()`):
+ *   - If the model DOES declare an `{ externalId: 1 }` index (future-proofing for
+ *     a possible re-add), ensure exactly that — drop any mismatched variant and
+ *     create the declared one so the collection is never left without it.
+ *   - If the model declares NO `externalId` index (today), the end state is "no
+ *     index": drop any leftover `{ externalId: 1 }` index and do NOT recreate.
+ * There is no canonical/fallback spec — "no declared index -> no index" is the
+ * truth.
  *
  * Safety / modes
  * --------------
  *   - DEFAULT = INSPECT: lists every index on `federatedactors` (the evidence
  *     dump), reports what WOULD change, and exits 0 WITHOUT mutating anything.
- *   - APPLY (`APPLY=true`): drops the mismatched `externalId`-keyed index (if
- *     any) then (re)creates the correct one so the collection is never left
- *     without it, re-lists indexes, and logs the final state.
+ *   - APPLY (`APPLY=true`): performs the drop (and, only if the model declares
+ *     one, the create), re-lists indexes, and logs the final state.
  *
- * Idempotent: when the correct index already exists and no wrong one is present,
- * both modes are a clean no-op. Never throws on "index not found" — it logs and
- * continues. Always disconnects mongoose and exits 0 on success so the Fargate
- * one-shot terminates.
+ * Idempotent: when the live state already matches the model, both modes are a
+ * clean no-op. Never throws on "index not found" — it logs and continues. Always
+ * disconnects mongoose and exits 0 on success so the Fargate one-shot terminates.
  *
  * Runnable as a Fargate one-shot post-deploy:
  *   INSPECT (default, safe):  node dist/src/scripts/reconcileFederatedActorExternalIdIndex.js
@@ -57,13 +58,6 @@ const TARGET_FIELD = 'externalId';
 
 /** The expected (sole) key shape of the target index: ascending on the field. */
 const TARGET_KEY: Record<string, number> = { [TARGET_FIELD]: 1 };
-
-/**
- * The canonical fallback spec for the `externalId` index when the model does NOT
- * declare one. Sparse + unique: a remote id maps to at most one row, while the
- * many actors with no `externalId` are exempt from the unique constraint.
- */
-const CANONICAL_FALLBACK_OPTIONS: IntendedIndexOptions = { unique: true, sparse: true };
 
 /** The subset of index options that materially define correctness for us. */
 interface IntendedIndexOptions {
@@ -123,13 +117,23 @@ function optionsEqual(a: IntendedIndexOptions, b: IntendedIndexOptions): boolean
   return stableStringify(normalizeOptions(a)) === stableStringify(normalizeOptions(b));
 }
 
+/** A live index's correctness-defining options, normalized. */
+function liveOptions(idx: LiveIndex): IntendedIndexOptions {
+  return normalizeOptions({
+    unique: idx.unique,
+    sparse: idx.sparse,
+    partialFilterExpression: idx.partialFilterExpression,
+  });
+}
+
 /**
- * Resolve the intended `externalId` index options from the live model schema.
- * Returns the model's own declaration when present; otherwise the canonical
- * sparse+unique fallback. Logs which source won so the run is self-explaining.
+ * Resolve the model's intended `externalId` index from the live schema.
+ * Returns the declared options when the model declares an `{ externalId: 1 }`
+ * index, or `null` when it declares none (today's end state = "no index").
+ * The MODEL is the source of truth; there is no hardcoded fallback spec.
  */
-function resolveIntendedOptions(): IntendedIndexOptions {
-  // `schema.indexes()` → array of `[keySpec, optionsObject]` tuples.
+function resolveDeclaredOptions(): IntendedIndexOptions | null {
+  // `schema.indexes()` -> array of `[keySpec, optionsObject]` tuples.
   const declared = FederatedActor.schema
     .indexes()
     .find(([key]) => isTargetKey(key as Record<string, number>));
@@ -138,17 +142,17 @@ function resolveIntendedOptions(): IntendedIndexOptions {
     const [, declaredOptions] = declared as [Record<string, number>, IntendedIndexOptions];
     const intended = normalizeOptions(declaredOptions || {});
     logger.info(
-      `${LOG_PREFIX} intended spec sourced from model schema: ${stableStringify(intended)}`,
+      `${LOG_PREFIX} model schema DECLARES a ${TARGET_FIELD} index; intended spec: ${stableStringify(
+        intended,
+      )}`,
     );
     return intended;
   }
 
   logger.info(
-    `${LOG_PREFIX} model schema declares no ${TARGET_FIELD} index; using canonical fallback spec: ${stableStringify(
-      CANONICAL_FALLBACK_OPTIONS,
-    )}`,
+    `${LOG_PREFIX} model schema declares NO ${TARGET_FIELD} index; end state = no ${TARGET_FIELD} index (drop-only)`,
   );
-  return normalizeOptions(CANONICAL_FALLBACK_OPTIONS);
+  return null;
 }
 
 /** List + log every index on the collection (the evidence dump). */
@@ -157,7 +161,7 @@ async function dumpIndexes(label: string): Promise<LiveIndex[]> {
   try {
     indexes = (await FederatedActor.collection.indexes()) as LiveIndex[];
   } catch (error) {
-    // A brand-new/empty collection may not exist yet → treat as no indexes.
+    // A brand-new/empty collection may not exist yet -> treat as no indexes.
     logger.warn(`${LOG_PREFIX} could not list indexes (${label}); treating as none`, error);
     return [];
   }
@@ -167,13 +171,7 @@ async function dumpIndexes(label: string): Promise<LiveIndex[]> {
     logger.info(
       `${LOG_PREFIX}   - name=${idx.name ?? '(unnamed)'} key=${stableStringify(
         idx.key ?? {},
-      )} options=${stableStringify(
-        normalizeOptions({
-          unique: idx.unique,
-          sparse: idx.sparse,
-          partialFilterExpression: idx.partialFilterExpression,
-        }),
-      )}`,
+      )} options=${stableStringify(liveOptions(idx))}`,
     );
   }
   return indexes;
@@ -198,99 +196,18 @@ async function reconcileFederatedActorExternalIdIndex(): Promise<void> {
     await mongoose.connect(mongoUri, { dbName, autoIndex: false, autoCreate: false });
     logger.info(`${LOG_PREFIX} connected to MongoDB (${dbName}) — mode=${mode}`);
 
-    const intended = resolveIntendedOptions();
+    const declared = resolveDeclaredOptions();
 
     const before = await dumpIndexes('current indexes');
     const targetIndexes = before.filter(idx => isTargetKey(idx.key));
 
-    if (targetIndexes.length === 0) {
-      // No externalId index at all. The model expects one to exist; ensure it.
-      logger.info(
-        `${LOG_PREFIX} no ${TARGET_FIELD} index present. Intended: ${stableStringify(intended)}`,
-      );
-      if (!apply) {
-        logger.info(
-          `${LOG_PREFIX} INSPECT: WOULD create ${TARGET_FIELD} index ${stableStringify(
-            TARGET_KEY,
-          )} with options ${stableStringify(intended)}. No changes made.`,
-        );
-      } else {
-        await createTargetIndex(intended);
-        await dumpIndexes('final indexes');
-      }
+    if (declared === null) {
+      await reconcileNoDeclaredIndex(targetIndexes, apply);
       await finish(startedAt, mode);
       return;
     }
 
-    // Determine which existing target-keyed indexes match vs. mismatch.
-    const mismatched = targetIndexes.filter(
-      idx =>
-        !optionsEqual(
-          {
-            unique: idx.unique,
-            sparse: idx.sparse,
-            partialFilterExpression: idx.partialFilterExpression,
-          },
-          intended,
-        ),
-    );
-    const matched = targetIndexes.filter(idx => !mismatched.includes(idx));
-
-    if (mismatched.length === 0) {
-      logger.info(
-        `${LOG_PREFIX} ${TARGET_FIELD} index already matches intended spec ${stableStringify(
-          intended,
-        )} (name=${matched.map(i => i.name).join(', ')}). Clean no-op.`,
-      );
-      await finish(startedAt, mode);
-      return;
-    }
-
-    // There is at least one mismatched externalId index.
-    for (const idx of mismatched) {
-      const current = normalizeOptions({
-        unique: idx.unique,
-        sparse: idx.sparse,
-        partialFilterExpression: idx.partialFilterExpression,
-      });
-      logger.warn(
-        `${LOG_PREFIX} MISMATCH: index name=${idx.name ?? '(unnamed)'} key=${stableStringify(
-          idx.key ?? {},
-        )} has options ${stableStringify(current)} ≠ intended ${stableStringify(intended)}`,
-      );
-    }
-
-    if (!apply) {
-      logger.info(
-        `${LOG_PREFIX} INSPECT: WOULD drop ${mismatched
-          .map(i => i.name ?? '(unnamed)')
-          .join(', ')} and ${
-          matched.length > 0 ? 'keep the already-correct index' : 'ensure'
-        } a ${TARGET_FIELD} index with options ${stableStringify(
-          intended,
-        )}. No changes made.`,
-      );
-      await finish(startedAt, mode);
-      return;
-    }
-
-    // APPLY: drop each mismatched index, then ensure the correct one exists.
-    for (const idx of mismatched) {
-      await dropIndexByName(idx.name);
-    }
-
-    // If a correctly-specced index already coexisted, we keep it; otherwise create.
-    if (matched.length === 0) {
-      await createTargetIndex(intended);
-    } else {
-      logger.info(
-        `${LOG_PREFIX} a correctly-specced ${TARGET_FIELD} index already exists (name=${matched
-          .map(i => i.name)
-          .join(', ')}); no creation needed.`,
-      );
-    }
-
-    await dumpIndexes('final indexes');
+    await reconcileDeclaredIndex(declared, targetIndexes, apply);
     await finish(startedAt, mode);
   } catch (error) {
     logger.error(`${LOG_PREFIX} failed`, error);
@@ -299,13 +216,109 @@ async function reconcileFederatedActorExternalIdIndex(): Promise<void> {
   }
 }
 
-/** Create the intended externalId index, tolerating an already-exists race. */
-async function createTargetIndex(intended: IntendedIndexOptions): Promise<void> {
+/**
+ * Model declares NO externalId index: end state = no index.
+ * Drop any leftover `{ externalId: 1 }` index; never recreate.
+ */
+async function reconcileNoDeclaredIndex(targetIndexes: LiveIndex[], apply: boolean): Promise<void> {
+  if (targetIndexes.length === 0) {
+    logger.info(
+      `${LOG_PREFIX} no ${TARGET_FIELD} index present and model declares none. Clean no-op.`,
+    );
+    return;
+  }
+
+  for (const idx of targetIndexes) {
+    logger.warn(
+      `${LOG_PREFIX} ORPHAN: index name=${idx.name ?? '(unnamed)'} key=${stableStringify(
+        idx.key ?? {},
+      )} options=${stableStringify(
+        liveOptions(idx),
+      )} backs no model field (model declares no ${TARGET_FIELD} index)`,
+    );
+  }
+
+  if (!apply) {
+    logger.info(
+      `${LOG_PREFIX} INSPECT: WOULD drop orphan ${TARGET_FIELD} index ${targetIndexes
+        .map(i => i.name ?? '(unnamed)')
+        .join(', ')}; model declares none, so it will NOT be recreated. No changes made.`,
+    );
+    return;
+  }
+
+  for (const idx of targetIndexes) {
+    await dropIndexByName(idx.name);
+  }
+  await dumpIndexes('final indexes');
+}
+
+/**
+ * Model DECLARES an externalId index (future-proofing): ensure exactly that —
+ * drop any mismatched variant, create the declared one if absent.
+ */
+async function reconcileDeclaredIndex(
+  declared: IntendedIndexOptions,
+  targetIndexes: LiveIndex[],
+  apply: boolean,
+): Promise<void> {
+  const mismatched = targetIndexes.filter(idx => !optionsEqual(liveOptions(idx), declared));
+  const matched = targetIndexes.filter(idx => !mismatched.includes(idx));
+
+  if (targetIndexes.length > 0 && mismatched.length === 0) {
+    logger.info(
+      `${LOG_PREFIX} ${TARGET_FIELD} index already matches declared spec ${stableStringify(
+        declared,
+      )} (name=${matched.map(i => i.name).join(', ')}). Clean no-op.`,
+    );
+    return;
+  }
+
+  for (const idx of mismatched) {
+    logger.warn(
+      `${LOG_PREFIX} MISMATCH: index name=${idx.name ?? '(unnamed)'} key=${stableStringify(
+        idx.key ?? {},
+      )} has options ${stableStringify(liveOptions(idx))} ≠ declared ${stableStringify(declared)}`,
+    );
+  }
+
+  if (!apply) {
+    const actions: string[] = [];
+    if (mismatched.length > 0) {
+      actions.push(`drop ${mismatched.map(i => i.name ?? '(unnamed)').join(', ')}`);
+    }
+    if (matched.length === 0) {
+      actions.push(`create ${TARGET_FIELD} index with options ${stableStringify(declared)}`);
+    } else {
+      actions.push('keep the already-correct index');
+    }
+    logger.info(`${LOG_PREFIX} INSPECT: WOULD ${actions.join(' and ')}. No changes made.`);
+    return;
+  }
+
+  // APPLY: drop mismatched, then ensure the declared index exists.
+  for (const idx of mismatched) {
+    await dropIndexByName(idx.name);
+  }
+  if (matched.length === 0) {
+    await createTargetIndex(declared);
+  } else {
+    logger.info(
+      `${LOG_PREFIX} a correctly-specced ${TARGET_FIELD} index already exists (name=${matched
+        .map(i => i.name)
+        .join(', ')}); no creation needed.`,
+    );
+  }
+  await dumpIndexes('final indexes');
+}
+
+/** Create the declared externalId index, tolerating an already-exists race. */
+async function createTargetIndex(declared: IntendedIndexOptions): Promise<void> {
   try {
-    const name = await FederatedActor.collection.createIndex(TARGET_KEY, { ...intended });
+    const name = await FederatedActor.collection.createIndex(TARGET_KEY, { ...declared });
     logger.info(
       `${LOG_PREFIX} created ${TARGET_FIELD} index (name=${name}) with options ${stableStringify(
-        intended,
+        declared,
       )}`,
     );
   } catch (error) {
