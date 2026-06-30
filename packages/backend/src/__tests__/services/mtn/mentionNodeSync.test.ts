@@ -42,6 +42,10 @@ vi.mock('@oxyhq/protocol/node', () => ({
     head = (...a: unknown[]) => mockHead(...a);
     log = (...a: unknown[]) => mockLog(...a);
     pushRecords = vi.fn();
+    // Content-addressed blob fetcher (used by the materialize media mirror). These
+    // test records carry no embed, so it is never invoked, but the mock mirrors the
+    // real client surface.
+    getBlob = vi.fn(async () => null);
   },
 }));
 vi.mock('@oxyhq/protocol', async () => {

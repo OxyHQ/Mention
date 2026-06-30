@@ -16,24 +16,30 @@
  *    the same row (no duplicates, stable classification). Re-runs are safe.
  *  - ZERO-REGRESSION — a post upsert uses a FIELD-SCOPED `$set` of only the fields
  *    the record owns (text, reply, tags, langs, sources, location, …). It NEVER
- *    replaces the whole document, so re-projecting an existing post that already
- *    carries `content.media` fileId items KEEPS that media untouched. The
- *    authoritative native write path is unchanged; media rendering stays
- *    byte-identical (this module never touches `mediaResolver`).
- *  - READ-SIDE BLOB DEFERRED — `record.embed` now CARRIES content-addressed blob
+ *    replaces the whole document, and it only writes `content.media` when the
+ *    embed RESOLVES to ≥1 renderable item (see below), so re-projecting an
+ *    existing post whose `content.media` fileId items would not re-resolve KEEPS
+ *    that media untouched. The authoritative native write path is unchanged; media
+ *    rendering stays byte-identical (URLs are resolved by the existing
+ *    `mediaResolver` at hydration time, exactly as for native fileId media).
+ *  - READ-SIDE BLOB RESOLUTION — `record.embed` carries content-addressed blob
  *    refs (the WRITE side populates `embed[].blob.sha256` via the service SDK).
- *    The READ side cannot turn a bare `sha256` back into a servable URL yet: the
- *    Oxy CDN addresses media by `fileId` (`cloud.oxy.so/<fileId>`), and the only
- *    content-addressing endpoint is the FORWARD `fileId → sha256` lookup
- *    (`/assets/service/by-ids`) — there is NO reverse `sha256 → fileId`/`→ url`
- *    index upstream. A true content-addressed render path therefore needs a new
- *    upstream oxy-api endpoint and lands in a later phase. For the B2 round-trip
- *    (Mention's own records re-projected onto the SAME `rkey` post) this is moot:
- *    the post row already carries its `fileId` `content.media`, and the
- *    field-scoped `$set` below deliberately PRESERVES it. {@link
- *    resolveEmbedToMedia} stays the seam; it returns `[]` so the materializer
- *    NEVER writes `content.media` from a record (so it cannot clobber existing
- *    fileId media to empty). No fake URLs are ever invented.
+ *    The READ side turns each bare `sha256` back into a servable native MediaItem
+ *    with the REVERSE content-address lookup `getServiceAssetMetadataBySha256`
+ *    (core 5.2.0, `POST /assets/service/by-sha256`) — the inverse of the FORWARD
+ *    `fileId → sha256` lookup the write side uses. {@link resolveEmbedToMedia}
+ *    maps each resolvable blob to `{ id: <resolved Oxy fileId>, type, alt? }`, so
+ *    the materialized post's `content.media` renders through the EXISTING
+ *    `getFileDownloadUrl` CDN path EXACTLY like a normal fileId post. FAIL-SOFT: a
+ *    `sha256` with no live asset in our S3 is dropped (the upstream omits
+ *    unknown/trashed hashes), so a record whose blobs are not yet mirrored yields
+ *    fewer/zero items and never a fake URL. ZERO-REGRESSION GUARD: the post upsert
+ *    only writes `content.media` when the resolver produced ≥1 item; an empty
+ *    resolution leaves the field untouched, so the B2 round-trip (Mention's own
+ *    records re-projected onto the SAME `rkey`) keeps its existing fileId media.
+ *    This path matters for records INGESTED from a node whose blobs are
+ *    content-addressed (the node-blob mirror in `MentionNodeSyncService` makes
+ *    those blobs resolvable by `sha256` first).
  *  - NEVER THROWS — any failure (bad subject DID, invalid inner record, DB error)
  *    is wrapped and returned as `{ ok: false, reason }` so the backfill/ingest
  *    caller can log and continue. Validation runs FIRST: the inner `record` is
@@ -60,12 +66,14 @@ import {
   type MentionTombstoneRecord,
   type MentionBookmarkRecord,
   type MtnMediaEmbed,
+  type MediaItem,
 } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { Post, POST_CLASSIFICATION_PENDING } from '../../models/Post';
 import Like from '../../models/Like';
 import Bookmark from '../../models/Bookmark';
 import { logger } from '../../utils/logger';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
 
@@ -82,24 +90,82 @@ export type ProjectResult =
   | { ok: false; reason: string };
 
 /**
- * Resolve a record `embed` (content-addressed blob refs) to the native
- * `content.media` MediaItem shape.
+ * Resolve a record `embed` (content-addressed blob refs) to native
+ * `content.media` MediaItems by REVERSE content-address lookup.
  *
- * READ-SIDE SEAM — DEFERRED: the WRITE side now emits real `embed[].blob.sha256`,
- * but turning a bare `sha256` back into a renderable MediaItem (a servable
- * `fileId`/URL) requires a REVERSE content-address lookup (`sha256 → fileId`/
- * `→ url`) that the Oxy CDN/oxy-api/core do NOT expose — core 5.1.0 ships only
- * the FORWARD `fileId → sha256` lookup (`/assets/service/by-ids`). Until that
- * upstream endpoint lands, this returns `[]` for ANY embed — the materializer
- * therefore NEVER writes `content.media` from a record, which also guarantees it
- * cannot clobber an existing post's fileId media to empty (the B2 round-trip
- * keeps the post's own fileId media). No fake/guessed URL is ever produced.
+ * Each `embed.items[].blob.sha256` is batch-resolved through the service-scoped
+ * SDK's `getServiceAssetMetadataBySha256` (core 5.2.0, `POST
+ * /assets/service/by-sha256`) — the inverse of the write side's forward
+ * `fileId → sha256` lookup. Every blob that resolves to a LIVE (`status:'active'`)
+ * asset becomes a `MediaItem` whose `id` is the resolved Oxy `fileId` and whose
+ * `type` is the lexicon `mediaType` (the two enums are identical), preserving the
+ * embed's order and `alt` text. The materialized post's `content.media` then
+ * renders through the EXISTING `getFileDownloadUrl`/`mediaResolver` CDN path
+ * exactly like a normal fileId post — no new render path, no fake URL.
+ *
+ * FAIL-SOFT — NEVER THROWS:
+ *  - No embed / empty items → `[]` (the caller then leaves `content.media`
+ *    untouched, preserving any existing fileId media).
+ *  - A `sha256` with no live asset in our S3 (unknown/trashed — the upstream
+ *    omits these from the batch) is simply DROPPED, never placeholdered with a
+ *    guessed URL. A record whose blobs are not yet mirrored yields fewer/zero
+ *    items rather than failing.
+ *  - Any lookup error (e.g. a `files:read`-scope 403 on the federation
+ *    credential) is logged and yields `[]`, so a media-resolution failure can
+ *    never abort projection.
  */
-function resolveEmbedToMedia(_embed: MtnMediaEmbed | undefined): [] {
-  // Replace with sha256 → fileId resolution once the upstream reverse
-  // content-address endpoint exists, then map each resolved file to a MediaItem
-  // ({ id, type }). Intentionally a no-op today (see the READ-SIDE SEAM note).
-  return [];
+async function resolveEmbedToMedia(embed: MtnMediaEmbed | undefined): Promise<MediaItem[]> {
+  if (!embed || !Array.isArray(embed.items) || embed.items.length === 0) {
+    return [];
+  }
+
+  // Collect the distinct content addresses to resolve (preserve item order for
+  // the output; the lookup itself is order-independent and deduped).
+  const sha256s = Array.from(
+    new Set(
+      embed.items
+        .map((item) => item.blob?.sha256)
+        .filter((sha): sha is string => typeof sha === 'string' && sha.length > 0),
+    ),
+  );
+  if (sha256s.length === 0) {
+    return [];
+  }
+
+  try {
+    const metadata = await getServiceOxyClient().getServiceAssetMetadataBySha256(sha256s);
+    // sha256 → live fileId. Only `active` assets are renderable; a `trash` asset
+    // is dropped (treated as unresolvable) rather than linked to a dead file.
+    const fileIdBySha = new Map<string, string>();
+    for (const entry of metadata) {
+      if (entry.status === 'active' && typeof entry.id === 'string' && entry.id.length > 0) {
+        fileIdBySha.set(entry.sha256, entry.id);
+      }
+    }
+
+    const media: MediaItem[] = [];
+    for (const item of embed.items) {
+      const sha = item.blob?.sha256;
+      if (typeof sha !== 'string' || sha.length === 0) continue;
+      const fileId = fileIdBySha.get(sha);
+      // Unresolvable blob (not in our S3 / trashed): drop it — no fake URL.
+      if (!fileId) continue;
+      const resolved: MediaItem = { id: fileId, type: item.blob.mediaType };
+      if (typeof item.alt === 'string' && item.alt.length > 0) {
+        resolved.alt = item.alt;
+      }
+      media.push(resolved);
+    }
+    return media;
+  } catch (error) {
+    // Best-effort: a failed reverse lookup must never abort projection. Leave the
+    // post's existing media untouched (the caller skips the empty write).
+    logger.warn('PostMaterializer: resolveEmbedToMedia failed; projecting without record media', {
+      sha256Count: sha256s.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
 }
 
 /**
@@ -175,9 +241,11 @@ function buildClassificationFields(record: MentionPostRecord): Record<string, un
 
 /**
  * Project an `app.mention.feed.post` record into a `Post` row, upserted by
- * `_id = rkey`. Only the fields the record OWNS are `$set` (text/reply/tags/…);
- * `content.media` is never written here (BLOB DEFERRED), so an existing post's
- * fileId media survives re-projection.
+ * `_id = rkey`. Only the fields the record OWNS are `$set` (text/reply/tags/…).
+ * `content.media` is written ONLY when the record's content-addressed `embed`
+ * RESOLVES to ≥1 live MediaItem ({@link resolveEmbedToMedia}); an empty
+ * resolution leaves the field untouched, so an existing post's fileId media
+ * survives re-projection (zero-regression guard).
  */
 async function projectPost(
   rkey: string,
@@ -197,8 +265,6 @@ async function projectPost(
 
   const tags = Array.isArray(record.tags) ? [...record.tags] : [];
 
-  // `content.*` paths the record owns. NOTE: `content.media` is intentionally
-  // ABSENT (BLOB DEFERRED) so an upsert never clobbers existing fileId media.
   const set: Record<string, unknown> = {
     oxyUserId,
     type: PostType.TEXT,
@@ -211,6 +277,15 @@ async function projectPost(
 
   if (record.langs?.[0]) {
     set.language = record.langs[0];
+  }
+
+  // `content.media`: reverse-resolve the content-addressed blob embed to native
+  // fileId MediaItems. Only set the path when ≥1 blob resolved — an empty result
+  // (no embed, or blobs not yet in our S3) is intentionally OMITTED so the upsert
+  // never clobbers an existing post's fileId media to empty.
+  const media = await resolveEmbedToMedia(record.embed);
+  if (media.length > 0) {
+    set['content.media'] = media;
   }
 
   // `content.sources`: map the record's source links to the native shape.
