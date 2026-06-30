@@ -46,6 +46,7 @@ import {
   MENTION_NODE_PROBE_TIMEOUT_MS,
   MENTION_NODE_LAST_ERROR_MAX_LEN,
   MENTION_NODE_LIVENESS_SWEEP_BATCH,
+  MENTION_NODE_LIVENESS_PROBE_CONCURRENCY,
   MENTION_NODE_BASE_URL_ENV,
   MENTION_NODE_USER_PATH_PREFIX,
   MENTION_NODE_PUBLIC_KEY_ENV,
@@ -251,8 +252,14 @@ export async function probeLiveness(oxyUserId: string): Promise<void> {
 
 /**
  * Re-probe a bounded batch of registered nodes (least-recently-probed first).
- * Sequential to bound the outbound concurrency; each probe is independent and
- * non-throwing. Called ONLY by the leader-gated background scheduler.
+ *
+ * Probes run with BOUNDED concurrency ({@link MENTION_NODE_LIVENESS_PROBE_CONCURRENCY}
+ * workers draining a shared queue) so one slow/offline node never stalls the rest
+ * and we never open all {@link MENTION_NODE_LIVENESS_SWEEP_BATCH} sockets at once.
+ * Each probe keeps its own per-request timeout and is independent + non-throwing
+ * ({@link probeLiveness} swallows its own errors); `Promise.allSettled` adds
+ * defence-in-depth so a single rejection can never reject the batch. Called ONLY
+ * by the leader-gated background scheduler.
  */
 export async function sweepNodeLiveness(): Promise<void> {
   const nodes = await MentionUserNode.find({ status: { $in: ['active', 'unreachable'] } })
@@ -261,9 +268,25 @@ export async function sweepNodeLiveness(): Promise<void> {
     .select('oxyUserId')
     .lean<Array<{ oxyUserId: string }>>();
 
-  for (const node of nodes) {
-    await probeLiveness(node.oxyUserId);
+  if (nodes.length === 0) {
+    return;
   }
+
+  // A fixed pool of workers pulls from a shared cursor: as soon as a worker's
+  // probe settles it grabs the next node, so a slow node only occupies its own
+  // worker instead of blocking a whole chunk. Concurrency is capped at the pool
+  // size (never more than the node count).
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < nodes.length) {
+      const node = nodes[nextIndex];
+      nextIndex += 1;
+      await probeLiveness(node.oxyUserId);
+    }
+  };
+
+  const poolSize = Math.min(MENTION_NODE_LIVENESS_PROBE_CONCURRENCY, nodes.length);
+  await Promise.allSettled(Array.from({ length: poolSize }, () => worker()));
 }
 
 /** The cached node row for a user (any status), or `null`. */

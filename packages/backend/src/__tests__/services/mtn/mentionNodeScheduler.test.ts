@@ -32,6 +32,10 @@ vi.mock('../../../models/MentionUserNode', () => ({
 }));
 
 import { MentionNodeScheduler } from '../../../services/mtn/MentionNodeScheduler';
+import {
+  MENTION_NODE_LIVENESS_SWEEP_INTERVAL_MS,
+  MENTION_NODE_INGEST_SWEEP_INTERVAL_MS,
+} from '../../../services/mtn/mentionNodes.constants';
 
 function findLean(rows: unknown) {
   return { sort: () => ({ limit: () => ({ select: () => ({ lean: () => Promise.resolve(rows) }) }) }) };
@@ -102,6 +106,65 @@ describe('MentionNodeScheduler', () => {
 
     // Only ONE liveness sweep fired despite two start() calls.
     expect(mockSweepLiveness).toHaveBeenCalledTimes(1);
+    scheduler.stop();
+  });
+
+  it('does NOT overlap liveness sweeps when one outlasts its interval', async () => {
+    // A liveness sweep that never resolves: every subsequent interval tick must
+    // be skipped by the re-entrancy guard rather than starting a 2nd sweep.
+    let releaseSweep: (() => void) | undefined;
+    mockSweepLiveness.mockImplementation(
+      () => new Promise<void>((resolve) => { releaseSweep = resolve; }),
+    );
+
+    const scheduler = new MentionNodeScheduler();
+    scheduler.start();
+
+    // First tick (after the startup delay) starts the long-running sweep.
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(mockSweepLiveness).toHaveBeenCalledTimes(1);
+
+    // Several more interval boundaries pass while the first sweep is still in
+    // flight — none may start a second sweep.
+    await vi.advanceTimersByTimeAsync(MENTION_NODE_LIVENESS_SWEEP_INTERVAL_MS * 3);
+    expect(mockSweepLiveness).toHaveBeenCalledTimes(1);
+
+    // Let the in-flight sweep finish; the next tick is then free to run.
+    releaseSweep?.();
+    await vi.advanceTimersByTimeAsync(MENTION_NODE_LIVENESS_SWEEP_INTERVAL_MS);
+    expect(mockSweepLiveness).toHaveBeenCalledTimes(2);
+
+    scheduler.stop();
+  });
+
+  it('does NOT overlap sync sweeps when one outlasts its interval', async () => {
+    // A sync sweep blocks in ingest: hold it open and assert no second sweep
+    // starts (the node query is not re-run) on the following ticks.
+    mockNodeFind.mockReturnValue(findLean([{ oxyUserId: 'u-pull', mode: 'pull' }]));
+    let releaseIngest: (() => void) | undefined;
+    mockIngest.mockImplementation(
+      () => new Promise<void>((resolve) => { releaseIngest = resolve; }),
+    );
+
+    const scheduler = new MentionNodeScheduler();
+    scheduler.start();
+
+    // First sync tick (after its 90s startup delay) begins and blocks in ingest.
+    await vi.advanceTimersByTimeAsync(91_000);
+    expect(mockNodeFind).toHaveBeenCalledTimes(1);
+    expect(mockIngest).toHaveBeenCalledTimes(1);
+
+    // Interval boundaries pass while ingest is blocked — the guard skips them, so
+    // the node query is not re-run and ingest is not re-invoked.
+    await vi.advanceTimersByTimeAsync(MENTION_NODE_INGEST_SWEEP_INTERVAL_MS * 3);
+    expect(mockNodeFind).toHaveBeenCalledTimes(1);
+    expect(mockIngest).toHaveBeenCalledTimes(1);
+
+    // Unblock the sweep; the next tick is then free to run a fresh sweep.
+    releaseIngest?.();
+    await vi.advanceTimersByTimeAsync(MENTION_NODE_INGEST_SWEEP_INTERVAL_MS);
+    expect(mockNodeFind).toHaveBeenCalledTimes(2);
+
     scheduler.stop();
   });
 });

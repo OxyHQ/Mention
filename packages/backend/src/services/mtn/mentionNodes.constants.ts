@@ -38,6 +38,13 @@ export const MENTION_NODE_LAST_ERROR_MAX_LEN = 300;
 /** Max nodes re-probed per sweep (bounds the background work). */
 export const MENTION_NODE_LIVENESS_SWEEP_BATCH = 100;
 
+/**
+ * Max liveness probes in flight at once during a sweep. Bounds the outbound
+ * socket fan-out so one slow/offline node never stalls the rest (and we never
+ * open all {@link MENTION_NODE_LIVENESS_SWEEP_BATCH} sockets simultaneously).
+ */
+export const MENTION_NODE_LIVENESS_PROBE_CONCURRENCY = 8;
+
 /* -------------------------------------------------------------------------- */
 /*  Bidirectional sync (node → Mention ingest)                                */
 /* -------------------------------------------------------------------------- */

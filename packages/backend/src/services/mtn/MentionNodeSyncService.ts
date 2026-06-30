@@ -432,7 +432,18 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
     for (let iteration = 0; iteration < MENTION_NODE_INGEST_MAX_ITERATIONS && !stopReason; iteration += 1) {
       let page: unknown[];
       try {
-        page = (await client.log(cursor, MENTION_NODE_INGEST_BATCH)).records;
+        const { records } = await client.log(cursor, MENTION_NODE_INGEST_BATCH);
+        // The node is UNTRUSTED: a malformed/hostile response whose `records` is
+        // not an array must be treated as "nothing to ingest", never a thrown
+        // TypeError that aborts the sweep. Stop this run cleanly at the last good
+        // cursor; the next scheduled run retries.
+        if (!Array.isArray(records)) {
+          logger.warn('MentionNodeSync: node log response had no records array; treating as empty', {
+            oxyUserId,
+          });
+          break;
+        }
+        page = records;
       } catch (err) {
         await recordIngestError(oxyUserId, err);
         return;
@@ -543,6 +554,18 @@ export async function exportToNode(oxyUserId: string): Promise<void> {
         pushed = await client.pushRecords(batch);
       } catch (err) {
         await recordIngestError(oxyUserId, err);
+        return;
+      }
+
+      // The node is UNTRUSTED: a malformed response whose `results` is not an
+      // array cannot be indexed safely. Treat it as "no acknowledged records this
+      // batch" — stop the export at the last accepted seq (logged) without
+      // crashing; the next scheduled run retries from there.
+      if (!Array.isArray(pushed.results)) {
+        logger.warn('MentionNodeSync: node push response had no results array; stopping export', {
+          oxyUserId,
+        });
+        await markSynced(oxyUserId, cursor, true);
         return;
       }
 

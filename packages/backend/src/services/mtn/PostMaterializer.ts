@@ -145,12 +145,14 @@ async function resolveEmbedToMedia(embed: MtnMediaEmbed | undefined): Promise<Me
 
     const media: MediaItem[] = [];
     for (const item of embed.items) {
-      const sha = item.blob?.sha256;
-      if (typeof sha !== 'string' || sha.length === 0) continue;
-      const fileId = fileIdBySha.get(sha);
+      // Bind `blob` explicitly so it is provably defined at the `mediaType`
+      // access below (optional chaining alone would not narrow `item.blob`).
+      const blob = item.blob;
+      if (!blob || typeof blob.sha256 !== 'string' || blob.sha256.length === 0) continue;
+      const fileId = fileIdBySha.get(blob.sha256);
       // Unresolvable blob (not in our S3 / trashed): drop it — no fake URL.
       if (!fileId) continue;
-      const resolved: MediaItem = { id: fileId, type: item.blob.mediaType };
+      const resolved: MediaItem = { id: fileId, type: blob.mediaType };
       if (typeof item.alt === 'string' && item.alt.length > 0) {
         resolved.alt = item.alt;
       }
