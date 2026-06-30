@@ -775,6 +775,7 @@ publicApiRouter.use("/federation", optionalAuth, federationApiRoutes); // Write 
 publicApiRouter.use("/feeds", optionalAuth, customFeedsRoutes); // Public feed discovery; write routes enforce auth internally
 publicApiRouter.use("/rooms", optionalAuth, roomsRoutes); // Public room discovery; write routes enforce auth internally
 publicApiRouter.use("/recommendations", optionalAuth, recommendationsRoutes); // Cross-app profile recommendations (personalized when authed)
+publicApiRouter.use("/starter-packs", optionalAuth, starterPacksRoutes); // Public read/discovery + shared pack links; write routes enforce auth internally
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
@@ -803,7 +804,8 @@ authenticatedApiRouter.use("/houses", housesRoutes);
 authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
 authenticatedApiRouter.use("/entity-follows", entityFollowRoutes);
-authenticatedApiRouter.use("/starter-packs", starterPacksRoutes);
+// Starter packs moved to the public router (optionalAuth) above so discovery and
+// shared pack links resolve during cold boot; its write routes enforce auth internally.
 authenticatedApiRouter.use("/admin", adminRoutes);
 
 // --- Root API Welcome Route ---

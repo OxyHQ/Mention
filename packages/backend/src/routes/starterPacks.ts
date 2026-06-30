@@ -123,26 +123,42 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// List starter packs (mine or discover)
+// List starter packs — public read with OPTIONAL auth. Three modes:
+//   - mine=true       → the authenticated viewer's own packs (empty when anon)
+//   - userId=<oxyId>  → a specific owner's packs (a profile's "Starter Packs" tab)
+//   - neither         → public discovery (all packs, most-used first)
+// The write routes below enforce auth internally.
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Authentication required' });
-    const { mine, search } = req.query as any;
+    const viewerId = req.user?.id;
+    const mine = typeof req.query.mine === 'string' ? req.query.mine : undefined;
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const ownerId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
 
-    const q: any = {};
+    const q: Record<string, unknown> = {};
+    let ownerScoped = false;
     if (mine === 'true') {
-      q.ownerOxyUserId = userId;
+      // "My packs" requires identity; an anonymous viewer owns nothing.
+      if (!viewerId) return res.json({ items: [], total: 0 });
+      q.ownerOxyUserId = viewerId;
+      ownerScoped = true;
+    } else if (ownerId.length > 0) {
+      // A specific profile's packs (foreign-profile tab passes `userId`).
+      q.ownerOxyUserId = ownerId;
+      ownerScoped = true;
     }
     if (search) {
-      const escaped = escapeRegex(String(search));
+      const escaped = escapeRegex(search);
       q.$or = [
         { name: { $regex: escaped, $options: 'i' } },
         { description: { $regex: escaped, $options: 'i' } },
       ];
     }
 
-    const sort: any = mine === 'true' ? { updatedAt: -1 } : { useCount: -1, createdAt: -1 };
+    // Owner-scoped views read best most-recent-first; discovery ranks by usage.
+    const sort: Record<string, 1 | -1> = ownerScoped
+      ? { updatedAt: -1 }
+      : { useCount: -1, createdAt: -1 };
     const items = await StarterPack.find(q).sort(sort).limit(50).lean<LeanStarterPack[]>();
     const enriched = await enrichWithMemberAvatars(items);
     res.json({ items: enriched, total: enriched.length });
@@ -151,7 +167,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Get starter pack
+// Get starter pack — public read with optional auth (shared links resolve while
+// the session is still restoring). No owner-only fields are exposed.
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const pack = await StarterPack.findById(req.params.id).lean();
@@ -166,6 +183,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
@@ -194,6 +212,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
@@ -215,6 +234,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 router.post('/:id/members', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const { userIds } = req.body || {};
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
@@ -235,6 +255,7 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
 router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const { userIds } = req.body || {};
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });

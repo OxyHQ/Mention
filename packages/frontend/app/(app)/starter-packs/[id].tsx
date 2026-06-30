@@ -52,6 +52,10 @@ export default function StarterPackDetailScreen() {
   const isOwner = pack ? user?.id === pack.ownerOxyUserId : false;
 
   const load = useCallback(async () => {
+    // Show the spinner on every (re)run so a refetch triggered when the auth
+    // session resolves replaces the stale error/empty state instead of leaving
+    // the previous one on screen.
+    setLoading(true);
     setError(null);
     try {
       const p = await starterPacksService.get(String(id)) as StarterPackDetail;
@@ -86,7 +90,10 @@ export default function StarterPackDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, oxyServices]);
+    // `user?.id` is in the deps so this re-runs when the SSO session resolves on
+    // cold boot / reload / shared-link entry. Without it the read fires once
+    // before the bearer is ready, 401s, and stays on "Failed to load" forever.
+  }, [id, oxyServices, user?.id]);
 
   useFocusEffect(
     useCallback(() => {

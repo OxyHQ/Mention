@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@oxyhq/services';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -11,6 +12,7 @@ import { logger } from '@/lib/logger';
 export function StarterPacksTab() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [packs, setPacks] = useState<StarterPackSummary[]>([]);
 
@@ -24,7 +26,11 @@ export function StarterPacksTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+    // `user?.id` is in the deps so the callback identity changes when the auth
+    // session resolves on cold boot. Without it the effect below fires once
+    // while the SSO restore is still pending — the starter-packs read 401s, the
+    // error is swallowed, and the tab is stuck on the empty state forever.
+  }, [user?.id]);
 
   useEffect(() => {
     fetchPacks();
