@@ -25,9 +25,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockHead = vi.fn();
 const mockLog = vi.fn();
+const mockPushRecords = vi.fn();
 const mockVerifyAndStore = vi.fn();
 const mockProjectRecord = vi.fn();
 const mockGetHead = vi.fn();
+const mockGetPublicLogSince = vi.fn();
 const mockSignMessage = vi.fn();
 const mockComputeRecordId = vi.fn();
 const mockNodeFindOne = vi.fn();
@@ -36,12 +38,12 @@ const mockSignedRecordFindOne = vi.fn();
 const mockSignedRecordCreate = vi.fn();
 const mockWitnessCreate = vi.fn();
 
-// NodeClient is mocked to a stub that returns the canned head/log responses.
+// NodeClient is mocked to a stub that returns the canned head/log/push responses.
 vi.mock('@oxyhq/protocol/node', () => ({
   NodeClient: class {
     head = (...a: unknown[]) => mockHead(...a);
     log = (...a: unknown[]) => mockLog(...a);
-    pushRecords = vi.fn();
+    pushRecords = (...a: unknown[]) => mockPushRecords(...a);
     // Content-addressed blob fetcher (used by the materialize media mirror). These
     // test records carry no embed, so it is never invoked, but the mock mirrors the
     // real client surface.
@@ -65,7 +67,7 @@ vi.mock('../../../services/mtn/PostMaterializer', () => ({
 }));
 vi.mock('../../../services/mtn/MentionRepoLogService', () => ({
   getHead: (...a: unknown[]) => mockGetHead(...a),
-  getPublicLogSince: vi.fn(async () => []),
+  getPublicLogSince: (...a: unknown[]) => mockGetPublicLogSince(...a),
 }));
 vi.mock('../../../models/MentionUserNode', () => ({
   __esModule: true,
@@ -86,7 +88,7 @@ vi.mock('../../../models/MentionNodeIngestWitness', () => ({
   default: { create: (...a: unknown[]) => mockWitnessCreate(...a) },
 }));
 
-import { ingestFromNode } from '../../../services/mtn/MentionNodeSyncService';
+import { ingestFromNode, exportToNode } from '../../../services/mtn/MentionNodeSyncService';
 
 const OXY_USER_ID = '650000000000000000000abc';
 const SUBJECT_DID = `did:web:oxy.so:u:${OXY_USER_ID}`;
@@ -138,6 +140,7 @@ beforeEach(() => {
 
   mockNodeFindOne.mockReturnValue(selectLean({ endpoint: 'https://node.example.com', cursor: undefined }));
   mockGetHead.mockResolvedValue(null); // local head -1
+  mockGetPublicLogSince.mockResolvedValue([]); // export: nothing to push by default
   mockNodeUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mockSignedRecordFindOne.mockReturnValue(sortLean(null));
   mockSignedRecordCreate.mockResolvedValue({});
@@ -294,5 +297,57 @@ describe('ingestFromNode — resilience', () => {
 
     expect(mockHead).not.toHaveBeenCalled();
     expect(mockNodeUpdateOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('ingestFromNode — malformed (untrusted) node response', () => {
+  it('treats a non-array `records` payload as empty WITHOUT throwing or projecting', async () => {
+    mockHead.mockResolvedValueOnce({ seq: 3, headRecordId: 'h', recordCount: 4 });
+    // A hostile/buggy node returns a log page whose `records` is not an array.
+    mockLog.mockResolvedValueOnce({ records: undefined, count: 0, head: null });
+
+    await expect(ingestFromNode(OXY_USER_ID)).resolves.toBeUndefined();
+
+    // Nothing was ingested (no TypeError aborted the sweep); the run stamps the
+    // cursor cleanly so the next scheduled run retries.
+    expect(mockVerifyAndStore).not.toHaveBeenCalled();
+    expect(mockProjectRecord).not.toHaveBeenCalled();
+    expect(mockWitnessCreate).not.toHaveBeenCalled();
+    const update = lastUpdate(mockNodeUpdateOne);
+    expect(update.$set?.lastSyncedAt).toBeInstanceOf(Date);
+    expect(update.$unset).toEqual({ lastError: '' });
+  });
+});
+
+describe('exportToNode — malformed (untrusted) push response', () => {
+  it('treats a non-array `results` payload as no acknowledgement WITHOUT crashing', async () => {
+    mockHead.mockResolvedValueOnce({ seq: -1, headRecordId: null, recordCount: 0 });
+    mockGetPublicLogSince.mockResolvedValueOnce([envelope(0)]);
+    // The node returns a push response whose `results` is not an array.
+    mockPushRecords.mockResolvedValueOnce({ accepted: 1, results: undefined });
+
+    await expect(exportToNode(OXY_USER_ID)).resolves.toBeUndefined();
+
+    // The export stopped cleanly at the last accepted cursor (no indexing crash);
+    // lastSyncedAt is stamped so the next run retries the unacknowledged batch.
+    const update = lastUpdate(mockNodeUpdateOne);
+    expect(update.$set?.lastSyncedAt).toBeInstanceOf(Date);
+  });
+
+  it('advances the cursor for accepted records on a well-formed push response', async () => {
+    mockHead.mockResolvedValueOnce({ seq: -1, headRecordId: null, recordCount: 0 });
+    mockGetPublicLogSince
+      .mockResolvedValueOnce([envelope(0)])
+      .mockResolvedValueOnce([]); // caught up on the 2nd iteration
+    mockPushRecords.mockResolvedValueOnce({
+      accepted: 1,
+      results: [{ ok: true, recordId: 'rid-0', seq: 0 }],
+    });
+
+    await exportToNode(OXY_USER_ID);
+
+    const update = lastUpdate(mockNodeUpdateOne);
+    expect(update.$set).toMatchObject({ cursor: 0 });
+    expect(update.$unset).toEqual({ lastError: '' });
   });
 });

@@ -39,6 +39,10 @@ export class MentionNodeScheduler {
   private livenessStartTimeout: NodeJS.Timeout | null = null;
   private syncStartTimeout: NodeJS.Timeout | null = null;
   private isRunning = false;
+  /** Re-entrancy guard: a liveness sweep is mid-flight (skip overlapping ticks). */
+  private isLivenessSweeping = false;
+  /** Re-entrancy guard: a sync sweep is mid-flight (skip overlapping ticks). */
+  private isSyncSweeping = false;
 
   /** Start the leader-gated liveness + sync sweeps. Idempotent. */
   start(): void {
@@ -88,14 +92,27 @@ export class MentionNodeScheduler {
     logger.info('MentionNodeScheduler stopped');
   }
 
-  /** One liveness sweep tick — never throws into the timer. */
+  /**
+   * One liveness sweep tick — never throws into the timer.
+   *
+   * Re-entrancy guarded: if a previous sweep is still in flight when the next
+   * timer fires (a sweep that ran longer than its interval), the new tick is
+   * skipped so executions never overlap and pile up DB churn / double work.
+   */
   private async runLivenessSweep(): Promise<void> {
+    if (this.isLivenessSweeping) {
+      logger.debug('MentionNodeScheduler: liveness sweep still running; skipping overlapping tick');
+      return;
+    }
+    this.isLivenessSweeping = true;
     try {
       await sweepNodeLiveness();
     } catch (err) {
       logger.warn('MentionNodeScheduler: liveness sweep failed', {
         error: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      this.isLivenessSweeping = false;
     }
   }
 
@@ -103,8 +120,16 @@ export class MentionNodeScheduler {
    * One sync sweep tick — ingest `pull` nodes, export `push` nodes, bounded and
    * sequential. Each node is independent + non-throwing. Never throws into the
    * timer.
+   *
+   * Re-entrancy guarded: a sweep that outlasts its interval is not joined by the
+   * next tick — the overlapping tick is skipped so sweeps never run concurrently.
    */
   private async runSyncSweep(): Promise<void> {
+    if (this.isSyncSweeping) {
+      logger.debug('MentionNodeScheduler: sync sweep still running; skipping overlapping tick');
+      return;
+    }
+    this.isSyncSweeping = true;
     try {
       const nodes = await MentionUserNode.find({ status: { $in: ['active', 'unreachable'] } })
         .sort({ lastSyncedAt: 1 })
@@ -123,6 +148,8 @@ export class MentionNodeScheduler {
       logger.warn('MentionNodeScheduler: sync sweep failed', {
         error: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      this.isSyncSweeping = false;
     }
   }
 }

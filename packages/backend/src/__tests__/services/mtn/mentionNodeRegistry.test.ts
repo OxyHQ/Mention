@@ -113,13 +113,17 @@ const { memoryStore, resolveDid, nodeModel, safeFetchMock } = vi.hoisted(() => {
     })),
     updateOne: vi.fn(async () => ({ modifiedCount: 1 })),
     find: vi.fn(() => ({
-      sort: () => ({ limit: () => ({ select: () => ({ lean: async () => [] }) }) }),
+      sort: () => ({
+        limit: () => ({
+          select: () => ({ lean: async (): Promise<Array<{ oxyUserId: string }>> => [] }),
+        }),
+      }),
     })),
   };
 
-  const safeFetch = vi.fn(async () => ({
+  const safeFetch = vi.fn(async (_url: string) => ({
     status: 200,
-    headers: {},
+    headers: {} as Record<string, string>,
     response: { destroy: () => undefined },
     finalUrl: '',
   }));
@@ -147,9 +151,14 @@ import {
   materializeNodeFromRecord,
   provisionManagedVault,
   probeLiveness,
+  sweepNodeLiveness,
 } from '../../../services/mtn/MentionNodeRegistryService';
 import { clearVerificationMethodCache } from '../../../services/mtn/mentionVerificationResolver';
-import { MENTION_NODE_COLLECTION, MENTION_NODE_RKEY } from '../../../services/mtn/mentionNodes.constants';
+import {
+  MENTION_NODE_COLLECTION,
+  MENTION_NODE_RKEY,
+  MENTION_NODE_LIVENESS_PROBE_CONCURRENCY,
+} from '../../../services/mtn/mentionNodes.constants';
 
 const NODE_ENDPOINT = 'https://node.example.com';
 const NODE_PUBLIC_KEY = 'ab'.repeat(33); // 66 hex chars — a valid secp256k1 key
@@ -322,5 +331,77 @@ describe('MentionNodeRegistryService.probeLiveness', () => {
     const set = lastSet(nodeModel.updateOne);
     expect(set.status).toBe('unreachable');
     expect(set.lastError).toContain('ECONNREFUSED');
+  });
+});
+
+describe('MentionNodeRegistryService.sweepNodeLiveness — bounded concurrency', () => {
+  /** Build N cached node rows + return them from `MentionUserNode.find()`. */
+  function seedNodes(count: number): string[] {
+    const ids = Array.from({ length: count }, (_, i) => `${SUBJECT_OXY_ID}${i}`);
+    for (const id of ids) {
+      nodeModel.cache.set(id, { oxyUserId: id, endpoint: `${NODE_ENDPOINT}/${id}`, status: 'active' });
+    }
+    nodeModel.find.mockReturnValueOnce({
+      sort: () => ({
+        limit: () => ({
+          select: () => ({ lean: async () => ids.map((oxyUserId) => ({ oxyUserId })) }),
+        }),
+      }),
+    });
+    return ids;
+  }
+
+  it('probes EVERY node but never exceeds the in-flight concurrency cap', async () => {
+    const NODE_COUNT = MENTION_NODE_LIVENESS_PROBE_CONCURRENCY * 3;
+    const ids = seedNodes(NODE_COUNT);
+
+    let inFlight = 0;
+    let peakInFlight = 0;
+    // Each probe holds a fetch open across a microtask so several can overlap;
+    // the pool must keep overlap at/below the cap.
+    safeFetchMock.mockImplementation(async () => {
+      inFlight += 1;
+      peakInFlight = Math.max(peakInFlight, inFlight);
+      await Promise.resolve();
+      await Promise.resolve();
+      inFlight -= 1;
+      return { status: 200, headers: {}, response: { destroy: () => undefined }, finalUrl: '' };
+    });
+
+    await sweepNodeLiveness();
+
+    // Every node was probed exactly once.
+    expect(safeFetchMock).toHaveBeenCalledTimes(NODE_COUNT);
+    const probedEndpoints = safeFetchMock.mock.calls.map((c) => String(c[0]));
+    for (const id of ids) {
+      expect(probedEndpoints).toContain(`${NODE_ENDPOINT}/${id}/.well-known/oxy-node.json`);
+    }
+    // Concurrency stayed bounded: never more than the cap open at once.
+    expect(peakInFlight).toBeGreaterThan(1); // genuinely parallel (not sequential)
+    expect(peakInFlight).toBeLessThanOrEqual(MENTION_NODE_LIVENESS_PROBE_CONCURRENCY);
+  });
+
+  it('isolates a single failing probe — the rest of the batch still completes', async () => {
+    const ids = seedNodes(5);
+    let call = 0;
+    safeFetchMock.mockImplementation(async () => {
+      call += 1;
+      if (call === 2) throw new Error('one node is down');
+      return { status: 200, headers: {}, response: { destroy: () => undefined }, finalUrl: '' };
+    });
+
+    // A rejecting probe must not reject the sweep.
+    await expect(sweepNodeLiveness()).resolves.toBeUndefined();
+    // All five nodes were still probed despite the one failure.
+    expect(safeFetchMock).toHaveBeenCalledTimes(ids.length);
+  });
+
+  it('is a clean no-op when no nodes are registered', async () => {
+    nodeModel.find.mockReturnValueOnce({
+      sort: () => ({ limit: () => ({ select: () => ({ lean: async () => [] }) }) }),
+    });
+
+    await expect(sweepNodeLiveness()).resolves.toBeUndefined();
+    expect(safeFetchMock).not.toHaveBeenCalled();
   });
 });
