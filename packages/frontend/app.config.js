@@ -85,7 +85,6 @@ return {
                     },
             ],
             softwareKeyboardLayoutMode: "pan",
-            edgeToEdgeEnabled: true,
         },
         web: {
             bundler: "metro",
