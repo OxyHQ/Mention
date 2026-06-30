@@ -18,10 +18,34 @@ import {
 // Feed responses may include slices for thread grouping
 type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices'>>;
 import { FeedFilters } from '../utils/feedUtils';
-import { authenticatedClient, publicClient } from '../utils/api';
+import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@/lib/logger';
 import { normalizeApiError } from '@/utils/apiError';
+
+/** The network a resolved external actor belongs to (matches the backend `NetworkId`). */
+export type ExternalNetwork = 'activitypub' | 'atproto';
+
+/**
+ * A normalized cross-network actor returned by `GET /federation/resolve`.
+ * Mirrors the backend connectors route response shape exactly.
+ */
+export interface ExternalActorResolution {
+  /** The network that owns the actor. */
+  network: ExternalNetwork;
+  /** Canonical protocol id: an ActivityPub actor URI, or an atproto DID. Used as the follow target. */
+  externalId: string;
+  /** Fediverse-style handle (`user@domain` for ActivityPub; the atproto handle/DID otherwise). */
+  handle: string;
+  /** Canonical Oxy display name, when resolved. */
+  displayName?: string;
+  /** Actor avatar URL (a remote URL, proxied at render time). */
+  avatarUrl?: string;
+  /** The Oxy user this actor maps to, once minted — drives profile navigation. */
+  oxyUserId?: string;
+  /** Whether the current viewer already follows this actor. */
+  followed: boolean;
+}
 
 /**
  * In-flight dedup discriminator for the viewer's auth state.
@@ -661,16 +685,41 @@ class FeedService {
   }
 
   // ────────────────────────────────────────────────────────────
-  // Federation — ActivityPub follow/unfollow
+  // Cross-network connectors — resolve / follow / unfollow
   // ────────────────────────────────────────────────────────────
 
-  async followFederatedActor(actorUri: string): Promise<{ success: boolean; pending: boolean }> {
-    const response = await authenticatedClient.post<{ success: boolean; pending: boolean }>('/federation/follow', { actorUri });
+  /**
+   * Resolve a remote handle to a normalized external actor across networks
+   * (`GET /federation/resolve`). Returns `null` when the query is a local Oxy
+   * handle (404 "Not an external handle") or no actor was found — callers fall
+   * back to the existing local people search. Network errors propagate so React
+   * Query can surface a retryable error state.
+   */
+  async resolveExternalActor(handle: string): Promise<ExternalActorResolution | null> {
+    try {
+      const response = await authenticatedClient.get<ExternalActorResolution>('/federation/resolve', {
+        params: { handle },
+      });
+      return response.data ?? null;
+    } catch (error) {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * Follow a remote actor across any network (`POST /federation/follow`,
+   * dispatched by the actor's protocol). `actorUri` is the actor's canonical
+   * protocol id (`externalId` from a resolve): an ActivityPub actor URI or an
+   * atproto DID. The response echoes the CANONICAL `actorUri` the system stored.
+   */
+  async followFederatedActor(actorUri: string): Promise<{ success: boolean; pending: boolean; actorUri: string }> {
+    const response = await authenticatedClient.post<{ success: boolean; pending: boolean; actorUri: string }>('/federation/follow', { actorUri });
     return response.data;
   }
 
-  async unfollowFederatedActor(actorUri: string): Promise<{ success: boolean }> {
-    const response = await authenticatedClient.post<{ success: boolean }>('/federation/unfollow', { actorUri });
+  async unfollowFederatedActor(actorUri: string): Promise<{ success: boolean; actorUri: string }> {
+    const response = await authenticatedClient.post<{ success: boolean; actorUri: string }>('/federation/unfollow', { actorUri });
     return response.data;
   }
 }
