@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import { logger } from '../logger';
+import { logger } from '../../utils/logger';
 import { AP_CONTENT_TYPE, FEDERATION_DOMAIN } from './constants';
-import { getServiceOxyClient } from '../oxyHelpers';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
 /**
  * Public-key material for an actor, as advertised in its ActivityPub `publicKey`

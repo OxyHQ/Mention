@@ -1,0 +1,137 @@
+/**
+ * Pluggable network-connector contract.
+ *
+ * The MTN core never knows about Mastodon (ActivityPub) or Bluesky (atproto);
+ * it only ever talks to a {@link NetworkConnector}. This module is the seam:
+ * the normalized DTOs every connector produces, the local-event union connectors
+ * deliver outbound, and the connector interface itself.
+ *
+ * IMPORTANT: this file is intentionally free of Mongoose / model imports so the
+ * pure connector layer can be extracted to a shared package later (Workstream E)
+ * without dragging the persistence layer with it. Storage-bound glue lives in
+ * each connector and in the registry, never here.
+ */
+
+/** Supported external networks. */
+export type NetworkId = 'activitypub' | 'atproto';
+
+/**
+ * A remote actor normalized into a network-neutral shape. Built by a connector
+ * from its protocol's profile representation, and consumed by the identity
+ * bridge ({@link NetworkConnector.mapIdentity}) to resolve/mint the federated
+ * Oxy user the actor maps to.
+ */
+export interface NormalizedExternalActor {
+  network: NetworkId;
+  /** Stable protocol id: an ActivityPub actor URI, or an atproto DID. */
+  externalId: string;
+  /** Fediverse-style handle (`user@domain` for AP; the atproto handle/DID otherwise). */
+  handle: string;
+  displayName?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  bio?: string;
+  followersCount?: number;
+  followingCount?: number;
+  postsCount?: number;
+  /** The Oxy user this actor resolves to, once known. */
+  oxyUserId?: string;
+}
+
+/** A single media item on a normalized external post (mirrors the Post media shape). */
+export interface NormalizedExternalMedia {
+  id: string;
+  type: 'image' | 'video';
+  remoteUrl?: string;
+}
+
+/**
+ * A remote post normalized into a network-neutral shape. Mirrors the
+ * `Post.federation` provenance block plus the author and media a connector
+ * resolves while importing it.
+ */
+export interface NormalizedExternalPost {
+  network: NetworkId;
+  /** Globally-unique provenance id (AP activity/object id, or atproto at:// URI). */
+  activityId: string;
+  /** Authoring actor's protocol id (AP actor URI / atproto DID). */
+  actorUri: string;
+  url?: string;
+  inReplyTo?: string;
+  sensitive?: boolean;
+  spoilerText?: string;
+  /** Resolved Oxy author, when the actor already maps to an Oxy user. */
+  authorOxyUserId?: string;
+  text: string;
+  media?: NormalizedExternalMedia[];
+  hashtags?: string[];
+  language?: string;
+  languages?: string[];
+  createdAt?: Date;
+}
+
+/** Options for paging a connector's post fetch. */
+export interface FetchPostsOptions {
+  limit?: number;
+  cursor?: string;
+}
+
+/** Result of a connector post fetch (opaque per-connector cursor). */
+export interface FetchPostsResult {
+  posts: NormalizedExternalPost[];
+  cursor?: string;
+}
+
+/** Minimal local-post shape a `post.create` event carries to outbound delivery. */
+export interface LocalPostEventPayload {
+  _id: unknown;
+  content: { text?: string };
+  hashtags?: string[];
+  mentions?: string[];
+  visibility: string;
+  createdAt: string;
+}
+
+/**
+ * A local domain event handed to connectors for outbound delivery. Discriminated
+ * by `kind`; starts with `post.create` (a new local post to federate) and grows
+ * as more outbound flows (likes, reposts, follows, deletes) are wired.
+ */
+export type LocalNetworkEvent =
+  | {
+      kind: 'post.create';
+      post: LocalPostEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    };
+
+/** Context passed alongside an inbound payload to {@link NetworkConnector.receive}. */
+export interface ReceiveContext {
+  /** The remote actor URI/DID whose signature was already verified by the transport. */
+  verifiedActorUri: string;
+}
+
+/**
+ * The common contract every external network speaks behind. A connector owns all
+ * protocol specifics; the registry and the MTN core only ever see this surface.
+ */
+export interface NetworkConnector {
+  /** The network this connector serves. */
+  readonly id: NetworkId;
+  /** Whether this connector is enabled (env-gated). Disabled connectors are skipped. */
+  readonly enabled: boolean;
+  /** True when `subject` (a handle / URI / DID) belongs to this network. */
+  matches(subject: string): boolean;
+  /** Resolve a handle to a normalized actor (webfinger for AP, handle→DID for atproto). */
+  resolve(handle: string): Promise<NormalizedExternalActor | null>;
+  /** Fetch + normalize an actor profile by its protocol id. */
+  fetchProfile(externalId: string): Promise<NormalizedExternalActor | null>;
+  /** Backfill + normalize an actor's recent posts. */
+  fetchPosts(externalId: string, opts?: FetchPostsOptions): Promise<FetchPostsResult>;
+  /** Deliver a local domain event outbound (federate to followers / write a record). */
+  deliver(event: LocalNetworkEvent): Promise<void>;
+  /** Process an inbound payload (already actor-verified by the transport). */
+  receive(payload: unknown, ctx: ReceiveContext): Promise<void>;
+  /** Resolve/mint the Oxy user this external actor maps to; null when unresolvable. */
+  mapIdentity(actor: NormalizedExternalActor): Promise<string | null>;
+}

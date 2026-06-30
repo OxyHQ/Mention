@@ -1,4 +1,3 @@
-import type { IncomingMessage } from 'node:http';
 import { logger } from '../../utils/logger';
 import sanitizeHtml from 'sanitize-html';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
@@ -7,19 +6,19 @@ import {
   AP_CONTENT_TYPE,
   AP_ACCEPT_TYPES,
   isBlockedDomain,
-} from '../../utils/federation/constants';
+} from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { decode as decodeEntities } from 'he';
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { contentTypeFamily, fetchUpstreamFollowingRedirects, fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
-import { isAllowedMediaType } from '../mediaCache/mediaTypes';
-import UserSettings from '../../models/UserSettings';
+import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import {
   signedFetch,
   firstStringUrl,
   normalizeFederatedAcct,
   domainFromAcct,
-} from './sharedFederationHelpers';
+} from './helpers';
+import { readBoundedResponseBody } from '../shared/httpBody';
+import { resolveOxyExternalUser } from '../identity';
+import type { NormalizedExternalActor } from '../types';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -65,35 +64,10 @@ function acctMatchesActorHost(acct: string | undefined, actorHost: string): acct
   return domain === normalizedActorHost || normalizedActorHost === `www.${domain}`;
 }
 
-/** Maximum bytes accepted for a remote federated actor banner image. */
-const ACTOR_BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
-
-async function readBoundedResponseBody(response: IncomingMessage, maxBytes: number): Promise<ArrayBuffer> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-
-  try {
-    for await (const chunk of response) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      totalBytes += buffer.byteLength;
-      if (totalBytes > maxBytes) {
-        response.destroy(new Error('remote banner exceeds size limit'));
-        throw new Error('remote banner exceeds size limit');
-      }
-      chunks.push(buffer);
-    }
-  } finally {
-    if (!response.destroyed) response.destroy();
-  }
-
-  const body = Buffer.concat(chunks, totalBytes);
-  return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
-}
-
 /**
  * Resolution, caching and refresh of remote ActivityPub actors.
  *
- * Extracted verbatim from the monolithic FederationService — same behavior,
+ * Extracted verbatim from the former monolithic FederationService — same behavior,
  * same public method signatures. This is the base sub-service: it depends only
  * on the shared low-level helpers and the Oxy service client, never on the other
  * federation sub-services, so it can be imported directly without a cycle.
@@ -313,59 +287,29 @@ export class ActorService {
       );
 
       // Always upsert into Oxy so profile changes (avatar, name, bio) are synced.
-      // resolveExternalUser creates the user if not exists, updates if changed.
-      // Uses makeServiceRequest because PUT /users/resolve requires a service token.
+      // `resolveOxyExternalUser` (the network-neutral identity bridge shared with
+      // the atproto connector) creates the federated Oxy user if it does not
+      // exist, updates it when changed, and mirrors the banner — using a service
+      // token for `PUT /users/resolve`. This connector then stamps its own
+      // FederatedActor row with the resolved id.
       if (fedActor) {
         try {
-          const oxyClient = getServiceOxyClient();
-          const oxyUser: { _id?: string; id?: string } | null = await oxyClient.makeServiceRequest('PUT', '/users/resolve', {
-            type: 'federated',
-            username: acct,
-            actorUri: actor.id,
-            domain,
+          const normalized: NormalizedExternalActor = {
+            network: 'activitypub',
+            externalId: actor.id,
+            handle: acct,
             displayName: decodeEntities(actor.name || username),
-            avatar: avatarUrl,
+            avatarUrl,
+            bannerUrl: headerUrl,
             bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
-            // On refresh, tell Oxy to re-download and replace the avatar even if
-            // it already stored a file ID. Coordinated with oxy-api's
-            // `refresh` / `forceAvatarRefresh` flag on PUT /users/resolve.
-            refresh: forceAvatarRefresh,
-            forceAvatarRefresh,
-          });
-          const oxyId = String(oxyUser?._id || oxyUser?.id || '');
+            followersCount,
+            followingCount,
+            postsCount,
+            oxyUserId: fedActor.oxyUserId ?? undefined,
+          };
+          const oxyId = await resolveOxyExternalUser(normalized, { forceAvatarRefresh });
           if (oxyId && fedActor.oxyUserId !== oxyId) {
             await FederatedActor.updateOne({ _id: fedActor._id }, { $set: { oxyUserId: oxyId } });
-          }
-          // Download and upload remote banner to Oxy (same pattern as avatar), but
-          // only through the shared SSRF-safe upstream fetcher: it validates the
-          // original URL and every redirect hop, pins DNS, and applies timeouts.
-          if (oxyId && headerUrl) {
-            try {
-              const deadline = AbortSignal.timeout(WEBFINGER_TIMEOUT_MS);
-              const { response: imgRes } = await fetchUpstreamFollowingRedirects(headerUrl, {}, deadline);
-              if ((imgRes.statusCode ?? 0) >= 200 && (imgRes.statusCode ?? 0) < 300) {
-                const contentType = contentTypeFamily(imgRes.headers);
-                if (!contentType.startsWith('image/') || !isAllowedMediaType(contentType)) {
-                  imgRes.destroy();
-                  throw new Error(`remote banner content-type not allowed: ${contentType || 'unknown'}`);
-                }
-                const buffer = await readBoundedResponseBody(imgRes, ACTOR_BANNER_MAX_BYTES);
-                const blob = new Blob([buffer], { type: contentType });
-                const asset = await oxyClient.uploadProfileBanner(blob, oxyId);
-                const fileId = asset?.file?.id;
-                if (fileId) {
-                  await UserSettings.updateOne(
-                    { oxyUserId: oxyId },
-                    { $set: { profileHeaderImage: fileId } },
-                    { upsert: true },
-                  );
-                }
-              } else {
-                imgRes.destroy();
-              }
-            } catch (bannerErr) {
-              logger.debug(`Failed to sync banner for ${actorUri}:`, bannerErr);
-            }
           }
         } catch (resolveErr) {
           logger.warn(`Failed to resolve Oxy user for ${actorUri}:`, resolveErr);

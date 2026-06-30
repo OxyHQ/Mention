@@ -2,7 +2,7 @@ import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
-import { signRequest, getPublicKey } from '../../utils/federation/crypto';
+import { signRequest, getPublicKey } from './crypto';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -10,10 +10,10 @@ import {
   AP_CONTENT_TYPE,
   USER_AGENT,
   actorUrl,
-} from '../../utils/federation/constants';
+} from './constants';
 import { PostVisibility } from '@mention/shared-types';
 import { enqueueDelivery } from '../../queue/producers';
-import { actorService } from './ActorService';
+import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 
@@ -45,10 +45,11 @@ async function readResponsePreview(response: NodeJS.ReadableStream): Promise<str
  * Outbound activity delivery + follow lifecycle (Follow / Undo(Follow) /
  * Accept(Follow)) and local-post federation to remote followers.
  *
- * Extracted verbatim from the monolithic FederationService — same behavior,
+ * Extracted verbatim from the former monolithic FederationService — same behavior,
  * same signatures. Depends on ActorService (actor resolution) and the delivery
  * queue producer. `federateNewPost` remains reachable from PostCreationService
- * via the FederationService facade's registered PostFederator.
+ * via the connector registry's registered PostFederator (the AP connector's
+ * `deliver`).
  */
 export class FollowService {
   // ============================================================

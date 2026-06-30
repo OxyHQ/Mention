@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Post } from '../../models/Post';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { parseApPublished } from '../../services/federation/sharedFederationHelpers';
+import { parseApPublished } from '../../connectors/activitypub/helpers';
 
 /**
  * Federated posts MUST preserve their ORIGINAL ActivityPub `published` date as

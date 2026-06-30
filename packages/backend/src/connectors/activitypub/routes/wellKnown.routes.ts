@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { FEDERATION_DOMAIN, FEDERATION_ENABLED, actorUrl, resolveOxyUser } from '../utils/federation/constants';
-import { logger } from '../utils/logger';
-import { getRedisClient } from '../utils/redis';
+import { FEDERATION_DOMAIN, FEDERATION_ENABLED, actorUrl, resolveOxyUser } from '../constants';
+import { logger } from '../../../utils/logger';
+import { getRedisClient } from '../../../utils/redis';
 
 const router = Router();
 

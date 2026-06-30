@@ -7,26 +7,26 @@ import Like from '../../models/Like';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   resolveOxyUser,
-} from '../../utils/federation/constants';
+} from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
-import { extractApLanguage, extractApLanguages } from '../../utils/federation/apLanguage';
-import { getPostCreator } from '../serviceRegistry';
-import { actorService } from './ActorService';
-import { requireActorOxyUserId } from './ActorResolutionPendingError';
-import { outboxSyncService } from './OutboxSyncService';
-import { followService } from './FollowService';
+import { extractApLanguage, extractApLanguages } from './apLanguage';
+import { getPostCreator } from '../../services/serviceRegistry';
+import { actorService } from './actor.service';
+import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
+import { outboxSyncService } from './outbox.service';
+import { followService } from './follow.service';
 import {
   extractAnnouncedObjectUri,
   extractApHashtags,
   extractApMedia,
   extractInReplyToUri,
-  getRemoteHost,
   isDuplicateKeyError,
   mapApVisibility,
-  materializeFederatedMedia,
   parseApPublished,
   resolvePostIdFromObjectUri,
-} from './sharedFederationHelpers';
+} from './helpers';
+import { materializeFederatedMedia } from '../shared/federatedMedia';
+import { getRemoteHost } from '../shared/url';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
 
@@ -52,7 +52,7 @@ function summarizeZodError(error: z.ZodError): string {
  * / Like / Announce / Accept / Reject / Update) delivered to a local user's
  * inbox.
  *
- * Extracted verbatim from the monolithic FederationService — same behavior,
+ * Extracted verbatim from the former monolithic FederationService — same behavior,
  * same dispatch. Depends on ActorService (actor resolution + actor→Oxy id),
  * OutboxSyncService (boost import + post backfill on follow-accept), FollowService
  * (Accept delivery), the shared low-level helpers, and the registered PostCreator.

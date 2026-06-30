@@ -63,7 +63,7 @@ vi.mock('../../../utils/logger', () => ({
   },
 }));
 
-vi.mock('../../../utils/federation/crypto', () => ({
+vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
@@ -142,7 +142,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-import { federationService } from '../../../services/FederationService';
+import { activityPubConnector as federationService } from '../../../connectors/activitypub/ActivityPubConnector';
 
 const actorUri = 'https://mastodon.social/users/bob';
 

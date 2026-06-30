@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isBlockedDomain,
   OXY_IDENTITY_APEX,
-} from '../../utils/federation/constants';
+} from '../../connectors/activitypub/constants';
 
 describe('OXY_IDENTITY_APEX', () => {
   it('derives the registrable domain of the Oxy API (api.oxy.so → oxy.so)', () => {

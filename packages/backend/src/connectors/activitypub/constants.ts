@@ -1,5 +1,5 @@
 import { registrableApex } from '@oxyhq/core';
-import { logger } from '../logger';
+import { logger } from '../../utils/logger';
 
 export const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
 export const ACTOR_DOMAIN = process.env.ACTOR_DOMAIN || FEDERATION_DOMAIN;
@@ -173,7 +173,6 @@ export function extractActorUriFromActivityId(activityId: string): string | null
  * Returns the user object or null.
  */
 export async function resolveOxyUser(username: string): Promise<any> {
-  const { logger } = require('../logger');
   const { oxy } = require('../../../server.js');
   try {
     return await oxy.getProfileByUsername(username);

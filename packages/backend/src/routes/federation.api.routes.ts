@@ -4,11 +4,11 @@ import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq
 import type { User as OxyUser } from '@oxyhq/core';
 import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
-import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
+import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../connectors/activitypub/ActivityPubConnector';
 import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
-import { FEDERATION_ENABLED } from '../utils/federation/constants';
+import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -129,7 +129,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     const user = await oxy.getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
-    const result = await federationService.sendFollow(userId, user.username, parsed.data.actorUri);
+    const result = await activityPubConnector.sendFollow(userId, user.username, parsed.data.actorUri);
     return res.json({
       success: result.success,
       pending: result.pending,
@@ -158,7 +158,7 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
     const user = await oxy.getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
-    const success = await federationService.sendUndoFollow(userId, user.username, parsed.data.actorUri);
+    const success = await activityPubConnector.sendUndoFollow(userId, user.username, parsed.data.actorUri);
     return res.json({ success, actorUri: parsed.data.actorUri });
   } catch (err) {
     logger.error('Federation unfollow error:', err);
@@ -289,10 +289,10 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
       }
 
       // Fire-and-forget: sync in background, return syncing flag to client
-      federationService.syncOutboxPostsDetailed(actor, limit)
+      activityPubConnector.syncOutboxPostsDetailed(actor, limit)
         .then(async (result) => {
           if (isPermanentlyUnavailableOutboxReason(result.reason)) {
-            await federationService.markOutboxBackfillUnavailable(actor, result.reason);
+            await activityPubConnector.markOutboxBackfillUnavailable(actor, result.reason);
           }
         })
         .catch((err) => {

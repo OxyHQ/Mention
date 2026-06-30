@@ -60,7 +60,7 @@ vi.mock('../../../utils/logger', () => ({
   },
 }));
 
-vi.mock('../../../utils/federation/crypto', () => ({
+vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
@@ -139,8 +139,8 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-import { federationService } from '../../../services/FederationService';
-import { ActorResolutionPendingError } from '../../../services/federation/ActorResolutionPendingError';
+import { activityPubConnector as federationService } from '../../../connectors/activitypub/ActivityPubConnector';
+import { ActorResolutionPendingError } from '../../../connectors/shared/ActorResolutionPendingError';
 
 const actorUri = 'https://mastodon.social/users/bob';
 const noteId = `${actorUri}/statuses/900`;

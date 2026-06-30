@@ -34,8 +34,8 @@
 
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
-import { outboxSyncService } from '../services/federation/OutboxSyncService';
-import { extractInReplyToUri } from '../services/federation/sharedFederationHelpers';
+import { outboxSyncService } from '../connectors/activitypub/outbox.service';
+import { extractInReplyToUri } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */

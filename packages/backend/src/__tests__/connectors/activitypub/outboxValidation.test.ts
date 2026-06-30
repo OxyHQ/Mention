@@ -41,7 +41,7 @@ const mocks = vi.hoisted(() => ({
   assertSafePublicUrl: vi.fn(),
 }));
 
-vi.mock('../../../utils/federation/crypto', () => ({
+vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signRequest: mocks.signRequest,
 }));
@@ -115,7 +115,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-import { outboxSyncService } from '../../../services/federation/OutboxSyncService';
+import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
 
 const ACTOR_URI = 'https://mastodon.social/users/alice';
 const OUTBOX_URL = 'https://mastodon.social/users/alice/outbox';
