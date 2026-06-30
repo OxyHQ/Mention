@@ -44,6 +44,16 @@ import { mergeHashtags } from '../utils/textProcessing';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import {
+  emitPostCreated,
+  emitRepostCreated,
+  emitLikeCreated,
+  emitBookmarkCreated,
+  emitTombstone,
+  likeRecordUri,
+  repostRecordUri,
+  bookmarkRecordUri,
+} from '../services/mtn/MentionRecordEmitter';
 import type { User } from '@oxyhq/core';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
@@ -1337,6 +1347,31 @@ class FeedController {
 
       await reply.save();
 
+      // MTN dual-write: a reply emits an `app.mention.feed.post` record with the
+      // thread position (reply.root / reply.parent). The direct parent is
+      // `parentPost`; the thread root is `parentPost.threadId` (or the parent
+      // itself when it IS the root). Resolve the root owner with a lean lookup
+      // only when the root differs from the parent. Best-effort, never blocks.
+      try {
+        const rootId = parentPost.threadId ? String(parentPost.threadId) : String(parentPost._id);
+        const parentOwner = parentPost.oxyUserId ? String(parentPost.oxyUserId) : undefined;
+        let rootOwner = rootId === String(parentPost._id) ? parentOwner : undefined;
+        if (!rootOwner && rootId) {
+          const rootPost = await Post.findById(rootId).select('oxyUserId').lean();
+          rootOwner = rootPost?.oxyUserId ? String(rootPost.oxyUserId) : undefined;
+        }
+        const replyContext =
+          parentOwner && rootOwner
+            ? {
+                root: { postId: rootId, oxyUserId: rootOwner },
+                parent: { postId: String(postId), oxyUserId: parentOwner },
+              }
+            : undefined;
+        await emitPostCreated(reply, { reply: replyContext });
+      } catch (mtnError) {
+        logger.error('createReply: MTN record emission failed', mtnError);
+      }
+
       // Update parent post comment count
       await Post.findByIdAndUpdate(postId, {
         $inc: { 'stats.commentsCount': 1 }
@@ -1430,6 +1465,10 @@ class FeedController {
       });
 
       await boost.save();
+
+      // MTN dual-write: a boost emits an `app.mention.feed.repost` record whose
+      // subject is the boosted original's MTN URI. Best-effort, never blocks.
+      await emitRepostCreated(boost, String(originalPostId), originalPost?.oxyUserId?.toString?.());
 
       // Update original post boost count and get the updated count
       const updatedPost = await Post.findByIdAndUpdate(
@@ -1529,7 +1568,7 @@ class FeedController {
       logger.debug(`[Like] User ${currentUserId} liking post ${postId} (not already liked)`);
 
       // Create like record in Like collection (single source of truth)
-      await Like.create({ userId: currentUserId, postId, source: surface });
+      const createdLike = await Like.create({ userId: currentUserId, postId, source: surface });
 
       // Update post like count only (don't store in metadata.likedBy - too much data)
       const updateResult = await Post.findByIdAndUpdate(
@@ -1543,6 +1582,14 @@ class FeedController {
       if (!updateResult) {
         return res.status(404).json({ error: 'Post not found' });
       }
+
+      // MTN dual-write: emit an `app.mention.feed.like` record for the new like.
+      await emitLikeCreated({
+        likerOxyUserId: currentUserId,
+        likeRkey: String(createdLike._id),
+        likedPostId: postId,
+        likedPostOwnerOxyUserId: existingPost.oxyUserId?.toString?.(),
+      });
 
       // Record interaction for user preference learning
       logger.debug(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);
@@ -1612,7 +1659,7 @@ class FeedController {
       }
 
       // Remove like record from Like collection
-      await Like.deleteOne({ userId: currentUserId, postId });
+      const removedLike = await Like.findOneAndDelete({ userId: currentUserId, postId });
 
       // Update post like count only (don't maintain metadata.likedBy - too much data)
       const updateResult = await Post.findByIdAndUpdate(
@@ -1625,6 +1672,15 @@ class FeedController {
 
       if (!updateResult) {
         return res.status(404).json({ error: 'Post not found' });
+      }
+
+      // MTN dual-write: tombstone the like's `app.mention.feed.like` record.
+      if (removedLike) {
+        await emitTombstone({
+          authorOxyUserId: currentUserId,
+          tombstoneRkey: String(removedLike._id),
+          subjectUri: likeRecordUri(currentUserId, String(removedLike._id)),
+        });
       }
 
       // Emit real-time update to post room only (not all clients)
@@ -1676,6 +1732,16 @@ class FeedController {
 
       if (!boost) {
         return res.status(404).json({ error: 'Boost not found' });
+      }
+
+      // MTN dual-write: tombstone the boost's `app.mention.feed.repost` record.
+      // Only LOCAL boosts ever emitted a record.
+      if (boost.federation == null && boost.oxyUserId) {
+        await emitTombstone({
+          authorOxyUserId: boost.oxyUserId,
+          tombstoneRkey: String(boost._id),
+          subjectUri: repostRecordUri(boost.oxyUserId, String(boost._id)),
+        });
       }
 
       // Update original post boost count and get the updated count
@@ -1755,7 +1821,7 @@ class FeedController {
       }
 
       // Add user to savedBy array and create Bookmark record
-      const [updateResult] = await Promise.all([
+      const [updateResult, upsertedBookmark] = await Promise.all([
         Post.findByIdAndUpdate(
           postId,
           {
@@ -1769,6 +1835,16 @@ class FeedController {
           { upsert: true, new: true }
         )
       ]);
+
+      // MTN dual-write: a save emits a PRIVATE `app.mention.feed.bookmark` record.
+      if (upsertedBookmark) {
+        await emitBookmarkCreated({
+          ownerOxyUserId: currentUserId,
+          bookmarkRkey: String(upsertedBookmark._id),
+          bookmarkedPostId: postId,
+          bookmarkedPostOwnerOxyUserId: existingPost.oxyUserId?.toString?.(),
+        });
+      }
 
       // Record interaction for user preference learning
       logger.debug(`[Save] Recording interaction for user ${currentUserId}, post ${postId}`);
@@ -1835,7 +1911,7 @@ class FeedController {
       }
 
       // Remove user from savedBy array and delete Bookmark record
-      const [updateResult] = await Promise.all([
+      const [updateResult, removedBookmark] = await Promise.all([
         Post.findByIdAndUpdate(
           postId,
           {
@@ -1843,8 +1919,17 @@ class FeedController {
           },
           { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
         ),
-        Bookmark.deleteOne({ userId: currentUserId, postId })
+        Bookmark.findOneAndDelete({ userId: currentUserId, postId })
       ]);
+
+      // MTN dual-write: an unsave tombstones the bookmark record (private chain).
+      if (removedBookmark) {
+        await emitTombstone({
+          authorOxyUserId: currentUserId,
+          tombstoneRkey: String(removedBookmark._id),
+          subjectUri: bookmarkRecordUri(currentUserId, String(removedBookmark._id)),
+        });
+      }
 
       // Emit real-time update to user room only
       io.to(`user:${currentUserId}`).emit('post:unsaved', {

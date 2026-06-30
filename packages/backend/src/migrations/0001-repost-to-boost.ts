@@ -22,8 +22,8 @@
  *     - value  type 'repost' -> type 'boost'
  *
  * The Post model stores no MTN URI/collection strings on its documents (MTN
- * URIs are derived on demand), so there are no `mtn.social.repost` strings to
- * rewrite in this collection.
+ * URIs are derived on demand), so there are no `app.mention.feed.repost` strings
+ * to rewrite in this collection.
  */
 
 import mongoose from 'mongoose';

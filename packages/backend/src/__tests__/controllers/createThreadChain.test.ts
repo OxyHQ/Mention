@@ -10,10 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * what makes a self-authored thread render sequentially and gives federation /
  * notifications the correct `inReplyTo`.
  *
- * The controller pulls in the server bootstrap and the post-hydration / Oxy
- * client layers; stub those so the test stays pure and never touches a DB or the
- * network. The real Post model is used (it assigns `_id` at construction); only
- * the DB-touching `save()` is stubbed.
+ * `createThread` routes every post through `PostCreationService.create` (so
+ * classification + the MTN dual-write live in one place). The linkage params
+ * (`parentPostId`, `threadId`) are computed in the controller and PASSED to the
+ * creator, then the root post is anchored on its own id with a follow-up
+ * `post.threadId = post._id` + save. We stub the creator with a real Post
+ * constructor so the assigned `_id` and passed-through linkage are observable,
+ * and stub the DB-touching `save()` so no DB/network is needed.
  */
 vi.mock('../../../server', () => ({
   oxy: {},
@@ -34,6 +37,29 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 import { Post } from '../../models/Post';
+
+// Route the creator through a real Post constructor so the linkage params the
+// controller passes (`parentPostId`/`threadId`) land on a document with a real
+// `_id`. `save()` is a no-op (no DB). The MTN emission is suppressed by the
+// controller's `skipNotifications/skipSocketEmit/skipFederationDelivery` and is
+// best-effort anyway, so it never touches this test path.
+vi.mock('../../services/PostCreationService', () => ({
+  postCreationService: {
+    create: vi.fn(async (params: Record<string, unknown>) => {
+      const post = new Post({
+        oxyUserId: params.oxyUserId,
+        content: params.content,
+        hashtags: params.hashtags,
+        mentions: params.mentions,
+        visibility: params.visibility,
+        ...(params.parentPostId ? { parentPostId: params.parentPostId } : {}),
+        ...(params.threadId ? { threadId: params.threadId } : {}),
+      });
+      return post;
+    }),
+  },
+}));
+
 import { createThread } from '../../controllers/posts.controller';
 
 type ThreadPostDoc = {

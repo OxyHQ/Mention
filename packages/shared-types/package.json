@@ -20,6 +20,10 @@
     ],
     "author": "Mention Team",
     "license": "UNLICENSED",
+    "dependencies": {
+        "@oxyhq/contracts": "^0.7.0",
+        "zod": "^4.4.3"
+    },
     "devDependencies": {
         "typescript": "^5.9.3",
         "@types/node": "^25.5.0"

@@ -11,6 +11,8 @@ import { getPostFederator, registerPostCreator } from './serviceRegistry';
 import { baselineContentClassifier } from './BaselineContentClassifier';
 import { postHydrationService } from './PostHydrationService';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { emitPostCreated, emitRepostCreated } from './mtn/MentionRecordEmitter';
+import type { ReplyContext } from './mtn/mentionRecordBuilders';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -129,6 +131,51 @@ class PostCreationService {
   }
 
   /**
+   * MTN Protocol dual-write: emit the signed record for a just-created post.
+   *
+   * Boosts emit `app.mention.feed.repost`; everything else (top-level posts,
+   * replies, quotes) emits `app.mention.feed.post`. For a reply, the `reply.root`
+   * / `reply.parent` MTN URIs need the OWNER oxyUserId of the referenced posts,
+   * resolved here with a single lean lookup. Entirely best-effort and isolated by
+   * the emitter — a failure NEVER blocks creation or changes the response.
+   */
+  private async emitMtnRecord(post: IPost, params: CreatePostParams): Promise<void> {
+    try {
+      if (post.federation != null || !post.oxyUserId) {
+        return;
+      }
+
+      if (params.boostOf) {
+        const original = await Post.findById(params.boostOf).select('oxyUserId').lean();
+        await emitRepostCreated(post, String(params.boostOf), original?.oxyUserId);
+        return;
+      }
+
+      let reply: ReplyContext | undefined;
+      if (params.parentPostId) {
+        const rootId = params.threadId ?? params.parentPostId;
+        const ids = [...new Set([params.parentPostId, rootId])];
+        const refs = await Post.find({ _id: { $in: ids } }).select('oxyUserId').lean();
+        const ownerById = new Map(refs.map((r) => [String(r._id), r.oxyUserId]));
+        const parentOwner = ownerById.get(String(params.parentPostId));
+        const rootOwner = ownerById.get(String(rootId));
+        if (parentOwner && rootOwner) {
+          reply = {
+            root: { postId: String(rootId), oxyUserId: rootOwner },
+            parent: { postId: String(params.parentPostId), oxyUserId: parentOwner },
+          };
+        }
+      }
+
+      await emitPostCreated(post, { reply });
+    } catch (error) {
+      // Defensive: the emitter already isolates failures, but guard the resolve
+      // step too so the dual-write can never surface as a creation error.
+      logger.error('PostCreationService: MTN record emission failed', error);
+    }
+  }
+
+  /**
    * Create a Post document and run the standard side-effect pipeline:
    * mention notifications, reply/quote/boost notifications, subscriber
    * notifications, socket emission, and federation delivery.
@@ -191,6 +238,14 @@ class PostCreationService {
 
     const post = new Post(postData);
     await post.save();
+
+    // MTN Protocol dual-write (best-effort, never blocks, never changes output).
+    // Mongo is authoritative; this emits a signed `app.mention.feed.*` record for
+    // LOCAL authors only (`federation == null && oxyUserId`). A scheduled post is
+    // not yet published, so it emits when the scheduler publishes it, not here.
+    if (!isScheduled) {
+      await this.emitMtnRecord(post, params);
+    }
 
     if (isScheduled || params.skipNotifications) {
       return post;

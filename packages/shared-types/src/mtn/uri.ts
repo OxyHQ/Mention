@@ -5,12 +5,19 @@
  * Every record in the MTN protocol gets a canonical, parseable URI.
  */
 
+import {
+  MENTION_POST_COLLECTION,
+  MENTION_LIKE_COLLECTION,
+  MENTION_REPOST_COLLECTION,
+  MENTION_BOOKMARK_COLLECTION,
+} from './lexicons';
+
 const MTN_URI_REGEX = /^mtn:\/\/([^/]+)\/([^/]+(?:\.[^/]+)*)\/([^/]+)$/;
 
 export interface MtnUriParts {
   /** The oxyUserId who owns this record */
   identity: string;
-  /** The lexicon NSID (e.g., mtn.social.post) */
+  /** The lexicon NSID (e.g., app.mention.feed.post) */
   collection: string;
   /** The record key (typically the MongoDB _id) */
   rkey: string;
@@ -57,33 +64,26 @@ export class MtnUri {
 }
 
 // --- Helper functions ---
+//
+// MTN owns post/like/repost/tombstone/bookmark content. The follow/block/profile/
+// list lexicons belong to Oxy (the social graph + identity + lists live there),
+// so MTN exposes NO URI helpers for them. The collection NSIDs come from the
+// MTN lexicon constants so the URI builders cannot drift from the record schemas.
 
 export function createPostUri(oxyUserId: string, postId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.post', rkey: postId }).toString();
-}
-
-export function createProfileUri(oxyUserId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.profile', rkey: 'self' }).toString();
+  return new MtnUri({ identity: oxyUserId, collection: MENTION_POST_COLLECTION, rkey: postId }).toString();
 }
 
 export function createLikeUri(oxyUserId: string, likeId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.like', rkey: likeId }).toString();
+  return new MtnUri({ identity: oxyUserId, collection: MENTION_LIKE_COLLECTION, rkey: likeId }).toString();
 }
 
-export function createBoostUri(oxyUserId: string, boostId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.boost', rkey: boostId }).toString();
+export function createRepostUri(oxyUserId: string, repostId: string): string {
+  return new MtnUri({ identity: oxyUserId, collection: MENTION_REPOST_COLLECTION, rkey: repostId }).toString();
 }
 
-export function createFollowUri(oxyUserId: string, followId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.follow', rkey: followId }).toString();
-}
-
-export function createFeedGeneratorUri(oxyUserId: string, generatorId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.feedGenerator', rkey: generatorId }).toString();
-}
-
-export function createListUri(oxyUserId: string, listId: string): string {
-  return new MtnUri({ identity: oxyUserId, collection: 'mtn.social.list', rkey: listId }).toString();
+export function createBookmarkUri(oxyUserId: string, bookmarkId: string): string {
+  return new MtnUri({ identity: oxyUserId, collection: MENTION_BOOKMARK_COLLECTION, rkey: bookmarkId }).toString();
 }
 
 /**
