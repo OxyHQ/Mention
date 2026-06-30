@@ -487,6 +487,22 @@ class FeedService {
   }
 
   /**
+   * Get the author's self-thread continuation spine for a root post — the
+   * ordered (root-first) chain of the OP's own continuation posts that hang off
+   * the root (root → c1 → c2 …). Returns `[]` for any post that is not a
+   * self-thread root (a plain post, a reply, a mid-thread continuation, or a
+   * boost), so the post-detail screen can call it unconditionally and leave
+   * non-thread posts unchanged. Viewer-aware so engagement/permission state on
+   * each continuation reflects the current user.
+   */
+  async getThreadContinuations(rootId: string): Promise<HydratedPost[]> {
+    const response = await makeViewerAwarePublicRead<{ items?: HydratedPost[] }>(
+      `/feed/thread-continuations/${rootId}`,
+    );
+    return Array.isArray(response.items) ? response.items : [];
+  }
+
+  /**
    * Update post settings
    */
   async updatePostSettings(postId: string, settings: {

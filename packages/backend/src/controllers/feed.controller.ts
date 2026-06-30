@@ -71,6 +71,14 @@ const OUTBOX_SYNC_MIN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const FEDERATED_ACTOR_PROFILE_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
+ * Hard cap on how many posts of an author's self-thread continuation spine the
+ * post-detail thread view returns. Threads are short in practice (a handful of
+ * continuations); this is a safety ceiling mirroring the frontend ancestor walk
+ * guard (MAX_ANCESTOR_DEPTH), guarding against a runaway thread.
+ */
+const MAX_THREAD_CONTINUATION_DEPTH = 50;
+
+/**
  * A follower/mention reference may arrive as a bare user-id string or as a
  * populated object carrying `id`/`_id`. Used when checking reply permissions.
  */
@@ -1931,6 +1939,88 @@ class FeedController {
     } catch (error) {
       logger.error('[getRepliesFeed] Error:', error);
       return res.status(500).json({ message: 'Error fetching replies' });
+    }
+  }
+
+  /**
+   * Get the author's self-thread continuation spine for a root post.
+   *
+   * A self-thread root authored from the composer stamps `threadId === <its own
+   * id>` on the root and chains each continuation by the same author via
+   * `parentPostId` (root → c1 → c2 …), all sharing that `threadId`. The feed
+   * groups this into a single slice (see {@link ThreadSlicingService}), but the
+   * generic replies endpoint only returns DIRECT children of one parent, so the
+   * post-detail screen could not reconstruct the descending OP chain. This
+   * endpoint returns that chain — the same single-author, linear spine the feed
+   * slicer uses — ordered chronologically (root-first continuation order).
+   *
+   * Returns `{ items: [] }` for anything that is not a self-thread root (a plain
+   * post, a reply, a mid-thread continuation, a boost, or a non-public root), so
+   * the client can call it unconditionally and leave non-thread posts unchanged.
+   */
+  async getThreadContinuations(req: AuthRequest, res: Response) {
+    try {
+      const rootId = req.params.rootId;
+      if (!rootId || !mongoose.isValidObjectId(rootId)) {
+        return res.json({ items: [] });
+      }
+
+      const currentUserId = req.user?.id;
+
+      // The spine only applies to a public, published root post whose `threadId`
+      // points at itself — the canonical self-thread root signature. A mid-thread
+      // continuation has `threadId === <root id> !== <its own id>`, so this guard
+      // correctly yields an empty spine when the focused post is not the root.
+      const root = await Post.findById(rootId)
+        .select('_id oxyUserId threadId visibility status')
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+        .lean();
+
+      if (
+        !root ||
+        root.visibility !== PostVisibility.PUBLIC ||
+        root.status !== 'published' ||
+        !root.oxyUserId ||
+        !root.threadId ||
+        String(root.threadId) !== String(root._id)
+      ) {
+        return res.json({ items: [] });
+      }
+
+      // Identical query shape to ThreadSlicingService.fetchThreadChildren: every
+      // post in this thread by the SAME author that hangs off the chain
+      // (parentPostId present), in chronological (= thread) order.
+      const continuations = await Post.find({
+        threadId: String(root.threadId),
+        oxyUserId: root.oxyUserId,
+        parentPostId: { $ne: null, $exists: true },
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+      })
+        .select(this.FEED_FIELDS)
+        .sort({ createdAt: 1 })
+        .limit(MAX_THREAD_CONTINUATION_DEPTH)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+        .lean();
+
+      if (continuations.length === 0) {
+        return res.json({ items: [] });
+      }
+
+      // Hydrate at maxDepth 1 (mirrors getRepliesFeed) so quoted/embedded context
+      // on a continuation renders.
+      const hydrated = await postHydrationService.hydratePosts(continuations, {
+        viewerId: currentUserId,
+        oxyClient: createScopedOxyClient(req),
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
+      const items = hydrated.filter((post) => post?.id && post.user?.id);
+
+      return res.json({ items });
+    } catch (error) {
+      logger.error('[getThreadContinuations] Error:', error);
+      return res.status(500).json({ message: 'Error fetching thread continuations' });
     }
   }
 
