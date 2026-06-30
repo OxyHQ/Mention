@@ -34,6 +34,8 @@ import SEO from "@/components/SEO";
 import { ProfileCard, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard as ListCardComponent, type ListCardData } from "@/components/ListCard";
+import { ExternalActorCard } from "@/components/search/ExternalActorCard";
+import { useExternalActorResolve } from "@/hooks/useExternalActorResolve";
 import { Divider } from "@oxyhq/bloom/divider";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SPACING } from "@/styles/spacing";
@@ -80,6 +82,17 @@ export default function SearchIndex() {
     // Search history state
     const [searchHistory, setSearchHistory] = useState<string[]>([]);
     const [isFocused, setIsFocused] = useState(true); // autoFocus starts focused
+
+    // Cross-network resolve — when the query looks like a remote handle
+    // (`@user@host`, `user.bsky.social`, `did:`, `at://`), resolve it to an
+    // external actor (Mastodon / Bluesky). Local `@username` queries never
+    // trigger this and stay on the existing Oxy people search below.
+    const {
+        actor: externalActor,
+        loading: externalLoading,
+        error: externalError,
+        isRemoteQuery,
+    } = useExternalActorResolve(query);
 
     // Load search history on mount
     useEffect(() => {
@@ -373,6 +386,39 @@ export default function SearchIndex() {
         return (results[activeTab]?.length || 0) > 0;
     }, [activeTab, results, hasResults]);
 
+    // The external (cross-network) result is a person, so it belongs on the
+    // "all" and "users" tabs only. It is shown whenever the query looks like a
+    // remote handle — independent of whether the LOCAL search returned anything.
+    const showExternalSection =
+        isRemoteQuery && (activeTab === "all" || activeTab === "users");
+    const hasExternalContent = showExternalSection && (externalLoading || externalError || Boolean(externalActor));
+
+    const renderExternalSection = () => {
+        if (!showExternalSection) return null;
+        return (
+            <View style={styles.section}>
+                {activeTab === "all" && (externalLoading || externalActor) ? (
+                    <Text className="text-xl font-bold text-foreground" style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.md }}>
+                        {t("search.sections.fromOtherNetworks", "From other networks")}
+                    </Text>
+                ) : null}
+                {externalLoading ? (
+                    <View className="items-center justify-center" style={{ paddingVertical: SPACING.lg }}>
+                        <Loading className="text-primary" size="small" />
+                    </View>
+                ) : externalActor ? (
+                    <View style={styles.itemWrapper}>
+                        <ExternalActorCard actor={externalActor} />
+                    </View>
+                ) : externalError ? (
+                    <Text className="text-sm text-muted-foreground" style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm }}>
+                        {t("search.external.error", "Couldn't reach that network. Try again.")}
+                    </Text>
+                ) : null}
+            </View>
+        );
+    };
+
     const renderSection = <T,>(title: string, items: T[], renderItem: (item: T) => React.ReactNode, showTitle: boolean) => {
         if (items.length === 0) return null;
         return (
@@ -459,13 +505,18 @@ export default function SearchIndex() {
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
                     >
+                        {/* Cross-network actor (Mastodon / Bluesky) — rendered above
+                            the local results and independent of the local-search
+                            loading state, since the resolve runs in parallel. */}
+                        {renderExternalSection()}
+
                         {loading && (
                             <View className="flex-1 items-center justify-center" style={{ minHeight: 300 }}>
                                 <Loading className="text-primary" size="large" />
                             </View>
                         )}
 
-                        {!loading && query.trim() && !currentTabHasResults && (
+                        {!loading && query.trim() && !currentTabHasResults && !hasExternalContent && (
                             <EmptyState
                                 title={t("search.noResults", "No results found")}
                                 subtitle={t("search.tryDifferent", "Try searching for something else")}

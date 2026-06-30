@@ -872,7 +872,15 @@
       "feeds": "Feeds",
       "hashtags": "Hashtags",
       "lists": "Lists",
-      "saved": "Saved"
+      "saved": "Saved",
+      "fromOtherNetworks": "From other networks"
+    },
+    "external": {
+      "follow": "Follow",
+      "following": "Following",
+      "followingPending": "Following…",
+      "followFailed": "Could not follow this account",
+      "error": "Couldn't reach that network. Try again."
     }
   },
   "feeds": {
