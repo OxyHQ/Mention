@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, Platform, Pressable, type ViewStyle, type TextStyle } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 
 const WEB_BG_TRANSITION: ViewStyle | undefined = Platform.OS === 'web'
@@ -38,7 +39,23 @@ export const SideBarItem = React.memo(function SideBarItem({
     onPress?: () => void;
 }) {
     const router = useRouter();
+    const { colors } = useTheme();
     const [isHovered, setIsHovered] = React.useState(false);
+
+    const isHighlighted = isActive || isHovered;
+
+    // react-native-svg resolves an icon's `currentColor` from its OWN `color`
+    // prop, not from an ancestor's CSS `color` — React Native has no CSS cascade.
+    // The wrapping <View>'s `text-*` class therefore colors these custom SVG
+    // icons on web only. On native we resolve the same theme token the class maps
+    // to (`primary` when active/hovered, else `foreground`/`text`) and inject it
+    // straight onto the icon element so the active/hover/foreground states match.
+    // The profile row's Avatar simply ignores the extra `color` prop.
+    const themedIcon = Platform.OS === 'web'
+        ? icon
+        : React.isValidElement<{ color?: string }>(icon)
+            ? React.cloneElement(icon, { color: isHighlighted ? colors.primary : colors.text })
+            : icon;
 
     const handlePress = useCallback(() => {
         if (onPress) return onPress();
@@ -76,18 +93,18 @@ export const SideBarItem = React.memo(function SideBarItem({
                 <View
                     className={cn(
                         "items-center justify-center w-6 h-6",
-                        isActive || isHovered ? "text-primary" : "text-foreground",
+                        isHighlighted ? "text-primary" : "text-foreground",
                     )}
                     style={WEB_COLOR_TRANSITION_VIEW}
                 >
-                    {icon}
+                    {themedIcon}
                 </View>
                 {isExpanded && (
                     <Text
                         className={cn(
                             "text-[15px] whitespace-nowrap",
                             isActive ? "font-semibold" : "font-medium",
-                            isActive || isHovered ? "text-primary" : "text-foreground",
+                            isHighlighted ? "text-primary" : "text-foreground",
                         )}
                         style={WEB_COLOR_TRANSITION_TEXT}
                     >
