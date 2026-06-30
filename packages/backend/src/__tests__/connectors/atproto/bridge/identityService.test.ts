@@ -11,6 +11,7 @@ import { buildUserDid } from '../../../../services/mtn/mentionDid';
 
 const mockResolveOxyUser = vi.fn();
 const mockResolveDid = vi.fn();
+const mockGetUserById = vi.fn();
 
 vi.mock('../../../../connectors/activitypub/constants', async () => {
   const actual = await vi.importActual<typeof import('../../../../connectors/activitypub/constants')>(
@@ -20,11 +21,15 @@ vi.mock('../../../../connectors/activitypub/constants', async () => {
 });
 
 vi.mock('../../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ resolveDid: (...a: unknown[]) => mockResolveDid(...a) }),
+  getServiceOxyClient: () => ({
+    resolveDid: (...a: unknown[]) => mockResolveDid(...a),
+    getUserById: (...a: unknown[]) => mockGetUserById(...a),
+  }),
 }));
 
 import {
   getAtprotoIdentity,
+  getAtprotoIdentityByOxyUserId,
   buildBridgeDidDocumentView,
   bridgeHandle,
   bridgePdsEndpoint,
@@ -59,6 +64,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockResolveOxyUser.mockResolvedValue({ id: OWNER, username: 'alice' });
   mockResolveDid.mockResolvedValue(canonicalDoc());
+  mockGetUserById.mockResolvedValue({ id: OWNER, username: 'alice' });
 });
 
 describe('bridge handle / pds endpoint', () => {
@@ -89,6 +95,31 @@ describe('getAtprotoIdentity', () => {
   });
 });
 
+describe('getAtprotoIdentityByOxyUserId', () => {
+  it('derives the handle from the user\'s CURRENT username (never the raw id)', async () => {
+    const identity = await getAtprotoIdentityByOxyUserId(OWNER);
+    expect(identity).toMatchObject({
+      did: buildUserDid(OWNER),
+      oxyUserId: OWNER,
+      handle: bridgeHandle('alice'),
+      pdsEndpoint: bridgePdsEndpoint(),
+    });
+    expect(mockGetUserById).toHaveBeenCalledWith(OWNER);
+    // The by-id path resolves the username from Oxy, not from the by-handle path.
+    expect(mockResolveOxyUser).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the id resolves to no Oxy user', async () => {
+    mockGetUserById.mockRejectedValueOnce(new Error('not found'));
+    expect(await getAtprotoIdentityByOxyUserId(OWNER)).toBeNull();
+  });
+
+  it('returns null when the resolved user carries no username', async () => {
+    mockGetUserById.mockResolvedValueOnce({ id: OWNER });
+    expect(await getAtprotoIdentityByOxyUserId(OWNER)).toBeNull();
+  });
+});
+
 describe('buildBridgeDidDocumentView', () => {
   it('augments the canonical Oxy DID doc with the #atproto_pds service + at:// aka', async () => {
     const doc = await buildBridgeDidDocumentView('alice');
@@ -113,6 +144,27 @@ describe('buildBridgeDidDocumentView', () => {
     const view = await buildBridgeDidDocumentView('alice');
     const pdsEntries = view?.service.filter((s) => s.id === ATPROTO_PDS_SERVICE_ID) ?? [];
     expect(pdsEntries).toHaveLength(1);
+  });
+
+  it('handles a sparse DID doc that omits alsoKnownAs / service (no crash)', async () => {
+    // `alsoKnownAs` and `service` are OPTIONAL in a W3C DID document; a resolver
+    // may return a doc that omits them. The view must default both to empty and
+    // still attach the bridge handle + #atproto_pds entry.
+    const sparse = canonicalDoc();
+    delete (sparse as Partial<DidDocument>).alsoKnownAs;
+    delete (sparse as Partial<DidDocument>).service;
+    mockResolveDid.mockResolvedValueOnce(sparse);
+
+    const view = await buildBridgeDidDocumentView('alice');
+    expect(view).not.toBeNull();
+    expect(view?.alsoKnownAs).toEqual([`at://${bridgeHandle('alice')}`]);
+    expect(view?.service).toEqual([
+      {
+        id: ATPROTO_PDS_SERVICE_ID,
+        type: ATPROTO_PDS_SERVICE_TYPE,
+        serviceEndpoint: bridgePdsEndpoint(),
+      },
+    ]);
   });
 
   it('returns null when the canonical Oxy DID document cannot be resolved', async () => {

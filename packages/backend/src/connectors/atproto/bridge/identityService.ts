@@ -70,6 +70,20 @@ export function bridgeHandle(username: string): string {
 }
 
 /**
+ * Assemble the bridge identity facts from an already-resolved `(oxyUserId,
+ * username)` pair. The single builder both entry points funnel through so the
+ * DID / handle / PDS shape can never drift between the by-handle and by-id paths.
+ */
+function buildIdentity(oxyUserId: string, username: string): BridgeAtprotoIdentity {
+  return {
+    did: buildUserDid(oxyUserId),
+    oxyUserId,
+    handle: bridgeHandle(username),
+    pdsEndpoint: bridgePdsEndpoint(),
+  };
+}
+
+/**
  * Resolve a local username to its atproto bridge identity (Oxy DID + bridge
  * handle + PDS endpoint). Returns null when the username is not a local Oxy user.
  */
@@ -77,12 +91,33 @@ export async function getAtprotoIdentity(username: string): Promise<BridgeAtprot
   const user = await resolveOxyUser(username);
   const oxyUserId = user?.id ? String(user.id) : undefined;
   if (!oxyUserId) return null;
-  return {
-    did: buildUserDid(oxyUserId),
-    oxyUserId,
-    handle: bridgeHandle(username),
-    pdsEndpoint: bridgePdsEndpoint(),
-  };
+  return buildIdentity(oxyUserId, username);
+}
+
+/**
+ * Resolve a known Oxy user id to its atproto bridge identity. This is the inverse
+ * of {@link getAtprotoIdentity}: the caller already holds the canonical
+ * `oxyUserId` (e.g. parsed from the repo's `did:web`) and needs the bridge handle,
+ * which is derived from the user's CURRENT Oxy username — never re-parsed from the
+ * raw DID/handle string. Returns null when the id maps to no Oxy user (or the
+ * user record carries no username).
+ */
+export async function getAtprotoIdentityByOxyUserId(
+  oxyUserId: string,
+): Promise<BridgeAtprotoIdentity | null> {
+  let username: string | undefined;
+  try {
+    const user = await getServiceOxyClient().getUserById(oxyUserId);
+    username = user.username;
+  } catch (err) {
+    logger.warn('[atproto-bridge] failed to resolve Oxy user by id', {
+      oxyUserId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+  if (!username) return null;
+  return buildIdentity(oxyUserId, username);
 }
 
 /**
@@ -112,17 +147,23 @@ export async function buildBridgeDidDocumentView(username: string): Promise<DidD
     return null;
   }
 
+  // `alsoKnownAs` and `service` are OPTIONAL in a W3C DID document; a resolver
+  // may return a document that omits either array. Default a missing array to
+  // empty before augmenting so the bridge never crashes on a sparse DID doc.
+  const existingAka = canonical.alsoKnownAs ?? [];
+  const existingService = canonical.service ?? [];
+
   const akaHandle = `at://${identity.handle}`;
-  const alsoKnownAs = canonical.alsoKnownAs.includes(akaHandle)
-    ? [...canonical.alsoKnownAs]
-    : [...canonical.alsoKnownAs, akaHandle];
+  const alsoKnownAs = existingAka.includes(akaHandle)
+    ? [...existingAka]
+    : [...existingAka, akaHandle];
 
   // Augment (do not replace) the service array with the atproto PDS entry.
-  const hasPds = canonical.service.some((entry) => entry.id === ATPROTO_PDS_SERVICE_ID);
+  const hasPds = existingService.some((entry) => entry.id === ATPROTO_PDS_SERVICE_ID);
   const service = hasPds
-    ? canonical.service
+    ? [...existingService]
     : [
-        ...canonical.service,
+        ...existingService,
         {
           id: ATPROTO_PDS_SERVICE_ID,
           type: ATPROTO_PDS_SERVICE_TYPE,

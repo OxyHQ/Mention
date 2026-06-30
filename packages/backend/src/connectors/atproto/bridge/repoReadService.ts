@@ -23,9 +23,6 @@
 
 import {
   MtnUri,
-  MENTION_POST_COLLECTION,
-  MENTION_LIKE_COLLECTION,
-  MENTION_REPOST_COLLECTION,
   MENTION_TOMBSTONE_COLLECTION,
   mentionPostRecordSchema,
   mentionLikeRecordSchema,
@@ -87,25 +84,30 @@ interface LedgerRow {
 }
 
 /**
- * Read EVERY verified row for a user across the live feed collections + the
- * tombstone collection, newest-first. The materialization (LWW + tombstone
- * removal) is applied in memory because it spans collections (a tombstone in one
- * collection removes a key in another). Bounded by the per-user chain size; the
- * MTN chain is a single signer's append-only log, so this is a per-user scan, not
- * a global one.
+ * Read the verified rows needed to materialize ONE feed collection, newest-first:
+ * the requested `mtnCollection` itself PLUS the tombstone collection (a tombstone
+ * lives in its own collection but removes a key in the feed collection, so it must
+ * be read alongside). Scoping the `$in` to just these two — instead of every feed
+ * collection — avoids loading 4× the rows the materializer will keep. Bounded by
+ * the per-user chain size; the MTN chain is a single signer's append-only log, so
+ * this is a per-user scan, not a global one. An optional `rkey` narrows the read
+ * to a single key (the `getRecord` path) — the tombstone collection is still read
+ * in full because a deletion may target that key.
  */
-async function readLiveRows(oxyUserId: string): Promise<LedgerRow[]> {
+async function readLiveRows(
+  oxyUserId: string,
+  mtnCollection: string,
+  rkey?: string,
+): Promise<LedgerRow[]> {
+  // The feed-collection branch is the only one narrowed by rkey; tombstones are
+  // always read in full (they delete by `subject`, not by their own rkey).
+  const feedClause: Record<string, unknown> = { nsid: mtnCollection };
+  if (typeof rkey === 'string' && rkey.length > 0) feedClause.rkey = rkey;
+
   return MentionSignedRecord.find({
     oxyUserId,
     verified: true,
-    nsid: {
-      $in: [
-        MENTION_POST_COLLECTION,
-        MENTION_LIKE_COLLECTION,
-        MENTION_REPOST_COLLECTION,
-        MENTION_TOMBSTONE_COLLECTION,
-      ],
-    },
+    $or: [feedClause, { nsid: MENTION_TOMBSTONE_COLLECTION }],
   })
     .sort({ createdAt: -1, seq: -1 })
     .lean<LedgerRow[]>();
@@ -151,20 +153,19 @@ function translateRow(row: LedgerRow, bskyCollection: string): AtprotoRecordValu
 }
 
 /**
- * Materialize the CURRENT records of a single bsky collection for a user
- * (LWW per rkey, tombstones removed), newest-first, translated to atproto.
- *
- * This is the shared core both `listRecords` (paginated) and `getRecord`
- * (single) read from — one materialization, no drift.
+ * Reduce newest-first ledger `rows` into the live, translated records of one bsky
+ * collection: LWW per rkey (first row wins), tombstoned keys removed, malformed
+ * payloads skipped. This is the SINGLE materialization rule both the list path
+ * (full collection) and the single-get path (one rkey) run, so the two cannot
+ * drift. `rows` must already be scoped to `mtnCollection` + the tombstone
+ * collection and sorted newest-first; the reducer ignores any other `nsid`.
  */
-async function materializeCollection(
+function reduceLiveRecords(
+  rows: LedgerRow[],
   oxyUserId: string,
   bskyCollection: string,
-): Promise<BridgeRecord[]> {
-  const mtnCollection = BSKY_TO_MTN_COLLECTION[bskyCollection];
-  if (!mtnCollection) return [];
-
-  const rows = await readLiveRows(oxyUserId);
+  mtnCollection: string,
+): BridgeRecord[] {
   const tombstoned = collectTombstonedKeys(rows);
 
   const seen = new Set<string>();
@@ -193,6 +194,25 @@ async function materializeCollection(
     });
   }
   return out;
+}
+
+/**
+ * Materialize the CURRENT records of a single bsky collection for a user
+ * (LWW per rkey, tombstones removed), newest-first, translated to atproto.
+ *
+ * Reads ONLY the requested collection + tombstones (not every feed collection),
+ * then runs {@link reduceLiveRecords} — the shared rule `getRecord` also uses, so
+ * the list and single-get views cannot drift.
+ */
+async function materializeCollection(
+  oxyUserId: string,
+  bskyCollection: string,
+): Promise<BridgeRecord[]> {
+  const mtnCollection = BSKY_TO_MTN_COLLECTION[bskyCollection];
+  if (!mtnCollection) return [];
+
+  const rows = await readLiveRows(oxyUserId, mtnCollection);
+  return reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
 }
 
 /**
@@ -236,13 +256,23 @@ export async function listRecords(
  * `com.atproto.repo.getRecord` — resolve a single record by `(collection, rkey)`.
  * Returns null when the record does not exist, is tombstoned, is in a private
  * collection, or fails translation.
+ *
+ * Queries ONLY the requested key (plus the tombstone collection, which may delete
+ * it) instead of materializing the whole collection, then runs the SAME
+ * {@link reduceLiveRecords} rule the list path uses — an O(1)-target read with
+ * zero LWW/tombstone-logic drift. Multiple versions of the key (an edit) still
+ * collapse via LWW; the single live record (if any) is returned.
  */
 export async function getRecord(
   oxyUserId: string,
   bskyCollection: string,
   rkey: string,
 ): Promise<BridgeRecord | null> {
-  const records = await materializeCollection(oxyUserId, bskyCollection);
+  const mtnCollection = BSKY_TO_MTN_COLLECTION[bskyCollection];
+  if (!mtnCollection) return null;
+
+  const rows = await readLiveRows(oxyUserId, mtnCollection, rkey);
+  const records = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
   return records.find((record) => record.rkey === rkey) ?? null;
 }
 
