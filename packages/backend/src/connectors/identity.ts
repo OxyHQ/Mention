@@ -1,9 +1,8 @@
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
-import { contentTypeFamily, fetchUpstreamFollowingRedirects } from '../utils/safeUpstreamFetch';
-import { isAllowedMediaType } from '../services/mediaCache/mediaTypes';
-import { readBoundedResponseBody } from './shared/httpBody';
+import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
+import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from './types';
 
 /**
@@ -19,12 +18,6 @@ import type { NormalizedExternalActor } from './types';
  * returned id.
  */
 
-/** Bounded timeout for the remote banner fetch (matches the prior inline value). */
-const REMOTE_BANNER_FETCH_TIMEOUT_MS = 10000;
-
-/** Maximum bytes accepted for a remote federated actor banner image. */
-const ACTOR_BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
-
 /**
  * Resolve/mint the Oxy user a normalized external actor maps to.
  *
@@ -32,9 +25,9 @@ const ACTOR_BANNER_MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
  * profile changes (avatar, name, bio) stay synced — creating the user when it
  * does not exist. Returns the resolved Oxy user id, or `null` when Oxy is
  * unreachable / returns no id (callers must then skip, never persisting an
- * orphan). After resolution, the actor's banner is mirrored into Oxy through the
- * shared SSRF-safe upstream fetcher (best-effort; failures are logged, not
- * propagated).
+ * orphan). After resolution, the actor's banner is mirrored into a durable,
+ * public Oxy asset via the SAME service-token media path as federated post media
+ * (best-effort; failures are logged, not propagated).
  *
  * @param actor the normalized external actor.
  * @param opts.forceAvatarRefresh when true, tell Oxy to re-download and replace
@@ -68,35 +61,40 @@ export async function resolveOxyExternalUser(
     const oxyId = String(oxyUser?._id || oxyUser?.id || '');
     if (!oxyId) return null;
 
-    // Download and upload the remote banner to Oxy (same pattern as avatar), but
-    // only through the shared SSRF-safe upstream fetcher: it validates the
-    // original URL and every redirect hop, pins DNS, and applies timeouts.
-    if (actor.bannerUrl) {
-      try {
-        const deadline = AbortSignal.timeout(REMOTE_BANNER_FETCH_TIMEOUT_MS);
-        const { response: imgRes } = await fetchUpstreamFollowingRedirects(actor.bannerUrl, {}, deadline);
-        if ((imgRes.statusCode ?? 0) >= 200 && (imgRes.statusCode ?? 0) < 300) {
-          const contentType = contentTypeFamily(imgRes.headers);
-          if (!contentType.startsWith('image/') || !isAllowedMediaType(contentType)) {
-            imgRes.destroy();
-            throw new Error(`remote banner content-type not allowed: ${contentType || 'unknown'}`);
-          }
-          const buffer = await readBoundedResponseBody(imgRes, ACTOR_BANNER_MAX_BYTES);
-          const blob = new Blob([buffer], { type: contentType });
-          const asset = await oxyClient.uploadProfileBanner(blob, oxyId);
-          const fileId = asset?.file?.id;
-          if (fileId) {
-            await UserSettings.updateOne(
-              { oxyUserId: oxyId },
-              { $set: { profileHeaderImage: fileId } },
-              { upsert: true },
-            );
-          }
-        } else {
-          imgRes.destroy();
-        }
-      } catch (bannerErr) {
-        logger.debug(`Failed to sync banner for ${actor.externalId}:`, bannerErr);
+    // Mirror the remote banner into a durable, PUBLIC Oxy asset, then store its
+    // file id in Mention's per-user `UserSettings.profileHeaderImage` (the same
+    // field a LOCAL user's banner uses, read back by the profile-design
+    // endpoint). This reuses the canonical federated-media path
+    // (`persistRemoteMediaForFederatedOwnerDetailed` →
+    // `POST /assets/service/federation`): SSRF-safe download → streamed upload as
+    // a public, CDN-reachable file owned by the resolved federated user — the
+    // SAME service-token flow that already mirrors federated post media and the
+    // avatar (downloaded server-side by oxy-api). It deliberately does NOT use the
+    // SDK's `uploadProfileBanner`, which routes through the USER-authenticated
+    // `POST /assets/upload` and is rejected `401 UNAUTHORIZED` on the service
+    // client, so the banner was never stored.
+    if (actor.bannerUrl && isAbsoluteHttpUrl(actor.bannerUrl)) {
+      const result = await persistRemoteMediaForFederatedOwnerDetailed(actor.bannerUrl, oxyId, {
+        role: 'banner',
+        actorUri: actor.externalId,
+        remoteHost: getRemoteHost(actor.bannerUrl),
+      });
+      if (result.ok) {
+        await UserSettings.updateOne(
+          { oxyUserId: oxyId },
+          { $set: { profileHeaderImage: result.media.oxyFileId } },
+          { upsert: true },
+        );
+      } else if (!result.permanent) {
+        // Surface transient failures (bad service credential, upstream 5xx,
+        // upload rejection) at `warn` — a silent `debug` previously hid a total
+        // outage where 0 federated banners were ever stored. Permanently
+        // unavailable banners (dead/oversized/non-image) are expected and stay
+        // quiet, mirroring `materializeFederatedMedia`.
+        logger.warn(`Failed to mirror banner for ${actor.externalId}`, {
+          reason: result.reason,
+          remoteHost: getRemoteHost(actor.bannerUrl),
+        });
       }
     }
 

@@ -17,6 +17,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   makeServiceRequest: vi.fn(),
+  persistRemoteMedia: vi.fn(),
+  userSettingsUpdateOne: vi.fn(),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -25,12 +27,24 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
+vi.mock('../../services/mediaCache/cacheWorker', () => ({
+  persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
+}));
+
+vi.mock('../../models/UserSettings', () => ({
+  default: {
+    updateOne: mocks.userSettingsUpdateOne,
+  },
+}));
+
 import { resolveOxyExternalUser } from '../../connectors/identity';
 import type { NormalizedExternalActor } from '../../connectors/types';
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-resolved' });
+  mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false, reason: 'disabled' });
+  mocks.userSettingsUpdateOne.mockResolvedValue({ acknowledged: true });
 });
 
 describe('resolveOxyExternalUser', () => {
@@ -98,5 +112,76 @@ describe('resolveOxyExternalUser', () => {
       instanceDomain: 'bsky.social',
     };
     expect(await resolveOxyExternalUser(actor)).toBeNull();
+  });
+
+  it('mirrors the actor banner as a public federated asset and stores its file id', async () => {
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'banner_file_1', contentType: 'image/png', sizeBytes: 1234 },
+    });
+    const actor: NormalizedExternalActor = {
+      network: 'activitypub',
+      externalId: 'https://mastodon.social/users/alice',
+      handle: 'alice@mastodon.social',
+      federatedUsername: 'alice@mastodon.social',
+      instanceDomain: 'mastodon.social',
+      bannerUrl: 'https://files.mastodon.social/banner.png',
+    };
+
+    await resolveOxyExternalUser(actor);
+
+    // The banner mirrors through the SAME service-token public-upload path as
+    // federated post media (`persistRemoteMediaForFederatedOwnerDetailed`), NOT
+    // the user-authenticated SDK `uploadProfileBanner` (which 401s here).
+    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
+      'https://files.mastodon.social/banner.png',
+      'oxy-resolved',
+      expect.objectContaining({
+        role: 'banner',
+        actorUri: 'https://mastodon.social/users/alice',
+        remoteHost: 'files.mastodon.social',
+      }),
+    );
+    expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
+      { oxyUserId: 'oxy-resolved' },
+      { $set: { profileHeaderImage: 'banner_file_1' } },
+      { upsert: true },
+    );
+  });
+
+  it('does not store a profile header image when banner mirroring fails', async () => {
+    mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: true, reason: 'not-media' });
+    const actor: NormalizedExternalActor = {
+      network: 'activitypub',
+      externalId: 'https://mastodon.social/users/bob',
+      handle: 'bob@mastodon.social',
+      federatedUsername: 'bob@mastodon.social',
+      instanceDomain: 'mastodon.social',
+      bannerUrl: 'https://files.mastodon.social/banner.txt',
+    };
+
+    await resolveOxyExternalUser(actor);
+
+    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
+      'https://files.mastodon.social/banner.txt',
+      'oxy-resolved',
+      expect.objectContaining({ role: 'banner' }),
+    );
+    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('skips banner mirroring when the actor has no banner', async () => {
+    const actor: NormalizedExternalActor = {
+      network: 'activitypub',
+      externalId: 'https://mastodon.social/users/carol',
+      handle: 'carol@mastodon.social',
+      federatedUsername: 'carol@mastodon.social',
+      instanceDomain: 'mastodon.social',
+    };
+
+    await resolveOxyExternalUser(actor);
+
+    expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
+    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });
 });
