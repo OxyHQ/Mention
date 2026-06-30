@@ -140,9 +140,18 @@ class AtprotoConnector implements NetworkConnector {
 
   /** Remove the local subscription to an atproto actor. */
   private async unfollowActor(localOxyUserId: string, targetDid: string): Promise<void> {
+    // Resolve the input to its canonical DID EXACTLY as `followActor` does, so the
+    // delete keys on the same id the follow was stored under. A handle/AT-URI is
+    // normalized to its DID; if resolution fails both paths fall back to the raw
+    // input (so a degraded follow stored under a handle still unfollows). Without
+    // this, an unfollow-by-handle would never match the DID-keyed follow record
+    // and the subscription would stay stuck.
+    const actor = await this.resolve(targetDid);
+    const canonicalDid = actor?.externalId ?? targetDid;
+
     await FederatedFollow.deleteOne({
       localUserId: localOxyUserId,
-      remoteActorUri: targetDid,
+      remoteActorUri: canonicalDid,
       direction: 'outbound',
     });
   }

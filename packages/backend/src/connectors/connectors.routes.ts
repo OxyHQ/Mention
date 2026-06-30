@@ -9,7 +9,9 @@ import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
 import { FEDERATION_ENABLED } from './activitypub/constants';
-import { ATPROTO_ENABLED } from './atproto/constants';
+import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
+import { normalizeFederatedAcct } from './activitypub/helpers';
+import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
 import type { NetworkConnector } from './types';
@@ -32,21 +34,72 @@ router.use(apiRateLimiter);
 
 // --- Zod schemas ---
 
-// `actorUri` is a protocol id: an http(s) ActivityPub actor URI OR an atproto
-// DID (`did:plc:` / `did:web:`). `.url()` would reject DIDs, so accept any
-// bounded non-empty string and let connector dispatch validate the shape.
+/**
+ * A follow/unfollow target. A plain `.url()` rejects the legitimate non-URL
+ * identifier forms the connectors accept, so validate against the EXACT set each
+ * connector's `matches()` claims — an ActivityPub actor URI (absolute http(s)
+ * URL) or fediverse acct (`@user@host`), or an atproto DID / AT-URI / bare
+ * handle — instead of a blanket string that would let arbitrary input reach DB
+ * queries and connector dispatch.
+ */
+function isFollowableActorRef(value: string): boolean {
+  return (
+    isAbsoluteHttpUrl(value)
+    || Boolean(normalizeFederatedAcct(value))
+    || isDid(value)
+    || isAtUri(value)
+    || isAtprotoHandle(value)
+  );
+}
+
+/**
+ * A STORED `FederatedActor.uri` is always canonical: an ActivityPub actor URI
+ * (absolute http(s) URL) or an atproto DID — never a handle/acct/AT-URI.
+ */
+function isStoredActorUri(value: string): boolean {
+  return isAbsoluteHttpUrl(value) || isDid(value);
+}
+
+/**
+ * A bare local Oxy username (no `@host`, no scheme, no path). `classifyQuery`
+ * routes these to a 404 ("not an external handle"); accepting the shape here
+ * preserves that documented behavior instead of 400-ing a valid username.
+ */
+const LOCAL_USERNAME_RE = /^@?[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,62}$/;
+
+/**
+ * A `/resolve` query: an external identifier the connectors resolve (AP acct /
+ * atproto handle / DID / AT-URI) OR a bare local username. Rejecting everything
+ * else (whitespace, URL schemes, path/query chars) keeps junk out of the
+ * downstream network dispatch (XRPC / WebFinger / `https://<handle>/...` / DNS).
+ */
+function isResolvableQuery(value: string): boolean {
+  return (
+    Boolean(normalizeFederatedAcct(value))
+    || isAtprotoHandle(value)
+    || isDid(value)
+    || isAtUri(value)
+    || LOCAL_USERNAME_RE.test(value)
+  );
+}
+
 const actorRefSchema = z.object({
-  actorUri: z.string().min(1).max(2048),
+  actorUri: z.string().min(1).max(2048).refine(isFollowableActorRef, {
+    message: 'actorUri must be an ActivityPub actor URI/handle or an atproto DID/handle',
+  }),
 });
 
 const actorPostsQuerySchema = z.object({
-  // Same as above: a stored actor `uri` is an AP actor URI OR an atproto DID.
-  uri: z.string().min(1).max(2048),
+  uri: z.string().min(1).max(2048).refine(isStoredActorUri, {
+    message: 'uri must be an ActivityPub actor URI or an atproto DID',
+  }),
   cursor: z.string().datetime({ offset: true }).optional(),
 });
 
 const resolveQuerySchema = z.object({
-  handle: z.string().min(1).max(512),
+  handle: z.string().min(1).max(512).refine(isResolvableQuery, {
+    message: 'handle must be a fediverse acct, atproto handle/DID, or username',
+  }),
 });
 
 // --- Helpers ---
@@ -224,14 +277,24 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
       targetActorUri: parsed.data.actorUri,
     });
 
+    // Read back the actor the connector persisted so the response carries the
+    // CANONICAL id the system stores — atproto resolves a handle → DID before
+    // writing the follow record, so look up by `uri` (AP actor URI / atproto DID)
+    // OR `acct` (the handle a client may have followed by) and return the stored
+    // `uri`, the same id `GET /federation/following` returns. Falls back to the
+    // raw input when no row was persisted (e.g. a transient resolution failure
+    // stored the follow under the raw input).
     // `pending` reflects whether the target manually approves followers (an
     // ActivityPub locked account); atproto actors never do, so this is false.
-    const actor = await FederatedActor.findOne({ uri: parsed.data.actorUri })
-      .select('manuallyApprovesFollowers')
+    const actor = await FederatedActor.findOne({
+      $or: [{ uri: parsed.data.actorUri }, { acct: parsed.data.actorUri }],
+    })
+      .select('uri manuallyApprovesFollowers')
       .lean();
+    const canonicalActorUri = actor?.uri ?? parsed.data.actorUri;
     const pending = actor?.manuallyApprovesFollowers === true;
 
-    return res.json({ success: true, pending, actorUri: parsed.data.actorUri });
+    return res.json({ success: true, pending, actorUri: canonicalActorUri });
   } catch (err) {
     logger.error('Federation follow error:', err);
     return res.status(500).json({ error: 'Follow failed' });
