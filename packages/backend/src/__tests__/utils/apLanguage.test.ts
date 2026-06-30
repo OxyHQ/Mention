@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractApLanguage, extractApLanguages } from '../../utils/federation/apLanguage';
+import { extractApLanguage, extractApLanguages } from '../../connectors/activitypub/apLanguage';
 
 describe('extractApLanguage', () => {
   it('reads a top-level language field', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isWithinOutboxSyncCooldown, shouldForceUntrackedOutboxSync } from '../../utils/federation/outboxSyncCooldown';
+import { isWithinOutboxSyncCooldown, shouldForceUntrackedOutboxSync } from '../../connectors/activitypub/outboxSyncCooldown';
 
 const COOLDOWN_MS = 15 * 60 * 1000;
 const NOW_MS = Date.UTC(2026, 5, 25, 12, 0, 0);

@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   uploadProfileBanner: vi.fn(),
 }));
 
-vi.mock('../../utils/federation/crypto', () => ({
+vi.mock('../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
@@ -121,7 +121,7 @@ vi.mock('../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-import { federationService } from '../../services/FederationService';
+import { activityPubConnector as federationService } from '../../connectors/activitypub/ActivityPubConnector';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {

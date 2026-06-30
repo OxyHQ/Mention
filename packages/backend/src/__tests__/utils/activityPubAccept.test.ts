@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isActivityPubAccept } from '../../utils/federation/constants';
+import { isActivityPubAccept } from '../../connectors/activitypub/constants';
 
 describe('isActivityPubAccept', () => {
   it('matches ActivityPub and JSON-LD Accept variants used for actor discovery', () => {

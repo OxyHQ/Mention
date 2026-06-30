@@ -5,23 +5,22 @@ import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
   extractActorUriFromActivityId,
-} from '../../utils/federation/constants';
+} from './constants';
 import { PostVisibility } from '@mention/shared-types';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
-import { extractApLanguage, extractApLanguages } from '../../utils/federation/apLanguage';
+import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { normalizePostHashtags } from '../../utils/textProcessing';
-import { getPostCreator } from '../serviceRegistry';
-import { baselineContentClassifier } from '../BaselineContentClassifier';
+import { getPostCreator } from '../../services/serviceRegistry';
+import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
   SPAM_QUALITY_CONFIG,
   toClassificationScores,
-} from '../contentClassification/spamQuality';
+} from '../../services/contentClassification/spamQuality';
 import type { PostClassificationScores } from '@mention/shared-types';
 import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
-import { actorService } from './ActorService';
+import { actorService } from './actor.service';
 import {
-  isAbsoluteHttpUrl,
   asRecord,
   activityPubItems,
   activityPubLinkUrl,
@@ -35,12 +34,12 @@ import {
   extractApMedia,
   extractApHashtags,
   extractInReplyToUri,
-  getRemoteHost,
   mapApVisibility,
   parseApPublished,
   resolvePostIdFromObjectUri,
-  materializeFederatedMedia,
-} from './sharedFederationHelpers';
+} from './helpers';
+import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
+import { materializeFederatedMedia } from '../shared/federatedMedia';
 import {
   parseOrderedCollection,
   parseOrderedCollectionPage,
@@ -164,7 +163,7 @@ export interface OutboxSyncOptions {
  * candidates, dedup, import new notes (raw insertMany) and boosts, and advance
  * an opaque pagination cursor.
  *
- * Extracted verbatim from the monolithic FederationService — same behavior,
+ * Extracted verbatim from the former monolithic FederationService — same behavior,
  * same signatures. Depends on ActorService (actor resolution), the shared
  * low-level helpers, and the registered PostCreator. Registers itself as the
  * BoostImporter so InboxProcessingService can reuse `importAnnounce` without a

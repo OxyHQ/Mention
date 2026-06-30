@@ -27,14 +27,14 @@ vi.mock('@oxyhq/core/server', () => ({
   getRequiredOxyUserId: () => 'local-user-1',
 }));
 
-vi.mock('../../utils/federation/constants', () => ({ FEDERATION_ENABLED: true }));
+vi.mock('../../connectors/activitypub/constants', () => ({ FEDERATION_ENABLED: true }));
 
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-vi.mock('../../services/FederationService', () => ({
-  federationService: {},
+vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
+  activityPubConnector: {},
   isPermanentlyUnavailableOutboxReason: vi.fn(() => false),
 }));
 

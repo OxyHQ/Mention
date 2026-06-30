@@ -475,7 +475,7 @@ const PostSchema = new Schema<IPost>({
   // createThread, replies, single federated ingest, MCP) yields a post the
   // classification batch job will pick up — with zero per-path code. The raw
   // federated batch path (`Post.collection.insertMany`) bypasses Mongoose
-  // defaults and sets this explicitly in FederationService.
+  // defaults and sets this explicitly in the ActivityPub connector's outbox sync.
   postClassification: {
     type: PostClassificationSchema,
     default: () => ({ status: POST_CLASSIFICATION_PENDING }),

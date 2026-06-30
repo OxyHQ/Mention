@@ -1,42 +1,36 @@
 import mongoose from 'mongoose';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
-import { signRequest, getPublicKey } from '../../utils/federation/crypto';
+import { signRequest, getPublicKey } from './crypto';
 import {
   AP_CONTENT_TYPE,
   USER_AGENT,
   extractLocalPostIdFromApUri,
-} from '../../utils/federation/constants';
+} from './constants';
 import { PostVisibility } from '@mention/shared-types';
-import { extractApMediaFromNote, type ApMediaType } from '../../utils/federation/apMedia';
+import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
-import { recordAccessAndMaybeEnqueue } from '../mediaCache/cacheStore';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
-import { persistRemoteMediaForFederatedOwnerDetailed } from '../mediaCache/cacheWorker';
 import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
+import { isAbsoluteHttpUrl } from '../shared/url';
 
 /**
- * Shared low-level helpers used by more than one federation sub-service
- * (ActorService, OutboxSyncService, InboxProcessingService, FollowService).
+ * Low-level ActivityPub helpers used by more than one AP sub-service
+ * (actor / follow / inbox / outbox services).
  *
- * These were previously private members / module-level functions of the
- * monolithic FederationService. They are extracted here verbatim — same
- * behavior, same signatures — so the sub-services can depend on a single
- * cohesive low-level module instead of reaching into each other.
+ * These were previously the AP-specific members of the monolithic federation
+ * helpers. They are kept here — verbatim, same behavior, same signatures — so
+ * the AP sub-services depend on a single cohesive low-level module. The
+ * protocol-agnostic media materializer and the generic URL predicates were
+ * split out to `connectors/shared/federatedMedia.ts` and
+ * `connectors/shared/url.ts` respectively.
  */
-
-export type ExtractedMediaItem = { id: string; type: ApMediaType };
-export type ExtractedMediaAttachment = { type: 'media'; id: string; mediaType: ApMediaType };
 
 const SIGNED_FETCH_TIMEOUT_MS = 10000;
 /** Bounded redirect budget for signed AP GETs; each hop is re-validated and re-signed. */
 const SIGNED_FETCH_MAX_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 const MAX_ACTIVITYPUB_REDIRECTS = SIGNED_FETCH_MAX_REDIRECTS;
-
-export function isAbsoluteHttpUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value);
-}
 
 export function asRecord(value: unknown): Record<string, any> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -73,14 +67,6 @@ export function firstStringUrl(value: unknown): string | undefined {
     return firstStringUrl(record.url) || firstStringUrl(record.href);
   }
   return undefined;
-}
-
-export function getRemoteHost(remoteUrl: string): string | undefined {
-  try {
-    return new URL(remoteUrl).host.toLowerCase();
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -536,80 +522,4 @@ export async function resolvePostIdFromObjectUri(objectUri: string): Promise<str
     { _id: 1 },
   ).lean();
   return imported ? String(imported._id) : null;
-}
-
-/**
- * Persist remote media to Oxy S3 (when an owner is known), rewriting media ids
- * to the cached Oxy file ids. Permanently-unavailable remote media is dropped
- * from both the media list and matching attachments; soft failures keep the
- * original remote URL and queue it for a later cache attempt.
- */
-export async function materializeFederatedMedia(
-  media: ExtractedMediaItem[],
-  attachments: ExtractedMediaAttachment[],
-  ownerOxyUserId: string | null | undefined,
-  context: { activityId?: string; actorUri?: string } = {},
-): Promise<{ media: ExtractedMediaItem[]; attachments: ExtractedMediaAttachment[] }> {
-  if (media.length === 0) return { media, attachments };
-
-  const idMap = new Map<string, string>();
-  const removedRemoteUrls = new Set<string>();
-  const outputMedia: ExtractedMediaItem[] = [];
-
-  for (const item of media) {
-    const remoteUrl = item.id;
-    if (!isAbsoluteHttpUrl(remoteUrl)) {
-      outputMedia.push(item);
-      continue;
-    }
-
-    if (!ownerOxyUserId) {
-      void recordAccessAndMaybeEnqueue(remoteUrl);
-      outputMedia.push(item);
-      continue;
-    }
-
-    const persistedResult = await persistRemoteMediaForFederatedOwnerDetailed(remoteUrl, ownerOxyUserId, {
-      remoteHost: getRemoteHost(remoteUrl),
-      activityId: context.activityId,
-      actorUri: context.actorUri,
-      mediaType: item.type,
-    });
-
-    if (!persistedResult.ok) {
-      if (persistedResult.permanent) {
-        logger.info('[Federation] Dropping permanently unavailable remote media', {
-          remoteHost: getRemoteHost(remoteUrl),
-          status: persistedResult.status,
-          activityId: context.activityId,
-        });
-        removedRemoteUrls.add(remoteUrl);
-        continue;
-      }
-      void recordAccessAndMaybeEnqueue(remoteUrl);
-      outputMedia.push(item);
-      continue;
-    }
-
-    const persisted = persistedResult.media;
-    idMap.set(remoteUrl, persisted.oxyFileId);
-    outputMedia.push({
-      ...item,
-      id: persisted.oxyFileId,
-      remoteUrl,
-      cachedFromFederation: true,
-      ...(persisted.posterFileId ? { posterFileId: persisted.posterFileId } : {}),
-    } as ExtractedMediaItem);
-  }
-
-  if (idMap.size === 0 && removedRemoteUrls.size === 0) return { media: outputMedia, attachments };
-
-  const outputAttachments = attachments
-    .filter((attachment) => !removedRemoteUrls.has(attachment.id))
-    .map((attachment) => ({
-      ...attachment,
-      id: idMap.get(attachment.id) || attachment.id,
-    }));
-
-  return { media: outputMedia, attachments: outputAttachments };
 }

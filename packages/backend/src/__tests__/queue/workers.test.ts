@@ -8,9 +8,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // `workers.ts` statically imports these singletons. Mock them so the test does
-// not pull in the real FederationService graph or the server entry point.
-vi.mock('../../services/FederationService', () => ({
-  federationService: {
+// not pull in the real connector graph or the server entry point.
+vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
+  activityPubConnector: {
     processInboxActivity: mocks.processInboxActivity,
     deliverActivity: mocks.deliverActivity,
   },

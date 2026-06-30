@@ -4,11 +4,12 @@
  *
  * Oxy's identity apex (`oxy.so`, the DID layer's anchor) publishes every
  * Oxy/Mention user as `acct:<username>@<apex>`. Before the federation guard was
- * widened (see `utils/federation/constants.ts` → `isBlockedDomain` +
+ * widened (see `connectors/activitypub/constants.ts` → `isBlockedDomain` +
  * `OXY_IDENTITY_APEX`), `ActorService.fetchRemoteActor` treated that apex as a
  * remote source and upserted a `FederatedActor` (plus an Oxy
  * `PUT /users/resolve`) for actors there — duplicating local users as
- * "federated" accounts.
+ * "federated" accounts. The guard now lives in
+ * `connectors/activitypub/constants.ts` (`isBlockedDomain` + `OXY_IDENTITY_APEX`).
  *
  * This script removes those stale rows. A row is targeted when its stored
  * `domain` OR its `uri` host is caught by the SAME `isBlockedDomain` predicate
@@ -34,7 +35,7 @@ import mongoose from 'mongoose';
 import FederatedActor from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import { connectToDatabase } from '../utils/database';
-import { isBlockedDomain } from '../utils/federation/constants';
+import { isBlockedDomain } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';
 
 /** Actors scanned per page (stable `_id` cursor pagination). */

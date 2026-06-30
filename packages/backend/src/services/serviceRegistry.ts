@@ -2,28 +2,28 @@ import type { IPost } from '../models/Post';
 import type { CreatePostParams } from './PostCreationService';
 
 /**
- * Late-bound registry that breaks the runtime circular dependency between
- * `FederationService` and `PostCreationService`.
+ * Late-bound registry that breaks the runtime circular dependency between the
+ * network connectors and `PostCreationService`.
  *
- * Both services are singletons that reference each other: `PostCreationService`
- * calls `FederationService.federateNewPost` when a new local post is created, and
- * `FederationService` calls `PostCreationService.create` when importing federated
+ * They reference each other: `PostCreationService` asks the registered
+ * `PostFederator` (the connector registry) to federate a new local post, and a
+ * connector calls `PostCreationService.create` when importing federated
  * notes/boosts. Importing one from the other directly would form a CommonJS load
  * cycle (the second module loads while the first is still partially initialized).
  *
- * Instead, each service registers its singleton here at module load, and the
- * other resolves it lazily at call time via the typed accessors below. This
- * pays the cost once (a property read) instead of `require()`-resolving a module
- * on every federation job, and keeps the dependency contract explicit and typed
- * with no `any`.
+ * Instead, each side registers its singleton here at module load, and the other
+ * resolves it lazily at call time via the typed accessors below. This pays the
+ * cost once (a property read) instead of `require()`-resolving a module on every
+ * federation job, and keeps the dependency contract explicit and typed with no
+ * `any`.
  */
 
-/** The subset of `PostCreationService` that `FederationService` depends on. */
+/** The subset of `PostCreationService` a connector depends on. */
 export interface PostCreator {
   create(params: CreatePostParams): Promise<IPost>;
 }
 
-/** The subset of `FederationService` that `PostCreationService` depends on. */
+/** The subset of the connector registry that `PostCreationService` depends on. */
 export interface PostFederator {
   federateNewPost(
     post: {
@@ -65,13 +65,14 @@ export function getPostCreator(): PostCreator {
 }
 
 /**
- * Resolve the registered federation singleton. Throws if accessed before
- * `FederationService` has been loaded — a programming error, since both
- * services are loaded at server bootstrap before any post is created.
+ * Resolve the registered federation singleton. Throws if accessed before the
+ * connector registry has been loaded — a programming error, since the connectors
+ * bootstrap (`import './src/connectors'`) runs at server startup before any post
+ * is created.
  */
 export function getPostFederator(): PostFederator {
   if (!postFederator) {
-    throw new Error('PostFederator not registered: FederationService must be loaded before use');
+    throw new Error('PostFederator not registered: the connector registry must be loaded before use');
   }
   return postFederator;
 }

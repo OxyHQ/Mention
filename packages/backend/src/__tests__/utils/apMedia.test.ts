@@ -3,7 +3,7 @@ import {
   resolveApAttachment,
   extractApMediaFromNote,
   type ApAttachment,
-} from '../../utils/federation/apMedia';
+} from '../../connectors/activitypub/apMedia';
 
 // --- resolveApAttachment ----------------------------------------------------
 

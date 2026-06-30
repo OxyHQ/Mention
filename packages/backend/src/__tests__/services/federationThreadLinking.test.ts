@@ -235,7 +235,7 @@ const h = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../utils/federation/crypto', () => ({
+vi.mock('../../connectors/activitypub/crypto', () => ({
   getPublicKey: h.getPublicKey,
   signViaOxy: h.signViaOxy,
   signRequest: h.signRequest,
@@ -313,8 +313,8 @@ vi.mock('../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-import { federationService } from '../../services/FederationService';
-import { outboxSyncService } from '../../services/federation/OutboxSyncService';
+import { activityPubConnector as federationService } from '../../connectors/activitypub/ActivityPubConnector';
+import { outboxSyncService } from '../../connectors/activitypub/outbox.service';
 import backfillFederatedThreadLinks from '../../scripts/backfillFederatedThreadLinks';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {

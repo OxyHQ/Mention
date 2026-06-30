@@ -28,8 +28,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-import { signRequest, verifyHttpSignature } from '../../utils/federation/crypto';
-import { AP_CONTENT_TYPE } from '../../utils/federation/constants';
+import { signRequest, verifyHttpSignature } from '../../connectors/activitypub/crypto';
+import { AP_CONTENT_TYPE } from '../../connectors/activitypub/constants';
 
 let publicKeyPem: string;
 

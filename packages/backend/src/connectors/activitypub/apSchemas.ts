@@ -6,15 +6,15 @@
  * parsed with raw property access. These schemas are the validation FOUNDATION
  * for that ingest: every shape and field constrained here was derived from what
  * the ingest code actually consumes —
- *   - `services/federation/InboxProcessingService.ts` (Follow/Undo/Create/Delete/
+ *   - `connectors/activitypub/inbox.service.ts` (Follow/Undo/Create/Delete/
  *     Like/Announce/Accept/Reject/Update dispatch + handlers),
- *   - `services/federation/OutboxSyncService.ts` (outbox backfill, Note/Announce
+ *   - `connectors/activitypub/outbox.service.ts` (outbox backfill, Note/Announce
  *     candidate extraction, boost import),
- *   - `services/federation/ActorService.ts` (`fetchRemoteActor` field reads),
- *   - `services/federation/sharedFederationHelpers.ts` (attributedTo / announced
+ *   - `connectors/activitypub/actor.service.ts` (`fetchRemoteActor` field reads),
+ *   - `connectors/activitypub/helpers.ts` (attributedTo / announced
  *     object / addressing / tag extraction),
- *   - `utils/federation/apMedia.ts` (attachment URL shapes),
- *   - `utils/federation/apLanguage.ts` (`language` / `contentMap`).
+ *   - `connectors/activitypub/apMedia.ts` (attachment URL shapes),
+ *   - `connectors/activitypub/apLanguage.ts` (`language` / `contentMap`).
  *
  * Design principles:
  *  - LENIENT by AP spec: every object schema is `.loose()` (zod v4 passthrough)
@@ -88,7 +88,7 @@ export function primaryApType(type: string | string[] | undefined): string | und
 
 /**
  * A single AP `Link` object as it appears inside `attachment[].url`
- * (Pleroma/PeerTube/Lemmy). Mirrors `ApUrlEntry` in `utils/federation/apMedia.ts`.
+ * (Pleroma/PeerTube/Lemmy). Mirrors `ApUrlEntry` in `connectors/activitypub/apMedia.ts`.
  */
 export const apLinkEntrySchema = z
   .object({

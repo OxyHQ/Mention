@@ -21,7 +21,7 @@ import {
   parseActor,
   parseOrderedCollection,
   parseOrderedCollectionPage,
-} from '../../../services/federation/apSchemas';
+} from '../../../connectors/activitypub/apSchemas';
 
 // ---------------------------------------------------------------------------
 // apPublished — the date-fix contract: validate ISO-8601 + coerce to Date

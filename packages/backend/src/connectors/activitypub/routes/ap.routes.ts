@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { logger } from '../utils/logger';
-import { federationService } from '../services/FederationService';
-import { verifyHttpSignature, getPublicKey } from '../utils/federation/crypto';
-import { Post } from '../models/Post';
-import FederatedFollow from '../models/FederatedFollow';
+import { logger } from '../../../utils/logger';
+import { activityPubConnector } from '../ActivityPubConnector';
+import { verifyHttpSignature, getPublicKey } from '../crypto';
+import { Post } from '../../../models/Post';
+import FederatedFollow from '../../../models/FederatedFollow';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -17,11 +17,11 @@ import {
   followingUrl,
   sharedInboxUrl,
   resolveOxyUser,
-} from '../utils/federation/constants';
+} from '../constants';
 import rateLimit from 'express-rate-limit';
-import { RedisStore } from '../middleware/rateLimitStore';
-import { enqueueInboxActivity } from '../queue/producers';
-import { resolveAvatarUrl } from '../utils/mediaResolver';
+import { RedisStore } from '../../../middleware/rateLimitStore';
+import { enqueueInboxActivity } from '../../../queue/producers';
+import { resolveAvatarUrl } from '../../../utils/mediaResolver';
 
 const router = Router();
 
@@ -242,7 +242,7 @@ async function handleInbox(req: Request, res: Response): Promise<Response> {
         headers: req.headers as Record<string, string | string[] | undefined>,
         body: req.rawBody ?? req.body,
       },
-      (keyId) => federationService.fetchPublicKey(keyId),
+      (keyId) => activityPubConnector.fetchPublicKey(keyId),
     );
 
     if (!verified || !actorUri) {
@@ -276,7 +276,7 @@ async function handleInbox(req: Request, res: Response): Promise<Response> {
     }
 
     if (!enqueued) {
-      federationService.processInboxActivity(activity, actorUri).catch((err) => {
+      activityPubConnector.processInboxActivity(activity, actorUri).catch((err) => {
         logger.error('Error processing inbox activity:', err);
       });
     }

@@ -1,10 +1,10 @@
 import { logger } from '../utils/logger';
 import type { Types } from 'mongoose';
-import { FEDERATION_ENABLED } from '../utils/federation/constants';
+import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import FederatedActor, { type FederatedOutboxBackfillState } from '../models/FederatedActor';
 import FederatedFollow from '../models/FederatedFollow';
 import FederationDeliveryQueue, { getNextRetryTime } from '../models/FederationDeliveryQueue';
-import { federationService, isPermanentlyUnavailableOutboxReason } from './FederationService';
+import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../connectors/activitypub/ActivityPubConnector';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
 import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
@@ -435,7 +435,7 @@ class FederationJobScheduler {
       await Promise.allSettled(
         batch.map((actor) =>
           // forceAvatarRefresh=true → Oxy re-downloads/replaces the avatar.
-          federationService.fetchRemoteActor(actor.uri, true, actor.acct).catch((err) => {
+          activityPubConnector.fetchRemoteActor(actor.uri, true, actor.acct).catch((err) => {
             const message = err instanceof Error ? err.message : String(err);
             logger.debug(`[FedSync] Failed to refresh actor ${actor.uri}: ${message}`);
           })
@@ -481,7 +481,7 @@ class FederationJobScheduler {
         const batch = actors.slice(i, i + CONCURRENCY);
         await Promise.allSettled(
           batch.map((actor) =>
-            federationService.syncOutboxPosts(actor, 20).catch((err) =>
+            activityPubConnector.syncOutboxPosts(actor, 20).catch((err) =>
               logger.debug(`[FedSync] Outbox sync failed for ${actor.acct}:`, err)
             )
           )
@@ -625,7 +625,7 @@ class FederationJobScheduler {
     if ((claim.modifiedCount ?? 0) === 0) return;
 
     const remaining = Math.max(0, OUTBOX_RECENT_BACKFILL_LIMIT - previousProcessedCount);
-    const result = await federationService.syncOutboxPostsDetailed(
+    const result = await activityPubConnector.syncOutboxPostsDetailed(
       {
         uri: actor.uri,
         acct: actor.acct,
@@ -745,7 +745,7 @@ class FederationJobScheduler {
             continue;
           }
 
-          const success = await federationService.deliverActivity(
+          const success = await activityPubConnector.deliverActivity(
             delivery.activityJson as Record<string, unknown>,
             delivery.targetInbox,
             delivery.senderOxyUserId,

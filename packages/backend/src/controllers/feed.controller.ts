@@ -47,12 +47,12 @@ import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers'
 import type { User } from '@oxyhq/core';
 import { threadSlicingService } from '../services/ThreadSlicingService';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
-import { federationService, isPermanentlyUnavailableOutboxReason } from '../services/FederationService';
-import { FEDERATION_ENABLED } from '../utils/federation/constants';
+import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../connectors/activitypub/ActivityPubConnector';
+import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import {
   isWithinOutboxSyncCooldown,
   shouldForceUntrackedOutboxSync,
-} from '../utils/federation/outboxSyncCooldown';
+} from '../connectors/activitypub/outboxSyncCooldown';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 
 /**
@@ -1018,7 +1018,7 @@ class FeedController {
           // (PeerTube, Lemmy, some Pleroma) whose outbox lives elsewhere.
           // `fetchRemoteActor` upserts the FederatedActor with the canonical
           // `outboxUrl`/`inboxUrl` taken from `actor.outbox`/`actor.inbox`.
-          actor = await federationService.fetchRemoteActor(actorUri, false, acctHint);
+          actor = await activityPubConnector.fetchRemoteActor(actorUri, false, acctHint);
 
           if (!actor) {
             // The remote actor fetch failed (network error, blocked domain,
@@ -1058,7 +1058,7 @@ class FeedController {
             const refreshUri = actorUri || actor.uri;
             const refreshAcct = acctHint || actor.acct;
             logger.info(`[FedSync] refreshing cached actor before outbox sync for ${actor.acct}; actorUriChanged=${actorUriChanged} actorAcctChanged=${actorAcctChanged}`);
-            const refreshed = await federationService.fetchRemoteActor(refreshUri, false, refreshAcct);
+            const refreshed = await activityPubConnector.fetchRemoteActor(refreshUri, false, refreshAcct);
             if (refreshed) {
               actor = refreshed;
               refreshedActorForSync = true;
@@ -1072,8 +1072,8 @@ class FeedController {
         if (!actor) return;
 
         // Enqueue a full actor refresh (avatar/banner/displayName) for the viewed
-        // profile. Guarded against refresh storms inside FederationService.
-        federationService.refreshActorInBackground(actor.uri, actor);
+        // profile. Guarded against refresh storms inside the ActivityPub connector.
+        activityPubConnector.refreshActorInBackground(actor.uri, actor);
 
         if (actor.outboxUrl) {
           const outboxStatus = this.getCurrentOutboxBackfillStatus(actor);
@@ -1104,11 +1104,11 @@ class FeedController {
             await FederatedActor.updateOne({ _id: actor._id }, { $set: { oxyUserId: syncUserId } });
             actor.oxyUserId = syncUserId;
           }
-          const syncResult = await federationService.syncOutboxPostsDetailed(actor, this.FED_OUTBOX_SYNC_LIMIT);
+          const syncResult = await activityPubConnector.syncOutboxPostsDetailed(actor, this.FED_OUTBOX_SYNC_LIMIT);
           const syncedCount = syncResult.syncedCount;
           logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
           if (isPermanentlyUnavailableOutboxReason(syncResult.reason)) {
-            await federationService.markOutboxBackfillUnavailable(actor, syncResult.reason);
+            await activityPubConnector.markOutboxBackfillUnavailable(actor, syncResult.reason);
           } else if (syncResult.shouldStampCooldown) {
             // Stamp the sync time so subsequent views honour the cooldown only
             // after a fetch that actually exposed an inspectable outbox.

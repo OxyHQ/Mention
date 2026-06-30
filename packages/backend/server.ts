@@ -70,9 +70,13 @@ import adminRoutes from './src/routes/admin';
 import mediaRoutes from './src/routes/media';
 import recommendationsRoutes from './src/routes/recommendations';
 
-// Federation (ActivityPub)
-import webfingerRoutes from './src/routes/webfinger.routes';
-import federationRoutes from './src/routes/federation.routes';
+// Federation (ActivityPub) — network connectors. Importing the connectors index
+// instantiates the enabled connectors and registers the connector registry as
+// the PostFederator (the seam PostCreationService.create uses), replacing the
+// deleted FederationService facade's old import side-effect.
+import './src/connectors';
+import webfingerRoutes from './src/connectors/activitypub/routes/wellKnown.routes';
+import federationRoutes from './src/connectors/activitypub/routes/ap.routes';
 import federationApiRoutes from './src/routes/federation.api.routes';
 
 // MTN Protocol

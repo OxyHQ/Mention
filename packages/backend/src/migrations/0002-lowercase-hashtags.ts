@@ -6,8 +6,8 @@
  *   - the MTN `HashtagFeed` normalizes its tag via `tag.toLowerCase()`
  *   - the trending/search aggregations group with `$toLower`
  *
- * Both write paths now lowercase on write (`mergeHashtags` and
- * `FederationService.extractApHashtags`), but documents created before that fix
+ * Both write paths now lowercase on write (`mergeHashtags` and the ActivityPub
+ * connector's `extractApHashtags`), but documents created before that fix
  * still carry mixed-case tags (e.g. `Cat`, `Art`, `Cartoon`) that can never
  * match a lowercased query. This migration rewrites the existing data.
  *

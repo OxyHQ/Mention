@@ -13,7 +13,7 @@ import {
 } from './constants';
 import type { InboxJobData, DeliveryJobData, PeriodicJobData, PeriodicTaskName } from './types';
 import { logger } from '../utils/logger';
-import { federationService } from '../services/FederationService';
+import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
 import { federationJobScheduler } from '../services/FederationJobScheduler';
 import { oxy } from '../../server';
 
@@ -56,19 +56,19 @@ function deliveryBackoff(attemptsMade: number): number {
 
 /**
  * Process one inbound activity. Delegates to the existing
- * `federationService.processInboxActivity`.
+ * `activityPubConnector.processInboxActivity`.
  *
  * Exported for unit testing — the BullMQ Worker is constructed with this as its
  * processor, so testing it directly avoids needing a live Redis connection.
  */
 export async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
   const { activity, verifiedActorUri } = job.data;
-  await federationService.processInboxActivity(activity, verifiedActorUri);
+  await activityPubConnector.processInboxActivity(activity, verifiedActorUri);
 }
 
 /**
  * Process one outbound delivery. Resolves the sender's username from the Oxy
- * client, signs + POSTs via `federationService.deliverActivity`, and throws on
+ * client, signs + POSTs via `activityPubConnector.deliverActivity`, and throws on
  * a soft failure so BullMQ retries with the custom backoff. A missing sender is
  * a PERMANENT failure (UnrecoverableError) — no retry.
  *
@@ -90,7 +90,7 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
     throw new UnrecoverableError('Sender user not found');
   }
 
-  const delivered = await federationService.deliverActivity(
+  const delivered = await activityPubConnector.deliverActivity(
     activityJson,
     targetInbox,
     senderOxyUserId,

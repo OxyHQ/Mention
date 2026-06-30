@@ -337,7 +337,7 @@ class PostCreationService {
 
     if (!params.skipFederationDelivery && oxyUserId && params.senderUsername) {
       try {
-        // Late-bound accessor avoids a circular import with FederationService.
+        // Late-bound accessor avoids a circular import with the connector registry.
         await getPostFederator().federateNewPost(post, oxyUserId, params.senderUsername);
       } catch (fedError) {
         logger.error('PostCreationService: failed to federate post', fedError);
@@ -349,6 +349,7 @@ class PostCreationService {
 }
 
 export const postCreationService = new PostCreationService();
-// Register with the late-bound service registry so FederationService can create
-// posts from federated notes/boosts without a circular import. See serviceRegistry.ts.
+// Register with the late-bound service registry so the network connectors can
+// create posts from federated notes/boosts without a circular import. See
+// serviceRegistry.ts.
 registerPostCreator(postCreationService);
