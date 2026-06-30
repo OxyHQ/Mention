@@ -27,6 +27,7 @@ import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
 import ReportModal from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
+import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
 import { confirmDialog } from '@/utils/alerts';
 import type { FeedType } from '@mention/shared-types';
 import { logger } from '@/lib/logger';
@@ -372,6 +373,17 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
             bottomSheet.openBottomSheet(true);
         };
 
+        const handleAddToStarterPack = () => {
+            bottomSheet.setBottomSheetContent(
+                <AddToStarterPackSheet
+                    targetUserId={profileData.id}
+                    targetLabel={`@${displayUsername}`}
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                />
+            );
+            bottomSheet.openBottomSheet(true);
+        };
+
         const MenuContent = () => (
             <View className="py-2 px-4">
                 <IconButton variant="icon" onPress={handleAddToList} style={{ width: '100%', paddingVertical: 14 }}>
@@ -379,6 +391,14 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                         <Ionicons name="list-outline" size={22} color={theme.colors.text} />
                         <Text className="text-foreground text-base font-medium">
                             {t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' })}
+                        </Text>
+                    </View>
+                </IconButton>
+                <IconButton variant="icon" onPress={handleAddToStarterPack} style={{ width: '100%', paddingVertical: 14 }}>
+                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
+                        <Ionicons name="rocket-outline" size={22} color={theme.colors.text} />
+                        <Text className="text-foreground text-base font-medium">
+                            {t('starterPacks.addTo.menuItem', { defaultValue: 'Add/remove from starter packs' })}
                         </Text>
                     </View>
                 </IconButton>
