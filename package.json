@@ -30,7 +30,7 @@
     "postinstall": "cd packages/shared-types && bun run build"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^26.0.1",
     "typescript": "~5.9.3"
   },
   "dependencies": {
