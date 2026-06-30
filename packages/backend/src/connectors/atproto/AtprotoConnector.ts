@@ -30,9 +30,12 @@ import { importAuthorFeed } from './post.mapper';
  *
  * Outbound is intentionally minimal: `deliver({kind:'follow.add'})` records a
  * LOCAL subscription (no Follow is written to the atproto network) and triggers a
- * post backfill; `post.create` is a no-op until the C4 bridge (see
- * `bridge.seam.ts`). The connector NEVER uses `@atproto/api`; every network read
- * goes through the SSRF-safe XRPC client.
+ * post backfill; `post.create` is a no-op. The C4 bridge (`bridge/`) makes a
+ * local user discoverable/readable FROM atproto (be-discovered via did:web) — it
+ * does NOT publish posts INTO a foreign PDS (that is the documented outbound
+ * product seam, `AtprotoBridgeOutboundSeam` in `bridge/index.ts`). The connector
+ * NEVER uses `@atproto/api`; every network read goes through the SSRF-safe XRPC
+ * client.
  */
 class AtprotoConnector implements NetworkConnector {
   readonly id: NetworkId = 'atproto';
@@ -85,8 +88,10 @@ class AtprotoConnector implements NetworkConnector {
   async deliver(event: LocalNetworkEvent): Promise<void> {
     switch (event.kind) {
       case 'post.create':
-        // C2: Mention does NOT publish into the atproto network yet — outbound
-        // post delivery is the C4 bridge (`bridge.seam.ts`). No-op for now.
+        // Mention does NOT publish posts INTO a foreign atproto PDS. The C4
+        // bridge is BE-DISCOVERED (the user's repo is hosted here and read via
+        // `bridge/`); foreign-PDS publishing is the documented outbound product
+        // seam (`AtprotoBridgeOutboundSeam`), not wired. No-op.
         return;
       case 'follow.add':
         await this.followActor(event.localOxyUserId, event.targetActorUri);

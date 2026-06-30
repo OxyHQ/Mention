@@ -79,6 +79,10 @@ import './src/connectors';
 import webfingerRoutes from './src/connectors/activitypub/routes/wellKnown.routes';
 import federationRoutes from './src/connectors/activitypub/routes/ap.routes';
 import federationApiRoutes from './src/connectors/connectors.routes';
+// atproto BE-DISCOVERED bridge (Phase C4) — exposes a local user's MTN content to
+// the atproto network via the public XRPC read surface. Gated by
+// ATPROTO_BRIDGE_ENABLED (every route 404s when off); mounted public, before auth.
+import atprotoBridgeRoutes, { bridgeMetaRouter as atprotoBridgeMetaRoutes, wellKnownBridgeRouter } from './src/connectors/atproto/bridge/routes';
 
 // MTN Protocol
 import { registerAllFeeds } from './src/mtn/feed/registerFeeds';
@@ -162,8 +166,14 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  // Set no-cache only for API routes, not for federation/AP endpoints which set their own Cache-Control
-  if (!req.path.startsWith('/ap/') && !req.path.startsWith('/.well-known/')) {
+  // Set no-cache only for API routes, not for federation/AP/atproto-bridge
+  // endpoints which set their own Cache-Control.
+  if (
+    !req.path.startsWith('/ap/') &&
+    !req.path.startsWith('/.well-known/') &&
+    !req.path.startsWith('/xrpc/') &&
+    !req.path.startsWith('/ap-bridge/')
+  ) {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
@@ -899,6 +909,14 @@ app.get('/nodeinfo/2.0', async (req, res) => {
 });
 
 app.use('/ap', federationRoutes);
+
+// --- atproto BE-DISCOVERED bridge (Phase C4 — public, before auth) ---
+// The XRPC read surface (`com.atproto.repo.*` / `com.atproto.sync.*`) + the
+// bridge DID-document view, plus `.well-known/atproto-did` handle resolution.
+// All routes 404 when ATPROTO_BRIDGE_ENABLED is off.
+app.use('/xrpc', atprotoBridgeRoutes);
+app.use('/ap-bridge', atprotoBridgeMetaRoutes);
+app.use('/.well-known', wellKnownBridgeRouter);
 
 // --- Media proxy (PUBLIC, no auth) ---
 // Streams remote fediverse media through our origin (CORS-safe, cacheable,
