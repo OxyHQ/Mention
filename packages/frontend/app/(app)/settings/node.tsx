@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, TextInput } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
@@ -88,12 +88,7 @@ export default function MentionNodeScreen() {
     isCreatingVault,
     disconnect,
     isDisconnecting,
-    canSelfHostSign,
   } = useMentionNode();
-
-  const [showConnectForm, setShowConnectForm] = useState(false);
-  const [endpoint, setEndpoint] = useState('');
-  const [nodePublicKey, setNodePublicKey] = useState('');
 
   const header = (
     <Header
@@ -252,7 +247,7 @@ export default function MentionNodeScreen() {
           </>
         ) : (
           <>
-            {/* No node — explain + offer create/connect */}
+            {/* No node — explain + offer the one working action (managed vault). */}
             <View className="px-6 pt-4 pb-2 items-center gap-3">
               <View
                 className="w-16 h-16 rounded-full items-center justify-center"
@@ -266,7 +261,7 @@ export default function MentionNodeScreen() {
               <Text className="text-[15px] text-muted-foreground text-center max-w-[340px]">
                 {t('settings.node.empty.description', {
                   defaultValue:
-                    'A node is your own copy of your signed posts. Create a managed vault in one tap, or connect a node you run yourself.',
+                    'A node is your own copy of your signed posts. Create a managed vault in one tap — Mention runs it for you, with nothing to host.',
                 })}
               </Text>
             </View>
@@ -289,96 +284,23 @@ export default function MentionNodeScreen() {
               />
             </SettingsListGroup>
 
-            <SettingsListGroup title={t('settings.node.connect.title', { defaultValue: 'Advanced' })}>
-              <SettingsListItem
-                icon={<RowIcon name="server-outline" />}
-                title={t('settings.node.connect.ownTitle', { defaultValue: 'Connect your own node' })}
-                description={t('settings.node.connect.ownDesc', {
-                  defaultValue: 'Register a node you self-host (endpoint + public key)',
+            {/*
+              Self-hosting your own node is registered by publishing a signed
+              `app.mention.node` record onto your hash chain with your on-device
+              identity key — there is no server-side BYO-endpoint registration to
+              wire a form to. Until that signing flow ships in the mobile app, this
+              screen exposes only the working managed-vault action and states the
+              self-host path honestly rather than presenting a form that does nothing.
+            */}
+            <View className="flex-row gap-2.5 mx-5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.info + '14' }}>
+              <Icon name="information-circle" size={18} color={colors.info} />
+              <Text className="flex-1 text-[13px] text-foreground">
+                {t('settings.node.selfHostNotice', {
+                  defaultValue:
+                    'Prefer to run your own node? Self-hosting is registered by signing a record with your device identity key — a flow coming to the Mention mobile app. For now, a managed vault gets you the same signed copy of your posts.',
                 })}
-                onPress={() => setShowConnectForm((prev) => !prev)}
-                showChevron={false}
-                rightElement={
-                  <Icon
-                    name={showConnectForm ? 'chevron-up' : 'chevron-down'}
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                }
-              />
-            </SettingsListGroup>
-
-            {showConnectForm && (
-              <View className="px-5 pb-4 gap-3">
-                <View className="gap-1.5">
-                  <Text className="text-xs text-muted-foreground">
-                    {t('settings.node.connect.endpointLabel', { defaultValue: 'Node endpoint (HTTPS URL)' })}
-                  </Text>
-                  <TextInput
-                    className="px-3.5 py-2.5 rounded-xl border border-border text-[15px] text-foreground bg-card"
-                    placeholder="https://node.example.com"
-                    placeholderTextColor={colors.textSecondary}
-                    value={endpoint}
-                    onChangeText={setEndpoint}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                  />
-                </View>
-
-                <View className="gap-1.5">
-                  <Text className="text-xs text-muted-foreground">
-                    {t('settings.node.connect.publicKeyLabel', { defaultValue: 'Node public key (hex)' })}
-                  </Text>
-                  <TextInput
-                    className="px-3.5 py-2.5 rounded-xl border border-border text-[15px] text-foreground bg-card"
-                    placeholder="04a1b2c3…"
-                    placeholderTextColor={colors.textSecondary}
-                    value={nodePublicKey}
-                    onChangeText={setNodePublicKey}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-
-                {/*
-                  Self-host registration publishes a signed `app.mention.node`
-                  record on the user's hash chain with the on-device identity key.
-                  That signing is native-only (web KeyManager has no key) and is
-                  not yet exposed on this screen — so we never fake-sign or call a
-                  non-existent endpoint. We steer the user to the managed vault,
-                  mirroring how the SDK splits self-signed vs custodial.
-                */}
-                <View
-                  className="flex-row gap-2.5 p-3.5 rounded-xl"
-                  style={{ backgroundColor: colors.info + '14' }}
-                >
-                  <Icon name="information-circle" size={18} color={colors.info} />
-                  <Text className="flex-1 text-[13px] text-foreground">
-                    {canSelfHostSign
-                      ? t('settings.node.connect.nativeNotice', {
-                          defaultValue:
-                            'Self-hosted registration signs a record with your device identity key. This is coming to the app soon — for now, create a managed vault to get started.',
-                        })
-                      : t('settings.node.connect.webNotice', {
-                          defaultValue:
-                            'Connecting a node you host requires signing with your device identity key, which is only available in the Mention mobile app. Create a managed vault here instead.',
-                        })}
-                  </Text>
-                </View>
-
-                <Button
-                  variant="primary"
-                  onPress={() => createManagedVault()}
-                  disabled={isCreatingVault}
-                  icon={isCreatingVault ? undefined : 'shield-checkmark-outline'}
-                >
-                  {isCreatingVault
-                    ? t('settings.node.create.creating', { defaultValue: 'Creating…' })
-                    : t('settings.node.create.managedCta', { defaultValue: 'Create a managed vault' })}
-                </Button>
-              </View>
-            )}
+              </Text>
+            </View>
           </>
         )}
       </ScrollView>

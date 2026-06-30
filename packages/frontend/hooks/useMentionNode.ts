@@ -1,8 +1,6 @@
 import { useCallback } from 'react';
-import { Platform } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
-import { KeyManager } from '@oxyhq/core';
 import type { UserNodeStatus } from '@oxyhq/core';
 import { api } from '@/utils/api';
 import { isAuthError } from '@/utils/authErrors';
@@ -66,14 +64,6 @@ export interface UseMentionNodeResult {
   isDisconnecting: boolean;
   /** The disconnect error, if the last attempt failed. */
   disconnectError: unknown;
-
-  /**
-   * Whether this device can sign a self-hosted node registration. Self-host
-   * registration publishes a signed `app.mention.node` record with the on-device
-   * identity key, which only exists on native (web `KeyManager` has no key).
-   * `undefined` until resolved.
-   */
-  canSelfHostSign: boolean | undefined;
 }
 
 /**
@@ -110,23 +100,6 @@ export function useMentionNode(): UseMentionNodeResult {
     },
     enabled,
     staleTime: 30_000,
-  });
-
-  // Native devices that hold an on-device identity key can sign a self-hosted
-  // node registration; web (no key) and custodial accounts cannot. Resolved once
-  // and cached — `KeyManager.hasIdentity()` is a stable per-install fact.
-  const keyQuery = useQuery<boolean>({
-    queryKey: ['mtn-node', 'can-self-host-sign'],
-    queryFn: async () => {
-      if (Platform.OS === 'web') return false;
-      try {
-        return await KeyManager.hasIdentity();
-      } catch (error) {
-        nodeLogger.warn('Failed to probe on-device identity key', { error });
-        return false;
-      }
-    },
-    staleTime: Infinity,
   });
 
   const invalidateNode = useCallback(() => {
@@ -174,7 +147,5 @@ export function useMentionNode(): UseMentionNodeResult {
     disconnect: disconnectMutation.mutate,
     isDisconnecting: disconnectMutation.isPending,
     disconnectError: disconnectMutation.error,
-
-    canSelfHostSign: keyQuery.data,
   };
 }
