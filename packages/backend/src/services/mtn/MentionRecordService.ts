@@ -33,6 +33,7 @@ import {
   verifyAndAppend,
   type SignedRecordSigningFields,
   type RejectionReason,
+  type AppendOutcome,
 } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { logger } from '../../utils/logger';
@@ -148,4 +149,29 @@ export async function signAndAppend(
     reason: lastReason,
   });
   return { ok: false, reason: lastReason };
+}
+
+/**
+ * Re-verify a signed record (signed ELSEWHERE — on a user's node, or a
+ * custodial managed-vault record) and append it to its subject's chain.
+ *
+ * This is the INGEST chokepoint: it delegates to the app-agnostic
+ * `@oxyhq/protocol` engine with the SAME Mention store + resolver the dual-write
+ * uses, so a record pulled from an untrusted node is held to the identical trust
+ * boundary as a locally-signed one — the signature is re-checked over the
+ * canonical input, the `recordId` is recomputed, the signing key must be a
+ * CURRENT verification method of the subject's DID (self-issued) or the Mention
+ * custodial key (`issuer === MENTION_DID`), freshness is enforced, and v2 chain
+ * continuity is validated. A node can therefore never inject a record the user
+ * did not sign.
+ *
+ * Unlike {@link signAndAppend}, the caller supplies the ENVELOPE verbatim (it was
+ * signed elsewhere) — this function NEVER signs. The returned {@link AppendOutcome}
+ * carries the chain coordinates on success, or the {@link RejectionReason} the
+ * ingest worker routes to LWW-skip / fork-preserve / hard-reject.
+ *
+ * @param envelope The verbatim signed envelope to re-verify + append.
+ */
+export async function verifyAndStoreRecord(envelope: SignedRecordEnvelope): Promise<AppendOutcome> {
+  return verifyAndAppend(mentionRecordStore, mentionVerificationResolver, envelope);
 }
