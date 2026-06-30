@@ -27,6 +27,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { statisticsService } from '@/services/statisticsService';
+import { feedService } from '@/services/feedService';
 import SEO from '@/components/SEO';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
@@ -70,20 +71,37 @@ const PostDetailScreen: React.FC = () => {
     // immediate parent LAST. Rendered as one connected thread above the focused
     // post (Bluesky-style). Empty for a root post (no parent).
     const [ancestors, setAncestors] = useState<PostDetailEntity[]>([]);
+    // The author's self-thread continuation spine BELOW the focused post, ordered
+    // root-first (c1 … cN). Populated only when the focused post is a self-thread
+    // root (the backend returns [] otherwise), so a non-thread post is unchanged.
+    // Rendered as one connected thread descending from the focused post.
+    const [continuations, setContinuations] = useState<PostDetailEntity[]>([]);
     // Only block first paint when there is no cached post to render. A cache hit
     // paints immediately and revalidates in the background (stale-while-revalidate).
     const [loading, setLoading] = useState(() => !cachedPost);
     const [error, setError] = useState<string | null>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
 
+    // The TAIL of the OP's self-thread — the last continuation (cN). When the
+    // focused post is a self-thread root, replies and the compose-reply prompt
+    // attach to the tail (Bluesky behavior): the replies feed then queries the
+    // tail's children and so never re-renders the spine continuations as replies
+    // (c1, a direct child of the root, would otherwise duplicate). Undefined for
+    // a non-thread post.
+    const threadTailId = continuations.length > 0
+        ? String(continuations[continuations.length - 1].id)
+        : undefined;
+
     // A boost (`type:'boost'`) is its OWN post with an empty body whose content is
     // the original it boosted — so `/p/<boostId>` renders as the booster's post
     // with the original embedded as a nested sub-card (the same way the feed row
     // renders a boost). A boost has no direct replies of its own; replies attach
-    // to the original, so the replies thread below targets the original's id.
+    // to the original, so the replies thread below targets the original's id. For
+    // a self-thread root, replies attach to the thread tail; otherwise they attach
+    // to the focused post itself.
     const replyTargetId = post?.boost?.originalPost?.id
         ? String(post.boost.originalPost.id)
-        : String(id);
+        : (threadTailId ?? String(id));
 
     // Memoize filters for replies feed
     const feedFilters = useMemo(() => ({
@@ -120,11 +138,25 @@ const PostDetailScreen: React.FC = () => {
         // Drop any ancestor chain belonging to a previously-viewed post so the new
         // focused post never momentarily renders under stale parents on navigation.
         setAncestors([]);
+        // Likewise drop the previous post's continuation spine.
+        setContinuations([]);
 
         // Track view in background (non-blocking) regardless of cache state.
         if (user) {
             statisticsService.trackPostView(postId).catch(() => {});
         }
+
+        // Fetch the author's self-thread continuation spine (root → c1 … cN). The
+        // backend returns [] for any post that is not a self-thread root, so this
+        // runs unconditionally and leaves non-thread posts unchanged. Best-effort:
+        // a failure just yields no spine (the thread renders as before).
+        feedService.getThreadContinuations(postId)
+            .then((spine) => {
+                if (!cancelled) setContinuations(spine);
+            })
+            .catch(() => {
+                if (!cancelled) setContinuations([]);
+            });
 
         // Walk the reply chain UP from the focused post to the root, building the
         // ordered ancestor array (root first … immediate parent last). Each hop
@@ -233,6 +265,7 @@ const PostDetailScreen: React.FC = () => {
     const listHeader = useMemo(() => {
         if (!post) return null;
         const hasAncestors = ancestors.length > 0;
+        const hasContinuations = continuations.length > 0;
         return (
             <View>
                 {/* Ancestor chain rendered top-to-bottom (root first) as ONE
@@ -254,24 +287,54 @@ const PostDetailScreen: React.FC = () => {
                 ))}
 
                 {/* The focused post renders through the SAME PostItem as the feed,
-                    gated by the `isPostDetail` variant (full-width body, larger spread
-                    action bar, full timestamp + engagement-stats rows). This covers
-                    BOTH a normal post and a boost (booster header + "boosted" + the
-                    original as a nested, tappable sub-card → `/p/<originalId>`). The
-                    focused main post is non-tappable; only its nested card navigates.
-                    When there are ancestors it is the LAST node of the thread:
-                    `isThreadChild` brings the line down into it (and tightens the top
-                    gap to connect flush to the immediate parent), while
-                    `isThreadLastChild` keeps its bottom border so it stays visually
-                    separated from the compose prompt below. It is intentionally NOT a
-                    thread parent — see the replies-connection note below. */}
+                    gated by the `isPostDetail` variant (larger spread action bar,
+                    full timestamp + engagement-stats rows). This covers BOTH a
+                    normal post and a boost (booster header + "boosted" + the original
+                    as a nested, tappable sub-card → `/p/<originalId>`). The focused
+                    main post is non-tappable; only its nested card navigates.
+                    `isThreadChild` brings the line in from above when there are
+                    ancestors (and tightens the top gap to connect flush to the
+                    immediate parent). When the focused post is a self-thread root
+                    with a continuation spine below, it is ALSO a thread PARENT
+                    (`isThreadParent`): the line runs DOWN through it into the spine,
+                    so the thread is continuous last-ancestor → focused → c1 … cN —
+                    and it drops its bottom border (no longer the last node). Only
+                    when there is NO spine does it close the thread with
+                    `isThreadLastChild` (keeping its bottom border above the compose
+                    prompt). */}
                 <PostItem
                     post={post}
                     isPostDetail
                     isThreadChild={hasAncestors}
-                    isThreadLastChild={hasAncestors}
+                    isThreadParent={hasContinuations}
+                    isThreadLastChild={hasAncestors && !hasContinuations}
                     onReply={handleOpenReply}
                 />
+
+                {/* The OP's self-thread continuation spine, descending from the
+                    focused post as ONE connected thread (root → c1 … cN). Each
+                    continuation receives the incoming line from above
+                    (`isThreadChild`) and draws the line DOWN (`isThreadParent`) for
+                    every node but the last; `attachedBelow` drops their bottom border
+                    so they connect flush with no separators. The LAST continuation
+                    (the thread tail) closes the thread with `isThreadLastChild`,
+                    keeping its bottom border to separate the tail from the compose
+                    prompt below. Replies attach to this tail (see `replyTargetId`),
+                    so the continuations never double up in the replies feed. */}
+                {continuations.map((continuation, index) => {
+                    const isLast = index === continuations.length - 1;
+                    return (
+                        <PostItem
+                            key={String(continuation.id ?? `continuation-${index}`)}
+                            post={continuation}
+                            isThreadChild
+                            isThreadParent={!isLast}
+                            isThreadLastChild={isLast}
+                            attachedBelow={!isLast}
+                            onReply={handleOpenReply}
+                        />
+                    );
+                })}
 
                 <FeedHeader
                     showComposeButton={!!user}
@@ -280,7 +343,7 @@ const PostDetailScreen: React.FC = () => {
                 />
             </View>
         );
-    }, [post, ancestors, handleOpenReply, user, t]);
+    }, [post, ancestors, continuations, handleOpenReply, user, t]);
 
     if (!loading && (error || !post)) {
         return (

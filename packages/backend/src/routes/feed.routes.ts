@@ -27,6 +27,11 @@ router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedControll
 router.get('/replies', feedController.getRepliesFeed.bind(feedController));
 
 // ────────────────────────────────────────────────────────────
+// Thread continuation spine (author's self-thread, root → c1 → c2 …)
+// ────────────────────────────────────────────────────────────
+router.get('/thread-continuations/:rootId', feedController.getThreadContinuations.bind(feedController));
+
+// ────────────────────────────────────────────────────────────
 // User profile feed routes
 // ────────────────────────────────────────────────────────────
 router.get('/user/:userId', cachePublicProfile, feedController.getUserProfileFeed.bind(feedController));
