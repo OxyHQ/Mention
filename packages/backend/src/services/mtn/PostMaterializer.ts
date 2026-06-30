@@ -20,11 +20,20 @@
  *    carries `content.media` fileId items KEEPS that media untouched. The
  *    authoritative native write path is unchanged; media rendering stays
  *    byte-identical (this module never touches `mediaResolver`).
- *  - BLOB DEFERRED — `record.embed` (content-addressed blob refs) is ABSENT in
- *    B1/B2: the builder omits it until the upstream sha256→fileId resolver lands.
- *    {@link resolveEmbedToMedia} is the seam for B3; for now it returns `[]` and
- *    the materializer NEVER writes `content.media` from a record (so it cannot
- *    clobber existing fileId media to empty). No fake URLs are ever invented.
+ *  - READ-SIDE BLOB DEFERRED — `record.embed` now CARRIES content-addressed blob
+ *    refs (the WRITE side populates `embed[].blob.sha256` via the service SDK).
+ *    The READ side cannot turn a bare `sha256` back into a servable URL yet: the
+ *    Oxy CDN addresses media by `fileId` (`cloud.oxy.so/<fileId>`), and the only
+ *    content-addressing endpoint is the FORWARD `fileId → sha256` lookup
+ *    (`/assets/service/by-ids`) — there is NO reverse `sha256 → fileId`/`→ url`
+ *    index upstream. A true content-addressed render path therefore needs a new
+ *    upstream oxy-api endpoint and lands in a later phase. For the B2 round-trip
+ *    (Mention's own records re-projected onto the SAME `rkey` post) this is moot:
+ *    the post row already carries its `fileId` `content.media`, and the
+ *    field-scoped `$set` below deliberately PRESERVES it. {@link
+ *    resolveEmbedToMedia} stays the seam; it returns `[]` so the materializer
+ *    NEVER writes `content.media` from a record (so it cannot clobber existing
+ *    fileId media to empty). No fake URLs are ever invented.
  *  - NEVER THROWS — any failure (bad subject DID, invalid inner record, DB error)
  *    is wrapped and returned as `{ ok: false, reason }` so the backfill/ingest
  *    caller can log and continue. Validation runs FIRST: the inner `record` is
@@ -76,17 +85,20 @@ export type ProjectResult =
  * Resolve a record `embed` (content-addressed blob refs) to the native
  * `content.media` MediaItem shape.
  *
- * B2 SEAM — BLOB DEFERRED: resolving a blob `sha256` to an Oxy `fileId` (and thus
- * a renderable MediaItem) requires an upstream oxy-api/core endpoint that does
- * not exist yet. Until B3 wires that resolver, this returns `[]` for ANY embed —
- * the materializer therefore NEVER writes `content.media` from a record, which
- * also guarantees it cannot clobber an existing post's fileId media to empty.
- * No fake/guessed URL is ever produced.
+ * READ-SIDE SEAM — DEFERRED: the WRITE side now emits real `embed[].blob.sha256`,
+ * but turning a bare `sha256` back into a renderable MediaItem (a servable
+ * `fileId`/URL) requires a REVERSE content-address lookup (`sha256 → fileId`/
+ * `→ url`) that the Oxy CDN/oxy-api/core do NOT expose — core 5.1.0 ships only
+ * the FORWARD `fileId → sha256` lookup (`/assets/service/by-ids`). Until that
+ * upstream endpoint lands, this returns `[]` for ANY embed — the materializer
+ * therefore NEVER writes `content.media` from a record, which also guarantees it
+ * cannot clobber an existing post's fileId media to empty (the B2 round-trip
+ * keeps the post's own fileId media). No fake/guessed URL is ever produced.
  */
 function resolveEmbedToMedia(_embed: MtnMediaEmbed | undefined): [] {
-  // B3: replace with sha256 → fileId resolution via the upstream media endpoint,
-  // then map each resolved file to a MediaItem ({ id, type }). Intentionally a
-  // no-op in B2 (see the BLOB DEFERRED note above).
+  // Replace with sha256 → fileId resolution once the upstream reverse
+  // content-address endpoint exists, then map each resolved file to a MediaItem
+  // ({ id, type }). Intentionally a no-op today (see the READ-SIDE SEAM note).
   return [];
 }
 
