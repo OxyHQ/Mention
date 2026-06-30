@@ -28,7 +28,6 @@ const mocks = vi.hoisted(() => ({
   fetchUpstreamFollowingRedirects: vi.fn(),
   fetchUpstreamSingleHop: vi.fn(),
   userSettingsUpdateOne: vi.fn(),
-  uploadProfileBanner: vi.fn(),
 }));
 
 vi.mock('../../connectors/activitypub/crypto', () => ({
@@ -194,7 +193,6 @@ beforeEach(() => {
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
-  mocks.uploadProfileBanner.mockResolvedValue({ file: { id: 'banner_file_1' } });
   mocks.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.fetchUpstreamFollowingRedirects.mockReset();
   // `signedFetch` is built on `fetchUpstreamSingleHop` (IP-pinned, no global
@@ -220,7 +218,6 @@ beforeEach(() => {
   );
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
-    uploadProfileBanner: mocks.uploadProfileBanner,
   });
 });
 
@@ -456,7 +453,7 @@ describe('federationService.fetchRemoteActor', () => {
     );
   });
 
-  it('downloads actor banners through the SSRF-safe media fetcher with content validation and a size cap', async () => {
+  it('mirrors the actor banner to a public federated asset and stores its file id', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://remote.example/users/alice') {
         return jsonResponse({
@@ -465,7 +462,7 @@ describe('federationService.fetchRemoteActor', () => {
           preferredUsername: 'alice',
           name: 'Alice',
           inbox: 'https://remote.example/users/alice/inbox',
-          image: ['http://127.0.0.1/latest/meta-data', { url: 'https://remote.example/banner.jpg' }],
+          image: { url: 'https://remote.example/banner.jpg' },
         });
       }
 
@@ -473,27 +470,23 @@ describe('federationService.fetchRemoteActor', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const body = new PassThrough();
-    body.end(Buffer.from('fake-image-bytes'));
-    Object.assign(body, {
-      statusCode: 200,
-      headers: { 'content-type': 'image/jpeg' },
-    });
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response: body,
-      finalUrl: 'http://127.0.0.1/latest/meta-data',
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'banner_file_1', contentType: 'image/jpeg', sizeBytes: 1234 },
     });
 
     await federationService.fetchRemoteActor('https://remote.example/users/alice');
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalledWith('http://127.0.0.1/latest/meta-data');
-    expect(mocks.fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
-      'http://127.0.0.1/latest/meta-data',
-      {},
-      expect.any(AbortSignal),
+    // The banner is mirrored through the SAME service-token public-upload path as
+    // all other federated media (`persistRemoteMediaForFederatedOwnerDetailed` →
+    // `POST /assets/service/federation`), NOT the user-authenticated SDK
+    // `uploadProfileBanner` (which 401s on the service client). SSRF guarding +
+    // content validation now live inside that helper's `downloadToTempFile`.
+    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
+      'https://remote.example/banner.jpg',
+      'oxy_user_1',
+      expect.objectContaining({ role: 'banner', remoteHost: 'remote.example' }),
     );
-    expect(mocks.uploadProfileBanner).toHaveBeenCalledTimes(1);
     expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
       { oxyUserId: 'oxy_user_1' },
       { $set: { profileHeaderImage: 'banner_file_1' } },
@@ -501,7 +494,7 @@ describe('federationService.fetchRemoteActor', () => {
     );
   });
 
-  it('rejects non-image actor banner responses before upload', async () => {
+  it('does not store a profile header image when banner mirroring fails', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://remote.example/users/bob') {
         return jsonResponse({
@@ -517,25 +510,15 @@ describe('federationService.fetchRemoteActor', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const body = new PassThrough();
-    body.end(Buffer.from('not an image'));
-    Object.assign(body, {
-      statusCode: 200,
-      headers: { 'content-type': 'text/plain' },
-    });
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response: body,
-      finalUrl: 'https://remote.example/banner.txt',
-    });
+    mocks.persistRemoteMedia.mockResolvedValue({ ok: false, reason: 'not-media', permanent: true });
 
     await federationService.fetchRemoteActor('https://remote.example/users/bob');
 
-    expect(mocks.fetchUpstreamFollowingRedirects).toHaveBeenCalledWith(
+    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
       'https://remote.example/banner.txt',
-      {},
-      expect.any(AbortSignal),
+      'oxy_user_1',
+      expect.objectContaining({ role: 'banner' }),
     );
-    expect(mocks.uploadProfileBanner).not.toHaveBeenCalled();
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });
 
