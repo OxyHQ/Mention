@@ -24,11 +24,12 @@ import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
+import { useAppearanceStore } from '@/store/appearanceStore';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
-import { useAuth, AccountMenuButton } from '@oxyhq/services';
+import { useAuth, ProfileButton } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 
@@ -61,7 +62,17 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const router = useRouter();
     const { user, signIn } = useAuth();
     const theme = useTheme();
+    const { resetTheme } = useBloomTheme();
+    const resetAppearance = useAppearanceStore((state) => state.reset);
     const avatarUri = user?.avatar;
+
+    // ProfileButton owns the account switcher (switch/sign-out/sign-out-all live
+    // in the SDK). This fires just before the active identity changes so we can
+    // clear the previous account's scoped UI state (appearance + Bloom theme).
+    const handleBeforeSessionChange = useCallback(() => {
+        resetAppearance();
+        resetTheme();
+    }, [resetAppearance, resetTheme]);
 
     // Every sidebar destination is a TAB ROOT (home, the current user's own
     // profile, explore, notifications, chat, agora, insights, saved, feeds,
@@ -81,7 +92,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         router.push('/compose');
     }, [onNavigate, router]);
 
-    // Adding another account (from the account switcher) and signing in while
+    // Adding another account (from the ProfileButton menu) and signing in while
     // signed out both go through the same SDK sign-in flow.
     const handleAddAccount = useCallback(() => {
         onNavigate?.();
@@ -89,6 +100,12 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     }, [onNavigate, signIn]);
 
     const profileHandle = getNormalizedUserHandle(user);
+
+    const handleNavigateProfile = useCallback(() => {
+        if (profileHandle) {
+            handleNavPress(`/@${profileHandle}`);
+        }
+    }, [profileHandle, handleNavPress]);
 
     const handleNavigateManage = useCallback(() => {
         handleNavPress('/settings');
@@ -232,14 +249,16 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     styles.footer,
                     { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
-                    {/* Account trigger. AccountMenuButton renders the active
-                        account's avatar chip and opens the unified account
-                        switcher (switch / add account / manage / sign out). It
-                        reads the session from the SDK and owns every auth state
-                        internally, so it needs no user data via props. */}
-                    <AccountMenuButton
+                    {/* Account trigger. ProfileButton owns all three auth states
+                        (undetermined skeleton, signed-in row + account switcher,
+                        signed-out "Sign in") and the device-account switcher menu
+                        (switch / add account / sign out / sign out all). */}
+                    <ProfileButton
+                        expanded={showExpanded}
                         onNavigateManage={handleNavigateManage}
+                        onNavigateProfile={handleNavigateProfile}
                         onAddAccount={handleAddAccount}
+                        onBeforeSessionChange={handleBeforeSessionChange}
                     />
                 </View>
             </View>
