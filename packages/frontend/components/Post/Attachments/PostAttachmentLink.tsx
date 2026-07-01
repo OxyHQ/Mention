@@ -1,6 +1,7 @@
 import React from 'react';
 import { ViewStyle, Platform } from 'react-native';
 import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
+import { openExternalLink } from '@/utils/openExternalLink';
 
 interface PostAttachmentLinkProps {
   url: string;
@@ -38,6 +39,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       description={description}
       image={image}
       siteName={siteName}
+      onPress={() => openExternalLink(url)}
       className="w-[280px]"
       coverFill={constrainedHeight !== undefined}
       style={[constrainedHeight !== undefined ? { height: constrainedHeight } : null, webGrabCursorStyle, style]}
