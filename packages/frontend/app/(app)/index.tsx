@@ -15,7 +15,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
-import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
@@ -28,7 +28,7 @@ import { useDrawer } from '@/context/DrawerContext';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
-import { PanelStickyHeader, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
+import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -144,28 +144,29 @@ const HomeScreen: React.FC = () => {
         };
     });
 
-    const tabBarSpacerStyle = useAnimatedStyle(() => {
-        // WEB document-scroll model: the header is `position: sticky` (it keeps
-        // its own height in normal flow and pins to the viewport top), so no
-        // spacer is needed — a spacer would double-count the header height.
-        // NATIVE: the header is an absolute overlay (0 flow height), so the
-        // spacer reserves the room the header occupies, shrinking as it hides.
+    // Tab-bar motion.
+    // WEB: the header is `position: sticky` in normal flow and the tab bar sits
+    // just below it (`top: 48`); as the header auto-hides (translates up), slide
+    // the tab bar up in lock-step so it rises to the panel top instead of leaving
+    // a gap.
+    // NATIVE: the tab bar is an ABSOLUTE overlay pinned directly below the header
+    // (`top: headerHeight`). It rises WITH the header but its travel is clamped at
+    // the panel top (`-headerHeight`) so it stays visible once the header is fully
+    // gone — reproducing the old `max(0, ...)` spacer behaviour WITHOUT an in-flow
+    // spacer, so the feed (which carries a fixed top inset and scrolls behind the
+    // chrome) never reflows as the chrome hides.
+    const tabBarAnimatedStyle = useAnimatedStyle(() => {
         if (Platform.OS === 'web') {
-            return { height: 0 };
+            return { transform: [{ translateY: headerTranslateY.value }] };
         }
-        const spacerHeight = Math.max(0, headerHeight + headerTranslateY.value);
+        const translate = Math.max(headerTranslateY.value, -headerHeight);
         return {
-            height: spacerHeight,
+            position: 'absolute' as const,
+            top: headerHeight,
+            left: 0,
+            right: 0,
+            transform: [{ translateY: translate }],
         };
-    });
-
-    // WEB: the sticky tab bar sits at `top: 48` (just under the sticky header).
-    // When the header auto-hides (translates up), slide the tab bar up in
-    // lock-step so it rises to the viewport top instead of leaving a gap. On
-    // native this is unused (the spacer handles the layout).
-    const tabBarStickyAnimatedStyle = useAnimatedStyle(() => {
-        if (Platform.OS !== 'web') return {};
-        return { transform: [{ translateY: headerTranslateY.value }] };
     });
 
     const handleTabPress = (tabId: HomeTab) => {
@@ -283,18 +284,17 @@ const HomeScreen: React.FC = () => {
                         />
                     </PanelStickyHeader>
 
-                    {/* Spacer for header */}
-                    <Animated.View style={tabBarSpacerStyle} />
-
-                    {/* Tab Navigation - sticky. <PanelStickyHeader level={1}> pins
-                        it directly below the level-0 header (at PANEL_TOP_INSET +
+                    {/* Tab Navigation. WEB: <PanelStickyHeader level={1}> pins it
+                        directly below the level-0 header (at PANEL_TOP_INSET +
                         PANEL_HEADER_HEIGHT) with the same opaque `bg-card` surface
                         and top rounded corners, so the feed is never exposed in the
                         auto-hide gap and the rounded corners keep masking the feed's
                         top-edge bleed when the tab bar rises to the panel top.
-                        zIndex 100 keeps it one below the header (101). Header + tabs
-                        translate by the same `headerTranslateY`, in lock-step. */}
-                    <PanelStickyHeader level={1} zIndex={100} style={tabBarStickyAnimatedStyle}>
+                        NATIVE: `tabBarAnimatedStyle` makes it an absolute overlay
+                        pinned below the header; both translate from the same
+                        `hidden`, in lock-step. zIndex 100 keeps it one below the
+                        header (101). */}
+                    <PanelStickyHeader level={1} zIndex={100} style={tabBarAnimatedStyle}>
                         <AnimatedTabBar
                             tabs={[
                                 { id: 'for_you', label: t('For You') },
@@ -308,8 +308,15 @@ const HomeScreen: React.FC = () => {
                         />
                     </PanelStickyHeader>
 
-                    {/* Content */}
-                    {renderContent()}
+                    {/* Content. On native the feed scrolls BEHIND the absolute
+                        header + tab-bar overlay; PanelChromeTopInsetProvider hands it
+                        the fixed top inset (header + tab-bar height) it reserves as
+                        constant scrollable padding so hiding the chrome never
+                        reflows the list. Web ignores the inset (sticky chrome in
+                        normal flow). */}
+                    <PanelChromeTopInsetProvider value={PANEL_CHROME_TOP_INSET}>
+                        {renderContent()}
+                    </PanelChromeTopInsetProvider>
 
                     {/* Compose FAB that rides the BottomBar's show/hide (web mobile). */}
                     {canUsePrivateApi && (

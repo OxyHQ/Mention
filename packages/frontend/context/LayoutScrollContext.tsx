@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform } from 'react-native';
+import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -20,6 +21,17 @@ type ScrollableRef = {
 
 type LayoutScrollContextValue = {
     scrollY: Animated.Value;
+    /**
+     * Reanimated mirror of the global scroll offset, updated in lock-step with
+     * `scrollY` through the shared `setScrollY` chokepoint. Every scroller already
+     * routes its offset here, so this ONE shared value is the single UI-thread
+     * input for scroll-driven worklets (the auto-hide `hidden` signal reads it via
+     * `useAnimatedReaction`). Reanimated worklets cannot read the legacy
+     * `Animated.Value` on the UI thread, which is why this parallel value exists;
+     * `scrollY` stays for the old-`Animated` interpolations (profile banner/name
+     * fade) and the imperative infinite-scroll listeners.
+     */
+    scrollPosition: SharedValue<number>;
     scrollEventThrottle: number;
     /**
      * Imperatively update the shared scrollY based on a synthetic scroll event.
@@ -74,6 +86,7 @@ export function LayoutScrollProvider({
     scrollEventThrottle = 16,
 }: LayoutScrollProviderProps) {
     const scrollY = useRef(new Animated.Value(0)).current;
+    const scrollPosition = useSharedValue(0);
     const scrollableRef = useRef<ScrollableRef | null>(null);
     const scrollPositionRef = useRef(0);
     const activeRegistrationId = useRef<number | null>(null);
@@ -81,8 +94,11 @@ export function LayoutScrollProvider({
 
     const setScrollY = useCallback((value: number) => {
         scrollY.setValue(value);
+        // Mirror into the reanimated shared value so UI-thread worklets (auto-hide)
+        // see every scroller's offset through the one chokepoint.
+        scrollPosition.value = value;
         scrollPositionRef.current = value;
-    }, [scrollY]);
+    }, [scrollY, scrollPosition]);
 
     // WEB document-scroll model: the BODY is the scroller (no inner feed
     // ScrollView), so a single window 'scroll' listener here is the source of
@@ -177,13 +193,14 @@ export function LayoutScrollProvider({
 
     const value = useMemo<LayoutScrollContextValue>(() => ({
         scrollY,
+        scrollPosition,
         scrollEventThrottle: Math.max(16, scrollEventThrottle),
         handleScroll,
         createAnimatedScrollHandler,
         setScrollY,
         registerScrollable,
         scrollToTop,
-    }), [createAnimatedScrollHandler, handleScroll, registerScrollable, scrollEventThrottle, scrollToTop, scrollY, setScrollY]);
+    }), [createAnimatedScrollHandler, handleScroll, registerScrollable, scrollEventThrottle, scrollToTop, scrollY, scrollPosition, setScrollY]);
 
     return (
         <LayoutScrollContext.Provider value={value}>

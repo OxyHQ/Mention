@@ -10,12 +10,12 @@ import { router, Slot, usePathname, type Href } from 'expo-router';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
-import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Search } from '@/assets/icons/search-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
-import { PanelStickyHeader, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
+import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 
 /**
  * Explore is a routed top-tab cluster: each tab is its own URL under `/explore`
@@ -77,21 +77,24 @@ export default function ExploreLayout() {
     opacity: headerOpacity.value,
   }));
 
-  const tabBarSpacerStyle = useAnimatedStyle(() => {
-    // WEB document-scroll model: the header is `position: sticky` (keeps its own
-    // height in flow + pins to the viewport), so no spacer is needed. NATIVE: the
-    // header is an absolute overlay, so the spacer reserves its room.
+  // Tab-bar motion (mirrors `app/(app)/index.tsx`).
+  // WEB: sticky in normal flow; slide up in lock-step with the header so it rises
+  // to the panel top. NATIVE: an ABSOLUTE overlay pinned directly below the header
+  // that rises with it but clamps at the panel top (`-headerHeight`) so it stays
+  // visible — no in-flow spacer, so the feed (fixed top inset, scrolls behind the
+  // chrome) never reflows as the chrome hides.
+  const tabBarAnimatedStyle = useAnimatedStyle(() => {
     if (Platform.OS === 'web') {
-      return { height: 0 };
+      return { transform: [{ translateY: headerTranslateY.value }] };
     }
-    return { height: Math.max(0, headerHeight + headerTranslateY.value) };
-  });
-
-  // WEB: slide the sticky tab bar up in lock-step with the auto-hiding header so
-  // it rises to the viewport top instead of leaving a gap. Unused on native.
-  const tabBarStickyAnimatedStyle = useAnimatedStyle(() => {
-    if (Platform.OS !== 'web') return {};
-    return { transform: [{ translateY: headerTranslateY.value }] };
+    const translate = Math.max(headerTranslateY.value, -headerHeight);
+    return {
+      position: 'absolute' as const,
+      top: headerHeight,
+      left: 0,
+      right: 0,
+      transform: [{ translateY: translate }],
+    };
   });
 
   const tabs = useMemo(
@@ -135,15 +138,13 @@ export default function ExploreLayout() {
             />
           </PanelStickyHeader>
 
-          {/* Spacer for header (native only; web header is sticky in flow). */}
-          <Animated.View style={tabBarSpacerStyle} />
-
-          {/* Tab Navigation - sticky. <PanelStickyHeader level={1}> pins it
-              directly below the level-0 header with the same opaque `bg-card`
-              surface + top rounded corners; zIndex 100 keeps it one below the
+          {/* Tab Navigation. WEB: <PanelStickyHeader level={1}> pins it directly
+              below the level-0 header with the same opaque `bg-card` surface + top
+              rounded corners; zIndex 100 keeps it one below the header. NATIVE:
+              `tabBarAnimatedStyle` makes it an absolute overlay pinned below the
               header. Tapping a tab navigates (router.push) and the active tab is
               derived from the route. Mirrors `app/(app)/index.tsx`. */}
-          <PanelStickyHeader level={1} zIndex={100} style={tabBarStickyAnimatedStyle}>
+          <PanelStickyHeader level={1} zIndex={100} style={tabBarAnimatedStyle}>
             <AnimatedTabBar
               tabs={tabs}
               activeTabId={activeTab}
@@ -153,9 +154,15 @@ export default function ExploreLayout() {
             />
           </PanelStickyHeader>
 
-          {/* Active tab content — the matched child route flows here in the same
-              document-scroll position the single-screen tab switch used. */}
-          <Slot />
+          {/* Active tab content — the matched child route (its own <Feed/>) flows
+              here. On native the feed scrolls BEHIND the absolute header + tab-bar
+              overlay; PanelChromeTopInsetProvider hands it the fixed top inset
+              (header + tab-bar height) it reserves as constant scrollable padding
+              so hiding the chrome never reflows the list. Web ignores the inset
+              (sticky chrome in normal flow). */}
+          <PanelChromeTopInsetProvider value={PANEL_CHROME_TOP_INSET}>
+            <Slot />
+          </PanelChromeTopInsetProvider>
 
           {/* Search FAB that rides the BottomBar's show/hide (web mobile). */}
           <BottomBarAwareFab

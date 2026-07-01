@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { createContext, useContext } from 'react';
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 import { cn } from '@/lib/utils';
@@ -46,6 +46,49 @@ export const PANEL_BOTTOM_INSET = 8;
  * literal on each screen.
  */
 export const PANEL_HEADER_HEIGHT = 48;
+
+/**
+ * Height (px) of the horizontal tab bar (`AnimatedTabBar`) that stacks below a
+ * header on the home/explore screens. Combined with `PANEL_HEADER_HEIGHT` it
+ * gives the total two-tier chrome height reserved above the feed on NATIVE (where
+ * the chrome is an absolute overlay and the feed carries this as a fixed top
+ * inset — see `PANEL_CHROME_TOP_INSET`).
+ */
+export const PANEL_TABBAR_HEIGHT = 42;
+
+/**
+ * NATIVE fixed top inset (px) for a feed that scrolls BEHIND a header + tab bar
+ * overlay (home, explore). The feed reserves this much scrollable top padding —
+ * constant whether the chrome is shown or hidden — so the absolutely-positioned
+ * chrome only ever TRANSLATES and hiding it never reflows the scrollable content
+ * (the reflow feedback that used to feed the auto-hide loop near the bottom).
+ * Web is unaffected: there the chrome is `position: sticky` in normal flow, so no
+ * inset is needed (and the feed ignores this value on web).
+ */
+export const PANEL_CHROME_TOP_INSET = PANEL_HEADER_HEIGHT + PANEL_TABBAR_HEIGHT;
+
+/**
+ * Provides the NATIVE fixed top inset a feed must reserve when it scrolls behind
+ * an auto-hiding header + tab bar overlay. A screen wraps its scroller (or its
+ * `<Slot/>`) in `PanelChromeTopInsetProvider` and the `Feed` reads it via
+ * `usePanelChromeTopInset`, applying it as scrollable top padding + a matching
+ * `RefreshControl` offset on native. Default 0 → any feed NOT under an auto-hiding
+ * chrome (embedded profile feed, standalone pages) is unaffected.
+ */
+const PanelChromeTopInsetContext = createContext<number>(0);
+
+export function PanelChromeTopInsetProvider({ value, children }: { value: number; children: React.ReactNode }) {
+    return (
+        <PanelChromeTopInsetContext.Provider value={value}>
+            {children}
+        </PanelChromeTopInsetContext.Provider>
+    );
+}
+
+/** The fixed top inset a feed must reserve for the overlay chrome above it (native). 0 when not under an auto-hiding chrome. */
+export function usePanelChromeTopInset(): number {
+    return useContext(PanelChromeTopInsetContext);
+}
 
 /** z-index the sticky chrome paints at — above feed (0) and bleed mask (30), below the border frame (120). */
 const CHROME_Z_INDEX = 101;

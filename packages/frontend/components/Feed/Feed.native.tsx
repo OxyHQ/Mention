@@ -27,6 +27,7 @@ import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
+import { usePanelChromeTopInset } from '@/components/shell/PanelChrome';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
 import type { ViewToken } from 'react-native';
 import {
@@ -182,6 +183,14 @@ const Feed = ((props: FeedProps) => {
     useScrollRestoration(flatListRef, { enabled: scrollEnabled !== false });
     const [refreshing, setRefreshing] = useState(false);
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
+
+    // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
+    // bar overlay (home, explore). Reserved as constant scrollable top padding so
+    // the overlay chrome only translates and never reflows the list. Native +
+    // scroll-owning feeds only: embedded feeds (scrollEnabled === false) own no
+    // scrolling, and on web the chrome is sticky in normal flow (no inset needed).
+    const chromeTopInset = usePanelChromeTopInset();
+    const topInset = Platform.OS === 'web' || scrollEnabled === false ? 0 : chromeTopInset;
 
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
@@ -342,7 +351,9 @@ const Feed = ((props: FeedProps) => {
         }
     }, [handleScroll, scrollEnabled, isFocused]);
 
-    // Memoize RefreshControl to prevent recreation on every render
+    // Memoize RefreshControl to prevent recreation on every render. When the feed
+    // scrolls behind the overlay chrome, offset the pull-to-refresh spinner by the
+    // chrome inset so it appears below the chrome instead of behind it.
     const refreshControl = useMemo(() => {
         if (hideRefreshControl) return undefined;
         return (
@@ -351,20 +362,25 @@ const Feed = ((props: FeedProps) => {
                 onRefresh={handleRefresh}
                 colors={[theme.colors.primary]}
                 tintColor={theme.colors.primary}
+                progressViewOffset={topInset || undefined}
             />
         );
-    }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary]);
+    }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary, topInset]);
 
     const containerStyle = feedRowStyles.container;
 
-    // Memoize list content style
+    // Memoize list content style. `topInset` reserves the overlay-chrome height as
+    // constant scrollable top padding (native home/explore) so hiding the chrome
+    // never reflows the list; caller-supplied `contentContainerStyle` is applied
+    // last so an explicit override still wins.
     const listContentStyle = useMemo(
         () =>
             flattenStyleArray([
                 feedRowStyles.listContent,
+                topInset > 0 ? { paddingTop: topInset } : null,
                 contentContainerStyle,
             ]),
-        [contentContainerStyle]
+        [contentContainerStyle, topInset]
     );
 
     // Memoize list style - when scroll is disabled (embedded in a parent ScrollView),
