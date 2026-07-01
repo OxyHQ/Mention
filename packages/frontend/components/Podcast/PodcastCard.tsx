@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { Linking, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -9,9 +9,7 @@ import {
   SquareArrowTopRight_Stroke2_Corner0_Rounded,
 } from '@oxyhq/bloom/icons';
 import { cn } from '@/lib/utils';
-import { createScopedLogger } from '@/lib/logger';
-
-const logger = createScopedLogger('PodcastCard');
+import { openExternalLink } from '@/utils/openExternalLink';
 
 export type PodcastCardVariant = 'full' | 'card';
 
@@ -65,9 +63,7 @@ export const PodcastCard = memo(function PodcastCard({
 
   const openShow = useCallback(() => {
     if (!showUrl) return;
-    Linking.openURL(showUrl).catch((error: unknown) => {
-      logger.warn('Failed to open podcast show URL', { error });
-    });
+    openExternalLink(showUrl);
   }, [showUrl]);
 
   const handlePress = onPress ?? (showUrl ? openShow : undefined);

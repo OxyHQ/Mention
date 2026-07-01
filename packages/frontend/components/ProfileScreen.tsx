@@ -2,7 +2,6 @@ import React, { useMemo, useCallback, useState, useEffect, useContext, useRef } 
 import {
     Animated,
     ImageBackground,
-    Linking,
     StatusBar,
     StyleSheet,
     Text,
@@ -29,6 +28,7 @@ import ReportModal from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
 import { confirmDialog } from '@/utils/alerts';
+import { openExternalLink } from '@/utils/openExternalLink';
 import type { FeedType } from '@mention/shared-types';
 import { logger } from '@/lib/logger';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -445,7 +445,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
 
     // Open on remote instance (federated only)
     const handleOpenOnInstance = useCallback(() => {
-        if (profileData?.actorUri) Linking.openURL(profileData.actorUri);
+        if (profileData?.actorUri) openExternalLink(profileData.actorUri);
     }, [profileData?.actorUri]);
 
     // Animations

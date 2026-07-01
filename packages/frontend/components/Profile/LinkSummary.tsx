@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useContext } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -7,6 +7,7 @@ import { ChainLink_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
 import type { ProfileLink } from '@oxyhq/core';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { prettifyUrl } from '@/utils/prettifyUrl';
+import { openExternalLink } from '@/utils/openExternalLink';
 
 interface LinkSummaryProps {
   links: ProfileLink[];
@@ -66,7 +67,7 @@ export const LinkSummary = memo(function LinkSummary({ links, onPressLink }: Lin
     bottomSheet.setBottomSheetContent(
       <LinkSummarySheet
         links={links}
-        onPressLink={onPressLink ?? ((url) => Linking.openURL(url))}
+        onPressLink={onPressLink ?? ((url) => openExternalLink(url))}
         onClose={() => bottomSheet.openBottomSheet(false)}
       />,
     );

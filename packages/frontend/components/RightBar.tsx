@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { View, Platform, Text, Linking, StyleSheet } from "react-native";
+import { View, Platform, Text, StyleSheet } from "react-native";
 import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
+import { openExternalLink } from '@/utils/openExternalLink';
 import { VideosRail } from './videos/VideosRail';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
@@ -89,7 +90,7 @@ const FooterLink = React.memo(function FooterLink({ label, url }: { label: strin
         <Text
             className="text-muted-foreground text-[12.5px] pr-3 pb-1"
             style={LINK_STYLE}
-            onPress={() => Linking.openURL(url)}
+            onPress={() => openExternalLink(url)}
         >
             {label}
         </Text>
