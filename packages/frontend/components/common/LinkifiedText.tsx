@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { Text, StyleProp, TextStyle, Linking } from 'react-native';
+import { Text, StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { URL_PATTERN_SOURCE, toOpenableUrl, trimUrlTrailingPunct } from '@/utils/extractUrls';
+import { openExternalLink } from '@/utils/openExternalLink';
 
 interface LinkifiedTextProps {
   text: string;
@@ -87,7 +88,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
             key={`u-${key++}`}
             className="text-primary"
             style={linkStyle}
-            onPress={() => Linking.openURL(href)}
+            onPress={() => openExternalLink(href)}
           >
             {url}
           </Text>

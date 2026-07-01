@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { PostSourceLink } from '@mention/shared-types';
-import { logger } from '@/lib/logger';
+import { openExternalLink } from '@/utils/openExternalLink';
 
 interface Props {
   sources?: PostSourceLink[];
@@ -23,19 +23,6 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
     return null;
   }
 
-  const openSource = async (url: string) => {
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) {
-        logger.warn(`[PostSources] Cannot open URL: ${url}`);
-        return;
-      }
-      await Linking.openURL(url);
-    } catch (error) {
-      logger.error(`[PostSources] Failed to open URL: ${url}`);
-    }
-  };
-
   return (
     <View className="gap-2 mt-2" style={{ paddingLeft: leftOffset, paddingRight: 16 }}>
       {sources.map((source, index) => {
@@ -48,7 +35,7 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
             key={`${source.url}-${index}`}
             className="flex-row items-center border border-border bg-surface rounded-xl py-2.5 px-3 gap-3"
             activeOpacity={0.85}
-            onPress={() => openSource(source.url)}
+            onPress={() => openExternalLink(source.url)}
           >
             <View className="w-8 h-8 rounded-full items-center justify-center bg-card">
               <SourcesIcon size={16} className="text-primary" />
