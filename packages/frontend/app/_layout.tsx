@@ -40,6 +40,7 @@ initLiveKit();
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import { Redirect, Slot, Stack, useRouter, useSegments } from "expo-router";
+import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
@@ -67,6 +68,19 @@ import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersist
 
 // Styles
 import '../global.css';
+
+// NATIVE ONLY: hold the OS splash screen so it stays visible until the app has
+// finished loading fonts + running init, then we hide it in `RootLayout` once
+// `appIsReady` flips. This makes the native OS splash the SINGLE splash on
+// native (Mention logo centered + Oxy branding at the bottom, configured via the
+// `expo-splash-screen` plugin in app.config.js). The custom `AppSplashScreen`
+// React overlay is gated to web only. On web this call is unnecessary/noisy, so
+// it is skipped. `preventAutoHideAsync` can reject if called too late, so we
+// swallow that — a failure here just means the OS splash hides at the first JS
+// frame, which the web-only custom splash never depends on.
+if (Platform.OS !== 'web') {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+}
 
 // Resolve file IDs to download URLs for Bloom components that call useImageResolver().
 // Honors the rendition `variant` Bloom forwards (e.g. 'thumb' for list/grid
@@ -134,11 +148,35 @@ export default function RootLayout() {
     initializeApp();
   }, [initializeApp]);
 
+  // Readiness gate.
+  // - WEB keeps the fade-gated flow: the custom <AppSplashScreen> is rendered,
+  //   fades out when init completes, and its `onFadeComplete` sets `fadeComplete`.
+  //   So web readiness = init complete AND the custom splash has finished fading.
+  // - NATIVE renders NO custom splash (the held OS splash covers the screen), so
+  //   `onFadeComplete` never fires and readiness must NOT depend on `fadeComplete`.
+  //   Native readiness = init complete (fonts are gated separately by
+  //   BloomThemeProvider's `onFontsLoading`, which renders the held OS splash's
+  //   backdrop — null — on native).
   useEffect(() => {
-    if (splashState.initializationComplete && splashState.fadeComplete && !appIsReady) {
+    if (appIsReady) return;
+    const ready =
+      Platform.OS === 'web'
+        ? splashState.initializationComplete && splashState.fadeComplete
+        : splashState.initializationComplete;
+    if (ready) {
       setAppIsReady(true);
     }
   }, [splashState.initializationComplete, splashState.fadeComplete, appIsReady]);
+
+  // NATIVE ONLY: once the app is ready to render real UI, hide the held OS splash.
+  // Because the OS splash stayed up until this exact moment, there is no blank gap
+  // between it and the first real frame. On web this is a no-op (the OS splash was
+  // never held; the custom overlay handles the transition).
+  useEffect(() => {
+    if (appIsReady && Platform.OS !== 'web') {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [appIsReady]);
 
   return (
     <ImageResolverProvider value={resolveImageSource}>
@@ -147,7 +185,9 @@ export default function RootLayout() {
         defaultColorPreset="blue"
         persistKey={BLOOM_THEME_PERSIST_KEY}
         storage={BLOOM_THEME_STORAGE}
-        onFontsLoading={<AppSplashScreen />}
+        // WEB shows the custom splash while fonts load; NATIVE shows nothing here
+        // because the held OS splash is already covering the screen.
+        onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}
       >
         <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
           {appIsReady ? (
@@ -163,12 +203,15 @@ export default function RootLayout() {
               <PortalOutlet />
             </PortalProvider>
             </>
-          ) : (
+          ) : Platform.OS === 'web' ? (
+            // WEB: the custom splash covers font-load + init and fades out; its
+            // `onFadeComplete` gates `appIsReady`. NATIVE renders null here — the
+            // held OS splash is on top, so nothing underneath needs to paint.
             <AppSplashScreen
               startFade={splashState.initializationComplete}
               onFadeComplete={handleSplashFadeComplete}
             />
-          )}
+          ) : null}
         </AppProviders>
       </BloomThemeProvider>
     </ImageResolverProvider>

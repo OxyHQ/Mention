@@ -135,10 +135,21 @@ return {
                 [
                     "expo-splash-screen",
                     {
-                        image: "./assets/images/splash-icon.png",
+                        // Mention logo (white on transparent) centered on the dark
+                        // brand background. The previous white bg is why the white
+                        // logo appeared "not to load". Oxy branding is pinned to the
+                        // bottom by the `withSplashBranding` plugin below (the
+                        // "Instagram, from Meta" pattern).
+                        image: "./assets/images/splash-logo.png",
                         imageWidth: 200,
                         resizeMode: "contain",
-                        backgroundColor: "#ffffff"
+                        backgroundColor: "#0B0B0F",
+                        dark: {
+                            image: "./assets/images/splash-logo.png",
+                            imageWidth: 200,
+                            resizeMode: "contain",
+                            backgroundColor: "#0B0B0F"
+                        }
                     }
                 ],
                 [
@@ -221,6 +232,19 @@ return {
                             NSExtensionActivationSupportsWebURLWithMaxCount: 1
                         },
                         androidIntentFilters: ["text/*"]
+                    }
+                ]);
+                // Bottom-pinned Oxy branding on the native OS splash ("Instagram,
+                // from Meta" pattern). MUST run after `expo-splash-screen` (which
+                // generates the Android splash theme + iOS LaunchScreen storyboard
+                // this plugin augments). Android 12+ uses the official branding
+                // slot; iOS adds a bottom-pinned UIImageView to the storyboard.
+                base.push([
+                    './plugins/withSplashBranding',
+                    {
+                        image: './assets/images/splash-branding-oxy.png',
+                        // Bottom-image display width in dp/pt.
+                        imageWidth: 150
                     }
                 ]);
             }
