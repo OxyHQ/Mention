@@ -17,6 +17,21 @@ const HIDE_ACTIVATION_OFFSET = 50;
 const DIRECTION_DELTA_THRESHOLD = 1;
 
 /**
+ * Directional hysteresis: how many px of SUSTAINED same-direction scrolling must
+ * accumulate before we COMMIT to a new direction (and therefore let the bar
+ * start hiding/showing). Set to 40px — comfortably above realistic on-device
+ * finger jitter (a held finger wobbles only a handful of px per event) yet below
+ * the smallest intentional scroll gesture, so a genuine flick commits almost
+ * immediately while a tiny up/down/up wobble never accumulates enough in EITHER
+ * direction to flip the committed direction. The accumulator RESETS to the
+ * current delta the instant the scroll sign reverses, so opposing wobble frames
+ * cancel each other out instead of racing the hide/show animation back and forth
+ * (the on-device "shake" this fixes). Kept below HIDE_ACTIVATION_OFFSET (50) so
+ * it adds no perceptible lag before the bar reacts to a real scroll.
+ */
+const DIRECTION_COMMIT_THRESHOLD = 40;
+
+/**
  * Max plausible single-frame scroll delta (px) for a real user gesture. A jump
  * larger than this is a PROGRAMMATIC scroll (per-route scroll-restoration, a
  * deep-link offset, or layout growth shifting the document) — common on the
@@ -89,6 +104,21 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
 
         let isScrollingDown = false;
         let lastKnownScrollY = 0;
+        // Directional hysteresis accumulator (px). Sums consecutive
+        // same-direction scroll deltas and RESETS to the current delta the
+        // moment the scroll sign reverses. `isScrollingDown` only flips once the
+        // accumulator crosses ±DIRECTION_COMMIT_THRESHOLD, so a small finger
+        // wobble (alternating +/- deltas) keeps cancelling itself out and never
+        // commits a direction change → no oscillation.
+        let directionAccumulator = 0;
+        // Last target we actually animated `hidden` toward (0 = shown, 1 =
+        // hidden). We only (re)start the timing when the target genuinely
+        // changes, so a stream of same-direction scroll events never restarts
+        // the animation every frame — that per-event restart, combined with a
+        // flip-flopping direction, produced the visible mid-animation shake.
+        // Re-declared per effect run, so re-attaching the listener (e.g. leaving
+        // /videos) starts these trackers clean with the bar visible.
+        let currentTarget = 0;
         // The FIRST listener event after (re)attaching only CALIBRATES the
         // baseline — it never decides direction/hide. Otherwise a screen that
         // lands already scrolled (profile: scroll-restoration / layout growth
@@ -113,6 +143,13 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
                 hasBaseline = true;
                 lastKnownScrollY = currentScrollY;
                 lastScrollHeight = readScrollHeight();
+                // Start the direction trackers clean from the calibrated
+                // baseline (the bar is visible on entry → target 0) so the first
+                // real gesture is measured from a known-good origin and never
+                // resumes a stale mid-flip from a previous screen.
+                directionAccumulator = 0;
+                isScrollingDown = false;
+                currentTarget = 0;
                 return;
             }
 
@@ -140,12 +177,36 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
                 return;
             }
 
+            // Directional hysteresis. Sub-pixel noise is ignored outright (it
+            // never touches the accumulator). Otherwise accumulate same-direction
+            // motion; if this delta's sign is opposite to the accumulated
+            // direction, RESTART the accumulator at this delta so opposing wobble
+            // frames cancel instead of compounding. A direction change only
+            // COMMITS once the accumulator crosses the commit threshold — this is
+            // what rejects a few-px up/down/up wobble that would otherwise flip
+            // direction on every event and shake the bar.
             if (Math.abs(scrollDelta) > DIRECTION_DELTA_THRESHOLD) {
-                isScrollingDown = scrollDelta > 0;
+                const reversed =
+                    (scrollDelta > 0 && directionAccumulator < 0) ||
+                    (scrollDelta < 0 && directionAccumulator > 0);
+                directionAccumulator = reversed ? scrollDelta : directionAccumulator + scrollDelta;
+
+                if (directionAccumulator >= DIRECTION_COMMIT_THRESHOLD) {
+                    isScrollingDown = true;
+                } else if (directionAccumulator <= -DIRECTION_COMMIT_THRESHOLD) {
+                    isScrollingDown = false;
+                }
             }
 
+            // Only (re)start the timing when the committed target actually
+            // changes, so a sustained scroll in one direction animates ONCE
+            // instead of restarting the animation on every scroll event.
             const shouldHide = currentScrollY > HIDE_ACTIVATION_OFFSET && isScrollingDown;
-            hidden.value = withTiming(shouldHide ? 1 : 0, { duration: BOTTOM_BAR_HIDE_DURATION });
+            const target = shouldHide ? 1 : 0;
+            if (target !== currentTarget) {
+                currentTarget = target;
+                hidden.value = withTiming(target, { duration: BOTTOM_BAR_HIDE_DURATION });
+            }
 
             lastKnownScrollY = currentScrollY;
         });
