@@ -60,7 +60,6 @@ export default function ExploreLayout() {
   // running a duplicate scroll listener here.
   const hidden = useBottomBarHidden();
   const headerTranslateY = useDerivedValue(() => hidden.value * -(headerHeight + insets.top));
-  const headerOpacity = useDerivedValue(() => 1 - hidden.value);
 
   const handleTabPress = useCallback(
     (id: string) => {
@@ -72,9 +71,12 @@ export default function ExploreLayout() {
     [activeTab],
   );
 
+  // Translate-only: the header is an opaque `bg-background` surface that slides
+  // up behind the status bar. Fading its opacity would make the scrolled feed
+  // visible through it (the header/tab-bar chrome must read as one continuous
+  // opaque surface while rising), so there is NO opacity term here.
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: headerTranslateY.value }],
-    opacity: headerOpacity.value,
   }));
 
   // Tab-bar motion (mirrors `app/(app)/index.tsx`).

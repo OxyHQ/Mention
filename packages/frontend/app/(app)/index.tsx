@@ -63,7 +63,6 @@ const HomeScreen: React.FC = () => {
     // bottom bar — no per-screen duplicate scroll listener.
     const bottomBarHidden = useBottomBarHidden();
     const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
-    const headerOpacity = useDerivedValue(() => 1 - bottomBarHidden.value);
 
     // Pinned/custom feeds load once through React Query, keyed on the auth
     // identity, replacing the old useEffect + useFocusEffect pair that fired four
@@ -137,10 +136,13 @@ const HomeScreen: React.FC = () => {
         };
     }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
 
+    // Translate-only: the header is an opaque `bg-background` surface that slides
+    // up behind the status bar. Fading its opacity would make the scrolled feed
+    // visible through it (the header/tab-bar chrome must read as one continuous
+    // opaque surface while rising), so there is NO opacity term here.
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
             transform: [{ translateY: headerTranslateY.value }],
-            opacity: headerOpacity.value,
         };
     });
 
