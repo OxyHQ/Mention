@@ -137,16 +137,24 @@ return {
                     {
                         // Mention logo (white on transparent) centered on the dark
                         // brand background. The previous white bg is why the white
-                        // logo appeared "not to load". Oxy branding is pinned to the
+                        // logo appeared "not to load". The logo PNG is a 1024x1024
+                        // square with the visible "M" occupying ~52% wide × ~57%
+                        // tall (centered). Android 12+ masks this icon to a CIRCLE:
+                        // the 240dp icon window shows only its inner ~2/3 (~160dp
+                        // diameter), so the rendered icon must fit that circle.
+                        // At imageWidth 176 the visible M renders ~92dp × ~100dp
+                        // (bbox diagonal ~136dp) — comfortably inside the ~160dp
+                        // safe circle. (The prior 320 pushed the M to ~167×182dp,
+                        // which the circle clipped.) Oxy branding is pinned to the
                         // bottom by the `withSplashBranding` plugin below (the
                         // "Instagram, from Meta" pattern).
                         image: "./assets/images/splash-logo.png",
-                        imageWidth: 200,
+                        imageWidth: 176,
                         resizeMode: "contain",
                         backgroundColor: "#0B0B0F",
                         dark: {
                             image: "./assets/images/splash-logo.png",
-                            imageWidth: 200,
+                            imageWidth: 176,
                             resizeMode: "contain",
                             backgroundColor: "#0B0B0F"
                         }
@@ -242,9 +250,21 @@ return {
                 base.push([
                     './plugins/withSplashBranding',
                     {
+                        // ANDROID: authored at the OS branding container's 2.5:1
+                        // aspect (200:80) — a small centered Oxy symbol inside
+                        // transparent padding — because the OS STRETCHES this
+                        // drawable to fill that container (it is set as a View
+                        // background, not FIT_CENTER). See the plugin header.
                         image: './assets/images/splash-branding-oxy.png',
-                        // Bottom-image display width in dp/pt.
-                        imageWidth: 150
+                        // iOS: the TIGHT square Oxy symbol. iOS uses
+                        // scaleAspectFit (no container stretch), so it needs the
+                        // symbol without the Android 2.5:1 padding.
+                        iosImage: './assets/images/splash-branding-oxy-ios.png',
+                        // `imageWidth` is iOS-ONLY (storyboard UIImageView point
+                        // width). Android sizing is fixed by the OS container, so
+                        // this value does not affect Android. 48pt keeps the iOS
+                        // mark a small, discreet bottom symbol.
+                        imageWidth: 48
                     }
                 ]);
             }
