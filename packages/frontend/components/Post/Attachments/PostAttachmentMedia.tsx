@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -34,6 +34,49 @@ const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   : null;
 
 const MIN_WIDTH = 100;
+
+// A single-media video/gif card needs a DEFINITE height on native: the native
+// `VideoView` has no auto-height, so a height-less container lets it overflow
+// downward and `overflow:hidden` cannot clip a native child. We fix the width to
+// the standard card width and derive the height from the video's real aspect
+// ratio (reported by the player once metadata loads), clamped so a very tall
+// portrait video cannot run off-screen (excess is letterboxed by contentFit
+// "contain"). Web is left on its intrinsic auto-height — the HTML <video> sizes
+// itself from the aspect ratio at the fixed width, so it never overflows and
+// must not be forced into a box.
+const SINGLE_MEDIA_FALLBACK_ASPECT_RATIO = MEDIA_CARD_WIDTH / MEDIA_CARD_HEIGHT;
+/** Portrait floor (4:5) — the tallest a single-media card may grow before clamping. */
+const SINGLE_MEDIA_MIN_ASPECT_RATIO = 4 / 5;
+const SINGLE_MEDIA_MAX_HEIGHT = Math.round(MEDIA_CARD_WIDTH / SINGLE_MEDIA_MIN_ASPECT_RATIO);
+
+/**
+ * Sizing for a single-media video/gif card. Learns the video's intrinsic aspect
+ * ratio (reported by `<VideoPlayer onAspectRatio>` once metadata loads) and
+ * returns the card style plus the `onAspectRatio` handler to feed back. On native
+ * the card always carries a DEFINITE height (aspect-derived, clamped) so the
+ * native video view is bounded and clipped; on web only the width is fixed so the
+ * <video> keeps its intrinsic auto-height.
+ */
+function useSingleMediaCardStyle(): {
+  cardStyle: ViewStyle;
+  onAspectRatio: (ratio: number) => void;
+} {
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
+  const onAspectRatio = useCallback((ratio: number) => {
+    setAspectRatio((prev) => (prev === ratio ? prev : ratio));
+  }, []);
+  const cardStyle = useMemo<ViewStyle>(() => {
+    if (Platform.OS === 'web') {
+      return { width: MEDIA_CARD_WIDTH };
+    }
+    return {
+      width: MEDIA_CARD_WIDTH,
+      aspectRatio: aspectRatio ?? SINGLE_MEDIA_FALLBACK_ASPECT_RATIO,
+      maxHeight: SINGLE_MEDIA_MAX_HEIGHT,
+    };
+  }, [aspectRatio]);
+  return { cardStyle, onAspectRatio };
+}
 
 interface PostAttachmentMediaProps {
   type: 'image' | 'video' | 'gif';
@@ -77,23 +120,25 @@ const PostAttachmentVideo: React.FC<{
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
 }> = ({ src, poster, onPress, hasSingleMedia, hasMultipleMedia }) => {
+  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle();
   return (
     <View
       className="border border-border bg-secondary rounded-[15px] overflow-hidden"
       style={[
         webGrabCursorStyle,
         hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
-        hasSingleMedia && { maxHeight: undefined, height: undefined },
+        hasSingleMedia && cardStyle,
       ]}
     >
       <VideoPlayer
         src={src}
         poster={poster}
-        style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
+        style={hasSingleMedia ? styles.videoFill : styles.videoMultipleMedia}
         contentFit="contain"
         autoPlay={true}
         loop={true}
         onPress={onPress}
+        onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
       />
     </View>
   );
@@ -107,22 +152,24 @@ const PostAttachmentGif: React.FC<{
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
 }> = ({ src, hasSingleMedia, hasMultipleMedia }) => {
+  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle();
   return (
     <View
       className="border border-border bg-secondary rounded-[15px] overflow-hidden"
       style={[
         webGrabCursorStyle,
         hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
-        hasSingleMedia && { maxHeight: undefined, height: undefined },
+        hasSingleMedia && cardStyle,
       ]}
     >
       <VideoPlayer
         src={src}
-        style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
+        style={hasSingleMedia ? styles.videoFill : styles.videoMultipleMedia}
         contentFit="contain"
         autoPlay={true}
         loop={true}
         gif={true}
+        onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
       />
     </View>
   );
@@ -357,8 +404,11 @@ const styles = StyleSheet.create({
     width: FULL_DIMENSION,
     height: FULL_DIMENSION,
   },
-  videoPreserveAspect: {
-    width: MEDIA_CARD_WIDTH,
+  // Fills the single-media card, which owns the definite (aspect-derived) box on
+  // native and a fixed width with intrinsic auto-height on web.
+  videoFill: {
+    width: FULL_DIMENSION,
+    height: FULL_DIMENSION,
   },
   videoMultipleMedia: {
     height: MEDIA_CARD_HEIGHT,

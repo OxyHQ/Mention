@@ -32,6 +32,15 @@ interface VideoPlayerProps {
    * GIFs stored as mp4. Leaves all other behavior untouched when unset.
    */
   gif?: boolean;
+  /**
+   * Reports the video's intrinsic aspect ratio (width / height) once the source's
+   * metadata loads. A feed card uses this to give itself a DEFINITE, aspect-correct
+   * height: the native `VideoView` has no auto-height, so a height-less container
+   * lets the native view overflow downward past `overflow:hidden`. Emitted at most
+   * once per distinct ratio per source. Not available on web — expo-video does not
+   * expose video-track metadata there, and the HTML `<video>` auto-sizes instead.
+   */
+  onAspectRatio?: (ratio: number) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -53,6 +62,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   poster,
   onPress,
   gif = false,
+  onAspectRatio,
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
   const { isMuted, toggleMuted } = useVideoMuteStore();
@@ -73,13 +83,29 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [hasRenderedFrame, setHasRenderedFrame] = useState(false);
   // Poster 404/load failure → hide it (no broken image), revealing the surface.
   const [posterFailed, setPosterFailed] = useState(false);
+  // Dedupes the aspect-ratio callback: emit at most once per distinct ratio per
+  // source, so repeated metadata events don't churn the parent's state.
+  const lastReportedRatio = useRef<number | null>(null);
 
   useEffect(() => {
     setHasRenderedFrame(false);
     setPosterFailed(false);
+    lastReportedRatio.current = null;
   }, [src]);
 
   const handlePosterError = useCallback(() => setPosterFailed(true), []);
+
+  // Emits the intrinsic aspect ratio to the parent once the source metadata loads.
+  const reportAspectRatio = useCallback(
+    (width?: number, height?: number) => {
+      if (!onAspectRatio || !width || !height || width <= 0 || height <= 0) return;
+      const ratio = width / height;
+      if (!Number.isFinite(ratio) || ratio <= 0 || lastReportedRatio.current === ratio) return;
+      lastReportedRatio.current = ratio;
+      onAspectRatio(ratio);
+    },
+    [onAspectRatio],
+  );
 
   const videoViewRef = useRef<InstanceType<typeof VideoView>>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,12 +152,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         if (player.duration > 0) {
           setDuration(player.duration);
         }
+        reportAspectRatio(player.videoTrack?.size?.width, player.videoTrack?.size?.height);
       }
     });
 
-    const sourceLoadSub = player.addListener('sourceLoad', ({ duration: dur }) => {
+    const sourceLoadSub = player.addListener('sourceLoad', ({ duration: dur, availableVideoTracks }) => {
       if (dur > 0) {
         setDuration(dur);
+      }
+      const track = availableVideoTracks?.find(
+        (t) => t.size?.width > 0 && t.size?.height > 0,
+      );
+      if (track) {
+        reportAspectRatio(track.size.width, track.size.height);
       }
     });
 
@@ -141,7 +174,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       statusSub.remove();
       sourceLoadSub.remove();
     };
-  }, [player, isSeeking]);
+  }, [player, isSeeking, reportAspectRatio]);
 
   // Web only: report this player's viewport position to the active-video
   // coordinator via an IntersectionObserver (threshold 0.5), exactly like
