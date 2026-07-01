@@ -342,6 +342,9 @@ const PostActions: React.FC<Props> = ({
           <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
         </PressableScale>
 
+        {/* Spacer: pushes Save + Translate + Insights to the right edge */}
+        <View className="flex-1" />
+
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
@@ -358,9 +361,6 @@ const PostActions: React.FC<Props> = ({
             <Bookmark size={ICON_SIZE} className="text-muted-foreground" />
           )}
         </PressableScale>
-
-        {/* Spacer: pushes Translate + Insights to the right edge */}
-        <View className="flex-1" />
 
         {onTranslate && (
           <PressableScale
