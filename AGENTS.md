@@ -47,6 +47,35 @@ packages/
 - **Frontend**: Expo Router, NativeWind + TailwindCSS 4.2, TanStack React Query, Zustand, Socket.io-client, LiveKit
 - **Backend**: Express 5, Mongoose 9, Redis 5, Socket.io, LiveKit Server SDK, Firebase Admin, AWS S3
 
+## MTN Protocol (Mention's signed-records layer)
+
+Mention posts are dual-written as signed records on a per-user hash chain — the "MTN Protocol" — riding on the shared `@oxyhq/protocol` engine. Native Mongo remains authoritative; the chain write is best-effort, isolated (`Promise.allSettled`), and gated on local authors (`federation == null && oxyUserId`).
+
+Key pieces in `packages/backend/src/services/mtn/`:
+
+- **`MentionRecordService`** — thin write API: `signAndAppend(oxyUserId, collection, rkey, payload)` builds the DID, reads the chain head, custodially signs with `MENTION_PRIVATE_KEY` (`issuer = MENTION_DID`), and calls `verifyAndAppend` from `@oxyhq/protocol`. Retries on `chain_conflict`/`bad_seq`. Inert-without-env: returns `{ok:false, reason:'disabled'}` when keys are unset.
+- **`MentionSignedRecord` / `MentionRepoHead`** — Mention's own Mongo models for the chain (keyed by `oxyUserId`). Implemented via `MentionRecordStore` (the `RecordStore` adapter over these models).
+- **`PostMaterializer`** (`projectRecord`) — the SINGLE writer of first-party `Post` rows FROM verified records (used by backfill and future node ingest). Resolves `embed.blob.sha256` → fileId via the reverse SHA-256 lookup. Idempotent, fail-soft, never throws.
+- **`mentionVerificationResolver`** — the Mention authorization policy injected into the `@oxyhq/protocol` engine: self-issued records (`issuer === subject`) use the subject's Oxy verification methods; custodial records (`issuer === MENTION_DID`) accept `MENTION_PUBLIC_KEY`.
+- **Custodial signing** — web posts are signed server-side (`issuer = MENTION_DID`); native = `issuer === subject`. `MENTION_DID` / `MENTION_PRIVATE_KEY` / `MENTION_PUBLIC_KEY` env vars gate this.
+- **`mention-node`** — a self-hostable node a user runs to own their own chain; synced bidirectionally via `MentionNodeSyncService` + `MentionNodeScheduler` (leader-gated background sweeps).
+- **Lexicons** `app.mention.feed.*` live in `@oxyhq/contracts`.
+
+The MTN core never knows about ActivityPub or Bluesky — external networks go through the Connectors module (see below).
+
+## External Network Connectors
+
+External networks are a pluggable module at `packages/backend/src/connectors/`:
+
+- **`types.ts`** — the `NetworkConnector` interface + normalized DTOs (`NormalizedExternalActor`, `NormalizedExternalPost`, `LocalNetworkEvent`). Intentionally free of Mongoose so the layer can be extracted later.
+- **`ConnectorRegistry`** — holds only `enabled` connectors (filtered at construction); fans out via `Promise.allSettled` so one connector's failure never aborts others. Implements the `PostFederator` seam registered in `serviceRegistry` — `PostCreationService` never knows any network exists.
+- **`activitypub/ActivityPubConnector`** — Mastodon/fediverse. Env gate: `FEDERATION_ENABLED` (defaults ON).
+- **`atproto/AtprotoConnector`** — Bluesky READ/discovery only (resolve handles, mirror profiles/posts). Env gate: `ATPROTO_ENABLED` (defaults OFF).
+- **`atproto/bridge/`** — the be-discovered bridge: makes a local user's repo readable FROM atproto. Env gate: `ATPROTO_BRIDGE_ENABLED` (defaults OFF — keep dark unless explicitly enabling).
+- **`resolve.ts`** (`classifyQuery`) — unified handle classification: `@user@host`/`user@domain` → activitypub; `*.bsky.social`/`did:*`/`at://`/bare handle → atproto; `@username`/local → Oxy.
+
+The old `services/FederationService.ts` facade has been replaced by the connectors module. Code that previously imported from `FederationService` now imports from the relevant connector or the registry.
+
 ### Feed System (MTN)
 
 Feeds live in `backend/src/mtn/` — ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners.
@@ -55,14 +84,14 @@ Feeds live in `backend/src/mtn/` — ForYou, Following, Author, Hashtag, Explore
 - **Boost hydration gotcha:** A `type:'boost'` post has an intentionally empty body and relies on `boostOf` for hydration. `PostHydrationService` only embeds the boosted original at `maxDepth >= 1`. Any endpoint/feed that INCLUDES boosts MUST pass `maxDepth:1` or boosts render blank. Affected: `routes/federation.api.routes.ts` and `mtn/feed/feeds/AuthorFeed.ts`. Native feeds (ForYou/posts via `feedQueryBuilder`) avoid this by excluding boosts.
 - **`hasMore` from authoritative overfetch:** `FeedResponseBuilder` computes `hasMore` from the overfetch flag, NOT `slicesToReturn.length >= limit` — post groups (thread slicing) can produce fewer slices than limit items, causing premature `hasMore: false`.
 
-### Federation (ActivityPub)
+### Federation (ActivityPub — via connectors)
 
-Federated users are type `'federated'` in Oxy, posts in Mention, linked by `oxyUserId`. HTTP signatures on all outbound requests.
+ActivityPub is implemented as the `activitypub/ActivityPubConnector` inside the connectors module (see External Network Connectors above). Federated users are type `'federated'` in Oxy, posts in Mention, linked by `oxyUserId`. HTTP signatures on all outbound requests.
 
 - **Local dev**: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to the tunnel domain.
-- **Outbox sync** uses the actor's advertised `outbox` URL (`fetchRemoteActor`); `actorUri + '/outbox'` is fallback only — guessing breaks PeerTube/Lemmy/some Pleroma.
+- **Outbox sync** uses the actor's advertised `outbox` URL; `actorUri + '/outbox'` is fallback only — guessing breaks PeerTube/Lemmy/some Pleroma. Lives in `connectors/activitypub/outbox.service.ts`.
 - **Boosts** imported as `type:'boost'` posts, deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill paths.
-- **Likes/boosts from federated actors** stored as NATIVE records (Like doc / boost Post). `FederationService` does NOT copy remote aggregate counts — counts only move ±1 in lockstep with real records.
+- **Likes/boosts from federated actors** stored as NATIVE records (Like doc / boost Post). The AP connector does NOT copy remote aggregate counts — counts only move ±1 in lockstep with real records.
 - **Engagement reconciliation**: `packages/backend/src/scripts/recomputeFederatedEngagement.ts` (run via Fargate one-shot: `bun packages/backend/dist/src/scripts/recomputeFederatedEngagement.js`).
 - **Background jobs (BullMQ):** Federation inbound activities enqueued (inbox 202s fast, worker runs `processInboxActivity`); `FederationJobScheduler` repeatable jobs; outbound delivery via BullMQ. All env-gated on `REDIS_URL`. Queue names must not contain `:`.
 
