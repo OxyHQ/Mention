@@ -8,10 +8,12 @@ import { OxyServices } from '@oxyhq/core';
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { BloomThemeProvider } from '@oxyhq/bloom';
+import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 
 import { OXY_CLIENT_ID } from '@/config';
 import { agoraConfig } from '@/lib/agoraConfig';
 import { roomQueryKeys } from '@/hooks/useRoomsQuery';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 try {
@@ -42,6 +44,17 @@ export const AppProviders = memo(function AppProviders({
   children,
   oxyServices,
 }: AppProvidersProps) {
+  // Resolve bare file IDs to download URLs for Bloom components that call
+  // useImageResolver() (e.g. ProfileButton's account avatar). Honors the
+  // rendition variant Bloom forwards, defaulting to 'thumb' for small avatars.
+  const resolveImageSource = useCallback(
+    (fileId: string, variant?: string): string | undefined => {
+      const url = getCachedFileDownloadUrlSync(oxyServices, fileId, variant ?? 'thumb');
+      return url && url.startsWith('http') ? url : undefined;
+    },
+    [oxyServices],
+  );
+
   return (
     <BloomThemeProvider
       defaultMode="system"
@@ -57,13 +70,15 @@ export const AppProviders = memo(function AppProviders({
                 clientId={OXY_CLIENT_ID}
                 storageKeyPrefix="agora"
               >
-                <AgoraProviderWithInvalidation>
-                  <LiveRoomProvider>
-                    {children}
-                    <StatusBar style="auto" />
-                    <ToastOutlet />
-                  </LiveRoomProvider>
-                </AgoraProviderWithInvalidation>
+                <ImageResolverProvider value={resolveImageSource}>
+                  <AgoraProviderWithInvalidation>
+                    <LiveRoomProvider>
+                      {children}
+                      <StatusBar style="auto" />
+                      <ToastOutlet />
+                    </LiveRoomProvider>
+                  </AgoraProviderWithInvalidation>
+                </ImageResolverProvider>
               </OxyProvider>
             </QueryClientProvider>
           </KeyboardProvider>

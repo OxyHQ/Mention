@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, Platform, type ViewStyle } from 'react-native';
 import { useRouter, usePathname, type Href } from 'expo-router';
 import { AgoraActive } from '@mention/agora-shared';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, ProfileButton } from '@oxyhq/services';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
@@ -79,7 +79,31 @@ export function SideBar() {
   const isExpanded = useIsSidebarExpanded();
   const theme = useTheme();
   const pathname = usePathname();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, signIn } = useAuth();
+
+  const profileUsername = user?.username;
+
+  // ProfileButton owns all three auth states (skeleton, signed-in account row +
+  // switcher, signed-out "Sign in") and the device-account switcher menu. Manage
+  // routes to settings, profile to the viewer's own profile, and add-account and
+  // signed-out sign-in both go through the SDK sign-in flow.
+  const handleNavigateManage = useCallback(() => {
+    router.navigate('/settings');
+  }, [router]);
+
+  // Agora's only profile route is `(app)/(tabs)/[username]`, which expects the
+  // `@`-prefixed username as its param (same shape the nav "Profile" item and
+  // `profile.tsx` redirect use). Agora has no top-level `/@handle` catch-all.
+  const handleNavigateProfile = useCallback(() => {
+    if (profileUsername) {
+      router.navigate({ pathname: '/(app)/(tabs)/[username]', params: { username: '@' + profileUsername } });
+    }
+  }, [router, profileUsername]);
+
+  const handleAddAccount = useCallback(() => {
+    signIn().catch(() => {});
+  }, [signIn]);
 
   if (!isScreenNotMobile) return null;
 
@@ -168,17 +192,27 @@ export function SideBar() {
           </Text>
         )}
       </View>
-      {navItems.map((item) => (
-        <SideBarItem
-          key={item.text}
-          icon={item.icon(item.isActive ? theme.colors.primary : theme.colors.icon)}
-          text={item.text}
-          href={item.href}
-          isActive={item.isActive}
-          isExpanded={isExpanded}
-          theme={theme}
+      <View style={{ flex: 1 }}>
+        {navItems.map((item) => (
+          <SideBarItem
+            key={item.text}
+            icon={item.icon(item.isActive ? theme.colors.primary : theme.colors.icon)}
+            text={item.text}
+            href={item.href}
+            isActive={item.isActive}
+            isExpanded={isExpanded}
+            theme={theme}
+          />
+        ))}
+      </View>
+      <View style={{ marginTop: 'auto' }}>
+        <ProfileButton
+          expanded={isExpanded}
+          onNavigateManage={handleNavigateManage}
+          onNavigateProfile={handleNavigateProfile}
+          onAddAccount={handleAddAccount}
         />
-      ))}
+      </View>
     </View>
   );
 }
