@@ -1,7 +1,7 @@
 import React from 'react';
 import { Animated } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
-import type { SharedValue } from 'react-native-reanimated';
+import { withTiming, type SharedValue } from 'react-native-reanimated';
 
 import {
     BottomBarVisibilityProvider,
@@ -27,10 +27,12 @@ jest.mock('expo-router', () => ({
 // thin surface the provider uses: `useSharedValue` returns a plain mutable
 // holder and `withTiming` resolves synchronously to its target so we can assert
 // the resulting settled `.value` deterministically (the provider's auto-hide
-// DECISION + clean settle is what we verify, not the animation curve).
+// DECISION + clean settle is what we verify, not the animation curve). It is a
+// `jest.fn` so the anti-jitter tests can also assert HOW MANY times the
+// animation is (re)started — a wobble must NOT restart it.
 jest.mock('react-native-reanimated', () => ({
     useSharedValue: (initial: number) => ({ value: initial }),
-    withTiming: (target: number) => target,
+    withTiming: jest.fn((target: number) => target),
 }));
 
 function Capture({ onValue }: { onValue: (v: SharedValue<number>) => void }) {
@@ -39,16 +41,25 @@ function Capture({ onValue }: { onValue: (v: SharedValue<number>) => void }) {
     return null;
 }
 
+// Track every renderer so afterEach can unmount them. Each provider attaches a
+// listener to the module-level `mockScrollY`; without unmount a leaked listener
+// from a previous test would keep firing (and calling the shared `withTiming`
+// mock) on the next test's `pushScroll`, corrupting the call counts the
+// anti-jitter tests assert on.
+const renderers: TestRenderer.ReactTestRenderer[] = [];
+
 function renderWithPath(path: string) {
     mockPathname = path;
     let hidden: SharedValue<number> | null = null;
+    let renderer: TestRenderer.ReactTestRenderer | null = null;
     act(() => {
-        TestRenderer.create(
+        renderer = TestRenderer.create(
             <BottomBarVisibilityProvider>
                 <Capture onValue={(v) => { hidden = v; }} />
             </BottomBarVisibilityProvider>,
         );
     });
+    if (renderer) renderers.push(renderer);
     return () => hidden as unknown as SharedValue<number>;
 }
 
@@ -80,6 +91,19 @@ describe('BottomBarVisibilityProvider', () => {
         mockScrollY.setValue(0);
         mockPathname = '/';
         setScrollHeight(2000);
+        // Reset the withTiming call log so the anti-jitter tests can count how
+        // many times the animation is (re)started. Clears calls only, keeps the
+        // `(target) => target` implementation the value-assertion tests rely on.
+        jest.mocked(withTiming).mockClear();
+    });
+
+    afterEach(() => {
+        // Unmount so each provider's scroll listener is detached; otherwise a
+        // leaked listener keeps driving the shared withTiming mock on later tests.
+        act(() => {
+            renderers.forEach((r) => r.unmount());
+        });
+        renderers.length = 0;
     });
 
     it('hides the bar on downward scroll on a normal route', () => {
@@ -192,5 +216,75 @@ describe('BottomBarVisibilityProvider', () => {
         pushScroll(300);      // gesture resumes, stable height → down
         pushScroll(380);      // down
         expect(getHidden().value).toBe(1);
+    });
+
+    // ── Anti-jitter (on-device shake). The bug: a held finger wobbling a few px
+    // up/down produced alternating +/- deltas that each flipped the direction and
+    // restarted an opposing hide/show animation EVERY event → the header + bottom
+    // bar shook infinitely mid-transition. The fix is directional hysteresis (an
+    // accumulator that only commits a direction change past DIRECTION_COMMIT_
+    // THRESHOLD and resets on sign reversal) plus a target-change guard (the
+    // timing only (re)starts when the committed 0/1 target actually changes).
+
+    it('does NOT flip or animate on a small finger wobble below the commit threshold', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(200); // baseline calibration (no decision) — already past offset
+        jest.mocked(withTiming).mockClear();
+        // Held finger: a few px each way. Each frame is far below the commit
+        // threshold AND the accumulator resets on every sign reversal, so the
+        // committed direction never flips → the bar stays visible.
+        pushScroll(206);
+        pushScroll(200);
+        pushScroll(206);
+        pushScroll(200);
+        pushScroll(206);
+        pushScroll(200);
+        expect(getHidden().value).toBe(0);
+        // The committed target never changed, so the animation was never started.
+        expect(jest.mocked(withTiming)).not.toHaveBeenCalled();
+    });
+
+    it('does NOT re-trigger the hide/show animation on a wobble AFTER a sustained scroll (anti-shake)', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        pushScroll(120); // sustained down past the activation offset → hides (1 animation)
+        expect(getHidden().value).toBe(1);
+        jest.mocked(withTiming).mockClear();
+        // Now the user holds and wobbles. In the buggy version each event
+        // restarted an opposing animation → the visible shake. It must stay
+        // hidden and NOT restart the timing at all.
+        pushScroll(126);
+        pushScroll(120);
+        pushScroll(126);
+        pushScroll(120);
+        expect(getHidden().value).toBe(1);
+        expect(jest.mocked(withTiming)).not.toHaveBeenCalled();
+    });
+
+    it('hides on a sustained downward scroll with exactly one animation start', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        jest.mocked(withTiming).mockClear();
+        // Sustained downward motion in steps that each stay under the programmatic
+        // jump threshold; cumulatively well past the commit threshold.
+        pushScroll(60);  // +60 → commits down, past activation offset → hide
+        pushScroll(120); // continue down — same target, must NOT restart animation
+        pushScroll(180); // continue down — same target
+        expect(getHidden().value).toBe(1);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledTimes(1);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledWith(1, expect.anything());
+    });
+
+    it('reveals on a sustained upward scroll after hiding, with exactly one animation start', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        pushScroll(150); // sustained down → hide
+        expect(getHidden().value).toBe(1);
+        jest.mocked(withTiming).mockClear();
+        // Sustained upward motion of 60px (> commit threshold) → commit up → reveal.
+        pushScroll(90);
+        expect(getHidden().value).toBe(0);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledTimes(1);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledWith(0, expect.anything());
     });
 });
