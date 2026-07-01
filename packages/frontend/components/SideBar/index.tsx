@@ -19,19 +19,17 @@ import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { Gear, GearActive } from "@/assets/icons/gear-icon";
 import { Search, SearchActive } from "@/assets/icons/search-icon";
 import { ComposeIcon } from "@/assets/icons/compose-icon";
-import { Ionicons } from "@expo/vector-icons";
 import { confirmDialog } from "@/utils/alerts";
 import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
 import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
-import { logger } from '@/lib/logger';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Agora, AgoraActive } from '@mention/agora-shared';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, ProfileButton } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 
@@ -62,23 +60,19 @@ interface SideBarProps {
 export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const { t } = useTranslation();
     const router = useRouter();
-    const { user, signIn, signOut, isAuthenticated, isAuthResolved, isPrivateApiPending } = useAuth();
+    const { user, signIn } = useAuth();
     const theme = useTheme();
     const { resetTheme } = useBloomTheme();
     const resetAppearance = useAppearanceStore((state) => state.reset);
     const avatarUri = user?.avatar;
 
-    const handleSignOut = useCallback(async () => {
-        try {
-            await signOut();
-        } catch (error: unknown) {
-            logger.warn('Sign out failed', { error });
-        }
+    // ProfileButton owns the account switcher (switch/sign-out/sign-out-all live
+    // in the SDK). This fires just before the active identity changes so we can
+    // clear the previous account's scoped UI state (appearance + Bloom theme).
+    const handleBeforeSessionChange = useCallback(() => {
         resetAppearance();
         resetTheme();
-        onNavigate?.();
-        router.replace('/');
-    }, [signOut, onNavigate, router, resetAppearance, resetTheme]);
+    }, [resetAppearance, resetTheme]);
 
     // Every sidebar destination is a TAB ROOT (home, the current user's own
     // profile, explore, notifications, chat, agora, insights, saved, feeds,
@@ -98,12 +92,24 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         router.push('/compose');
     }, [onNavigate, router]);
 
-    const handleSignIn = useCallback(() => {
+    // Adding another account (from the ProfileButton menu) and signing in while
+    // signed out both go through the same SDK sign-in flow.
+    const handleAddAccount = useCallback(() => {
         onNavigate?.();
         signIn().catch(() => {});
     }, [onNavigate, signIn]);
 
     const profileHandle = getNormalizedUserHandle(user);
+
+    const handleNavigateProfile = useCallback(() => {
+        if (profileHandle) {
+            handleNavPress(`/@${profileHandle}`);
+        }
+    }, [profileHandle, handleNavPress]);
+
+    const handleNavigateManage = useCallback(() => {
+        handleNavPress('/settings');
+    }, [handleNavPress]);
 
     const sideBarData = useMemo<Array<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route?: Href; onPress?: () => void }>>(() => [
         {
@@ -187,7 +193,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const pathname = usePathname();
     const isSideBarVisible = useIsScreenNotMobile();
     const isExpanded = useIsSideBarExpanded();
-    const showAuthPlaceholder = !isAuthResolved || isPrivateApiPending || (isAuthenticated && !user);
 
     if (!asDrawer && !isSideBarVisible) return null;
 
@@ -244,43 +249,17 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                     styles.footer,
                     { alignItems: showExpanded ? 'flex-start' : 'center' },
                 ]}>
-                    {/* Auth-sensitive footer. Three states:
-                        1. UNDETERMINED (`!isAuthResolved`): cold-boot session restore
-                           has not concluded, so `user`/`isAuthenticated` are not yet a
-                           reliable answer. Render a neutral skeleton of the same
-                           footprint as a SideBarItem so the column does not shift and
-                           we never flash the "Sign In" item before snapping to authed.
-                        2. AUTHED (`user`): show Sign Out.
-                        3. ANON (resolved, no user): show Sign In.
-                        Gating on the SAME reactive condition as the profile row above
-                        (truthy `user`) keeps the two in agreement. */}
-                    {showAuthPlaceholder ? (
-                        <View
-                            className={showExpanded ? 'w-full self-stretch px-4' : 'self-center px-3'}
-                            style={styles.footerSkeleton}
-                        >
-                            <View className="bg-muted rounded-full w-6 h-6" />
-                            {showExpanded && (
-                                <View className="bg-muted rounded-full h-3.5 flex-1 ml-3 mr-6" />
-                            )}
-                        </View>
-                    ) : isAuthenticated ? (
-                        <SideBarItem
-                            isActive={false}
-                            icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.text} />}
-                            text={t('sidebar.signOut')}
-                            isExpanded={showExpanded}
-                            onPress={handleSignOut}
-                        />
-                    ) : (
-                        <SideBarItem
-                            isActive={false}
-                            icon={<Ionicons name="log-in-outline" size={20} color={theme.colors.text} />}
-                            text={t('sidebar.signIn')}
-                            isExpanded={showExpanded}
-                            onPress={handleSignIn}
-                        />
-                    )}
+                    {/* Account trigger. ProfileButton owns all three auth states
+                        (undetermined skeleton, signed-in row + account switcher,
+                        signed-out "Sign in") and the device-account switcher menu
+                        (switch / add account / sign out / sign out all). */}
+                    <ProfileButton
+                        expanded={showExpanded}
+                        onNavigateManage={handleNavigateManage}
+                        onNavigateProfile={handleNavigateProfile}
+                        onAddAccount={handleAddAccount}
+                        onBeforeSessionChange={handleBeforeSessionChange}
+                    />
                 </View>
             </View>
         </View>
@@ -342,14 +321,5 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         width: '100%',
         marginTop: 'auto',
-    },
-    // Neutral placeholder for the auth-resolving window. Mirrors SideBarItem's
-    // footprint (icon row: py-2.5 = 10px vertical + 24px icon, mb-1.5 = 6px)
-    // so swapping to the real Sign-in/Sign-out item causes no layout shift.
-    footerSkeleton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        marginBottom: 6,
     },
 });
