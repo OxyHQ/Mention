@@ -5,10 +5,27 @@ import { useSharedValue, withTiming, type SharedValue } from 'react-native-reani
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 
 /**
- * Scroll distance (px) past which the auto-hide behaviour engages. Below this
- * the bar always stays visible (so a tiny scroll never hides it).
+ * Scroll distance (px) past which the auto-hide behaviour ARMS. Below this the
+ * bar always stays visible (so a tiny scroll near the very top never hides it).
+ * The disarm boundary is intentionally LOWER (see HIDE_ACTIVATION_HYSTERESIS) so
+ * a wobble straddling this line can't flip the hide/show target.
  */
 const HIDE_ACTIVATION_OFFSET = 50;
+
+/**
+ * Activation hysteresis (px) — the auto-hide activation boundary is ASYMMETRIC:
+ *   - hiding ARMS once scroll passes HIDE_ACTIVATION_OFFSET (50px), and
+ *   - it only DISARMS (forces the bar visible) once scroll drops back below
+ *     HIDE_ACTIVATION_OFFSET − HIDE_ACTIVATION_HYSTERESIS (30px).
+ * Between 30–50px the armed state is STICKY (left unchanged). Without this, a
+ * held finger hovering around the 50px mark repeatedly crosses the raw `> 50`
+ * test, flipping the target and restarting the animation every few frames — the
+ * residual near-top shake. 20px is comfortably wider than on-device finger
+ * jitter (a handful of px) yet small enough that the bar still reappears the
+ * instant you scroll clearly back toward the top. This mirrors the directional
+ * hysteresis below, but gates the scroll POSITION instead of the direction.
+ */
+const HIDE_ACTIVATION_HYSTERESIS = 20;
 
 /**
  * Minimum scroll delta (px) before we trust a direction change. Filters out
@@ -45,6 +62,28 @@ const PROGRAMMATIC_JUMP_THRESHOLD = 200;
 
 /** Shared show/hide animation duration (ms). Bar and FAB stay in lock-step. */
 export const BOTTOM_BAR_HIDE_DURATION = 200;
+
+/**
+ * In-flight re-target lock threshold (px). For BOTTOM_BAR_HIDE_DURATION after a
+ * hide/show target is COMMITTED, the target may only flip again if a FRESH
+ * opposite-direction movement accumulates at least this much travel — twice
+ * DIRECTION_COMMIT_THRESHOLD. Rationale: a running hide/show animation mutates
+ * layout (the home/explore header spacer height animates with `hidden`, e.g.
+ * `spacerHeight = max(0, headerHeight + headerTranslateY)`), which can shift
+ * scroll content and feed small scrollY deltas back into this listener
+ * mid-animation; and a marginal genuine back-and-forth just over the commit
+ * threshold would otherwise re-hide/re-show faster than the 200ms animation can
+ * finish. Both must be ignored so the animation never restarts itself.
+ *
+ * 80px is chosen as an upper bound on the SELF-induced delta: over one hide/show
+ * the spacer shrinks/grows by at most PANEL_HEADER_HEIGHT (48px), so the phantom
+ * clamp delta it can feed back is ≤ 48px — always below 80, hence never able to
+ * override the lock. A deliberate finger reversal, by contrast, clears 80px well
+ * within a single gesture (and the lock only lasts 200ms anyway), so real
+ * direction changes stay responsive — only sub-gesture chatter is held until the
+ * current animation settles.
+ */
+const RETARGET_LOCK_OVERRIDE_THRESHOLD = 80;
 
 /**
  * Routes where the BottomBar must stay PERMANENTLY visible (no scroll auto-hide).
@@ -119,6 +158,16 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
         // Re-declared per effect run, so re-attaching the listener (e.g. leaving
         // /videos) starts these trackers clean with the bar visible.
         let currentTarget = 0;
+        // Activation-gate state (asymmetric hysteresis). Tracks whether we are
+        // clearly PAST the activation offset: flips true above
+        // HIDE_ACTIVATION_OFFSET, false only below the lower disarm boundary, and
+        // stays sticky in the band between — so a wobble across the raw 50px line
+        // can't flip the target on its own. Starts disarmed (bar visible at top).
+        let hideArmed = false;
+        // Timestamp (ms) of the last committed target change, driving the
+        // in-flight re-target lock. Starts at 0 so the very first commit is never
+        // locked (Date.now() is always far past 0).
+        let lastCommitAt = 0;
         // The FIRST listener event after (re)attaching only CALIBRATES the
         // baseline — it never decides direction/hide. Otherwise a screen that
         // lands already scrolled (profile: scroll-restoration / layout growth
@@ -150,6 +199,8 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
                 directionAccumulator = 0;
                 isScrollingDown = false;
                 currentTarget = 0;
+                hideArmed = false;
+                lastCommitAt = 0;
                 return;
             }
 
@@ -198,14 +249,48 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
                 }
             }
 
+            // Activation hysteresis (asymmetric band). ARM hiding once we are
+            // clearly past the activation offset; DISARM (force the bar visible)
+            // only once we drop clearly back below it. Inside the band the armed
+            // state is sticky, so a wobble straddling the raw 50px line can no
+            // longer flip the target by itself — the residual near-top shake.
+            if (currentScrollY > HIDE_ACTIVATION_OFFSET) {
+                hideArmed = true;
+            } else if (currentScrollY < HIDE_ACTIVATION_OFFSET - HIDE_ACTIVATION_HYSTERESIS) {
+                hideArmed = false;
+            }
+
+            const shouldHide = hideArmed && isScrollingDown;
+            const target = shouldHide ? 1 : 0;
+
             // Only (re)start the timing when the committed target actually
             // changes, so a sustained scroll in one direction animates ONCE
             // instead of restarting the animation on every scroll event.
-            const shouldHide = currentScrollY > HIDE_ACTIVATION_OFFSET && isScrollingDown;
-            const target = shouldHide ? 1 : 0;
             if (target !== currentTarget) {
-                currentTarget = target;
-                hidden.value = withTiming(target, { duration: BOTTOM_BAR_HIDE_DURATION });
+                // In-flight re-target lock — the root fix for the self-triggering
+                // feedback loop. On NATIVE the header is an absolute overlay and
+                // the header/tab spacer height animates in lock-step with
+                // `hidden`; as it shrinks it grows the scroller's frame, and when
+                // the list is near the bottom the OS CLAMPS contentOffset, feeding
+                // a phantom scroll delta back into THIS listener mid-animation.
+                // (The web layout-growth guard above is inert on native —
+                // `readScrollHeight()` returns 0 with no `document` — so that
+                // delta is otherwise read as a real gesture and restarts the
+                // animation → shake.) While an animation is in flight, only a
+                // FRESH user movement large enough to clear the override threshold
+                // in the new direction may re-target; the small self-induced clamp
+                // delta cannot, so the loop is cut at the source. A deliberate
+                // reversal easily clears it within one gesture, so real scrolls
+                // stay responsive.
+                const now = Date.now();
+                const animationInFlight = now - lastCommitAt < BOTTOM_BAR_HIDE_DURATION;
+                const isFreshUserMovement =
+                    Math.abs(directionAccumulator) >= RETARGET_LOCK_OVERRIDE_THRESHOLD;
+                if (!animationInFlight || isFreshUserMovement) {
+                    currentTarget = target;
+                    lastCommitAt = now;
+                    hidden.value = withTiming(target, { duration: BOTTOM_BAR_HIDE_DURATION });
+                }
             }
 
             lastKnownScrollY = currentScrollY;

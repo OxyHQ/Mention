@@ -6,6 +6,7 @@ import { withTiming, type SharedValue } from 'react-native-reanimated';
 import {
     BottomBarVisibilityProvider,
     useBottomBarHidden,
+    BOTTOM_BAR_HIDE_DURATION,
 } from '@/context/BottomBarVisibilityContext';
 
 // Drive the shared scrollY directly so we can assert how the provider maps
@@ -69,6 +70,17 @@ function pushScroll(value: number) {
     });
 }
 
+// The provider's in-flight re-target lock is time-based (it holds a fresh
+// hide/show target for BOTTOM_BAR_HIDE_DURATION after the last commit). Jest
+// drives scroll events synchronously, so `Date.now()` barely advances between
+// pushes; we control it explicitly so the lock window is deterministic. Tests
+// that don't call `advanceTime` therefore run entirely INSIDE one lock window,
+// which is exactly what the "suppressed within the lock" cases need.
+let mockNow = 1_000_000;
+function advanceTime(ms: number) {
+    mockNow += ms;
+}
+
 // Web layout-growth simulation: the provider reads
 // `document.documentElement.scrollHeight` to distinguish a gesture from a
 // document that grew/shifted under the viewport. The jest-expo (native preset)
@@ -87,10 +99,18 @@ afterAll(() => {
 });
 
 describe('BottomBarVisibilityProvider', () => {
+    let dateNowSpy: jest.SpyInstance<number, []>;
+
     beforeEach(() => {
         mockScrollY.setValue(0);
         mockPathname = '/';
         setScrollHeight(2000);
+        // Start the clock well past 0 so the FIRST commit in every test is never
+        // inside the re-target lock window (lastCommitAt starts at 0 in the
+        // provider). Tests advance it explicitly via `advanceTime` where they
+        // need the lock to have expired.
+        mockNow = 1_000_000;
+        dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => mockNow);
         // Reset the withTiming call log so the anti-jitter tests can count how
         // many times the animation is (re)started. Clears calls only, keeps the
         // `(target) => target` implementation the value-assertion tests rely on.
@@ -104,6 +124,7 @@ describe('BottomBarVisibilityProvider', () => {
             renderers.forEach((r) => r.unmount());
         });
         renderers.length = 0;
+        dateNowSpy.mockRestore();
     });
 
     it('hides the bar on downward scroll on a normal route', () => {
@@ -281,8 +302,86 @@ describe('BottomBarVisibilityProvider', () => {
         pushScroll(150); // sustained down → hide
         expect(getHidden().value).toBe(1);
         jest.mocked(withTiming).mockClear();
+        // The hide animation has settled (past the in-flight re-target lock).
+        advanceTime(BOTTOM_BAR_HIDE_DURATION + 1);
         // Sustained upward motion of 60px (> commit threshold) → commit up → reveal.
         pushScroll(90);
+        expect(getHidden().value).toBe(0);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledTimes(1);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledWith(0, expect.anything());
+    });
+
+    // ── Activation hysteresis. A held finger hovering AROUND the activation
+    // offset (50px) used to flip the target on every event because `shouldHide`
+    // tested the raw `currentScrollY > 50`: 52 → hide, 48 → show, 52 → hide … even
+    // though the committed DIRECTION never changed. The fix is an asymmetric
+    // activation band (arm above 50, disarm only below 30, sticky in between).
+    it('does NOT flip the target when wobbling a few px across the activation offset', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        // Commit downward and cross the activation offset → hide once.
+        pushScroll(52);  // +52 commits down, 52 > 50 arms hiding → hide
+        expect(getHidden().value).toBe(1);
+        jest.mocked(withTiming).mockClear();
+        // Now hover: a few px each way straddling the 50px line. Each delta is far
+        // below the direction-commit threshold (so direction stays committed down)
+        // and stays inside the 30–50 activation band (so `hideArmed` stays sticky).
+        // The target must never flip and the animation must never restart.
+        pushScroll(48);
+        pushScroll(52);
+        pushScroll(48);
+        pushScroll(52);
+        expect(getHidden().value).toBe(1);
+        expect(jest.mocked(withTiming)).not.toHaveBeenCalled();
+    });
+
+    // ── In-flight re-target lock. Right after a hide/show commits, the animation
+    // is running and its own layout side-effects (the native header spacer
+    // shrinking) can feed a phantom scroll delta back into the listener. A fresh
+    // opposite movement that WOULD flip the target must be held unless it clears
+    // the larger override threshold — otherwise the animation restarts itself.
+    it('suppresses a moderate opposite movement that lands inside the in-flight lock', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        pushScroll(150); // sustained down → hide (commits, starts the lock window)
+        expect(getHidden().value).toBe(1);
+        jest.mocked(withTiming).mockClear();
+        // Same tick (still inside the lock): a 50px upward move. It IS enough to
+        // commit the up direction (> 40) and would flip the target to 0, but 50 <
+        // the 80px override threshold, so while the hide animation is in flight it
+        // is treated as self-induced chatter and suppressed.
+        pushScroll(100);
+        expect(getHidden().value).toBe(1);
+        expect(jest.mocked(withTiming)).not.toHaveBeenCalled();
+    });
+
+    it('still reveals immediately on a deliberate large reversal even inside the lock', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        pushScroll(150); // sustained down → hide (starts the lock window)
+        expect(getHidden().value).toBe(1);
+        jest.mocked(withTiming).mockClear();
+        // Same tick (inside the lock) but a deliberate 90px upward flick — clears
+        // the 80px override threshold, so a real reversal is NOT delayed by the
+        // lock. The bar reveals within the same gesture.
+        pushScroll(60);
+        expect(getHidden().value).toBe(0);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledTimes(1);
+        expect(jest.mocked(withTiming)).toHaveBeenCalledWith(0, expect.anything());
+    });
+
+    it('reveals a moderate up-scroll once the hide animation has settled (no lag regression)', () => {
+        const getHidden = renderWithPath('/');
+        pushScroll(0);   // baseline
+        pushScroll(150); // sustained down → hide
+        expect(getHidden().value).toBe(1);
+        jest.mocked(withTiming).mockClear();
+        // The hide animation has finished; the lock window has expired.
+        advanceTime(BOTTOM_BAR_HIDE_DURATION + 1);
+        // A genuine, moderate (70px, below the override threshold) upward scroll
+        // now reveals with no extra travel required — the lock only holds WHILE an
+        // animation is in flight, so responsiveness to real gestures is unchanged.
+        pushScroll(80);
         expect(getHidden().value).toBe(0);
         expect(jest.mocked(withTiming)).toHaveBeenCalledTimes(1);
         expect(jest.mocked(withTiming)).toHaveBeenCalledWith(0, expect.anything());
