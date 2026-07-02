@@ -35,7 +35,7 @@ export function InlineReplyComposer({ postId, onPosted }: InlineReplyComposerPro
       setText('');
       onPosted();
     } catch {
-      toast(t('common.error'), { type: 'error' });
+      toast(t('common.error', { defaultValue: 'Something went wrong' }), { type: 'error' });
     } finally {
       setSubmitting(false);
     }
