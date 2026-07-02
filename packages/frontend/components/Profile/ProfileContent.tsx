@@ -20,6 +20,11 @@ import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { mergeBioAndProfileLinks } from '@/utils/mergeBioAndProfileLinks';
+import { useAppearanceStore } from '@/store/appearanceStore';
+import { useExpandableText } from '@/hooks/useExpandableText';
+
+/** Profile bio collapse threshold (chars) — fixed, not user-configurable; only the on/off toggle is (`collapseLongBio`). */
+const BIO_COLLAPSE_CHARS = 200;
 
 /**
  * Main profile content section
@@ -49,6 +54,8 @@ export const ProfileContent = memo(function ProfileContent({
     instance: profileData.instance,
     isFederated: profileData.isFederated,
   }) || username;
+  const collapseLongBio = useAppearanceStore((s) => s.mySettings?.appearance?.collapseLongBio) ?? true;
+  const bioExpand = useExpandableText(profileData.bio ?? '', collapseLongBio ? BIO_COLLAPSE_CHARS : Infinity);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     onLayout?.(event.nativeEvent.layout.height);
@@ -144,9 +151,17 @@ export const ProfileContent = memo(function ProfileContent({
       {/* Bio */}
       {!minimalistMode && profileData.bio && (
         <LinkifiedText
-          text={profileData.bio}
+          text={bioExpand.displayText}
           className="text-foreground"
           style={{ fontSize: 15, lineHeight: 20, marginBottom: 12 }}
+          suffix={bioExpand.isTruncated ? (
+            <Text
+              className="text-primary"
+              onPress={bioExpand.toggle}
+            >
+              {bioExpand.isExpanded ? ` ${t('common.showLess', 'Show less')}` : ` ${t('profile.bio.readMore', 'Read more')}`}
+            </Text>
+          ) : null}
         />
       )}
 
