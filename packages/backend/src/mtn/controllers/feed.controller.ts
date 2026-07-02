@@ -59,23 +59,6 @@ async function loadMuteWordsForUser(userId: string | undefined): Promise<MutePre
 const MAX_MUTUAL_IDS = 5000;
 
 /**
- * Normalize the (upstream, still-in-flight) `oxyClient.getMutualUserIds` result
- * into a string id list. Accepts a bare `string[]` or a `{ data | userIds }`
- * wrapper; anything else yields `[]`.
- */
-function normalizeMutualIdList(value: unknown): string[] {
-  const source =
-    Array.isArray(value)
-      ? value
-      : Array.isArray((value as { data?: unknown })?.data)
-        ? (value as { data: unknown[] }).data
-        : Array.isArray((value as { userIds?: unknown })?.userIds)
-          ? (value as { userIds: unknown[] }).userIds
-          : [];
-  return source.filter((v): v is string => typeof v === 'string' && v.length > 0);
-}
-
-/**
  * Federated mutuals: remote actors the viewer both follows (accepted outbound)
  * AND is followed by (accepted inbound), mapped to their linked Oxy user ids.
  */
@@ -99,21 +82,17 @@ async function getFederatedMutualIds(localUserId: string): Promise<string[]> {
 
 /**
  * The viewer's mutual-follow author ids for the Mutuals feed: Oxy graph mutuals
- * (via `@oxyhq/core` `getMutualUserIds`, when the SDK method is available) ∪
- * federated mutuals. Both branches soft-fail to `[]`; the Oxy branch is guarded
- * with an optional call because the SDK method arrives via a separate upstream
- * track. Deduped and capped.
+ * (via `@oxyhq/core` `getMutualUserIds`) ∪ federated mutuals. Both branches
+ * soft-fail to `[]`, so a failure in either source degrades the Mutuals feed to
+ * the other rather than erroring. Deduped and capped.
  */
 async function computeMutualIds(currentUserId: string): Promise<string[]> {
-  const mutualsClient = oxyClient as { getMutualUserIds?: (opts: { limit?: number }) => Promise<unknown> };
-
   let oxyMutualIds: string[] = [];
-  if (typeof mutualsClient.getMutualUserIds === 'function') {
-    try {
-      oxyMutualIds = normalizeMutualIdList(await mutualsClient.getMutualUserIds({ limit: MAX_MUTUAL_IDS }));
-    } catch (error) {
-      logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
-    }
+  try {
+    const ids = await oxyClient.getMutualUserIds({ limit: MAX_MUTUAL_IDS });
+    oxyMutualIds = ids.filter((id) => id.length > 0);
+  } catch (error) {
+    logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
   }
 
   let federatedMutualIds: string[] = [];
