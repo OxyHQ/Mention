@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { requireOxyAuth as requireAuth } from '@oxyhq/core/server';
 import { feedController } from '../controllers/feed.controller';
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
+import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
 import { feedRateLimiter, feedIPRateLimiter, feedThrottle } from '../middleware/security';
 import { cachePublicProfile } from '../middleware/cacheControl';
 
@@ -19,6 +21,12 @@ if (process.env.NODE_ENV === 'production') {
 router.get('/mtn', mtnFeedController.getFeed.bind(mtnFeedController));
 router.get('/mtn/peek', mtnFeedController.peekLatest.bind(mtnFeedController));
 router.post('/mtn/interactions', mtnFeedController.recordInteraction.bind(mtnFeedController));
+
+// ────────────────────────────────────────────────────────────
+// Server-persisted feed preferences (saved / pinned / ordered feeds)
+// ────────────────────────────────────────────────────────────
+router.get('/preferences', requireAuth, feedPreferencesController.get.bind(feedPreferencesController));
+router.put('/preferences', requireAuth, feedPreferencesController.update.bind(feedPreferencesController));
 
 // ────────────────────────────────────────────────────────────
 // Replies
