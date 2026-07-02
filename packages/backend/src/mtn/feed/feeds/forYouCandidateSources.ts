@@ -8,9 +8,9 @@
  *
  * This module replaces that single query with a UNION of bounded, parallel
  * candidate sub-queries — each consuming a different personalization signal —
- * and returns the merged, de-duplicated pool. The caller (`ForYouFeed.fetch`)
- * feeds that pool into the EXISTING rank → dedup → never-blank → diversify →
- * page → cursor pipeline unchanged.
+ * and returns the merged, de-duplicated pool. The caller feeds that pool into
+ * the EXISTING rank → dedup → never-blank → diversify → page → cursor pipeline
+ * unchanged.
  *
  * Sources:
  *   1. FOLLOWING  — posts from authors the viewer actually follows (incl. federated).
@@ -37,6 +37,11 @@
  * {@link FEED_FIELDS}. The merged pool is additionally bounded by
  * `MtnConfig.feed.candidateSources.maxPool`. All caps/windows live in
  * `shared-types` config — no magic numbers here.
+ *
+ * The per-lane gather functions are EXPORTED so the composable feed-engine
+ * source modules (`engine/sources/forYouSources.ts`) can wrap the EXACT same
+ * queries. `gatherForYouCandidates` remains the authoritative merge consumed by
+ * the legacy `ForYouFeed` until the engine is authoritative.
  */
 
 import mongoose from 'mongoose';
@@ -55,7 +60,7 @@ export interface CandidateUserBehavior {
   preferredLanguages?: string[];
 }
 
-/** Inputs to candidate gathering, resolved by `ForYouFeed.fetch`. */
+/** Inputs to candidate gathering, resolved by the caller. */
 export interface GatherForYouCandidatesParams {
   viewerId: string;
   /** Author ids the viewer actually follows (including accepted federated follows). */
@@ -85,7 +90,7 @@ export interface GatherForYouCandidatesParams {
 }
 
 /** A lean candidate post carrying the fields the union/dedup path reads. */
-type CandidatePost = RankedCandidate & {
+export type CandidatePost = RankedCandidate & {
   hashtags?: string[];
   postClassification?: { sensitive?: boolean; topics?: string[] };
   metadata?: { isSensitive?: boolean };
@@ -197,12 +202,174 @@ async function resolveAffinityAuthorIds(
 }
 
 /**
+ * The recency-window start used by every For You lane. Computed inside the call
+ * (never at module scope) so the window tracks request time.
+ */
+function recencyStart(): Date {
+  return new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
+}
+
+/** Whether the discovery sensitivity filter should be applied for these params. */
+function shouldApplySafety(params: GatherForYouCandidatesParams): boolean {
+  return params.showSensitiveContent !== true;
+}
+
+/** Followed author ids, clamped to the id-set cap. */
+function resolveFollowingIds(params: GatherForYouCandidatesParams): string[] {
+  return params.followingIds.slice(0, MtnConfig.feed.candidateSources.maxAuthorIds);
+}
+
+/** Subscribed-list author ids minus the viewer + already-followed, clamped. */
+function resolveSubscribedListIds(params: GatherForYouCandidatesParams): string[] {
+  const followSet = new Set([params.viewerId, ...params.followingIds]);
+  return Array.from(new Set(params.subscribedListMemberIds ?? []))
+    .filter((id) => id !== params.viewerId && !followSet.has(id))
+    .slice(0, MtnConfig.feed.candidateSources.maxAuthorIds);
+}
+
+/** Preferred topic slugs (by descending weight), clamped. */
+function resolvePreferredTopics(params: GatherForYouCandidatesParams): string[] {
+  return (params.userBehavior?.preferredTopics ?? [])
+    .filter((t): t is { topic: string; weight?: number } => typeof t.topic === 'string' && t.topic.length > 0)
+    .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+    .slice(0, MtnConfig.feed.candidateSources.maxPreferredTopics)
+    .map((t) => t.topic);
+}
+
+/** Preferred language codes, clamped. */
+function resolvePreferredLanguages(params: GatherForYouCandidatesParams): string[] {
+  return (params.userBehavior?.preferredLanguages ?? [])
+    .filter((l): l is string => typeof l === 'string' && l.length > 0)
+    .slice(0, MtnConfig.feed.candidateSources.maxPreferredLanguages);
+}
+
+/** The non-empty coarse region string, or undefined. */
+function resolveRegion(params: GatherForYouCandidatesParams): string | undefined {
+  return typeof params.viewerRegion === 'string' && params.viewerRegion.length > 0
+    ? params.viewerRegion
+    : undefined;
+}
+
+// --- Individual candidate lanes (each self-contained; wrapped by engine sources). ---
+
+/** FOLLOWING: posts from followed authors (sensitive allowed at query level). */
+export async function gatherFollowingLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const followingIds = resolveFollowingIds(params);
+  if (followingIds.length === 0) return [];
+  return runSource('following', {
+    ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
+    oxyUserId: { $in: followingIds },
+  }, MtnConfig.feed.candidateSources.perSource.following);
+}
+
+/** SUBSCRIBED LISTS: public posts from list authors only (feed-inclusion, not follow). */
+export async function gatherSubscribedListsLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const subscribedListMemberIds = resolveSubscribedListIds(params);
+  if (subscribedListMemberIds.length === 0) return [];
+  return runSource('subscribed-lists', {
+    ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
+    oxyUserId: { $in: subscribedListMemberIds },
+  }, MtnConfig.feed.candidateSources.perSource.following);
+}
+
+/** AFFINITY: posts from affinity authors (sensitive allowed at query level). */
+export async function gatherAffinityLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const affinityAuthorIds = await resolveAffinityAuthorIds(params);
+  if (affinityAuthorIds.length === 0) return [];
+  return runSource('affinity', {
+    ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
+    oxyUserId: { $in: affinityAuthorIds },
+  }, MtnConfig.feed.candidateSources.perSource.affinity);
+}
+
+/** TOPICS (DISCOVERY): classification-topic match, sensitive excluded (SFW). */
+export async function gatherTopicsLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const preferredTopics = resolvePreferredTopics(params);
+  if (preferredTopics.length === 0) return [];
+  const match = {
+    ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
+    'postClassification.topics': { $in: preferredTopics },
+  };
+  return runSource('topics', shouldApplySafety(params) ? withDiscoverySafety(match) : match,
+    MtnConfig.feed.candidateSources.perSource.topics);
+}
+
+/**
+ * LANGUAGE (DISCOVERY): preferred-language match, sensitive excluded (SFW).
+ * ANY-overlap over the multikey `postClassification.languages` array.
+ */
+export async function gatherLanguageLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const preferredLanguages = resolvePreferredLanguages(params);
+  if (preferredLanguages.length === 0) return [];
+  const match = {
+    ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
+    'postClassification.languages': { $in: preferredLanguages },
+  };
+  return runSource('language', shouldApplySafety(params) ? withDiscoverySafety(match) : match,
+    MtnConfig.feed.candidateSources.perSource.language);
+}
+
+/** REGION (DISCOVERY): region match, sensitive excluded (SFW). */
+export async function gatherRegionLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const region = resolveRegion(params);
+  if (!region) return [];
+  const match = {
+    ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
+    'postClassification.region': region,
+  };
+  return runSource('region', shouldApplySafety(params) ? withDiscoverySafety(match) : match,
+    MtnConfig.feed.candidateSources.perSource.region);
+}
+
+/**
+ * TRENDING (DISCOVERY): recent high-engagement, sensitive excluded. Sorted by a
+ * denormalized engagement composite so the pool surfaces resonating content;
+ * final ranking still re-scores everything.
+ */
+export async function gatherTrendingLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const cfg = MtnConfig.feed.candidateSources;
+  try {
+    const eng = MtnConfig.ranking.engagement;
+    const base = buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart());
+    const match = shouldApplySafety(params) ? withDiscoverySafety(base) : base;
+    match.parentPostId = { $in: [null, undefined] };
+    return (await Post.aggregate([
+      { $match: match },
+      {
+        $addFields: {
+          _engagementScore: {
+            $add: [
+              { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, eng.likeWeight] },
+              { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, eng.boostWeight] },
+              { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, eng.commentWeight] },
+            ],
+          },
+        },
+      },
+      { $sort: { _engagementScore: -1, createdAt: -1 } },
+      { $limit: cfg.perSource.trending },
+      { $project: { _engagementScore: 0 } },
+    ]).option({ maxTimeMS: cfg.maxTimeMS })) as unknown as CandidatePost[];
+  } catch (error) {
+    logger.warn('[ForYouCandidates] source "trending" failed; skipping', error);
+    return [];
+  }
+}
+
+/** GLOBAL (DISCOVERY): recent public, small cap, sensitive excluded (SFW). */
+export async function gatherGlobalLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+  const base = buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart());
+  return runSource('global', shouldApplySafety(params) ? withDiscoverySafety(base) : base,
+    MtnConfig.feed.candidateSources.perSource.global);
+}
+
+/**
  * Gather the multi-source For You candidate pool for an authenticated viewer.
  *
  * Returns a merged, de-duplicated array of lean candidate posts (each carrying
  * {@link FEED_FIELDS}), bounded by `maxPool`. The DISCOVERY sources exclude
  * sensitive/NSFW content; FOLLOWING/AFFINITY do not over-filter. The result is
- * fed verbatim into `ForYouFeed.fetch`'s existing ranking pipeline.
+ * fed verbatim into the existing ranking pipeline.
  *
  * NEVER throws: every source soft-fails to empty, so the worst case is an empty
  * pool, which the caller handles via its never-blank `fetchPopular` fallback.
@@ -211,141 +378,17 @@ export async function gatherForYouCandidates(
   params: GatherForYouCandidatesParams,
 ): Promise<CandidatePost[]> {
   const cfg = MtnConfig.feed.candidateSources;
-  const seenObjectIds = toObjectIds(params.seenPostIds);
-  const since = new Date(Date.now() - cfg.recencyWindowMs);
-
-  const followingIds = params.followingIds.slice(0, cfg.maxAuthorIds);
-  const followSet = new Set([params.viewerId, ...params.followingIds]);
-  const subscribedListMemberIds = Array.from(new Set(params.subscribedListMemberIds ?? []))
-    .filter((id) => id !== params.viewerId && !followSet.has(id))
-    .slice(0, cfg.maxAuthorIds);
-
-  const preferredTopics = (params.userBehavior?.preferredTopics ?? [])
-    .filter((t): t is { topic: string; weight?: number } => typeof t.topic === 'string' && t.topic.length > 0)
-    .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
-    .slice(0, cfg.maxPreferredTopics)
-    .map((t) => t.topic);
-
-  const preferredLanguages = (params.userBehavior?.preferredLanguages ?? [])
-    .filter((l): l is string => typeof l === 'string' && l.length > 0)
-    .slice(0, cfg.maxPreferredLanguages);
-
-  const region = typeof params.viewerRegion === 'string' && params.viewerRegion.length > 0
-    ? params.viewerRegion
-    : undefined;
-
-  const affinityAuthorIds = await resolveAffinityAuthorIds(params);
-
-  // Viewer-conditional discovery safety: SFW viewers (the default, incl.
-  // undefined) get the sensitive/NSFW exclusion on every DISCOVERY source AND the
-  // merged-pool guard below; a viewer who opted in skips both, so sensitive posts
-  // are eligible. The centralized predicate/clause is unchanged — only its
-  // APPLICATION is conditional here.
   const allowSensitive = params.showSensitiveContent === true;
-  const applyDiscoverySafety = (match: Record<string, unknown>): Record<string, unknown> =>
-    allowSensitive ? match : withDiscoverySafety(match);
-
-  // --- FOLLOWING: posts from followed authors (sensitive allowed). ---
-  const followingSource: Promise<CandidatePost[]> = followingIds.length > 0
-    ? runSource('following', {
-        ...buildBaseMatch(seenObjectIds, since),
-        oxyUserId: { $in: followingIds },
-      }, cfg.perSource.following)
-    : Promise.resolve([]);
-
-  // --- SUBSCRIBED LISTS: public posts from list authors only. List subscriptions
-  // are feed-inclusion signals, not follow relationships, so they must never
-  // make followers-only posts eligible.
-  const subscribedListsSource: Promise<CandidatePost[]> = subscribedListMemberIds.length > 0
-    ? runSource('subscribed-lists', {
-        ...buildBaseMatch(seenObjectIds, since),
-        oxyUserId: { $in: subscribedListMemberIds },
-      }, cfg.perSource.following)
-    : Promise.resolve([]);
-
-  // --- AFFINITY: posts from affinity authors (sensitive allowed). ---
-  const affinitySource: Promise<CandidatePost[]> = affinityAuthorIds.length > 0
-    ? runSource('affinity', {
-        ...buildBaseMatch(seenObjectIds, since),
-        oxyUserId: { $in: affinityAuthorIds },
-      }, cfg.perSource.affinity)
-    : Promise.resolve([]);
-
-  // --- TOPICS (DISCOVERY): classification-topic match, sensitive excluded (SFW). ---
-  const topicsSource: Promise<CandidatePost[]> = preferredTopics.length > 0
-    ? runSource('topics', applyDiscoverySafety({
-        ...buildBaseMatch(seenObjectIds, since),
-        'postClassification.topics': { $in: preferredTopics },
-      }), cfg.perSource.topics)
-    : Promise.resolve([]);
-
-  // --- LANGUAGE (DISCOVERY): preferred-language match, sensitive excluded (SFW). ---
-  // ANY-overlap: a post matches when ANY of its languages is in the viewer's
-  // preferred set, via the multikey `postClassification.languages` array (a
-  // bilingual post is surfaced for either language, backed by
-  // `for_you_language_idx`). Not-yet-backfilled posts simply don't match here.
-  const languageSource: Promise<CandidatePost[]> = preferredLanguages.length > 0
-    ? runSource('language', applyDiscoverySafety({
-        ...buildBaseMatch(seenObjectIds, since),
-        'postClassification.languages': { $in: preferredLanguages },
-      }), cfg.perSource.language)
-    : Promise.resolve([]);
-
-  // --- REGION (DISCOVERY): region match, sensitive excluded (SFW). ---
-  const regionSource: Promise<CandidatePost[]> = region
-    ? runSource('region', applyDiscoverySafety({
-        ...buildBaseMatch(seenObjectIds, since),
-        'postClassification.region': region,
-      }), cfg.perSource.region)
-    : Promise.resolve([]);
-
-  // --- TRENDING (DISCOVERY): recent high-engagement, sensitive excluded. ---
-  // Sorted by a denormalized engagement composite (likes/boosts/comments) so the
-  // pool surfaces resonating content; final ranking still re-scores everything.
-  const trendingSource: Promise<CandidatePost[]> = (async () => {
-    try {
-      const eng = MtnConfig.ranking.engagement;
-      const match = applyDiscoverySafety(buildBaseMatch(seenObjectIds, since));
-      match.parentPostId = { $in: [null, undefined] };
-      return (await Post.aggregate([
-        { $match: match },
-        {
-          $addFields: {
-            _engagementScore: {
-              $add: [
-                { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, eng.likeWeight] },
-                { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, eng.boostWeight] },
-                { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, eng.commentWeight] },
-              ],
-            },
-          },
-        },
-        { $sort: { _engagementScore: -1, createdAt: -1 } },
-        { $limit: cfg.perSource.trending },
-        { $project: { _engagementScore: 0 } },
-      ]).option({ maxTimeMS: cfg.maxTimeMS })) as unknown as CandidatePost[];
-    } catch (error) {
-      logger.warn('[ForYouCandidates] source "trending" failed; skipping', error);
-      return [];
-    }
-  })();
-
-  // --- GLOBAL (DISCOVERY): recent public, small cap, sensitive excluded (SFW). ---
-  const globalSource: Promise<CandidatePost[]> = runSource(
-    'global',
-    applyDiscoverySafety(buildBaseMatch(seenObjectIds, since)),
-    cfg.perSource.global,
-  );
 
   const [following, subscribedLists, affinity, topics, language, regionPosts, trending, global] = await Promise.all([
-    followingSource,
-    subscribedListsSource,
-    affinitySource,
-    topicsSource,
-    languageSource,
-    regionSource,
-    trendingSource,
-    globalSource,
+    gatherFollowingLane(params),
+    gatherSubscribedListsLane(params),
+    gatherAffinityLane(params),
+    gatherTopicsLane(params),
+    gatherLanguageLane(params),
+    gatherRegionLane(params),
+    gatherTrendingLane(params),
+    gatherGlobalLane(params),
   ]);
 
   // Merge order = priority: TRUSTED (the viewer's chosen following/affinity
@@ -355,10 +398,7 @@ export async function gatherForYouCandidates(
   // SFW GUARD: For a safe-for-work viewer, For You must be uniformly SFW, so a
   // single sensitive/NSFW filter ({@link isSensitivePost}) is applied to the
   // merged pool covering EVERY source — including following and affinity — on top
-  // of the per-source discovery query filter. When the viewer opted in
-  // (`allowSensitive`), this guard is skipped so sensitive posts from any source
-  // remain eligible. (The separate chronological Following feed does not pass
-  // through here, so it is unaffected either way.)
+  // of the per-source discovery query filter.
   const sources: CandidatePost[][] = [
     following,
     subscribedLists,

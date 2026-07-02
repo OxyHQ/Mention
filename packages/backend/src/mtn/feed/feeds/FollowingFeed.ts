@@ -5,7 +5,7 @@
  * Replaces FollowingFeedStrategy.
  */
 
-import { HydratedPost, MtnConfig, PostVisibility } from '@mention/shared-types';
+import { HydratedPost, MtnConfig } from '@mention/shared-types';
 import { Post } from '../../../models/Post';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { threadSlicingService } from '../../../services/ThreadSlicingService';
@@ -13,41 +13,7 @@ import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } from '../FeedAPI';
 import { ChronoCursor, didCursorAdvance } from '../CursorBuilder';
 import { logger } from '../../../utils/logger';
-
-function buildFollowingVisibilityMatch(
-  currentUserId: string,
-  followingIds: string[] = [],
-  subscribedListMemberIds: string[] = [],
-): Record<string, unknown> {
-  const followAuthorizedIds = Array.from(new Set([currentUserId, ...followingIds]));
-  const publicOnlyListIds = Array.from(
-    new Set(subscribedListMemberIds.filter((id) => id !== currentUserId && !followAuthorizedIds.includes(id))),
-  );
-
-  if (publicOnlyListIds.length === 0) {
-    return {
-      oxyUserId: { $in: followAuthorizedIds },
-      visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
-    };
-  }
-
-  return {
-    $and: [
-      {
-        $or: [
-          {
-            oxyUserId: { $in: followAuthorizedIds },
-            visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
-          },
-          {
-            oxyUserId: { $in: publicOnlyListIds },
-            visibility: PostVisibility.PUBLIC,
-          },
-        ],
-      },
-    ],
-  };
-}
+import { buildFollowingVisibilityMatch } from '../engine/sources/forYouSources';
 
 export class FollowingFeed implements FeedAPI {
   readonly descriptor = 'following' as const;
