@@ -170,11 +170,14 @@ export const safetyFilter: FilterModule = {
 /**
  * `languagePreference`: any-overlap language match against
  * `postClassification.languages` (wraps the array-based `filterByLanguage`).
- * Posts with no declared language pass through.
+ * Posts with no declared language pass through. User-composable: it is a
+ * first-class custom-feed filter and the target of the legacy `language`
+ * migration, so it must be selectable in the builder.
  */
 export const languagePreferenceFilter: FilterModule = {
   id: 'languagePreference',
   kind: 'filter',
+  userComposable: true,
   keep: (post, _ctx, params) => {
     const prefs = Array.isArray(params.languages) ? (params.languages as string[]) : [];
     if (prefs.length === 0) return true;
@@ -186,10 +189,15 @@ export const languagePreferenceFilter: FilterModule = {
   },
 };
 
-/** `muteBlock`: drops posts authored by ids in `params.excludedIds`. */
+/**
+ * `muteBlock`: drops posts authored by ids in `params.excludedIds`. User-composable
+ * (per-feed account muting in the builder + the target of the legacy owner-exclusion
+ * migration). It only ever EXCLUDES authors, so it carries no IDOR surface.
+ */
 export const muteBlockFilter: FilterModule = {
   id: 'muteBlock',
   kind: 'filter',
+  userComposable: true,
   keep: (post, _ctx, params) => {
     const excluded = Array.isArray(params.excludedIds) ? (params.excludedIds as string[]) : [];
     if (excluded.length === 0) return true;
@@ -202,6 +210,7 @@ export const muteBlockFilter: FilterModule = {
 export const noBoostsFilter: FilterModule = {
   id: 'noBoosts',
   kind: 'filter',
+  userComposable: true,
   clause: () => ({ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }),
   keep: (post) => {
     const boostOf = field(post, 'boostOf');
@@ -213,6 +222,7 @@ export const noBoostsFilter: FilterModule = {
 export const noRepliesFilter: FilterModule = {
   id: 'noReplies',
   kind: 'filter',
+  userComposable: true,
   clause: () => ({ $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] }),
   keep: (post) => {
     const parent = field(post, 'parentPostId');
@@ -224,6 +234,7 @@ export const noRepliesFilter: FilterModule = {
 export const mediaOnlyFilter: FilterModule = {
   id: 'mediaOnly',
   kind: 'filter',
+  userComposable: true,
   keep: (post) => hasMedia(post),
 };
 
@@ -231,6 +242,7 @@ export const mediaOnlyFilter: FilterModule = {
 export const videoOnlyFilter: FilterModule = {
   id: 'videoOnly',
   kind: 'filter',
+  userComposable: true,
   keep: (post) => hasVideo(post),
 };
 
@@ -247,6 +259,7 @@ export const dedupeFilter: FilterModule = {
 export const recencyWindowFilter: FilterModule = {
   id: 'recencyWindow',
   kind: 'filter',
+  userComposable: true,
   clause: (_ctx, params) => {
     const windowMs = typeof params.windowMs === 'number' ? params.windowMs : undefined;
     if (windowMs === undefined) return undefined;

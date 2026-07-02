@@ -6,6 +6,7 @@ import { AccountList } from '../models/AccountList';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
+import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from './customFeedWrite';
 import FeedLike from '../models/FeedLike';
 import { escapeRegex } from '../utils/textProcessing';
 import { postHydrationService, resolveUserSummaries } from '../services/PostHydrationService';
@@ -71,32 +72,19 @@ async function resolveUserProfiles(oxyUserIds: string[]): Promise<Map<string, Us
   return result;
 }
 
-// Create a new custom feed
-router.post('/', validateBody(schemas.createCustomFeed), async (req: AuthRequest, res: Response) => {
+// Create a new custom feed (composable definition)
+router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { title, description, isPublic = false, memberOxyUserIds = [], keywords = [], includeReplies = true, includeBoosts = true, includeMedia = true, language, category, tags = [], coverImage } = req.body || {};
-    if (!title || typeof title !== 'string') {
-      return res.status(400).json({ error: 'Title is required' });
-    }
+    // Whitelist + validate the body into a persist-ready payload. The owner is set
+    // from the session below — never from the body — and no field is spread from
+    // `req.body` (no mass-assignment of subscriberCount / ratings / owner).
+    const built = buildCustomFeedCreatePayload(req.body);
+    if (!built.ok) return res.status(400).json({ error: built.error });
 
-    const feed = await CustomFeed.create({
-      ownerOxyUserId: userId,
-      title: title.trim(),
-      description: description?.trim(),
-      isPublic: !!isPublic,
-      memberOxyUserIds: Array.isArray(memberOxyUserIds) ? memberOxyUserIds : [],
-      keywords: Array.isArray(keywords) ? keywords : String(keywords || '').split(',').map((s: string) => s.trim()).filter(Boolean),
-      includeReplies: !!includeReplies,
-      includeBoosts: !!includeBoosts,
-      includeMedia: !!includeMedia,
-      language: language || undefined,
-      category: category || undefined,
-      tags: Array.isArray(tags) ? tags : [],
-      coverImage: coverImage || undefined,
-    });
+    const feed = await CustomFeed.create({ ownerOxyUserId: userId, ...built.payload });
 
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
@@ -105,7 +93,7 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: AuthRequest
     };
     res.status(201).json(normalizedFeed);
   } catch (error) {
-    logger.error('[CustomFeeds] Create custom feed error:', { userId: req.user?.id, error, body: req.body });
+    logger.error('[CustomFeeds] Create custom feed error:', { userId: req.user?.id, error });
     res.status(500).json({ error: 'Failed to create feed' });
   }
 });
@@ -378,27 +366,26 @@ router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res: Respons
 });
 
 // Update a feed (owner only)
-router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed), async (req: AuthRequest, res: Response) => {
+router.put('/:id', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const feed = await CustomFeed.findById(req.params.id);
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
     if (feed.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
-    const { title, description, isPublic, memberOxyUserIds, keywords, includeReplies, includeBoosts, includeMedia, language, category, tags, coverImage } = req.body || {};
-    if (title !== undefined) feed.title = String(title);
-    if (description !== undefined) feed.description = String(description);
-    if (isPublic !== undefined) feed.isPublic = !!isPublic;
-    if (memberOxyUserIds !== undefined && Array.isArray(memberOxyUserIds)) feed.memberOxyUserIds = memberOxyUserIds;
-    if (keywords !== undefined) feed.keywords = Array.isArray(keywords) ? keywords : String(keywords).split(',').map((s: string) => s.trim()).filter(Boolean);
-    if (includeReplies !== undefined) feed.includeReplies = !!includeReplies;
-    if (includeBoosts !== undefined) feed.includeBoosts = !!includeBoosts;
-    if (includeMedia !== undefined) feed.includeMedia = !!includeMedia;
-    if (language !== undefined) feed.language = language;
-    if (category !== undefined) feed.category = category || undefined;
-    if (tags !== undefined && Array.isArray(tags)) feed.tags = tags;
-    if (coverImage !== undefined) feed.coverImage = coverImage || undefined;
+    // Whitelist + validate; only the returned patch keys are applied (no spread of
+    // req.body, so owner/aggregate fields can never be reassigned).
+    const built = buildCustomFeedUpdatePatch(req.body);
+    if (!built.ok) return res.status(400).json({ error: built.error });
+
+    if (built.payload.title !== undefined) feed.title = built.payload.title;
+    if (built.payload.description !== undefined) feed.description = built.payload.description;
+    if (built.payload.isPublic !== undefined) feed.isPublic = built.payload.isPublic;
+    if (built.payload.icon !== undefined) feed.icon = built.payload.icon;
+    if (built.payload.definition !== undefined) feed.definition = built.payload.definition;
     await feed.save();
+
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
       ...feed.toObject(),
@@ -406,7 +393,7 @@ router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed
     };
     res.json(normalizedFeed);
   } catch (error) {
-    logger.error('[CustomFeeds] Update custom feed error:', { userId: req.user?.id, feedId: req.params.id, error, body: req.body });
+    logger.error('[CustomFeeds] Update custom feed error:', { userId: req.user?.id, feedId: req.params.id, error });
     res.status(500).json({ error: 'Failed to update feed' });
   }
 });

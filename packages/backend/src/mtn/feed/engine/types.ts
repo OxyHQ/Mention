@@ -154,10 +154,13 @@ export interface FeedExecution {
   preScored?: boolean;
 }
 
+/** The two execution modes a feed definition can run in. */
+export type FeedDefinitionMode = 'ranked' | 'chronological';
+
 export interface FeedDefinition {
   id: string;
   title: string;
-  mode: 'ranked' | 'chronological';
+  mode: FeedDefinitionMode;
   sources: ModuleRef[];
   signals: ModuleRef[];
   filters: ModuleRef[];
