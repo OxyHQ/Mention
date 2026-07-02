@@ -4,6 +4,7 @@ import FederatedFollow from '../../models/FederatedFollow';
 import { followService } from './follow.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { actorUrl, AP_CONTEXT } from './constants';
+import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 
 /**
  * Only returned when every inbound follower was fully torn down (bridged, or
@@ -22,6 +23,15 @@ export interface SharingCleanupResult {
  * is gone and tears down the inbound follow edges.
  *
  * Order is load-bearing, not incidental:
+ *  0. Spurious-queue guard: re-check the CURRENT flag directly against Oxy,
+ *     bypassing Mention's Redis cache entirely (`skipRedisCache: true`) — a
+ *     queued cleanup job can outlive a fast OFF→ON toggle (the toggle flips
+ *     sharing back on, invalidates and repopulates Redis with `enabled`, but
+ *     the earlier job is still in the queue) or Redis could hold a stale
+ *     `enabled` entry from an unrelated read racing the original toggle-off.
+ *     Trusting either would broadcast a Delete(actor) for an account that is
+ *     demonstrably still sharing. When the fresh read says sharing is back
+ *     ON, this is a no-op: zero delivery, zero bridge calls, zero deletions.
  *  1. `followService.deliverToFollowers` reads the inbound `FederatedFollow`
  *     rows itself to resolve delivery inboxes — it MUST run before those rows
  *     are touched, or the Delete goes to nobody. Re-sending it on a retry is
@@ -46,6 +56,13 @@ export async function runSharingCleanup(
   oxyUserId: string,
   username: string,
 ): Promise<SharingCleanupResult> {
+  if (await isFediverseSharingEnabled(oxyUserId, { skipRedisCache: true })) {
+    logger.info(
+      `[SharingCleanup] sharing is enabled for ${oxyUserId} — skipping stale cleanup job`,
+    );
+    return { deletesSent: 0, followersRemoved: 0 };
+  }
+
   const inboundFollows = await FederatedFollow.find({
     localUserId: oxyUserId,
     direction: 'inbound',

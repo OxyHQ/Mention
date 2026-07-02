@@ -15,10 +15,15 @@ const mocks = vi.hoisted(() => ({
   followDeleteMany: vi.fn(),
   actorFind: vi.fn(),
   makeServiceRequest: vi.fn(),
+  isFediverseSharingEnabled: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/follow.service', () => ({
   followService: { deliverToFollowers: mocks.deliverToFollowers },
+}));
+
+vi.mock('../../../services/fediverseSharing', () => ({
+  isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 
 vi.mock('../../../models/FederatedFollow', () => ({
@@ -64,8 +69,41 @@ beforeEach(() => {
   mocks.deliverToFollowers.mockResolvedValue(undefined);
   mocks.followDeleteMany.mockResolvedValue({ deletedCount: 0 });
   mocks.makeServiceRequest.mockResolvedValue(undefined);
+  // Every test in this file simulates the job running because sharing is
+  // (still) OFF — the "spurious-queue guard" describe block below exercises
+  // the opposite case explicitly.
+  mocks.isFediverseSharingEnabled.mockResolvedValue(false);
   mockInboundFollows([]);
   mockRemoteActors([]);
+});
+
+describe('runSharingCleanup — spurious-queue guard', () => {
+  it('re-checks the flag directly against Oxy, bypassing Redis, as the FIRST step', async () => {
+    mocks.isFediverseSharingEnabled.mockResolvedValue(false);
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
+    mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
+
+    await runSharingCleanup(OXY_USER_ID, USERNAME);
+
+    expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith(OXY_USER_ID, { skipRedisCache: true });
+    const guardOrder = mocks.isFediverseSharingEnabled.mock.invocationCallOrder[0];
+    const findOrder = mocks.followFind.mock.invocationCallOrder[0];
+    expect(guardOrder).toBeLessThan(findOrder);
+  });
+
+  it('no-ops (zero delivery, zero bridge calls, zero deletions) when sharing has been re-enabled since the job was queued', async () => {
+    mocks.isFediverseSharingEnabled.mockResolvedValue(true);
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
+    mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
+
+    const result = await runSharingCleanup(OXY_USER_ID, USERNAME);
+
+    expect(result).toEqual({ deletesSent: 0, followersRemoved: 0 });
+    expect(mocks.followFind).not.toHaveBeenCalled();
+    expect(mocks.deliverToFollowers).not.toHaveBeenCalled();
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.followDeleteMany).not.toHaveBeenCalled();
+  });
 });
 
 describe('runSharingCleanup', () => {

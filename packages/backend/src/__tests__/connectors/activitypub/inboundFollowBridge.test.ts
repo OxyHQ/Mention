@@ -57,7 +57,7 @@ const mocks = vi.hoisted(() => ({
   loggerInfo: vi.fn(),
   loggerError: vi.fn(),
   loggerDebug: vi.fn(),
-  isFediverseSharingEnabledByUsername: vi.fn(),
+  isFediverseSharingEnabledFromUser: vi.fn(),
 }));
 
 vi.mock('../../../utils/logger', () => ({
@@ -149,8 +149,8 @@ vi.mock('../../../services/mediaCache/cacheStore', () => ({
 }));
 
 vi.mock('../../../services/fediverseSharing', () => ({
-  isFediverseSharingEnabledByUsername: (...args: unknown[]) =>
-    mocks.isFediverseSharingEnabledByUsername(...args),
+  isFediverseSharingEnabledFromUser: (...args: unknown[]) =>
+    mocks.isFediverseSharingEnabledFromUser(...args),
 }));
 
 vi.mock('../../../services/serviceRegistry', () => ({
@@ -225,7 +225,7 @@ beforeEach(() => {
   mocks.followDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.createNotification.mockResolvedValue(undefined);
   sendAcceptSpy.mockResolvedValue(undefined);
-  mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+  mocks.isFediverseSharingEnabledFromUser.mockResolvedValue(true);
 });
 
 describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
@@ -306,14 +306,16 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
 
 describe('handleIncomingFollow — dropped when the target has fediverse sharing off', () => {
   it('drops the follow silently right after resolving the local user, before touching the actor/bridge/Accept chain', async () => {
-    mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+    mocks.isFediverseSharingEnabledFromUser.mockResolvedValue(false);
     stubFollowerActor('oxy_bob');
 
     await expect(
       inboxProcessingService.processInboxActivity(followActivity(), actorUri),
     ).resolves.toBeUndefined();
 
-    expect(mocks.isFediverseSharingEnabledByUsername).toHaveBeenCalledWith('alice');
+    // Derived from the ALREADY-resolved local user (`resolveOxyUser`'s
+    // result) — no second, separate Oxy lookup for the sharing flag.
+    expect(mocks.isFediverseSharingEnabledFromUser).toHaveBeenCalledWith({ _id: 'oxy_alice' });
     // Gate runs BEFORE the follower actor fetch — no actor lookup, no bridge, no
     // Accept, no FederatedFollow row, and (since a Reject would be unverifiable
     // against a 404'd actor and would reveal the account exists) no Reject either.

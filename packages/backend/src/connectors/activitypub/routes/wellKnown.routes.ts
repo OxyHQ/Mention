@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { FEDERATION_DOMAIN, FEDERATION_ENABLED, actorUrl, resolveOxyUser } from '../constants';
 import { logger } from '../../../utils/logger';
 import { getRedisClient } from '../../../utils/redis';
-import { isFediverseSharingEnabledByUsername } from '../../../services/fediverseSharing';
+import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSharing';
 import { webfingerCacheKey } from '../webfingerCache';
 
 const router = Router();
@@ -60,8 +60,9 @@ router.get('/webfinger', async (req: Request, res: Response) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
-    // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledByUsername(username))) {
+    // 404 body, no separate error code. Derived from the user object already
+    // resolved above (no second Oxy lookup).
+    if (!(await isFediverseSharingEnabledFromUser(user))) {
       return res.status(404).json({ error: 'User not found' });
     }
 

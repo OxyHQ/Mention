@@ -2,22 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getUserById: vi.fn(),
-  resolveOxyUser: vi.fn(),
+  getProfileByUsername: vi.fn(),
   redisGet: vi.fn(),
   redisSetEx: vi.fn(),
   redisDel: vi.fn(),
+  isNotFoundError: vi.fn(),
 }));
 
-// `fediverseSharing.ts` reaches `oxy` via a late `require('../../server.js')`
-// (mirrors `resolveOxyUser` in `connectors/activitypub/constants.ts`) so it
-// never forces the whole server entry point into the module graph. `vi.mock`
-// intercepts by resolved path, so mocking here reaches that same require.
+// `fediverseSharing.ts` reaches `oxy` via a dynamic `import('../../server')`
+// inside each function (mirrors the late `require` behind `resolveOxyUser` in
+// `connectors/activitypub/constants.ts`) so it never forces the whole server
+// entry point into the module graph. `vi.mock` intercepts by resolved path,
+// so mocking here reaches that same dynamic import.
 vi.mock('../../../server', () => ({
-  oxy: { getUserById: mocks.getUserById },
+  oxy: { getUserById: mocks.getUserById, getProfileByUsername: mocks.getProfileByUsername },
 }));
 
-vi.mock('../../connectors/activitypub/constants', () => ({
-  resolveOxyUser: mocks.resolveOxyUser,
+vi.mock('@oxyhq/core', () => ({
+  isNotFoundError: (...args: unknown[]) => mocks.isNotFoundError(...args),
 }));
 
 vi.mock('../../utils/redis', () => ({
@@ -37,7 +39,8 @@ vi.mock('../../utils/redis', () => ({
 
 import {
   isFediverseSharingEnabled,
-  isFediverseSharingEnabledByUsername,
+  isFediverseSharingEnabledFromUser,
+  getFediverseSharingStateByUsername,
   invalidateFediverseSharing,
 } from '../../services/fediverseSharing';
 
@@ -47,6 +50,7 @@ describe('fediverseSharing', () => {
     mocks.redisGet.mockResolvedValue(null);
     mocks.redisSetEx.mockResolvedValue('OK');
     mocks.redisDel.mockResolvedValue(1);
+    mocks.isNotFoundError.mockReturnValue(false);
   });
 
   describe('isFediverseSharingEnabled', () => {
@@ -82,27 +86,85 @@ describe('fediverseSharing', () => {
       expect(await isFediverseSharingEnabled('u1')).toBe(false);
       expect(mocks.getUserById).not.toHaveBeenCalled();
     });
+
+    it('bypasses the Redis cache with skipRedisCache — a cache hit is ignored and Oxy is queried', async () => {
+      mocks.redisGet.mockResolvedValue('1');
+      mocks.getUserById.mockResolvedValue({ id: 'u1', fediverseSharing: false });
+
+      expect(await isFediverseSharingEnabled('u1', { skipRedisCache: true })).toBe(false);
+      expect(mocks.redisGet).not.toHaveBeenCalled();
+      expect(mocks.getUserById).toHaveBeenCalledWith('u1', { cache: false });
+      // The fresh resolve still repopulates Redis with the correct value.
+      expect(mocks.redisSetEx).toHaveBeenCalledWith('fedisharing:v1:u1', 600, '0');
+    });
+
+    it('bypasses the SDK\'s own in-process cache on every Oxy call ({ cache: false })', async () => {
+      mocks.getUserById.mockResolvedValue({ id: 'u1', fediverseSharing: true });
+      await isFediverseSharingEnabled('u1');
+      expect(mocks.getUserById).toHaveBeenCalledWith('u1', { cache: false });
+    });
   });
 
-  describe('isFediverseSharingEnabledByUsername', () => {
-    it('returns false for an unknown username', async () => {
-      mocks.resolveOxyUser.mockResolvedValue(null);
-      expect(await isFediverseSharingEnabledByUsername('ghost')).toBe(false);
+  describe('isFediverseSharingEnabledFromUser', () => {
+    it('reads the flag off the given user object without any Oxy call', async () => {
+      expect(await isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: false })).toBe(false);
+      expect(mocks.getUserById).not.toHaveBeenCalled();
+      expect(mocks.getProfileByUsername).not.toHaveBeenCalled();
     });
 
-    it('reads the flag off the resolved DTO', async () => {
-      mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', username: 'alice', fediverseSharing: false });
-      expect(await isFediverseSharingEnabledByUsername('alice')).toBe(false);
+    it('defaults to true when the object omits the field', async () => {
+      expect(await isFediverseSharingEnabledFromUser({ _id: 'u1' })).toBe(true);
     });
 
-    it('defaults to true when the resolved DTO omits the field', async () => {
-      mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', username: 'alice' });
-      expect(await isFediverseSharingEnabledByUsername('alice')).toBe(true);
+    it('defaults to true for a null/undefined user', async () => {
+      expect(await isFediverseSharingEnabledFromUser(null)).toBe(true);
+      expect(await isFediverseSharingEnabledFromUser(undefined)).toBe(true);
+    });
+
+    it('seeds the id-keyed Redis cache from the given object', async () => {
+      await isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: false });
+      expect(mocks.redisSetEx).toHaveBeenCalledWith('fedisharing:v1:u1', 600, '0');
+    });
+
+    it('does not touch Redis when the object carries no id', async () => {
+      await isFediverseSharingEnabledFromUser({ fediverseSharing: false });
+      expect(mocks.redisSetEx).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getFediverseSharingStateByUsername', () => {
+    it('"enabled" when the DTO says true (or omits the field)', async () => {
+      mocks.getProfileByUsername.mockResolvedValue({ _id: 'u1', fediverseSharing: true });
+      expect(await getFediverseSharingStateByUsername('alice')).toBe('enabled');
+    });
+
+    it('"disabled" when the DTO explicitly says false', async () => {
+      mocks.getProfileByUsername.mockResolvedValue({ _id: 'u1', fediverseSharing: false });
+      expect(await getFediverseSharingStateByUsername('alice')).toBe('disabled');
+    });
+
+    it('calls Oxy directly with { cache: false } — never through the cached resolveOxyUser path', async () => {
+      mocks.getProfileByUsername.mockResolvedValue({ _id: 'u1', fediverseSharing: true });
+      await getFediverseSharingStateByUsername('alice');
+      expect(mocks.getProfileByUsername).toHaveBeenCalledWith('alice', { cache: false });
+    });
+
+    it('"unknown-user" when Oxy throws a 404', async () => {
+      mocks.isNotFoundError.mockReturnValue(true);
+      mocks.getProfileByUsername.mockRejectedValue(new Error('not found'));
+      expect(await getFediverseSharingStateByUsername('ghost')).toBe('unknown-user');
+    });
+
+    it('"unavailable" when Oxy throws a non-404 error (outage), logged at warn, never cached', async () => {
+      mocks.isNotFoundError.mockReturnValue(false);
+      mocks.getProfileByUsername.mockRejectedValue(new Error('timeout'));
+      expect(await getFediverseSharingStateByUsername('alice')).toBe('unavailable');
+      expect(mocks.redisSetEx).not.toHaveBeenCalled();
     });
 
     it('seeds the id-keyed cache from the resolved DTO', async () => {
-      mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', username: 'alice', fediverseSharing: false });
-      await isFediverseSharingEnabledByUsername('alice');
+      mocks.getProfileByUsername.mockResolvedValue({ _id: 'u1', fediverseSharing: false });
+      await getFediverseSharingStateByUsername('alice');
       expect(mocks.redisSetEx).toHaveBeenCalledWith('fedisharing:v1:u1', 600, '0');
     });
   });

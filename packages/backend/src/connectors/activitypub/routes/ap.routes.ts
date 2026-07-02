@@ -24,7 +24,7 @@ import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../../../middleware/rateLimitStore';
 import { enqueueInboxActivity } from '../../../queue/producers';
 import { resolveAvatarUrl, resolveMediaRef } from '../../../utils/mediaResolver';
-import { isFediverseSharingEnabledByUsername } from '../../../services/fediverseSharing';
+import { isFediverseSharingEnabledFromUser, getFediverseSharingStateByUsername } from '../../../services/fediverseSharing';
 
 const router = Router();
 
@@ -210,13 +210,14 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     const resolved = await resolveOxyUser(username);
     if (!resolved) return res.status(404).json({ error: 'User not found' });
 
+    const user = resolved as ActorUserView;
+
     // Sharing OFF must be indistinguishable from a nonexistent user — same
-    // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledByUsername(username))) {
+    // 404 body, no separate error code. Derived from the user object already
+    // resolved above (no second Oxy lookup).
+    if (!(await isFediverseSharingEnabledFromUser(user))) {
       return res.status(404).json({ error: 'User not found' });
     }
-
-    const user = resolved as ActorUserView;
 
     const publicKey = await getPublicKey(username);
 
@@ -279,13 +280,17 @@ router.get('/users/:username', async (req: Request, res: Response) => {
 router.post('/users/:username/inbox', async (req: Request, res: Response) => {
   if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
 
-  // Sharing OFF must be indistinguishable from a nonexistent user — same 404
-  // body, no separate error code. `isFediverseSharingEnabledByUsername`
-  // already resolves the user and returns `false` for an unknown username
-  // too, so this single check also 404s a bogus `:username` (this route
-  // otherwise never validated it against the shared inbox's generic path).
+  // Sharing OFF (or a bogus `:username` — this route otherwise never
+  // validated it against the shared inbox's generic path) must be
+  // indistinguishable from a nonexistent user — same 404 body, no separate
+  // error code. An Oxy OUTAGE ('unavailable') is deliberately NOT 404'd:
+  // this is a POST delivery, and a 4xx response makes the remote server drop
+  // it permanently rather than retry, so availability wins over gating
+  // freshness here — the activity is enqueued/processed and any consent
+  // decision is re-checked downstream by the id-based (fail-open) gates.
   const username = getUsername(req);
-  if (!(await isFediverseSharingEnabledByUsername(username))) {
+  const sharingState = await getFediverseSharingStateByUsername(username);
+  if (sharingState === 'disabled' || sharingState === 'unknown-user') {
     return res.status(404).json({ error: 'User not found' });
   }
 
@@ -374,7 +379,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledByUsername(username))) {
+    if (!(await isFediverseSharingEnabledFromUser(user))) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -467,7 +472,7 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     // 404 body, no separate error code. This route was not in the original
     // gate list but serves a user's content the same as the other AP
     // surfaces, so it gets the same treatment.
-    if (!(await isFediverseSharingEnabledByUsername(username))) {
+    if (!(await isFediverseSharingEnabledFromUser(user))) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -509,7 +514,7 @@ router.get('/users/:username/followers', async (req: Request, res: Response) => 
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledByUsername(username))) {
+    if (!(await isFediverseSharingEnabledFromUser(user))) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -548,7 +553,7 @@ router.get('/users/:username/following', async (req: Request, res: Response) => 
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledByUsername(username))) {
+    if (!(await isFediverseSharingEnabledFromUser(user))) {
       return res.status(404).json({ error: 'User not found' });
     }
 

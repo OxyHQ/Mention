@@ -11,7 +11,7 @@ import {
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
-import { isFediverseSharingEnabledByUsername } from '../../services/fediverseSharing';
+import { isFediverseSharingEnabled, isFediverseSharingEnabledFromUser } from '../../services/fediverseSharing';
 import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
 import { outboxSyncService } from './outbox.service';
@@ -149,6 +149,29 @@ export class InboxProcessingService {
     });
   }
 
+  /**
+   * Whether the LOCAL owner of `postId` currently allows fediverse sharing.
+   * Returns `true` (proceed) when the post can't be found, is remote-owned/
+   * mirrored (`federation != null`), or has no local `oxyUserId` — gating
+   * only ever applies to a real local owner, never a mirrored federated post.
+   * Id-based (redis-cached, fails OPEN on an Oxy outage — correct for
+   * inbound activities, same as every other consent read on this path).
+   *
+   * Shared by every shared-inbox handler below that targets an EXISTING
+   * post (a reply's parent, a Like/Undo-Like target, an Announce/Undo-Announce
+   * target) so an opted-out user's content stops accruing new engagement
+   * (and existing engagement stops being un-done) the moment sharing is off —
+   * mirroring {@link handleIncomingFollow}'s gate for the Follow case.
+   */
+  private async isLocalPostOwnerSharingEnabled(postId: string): Promise<boolean> {
+    const post = await Post.findOne(
+      { _id: postId },
+      { oxyUserId: 1, federation: 1 },
+    ).lean<{ oxyUserId?: string | null; federation?: unknown } | null>();
+    if (!post || post.federation != null || !post.oxyUserId) return true;
+    return isFediverseSharingEnabled(post.oxyUserId);
+  }
+
   private async handleIncomingFollow(activity: Record<string, any>, actorUri: string): Promise<void> {
     const targetActorUri = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     if (!targetActorUri || typeof targetActorUri !== 'string') return;
@@ -172,7 +195,7 @@ export class InboxProcessingService {
     // look identical to a Follow sent to an unknown user. Gated here, BEFORE
     // the follower actor is fetched/resolved, so an OFF user never triggers any
     // of the bridge/Accept/notification side effects below.
-    if (!(await isFediverseSharingEnabledByUsername(username))) {
+    if (!(await isFediverseSharingEnabledFromUser(user))) {
       logger.debug(`[Federation] inbound follow for ${username} dropped — sharing off`);
       return;
     }
@@ -303,6 +326,11 @@ export class InboxProcessingService {
     const postId = await resolvePostIdFromObjectUri(likedObjectId);
     if (!postId) return;
 
+    if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
+      logger.debug(`[Federation] dropping undo Like from ${actorUri} on ${postId} — target owner has sharing disabled`);
+      return;
+    }
+
     const likerOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!likerOxyUserId) return;
 
@@ -347,6 +375,11 @@ export class InboxProcessingService {
     }
 
     if (!boost?.boostOf) return;
+
+    if (!(await this.isLocalPostOwnerSharingEnabled(boost.boostOf))) {
+      logger.debug(`[Federation] dropping undo Announce from ${actorUri} — target owner has sharing disabled`);
+      return;
+    }
 
     await Post.deleteOne({ _id: boost._id });
     await Post.updateOne(
@@ -433,6 +466,14 @@ export class InboxProcessingService {
       ? await outboxSyncService.ensureFederatedReplyLink(inReplyToUri)
       : null;
 
+    // A reply targets its parent post's owner — if that owner is a LOCAL
+    // user who has turned fediverse sharing off, drop the reply silently
+    // rather than materialize it against an opted-out account.
+    if (threadLink && !(await this.isLocalPostOwnerSharingEnabled(threadLink.parentPostId))) {
+      logger.debug(`[Federation] dropping reply Create from ${actorUri} — parent post owner has sharing disabled`);
+      return;
+    }
+
     await getPostCreator().create({
       oxyUserId: authorOxyUserId,
       federation: {
@@ -503,6 +544,11 @@ export class InboxProcessingService {
     const postId = await resolvePostIdFromObjectUri(objectId);
     if (!postId) return;
 
+    if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
+      logger.debug(`[Federation] dropping Like from ${actorUri} on ${postId} — target owner has sharing disabled`);
+      return;
+    }
+
     const likerOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!likerOxyUserId) {
       logger.info(`[Federation] skipping Like from ${actorUri} on ${objectId}: unresolved actor`);
@@ -539,6 +585,17 @@ export class InboxProcessingService {
   private async handleAnnounce(activity: Record<string, any>, actorUri: string): Promise<void> {
     const announcedUri = extractAnnouncedObjectUri(activity.object);
     if (!announcedUri) return;
+
+    // A boost targets the announced post's owner — resolved separately from
+    // `importAnnounce`'s own resolution below since the gate must run BEFORE
+    // any booster-actor resolution or boost-record creation. `null` (not yet
+    // mirrored locally, or a genuinely remote post) skips the gate: there is
+    // no local owner to protect.
+    const announcedPostId = await resolvePostIdFromObjectUri(announcedUri);
+    if (announcedPostId && !(await this.isLocalPostOwnerSharingEnabled(announcedPostId))) {
+      logger.debug(`[Federation] dropping Announce from ${actorUri} of ${announcedUri} — target owner has sharing disabled`);
+      return;
+    }
 
     // Record every booster as a real, listable user — resolve first and skip
     // when unresolvable so we never move the counter without a backing record.
