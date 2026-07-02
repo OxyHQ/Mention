@@ -34,14 +34,22 @@ import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailCo
 // active video and its neighbours hold a decoder.
 const FEED_PAGE_LIMIT = 20;
 // Players are live only for the active index ± this radius.
-const ACTIVE_WINDOW_RADIUS = 1;
+// Widened from 1: at radius 2, the video two swipes away already has a live
+// player mounted (buffering, muted, never playing — see the shouldPlay gate
+// below) instead of only a static poster, so its stream has strictly more
+// lead time to buffer before the viewer reaches it. Five concurrent mounted
+// players (-2,-1,0,+1,+2) is still a bounded, small number of decoders.
+const ACTIVE_WINDOW_RADIUS = 2;
 // FlatList must keep the window rows mounted (poster) so they can promote to a
 // live player without a remount; WINDOW_SIZE is in screens (one screen = one row).
 const FLATLIST_CONFIG = {
     INITIAL_NUM_TO_RENDER: 2,
     MAX_TO_RENDER_PER_BATCH: 2,
     WINDOW_SIZE: 3,
-    END_REACHED_THRESHOLD: 0.4,
+    // Raised from 0.4: trigger the next page fetch with more runway left in
+    // the current page, so pagination network latency is absorbed before the
+    // viewer actually runs out of loaded posts, instead of racing it.
+    END_REACHED_THRESHOLD: 0.6,
 } as const;
 
 const VIEWABILITY_CONFIG = {
