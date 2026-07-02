@@ -3,6 +3,7 @@ import { requireOxyAuth as requireAuth } from '@oxyhq/core/server';
 import { feedController } from '../controllers/feed.controller';
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
+import { feedModulesController } from '../mtn/controllers/feedModules.controller';
 import { feedRateLimiter, feedIPRateLimiter, feedThrottle } from '../middleware/security';
 import { cachePublicProfile } from '../middleware/cacheControl';
 
@@ -21,6 +22,11 @@ if (process.env.NODE_ENV === 'production') {
 router.get('/mtn', mtnFeedController.getFeed.bind(mtnFeedController));
 router.get('/mtn/peek', mtnFeedController.peekLatest.bind(mtnFeedController));
 router.post('/mtn/interactions', mtnFeedController.recordInteraction.bind(mtnFeedController));
+
+// ────────────────────────────────────────────────────────────
+// Custom-feed builder module catalog (read-only)
+// ────────────────────────────────────────────────────────────
+router.get('/modules', feedModulesController.list.bind(feedModulesController));
 
 // ────────────────────────────────────────────────────────────
 // Server-persisted feed preferences (saved / pinned / ordered feeds)
