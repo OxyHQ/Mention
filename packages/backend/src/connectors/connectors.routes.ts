@@ -18,6 +18,7 @@ import type { NetworkConnector } from './types';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
+import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 
 /**
  * Cross-network connector API (mounted at `/federation`, URL kept stable for the
@@ -259,6 +260,15 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
   const userId = resolveUserOr401(req, res);
   if (!userId) return;
 
+  // A user who has turned fediverse sharing off must not send outbound
+  // activity of any kind — including a Follow of a remote actor, which would
+  // reveal them to the fediverse. Mirrors the `ConnectorRegistry.deliver` seam
+  // gate; this route calls `connector.deliver` directly, so it needs its own
+  // check.
+  if (!(await isFediverseSharingEnabled(userId))) {
+    return res.status(403).json({ error: 'Fediverse sharing is disabled' });
+  }
+
   const parsed = actorRefSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
@@ -266,7 +276,13 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     const connector = await resolveTargetConnector(parsed.data.actorUri);
     if (!connector) return res.status(404).json({ error: 'Unsupported or unknown actor' });
 
-    const { oxy } = require('../../server.js');
+    // Dynamic `import()` (not a static top-level import) defers module
+    // resolution past server.ts's own init order — same rationale as
+    // `resolveOxyUser` in `connectors/activitypub/constants.ts` and
+    // `isFediverseSharingEnabled` in `services/fediverseSharing.ts`, since this
+    // route module is pulled in by server.ts before `oxy` is constructed.
+    // Unlike a CJS `require()`, a dynamic `import()` is intercepted by `vi.mock`.
+    const { oxy } = await import('../../server');
     const user = await oxy.getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
@@ -310,6 +326,13 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
   const userId = resolveUserOr401(req, res);
   if (!userId) return;
 
+  // Same gate as `/follow`: even an Undo(Follow) is outbound activity, and the
+  // remote server cannot verify it once the actor 404s — no carve-out for
+  // unfollow.
+  if (!(await isFediverseSharingEnabled(userId))) {
+    return res.status(403).json({ error: 'Fediverse sharing is disabled' });
+  }
+
   const parsed = actorRefSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
@@ -317,7 +340,8 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
     const connector = await resolveTargetConnector(parsed.data.actorUri);
     if (!connector) return res.status(404).json({ error: 'Unsupported or unknown actor' });
 
-    const { oxy } = require('../../server.js');
+    // See the matching comment in `POST /follow` above.
+    const { oxy } = await import('../../server');
     const user = await oxy.getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 

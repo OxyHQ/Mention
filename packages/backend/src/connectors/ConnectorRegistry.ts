@@ -15,6 +15,11 @@ function actingOxyUserId(event: LocalNetworkEvent): string {
       return event.actorOxyUserId;
     case 'follow.add':
     case 'follow.remove':
+      // `connectors.routes.ts` (`POST /federation/follow` and `/unfollow`) is
+      // the only production caller that builds these events, and it gates the
+      // same `isFediverseSharingEnabled` check at the route layer BEFORE
+      // reaching a connector — this check here is the seam's own enforcement,
+      // not the sole one, for any other caller that reaches `deliver` directly.
       return event.localOxyUserId;
     default: {
       const exhaustive: never = event;
@@ -46,10 +51,13 @@ export class ConnectorRegistry implements PostFederator {
   }
 
   /**
-   * The single outbound seam: every local domain event fans out to every
-   * enabled connector through here, gated FIRST on the acting user's
-   * `fediverseSharing` consent so a user who turned sharing off never leaks a
-   * post/follow/like/boost to ANY connector.
+   * The single outbound seam: every `LocalNetworkEvent` that passes through
+   * here fans out to every enabled connector gated FIRST on the acting user's
+   * `fediverseSharing` consent. `post.create` (via `federateNewPost`) always
+   * flows through this seam. User-initiated follow/unfollow
+   * (`connectors.routes.ts`) additionally gates at the route layer, since that
+   * caller invokes `connector.deliver` directly rather than through this seam
+   * — both layers enforce the same check independently.
    *
    * Once past the gate, delivery is fanned out with `Promise.allSettled` so one
    * connector's failure (e.g. a transient ActivityPub network error) does NOT
