@@ -10,6 +10,8 @@ import { isValidFeedDescriptor, MtnConfig, createPostUri } from '@mention/shared
 import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { feedAPIRegistry } from '../feed/FeedAPIRegistry';
+import { resolveDefinition } from '../feed/definitions/resolveDefinition';
+import { feedEngine } from '../feed/engine/FeedEngine';
 import { FeedTuner } from '../feed/FeedTuner';
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { UserPrivacyManager } from '../UserPrivacyManager';
@@ -187,15 +189,22 @@ class MtnFeedController {
         viewerRegion,
       };
 
-      // Resolve feed
-      const feedApi = feedAPIRegistry.resolve(descriptor, context);
-      if (!feedApi) {
-        res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
-        return;
+      // Resolve the descriptor to a composable feed DEFINITION and run it through
+      // the engine. `custom|id` (legacy CustomFeed) and `feedgen|uri` (external
+      // stub) are not engine-owned in Phase 1 and fall back to the FeedAPI
+      // registry.
+      const definition = resolveDefinition(descriptor);
+      let response: SlicedFeedResponse;
+      if (definition) {
+        response = await feedEngine.run(definition, context, { cursor, limit });
+      } else {
+        const feedApi = feedAPIRegistry.resolve(descriptor, context);
+        if (!feedApi) {
+          res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
+          return;
+        }
+        response = await feedApi.fetch({ cursor, limit }, context);
       }
-
-      // Fetch
-      const response = await feedApi.fetch({ cursor, limit }, context);
 
       // Filter out posts from blocked/muted users
       if (privacyState && privacyState.excludedUserIds.size > 0) {
@@ -287,13 +296,18 @@ class MtnFeedController {
         oxyClient,
       };
 
-      const feedApi = feedAPIRegistry.resolve(descriptor, context);
-      if (!feedApi) {
-        res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
-        return;
+      const definition = resolveDefinition(descriptor);
+      let latest;
+      if (definition) {
+        latest = await feedEngine.peekLatest(definition, context);
+      } else {
+        const feedApi = feedAPIRegistry.resolve(descriptor, context);
+        if (!feedApi) {
+          res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
+          return;
+        }
+        latest = await feedApi.peekLatest(context);
       }
-
-      const latest = await feedApi.peekLatest(context);
       res.json({
         success: true,
         data: latest ? { uri: createPostUri(String(latest.user?.id), String(latest.id)), post: latest } : null,
