@@ -56,6 +56,12 @@ async function resolveSubjectPublicKeys(oxyUserId: string): Promise<string[]> {
   }
   try {
     const doc = await getServiceOxyClient().resolveDid(oxyUserId);
+    // `VerificationMethod` is a discriminated union (the Oxy secp256k1 form
+    // carries `publicKeyHex`; the atproto-bridge `Multikey` form carries
+    // `publicKeyMultibase` instead) — Mention's chain only ever signs with the
+    // secp256k1 form, so a `Multikey` entry has no `publicKeyHex` and the
+    // narrowed access below yields `undefined`, dropped by the same filter
+    // that already handled a malformed/incomplete verification method.
     const keys = (doc.verificationMethod ?? [])
       .map((vm) => ('publicKeyHex' in vm ? vm.publicKeyHex : undefined))
       .filter((key): key is string => typeof key === 'string' && key.length > 0);
