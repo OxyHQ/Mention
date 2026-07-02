@@ -70,6 +70,12 @@ export const MODULE_PARAMS_SCHEMAS: Record<string, ParamsSchema> = {
   quotes: schema({ postId: { type: 'string' }, authorIds: stringArray(200) }),
   instance: schema({ domain: { type: 'string' } }),
   links: schema({ domain: { type: 'string' } }),
+  moreLikeThis: schema({
+    postId: { type: 'string' },
+    topics: stringArray(20),
+    hashtags: stringArray(20),
+    authorId: { type: 'string' },
+  }),
 
   // Filters
   languagePreference: schema({ languages: stringArray(20) }),
