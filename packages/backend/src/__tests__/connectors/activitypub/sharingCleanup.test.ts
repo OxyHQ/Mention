@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Unit tests for `runSharingCleanup` — the Delete(actor) + follower teardown
  * that runs when a user turns fediverse sharing OFF. Every dependency is
  * mocked; ordering assertions are the point of these tests, since a partial
- * run (e.g. rows deleted before the Delete activity reads them) would either
- * silently skip the broadcast or corrupt the idempotency contract.
+ * run (e.g. rows deleted before the Delete activity reads them, or before a
+ * bridge-unfollow succeeds) would either silently skip the broadcast, lose a
+ * row that should have been retried, or corrupt the idempotency contract.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -49,7 +50,7 @@ const USERNAME = 'alice';
 const ACTOR_URI_1 = 'https://remote1.example/users/bob';
 const ACTOR_URI_2 = 'https://remote2.example/users/carol';
 
-function mockInboundFollows(rows: Array<{ remoteActorUri: string }>): void {
+function mockInboundFollows(rows: Array<{ _id: string; remoteActorUri: string }>): void {
   mocks.followFind.mockReturnValue({ lean: async () => rows });
 }
 
@@ -70,7 +71,7 @@ beforeEach(() => {
 describe('runSharingCleanup', () => {
   it('builds the Delete(actor) activity and delivers it to followers BEFORE any row is deleted', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
-    mockInboundFollows([{ remoteActorUri: ACTOR_URI_1 }]);
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
 
     const callOrder: string[] = [];
     mocks.deliverToFollowers.mockImplementation(async () => { callOrder.push('deliver'); });
@@ -97,7 +98,10 @@ describe('runSharingCleanup', () => {
   });
 
   it('bridge-unfollows only inbound followers with a resolvable FederatedActor.oxyUserId, skipping ones without', async () => {
-    mockInboundFollows([{ remoteActorUri: ACTOR_URI_1 }, { remoteActorUri: ACTOR_URI_2 }]);
+    mockInboundFollows([
+      { _id: 'follow-1', remoteActorUri: ACTOR_URI_1 },
+      { _id: 'follow-2', remoteActorUri: ACTOR_URI_2 },
+    ]);
     mockRemoteActors([
       { uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' },
       { uri: ACTOR_URI_2 }, // actor known but never resolved to an Oxy user — skip
@@ -115,7 +119,7 @@ describe('runSharingCleanup', () => {
   });
 
   it('runs deliver -> bridge-unfollow -> row deletion, in that order', async () => {
-    mockInboundFollows([{ remoteActorUri: ACTOR_URI_1 }]);
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
     mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
 
     const callOrder: string[] = [];
@@ -129,28 +133,75 @@ describe('runSharingCleanup', () => {
     await runSharingCleanup(OXY_USER_ID, USERNAME);
 
     expect(callOrder).toEqual(['deliver', 'bridge-unfollow', 'delete']);
-    expect(mocks.followDeleteMany).toHaveBeenCalledWith({
-      localUserId: OXY_USER_ID,
-      direction: 'inbound',
-      status: 'accepted',
-    });
+    expect(mocks.followDeleteMany).toHaveBeenCalledWith({ _id: { $in: ['follow-1'] } });
   });
 
-  it('continues cleanup and still deletes rows even when a bridge-unfollow call fails', async () => {
-    mockInboundFollows([{ remoteActorUri: ACTOR_URI_1 }, { remoteActorUri: ACTOR_URI_2 }]);
+  it('on partial bridge failure: deletes ONLY the bridged/unbridgeable rows (ID-scoped) and THROWS so the job retries', async () => {
+    mockInboundFollows([
+      { _id: 'follow-1', remoteActorUri: ACTOR_URI_1 },
+      { _id: 'follow-2', remoteActorUri: ACTOR_URI_2 },
+    ]);
     mockRemoteActors([
       { uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' },
       { uri: ACTOR_URI_2, oxyUserId: 'remote-oxy-2' },
     ]);
     mocks.makeServiceRequest
-      .mockRejectedValueOnce(new Error('bridge down'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(undefined) // follow-1's bridge succeeds
+      .mockRejectedValueOnce(new Error('bridge down')); // follow-2's bridge fails
+
+    await expect(runSharingCleanup(OXY_USER_ID, USERNAME)).rejects.toThrow(/1 of 2/);
+
+    // Only the succeeded row is deleted — the failed row's FederatedFollow row
+    // MUST survive so a retry has data to re-attempt the bridge against.
+    expect(mocks.followDeleteMany).toHaveBeenCalledTimes(1);
+    expect(mocks.followDeleteMany).toHaveBeenCalledWith({ _id: { $in: ['follow-1'] } });
+  });
+
+  it('on full success (bridged or nothing to bridge): deletes every row and does not throw', async () => {
+    mockInboundFollows([
+      { _id: 'follow-1', remoteActorUri: ACTOR_URI_1 },
+      { _id: 'follow-2', remoteActorUri: ACTOR_URI_2 },
+    ]);
+    mockRemoteActors([
+      { uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' },
+      // ACTOR_URI_2 has no resolvable actor — nothing to bridge, still deletable.
+    ]);
 
     const result = await runSharingCleanup(OXY_USER_ID, USERNAME);
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledTimes(2);
-    expect(result.followersRemoved).toBe(1);
-    expect(mocks.followDeleteMany).toHaveBeenCalledTimes(1);
+    expect(mocks.followDeleteMany).toHaveBeenCalledWith({ _id: { $in: ['follow-1', 'follow-2'] } });
+    expect(result).toEqual({ deletesSent: 2, followersRemoved: 1 });
+  });
+
+  it('retry: a second run against only the previously-failed row converges (bridges, deletes, no throw)', async () => {
+    mockInboundFollows([
+      { _id: 'follow-1', remoteActorUri: ACTOR_URI_1 },
+      { _id: 'follow-2', remoteActorUri: ACTOR_URI_2 },
+    ]);
+    mockRemoteActors([
+      { uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' },
+      { uri: ACTOR_URI_2, oxyUserId: 'remote-oxy-2' },
+    ]);
+    mocks.makeServiceRequest
+      .mockResolvedValueOnce(undefined) // follow-1 succeeds
+      .mockRejectedValueOnce(new Error('bridge down')); // follow-2 fails
+
+    await expect(runSharingCleanup(OXY_USER_ID, USERNAME)).rejects.toThrow();
+    expect(mocks.followDeleteMany).toHaveBeenCalledWith({ _id: { $in: ['follow-1'] } });
+
+    // Simulate the real DB state after that run: follow-1 is gone (deleted),
+    // follow-2 survived and is the only row a retry (BullMQ re-running the same
+    // job) would find.
+    mocks.deliverToFollowers.mockClear();
+    mocks.makeServiceRequest.mockClear();
+    mocks.followDeleteMany.mockClear();
+    mockInboundFollows([{ _id: 'follow-2', remoteActorUri: ACTOR_URI_2 }]);
+    mocks.makeServiceRequest.mockResolvedValue(undefined); // the transient failure is gone now
+
+    const second = await runSharingCleanup(OXY_USER_ID, USERNAME);
+
+    expect(second).toEqual({ deletesSent: 1, followersRemoved: 1 });
+    expect(mocks.followDeleteMany).toHaveBeenCalledWith({ _id: { $in: ['follow-2'] } });
   });
 
   it('no-ops on zero inbound follows — no delivery, no bridge calls, no deletion, zeros returned', async () => {
@@ -165,7 +216,7 @@ describe('runSharingCleanup', () => {
   });
 
   it('is idempotent — re-running after the rows are gone is a pure no-op', async () => {
-    mockInboundFollows([{ remoteActorUri: ACTOR_URI_1 }]);
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
     mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
 
     const first = await runSharingCleanup(OXY_USER_ID, USERNAME);

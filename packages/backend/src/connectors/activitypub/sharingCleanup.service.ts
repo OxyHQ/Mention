@@ -5,6 +5,11 @@ import { followService } from './follow.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { actorUrl, AP_CONTEXT } from './constants';
 
+/**
+ * Only returned when every inbound follower was fully torn down (bridged, or
+ * never bridgeable). A partial failure never returns this shape — see
+ * {@link runSharingCleanup}, which throws instead so the caller retries.
+ */
 export interface SharingCleanupResult {
   /** Inbound followers the Delete(actor) broadcast targeted. */
   deletesSent: number;
@@ -19,17 +24,23 @@ export interface SharingCleanupResult {
  * Order is load-bearing, not incidental:
  *  1. `followService.deliverToFollowers` reads the inbound `FederatedFollow`
  *     rows itself to resolve delivery inboxes — it MUST run before those rows
- *     are touched, or the Delete goes to nobody.
- *  2. Bridge-unfollowing the Oxy graph is best-effort per follower (a remote
- *     actor that never resolved to an Oxy user is skipped, and a transient
- *     bridge failure is logged and does not abort the run).
- *  3. The local `FederatedFollow` rows are deleted LAST, and unconditionally —
- *     sharing is off regardless of whether every bridge call succeeded, so
- *     stale local follow rows must not survive this run.
- *
- * Idempotent: deleting the rows in step 3 is what makes a re-run (queue retry,
- * or the inline fallback racing an already-enqueued job) converge — a second
- * call finds zero inbound rows and is a pure no-op.
+ *     are touched, or the Delete goes to nobody. Re-sending it on a retry is
+ *     harmless: Delete(actor) is idempotent for a remote server (an actor
+ *     that's already gone is a no-op to re-delete).
+ *  2. A row is DELETABLE once its bridge-unfollow has succeeded, or it never
+ *     had anything to bridge (no resolvable `FederatedActor.oxyUserId`) — this
+ *     mirrors `inbox.service.ts`'s `handleIncomingFollow`/`handleUndo`, which
+ *     both run their own bridge call BEFORE the matching local Mongo mutation
+ *     for the same reason: a bridge failure must leave the row in place so a
+ *     retry re-attempts it, never delete-then-hope.
+ *  3. Only deletable rows are removed, ID-scoped (`_id: { $in: ... }`) so a
+ *     row that arrives between the initial `find` and this delete (a fresh
+ *     inbound Follow racing the toggle-off) is never swept up by accident.
+ *  4. If any bridge call failed, THROW after the scoped delete — the caller
+ *     (the BullMQ worker) lets this fail the job so it retries, and the
+ *     failed rows are still present to retry against. A successful re-run
+ *     converges: eventually every row is either bridged-and-deleted or was
+ *     never bridgeable to begin with.
  */
 export async function runSharingCleanup(
   oxyUserId: string,
@@ -69,9 +80,17 @@ export async function runSharingCleanup(
   );
 
   let followersRemoved = 0;
+  let bridgeFailures = 0;
+  const deletableIds: (typeof inboundFollows)[number]['_id'][] = [];
+
   for (const follow of inboundFollows) {
     const followerOxyUserId = followerOxyUserIdByActorUri.get(follow.remoteActorUri);
-    if (!followerOxyUserId) continue;
+
+    if (!followerOxyUserId) {
+      // Nothing to bridge for this row — safe to delete regardless.
+      deletableIds.push(follow._id);
+      continue;
+    }
 
     try {
       await getServiceOxyClient().makeServiceRequest('POST', '/federation/follow', {
@@ -80,7 +99,9 @@ export async function runSharingCleanup(
         action: 'unfollow',
       });
       followersRemoved += 1;
+      deletableIds.push(follow._id);
     } catch (err) {
+      bridgeFailures += 1;
       logger.warn(
         `[SharingCleanup] bridge-unfollow failed for follower ${followerOxyUserId} of ${oxyUserId}:`,
         err,
@@ -88,11 +109,15 @@ export async function runSharingCleanup(
     }
   }
 
-  await FederatedFollow.deleteMany({
-    localUserId: oxyUserId,
-    direction: 'inbound',
-    status: 'accepted',
-  });
+  if (deletableIds.length > 0) {
+    await FederatedFollow.deleteMany({ _id: { $in: deletableIds } });
+  }
+
+  if (bridgeFailures > 0) {
+    throw new Error(
+      `[SharingCleanup] ${bridgeFailures} of ${inboundFollows.length} bridge-unfollow call(s) failed for ${oxyUserId} — job will retry against the remaining rows`,
+    );
+  }
 
   return { deletesSent: inboundFollows.length, followersRemoved };
 }

@@ -162,9 +162,12 @@ export const PERIODIC_REMOVE_ON_FAIL_COUNT = 500;
 /**
  * Total attempts for a sharing-cleanup job (1 initial + retries). The job is
  * mostly local DB reads/writes plus one broadcast handed off to the delivery
- * queue itself (which has its own retry budget), so a small bounded retry —
- * mirroring the inbox worker's reasoning — covers transient DB/Oxy-bridge/Redis
- * hiccups without holding a poison job forever.
+ * queue itself (which has its own retry budget) — except the per-follower
+ * Oxy bridge-unfollow calls, which `runSharingCleanup` deliberately lets throw
+ * on failure (rows left un-bridged are left in place, never deleted) so THIS
+ * job retries and picks them back up. A small bounded retry — mirroring the
+ * inbox worker's reasoning — covers transient DB/Oxy-bridge/Redis hiccups
+ * without holding a poison job forever.
  */
 export const SHARING_CLEANUP_JOB_ATTEMPTS = 5;
 
