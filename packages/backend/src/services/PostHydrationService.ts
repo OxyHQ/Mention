@@ -4,6 +4,7 @@ import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
+import { FederatedActor } from '../models/FederatedActor';
 import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -285,6 +286,72 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
   }
 
   return resolved;
+}
+
+/**
+ * Repair FEDERATED author summaries that degraded to {@link degradedActorSummary}
+ * (empty handle, "Unknown user") because Oxy resolution failed transiently.
+ *
+ * Unlike a local author, a federated author's canonical `username@domain` is
+ * knowable WITHOUT Oxy: Mention's own {@link FederatedActor} record carries
+ * `acct`. Repairing from it lets a federated post show its REAL, tappable handle
+ * (`/@username@domain` → WebFinger-resolved profile) instead of a neutral
+ * "Unknown user" whenever Oxy is momentarily unreachable (or in the brief window
+ * right after the federation bridge creates the Oxy user).
+ *
+ * Mutates `summaries` in place. Batched (a single query), scoped to the ids that
+ * actually degraded, and best-effort — a lookup failure leaves the degraded
+ * summary untouched rather than failing hydration. Shared by feed hydration
+ * ({@link PostHydrationService.buildUserMap}) and reply-context author
+ * resolution ({@link ThreadSlicingService}).
+ */
+export async function repairFederatedFallbackSummaries(
+  summaries: Map<string, PostActorSummary>,
+  federatedAuthorIds: Set<string>,
+): Promise<void> {
+  const needsRepair: string[] = [];
+  for (const authorId of federatedAuthorIds) {
+    const summary = summaries.get(authorId);
+    // The degraded summary has an empty handle; `handle === authorId` guards any
+    // legacy raw-id summary. Either is the placeholder we want to replace.
+    if (!summary || isFallbackUserSummary(summary) || summary.handle === authorId) {
+      needsRepair.push(authorId);
+    }
+  }
+  if (needsRepair.length === 0) return;
+
+  let actors: Array<{ oxyUserId?: string; acct?: string; username?: string; domain?: string; name?: string }>;
+  try {
+    actors = await FederatedActor.find({ oxyUserId: { $in: needsRepair } })
+      .select('oxyUserId acct username domain name')
+      .lean();
+  } catch (error) {
+    logger.warn('[PostHydration] Federated author repair lookup failed', {
+      count: needsRepair.length,
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    return;
+  }
+
+  for (const actor of actors) {
+    const oxyUserId = actor.oxyUserId ? String(actor.oxyUserId) : '';
+    if (!oxyUserId) continue;
+    const handle = actor.acct
+      || (actor.username && actor.domain ? `${actor.username}@${actor.domain}` : '');
+    if (!handle) continue;
+    const existing = summaries.get(oxyUserId);
+    summaries.set(oxyUserId, {
+      id: oxyUserId,
+      handle,
+      // Prefer the federated actor's own display name; leave undefined (never the
+      // raw id / "Unknown user") so the renderer falls back to the real handle.
+      displayName: actor.name?.trim() || undefined,
+      avatarUrl: existing?.avatarUrl,
+      isVerified: existing?.isVerified ?? false,
+      isFederated: true,
+      instance: actor.domain || undefined,
+    });
+  }
 }
 
 export class PostHydrationService {
@@ -842,6 +909,19 @@ export class PostHydrationService {
     for (const [userId, value] of resolved) {
       userMap.set(userId, value.summary);
     }
+
+    // A FEDERATED author whose Oxy resolution degraded (empty handle, "Unknown
+    // user") still has a knowable canonical handle in Mention's own
+    // FederatedActor record. Repair those so a federated post shows its real
+    // `@username@domain` (tappable) instead of a neutral "Unknown user".
+    const federatedAuthorIds = new Set<string>();
+    for (const { post } of nodes) {
+      if (post?.federation && post?.oxyUserId) {
+        federatedAuthorIds.add(String(post.oxyUserId));
+      }
+    }
+    await repairFederatedFallbackSummaries(userMap, federatedAuthorIds);
+
     return userMap;
   }
 

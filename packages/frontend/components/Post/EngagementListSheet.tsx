@@ -21,6 +21,8 @@ interface User {
   handle: string;
   avatar?: string;
   verified: boolean;
+  isFederated?: boolean;
+  instance?: string;
 }
 
 interface EngagementListSheetProps {
@@ -74,9 +76,13 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
     }
   }, [hasMore, nextCursor, loadingMore, loadUsers]);
 
-  const handleUserPress = useCallback((handle: string) => {
+  const handleUserPress = useCallback((user: User) => {
     onClose();
-    const profileHandle = getNormalizedUserHandle({ handle });
+    const profileHandle = getNormalizedUserHandle({
+      handle: user.handle,
+      isFederated: user.isFederated,
+      instance: user.instance,
+    });
     if (profileHandle) {
       router.push(`/@${profileHandle}`);
     }
@@ -90,7 +96,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
       <TouchableOpacity
         className="flex-row items-center px-4 py-3"
         style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent' }}
-        onPress={() => handleUserPress(item.handle)}
+        onPress={() => handleUserPress(item)}
       >
         <Avatar source={item.avatar} size={50} style={{ marginRight: 12 }} />
         <View className="flex-1">
