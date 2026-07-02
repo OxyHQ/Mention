@@ -108,8 +108,11 @@ ActivityPub is implemented as the `activitypub/ActivityPubConnector` inside the 
 - **Outbox sync** uses the actor's advertised `outbox` URL; `actorUri + '/outbox'` is fallback only — guessing breaks PeerTube/Lemmy/some Pleroma. Lives in `connectors/activitypub/outbox.service.ts`.
 - **Boosts** imported as `type:'boost'` posts, deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill paths.
 - **Likes/boosts from federated actors** stored as NATIVE records (Like doc / boost Post). The AP connector does NOT copy remote aggregate counts — counts only move ±1 in lockstep with real records.
+- **Inbound follows bridge to the Oxy graph**: `handleIncomingFollow` requires the actor's `oxyUserId` and creates the Oxy edge via oxy-api `POST /federation/follow` (service auth, scope `federation:write`, follower must be Oxy type `'federated'`, idempotent) BEFORE sending Accept; `handleUndo` removes it. `FederatedFollow` stays the AP-side record; the Oxy graph is what the app UI (followers list, `_count`, notifications) reads. Follow notifications: `type:'follow'` via `createNotification`.
+- **Local actor JSON**: banner comes from `UserSettings.profileHeaderImage` emitted as AP `image`; outbox pages and push delivery share `buildCreateNoteActivity` (url/tags/attachments) so they stay in sync; post objects dereference at `GET /ap/users/:username/posts/:id`. Old-post visibility on Mastodon is push-only for NEW posts — old posts only appear via URL-search import or the ≥4.4 outbox backfill on first discovery; there is no `featured` collection yet.
 - **Engagement reconciliation**: `packages/backend/src/scripts/recomputeFederatedEngagement.ts` (run via Fargate one-shot: `bun packages/backend/dist/src/scripts/recomputeFederatedEngagement.js`).
-- **Background jobs (BullMQ):** Federation inbound activities enqueued (inbox 202s fast, worker runs `processInboxActivity`); `FederationJobScheduler` repeatable jobs; outbound delivery via BullMQ. All env-gated on `REDIS_URL`. Queue names must not contain `:`.
+- **One-shot scripts in `src/scripts/` MUST `mongoose.disconnect()` and `process.exit()` when done** — imported singletons (BullMQ Redis connections, MediaCache workers) otherwise keep the Fargate one-shot task running forever.
+- **Background jobs (BullMQ):** Federation inbound activities enqueued (inbox 202s fast, worker runs `processInboxActivity`); `FederationJobScheduler` repeatable jobs; outbound delivery via BullMQ. All env-gated on `REDIS_URL`. Queue names must not contain `:`; see `~/Oxy/AGENTS.md` for the BullMQ job-id `:` gotcha.
 
 ### Starter Packs
 
@@ -134,9 +137,11 @@ Two resolution entry points; BOTH must work for full Mastodon compatibility.
 
 **By handle (`@user@mention.earth`):** webfinger `/.well-known/webfinger?resource=acct:...` → `self` link → fetch actor.
 
-**By profile URL (`https://mention.earth/@user`):** Mastodon GETs the URL with `Accept: application/activity+json`. Handled by the CF Pages Advanced-Mode `_worker.js` at `packages/frontend/public/_worker.js` (Expo export copies `public/` → `dist/`). It 302s requests matching `^/@<user>$` with AP Accept → `https://api.mention.earth/ap/users/<user>`; all other requests → `env.ASSETS.fetch(request)`.
+**By profile URL (`https://mention.earth/@user`):** Mastodon GETs the URL with `Accept: application/activity+json`. Handled by the CF Pages Advanced-Mode `_worker.js` at `packages/frontend/public/_worker.js` (Expo export copies `public/` → `dist/`). It PROXIES (fetches and returns, does not redirect) `^/@<user>$` with AP Accept, plus `/ap/*`, `/.well-known/webfinger`, `/.well-known/host-meta(.json)`, `/.well-known/nodeinfo`, and `/nodeinfo/*` through to `https://api.mention.earth`; all other requests → `env.ASSETS.fetch(request)`.
 
 **CRITICAL — CF Pages `_worker.js`:** A `functions/` directory inside a `wrangler pages deploy <dir>` output is served as a STATIC ASSET, not compiled as Pages Functions. Always use Advanced-Mode `_worker.js` at the output root.
+
+**CRITICAL — never redirect apex ActivityPub paths:** the apex AP routes above must always be PROXIED, never served via a 301/302 (CF zone redirect rule or otherwise) — Mastodon's inbox POST deliveries die on a redirect (no re-sign, strict redirector), silently killing ALL inbound federation (follows/accepts/likes/replies) while GETs keep working, so the profile still renders and looks healthy. HTTP signatures are bound to the apex host; the backend verifies the signature against `X-Forwarded-Host` (`crypto.ts`), which only works if the request reaches the backend unredirected. The CF zone redirect rules that 301/302'd these paths were deleted 2026-07-02 — do not recreate them.
 
 **Other verified requirements:**
 - Actor `publicKey.id` host MUST equal the actor `id` host — cross-domain key causes Mastodon to reject the actor.
