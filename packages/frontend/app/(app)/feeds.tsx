@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types';
 
 import { Header } from '@/components/Header';
@@ -199,12 +199,13 @@ const FeedsScreen: React.FC = () => {
     }
   }, [canUsePrivateApi, isAuthResolved, isPrivateApiPending]);
 
-  useEffect(() => {
-    if (!isAuthResolved || isPrivateApiPending) {
-      return;
-    }
-    loadFeeds();
-  }, [isAuthResolved, isPrivateApiPending, loadFeeds]);
+  // Reload on focus so a feed created / edited in the builder appears when the
+  // user returns to this screen (loadFeeds no-ops until auth resolves).
+  useFocusEffect(
+    useCallback(() => {
+      loadFeeds();
+    }, [loadFeeds]),
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
