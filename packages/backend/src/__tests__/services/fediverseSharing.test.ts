@@ -41,6 +41,7 @@ import {
   isFediverseSharingEnabled,
   isFediverseSharingEnabledFromUser,
   getFediverseSharingStateByUsername,
+  getFediverseSharingStateById,
   invalidateFediverseSharing,
 } from '../../services/fediverseSharing';
 
@@ -105,29 +106,35 @@ describe('fediverseSharing', () => {
     });
   });
 
-  describe('isFediverseSharingEnabledFromUser', () => {
-    it('reads the flag off the given user object without any Oxy call', async () => {
-      expect(await isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: false })).toBe(false);
+  describe('isFediverseSharingEnabledFromUser — pure, synchronous, no Redis write', () => {
+    it('reads the flag off the given user object without any Oxy call', () => {
+      expect(isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: false })).toBe(false);
       expect(mocks.getUserById).not.toHaveBeenCalled();
       expect(mocks.getProfileByUsername).not.toHaveBeenCalled();
     });
 
-    it('defaults to true when the object omits the field', async () => {
-      expect(await isFediverseSharingEnabledFromUser({ _id: 'u1' })).toBe(true);
+    it('defaults to true when the object omits the field', () => {
+      expect(isFediverseSharingEnabledFromUser({ _id: 'u1' })).toBe(true);
     });
 
-    it('defaults to true for a null/undefined user', async () => {
-      expect(await isFediverseSharingEnabledFromUser(null)).toBe(true);
-      expect(await isFediverseSharingEnabledFromUser(undefined)).toBe(true);
+    it('defaults to true for a null/undefined user', () => {
+      expect(isFediverseSharingEnabledFromUser(null)).toBe(true);
+      expect(isFediverseSharingEnabledFromUser(undefined)).toBe(true);
     });
 
-    it('seeds the id-keyed Redis cache from the given object', async () => {
-      await isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: false });
-      expect(mocks.redisSetEx).toHaveBeenCalledWith('fedisharing:v1:u1', 600, '0');
+    it('is synchronous — returns a plain boolean, not a Promise', () => {
+      const result = isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: true });
+      expect(result).toBe(true);
+      expect(result).not.toBeInstanceOf(Promise);
     });
 
-    it('does not touch Redis when the object carries no id', async () => {
-      await isFediverseSharingEnabledFromUser({ fediverseSharing: false });
+    it('NEVER writes to Redis — the object may be a stale SDK-cached DTO, so seeding would risk overwriting a just-invalidated flag fleet-wide', () => {
+      isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: false });
+      expect(mocks.redisSetEx).not.toHaveBeenCalled();
+    });
+
+    it('still never writes to Redis for an enabled user with an id', () => {
+      isFediverseSharingEnabledFromUser({ _id: 'u1', fediverseSharing: true });
       expect(mocks.redisSetEx).not.toHaveBeenCalled();
     });
   });
@@ -165,6 +172,44 @@ describe('fediverseSharing', () => {
     it('seeds the id-keyed cache from the resolved DTO', async () => {
       mocks.getProfileByUsername.mockResolvedValue({ _id: 'u1', fediverseSharing: false });
       await getFediverseSharingStateByUsername('alice');
+      expect(mocks.redisSetEx).toHaveBeenCalledWith('fedisharing:v1:u1', 600, '0');
+    });
+  });
+
+  describe('getFediverseSharingStateById', () => {
+    it('"enabled" when the DTO says true (or omits the field)', async () => {
+      mocks.getUserById.mockResolvedValue({ id: 'u1', fediverseSharing: true });
+      expect(await getFediverseSharingStateById('u1')).toBe('enabled');
+    });
+
+    it('"disabled" when the DTO explicitly says false', async () => {
+      mocks.getUserById.mockResolvedValue({ id: 'u1', fediverseSharing: false });
+      expect(await getFediverseSharingStateById('u1')).toBe('disabled');
+    });
+
+    it('calls Oxy directly with { cache: false } — bypasses both Redis and the SDK cache', async () => {
+      mocks.getUserById.mockResolvedValue({ id: 'u1', fediverseSharing: true });
+      await getFediverseSharingStateById('u1');
+      expect(mocks.getUserById).toHaveBeenCalledWith('u1', { cache: false });
+      expect(mocks.redisGet).not.toHaveBeenCalled();
+    });
+
+    it('"unknown-user" when Oxy throws a 404', async () => {
+      mocks.isNotFoundError.mockReturnValue(true);
+      mocks.getUserById.mockRejectedValue(new Error('not found'));
+      expect(await getFediverseSharingStateById('u1')).toBe('unknown-user');
+    });
+
+    it('"unavailable" when Oxy throws a non-404 error (outage), logged at warn, never cached', async () => {
+      mocks.isNotFoundError.mockReturnValue(false);
+      mocks.getUserById.mockRejectedValue(new Error('timeout'));
+      expect(await getFediverseSharingStateById('u1')).toBe('unavailable');
+      expect(mocks.redisSetEx).not.toHaveBeenCalled();
+    });
+
+    it('caches the resolved flag on a successful fresh read', async () => {
+      mocks.getUserById.mockResolvedValue({ id: 'u1', fediverseSharing: false });
+      await getFediverseSharingStateById('u1');
       expect(mocks.redisSetEx).toHaveBeenCalledWith('fedisharing:v1:u1', 600, '0');
     });
   });

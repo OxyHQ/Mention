@@ -197,7 +197,7 @@ export class InboxProcessingService {
     // look identical to a Follow sent to an unknown user. Gated here, BEFORE
     // the follower actor is fetched/resolved, so an OFF user never triggers any
     // of the bridge/Accept/notification side effects below.
-    if (!(await isFediverseSharingEnabledFromUser(user))) {
+    if (!isFediverseSharingEnabledFromUser(user)) {
       logger.debug(`[Federation] inbound follow for ${username} dropped — sharing off`);
       return;
     }

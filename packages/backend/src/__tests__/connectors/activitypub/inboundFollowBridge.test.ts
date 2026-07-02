@@ -225,7 +225,7 @@ beforeEach(() => {
   mocks.followDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.createNotification.mockResolvedValue(undefined);
   sendAcceptSpy.mockResolvedValue(undefined);
-  mocks.isFediverseSharingEnabledFromUser.mockResolvedValue(true);
+  mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
 });
 
 describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
@@ -306,7 +306,7 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
 
 describe('handleIncomingFollow — dropped when the target has fediverse sharing off', () => {
   it('drops the follow silently right after resolving the local user, before touching the actor/bridge/Accept chain', async () => {
-    mocks.isFediverseSharingEnabledFromUser.mockResolvedValue(false);
+    mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
     stubFollowerActor('oxy_bob');
 
     await expect(

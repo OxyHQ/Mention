@@ -215,7 +215,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code. Derived from the user object already
     // resolved above (no second Oxy lookup).
-    if (!(await isFediverseSharingEnabledFromUser(user))) {
+    if (!isFediverseSharingEnabledFromUser(user)) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -379,7 +379,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledFromUser(user))) {
+    if (!isFediverseSharingEnabledFromUser(user)) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -472,7 +472,7 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     // 404 body, no separate error code. This route was not in the original
     // gate list but serves a user's content the same as the other AP
     // surfaces, so it gets the same treatment.
-    if (!(await isFediverseSharingEnabledFromUser(user))) {
+    if (!isFediverseSharingEnabledFromUser(user)) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -514,7 +514,7 @@ router.get('/users/:username/followers', async (req: Request, res: Response) => 
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledFromUser(user))) {
+    if (!isFediverseSharingEnabledFromUser(user)) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -553,7 +553,7 @@ router.get('/users/:username/following', async (req: Request, res: Response) => 
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
     // 404 body, no separate error code.
-    if (!(await isFediverseSharingEnabledFromUser(user))) {
+    if (!isFediverseSharingEnabledFromUser(user)) {
       return res.status(404).json({ error: 'User not found' });
     }
 

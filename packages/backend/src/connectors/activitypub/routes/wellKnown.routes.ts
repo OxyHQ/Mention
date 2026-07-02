@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { FEDERATION_DOMAIN, FEDERATION_ENABLED, actorUrl, resolveOxyUser } from '../constants';
 import { logger } from '../../../utils/logger';
 import { getRedisClient } from '../../../utils/redis';
-import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSharing';
+import { isFediverseSharingEnabledFromUser, getFediverseSharingStateByUsername } from '../../../services/fediverseSharing';
 import { webfingerCacheKey } from '../webfingerCache';
 
 const router = Router();
@@ -60,9 +60,21 @@ router.get('/webfinger', async (req: Request, res: Response) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Sharing OFF must be indistinguishable from a nonexistent user — same
-    // 404 body, no separate error code. Derived from the user object already
-    // resolved above (no second Oxy lookup).
-    if (!(await isFediverseSharingEnabledFromUser(user))) {
+    // 404 body, no separate error code. UNLIKE the other 5 gated GET/AP
+    // surfaces, webfinger does a SECOND, uncached Oxy read here rather than
+    // reusing `resolveOxyUser`'s (SDK-cached, ≤5min) `user` object: this
+    // response is ALSO cached in Redis for a full hour below, so a
+    // stale-DTO false positive here doesn't just mis-serve one request — it
+    // locks the actor (un)discoverable for up to an hour. `getFediverseSharingStateByUsername`
+    // bypasses the SDK cache to avoid that. An Oxy outage on THIS fresh read
+    // ('unavailable') falls back to the already-resolved `user` object
+    // instead of 404ing, so a transient Oxy hiccup never makes a real
+    // account momentarily undiscoverable.
+    const sharingState = await getFediverseSharingStateByUsername(username);
+    if (sharingState === 'disabled' || sharingState === 'unknown-user') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (sharingState === 'unavailable' && !isFediverseSharingEnabledFromUser(user)) {
       return res.status(404).json({ error: 'User not found' });
     }
 

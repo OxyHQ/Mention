@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   followDeleteMany: vi.fn(),
   actorFind: vi.fn(),
   makeServiceRequest: vi.fn(),
-  isFediverseSharingEnabled: vi.fn(),
+  getFediverseSharingStateById: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/follow.service', () => ({
@@ -23,7 +23,7 @@ vi.mock('../../../connectors/activitypub/follow.service', () => ({
 }));
 
 vi.mock('../../../services/fediverseSharing', () => ({
-  isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
+  getFediverseSharingStateById: (...args: unknown[]) => mocks.getFediverseSharingStateById(...args),
 }));
 
 vi.mock('../../../models/FederatedFollow', () => ({
@@ -71,28 +71,28 @@ beforeEach(() => {
   mocks.makeServiceRequest.mockResolvedValue(undefined);
   // Every test in this file simulates the job running because sharing is
   // (still) OFF — the "spurious-queue guard" describe block below exercises
-  // the opposite case explicitly.
-  mocks.isFediverseSharingEnabled.mockResolvedValue(false);
+  // the other tri-state outcomes explicitly.
+  mocks.getFediverseSharingStateById.mockResolvedValue('disabled');
   mockInboundFollows([]);
   mockRemoteActors([]);
 });
 
-describe('runSharingCleanup — spurious-queue guard', () => {
-  it('re-checks the flag directly against Oxy, bypassing Redis, as the FIRST step', async () => {
-    mocks.isFediverseSharingEnabled.mockResolvedValue(false);
+describe('runSharingCleanup — spurious-queue guard (tri-state)', () => {
+  it('re-checks the state directly against Oxy, bypassing Redis, as the FIRST step', async () => {
+    mocks.getFediverseSharingStateById.mockResolvedValue('disabled');
     mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
     mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
 
     await runSharingCleanup(OXY_USER_ID, USERNAME);
 
-    expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith(OXY_USER_ID, { skipRedisCache: true });
-    const guardOrder = mocks.isFediverseSharingEnabled.mock.invocationCallOrder[0];
+    expect(mocks.getFediverseSharingStateById).toHaveBeenCalledWith(OXY_USER_ID);
+    const guardOrder = mocks.getFediverseSharingStateById.mock.invocationCallOrder[0];
     const findOrder = mocks.followFind.mock.invocationCallOrder[0];
     expect(guardOrder).toBeLessThan(findOrder);
   });
 
-  it('no-ops (zero delivery, zero bridge calls, zero deletions) when sharing has been re-enabled since the job was queued', async () => {
-    mocks.isFediverseSharingEnabled.mockResolvedValue(true);
+  it("'enabled': no-ops (zero delivery, zero bridge calls, zero deletions) — the queued job was spurious", async () => {
+    mocks.getFediverseSharingStateById.mockResolvedValue('enabled');
     mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
     mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
 
@@ -102,6 +102,39 @@ describe('runSharingCleanup — spurious-queue guard', () => {
     expect(mocks.followFind).not.toHaveBeenCalled();
     expect(mocks.deliverToFollowers).not.toHaveBeenCalled();
     expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.followDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("'disabled': proceeds with cleanup (the expected case)", async () => {
+    mocks.getFediverseSharingStateById.mockResolvedValue('disabled');
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
+    mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
+
+    const result = await runSharingCleanup(OXY_USER_ID, USERNAME);
+
+    expect(result).toEqual({ deletesSent: 1, followersRemoved: 1 });
+    expect(mocks.deliverToFollowers).toHaveBeenCalledTimes(1);
+  });
+
+  it("'unknown-user': still proceeds with cleanup — the user was deleted mid-flight, but the row teardown + Delete(actor) broadcast are still valid", async () => {
+    mocks.getFediverseSharingStateById.mockResolvedValue('unknown-user');
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
+    mockRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
+
+    const result = await runSharingCleanup(OXY_USER_ID, USERNAME);
+
+    expect(result).toEqual({ deletesSent: 1, followersRemoved: 1 });
+    expect(mocks.deliverToFollowers).toHaveBeenCalledTimes(1);
+  });
+
+  it("'unavailable': THROWS so the BullMQ job retries, without touching any row — fail-open here would silently lose real teardown during an outage", async () => {
+    mocks.getFediverseSharingStateById.mockResolvedValue('unavailable');
+    mockInboundFollows([{ _id: 'follow-1', remoteActorUri: ACTOR_URI_1 }]);
+
+    await expect(runSharingCleanup(OXY_USER_ID, USERNAME)).rejects.toThrow(/unavailable/i);
+
+    expect(mocks.followFind).not.toHaveBeenCalled();
+    expect(mocks.deliverToFollowers).not.toHaveBeenCalled();
     expect(mocks.followDeleteMany).not.toHaveBeenCalled();
   });
 });
