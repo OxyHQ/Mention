@@ -12,7 +12,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
-import { CustomFeed } from '../feed/feeds/CustomFeed';
+import { loadViewerFeedContext, mergeFederatedFollowIds } from '../feed/feedContext';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
@@ -25,10 +25,7 @@ import { extractFollowingIds } from '../../utils/privacyHelpers';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
 import { MuteWord } from '../../models/MuteWord';
-import UserSettings from '../../models/UserSettings';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
-import { userPreferenceService } from '../../services/UserPreferenceService';
-import type { IUserBehavior } from '../../models/UserBehavior';
 import type { TunerContext } from '../feed/FeedTuner';
 
 type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
@@ -55,57 +52,6 @@ async function loadMuteWordsForUser(userId: string | undefined): Promise<MutePre
   } catch (error) {
     logger.warn('[MtnFeedController] Failed to load muted words', error);
     return [];
-  }
-}
-
-/**
- * Load the viewer's "show sensitive/NSFW content" preference from their
- * UserSettings. Returns `false` (safe-for-work — today's behavior) for an
- * anonymous viewer, a viewer with no settings doc yet, or on any load failure:
- * a settings lookup error must never relax the sensitivity gate. Only an
- * explicit stored `true` opts the viewer in.
- */
-async function loadShowSensitiveContent(userId: string | undefined): Promise<boolean> {
-  if (!userId) return false;
-  try {
-    const doc = await UserSettings.findOne(
-      { oxyUserId: userId },
-      { 'privacy.showSensitiveContent': 1 },
-    ).lean();
-    return doc?.privacy?.showSensitiveContent === true;
-  } catch (error) {
-    logger.warn('[MtnFeedController] Failed to load showSensitiveContent preference', error);
-    return false;
-  }
-}
-
-/**
- * Merge oxyUserIds from accepted federated (ActivityPub) follows into the
- * given followingIds array, deduplicating in-place.
- */
-async function mergeFederatedFollowIds(
-  localUserId: string,
-  followingIds: string[],
-): Promise<void> {
-  const fedFollowUris = await FederatedFollow.distinct('remoteActorUri', {
-    localUserId,
-    direction: 'outbound',
-    status: 'accepted',
-  });
-  if (fedFollowUris.length === 0) return;
-
-  const fedActors = await FederatedActor.find(
-    { uri: { $in: fedFollowUris }, oxyUserId: { $ne: null } },
-    { oxyUserId: 1 },
-  ).lean();
-
-  const existing = new Set(followingIds);
-  for (const actor of fedActors) {
-    const id = actor.oxyUserId;
-    if (id && !existing.has(id)) {
-      followingIds.push(id);
-      existing.add(id);
-    }
   }
 }
 
@@ -182,14 +128,12 @@ async function computeMutualIds(currentUserId: string): Promise<string[]> {
 
 
 /**
- * Resolve the descriptors NOT owned by the engine in Phase 1 to their legacy
- * FeedAPI implementation: `custom|id` (the stored CustomFeed, migrated to a
- * definition in Phase 3) and `feedgen|uri` (external generator stub). Returns
- * `null` for anything else.
+ * Resolve the one descriptor still served by a legacy FeedAPI: `feedgen|uri`
+ * (external generator stub). Custom feeds are engine-owned (via
+ * `resolveDefinition`); everything else returns `null`.
  */
 function resolveLegacyFeed(descriptor: FeedDescriptor): FeedAPI | null {
   const { source, params } = parseFeedDescriptor(descriptor);
-  if (source === 'custom') return new CustomFeed(params[0]);
   if (source === 'feedgen') return new FeedGeneratorFeed(params[0]);
   return null;
 }
@@ -217,64 +161,15 @@ class MtnFeedController {
 
       const currentUserId = req.user?.id;
 
-      // Load privacy state, following IDs, and the viewer's learned behavior in
-      // parallel. `userBehavior` feeds personalized candidate generation
-      // (For You multi-source) and ranking; it soft-fails to undefined.
-      let followingIds: string[] = [];
-      let subscribedListMemberIds: string[] = [];
-      let userBehavior: IUserBehavior | undefined;
-      // The viewer's sensitive-content opt-in. Anonymous → false; loaded
-      // soft-failing to false below so a settings error never relaxes the gate.
-      let showSensitiveContent = false;
+      // Privacy state (blocked/muted authors) is loaded here and applied to the
+      // response below; the viewer's following ids / subscribed lists / learned
+      // behavior / region / sensitive opt-in are assembled by the shared context
+      // loader (each best-effort, soft-failing to a safe default).
       const privacyState = currentUserId
         ? await UserPrivacyManager.loadPrivacyState(currentUserId)
         : null;
 
-      if (currentUserId) {
-        try {
-          const followingRes = await oxyClient.getUserFollowing(currentUserId);
-          followingIds = extractFollowingIds(followingRes);
-        } catch (error) {
-          logger.warn('[MtnFeedController] Failed to load following list', error);
-        }
-
-        try {
-          await mergeFederatedFollowIds(currentUserId, followingIds);
-        } catch (error) {
-          logger.warn('[MtnFeedController] Failed to load federated following', error);
-        }
-
-        try {
-          subscribedListMemberIds = await listSubscriptionService.getSubscribedListMemberIds(currentUserId);
-        } catch (error) {
-          logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
-        }
-
-        try {
-          userBehavior = (await userPreferenceService.getUserBehavior(currentUserId)) ?? undefined;
-        } catch (error) {
-          logger.warn('[MtnFeedController] Failed to load user behavior', error);
-        }
-
-        showSensitiveContent = await loadShowSensitiveContent(currentUserId);
-      }
-
-      // Resolve the viewer's DOMINANT learned region once (best-effort; usually
-      // undefined because post region is sparse). Threaded into context so the
-      // For You region candidate source and the Explore relevance boost can use
-      // it. A missing region is a strict no-op downstream.
-      const viewerRegion = userPreferenceService.getTopRegion(userBehavior);
-
-      // Build context
-      const context: FeedEngineContext = {
-        currentUserId,
-        followingIds,
-        subscribedListMemberIds,
-        userBehavior,
-        oxyClient,
-        showSensitiveContent,
-        viewerRegion,
-      };
+      const context = await loadViewerFeedContext(currentUserId, oxyClient);
 
       // The Mutuals feed needs the viewer's mutual-follow id set. Compute it ONLY
       // for that descriptor (Oxy graph mutuals ∪ federated mutuals) so no other
@@ -284,10 +179,9 @@ class MtnFeedController {
       }
 
       // Resolve the descriptor to a composable feed DEFINITION and run it through
-      // the engine. `custom|id` (legacy CustomFeed) and `feedgen|uri` (external
-      // stub) are not engine-owned in Phase 1 and fall back to the FeedAPI
-      // registry.
-      const definition = resolveDefinition(descriptor);
+      // the engine. Custom feeds resolve via the viewer context (owner/visibility
+      // checked); `feedgen|uri` (external stub) is the only remaining legacy path.
+      const definition = await resolveDefinition(descriptor, context);
       let response: SlicedFeedResponse;
       if (definition) {
         response = await feedEngine.run(definition, context, { cursor, limit });
@@ -394,7 +288,7 @@ class MtnFeedController {
         context.mutualIds = await computeMutualIds(currentUserId);
       }
 
-      const definition = resolveDefinition(descriptor);
+      const definition = await resolveDefinition(descriptor, context);
       let latest;
       if (definition) {
         latest = await feedEngine.peekLatest(definition, context);

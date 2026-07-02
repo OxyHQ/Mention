@@ -2,15 +2,16 @@ import { Router, type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import CustomFeed from '../models/CustomFeed';
 import FeedReview from '../models/FeedReview';
-import { AccountList } from '../models/AccountList';
-import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
 import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from './customFeedWrite';
+import { buildCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDefinition';
+import { loadViewerFeedContext } from '../mtn/feed/feedContext';
+import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import FeedLike from '../models/FeedLike';
 import { escapeRegex } from '../utils/textProcessing';
-import { postHydrationService, resolveUserSummaries } from '../services/PostHydrationService';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { resolveUserSummaries } from '../services/PostHydrationService';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import { logger } from '../utils/logger';
 
@@ -457,12 +458,12 @@ router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manag
   }
 });
 
-// Timeline for a custom feed
+// Timeline for a custom feed — runs the stored composable definition through the
+// FeedEngine (the same engine that serves every descriptor feed).
 router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    // Validate and sanitize inputs
-    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20)), 1), 100); // Clamp between 1-100
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20)), 1), 100); // Clamp 1-100
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : undefined;
 
     const feed = await CustomFeed.findById(req.params.id).lean();
@@ -471,152 +472,18 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
       return res.status(403).json({ error: 'Not allowed' });
     }
 
-    // Expand authors from direct members + lists
-    // IMPORTANT: Only include explicitly added members, NOT the owner
-    let authors: string[] = Array.from(new Set(feed.memberOxyUserIds || []));
-    try {
-      if (feed.sourceListIds && feed.sourceListIds.length) {
-        const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
-        lists.forEach((l) => (l.memberOxyUserIds || []).forEach((id) => authors.push(id)));
-        authors = Array.from(new Set(authors));
-      }
-    } catch (e) {
-      logger.warn('[CustomFeeds] Failed to expand source list members for timeline', {
-        feedId: req.params.id,
-        reason: e instanceof Error ? e.message : 'unknown',
-      });
-    }
+    // Resolve the runnable definition (stored, or derived from legacy fields for
+    // feeds not yet backfilled) and run it against the viewer's feed context.
+    const definition = buildCustomFeedDefinition(feed);
+    const context = await loadViewerFeedContext(userId, getServiceOxyClient());
+    const response = await feedEngine.run(definition, context, { cursor, limit });
 
-    // Explicitly exclude the owner unless they're in the member list
-    // This ensures the owner's posts are only shown if they explicitly added themselves
-    const ownerId = feed.ownerOxyUserId;
-    const ownerIsInMembers = authors.includes(ownerId);
-    
-    // If owner is not in members, explicitly exclude them
-    if (!ownerIsInMembers && ownerId) {
-      // Filter out owner from authors if somehow they got in, and add exclusion condition
-      authors = authors.filter(id => id !== ownerId);
-    }
-
-
-    // Build query based on feed configuration
-    const q: Record<string, unknown> = {
-      visibility: 'public',
-      status: 'published',
-    };
-
-    // Collect all conditions in $and array for proper MongoDB query structure
-    const conditions: Record<string, unknown>[] = [];
-
-    // Author filter: if authors are specified, filter by them (owner excluded unless explicitly added)
-    if (authors.length > 0) {
-      conditions.push({ oxyUserId: { $in: authors } });
-    } else if (ownerId && !ownerIsInMembers) {
-      // If no authors but owner exists and is not in members, explicitly exclude owner
-      // This handles the case where only keywords are specified
-      conditions.push({ oxyUserId: { $ne: ownerId } });
-    }
-
-    // Keyword filter: posts must match keywords in content or hashtags
-    if (feed.keywords && feed.keywords.length) {
-      const keywordRegexes = feed.keywords.map((k: string) => 
-        new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-      );
-      const keywordConditions = [
-        { 'content.text': { $in: keywordRegexes } },
-        { hashtags: { $in: feed.keywords.map((k: string) => k.toLowerCase()) } }
-      ];
-      
-      // If authors are also specified, keywords become an AND condition
-      // Otherwise, keywords are the primary filter (can be from any author)
-      if (authors.length > 0) {
-        // Posts must be from authors AND match keywords
-        conditions.push({ $or: keywordConditions });
-      } else {
-        // No authors specified, so posts from ANY author that match keywords
-        // Use $or for keywords (can match text OR hashtags)
-        conditions.push({ $or: keywordConditions });
-      }
-    }
-
-    // If no authors and no keywords, return empty (feed has no criteria)
-    if (authors.length === 0 && (!feed.keywords || feed.keywords.length === 0)) {
-      return res.json({
-        items: [],
-        hasMore: false,
-        nextCursor: undefined,
-        totalCount: 0,
-      });
-    }
-
-    // Apply content type filters
-    if (feed.includeReplies === false) {
-      conditions.push({ $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] });
-    }
-    
-    if (feed.includeBoosts === false) {
-      conditions.push({ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] });
-    }
-    
-    if (feed.includeMedia === false) {
-      conditions.push({ 
-        $and: [
-          { type: { $nin: ['image', 'video'] } },
-          { 'content.media': { $exists: false } },
-          { 'content.images': { $exists: false } }
-        ]
-      });
-    }
-    
-    if (feed.language) {
-      conditions.push({ language: feed.language });
-    }
-
-    // Combine all conditions with $and
-    if (conditions.length > 0) {
-      q.$and = conditions;
-    }
-
-    // Apply cursor pagination with validation
-    if (cursor) {
-      // Validate ObjectId format to prevent injection
-      if (mongoose.Types.ObjectId.isValid(cursor)) {
-        try {
-          q._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-        } catch (e) {
-          // Invalid ObjectId - ignore and continue without cursor pagination
-        }
-      }
-    }
-
-    const docs = await Post.find(q).sort({ createdAt: -1 }).limit(limit + 1).lean();
-    
-    const hasMore = docs.length > limit;
-    const toReturn = hasMore ? docs.slice(0, limit) : docs;
-    const nextCursor = hasMore && toReturn.length > 0 
-      ? String(toReturn[toReturn.length - 1]._id) 
-      : undefined;
-
-    // Hydrate posts through the shared hydration service (the same path feed
-    // endpoints use). Feed items use maxDepth 0 — no nested context — for
-    // performance; detail views are the only consumers that need depth 1.
-    const hydrated = await postHydrationService.hydratePosts(toReturn, {
-      viewerId: userId,
-      oxyClient: createScopedOxyClient(req),
-      maxDepth: 0,
-      includeLinkMetadata: true,
-      includeFullArticleBody: false,
-      includeFullMetadata: false,
-    });
-    const transformed = hydrated.filter((post) => Boolean(post?.id && post.user?.id));
-
-    // Return in FeedResponse format - items as direct posts (not wrapped)
-    // Frontend Feed component expects items to be posts directly
+    // The frontend Feed component expects `items` to be posts directly.
     res.json({
-      items: transformed, // Return posts directly, not wrapped
-      hasMore,
-      nextCursor,
-      totalCount: transformed.length,
+      items: response.items,
+      hasMore: response.hasMore,
+      nextCursor: response.nextCursor,
+      totalCount: response.totalCount,
     });
   } catch (error) {
     logger.error('[CustomFeeds] Custom feed timeline error:', { userId: req.user?.id, feedId: req.params.id, error });
