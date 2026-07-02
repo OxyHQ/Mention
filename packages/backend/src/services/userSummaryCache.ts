@@ -50,6 +50,53 @@ function keyFor(userId: string): string {
 }
 
 /**
+ * One-time latch so the non-array-reply diagnostic escalates to `warn` exactly
+ * once per process, not once per request. The non-array path can fire on EVERY
+ * feed hydration, so an unbounded `warn` would flood the logs.
+ */
+let nonArrayReplyWarned = false;
+
+/**
+ * BOUNDED diagnostic for the "MGET returned a non-array reply" degradation.
+ *
+ * Every occurrence logs at `debug` (cheap, per-request). The FIRST occurrence
+ * additionally logs at `warn` with the reply's runtime shape — `typeof`, the
+ * constructor name, and a truncated JSON sample — so production can root-cause
+ * WHY node-redis hands back a non-array against ElastiCache Valkey (the perf
+ * follow-up) without changing the RESP protocol or spamming `warn`.
+ */
+function reportNonArrayMgetReply(reply: unknown, keyCount: number): void {
+  logger.debug('[UserSummaryCache] mGet returned a non-array reply; treating as cache miss', {
+    replyType: typeof reply,
+    keyCount,
+  });
+
+  if (nonArrayReplyWarned) return;
+  nonArrayReplyWarned = true;
+
+  let sample: string;
+  try {
+    sample = JSON.stringify(reply)?.slice(0, 200) ?? String(reply);
+  } catch {
+    // A value that can't be serialized (e.g. a circular structure) still yields
+    // a useful hint via its string coercion — never let diagnostics throw.
+    sample = String(reply).slice(0, 200);
+  }
+  const constructorName =
+    reply === null || reply === undefined ? undefined : reply.constructor?.name;
+
+  logger.warn(
+    '[UserSummaryCache] mGet returned a non-array reply (one-time diagnostic); treating as cache miss',
+    {
+      replyType: typeof reply,
+      constructorName,
+      sample,
+      keyCount,
+    },
+  );
+}
+
+/**
  * Batch-read cached summaries for many user ids in a single Redis round-trip.
  *
  * Returns a map of `userId -> CachedUserSummary` containing ONLY the hits;
@@ -76,12 +123,10 @@ export async function mget(userIds: string[]): Promise<Map<string, CachedUserSum
       // (observed against ElastiCache Valkey). A non-array here throws a
       // TypeError that `withRedisFallback` does NOT swallow (it only degrades
       // connection errors), which 500s the whole feed. Treat any non-array reply
-      // as a full cache miss so hydration degrades gracefully to a cold fetch.
+      // as a full cache miss so hydration degrades gracefully to a cold fetch,
+      // and emit a bounded one-time diagnostic to root-cause the reply shape.
       if (!Array.isArray(values)) {
-        logger.debug('[UserSummaryCache] mGet returned a non-array reply; treating as cache miss', {
-          replyType: typeof values,
-          keyCount: keys.length,
-        });
+        reportNonArrayMgetReply(values, keys.length);
         return result;
       }
 
