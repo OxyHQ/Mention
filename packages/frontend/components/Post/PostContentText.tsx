@@ -4,6 +4,8 @@ import LinkifiedText from '../common/LinkifiedText';
 import { useRouter, usePathname } from 'expo-router';
 import { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/store/appearanceStore';
+import { useExpandableText } from '@/hooks/useExpandableText';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   content?: string | PostContent;
@@ -21,35 +23,41 @@ const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity }
 const PostContentText: React.FC<Props> = ({ content, postId, previewChars, translatedText, linkPreviewUrl }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useTranslation();
   const postTextExpand = useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
-  // An explicit `previewChars` prop from a caller always wins; otherwise the
-  // viewer's display preference picks the threshold.
+  const postReadMoreAction = useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
   const effectivePreviewChars = previewChars ?? PREVIEW_CHARS[postTextExpand];
-  // Extract text from content (handle both string and PostContent object)
   const originalText = typeof content === 'string' ? content : content?.text || '';
   const rawText = translatedText || originalText;
 
-  // Strip trailing URL when a link attachment card already shows it
   const textContent = linkPreviewUrl
     ? rawText.replace(TRAILING_URL_RE, (match, url) => url === linkPreviewUrl ? '' : match)
     : rawText;
 
+  const isDetailPage = pathname?.startsWith('/p');
+  // On the detail page, never truncate — feed it Infinity so the hook is a no-op.
+  const { displayText, isTruncated, isExpanded, toggle } = useExpandableText(
+    textContent,
+    isDetailPage ? Infinity : effectivePreviewChars
+  );
+
   if (!textContent) return null;
 
-  const isDetailPage = pathname?.startsWith('/p');
-  // `all` maps to Infinity, so `length > Infinity` is always false \u2014 never truncates.
-  const shouldTruncate = !isDetailPage && textContent.length > effectivePreviewChars;
-  const displayed = shouldTruncate ? `${textContent.slice(0, effectivePreviewChars).trimEnd()}\u2026` : textContent;
-
-  const suffix = shouldTruncate && postId ? (
-    <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
-      {' Read more'}
-    </Text>
+  const suffix = isTruncated && postId ? (
+    postReadMoreAction === 'expandInline' ? (
+      <Text className="text-primary" onPress={toggle}>
+        {isExpanded ? ` ${t('common.showLess', 'Show less')}` : ' Read more'}
+      </Text>
+    ) : (
+      <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
+        {' Read more'}
+      </Text>
+    )
   ) : null;
 
   return (
     <LinkifiedText
-      text={displayed}
+      text={displayText}
       style={styles.postText}
       className="text-foreground"
       suffix={suffix}
