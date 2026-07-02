@@ -236,19 +236,8 @@ export default function PokesScreen() {
         const isEmpty = receivedPokes.length === 0 && sentPokes.length === 0 && suggestions.length === 0;
 
         if (isEmpty && !isLoading) {
-            return (
-                <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingBottom: 40 }}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            colors={[theme.colors.primary]}
-                            tintColor={theme.colors.primary}
-                        />
-                    }
-                >
+            const emptyBody = (
+                <>
                     <EmptyState
                         title={t('pokes.empty.title', { defaultValue: 'No pokes yet' })}
                         subtitle={t('pokes.empty.subtitle', { defaultValue: 'When someone pokes you, it will show up here. Poke your followers to get started!' })}
@@ -263,24 +252,32 @@ export default function PokesScreen() {
                         maxCards={10}
                         hideDismiss
                     />
+                </>
+            );
+            // WEB lets the shared panel/document own the scroll; NATIVE keeps the
+            // ScrollView (+ pull-to-refresh) as the screen's scroller.
+            return Platform.OS === 'web' ? (
+                <View style={{ paddingBottom: 40 }}>{emptyBody}</View>
+            ) : (
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingBottom: 40 }}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            colors={[theme.colors.primary]}
+                            tintColor={theme.colors.primary}
+                        />
+                    }
+                >
+                    {emptyBody}
                 </ScrollView>
             );
         }
 
-        return (
-            <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 40 }}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        colors={[theme.colors.primary]}
-                        tintColor={theme.colors.primary}
-                    />
-                }
-                showsVerticalScrollIndicator={false}
-            >
+        const body = (
+            <>
                 {receivedPokes.length > 0 && (
                     <View>
                         {renderSectionHeader(t('pokes.receivedTitle', { defaultValue: 'Followers who poked you' }))}
@@ -327,6 +324,27 @@ export default function PokesScreen() {
                     title={t('pokes.peopleToFollow', { defaultValue: 'People you may know' })}
                     maxCards={10}
                 />
+            </>
+        );
+        // WEB lets the shared panel/document own the scroll; NATIVE keeps the
+        // ScrollView (+ pull-to-refresh) as the screen's scroller.
+        return Platform.OS === 'web' ? (
+            <View style={{ paddingBottom: 40 }}>{body}</View>
+        ) : (
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 40 }}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        colors={[theme.colors.primary]}
+                        tintColor={theme.colors.primary}
+                    />
+                }
+                showsVerticalScrollIndicator={false}
+            >
+                {body}
             </ScrollView>
         );
     };

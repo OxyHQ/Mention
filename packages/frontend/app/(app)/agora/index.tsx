@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router } from 'expo-router';
@@ -91,6 +92,71 @@ const AgoraScreen = () => {
 
   const hasRooms = liveRooms.length > 0 || scheduledRooms.length > 0;
 
+  const body = (
+    <>
+      {!loading && !hasRooms ? (
+        <EmptyState
+          title="No rooms available"
+          subtitle="Create a room to start a live audio conversation or schedule one for later"
+          customIcon={<AgoraIcon size={48} color={theme.colors.textSecondary} />}
+          action={{
+            label: t('agora.createRoom'),
+            onPress: openCreateSheet,
+          }}
+          containerStyle={{ paddingVertical: 48, paddingHorizontal: 20 }}
+        />
+      ) : (
+        <>
+          {liveRooms.length > 0 && (
+            <View className="mt-4 px-4">
+              <View className="flex-row items-center mb-3">
+                <View style={styles.sectionIcon} className="bg-[#FF4458]">
+                  <AgoraIcon size={18} color="#FFFFFF" />
+                </View>
+                <View className="flex-1">
+                  <ThemedText type="subtitle">{t('agora.liveNow')}</ThemedText>
+                  <Text className="text-[13px] mt-0.5 text-muted-foreground">
+                    Join the conversation
+                  </Text>
+                </View>
+              </View>
+              {liveRooms.map((room) => (
+                <RoomCard
+                  key={room._id}
+                  room={room}
+                  onPress={() => joinLiveRoom(room._id)}
+                />
+              ))}
+            </View>
+          )}
+
+          {scheduledRooms.length > 0 && (
+            <View className="mt-4 px-4">
+              <View className="flex-row items-center mb-3">
+                <View style={styles.sectionIcon} className="bg-primary">
+                  <Ionicons name="calendar" size={18} color={theme.colors.card} />
+                </View>
+                <View className="flex-1">
+                  <ThemedText type="subtitle">{t('agora.upcoming')}</ThemedText>
+                  <Text className="text-[13px] mt-0.5 text-muted-foreground">
+                    Scheduled rooms
+                  </Text>
+                </View>
+              </View>
+              {scheduledRooms.map((room) => (
+                <RoomCard
+                  key={room._id}
+                  room={room}
+                  onPress={() => router.push(`/agora/${room._id}`)}
+                />
+              ))}
+            </View>
+          )}
+        </>
+      )}
+    </>
+  );
+
   return (
     <>
       <SEO title="Agora" description="Join live audio conversations" />
@@ -113,78 +179,26 @@ const AgoraScreen = () => {
           disableSticky={false}
         />
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.colors.primary}
-            />
-          }
-          contentContainerStyle={styles.scrollContent}
-        >
-          {!loading && !hasRooms ? (
-            <EmptyState
-              title="No rooms available"
-              subtitle="Create a room to start a live audio conversation or schedule one for later"
-              customIcon={<AgoraIcon size={48} color={theme.colors.textSecondary} />}
-              action={{
-                label: t('agora.createRoom'),
-                onPress: openCreateSheet,
-              }}
-              containerStyle={{ paddingVertical: 48, paddingHorizontal: 20 }}
-            />
-          ) : (
-            <>
-              {liveRooms.length > 0 && (
-                <View className="mt-4 px-4">
-                  <View className="flex-row items-center mb-3">
-                    <View style={styles.sectionIcon} className="bg-[#FF4458]">
-                      <AgoraIcon size={18} color="#FFFFFF" />
-                    </View>
-                    <View className="flex-1">
-                      <ThemedText type="subtitle">{t('agora.liveNow')}</ThemedText>
-                      <Text className="text-[13px] mt-0.5 text-muted-foreground">
-                        Join the conversation
-                      </Text>
-                    </View>
-                  </View>
-                  {liveRooms.map((room) => (
-                    <RoomCard
-                      key={room._id}
-                      room={room}
-                      onPress={() => joinLiveRoom(room._id)}
-                    />
-                  ))}
-                </View>
-              )}
-
-              {scheduledRooms.length > 0 && (
-                <View className="mt-4 px-4">
-                  <View className="flex-row items-center mb-3">
-                    <View style={styles.sectionIcon} className="bg-primary">
-                      <Ionicons name="calendar" size={18} color={theme.colors.card} />
-                    </View>
-                    <View className="flex-1">
-                      <ThemedText type="subtitle">{t('agora.upcoming')}</ThemedText>
-                      <Text className="text-[13px] mt-0.5 text-muted-foreground">
-                        Scheduled rooms
-                      </Text>
-                    </View>
-                  </View>
-                  {scheduledRooms.map((room) => (
-                    <RoomCard
-                      key={room._id}
-                      room={room}
-                      onPress={() => router.push(`/agora/${room._id}`)}
-                    />
-                  ))}
-                </View>
-              )}
-            </>
-          )}
-        </ScrollView>
+        {/* WEB hands scroll to the shared panel/document (no nested scroller that
+            would break sticky rails + window scroll restoration); NATIVE keeps a
+            ScrollView (+ pull-to-refresh) as the screen's scroller. */}
+        {Platform.OS === 'web' ? (
+          <View style={styles.scrollContent}>{body}</View>
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.primary}
+              />
+            }
+            contentContainerStyle={styles.scrollContent}
+          >
+            {body}
+          </ScrollView>
+        )}
       </SafeAreaView>
     </>
   );

@@ -56,6 +56,11 @@ const PERIOD_OPTIONS = [
 const webStickyViewStyle: ViewStyle = asViewStyle({ position: 'sticky' });
 const webStickyRankStyle: TextStyle = asTextStyle({ position: 'sticky', top: 12 });
 
+// WEB hands scroll to the shared panel/document (no nested scroller that would
+// break sticky rails + window scroll restoration); NATIVE keeps a ScrollView as
+// the tab's scroller — the standard RN idiom.
+const IS_WEB = Platform.OS === 'web';
+
 // Reusable stat row
 interface StatRowProps {
     icon: React.ReactNode;
@@ -191,8 +196,8 @@ const InsightsScreen: React.FC = () => {
         const totalPosts = stats.overview.totalPosts;
         const perPost = (n: number) => totalPosts > 0 ? `${(n / totalPosts).toFixed(1)}/post` : undefined;
 
-        return (
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        const body = (
+            <>
                 <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} theme={theme} t={t} />
 
                 {/* Weekly Recap link */}
@@ -314,6 +319,14 @@ const InsightsScreen: React.FC = () => {
                 )}
 
                 <View className="h-10" />
+            </>
+        );
+
+        return IS_WEB ? (
+            <View style={styles.scrollContent}>{body}</View>
+        ) : (
+            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {body}
             </ScrollView>
         );
     };
@@ -321,8 +334,8 @@ const InsightsScreen: React.FC = () => {
     const renderEngagementTab = () => {
         if (!engagementRatios) return null;
 
-        return (
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        const body = (
+            <>
                 <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} theme={theme} t={t} />
 
                 {/* Top-line */}
@@ -383,6 +396,14 @@ const InsightsScreen: React.FC = () => {
                 <StatRow icon={<Ionicons name="flash" size={18} color={theme.colors.text} />} label={t('insights.post.interactions')} value={engagementRatios.totals.interactions} showDivider={false} theme={theme} />
 
                 <View className="h-10" />
+            </>
+        );
+
+        return IS_WEB ? (
+            <View style={styles.scrollContent}>{body}</View>
+        ) : (
+            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {body}
             </ScrollView>
         );
     };

@@ -6,13 +6,15 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
+    Platform,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSafeBack } from '@/hooks/useSafeBack';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
+import { Header } from '@/components/Header';
+import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { statisticsService, UserStatistics, EngagementRatios } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
@@ -21,6 +23,8 @@ import PostItem from '@/components/Feed/PostItem';
 import { HydratedPost } from '@mention/shared-types';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { FONT_FAMILIES } from '@/styles/typography';
+
+const IS_WEB = Platform.OS === 'web';
 
 const { width } = Dimensions.get('window');
 
@@ -33,9 +37,7 @@ const PERIOD_OPTIONS = [
 const InsightsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
-    const insets = useSafeAreaInsets();
     const { user } = useAuth();
-    const safeBack = useSafeBack();
 
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<UserStatistics | null>(null);
@@ -96,7 +98,7 @@ const InsightsScreen: React.FC = () => {
         if (!stats) return null;
 
         return (
-            <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <>
                 {/* Summary Stats */}
                 <View style={styles.summarySection}>
                     <View className="bg-secondary" style={styles.summaryCard}>
@@ -319,7 +321,7 @@ const InsightsScreen: React.FC = () => {
                         </View>
                     </View>
                 )}
-            </ScrollView>
+            </>
         );
     };
 
@@ -327,7 +329,7 @@ const InsightsScreen: React.FC = () => {
         if (!engagementRatios) return null;
 
         return (
-            <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <>
                 {/* Overall Engagement */}
                 <View className="bg-secondary" style={styles.heroCard}>
                     <View style={styles.heroHeader}>
@@ -447,20 +449,25 @@ const InsightsScreen: React.FC = () => {
                         </View>
                     </View>
                 </View>
-            </ScrollView>
+            </>
         );
     };
 
-    return (
-        <ThemedView className="flex-1">
-            {/* Header */}
-            <View className="bg-background" style={[styles.header, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={() => safeBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-                <Text className="text-foreground" style={styles.headerTitle}>{t('insights.title')}</Text>
-                <View style={styles.headerRight} />
-            </View>
+    // Chrome (header + period selector + tabs). WEB pins this via
+    // PanelStickyHeader (the document body is the scroller and the chrome stays
+    // put beneath the panel's top gutter, matching Home). NATIVE renders it in
+    // normal flow above the ScrollView that owns the screen's scroll.
+    const chrome = (
+        <>
+            <Header
+                options={{
+                    title: t('insights.title'),
+                    titlePosition: 'center',
+                    showBackButton: true,
+                }}
+                hideBottomBorder
+                disableSticky
+            />
 
             {/* Period Selector */}
             <View className="bg-secondary" style={styles.periodSelector}>
@@ -505,10 +512,10 @@ const InsightsScreen: React.FC = () => {
                     ]}
                     onPress={() => setActiveTab('overview')}
                 >
-                    <Ionicons 
-                        name={activeTab === 'overview' ? 'grid' : 'grid-outline'} 
-                        size={18} 
-                        color={activeTab === 'overview' ? theme.colors.primary : theme.colors.textSecondary} 
+                    <Ionicons
+                        name={activeTab === 'overview' ? 'grid' : 'grid-outline'}
+                        size={18}
+                        color={activeTab === 'overview' ? theme.colors.primary : theme.colors.textSecondary}
                     />
                     <Text
                         style={[
@@ -532,10 +539,10 @@ const InsightsScreen: React.FC = () => {
                     ]}
                     onPress={() => setActiveTab('engagement')}
                 >
-                    <Ionicons 
-                        name={activeTab === 'engagement' ? 'stats-chart' : 'stats-chart-outline'} 
-                        size={18} 
-                        color={activeTab === 'engagement' ? theme.colors.primary : theme.colors.textSecondary} 
+                    <Ionicons
+                        name={activeTab === 'engagement' ? 'stats-chart' : 'stats-chart-outline'}
+                        size={18}
+                        color={activeTab === 'engagement' ? theme.colors.primary : theme.colors.textSecondary}
                     />
                     <Text
                         style={[
@@ -550,42 +557,44 @@ const InsightsScreen: React.FC = () => {
                     </Text>
                 </TouchableOpacity>
             </View>
+        </>
+    );
 
-            {/* Content */}
-            {loading ? (
-                <View className="flex-1 items-center justify-center">
-                    <Loading className="text-primary" size="large" />
-                </View>
-            ) : (
-                activeTab === 'overview' ? renderOverviewTab() : renderEngagementTab()
-            )}
-        </ThemedView>
+    return (
+        <SafeAreaView className="flex-1 bg-background web:z-auto" edges={["top"]}>
+            <ThemedView className="flex-1 web:z-auto relative flex-col">
+                {IS_WEB ? (
+                    <PanelStickyHeader level={0}>{chrome}</PanelStickyHeader>
+                ) : (
+                    chrome
+                )}
+
+                {/* Content. WEB renders in normal document flow (no page-level
+                    scroll container — the body is the scroller, matching
+                    Home/Profile). NATIVE keeps a ScrollView as the screen scroller. */}
+                {loading ? (
+                    <View className="flex-1 items-center justify-center py-24">
+                        <Loading className="text-primary" size="large" />
+                    </View>
+                ) : IS_WEB ? (
+                    <View className="p-3">
+                        {activeTab === 'overview' ? renderOverviewTab() : renderEngagementTab()}
+                    </View>
+                ) : (
+                    <ScrollView
+                        className="flex-1"
+                        contentContainerStyle={styles.scrollContentContainer}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {activeTab === 'overview' ? renderOverviewTab() : renderEngagementTab()}
+                    </ScrollView>
+                )}
+            </ThemedView>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-    },
-    backButton: {
-        padding: 8,
-        marginLeft: -8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        letterSpacing: -0.3,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    headerRight: {
-        width: 40,
-    },
     periodSelector: {
         flexDirection: 'row',
         paddingHorizontal: 16,
@@ -629,8 +638,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         fontFamily: FONT_FAMILIES.primary,
     },
-    scrollContent: {
-        flex: 1,
+    scrollContentContainer: {
         padding: 12,
     },
     // Summary Section

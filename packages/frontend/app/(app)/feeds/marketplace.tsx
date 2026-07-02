@@ -26,9 +26,12 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
+import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import type { CustomFeed } from '@mention/shared-types';
 
 const PAGE_LIMIT = 20;
+
+const IS_WEB = Platform.OS === 'web';
 
 /**
  * A `CustomFeed` as returned by the `/feeds/marketplace` endpoint, which
@@ -449,14 +452,25 @@ export default function FeedMarketplaceScreen() {
     );
   }, [loading, debouncedSearch, theme, t]);
 
-  const ListFooter = useMemo(() => {
-    if (!loadingMore) return <View className="h-8" />;
-    return (
-      <View className="py-5 items-center">
-        <SpinnerIcon size={20} className="text-primary" />
+  const ListFooter = useMemo(
+    () => (
+      <View>
+        {/* WEB infinite-scroll trigger — Bloom's web lists are window
+            virtualizers with no `onEndReached`, so a 1px sentinel fires
+            `handleLoadMore` ~600px before it enters the viewport. Inert on
+            native, which paginates via the FlatList's `onEndReached`. */}
+        <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={feeds.length < total} />
+        {loadingMore ? (
+          <View className="py-5 items-center">
+            <SpinnerIcon size={20} className="text-primary" />
+          </View>
+        ) : (
+          <View className="h-8" />
+        )}
       </View>
-    );
-  }, [loadingMore, theme.colors.primary]);
+    ),
+    [loadingMore, handleLoadMore, feeds.length, total],
+  );
 
   return (
     <ThemedView className="flex-1">
@@ -494,6 +508,28 @@ export default function FeedMarketplaceScreen() {
           {Array.from({ length: 4 }).map((_, i) => (
             <FeedCardSkeleton key={i} />
           ))}
+        </View>
+      ) : IS_WEB ? (
+        // WEB: the document (body) is the scroller — the shell owns scroll, so
+        // the marketplace renders in normal flow. A FlatList here would nest a
+        // second scroll container inside the ContentPanel and break the sticky
+        // side rails, window scroll-restoration and bottom-bar auto-hide.
+        // Pagination is driven by the LoadMoreSentinel inside ListFooter. The
+        // horizontal category-pills ScrollView inside ListHeader stays — a
+        // horizontal scroller does not conflict with the document scroll.
+        <View className="pb-8">
+          {ListHeader}
+          {feeds.length === 0
+            ? ListEmpty
+            : feeds.map((item) => (
+                <MarketplaceFeedCard
+                  key={keyExtractor(item)}
+                  item={item}
+                  onSubscribeToggle={handleSubscribeToggle}
+                  subscribingId={subscribingId}
+                />
+              ))}
+          {ListFooter}
         </View>
       ) : (
         <FlatList

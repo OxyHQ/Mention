@@ -33,6 +33,8 @@ import { useAuth } from '@oxyhq/services';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
+const IS_WEB = Platform.OS === 'web';
+
 interface FeedItem {
   _id?: string;
   id?: string;
@@ -209,6 +211,83 @@ const FeedsScreen: React.FC = () => {
     );
   }, [publicFeeds, searchQuery]);
 
+  // Directory body — identical on both platforms; only the scroll host differs.
+  const content = (
+    <>
+      {/* Quick access feeds */}
+      <QuickFeedRow icon="swap-vertical" iconColor={theme.colors.primary} label={t('feeds.following')} onPress={() => router.push('/')} />
+
+      {/* Pinned custom feeds in quick list */}
+      {myFeeds
+        .filter((f) => pinned.includes(`custom:${f._id || f.id}`))
+        .map((f) => (
+          <QuickFeedRow
+            key={f._id || f.id}
+            icon="pin"
+            iconColor={theme.colors.primary}
+            label={f.title || 'Untitled'}
+            onPress={() => router.push(`/feeds/${f._id || f.id}`)}
+          />
+        ))}
+
+      {/* Discover feeds */}
+      <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
+        {t('feeds.discoverNew.title')}
+      </Text>
+
+      <View className="flex-row items-center px-3 h-[38px] rounded-[10px] mt-2 mb-1 gap-2 bg-secondary">
+        <Search size={18} className="text-muted-foreground" />
+        <TextInput
+          style={styles.searchInput}
+          className="flex-1 text-[15px] text-foreground"
+          placeholder={t('feeds.searchPlaceholder')}
+          placeholderTextColor={theme.colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {loading && !refreshing && publicFeeds.length === 0 ? (
+        <Loading className="text-primary" size="large" style={{ flex: undefined, marginTop: 24 }} />
+      ) : (
+        filteredPublic.map((item) => (
+          <FeedRow
+            key={String(item._id || item.id)}
+            item={item}
+            pinned={pinned.includes(`custom:${item._id || item.id}`)}
+            onTogglePin={onTogglePin}
+            t={t}
+          />
+        ))
+      )}
+
+      {/* Your feeds */}
+      {myFeeds.length > 0 && (
+        <>
+          <Text className="text-[15px] font-bold text-foreground mt-7 mb-1">
+            {t('feeds.yourFeeds.title')}
+          </Text>
+          {myFeeds.map((f) => (
+            <FeedRow
+              key={String(f._id || f.id)}
+              item={f}
+              pinned={pinned.includes(`custom:${f._id || f.id}`)}
+              onTogglePin={onTogglePin}
+              t={t}
+            />
+          ))}
+        </>
+      )}
+
+      <View className="h-20" />
+    </>
+  );
+
   return (
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
@@ -225,85 +304,25 @@ const FeedsScreen: React.FC = () => {
           hideBottomBorder
         />
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-          }
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Quick access feeds */}
-          <QuickFeedRow icon="swap-vertical" iconColor={theme.colors.primary} label={t('feeds.following')} onPress={() => router.push('/')} />
-
-          {/* Pinned custom feeds in quick list */}
-          {myFeeds
-            .filter((f) => pinned.includes(`custom:${f._id || f.id}`))
-            .map((f) => (
-              <QuickFeedRow
-                key={f._id || f.id}
-                icon="pin"
-                iconColor={theme.colors.primary}
-                label={f.title || 'Untitled'}
-                onPress={() => router.push(`/feeds/${f._id || f.id}`)}
-              />
-            ))}
-
-          {/* Discover feeds */}
-          <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
-            {t('feeds.discoverNew.title')}
-          </Text>
-
-          <View className="flex-row items-center px-3 h-[38px] rounded-[10px] mt-2 mb-1 gap-2 bg-secondary">
-            <Search size={18} className="text-muted-foreground" />
-            <TextInput
-              style={styles.searchInput}
-              className="flex-1 text-[15px] text-foreground"
-              placeholder={t('feeds.searchPlaceholder')}
-              placeholderTextColor={theme.colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {loading && !refreshing && publicFeeds.length === 0 ? (
-            <Loading className="text-primary" size="large" style={{ flex: undefined, marginTop: 24 }} />
-          ) : (
-            filteredPublic.map((item) => (
-              <FeedRow
-                key={String(item._id || item.id)}
-                item={item}
-                pinned={pinned.includes(`custom:${item._id || item.id}`)}
-                onTogglePin={onTogglePin}
-                t={t}
-              />
-            ))
-          )}
-
-          {/* Your feeds */}
-          {myFeeds.length > 0 && (
-            <>
-              <Text className="text-[15px] font-bold text-foreground mt-7 mb-1">
-                {t('feeds.yourFeeds.title')}
-              </Text>
-              {myFeeds.map((f) => (
-                <FeedRow
-                  key={String(f._id || f.id)}
-                  item={f}
-                  pinned={pinned.includes(`custom:${f._id || f.id}`)}
-                  onTogglePin={onTogglePin}
-                  t={t}
-                />
-              ))}
-            </>
-          )}
-
-          <View className="h-20" />
-        </ScrollView>
+        {/* WEB: the document (body) is the scroller — the shell owns scroll, so
+            the directory renders in normal flow. A ScrollView here would nest a
+            second scroll container inside the ContentPanel and break the sticky
+            side rails, window scroll-restoration and bottom-bar auto-hide.
+            NATIVE: a ScrollView is the correct screen scroller (with
+            pull-to-refresh). */}
+        {IS_WEB ? (
+          <View className="px-4">{content}</View>
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+            }
+            contentContainerStyle={styles.scrollContent}
+          >
+            {content}
+          </ScrollView>
+        )}
 
         {/* FAB that rides the BottomBar's show/hide (web mobile). */}
         <BottomBarAwareFab

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
@@ -18,6 +18,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { List } from '@/assets/icons/list-icon';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
+
+const IS_WEB = Platform.OS === 'web';
 
 function toListCardData(list: MentionList): ListCardData {
   const owner = list.owner;
@@ -117,6 +119,54 @@ export default function ListsScreen() {
   const hasOwned = ownedLists.length > 0;
   const hasFollowed = followedLists.length > 0;
 
+  // Directory body — identical on both platforms; only the scroll host differs.
+  const content = !hasOwned && !hasFollowed ? (
+    <EmptyState
+      title={t('lists.empty.title')}
+      subtitle={t('lists.empty.subtitle')}
+      customIcon={<List size={48} className="text-muted-foreground" />}
+      action={{
+        label: t('lists.createList'),
+        onPress: () => router.push('/lists/create'),
+      }}
+      containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
+    />
+  ) : (
+    <View className="px-1 pb-4">
+      {hasOwned ? (
+        <View className="mb-4">
+          <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
+            {t('lists.sections.yours', { defaultValue: 'Your lists' })}
+          </Text>
+          {ownedLists.map((l) => (
+            <View key={String(l._id || l.id)} className="px-3 mb-2">
+              <ListCardComponent
+                list={toListCardData(l)}
+                onPress={() => router.push(`/lists/${l._id || l.id}`)}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {hasFollowed ? (
+        <View className="mb-2">
+          <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
+            {t('lists.sections.followed', { defaultValue: 'Followed lists' })}
+          </Text>
+          {followedLists.map((l) => (
+            <View key={String(l._id || l.id)} className="px-3 mb-2">
+              <ListCardComponent
+                list={toListCardData(l)}
+                onPress={() => router.push(`/lists/${l._id || l.id}`)}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+
   return (
     <>
       <SEO
@@ -144,54 +194,18 @@ export default function ListsScreen() {
         disableSticky={true}
         />
 
-        <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
-          {!hasOwned && !hasFollowed ? (
-            <EmptyState
-              title={t('lists.empty.title')}
-              subtitle={t('lists.empty.subtitle')}
-              customIcon={<List size={48} className="text-muted-foreground" />}
-              action={{
-                label: t('lists.createList'),
-                onPress: () => router.push('/lists/create'),
-              }}
-              containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
-            />
-          ) : (
-            <View className="px-1 pb-4">
-              {hasOwned ? (
-                <View className="mb-4">
-                  <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
-                    {t('lists.sections.yours', { defaultValue: 'Your lists' })}
-                  </Text>
-                  {ownedLists.map((l) => (
-                    <View key={String(l._id || l.id)} className="px-3 mb-2">
-                      <ListCardComponent
-                        list={toListCardData(l)}
-                        onPress={() => router.push(`/lists/${l._id || l.id}`)}
-                      />
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-
-              {hasFollowed ? (
-                <View className="mb-2">
-                  <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
-                    {t('lists.sections.followed', { defaultValue: 'Followed lists' })}
-                  </Text>
-                  {followedLists.map((l) => (
-                    <View key={String(l._id || l.id)} className="px-3 mb-2">
-                      <ListCardComponent
-                        list={toListCardData(l)}
-                        onPress={() => router.push(`/lists/${l._id || l.id}`)}
-                      />
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          )}
-        </ScrollView>
+        {/* WEB: the document (body) is the scroller — the shell owns scroll, so
+            the directory renders in normal flow. A ScrollView here would nest a
+            second scroll container inside the ContentPanel and break the sticky
+            side rails, window scroll-restoration and bottom-bar auto-hide.
+            NATIVE: a ScrollView is the correct screen scroller. */}
+        {IS_WEB ? (
+          <View className="px-3 pt-2.5">{content}</View>
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
+            {content}
+          </ScrollView>
+        )}
       </ThemedView>
     </>
   );

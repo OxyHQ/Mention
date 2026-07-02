@@ -1,26 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, TextInput, View, TouchableOpacity, ScrollView, Text, Modal, Pressable } from 'react-native';
+import { Platform, StyleSheet, TextInput, View, TouchableOpacity, ScrollView, Text, Modal, Pressable } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import PostItem from '@/components/Feed/PostItem';
 import { ThemedView } from '@/components/ThemedView';
+import { Header } from '@/components/Header';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { useAuth } from '@oxyhq/services';
-import { feedService } from '@/services/feedService';
 import { authenticatedClient } from '@/utils/api';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@/lib/logger';
+import { PanelStickyHeader } from '@/components/shell/PanelChrome';
+
+const IS_WEB = Platform.OS === 'web';
 
 type SavedPost = React.ComponentProps<typeof PostItem>['post'];
 
 const SavedPostsScreen: React.FC = () => {
-    const insets = useSafeAreaInsets();
     const theme = useTheme();
     const { t } = useTranslation();
     const { isAuthenticated, user } = useAuth();
@@ -129,133 +131,165 @@ const SavedPostsScreen: React.FC = () => {
         setShowMoveModal(true);
     };
 
+    // Search bar + folder chips + the saved-posts list. This whole block scrolls
+    // as the page content — it participates in the shared LAYOUT scroll (the
+    // document on web, the screen's ScrollView on native) instead of owning a
+    // nested `flex-1` scroller. Matches how the other list screens (notifications,
+    // feeds/[id], lists/[id]) let their sub-chrome scroll with the content.
+    const body = (
+        <>
+            <View className="flex-row items-center px-4 py-2 mx-4 my-2 rounded-3xl bg-secondary">
+                <View className="mr-2">
+                    <Search
+                        size={20}
+                        className="text-muted-foreground"
+                    />
+                </View>
+                <TextInput
+                    className="flex-1 text-base py-2 text-foreground"
+                    placeholder={t("search.placeholder", "Search saved posts...")}
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery("")}>
+                        <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            {/* Folder chips */}
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.folderScrollContainer}
+                contentContainerStyle={styles.folderScrollContent}
+            >
+                <TouchableOpacity
+                    style={[
+                        styles.folderChip,
+                        {
+                            backgroundColor: selectedFolder === null ? theme.colors.primary : theme.colors.backgroundSecondary,
+                            borderColor: selectedFolder === null ? theme.colors.primary : theme.colors.border,
+                        },
+                    ]}
+                    onPress={() => setSelectedFolder(null)}
+                >
+                    <Text
+                        className="text-sm font-medium"
+                        style={{ color: selectedFolder === null ? '#fff' : theme.colors.text }}
+                    >
+                        {t('saved.allBookmarks', 'All')}
+                    </Text>
+                </TouchableOpacity>
+
+                {folders.map((folder) => (
+                    <TouchableOpacity
+                        key={folder}
+                        style={[
+                            styles.folderChip,
+                            {
+                                backgroundColor: selectedFolder === folder ? theme.colors.primary : theme.colors.backgroundSecondary,
+                                borderColor: selectedFolder === folder ? theme.colors.primary : theme.colors.border,
+                            },
+                        ]}
+                        onPress={() => setSelectedFolder(folder)}
+                    >
+                        <Text
+                            className="text-sm font-medium"
+                            style={{ color: selectedFolder === folder ? '#fff' : theme.colors.text }}
+                        >
+                            {folder}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+
+                <TouchableOpacity
+                    style={[styles.folderChip, { borderColor: theme.colors.border, backgroundColor: 'transparent' }]}
+                    onPress={() => setShowNewFolderModal(true)}
+                >
+                    <Ionicons name="add" size={16} color={theme.colors.primary} />
+                    <Text className="text-sm font-medium text-primary">
+                        {t('saved.newFolder', 'New')}
+                    </Text>
+                </TouchableOpacity>
+            </ScrollView>
+
+            {loading && (
+                <View className="items-center justify-center pt-[60px]">
+                    <Loading className="text-primary" size="large" />
+                </View>
+            )}
+
+            {!loading && posts.length === 0 && (
+                <EmptyState
+                    title={searchQuery.trim()
+                        ? t("search.noResults", "No results found")
+                        : t("search.startSearching", "No saved posts yet")}
+                    customIcon={searchQuery.trim()
+                        ? <Search size={48} className="text-muted-foreground" />
+                        : <Bookmark size={48} className="text-muted-foreground" />
+                    }
+                    containerStyle={{ paddingTop: 60 }}
+                />
+            )}
+
+            {!loading && posts.length > 0 && posts.map((post) => (
+                <Pressable
+                    key={post.id}
+                    onLongPress={() => handleLongPress(post.id)}
+                    delayLongPress={500}
+                >
+                    <PostItem post={post} />
+                </Pressable>
+            ))}
+        </>
+    );
+
     return (
         <>
             <SEO
                 title={t('seo.saved.title')}
                 description={t('seo.saved.description')}
             />
-            <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-                <Stack.Screen
-                    options={{
-                        title: t('screens.saved.title'),
-                        headerShown: true,
-                    }}
-                />
+            {/* SafeAreaView (top) + PanelStickyHeader own the panel/safe-area insets
+                — the same chrome the home, notifications and hashtag screens use — so
+                the header pins correctly inside the rounded panel on desktop web,
+                collapses its gutter at mobile/full-bleed width, and reserves the
+                status-bar inset on native. No hand-rolled `paddingTop: insets.top`. */}
+            <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+                <ThemedView className="flex-1">
+                    <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                <View className="flex-row items-center px-4 py-2 mx-4 my-2 rounded-3xl bg-secondary">
-                    <View className="mr-2">
-                        <Search
-                            size={20}
-                            className="text-muted-foreground"
+                    {/* Title header pinned inside the rounded panel via
+                        PanelStickyHeader. The saved-posts list is document-scroll on
+                        web, so the header must pin at PANEL_TOP_INSET (not top:0,
+                        where the bleed mask would clip it). `disableSticky` hands
+                        sticky ownership to PanelStickyHeader. */}
+                    <PanelStickyHeader level={0}>
+                        <Header
+                            options={{
+                                title: t('screens.saved.title'),
+                                showBackButton: false,
+                            }}
+                            disableSticky
                         />
-                    </View>
-                    <TextInput
-                        className="flex-1 text-base py-2 text-foreground"
-                        placeholder={t("search.placeholder", "Search saved posts...")}
-                        placeholderTextColor={theme.colors.textSecondary}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity onPress={() => setSearchQuery("")}>
-                            <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
+                    </PanelStickyHeader>
+
+                    {/* The body participates in the shared layout scroll: on web it
+                        flows in the document (the body is the scroller — no inner
+                        scroll container), on native the screen owns a single
+                        ScrollView. Mirrors the home/profile scroll ownership. */}
+                    {IS_WEB ? (
+                        <View>{body}</View>
+                    ) : (
+                        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+                            {body}
+                        </ScrollView>
                     )}
-                </View>
-
-                {/* Folder chips */}
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.folderScrollContainer}
-                    contentContainerStyle={styles.folderScrollContent}
-                >
-                    <TouchableOpacity
-                        style={[
-                            styles.folderChip,
-                            {
-                                backgroundColor: selectedFolder === null ? theme.colors.primary : theme.colors.backgroundSecondary,
-                                borderColor: selectedFolder === null ? theme.colors.primary : theme.colors.border,
-                            },
-                        ]}
-                        onPress={() => setSelectedFolder(null)}
-                    >
-                        <Text
-                            className="text-sm font-medium"
-                            style={{ color: selectedFolder === null ? '#fff' : theme.colors.text }}
-                        >
-                            {t('saved.allBookmarks', 'All')}
-                        </Text>
-                    </TouchableOpacity>
-
-                    {folders.map((folder) => (
-                        <TouchableOpacity
-                            key={folder}
-                            style={[
-                                styles.folderChip,
-                                {
-                                    backgroundColor: selectedFolder === folder ? theme.colors.primary : theme.colors.backgroundSecondary,
-                                    borderColor: selectedFolder === folder ? theme.colors.primary : theme.colors.border,
-                                },
-                            ]}
-                            onPress={() => setSelectedFolder(folder)}
-                        >
-                            <Text
-                                className="text-sm font-medium"
-                                style={{ color: selectedFolder === folder ? '#fff' : theme.colors.text }}
-                            >
-                                {folder}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-
-                    <TouchableOpacity
-                        style={[styles.folderChip, { borderColor: theme.colors.border, backgroundColor: 'transparent' }]}
-                        onPress={() => setShowNewFolderModal(true)}
-                    >
-                        <Ionicons name="add" size={16} color={theme.colors.primary} />
-                        <Text className="text-sm font-medium text-primary">
-                            {t('saved.newFolder', 'New')}
-                        </Text>
-                    </TouchableOpacity>
-                </ScrollView>
-
-                <ScrollView className="flex-1">
-                    {loading && (
-                        <View className="flex-1 items-center justify-center pt-[60px]">
-                            <Loading className="text-primary" size="large" />
-                        </View>
-                    )}
-
-                    {!loading && posts.length === 0 && (
-                        <EmptyState
-                            title={searchQuery.trim()
-                                ? t("search.noResults", "No results found")
-                                : t("search.startSearching", "No saved posts yet")}
-                            customIcon={searchQuery.trim()
-                                ? <Search size={48} className="text-muted-foreground" />
-                                : <Bookmark size={48} className="text-muted-foreground" />
-                            }
-                            containerStyle={{ flex: 1, paddingTop: 60 }}
-                        />
-                    )}
-
-                    {!loading && posts.length > 0 && (
-                        <View className="flex-1">
-                            {posts.map((post) => (
-                                <Pressable
-                                    key={post.id}
-                                    onLongPress={() => handleLongPress(post.id)}
-                                    delayLongPress={500}
-                                >
-                                    <PostItem post={post} />
-                                </Pressable>
-                            ))}
-                        </View>
-                    )}
-                </ScrollView>
-            </ThemedView>
+                </ThemedView>
+            </SafeAreaView>
 
             {/* New Folder Modal */}
             <Modal visible={showNewFolderModal} transparent animationType="fade">

@@ -24,6 +24,8 @@ import { labelerService, type LabelDefinition } from '@/services/labelerService'
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 
+const IS_WEB = Platform.OS === 'web';
+
 interface Labeler {
   _id: string;
   id?: string;
@@ -298,6 +300,24 @@ const LabelersScreen: React.FC = () => {
       {loading ? (
         <View className="flex-1 justify-center items-center">
           <Loading className="text-primary" size="large" />
+        </View>
+      ) : IS_WEB ? (
+        // WEB: the document (body) is the scroller — the shell owns scroll, so
+        // the list renders in normal flow. A FlatList here would nest a second
+        // scroll container inside the ContentPanel and break the sticky side
+        // rails, window scroll-restoration and bottom-bar auto-hide. The `gap-2`
+        // reproduces the native ItemSeparatorComponent spacing.
+        <View className="p-4 pt-2 gap-2">
+          {labelers.length === 0
+            ? ListEmpty()
+            : labelers.map((item) => (
+                <LabelerCard
+                  key={keyExtractor(item)}
+                  labeler={item}
+                  onSubscribeToggle={handleSubscribeToggle}
+                  subscribing={subscribingIds.has(String(item._id || item.id))}
+                />
+              ))}
         </View>
       ) : (
         <FlatList

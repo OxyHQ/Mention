@@ -28,6 +28,22 @@ bun run clean               # Remove all node_modules
 
 Run backend tests from the package root: `cd packages/backend && bun run test` (running from the repo root picks up stale `.dist` copies → false failures).
 
+## Local Android device build
+
+To produce a TRUE standalone release APK (no Metro / no Expo DevLauncher) for on-device testing:
+
+```bash
+cd packages/frontend/android
+NODE_ENV=production ./gradlew :app:assembleRelease \
+  -x lintVitalRelease \
+  -PreactNativeArchitectures=arm64-v8a \
+  -Dorg.gradle.jvmargs="-Xmx8g -XX:MaxMetaspaceSize=1g"
+```
+
+- **`NODE_ENV=production` is REQUIRED.** Without it the `export:embed` Gradle task aborts ("NODE_ENV environment variable is required but was not specified") and the APK ships with NO embedded `assets/index.android.bundle` — it becomes a dev-client build that shows Expo DevLauncherActivity and needs a running Metro server. With it, the JS bundle embeds and the app opens standalone. Verify: `unzip -l app-release.apk | grep index.android.bundle`.
+- **Build arm64-only** (`-PreactNativeArchitectures=arm64-v8a`): the multi-ABI build fails at `:app:buildCMakeRelWithDebInfo[x86]`, and test devices (Pixel) are arm64. `-Xmx8g` avoids R8/native OOM.
+- **Metro dev builds** (not release): Metro MUST run from `packages/frontend`, NOT the monorepo root. From the root, Expo resolves the legacy `expo/AppEntry` entry (imports a non-existent `App`) instead of `expo-router/entry`, returning HTTP 500 and crashing the app on load.
+
 ## Architecture
 
 Monorepo using Bun workspaces.

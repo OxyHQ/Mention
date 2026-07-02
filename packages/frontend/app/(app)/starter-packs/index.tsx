@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, TouchableOpacity, Text, ScrollView } from 'react-native';
+import { View, TouchableOpacity, Text, ScrollView, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -12,6 +12,8 @@ import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } fr
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 import { EmptyState } from '@/components/common/EmptyState';
+
+const IS_WEB = Platform.OS === 'web';
 
 export default function StarterPacksScreen() {
   const { t } = useTranslation();
@@ -37,6 +39,56 @@ export default function StarterPacksScreen() {
     useCallback(() => {
       load();
     }, [load])
+  );
+
+  // Directory body — identical on both platforms; only the scroll host differs.
+  const content = loading ? (
+    <View className="px-1 gap-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <View key={i} className="px-3">
+          <StarterPackCardSkeleton />
+        </View>
+      ))}
+    </View>
+  ) : myPacks.length === 0 ? (
+    <EmptyState
+      title="No starter packs yet"
+      subtitle="Create a starter pack to help others discover great accounts"
+      icon={{
+        name: 'rocket-outline',
+        size: 48,
+      }}
+      action={{
+        label: t('starterPacks.create'),
+        onPress: () => router.push('/starter-packs/create'),
+      }}
+      containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
+    />
+  ) : (
+    <View className="px-1">
+      {myPacks.map((p: StarterPackSummary) => {
+        const memberCount = p.memberCount ?? (p.memberOxyUserIds || []).length;
+        const cardData: StarterPackCardData = {
+          id: String(p._id || p.id),
+          name: p.name || 'Untitled Pack',
+          description: p.description,
+          creator: p.creator || p.owner,
+          memberCount,
+          useCount: p.useCount || 0,
+          memberAvatars: p.memberAvatars ?? [],
+          totalMembers: memberCount,
+        };
+
+        return (
+          <View key={String(p._id || p.id)} className="px-3 mb-2">
+            <StarterPackCard
+              pack={cardData}
+              onPress={() => router.push(`/starter-packs/${p._id || p.id}`)}
+            />
+          </View>
+        );
+      })}
+    </View>
   );
 
   return (
@@ -66,56 +118,18 @@ export default function StarterPacksScreen() {
         disableSticky={true}
         />
 
-        <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
-          {loading ? (
-            <View className="px-1 gap-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <View key={i} className="px-3">
-                  <StarterPackCardSkeleton />
-                </View>
-              ))}
-            </View>
-          ) : myPacks.length === 0 ? (
-            <EmptyState
-              title="No starter packs yet"
-              subtitle="Create a starter pack to help others discover great accounts"
-              icon={{
-                name: 'rocket-outline',
-                size: 48,
-              }}
-              action={{
-                label: t('starterPacks.create'),
-                onPress: () => router.push('/starter-packs/create'),
-              }}
-              containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
-            />
-          ) : (
-            <View className="px-1">
-              {myPacks.map((p: StarterPackSummary) => {
-                const memberCount = p.memberCount ?? (p.memberOxyUserIds || []).length;
-                const cardData: StarterPackCardData = {
-                  id: String(p._id || p.id),
-                  name: p.name || 'Untitled Pack',
-                  description: p.description,
-                  creator: p.creator || p.owner,
-                  memberCount,
-                  useCount: p.useCount || 0,
-                  memberAvatars: p.memberAvatars ?? [],
-                  totalMembers: memberCount,
-                };
-
-                return (
-                  <View key={String(p._id || p.id)} className="px-3 mb-2">
-                    <StarterPackCard
-                      pack={cardData}
-                      onPress={() => router.push(`/starter-packs/${p._id || p.id}`)}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
+        {/* WEB: the document (body) is the scroller — the shell owns scroll, so
+            the directory renders in normal flow. A ScrollView here would nest a
+            second scroll container inside the ContentPanel and break the sticky
+            side rails, window scroll-restoration and bottom-bar auto-hide.
+            NATIVE: a ScrollView is the correct screen scroller. */}
+        {IS_WEB ? (
+          <View className="px-3 pt-2.5">{content}</View>
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
+            {content}
+          </ScrollView>
+        )}
       </ThemedView>
     </>
   );

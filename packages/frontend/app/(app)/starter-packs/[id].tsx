@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -122,6 +122,97 @@ export default function StarterPackDetailScreen() {
   // All member ids; the FollowButton drops the viewer's own id and dedupes.
   const followAllUserIds = useMemo(() => members.map((m) => m.id), [members]);
 
+  const packBody = pack ? (
+    <>
+      {/* Hero section with grouped member avatars */}
+      <View className="items-center px-6 pt-6 pb-4 gap-4">
+        {avatarItems.length > 0 ? (
+          <AvatarGroup items={avatarItems} size={56} max={8} total={members.length} />
+        ) : (
+          <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
+            <Ionicons name="rocket-outline" size={32} color={theme.colors.primary} />
+          </View>
+        )}
+
+        <ThemedText className="text-[22px] font-bold text-center" numberOfLines={2}>
+          {pack.name}
+        </ThemedText>
+
+        {pack.description && (
+          <ThemedText className="text-[15px] leading-[22px] text-center text-muted-foreground">
+            {pack.description}
+          </ThemedText>
+        )}
+
+        <ThemedText className="text-sm text-muted-foreground">
+          {members.length} {members.length === 1 ? 'account' : 'accounts'}
+          {pack.useCount > 0
+            ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
+            : ''}
+        </ThemedText>
+
+        {/* Follow-all: multi-mode FollowButton drops the viewer's own id,
+            self-gates on private-API readiness, and records pack usage on
+            success. Renders null when no other members remain. */}
+        <FollowButton
+          userIds={followAllUserIds}
+          size="large"
+          followAllLabel="Follow all"
+          followedAllLabel="Following all"
+          onBulkFollow={handleBulkFollow}
+          style={styles.followAllButton}
+        />
+
+        {/* Joined count — only show for popular packs (>= 50) */}
+        {pack.useCount >= 50 && (
+          <View className="flex-row items-center gap-1.5 mt-1">
+            <Ionicons name="trending-up" size={14} color={theme.colors.textSecondary} />
+            <ThemedText className="text-sm font-semibold text-muted-foreground">
+              {formatCompactNumber(pack.useCount)} joined
+            </ThemedText>
+          </View>
+        )}
+      </View>
+
+      {/* Member list */}
+      <View className="px-4 pt-2 pb-8">
+        <ThemedText className="text-base font-bold mb-3">
+          Accounts in this pack
+        </ThemedText>
+        {members.map((m) => (
+            <TouchableOpacity
+              key={m.id}
+              className="flex-row items-center py-3 border-b border-border gap-3"
+              onPress={() => {
+                const handle = getNormalizedUserHandle({ username: m.username });
+                if (handle) {
+                  router.push(`/@${handle}`);
+                }
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${m.displayName}, @${m.username}`}>
+              <Avatar source={m.avatar} size={44} />
+              <View className="flex-1 gap-0.5">
+                <ThemedText
+                  className="text-[15px] font-semibold"
+                  numberOfLines={1}>
+                  {m.displayName}
+                </ThemedText>
+                <ThemedText
+                  className="text-sm text-muted-foreground"
+                  numberOfLines={1}>
+                  @{m.username}
+                </ThemedText>
+              </View>
+              {/* Per-member follow; FollowButton returns null on the viewer's own row. */}
+              <FollowButton userId={m.id} size="small" />
+            </TouchableOpacity>
+          ))}
+      </View>
+    </>
+  ) : null;
+
   return (
     <>
       <SEO
@@ -164,94 +255,14 @@ export default function StarterPackDetailScreen() {
             <SpinnerIcon size={28} className="text-primary" />
           </View>
         ) : pack ? (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Hero section with grouped member avatars */}
-            <View className="items-center px-6 pt-6 pb-4 gap-4">
-              {avatarItems.length > 0 ? (
-                <AvatarGroup items={avatarItems} size={56} max={8} total={members.length} />
-              ) : (
-                <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
-                  <Ionicons name="rocket-outline" size={32} color={theme.colors.primary} />
-                </View>
-              )}
-
-              <ThemedText className="text-[22px] font-bold text-center" numberOfLines={2}>
-                {pack.name}
-              </ThemedText>
-
-              {pack.description && (
-                <ThemedText className="text-[15px] leading-[22px] text-center text-muted-foreground">
-                  {pack.description}
-                </ThemedText>
-              )}
-
-              <ThemedText className="text-sm text-muted-foreground">
-                {members.length} {members.length === 1 ? 'account' : 'accounts'}
-                {pack.useCount > 0
-                  ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
-                  : ''}
-              </ThemedText>
-
-              {/* Follow-all: multi-mode FollowButton drops the viewer's own id,
-                  self-gates on private-API readiness, and records pack usage on
-                  success. Renders null when no other members remain. */}
-              <FollowButton
-                userIds={followAllUserIds}
-                size="large"
-                followAllLabel="Follow all"
-                followedAllLabel="Following all"
-                onBulkFollow={handleBulkFollow}
-                style={styles.followAllButton}
-              />
-
-              {/* Joined count — only show for popular packs (>= 50) */}
-              {pack.useCount >= 50 && (
-                <View className="flex-row items-center gap-1.5 mt-1">
-                  <Ionicons name="trending-up" size={14} color={theme.colors.textSecondary} />
-                  <ThemedText className="text-sm font-semibold text-muted-foreground">
-                    {formatCompactNumber(pack.useCount)} joined
-                  </ThemedText>
-                </View>
-              )}
-            </View>
-
-            {/* Member list */}
-            <View className="px-4 pt-2 pb-8">
-              <ThemedText className="text-base font-bold mb-3">
-                Accounts in this pack
-              </ThemedText>
-              {members.map((m) => (
-                  <TouchableOpacity
-                    key={m.id}
-                    className="flex-row items-center py-3 border-b border-border gap-3"
-                    onPress={() => {
-                      const handle = getNormalizedUserHandle({ username: m.username });
-                      if (handle) {
-                        router.push(`/@${handle}`);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${m.displayName}, @${m.username}`}>
-                    <Avatar source={m.avatar} size={44} />
-                    <View className="flex-1 gap-0.5">
-                      <ThemedText
-                        className="text-[15px] font-semibold"
-                        numberOfLines={1}>
-                        {m.displayName}
-                      </ThemedText>
-                      <ThemedText
-                        className="text-sm text-muted-foreground"
-                        numberOfLines={1}>
-                        @{m.username}
-                      </ThemedText>
-                    </View>
-                    {/* Per-member follow; FollowButton returns null on the viewer's own row. */}
-                    <FollowButton userId={m.id} size="small" />
-                  </TouchableOpacity>
-                ))}
-            </View>
-          </ScrollView>
+          // WEB hands scroll to the shared panel/document (no nested scroller that
+          // would break sticky rails + window scroll restoration); NATIVE keeps a
+          // ScrollView as the screen's scroller — the standard RN idiom.
+          Platform.OS === 'web' ? (
+            <View>{packBody}</View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>{packBody}</ScrollView>
+          )
         ) : null}
       </ThemedView>
     </>

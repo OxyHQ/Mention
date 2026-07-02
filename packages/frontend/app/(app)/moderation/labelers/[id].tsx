@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -293,6 +294,148 @@ const LabelerDetailScreen: React.FC = () => {
     );
   }
 
+  const body = (
+    <>
+      {/* Hero card */}
+      <View className="rounded-2xl p-4 gap-3 bg-secondary">
+        <View className="flex-row items-center gap-2 flex-wrap">
+          <Text className="text-xl font-bold text-foreground">{labeler.name}</Text>
+          {labeler.isOfficial && (
+            <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
+              <Ionicons name="shield-checkmark" size={10} color="#fff" />
+              <Text className="text-white text-[10px] font-bold">
+                {t('labelers.official', { defaultValue: 'Official' })}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {!!labeler.description && (
+          <Text className="text-[15px] leading-[22px] text-muted-foreground">
+            {labeler.description}
+          </Text>
+        )}
+
+        <View className="flex-row flex-wrap gap-3">
+          <View className="flex-row items-center gap-1">
+            <Ionicons name="people-outline" size={14} color={theme.colors.textSecondary} />
+            <Text className="text-[13px] text-muted-foreground">
+              {labeler.subscriberCount}{' '}
+              {t('labelers.subscribers', { defaultValue: 'subscribers' })}
+            </Text>
+          </View>
+
+          {!!creatorName && (
+            <View className="flex-row items-center gap-1">
+              <Ionicons name="person-outline" size={14} color={theme.colors.textSecondary} />
+              <Text className="text-[13px] text-muted-foreground">
+                {t('labelers.by', { defaultValue: 'by' })} {creatorName}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.subscribeBtn,
+            labeler.isSubscribed
+              ? { borderColor: theme.colors.border, backgroundColor: 'transparent', borderWidth: 1 }
+              : { backgroundColor: theme.colors.primary },
+          ]}
+          onPress={handleSubscribeToggle}
+          disabled={subscribing}
+          activeOpacity={0.7}
+        >
+          {subscribing ? (
+            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+          ) : (
+            <Text
+              className={cn(
+                "text-[15px] font-semibold",
+                labeler.isSubscribed ? "text-foreground" : "text-white"
+              )}
+            >
+              {labeler.isSubscribed
+                ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
+                : t('labelers.subscribe', { defaultValue: 'Subscribe' })}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Label definitions section */}
+      {(labeler.labelDefinitions?.length ?? 0) > 0 && (
+        <>
+          <Text className="text-[13px] font-semibold uppercase tracking-wide mt-4 mb-1 px-1 text-muted-foreground">
+            {t('labelers.labelDefinitions', { defaultValue: 'Label Definitions' })}
+          </Text>
+
+          <View className="rounded-2xl p-4 gap-3 bg-secondary">
+            {(labeler.labelDefinitions ?? []).map((ld, index) => {
+              const severity: Severity = ld.severity ?? 'low';
+              const currentAction: LabelAction = labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';
+
+              return (
+                <React.Fragment key={ld.slug}>
+                  {index > 0 && (
+                    <View
+                      style={[styles.separator, { backgroundColor: theme.colors.border }]}
+                    />
+                  )}
+                  <View className="gap-1.5">
+                    <View className="flex-row items-center justify-between gap-2">
+                      <Text className="text-[15px] font-semibold flex-1 text-foreground">
+                        {ld.name}
+                      </Text>
+                      <View className="flex-row gap-1.5 items-center">
+                        <SeverityBadge severity={severity} />
+                        {ld.defaultAction && (
+                          <View
+                            style={[
+                              styles.badge,
+                              {
+                                backgroundColor: `${theme.colors.primary}15`,
+                                borderColor: `${theme.colors.primary}40`,
+                              },
+                            ]}
+                          >
+                            <Text className="text-[11px] font-semibold text-primary">
+                              {ld.defaultAction}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    <Text className="text-xs font-mono text-muted-foreground" numberOfLines={1}>
+                      {ld.slug}
+                    </Text>
+
+                    {!!ld.description && (
+                      <Text className="text-[13px] leading-[18px] text-muted-foreground">
+                        {ld.description}
+                      </Text>
+                    )}
+
+                    <ActionChips
+                      labelSlug={ld.slug}
+                      labelerId={labelerId}
+                      currentAction={currentAction}
+                      isSubscribed={!!labeler.isSubscribed}
+                      onActionChange={handleActionChange}
+                    />
+                  </View>
+                </React.Fragment>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      <View className="h-10" />
+    </>
+  );
+
   return (
     <ThemedView className="flex-1">
       <Header
@@ -308,155 +451,26 @@ const LabelerDetailScreen: React.FC = () => {
         disableSticky
       />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-      >
-        {/* Hero card */}
-        <View className="rounded-2xl p-4 gap-3 bg-secondary">
-          <View className="flex-row items-center gap-2 flex-wrap">
-            <Text className="text-xl font-bold text-foreground">{labeler.name}</Text>
-            {labeler.isOfficial && (
-              <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
-                <Ionicons name="shield-checkmark" size={10} color="#fff" />
-                <Text className="text-white text-[10px] font-bold">
-                  {t('labelers.official', { defaultValue: 'Official' })}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {!!labeler.description && (
-            <Text className="text-[15px] leading-[22px] text-muted-foreground">
-              {labeler.description}
-            </Text>
-          )}
-
-          <View className="flex-row flex-wrap gap-3">
-            <View className="flex-row items-center gap-1">
-              <Ionicons name="people-outline" size={14} color={theme.colors.textSecondary} />
-              <Text className="text-[13px] text-muted-foreground">
-                {labeler.subscriberCount}{' '}
-                {t('labelers.subscribers', { defaultValue: 'subscribers' })}
-              </Text>
-            </View>
-
-            {!!creatorName && (
-              <View className="flex-row items-center gap-1">
-                <Ionicons name="person-outline" size={14} color={theme.colors.textSecondary} />
-                <Text className="text-[13px] text-muted-foreground">
-                  {t('labelers.by', { defaultValue: 'by' })} {creatorName}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.subscribeBtn,
-              labeler.isSubscribed
-                ? { borderColor: theme.colors.border, backgroundColor: 'transparent', borderWidth: 1 }
-                : { backgroundColor: theme.colors.primary },
-            ]}
-            onPress={handleSubscribeToggle}
-            disabled={subscribing}
-            activeOpacity={0.7}
-          >
-            {subscribing ? (
-              <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-            ) : (
-              <Text
-                className={cn(
-                  "text-[15px] font-semibold",
-                  labeler.isSubscribed ? "text-foreground" : "text-white"
-                )}
-              >
-                {labeler.isSubscribed
-                  ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
-                  : t('labelers.subscribe', { defaultValue: 'Subscribe' })}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Label definitions section */}
-        {(labeler.labelDefinitions?.length ?? 0) > 0 && (
-          <>
-            <Text className="text-[13px] font-semibold uppercase tracking-wide mt-4 mb-1 px-1 text-muted-foreground">
-              {t('labelers.labelDefinitions', { defaultValue: 'Label Definitions' })}
-            </Text>
-
-            <View className="rounded-2xl p-4 gap-3 bg-secondary">
-              {(labeler.labelDefinitions ?? []).map((ld, index) => {
-                const severity: Severity = ld.severity ?? 'low';
-                const currentAction: LabelAction = labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';
-
-                return (
-                  <React.Fragment key={ld.slug}>
-                    {index > 0 && (
-                      <View
-                        style={[styles.separator, { backgroundColor: theme.colors.border }]}
-                      />
-                    )}
-                    <View className="gap-1.5">
-                      <View className="flex-row items-center justify-between gap-2">
-                        <Text className="text-[15px] font-semibold flex-1 text-foreground">
-                          {ld.name}
-                        </Text>
-                        <View className="flex-row gap-1.5 items-center">
-                          <SeverityBadge severity={severity} />
-                          {ld.defaultAction && (
-                            <View
-                              style={[
-                                styles.badge,
-                                {
-                                  backgroundColor: `${theme.colors.primary}15`,
-                                  borderColor: `${theme.colors.primary}40`,
-                                },
-                              ]}
-                            >
-                              <Text className="text-[11px] font-semibold text-primary">
-                                {ld.defaultAction}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-
-                      <Text className="text-xs font-mono text-muted-foreground" numberOfLines={1}>
-                        {ld.slug}
-                      </Text>
-
-                      {!!ld.description && (
-                        <Text className="text-[13px] leading-[18px] text-muted-foreground">
-                          {ld.description}
-                        </Text>
-                      )}
-
-                      <ActionChips
-                        labelSlug={ld.slug}
-                        labelerId={labelerId}
-                        currentAction={currentAction}
-                        isSubscribed={!!labeler.isSubscribed}
-                        onActionChange={handleActionChange}
-                      />
-                    </View>
-                  </React.Fragment>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        <View className="h-10" />
-      </ScrollView>
+      {/* WEB hands scroll to the shared panel/document (no nested scroller that
+          would break sticky rails + window scroll restoration); NATIVE keeps a
+          ScrollView (+ pull-to-refresh) as the screen's scroller. */}
+      {Platform.OS === 'web' ? (
+        <View style={styles.scrollContent}>{body}</View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+            />
+          }
+        >
+          {body}
+        </ScrollView>
+      )}
     </ThemedView>
   );
 };

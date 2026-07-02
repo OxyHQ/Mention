@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, Linking } from 'react-native';
+import { View, Text, ScrollView, Linking, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton, PrimaryButton } from '@/components/ui/Button';
@@ -21,6 +21,38 @@ export default function SubscribeScreen() {
         }
     };
 
+    const body = (
+        <>
+            {/* Hero */}
+            <View className="items-center py-6 mb-4">
+                <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/10 mb-3">
+                    <Icon name="diamond-outline" size={32} className="text-primary" />
+                </View>
+                <Text className="text-xl font-bold text-foreground">
+                    {t('subscribe.headline')}
+                </Text>
+                <Text className="text-sm text-muted-foreground mt-1 text-center">
+                    {t('subscribe.subtitle')}
+                </Text>
+            </View>
+
+            {/* Features */}
+            <SettingsListGroup title={t('subscribe.featuresTitle')}>
+                <SettingsListItem icon={<RowIcon name="language" />} title={t('subscribe.translateFeature')} showChevron={false} />
+                <SettingsListItem icon={<RowIcon name="globe" />} title={t('subscribe.autoTranslateFeature')} showChevron={false} />
+                <SettingsListItem icon={<RowIcon name="sparkles" />} title={t('subscribe.aiFeatures')} showChevron={false} />
+                <SettingsListItem icon={<RowIcon name="shield-checkmark" />} title={t('subscribe.verifiedBadge')} showChevron={false} />
+            </SettingsListGroup>
+
+            {/* CTA */}
+            <View className="px-4 mt-2">
+                <PrimaryButton size="large" onPress={handleSubscribe}>
+                    {t('subscribe.cta')}
+                </PrimaryButton>
+            </View>
+        </>
+    );
+
     return (
         <ThemedView className="flex-1">
             <Header
@@ -36,39 +68,20 @@ export default function SubscribeScreen() {
                 disableSticky
             />
 
-            <ScrollView
-                className="flex-1"
-                contentContainerClassName="px-4 pt-4 pb-8"
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Hero */}
-                <View className="items-center py-6 mb-4">
-                    <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/10 mb-3">
-                        <Icon name="diamond-outline" size={32} className="text-primary" />
-                    </View>
-                    <Text className="text-xl font-bold text-foreground">
-                        {t('subscribe.headline')}
-                    </Text>
-                    <Text className="text-sm text-muted-foreground mt-1 text-center">
-                        {t('subscribe.subtitle')}
-                    </Text>
-                </View>
-
-                {/* Features */}
-                <SettingsListGroup title={t('subscribe.featuresTitle')}>
-                    <SettingsListItem icon={<RowIcon name="language" />} title={t('subscribe.translateFeature')} showChevron={false} />
-                    <SettingsListItem icon={<RowIcon name="globe" />} title={t('subscribe.autoTranslateFeature')} showChevron={false} />
-                    <SettingsListItem icon={<RowIcon name="sparkles" />} title={t('subscribe.aiFeatures')} showChevron={false} />
-                    <SettingsListItem icon={<RowIcon name="shield-checkmark" />} title={t('subscribe.verifiedBadge')} showChevron={false} />
-                </SettingsListGroup>
-
-                {/* CTA */}
-                <View className="px-4 mt-2">
-                    <PrimaryButton size="large" onPress={handleSubscribe}>
-                        {t('subscribe.cta')}
-                    </PrimaryButton>
-                </View>
-            </ScrollView>
+            {/* WEB hands scroll to the shared panel/document (no nested scroller that
+                would break sticky rails + window scroll restoration); NATIVE keeps a
+                ScrollView as the screen's scroller — the standard RN idiom. */}
+            {Platform.OS === 'web' ? (
+                <View className="px-4 pt-4 pb-8">{body}</View>
+            ) : (
+                <ScrollView
+                    className="flex-1"
+                    contentContainerClassName="px-4 pt-4 pb-8"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {body}
+                </ScrollView>
+            )}
         </ThemedView>
     );
 }
