@@ -22,6 +22,11 @@ export class FeedModuleRegistry {
     return this.modules.has(id);
   }
 
+  /** Every registered module, in registration order. */
+  list(): FeedModule[] {
+    return Array.from(this.modules.values());
+  }
+
   /** Resolve a SOURCE module by id, or `undefined` when absent / a different kind. */
   getSource(id: string): SourceModule | undefined {
     const module = this.modules.get(id);
