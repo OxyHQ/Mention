@@ -157,11 +157,13 @@ export class InboxProcessingService {
    * Id-based (redis-cached, fails OPEN on an Oxy outage — correct for
    * inbound activities, same as every other consent read on this path).
    *
-   * Shared by every shared-inbox handler below that targets an EXISTING
-   * post (a reply's parent, a Like/Undo-Like target, an Announce/Undo-Announce
-   * target) so an opted-out user's content stops accruing new engagement
-   * (and existing engagement stops being un-done) the moment sharing is off —
-   * mirroring {@link handleIncomingFollow}'s gate for the Follow case.
+   * Shared by every shared-inbox handler below that creates NEW engagement
+   * against an EXISTING post (a reply's parent, a Like target, an Announce
+   * target) so an opted-out user's content stops accruing engagement the
+   * moment sharing is off — mirroring {@link handleIncomingFollow}'s gate for
+   * the Follow case. Deliberately NOT used by the Undo variants
+   * (`handleUndoLike`, `handleUndoAnnounce`) — see their own doc comments:
+   * an Undo is teardown, not new engagement, and must always converge.
    */
   private async isLocalPostOwnerSharingEnabled(postId: string): Promise<boolean> {
     const post = await Post.findOne(
@@ -318,6 +320,14 @@ export class InboxProcessingService {
    * and move `stats.likesCount` -1 ONLY when a doc was actually removed (floored
    * at 0). Mirrors the native unlike path so the counter stays in lockstep with
    * real records.
+   *
+   * Deliberately NOT gated on the target owner's sharing flag, unlike
+   * `handleLike` — an Undo is teardown, not new engagement. The remote server
+   * sends an Undo exactly once (it never re-sends after a dropped delivery),
+   * and sharing OFF-cleanup only tears down follow edges, not stray Like
+   * rows — so dropping this would leave the row and its counter contribution
+   * permanently orphaned. Mirrors the pre-existing `handleUndo(Follow)`
+   * branch above, which is likewise ungated.
    */
   private async handleUndoLike(likeObject: Record<string, any>, actorUri: string): Promise<void> {
     const likedObjectId = typeof likeObject.object === 'string' ? likeObject.object : likeObject.object?.id;
@@ -325,11 +335,6 @@ export class InboxProcessingService {
 
     const postId = await resolvePostIdFromObjectUri(likedObjectId);
     if (!postId) return;
-
-    if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
-      logger.debug(`[Federation] dropping undo Like from ${actorUri} on ${postId} — target owner has sharing disabled`);
-      return;
-    }
 
     const likerOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!likerOxyUserId) return;
@@ -349,6 +354,13 @@ export class InboxProcessingService {
    * `federation.activityId`, with the boosted-post fallback) and move
    * `stats.boostsCount` -1 ONLY when a boost Post was actually removed (floored
    * at 0).
+   *
+   * Deliberately NOT gated on the target owner's sharing flag, unlike
+   * `handleAnnounce` — see the matching comment on `handleUndoLike` above:
+   * an Undo is teardown, sent exactly once by the remote server, and the
+   * sharing OFF-cleanup job doesn't touch boost rows, so dropping this would
+   * permanently orphan the boost Post and its counter contribution. Mirrors
+   * the pre-existing, likewise-ungated `handleUndo(Follow)` branch.
    */
   private async handleUndoAnnounce(announceObject: Record<string, any>, actorUri: string): Promise<void> {
     const announceId = typeof announceObject.id === 'string' ? announceObject.id : undefined;
@@ -375,11 +387,6 @@ export class InboxProcessingService {
     }
 
     if (!boost?.boostOf) return;
-
-    if (!(await this.isLocalPostOwnerSharingEnabled(boost.boostOf))) {
-      logger.debug(`[Federation] dropping undo Announce from ${actorUri} — target owner has sharing disabled`);
-      return;
-    }
 
     await Post.deleteOne({ _id: boost._id });
     await Post.updateOne(

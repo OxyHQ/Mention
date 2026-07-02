@@ -2,15 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Sharing-consent gate on the shared-inbox handlers that target an EXISTING
- * local post: a reply's parent (`handleCreate`), a Like/Undo-Like target, and
- * an Announce/Undo-Announce target. `handleIncomingFollow`'s gate is covered
- * separately in `inboundFollowBridge.test.ts`.
+ * local post: a reply's parent (`handleCreate`), a Like target
+ * (`handleLike`), and an Announce target (`handleAnnounce`).
+ * `handleIncomingFollow`'s gate is covered separately in
+ * `inboundFollowBridge.test.ts`.
  *
  * Once the target post's LOCAL owner has turned fediverse sharing off, every
- * one of these activities must be dropped silently (debug log, no DB writes,
- * no counter moves) — the account is treated as if it doesn't exist at the
- * protocol layer, mirroring the Follow gate. A REMOTE-owned/mirrored post
- * (`federation != null`) must never be gated — only a real local owner.
+ * one of these NEW-engagement activities must be dropped silently (debug
+ * log, no DB writes, no counter moves) — the account is treated as if it
+ * doesn't exist at the protocol layer, mirroring the Follow gate. A
+ * REMOTE-owned/mirrored post (`federation != null`) must never be gated —
+ * only a real local owner.
+ *
+ * `handleUndoLike` / `handleUndoAnnounce` are deliberately NOT gated (see
+ * their doc comments in `inbox.service.ts`): an Undo is teardown, sent
+ * exactly once by the remote server and never touched by the sharing
+ * OFF-cleanup job, so it must always converge regardless of the current
+ * sharing state — mirroring the pre-existing, likewise-ungated
+ * `handleUndo(Follow)` branch. Covered here as a regression guard.
  *
  * Drives the REAL `InboxProcessingService` (same mocking convention as the
  * sibling `inboundFollowBridge.test.ts` / `inboxOxyUserIdInvariant.test.ts`:
@@ -226,7 +235,7 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
   });
 });
 
-describe('handleLike / handleUndoLike — target owner sharing gate', () => {
+describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owner sharing', () => {
   function likeActivity() {
     return { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: TARGET_POST_URI };
   }
@@ -274,13 +283,22 @@ describe('handleLike / handleUndoLike — target owner sharing gate', () => {
     );
   });
 
-  it('handleUndoLike: no row deleted, no counter move when the owner has sharing disabled', async () => {
+  it('handleUndoLike: still processes the undo (row removed, counter decremented) when the owner has sharing disabled — teardown must converge', async () => {
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(undoLikeActivity(), ACTOR_URI);
 
-    expect(mocks.likeFindOneAndDelete).not.toHaveBeenCalled();
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.likeFindOneAndDelete).toHaveBeenCalledWith({
+      userId: BOOSTER_OXY_ID,
+      postId: TARGET_POST_ID,
+      value: 1,
+    });
+    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
+      { _id: TARGET_POST_ID, 'stats.likesCount': { $gt: 0 } },
+      { $inc: { 'stats.likesCount': -1 } },
+    );
+    // The sharing flag is never even consulted for an Undo.
+    expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
   });
 
   it('is not gated when the target is remote-owned/mirrored (federation != null)', async () => {
@@ -294,7 +312,7 @@ describe('handleLike / handleUndoLike — target owner sharing gate', () => {
   });
 });
 
-describe('handleAnnounce / handleUndoAnnounce — target owner sharing gate', () => {
+describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — target owner sharing', () => {
   function announceActivity() {
     return {
       id: `${ACTOR_URI}/announces/1`,
@@ -341,14 +359,19 @@ describe('handleAnnounce / handleUndoAnnounce — target owner sharing gate', ()
     );
   });
 
-  it('handleUndoAnnounce: no boost removed, no counter move when the owner has sharing disabled', async () => {
-    stubPostFindOne({ boost: { _id: 'boost_1', boostOf: TARGET_POST_ID }, owner: { oxyUserId: OWNER_OXY_ID, federation: null } });
+  it('handleUndoAnnounce: still processes the undo (boost removed, counter decremented) when the owner has sharing disabled — teardown must converge', async () => {
+    stubPostFindOne({ boost: { _id: 'boost_1', boostOf: TARGET_POST_ID } });
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(undoAnnounceActivity(), ACTOR_URI);
 
-    expect(mocks.postDeleteOne).not.toHaveBeenCalled();
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.postDeleteOne).toHaveBeenCalledWith({ _id: 'boost_1' });
+    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
+      { _id: TARGET_POST_ID, 'stats.boostsCount': { $gt: 0 } },
+      { $inc: { 'stats.boostsCount': -1 } },
+    );
+    // The sharing flag is never even consulted for an Undo.
+    expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
   });
 
   it('is not gated when the announced post is remote-owned/mirrored (federation != null)', async () => {
