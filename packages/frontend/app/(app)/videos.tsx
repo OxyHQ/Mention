@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import type { PostActorSummary } from '@mention/shared-types';
 import { cn } from '@/lib/utils';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
@@ -132,13 +133,9 @@ interface RawPost {
 
 interface VideoPost {
     id: string;
-    user: {
-        id: string;
-        displayName: string;
-        handle: string;
-        avatar: string;
-        verified: boolean;
-    };
+    // The already-hydrated author DTO. Fields (`avatarUrl`, `isVerified`, …) are
+    // read straight off the backend contract — never a re-invented parallel shape.
+    user?: PostActorSummary;
     content: {
         text?: string;
         media?: MediaRef[];
@@ -656,9 +653,9 @@ const VideoItem = memo<VideoItemProps>(({
                         <View style={styles.userHeaderRow} pointerEvents="box-none">
                             <Pressable onPress={handleProfilePress} style={styles.userHeader}>
                                 <Avatar
-                                    source={item.user?.avatar}
+                                    source={item.user?.avatarUrl}
                                     size={40}
-                                    verified={item.user?.verified || false}
+                                    verified={item.user?.isVerified || false}
                                     style={styles.userAvatar}
                                 />
                                 <View style={styles.userNameContainer}>
@@ -666,7 +663,7 @@ const VideoItem = memo<VideoItemProps>(({
                                         <Text style={styles.userFullName} numberOfLines={1}>
                                             {userName}
                                         </Text>
-                                        {item.user?.verified && (
+                                        {item.user?.isVerified && (
                                             <Ionicons name="checkmark-circle" size={14} color={VERIFIED_COLOR} style={styles.verifiedIcon} />
                                         )}
                                     </View>
@@ -918,7 +915,7 @@ export default function VideosScreen() {
         return {
             ...post,
             id: String(id),
-            user: post.user as VideoPost['user'],
+            user: post.user,
             content: post.content || {},
             stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
             createdAt: post.createdAt || '',
@@ -1229,9 +1226,9 @@ export default function VideosScreen() {
         try {
             const postUrl = `https://mention.earth/p/${post.id}`;
             const contentText = post?.content?.text || '';
-            const user = post?.user || ({} as VideoPost['user']);
-            const name = user.displayName ?? t('common.someone');
-            const handle = user.handle || '';
+            const user = post?.user;
+            const name = user?.displayName ?? t('common.someone');
+            const handle = user?.handle || '';
             const shareMessage = contentText
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
                 : `${name}${handle ? ` (@${handle})` : ''} ${t('videos.shared_a_post')}`;
