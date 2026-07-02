@@ -115,6 +115,7 @@ interface MediaRef {
     url?: string;
     thumbUrl?: string;
     posterUrl?: string;
+    hlsUrl?: string;
     type?: 'image' | 'video' | 'gif';
 }
 
@@ -141,6 +142,10 @@ interface VideoPost {
         media?: MediaRef[];
     };
     videoUrl: string;
+    // The raw (non-HLS) original URL, always playable. `videoUrl` prefers the
+    // adaptive HLS stream when present; `ActiveVideoSurface` retries with this
+    // exactly once if the preferred source errors (e.g. HLS not transcoded yet).
+    fallbackVideoUrl?: string;
     posterUrl?: string;
     stats: {
         likesCount: number;
@@ -865,17 +870,25 @@ export default function VideosScreen() {
         [insets.bottom]
     );
 
-    // Resolve a playable absolute URL. The backend now returns a FINAL `url`
-    // (our CDN/media-proxy or remote), so we use it directly. Fall back to the
-    // legacy client resolution only when `url` is absent (old cached responses):
-    // an http id passes through the proxy; an Oxy file id resolves via the SDK.
-    const resolveVideoUrl = useCallback((ref: MediaRef): string => {
+    // The raw/original URL — always playable, used as `fallbackVideoUrl`.
+    // Unchanged from before this HLS work; every existing resolution path
+    // (server `url`, http passthrough via proxy, legacy client-side Oxy
+    // resolution) is preserved exactly.
+    const resolveFallbackVideoUrl = useCallback((ref: MediaRef): string => {
         if (ref?.url) return ref.url;
         const raw = ref?.id || '';
         if (!raw) return '';
         if (raw.startsWith('http')) return proxyExternalUrl(raw);
         return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
     }, [oxyServices]);
+
+    // Preferred playback URL: the adaptive HLS stream when the server resolved
+    // one (native video only — federated media never has `hlsUrl`), else the
+    // same raw/original URL `resolveFallbackVideoUrl` would return.
+    const resolveVideoUrl = useCallback((ref: MediaRef): string => {
+        if (ref?.hlsUrl) return ref.hlsUrl;
+        return resolveFallbackVideoUrl(ref);
+    }, [resolveFallbackVideoUrl]);
 
     // Resolve a static poster. Prefer the server-resolved final `posterUrl`
     // (fallback `thumbUrl`); fall back to the legacy client resolver from the RAW
@@ -908,6 +921,8 @@ export default function VideosScreen() {
 
         const videoUrl = resolveVideoUrl(selected);
         if (!videoUrl) return null;
+        const rawFallback = resolveFallbackVideoUrl(selected);
+        const fallbackVideoUrl = rawFallback && rawFallback !== videoUrl ? rawFallback : undefined;
 
         const id = post?.id || post?._id;
         if (!id) return null;
@@ -920,9 +935,10 @@ export default function VideosScreen() {
             stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
             createdAt: post.createdAt || '',
             videoUrl,
+            fallbackVideoUrl,
             posterUrl: resolvePosterUrl(selected),
         };
-    }, [resolveVideoUrl, resolvePosterUrl]);
+    }, [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl]);
 
     const filterVideoPosts = useCallback((allPosts: RawPost[]): VideoPost[] => {
         const out: VideoPost[] = [];
