@@ -152,6 +152,21 @@ describe('resolveMediaItems', () => {
     expect(items[0].fullUrl).toBeUndefined();
   });
 
+  it('resolves the hls_master variant as hlsUrl for a native Oxy video', () => {
+    const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].hlsUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=hls_master`);
+    expect(getFileDownloadUrl).toHaveBeenCalledWith('video-file', 'hls_master');
+  });
+
+  it('does not populate hlsUrl for a federated (absolute-URL) video item', () => {
+    const items = resolveMediaItems([{ id: 'https://external.test/v.mp4', type: 'video' }]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].hlsUrl).toBeUndefined();
+  });
+
   it('drops items without an id and tolerates empty input', () => {
     expect(resolveMediaItems([])).toEqual([]);
     expect(resolveMediaItems(undefined)).toEqual([]);

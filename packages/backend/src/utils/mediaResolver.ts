@@ -210,6 +210,11 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
       if (item.type === 'video' && !isAbsoluteHttpUrl(item.id)) {
         try {
           const posterUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_AVATAR);
+          // Adaptive-bitrate HLS master playlist. NOT guaranteed to exist yet
+          // (background transcode is fire-and-forget on upload) — the frontend
+          // player MUST fall back to `url` (the raw original) on a playback
+          // error. See MediaItem.hlsUrl's doc comment for the full contract.
+          const hlsUrl = getServiceOxyClient().getFileDownloadUrl(item.id, 'hls_master');
           return {
             id: item.id,
             type: item.type,
@@ -217,6 +222,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
             url: resolved.url || undefined,
             thumbUrl: posterUrl,
             posterUrl,
+            hlsUrl,
           };
         } catch (error) {
           logger.warn('[mediaResolver] Failed to resolve video poster; falling back to media ref:', error);
