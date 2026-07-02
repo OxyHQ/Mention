@@ -10,5 +10,6 @@ export function useExpandableText(text: string, maxChars: number) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { displayText, isTruncated } = computeExpandableText(text, maxChars, isExpanded);
   const toggle = useCallback(() => setIsExpanded((prev) => !prev), []);
-  return { displayText, isTruncated, isExpanded, toggle };
+  const collapse = useCallback(() => setIsExpanded(false), []);
+  return { displayText, isTruncated, isExpanded, toggle, collapse };
 }

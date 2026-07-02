@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import LinkifiedText from '../common/LinkifiedText';
 import { useRouter, usePathname } from 'expo-router';
@@ -36,10 +36,19 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars, trans
 
   const isDetailPage = pathname?.startsWith('/p');
   // On the detail page, never truncate — feed it Infinity so the hook is a no-op.
-  const { displayText, isTruncated, isExpanded, toggle } = useExpandableText(
+  const { displayText, isTruncated, isExpanded, toggle, collapse } = useExpandableText(
     textContent,
     isDetailPage ? Infinity : effectivePreviewChars
   );
+
+  // Reset expand state when postReadMoreAction changes (e.g., toggling between
+  // 'expandInline' and 'openPost' in Settings). Use the ref-during-render pattern
+  // from useFederatedFollowSync to avoid useEffect.
+  const prevPostReadMoreActionRef = useRef(postReadMoreAction);
+  if (prevPostReadMoreActionRef.current !== postReadMoreAction) {
+    prevPostReadMoreActionRef.current = postReadMoreAction;
+    collapse();
+  }
 
   if (!textContent) return null;
 
