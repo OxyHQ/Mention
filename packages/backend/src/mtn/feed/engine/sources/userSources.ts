@@ -11,7 +11,6 @@ import UserSettings from '../../../../models/UserSettings';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
-import { logger } from '../../../../utils/logger';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -259,16 +258,33 @@ export const savedSource: SourceModule = {
 };
 
 /**
- * `mutuals`: viewer's mutual-follow authors. Phase 1 PLACEHOLDER returning `[]`
- * (so the token resolves); the real Oxy-backed mutual set lands in Phase 2.
+ * `mutuals`: the viewer's mutual-follow authors, chronological. `ctx.mutualIds`
+ * is populated by the controller (Oxy mutual ids ∪ federated mutuals) only for
+ * the Mutuals feed; returns `[]` when it is empty (any non-Mutuals context, or a
+ * viewer with no mutuals). Mutuals may show PUBLIC + FOLLOWERS_ONLY posts (a
+ * mutual is, by definition, a follower).
  */
 export const mutualsSource: SourceModule = {
   id: 'mutuals',
   kind: 'source',
   userComposable: false,
-  gather: async () => {
-    logger.debug('[mutuals source] placeholder (Phase 2) — returning empty');
-    return [];
+  gather: async (ctx, _params, cap) => {
+    const mutualIds = ctx.mutualIds ?? [];
+    if (mutualIds.length === 0) return [];
+
+    const match: Record<string, unknown> = {
+      oxyUserId: { $in: mutualIds },
+      visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
+      status: 'published',
+    };
+    ChronoCursor.applyToQuery(match, ctx.cursor);
+
+    return (await Post.find(match)
+      .select(FEED_FIELDS)
+      .sort({ _id: -1 })
+      .limit(cap)
+      .maxTimeMS(5000)
+      .lean()) as unknown as CandidatePost[];
   },
 };
 
