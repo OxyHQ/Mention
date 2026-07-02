@@ -418,6 +418,16 @@ export const MtnConfig = {
      */
     dwellSkipThresholdMs: 2000,
     /**
+     * Hard upper bound (ms) on a single impression's client-reported dwell before
+     * it is folded into a post's rolling dwell average. Client telemetry is
+     * UNTRUSTED — an unbounded `durationMs` (a backgrounded tab, a forged report)
+     * would otherwise dominate the average and let a caller pump a post's
+     * `dwellTime` ranking signal. Clamped in `FeedInteractionTracker` before
+     * `recordDwell`. 5 minutes — generous for a genuine read, small enough that a
+     * forged sample cannot swamp the mean.
+     */
+    maxDwellMs: 5 * 60 * 1000,
+    /**
      * SURFACE-AWARE attribution. An engagement's meaning depends on WHERE it
      * happened. A like on the Videos/reels surface means "I like this VIDEO
      * content" (topic + post-type), NOT "I want to follow this author" — reels

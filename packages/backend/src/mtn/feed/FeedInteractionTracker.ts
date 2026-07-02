@@ -6,9 +6,10 @@
  */
 
 import mongoose from 'mongoose';
-import { MtnConfig } from '@mention/shared-types';
+import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { isPostEligibleForViewTelemetry, recordDedupedView } from '../../services/feedViewCounter';
+import { Post } from '../../models/Post';
+import { recordDedupedView } from '../../services/feedViewCounter';
 import { recordDwell } from '../../services/dwellAggregate';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
@@ -61,23 +62,47 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
  * Apply the deduped view-count increment and the UserBehavior learning signal
  * for a feed impression. `postUri` is the local post id (Mongo `_id` string);
  * federated/non-local uris that are not valid ObjectIds are skipped.
+ *
+ * Impression telemetry is CLIENT-controlled, so its side effects are hardened
+ * against ranking manipulation:
+ *   - the post is resolved to a real public+published local post (author
+ *     included) before any side effect runs;
+ *   - a viewer's OWN posts record NO view/dwell/preference learning, so an author
+ *     cannot self-pump their own ranking signals;
+ *   - the dwell sample is CLAMPED to `MtnConfig.preferences.maxDwellMs` and folded
+ *     into the rolling average AT MOST ONCE per (post, viewer) — only when the
+ *     deduped view counted a NEW view — so a forged/repeated impression cannot
+ *     dominate or inflate the average.
+ *
+ * Exported for unit testing; called only by {@link trackFeedInteraction}.
  */
-async function applyImpressionSignals(interaction: FeedInteractionData): Promise<void> {
+export async function applyImpressionSignals(interaction: FeedInteractionData): Promise<void> {
   const postId = interaction.postUri;
   if (!postId || !mongoose.isValidObjectId(postId)) {
     return; // Not a local post id — nothing to count or learn from.
   }
 
   // Client telemetry is untrusted: only derive view/preference side effects for
-  // real public, published local posts. This prevents forged impressions from
-  // mutating stats or learning against private/draft/nonexistent post ids.
-  const eligible = await isPostEligibleForViewTelemetry(postId);
-  if (!eligible) {
+  // real public, published local posts. Resolving the post here also yields its
+  // author, needed for the self-pumping guard below. A single lean read.
+  const post = await Post.findOne(
+    { _id: postId, visibility: PostVisibility.PUBLIC, status: 'published' },
+    { oxyUserId: 1 },
+  ).lean();
+  if (!post) {
     return;
   }
 
-  // 1. Deduped real view count (no-op without Redis / on duplicate).
-  await recordDedupedView(postId, interaction.userId);
+  // Self-pumping guard: a viewer impressing their OWN post must not move any
+  // ranking/learning signal (view count, dwell average, or affinity), otherwise
+  // an author could inflate their own reach by re-viewing their posts.
+  if (post.oxyUserId && post.oxyUserId === interaction.userId) {
+    return;
+  }
+
+  // 1. Deduped real view count. Returns true ONLY for the first view of this
+  //    (post, viewer) pair within the window (no-op without Redis / on duplicate).
+  const countedNewView = await recordDedupedView(postId, interaction.userId);
 
   // 2. UserBehavior signal. A short dwell is a SKIP (negative); a real dwell is
   //    a VIEW (mild positive). The frontend only reports impressions that passed
@@ -91,10 +116,11 @@ async function applyImpressionSignals(interaction: FeedInteractionData): Promise
   });
 
   // 3. Fold the dwell duration into the post's rolling average (opt-in
-  //    `dwellTime` ranking signal). Best-effort; a no-op without a real dwell or
-  //    when Redis is unavailable.
-  if (dwellMs > 0) {
-    await recordDwell(postId, dwellMs);
+  //    `dwellTime` ranking signal). Recorded ONCE per (post, viewer) — gated on
+  //    the deduped view counting a NEW view so repeated impressions can't pump
+  //    the mean — and CLAMPED so one forged sample can't dominate it.
+  if (countedNewView && dwellMs > 0) {
+    await recordDwell(postId, Math.min(dwellMs, MtnConfig.preferences.maxDwellMs));
   }
 }
 
