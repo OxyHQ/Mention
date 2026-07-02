@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -56,6 +56,14 @@ export const ProfileContent = memo(function ProfileContent({
   }) || username;
   const collapseLongBio = useAppearanceStore((s) => s.mySettings?.appearance?.collapseLongBio) ?? true;
   const bioExpand = useExpandableText(profileData.bio ?? '', collapseLongBio ? BIO_COLLAPSE_CHARS : Infinity);
+
+  // Reset expand state when collapseLongBio changes (e.g., toggling in Settings).
+  // Use the ref-during-render pattern to avoid useEffect.
+  const prevCollapseLongBioRef = useRef(collapseLongBio);
+  if (prevCollapseLongBioRef.current !== collapseLongBio) {
+    prevCollapseLongBioRef.current = collapseLongBio;
+    bioExpand.collapse();
+  }
 
   const handleLayout = (event: LayoutChangeEvent) => {
     onLayout?.(event.nativeEvent.layout.height);
