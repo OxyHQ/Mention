@@ -16,6 +16,26 @@ import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { useMentionNode, type MentionNode } from '@/hooks/useMentionNode';
 
+/** Pull a human-readable message off an axios-style mutation error without `as any`. */
+function getNodeErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
+    return response?.data?.error || response?.data?.message || fallback;
+  }
+  return fallback;
+}
+
+/** Inline notice shown when a node mutation (create vault / disconnect) fails. */
+function ActionError({ message }: { message: string }) {
+  const { colors } = useTheme();
+  return (
+    <View className="flex-row gap-2.5 mx-5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.error + '14' }}>
+      <Icon name="alert-circle" size={18} color={colors.error} />
+      <Text className="flex-1 text-[13px] text-foreground">{message}</Text>
+    </View>
+  );
+}
+
 /** Visual treatment for each liveness status — reuses theme status colors. */
 function useStatusVisual(status: MentionNode['status']): {
   label: string;
@@ -86,8 +106,10 @@ export default function MentionNodeScreen() {
     refetch,
     createManagedVault,
     isCreatingVault,
+    createVaultError,
     disconnect,
     isDisconnecting,
+    disconnectError,
   } = useMentionNode();
 
   const header = (
@@ -244,6 +266,17 @@ export default function MentionNodeScreen() {
                 }
               />
             </SettingsListGroup>
+
+            {disconnectError ? (
+              <ActionError
+                message={getNodeErrorMessage(
+                  disconnectError,
+                  t('settings.node.disconnect.error', {
+                    defaultValue: "Couldn't disconnect your node. Please try again.",
+                  }),
+                )}
+              />
+            ) : null}
           </>
         ) : (
           <>
@@ -283,6 +316,17 @@ export default function MentionNodeScreen() {
                 }
               />
             </SettingsListGroup>
+
+            {createVaultError ? (
+              <ActionError
+                message={getNodeErrorMessage(
+                  createVaultError,
+                  t('settings.node.create.error', {
+                    defaultValue: "Couldn't create your managed vault. Please try again.",
+                  }),
+                )}
+              />
+            ) : null}
 
             {/*
               Self-hosting your own node is registered by publishing a signed

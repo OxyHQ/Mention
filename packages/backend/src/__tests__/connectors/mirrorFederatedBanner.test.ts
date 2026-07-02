@@ -101,6 +101,47 @@ describe('mirrorFederatedBanner', () => {
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
 
+  it('swallows a throw from the media persist and reports a transient failure', async () => {
+    // The helper documents itself as best-effort ("failures are logged, not
+    // propagated") — a rejected persist must NOT throw, or on the live path it
+    // would discard an already-successful user resolution.
+    mocks.persistRemoteMedia.mockRejectedValue(new Error('S3 upload timeout'));
+
+    const result = await mirrorFederatedBanner(
+      'https://files.mastodon.social/banner.png',
+      'oxy-user-5',
+      'https://mastodon.social/users/erin',
+    );
+
+    // A throw is treated as transient so the backfill still retries.
+    expect(result).toEqual({ ok: false, permanent: false });
+    expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      'Failed to mirror banner for https://mastodon.social/users/erin',
+      expect.objectContaining({ error: expect.any(Error), remoteHost: 'files.mastodon.social' }),
+    );
+  });
+
+  it('swallows a throw from the UserSettings write after a successful upload', async () => {
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'banner_file_6', contentType: 'image/png', sizeBytes: 1234 },
+    });
+    mocks.userSettingsUpdateOne.mockRejectedValue(new Error('Mongo write conflict'));
+
+    const result = await mirrorFederatedBanner(
+      'https://files.mastodon.social/banner.png',
+      'oxy-user-6',
+      'https://mastodon.social/users/frank',
+    );
+
+    expect(result).toEqual({ ok: false, permanent: false });
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      'Failed to mirror banner for https://mastodon.social/users/frank',
+      expect.objectContaining({ error: expect.any(Error), remoteHost: 'files.mastodon.social' }),
+    );
+  });
+
   it('guards a non-http url as a permanent failure without touching the media path', async () => {
     const result = await mirrorFederatedBanner(
       'data:image/png;base64,iVBORw0KGgo=',

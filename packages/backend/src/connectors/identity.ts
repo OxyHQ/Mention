@@ -116,31 +116,45 @@ export async function mirrorFederatedBanner(
   }
 
   const remoteHost = getRemoteHost(bannerUrl);
-  const result = await persistRemoteMediaForFederatedOwnerDetailed(bannerUrl, oxyUserId, {
-    role: 'banner',
-    actorUri,
-    remoteHost,
-  });
 
-  if (result.ok) {
-    await UserSettings.updateOne(
-      { oxyUserId },
-      { $set: { profileHeaderImage: result.media.oxyFileId } },
-      { upsert: true },
-    );
-    return { ok: true, permanent: false };
-  }
-
-  if (!result.permanent) {
-    // Surface transient failures (bad service credential, upstream 5xx, upload
-    // rejection) at `warn` — a silent `debug` previously hid a total outage where
-    // 0 federated banners were ever stored. Permanently unavailable banners
-    // (dead/oversized/non-image) are expected and stay quiet.
-    logger.warn(`Failed to mirror banner for ${actorUri}`, {
-      reason: result.reason,
+  try {
+    const result = await persistRemoteMediaForFederatedOwnerDetailed(bannerUrl, oxyUserId, {
+      role: 'banner',
+      actorUri,
       remoteHost,
     });
-  }
 
-  return { ok: false, permanent: result.permanent };
+    if (result.ok) {
+      await UserSettings.updateOne(
+        { oxyUserId },
+        { $set: { profileHeaderImage: result.media.oxyFileId } },
+        { upsert: true },
+      );
+      return { ok: true, permanent: false };
+    }
+
+    if (!result.permanent) {
+      // Surface transient failures (bad service credential, upstream 5xx, upload
+      // rejection) at `warn` — a silent `debug` previously hid a total outage where
+      // 0 federated banners were ever stored. Permanently unavailable banners
+      // (dead/oversized/non-image) are expected and stay quiet.
+      logger.warn(`Failed to mirror banner for ${actorUri}`, {
+        reason: result.reason,
+        remoteHost,
+      });
+    }
+
+    return { ok: false, permanent: result.permanent };
+  } catch (bannerErr) {
+    // Honor the documented best-effort contract: a throw from the media persist or
+    // the `UserSettings` write must never propagate. On the live resolution path it
+    // would otherwise reach `resolveOxyExternalUser`'s outer catch and discard an
+    // already-successful user resolution. Treat it as a transient (retryable)
+    // failure so the backfill still retries, and swallow it.
+    logger.warn(`Failed to mirror banner for ${actorUri}`, {
+      error: bannerErr,
+      remoteHost,
+    });
+    return { ok: false, permanent: false };
+  }
 }
