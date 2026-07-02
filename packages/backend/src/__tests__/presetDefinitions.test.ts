@@ -8,8 +8,8 @@ import { resolveDefinition } from '../mtn/feed/definitions/resolveDefinition';
  */
 
 describe('trending definition', () => {
-  it('is a ranked engagement/recency feed over the popular source', () => {
-    const def = resolveDefinition('trending');
+  it('is a ranked engagement/recency feed over the popular source', async () => {
+    const def = await resolveDefinition('trending');
     expect(def).not.toBeNull();
     expect(def!.mode).toBe('ranked');
     expect(def!.sources.map((s) => s.module)).toEqual(['popular']);
@@ -20,8 +20,8 @@ describe('trending definition', () => {
 });
 
 describe('mutuals definition', () => {
-  it('is a chronological single-source mutuals feed with reply context', () => {
-    const def = resolveDefinition('mutuals');
+  it('is a chronological single-source mutuals feed with reply context', async () => {
+    const def = await resolveDefinition('mutuals');
     expect(def!.mode).toBe('chronological');
     expect(def!.sources.map((s) => s.module)).toEqual(['mutuals']);
     expect(def!.signals).toEqual([]);
@@ -31,8 +31,8 @@ describe('mutuals definition', () => {
 });
 
 describe('friends_popular definition', () => {
-  it('is a ranked feed over the friendsEngaged source (not pre-scored)', () => {
-    const def = resolveDefinition('friends_popular');
+  it('is a ranked feed over the friendsEngaged source (not pre-scored)', async () => {
+    const def = await resolveDefinition('friends_popular');
     expect(def!.mode).toBe('ranked');
     expect(def!.sources.map((s) => s.module)).toEqual(['friendsEngaged']);
     expect(def!.signals.map((s) => s.module)).toEqual(['engagement', 'recency']);
@@ -43,7 +43,7 @@ describe('friends_popular definition', () => {
 });
 
 describe('resolveDefinition still returns null for unknown descriptors', () => {
-  it('unknown → null', () => {
-    expect(resolveDefinition('nonsense' as FeedDescriptor)).toBeNull();
+  it('unknown → null', async () => {
+    expect(await resolveDefinition('nonsense' as FeedDescriptor)).toBeNull();
   });
 });
