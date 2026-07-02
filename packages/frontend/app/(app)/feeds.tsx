@@ -326,9 +326,9 @@ const FeedsScreen: React.FC = () => {
 
         {/* FAB that rides the BottomBar's show/hide (web mobile). */}
         <BottomBarAwareFab
-          onPress={() => router.push('/feeds/create')}
+          onPress={() => router.push('/feeds/new')}
           icon={<Ionicons name="add" size={24} color="white" />}
-          accessibilityLabel={t('feeds.create', { defaultValue: 'Create feed' })}
+          accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
         />
       </SafeAreaView>
     </>

@@ -3,4 +3,5 @@ export * from './feedDescriptor';
 export * from './facets';
 export * from './config';
 export * from './presetFeeds';
+export * from './feedModules';
 export * from './lexicons';
