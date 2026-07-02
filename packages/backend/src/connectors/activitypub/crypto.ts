@@ -259,11 +259,29 @@ export async function verifyHttpSignature(
   }
 
   const signingParts = parsed.headers.map((header) => {
-    if (header === '(request-target)') {
+    const name = header.toLowerCase();
+    if (name === '(request-target)') {
       return `(request-target): ${req.method.toLowerCase()} ${req.path}`;
     }
-    const value = lowerHeaders[header.toLowerCase()];
-    return `${header.toLowerCase()}: ${Array.isArray(value) ? value[0] : value}`;
+    // Reconstruct the `host` line from `x-forwarded-host` when present. Our edge
+    // (the Cloudflare Pages worker) rewrites the origin Host to
+    // api.mention.earth and forwards the ORIGINAL host the sender signed over
+    // (mention.earth) in X-Forwarded-Host; a proxy chain may append a
+    // comma-separated list, whose FIRST token is the client-facing host. This
+    // grants a forger nothing: the signature cryptographically binds whatever
+    // host value the sender signed, so a bogus X-Forwarded-Host simply fails
+    // verification. Falls back to `host` when the header is absent (direct
+    // delivery), preserving the pre-proxy behavior.
+    if (name === 'host') {
+      const forwarded = lowerHeaders['x-forwarded-host'];
+      const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+      const firstToken = forwardedValue?.split(',')[0]?.trim();
+      if (firstToken) {
+        return `host: ${firstToken}`;
+      }
+    }
+    const value = lowerHeaders[name];
+    return `${name}: ${Array.isArray(value) ? value[0] : value}`;
   });
 
   const signingString = signingParts.join('\n');

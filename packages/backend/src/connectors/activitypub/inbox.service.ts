@@ -15,6 +15,7 @@ import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
 import { outboxSyncService } from './outbox.service';
 import { followService } from './follow.service';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
   extractAnnouncedObjectUri,
   extractApHashtags,
@@ -128,6 +129,25 @@ export class InboxProcessingService {
     }
   }
 
+  /**
+   * Bridge a federated follow edge into the Oxy follow graph via oxy-api's
+   * service route `POST /federation/follow`. Idempotent on both sides: `follow`
+   * is a no-op when the edge already exists and `unfollow` when it does not.
+   * Throws on transport/HTTP failure so the BullMQ inbox job retries — the whole
+   * inbound-follow (and Undo) sequence is retry-safe, so re-running converges.
+   */
+  private async bridgeFollowEdge(
+    followerUserId: string,
+    targetUserId: string,
+    action: 'follow' | 'unfollow',
+  ): Promise<void> {
+    await getServiceOxyClient().makeServiceRequest('POST', '/federation/follow', {
+      followerUserId,
+      targetUserId,
+      action,
+    });
+  }
+
   private async handleIncomingFollow(activity: Record<string, any>, actorUri: string): Promise<void> {
     const targetActorUri = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     if (!targetActorUri || typeof targetActorUri !== 'string') return;
@@ -145,8 +165,27 @@ export class InboxProcessingService {
     }
     const localUserId = String(user._id || user.id);
 
+    // Resolve the follower actor and REQUIRE its Oxy user id: a fediverse
+    // follower must become a real Oxy edge, never a Mention-only ghost. When the
+    // actor is missing or not yet resolved to an Oxy user (Oxy was unreachable
+    // when it was fetched), `requireActorOxyUserId` throws
+    // `ActorResolutionPendingError` so the BullMQ inbox job retries with backoff
+    // and bridges the follow on a later attempt — mirroring `handleCreate`.
     const actor = await actorService.getOrFetchActor(actorUri);
-    if (!actor) return;
+    const followerOxyUserId = requireActorOxyUserId(actor, actorUri, `Follow ${activity.id}`);
+
+    // A self-follow (the follower resolves to the same local user) is meaningless
+    // in the Oxy graph — skip before touching any state or delivering an Accept.
+    if (followerOxyUserId === localUserId) {
+      logger.debug(`[Federation] ignoring self-follow from ${actorUri} to ${username}`);
+      return;
+    }
+
+    // Create the Oxy follow edge BEFORE sending Accept so a retry never spams
+    // Accepts: the bridge is idempotent (safe to re-run), but an Accept delivered
+    // before the edge was committed could be re-sent on every retry. On failure
+    // the bridge throws, failing the job so the whole sequence retries.
+    await this.bridgeFollowEdge(followerOxyUserId, localUserId, 'follow');
 
     await FederatedFollow.findOneAndUpdate(
       { localUserId, remoteActorUri: actorUri, direction: 'inbound' },
@@ -161,6 +200,29 @@ export class InboxProcessingService {
 
     // Send Accept back so the remote server knows the follow succeeded
     await followService.sendAccept(localUserId, username, activity.id, actorUri);
+
+    // Fail-soft: the Oxy edge is already committed, so a notification failure must
+    // never fail (and thus retry) the follow. `createNotification` dedupes and
+    // emits realtime/push; wrap defensively and surface failures at warn only.
+    //
+    // Imported lazily: `notificationUtils` imports the `oxy` singleton from
+    // `../../server`, and this connectors module is itself pulled in by `server`.
+    // A top-level import would form a load-time cycle that leaves connector
+    // singletons undefined at registry construction — the same reason
+    // `resolveOxyUser` reaches the server lazily.
+    try {
+      const { createNotification } = await import('../../utils/notificationUtils');
+      await createNotification({
+        recipientId: localUserId,
+        actorId: followerOxyUserId,
+        type: 'follow',
+        entityId: followerOxyUserId,
+        entityType: 'profile',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[Federation] follow notification failed for ${localUserId} from ${actorUri}: ${message}`);
+    }
 
     logger.info(`Accepted follow from ${actorUri} to ${username}`);
   }
@@ -181,7 +243,33 @@ export class InboxProcessingService {
         const user = await resolveOxyUser(match[1]);
         if (user) filter.localUserId = String(user._id || user.id);
       }
-      await FederatedFollow.deleteOne(filter);
+
+      // Idempotency: locate the follow row FIRST. Absent → this Undo was already
+      // processed (a redelivery), so there is nothing to tear down — return.
+      const follow = await FederatedFollow.findOne(filter)
+        .lean<{ _id: mongoose.Types.ObjectId; localUserId: string } | null>();
+      if (!follow) {
+        logger.debug(`Undo follow from ${actorUri}: no matching row (already processed)`);
+        return;
+      }
+
+      // Remove the Oxy follow edge BEFORE deleting the local row, so a transient
+      // bridge failure retries with the row still present. The edge can only
+      // exist when the follower actor resolved to an Oxy user; without an
+      // `oxyUserId` no edge was ever created, so there is nothing to remove.
+      // THROW on transient bridge failure (job retry); the bridge is idempotent.
+      //
+      // Accepted residual race: if this Undo runs while the original Follow job
+      // is still retrying, that later Follow attempt can re-create a ghost edge.
+      // Both operations are individually convergent; we do not add cross-job
+      // locking for this rare window.
+      const actorRecord = await FederatedActor.findOne({ uri: actorUri })
+        .lean<{ oxyUserId?: string } | null>();
+      if (actorRecord?.oxyUserId) {
+        await this.bridgeFollowEdge(actorRecord.oxyUserId, follow.localUserId, 'unfollow');
+      }
+
+      await FederatedFollow.deleteOne({ _id: follow._id });
       logger.debug(`Undo follow from ${actorUri}`);
     } else if (objectType === 'Like') {
       await this.handleUndoLike(object, actorUri);

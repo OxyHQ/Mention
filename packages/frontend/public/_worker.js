@@ -8,7 +8,7 @@
  * deployed dir (Advanced Mode). This file lives in `public/` so `expo export`
  * copies it to `dist/_worker.js`.
  *
- * This worker owns the apex (`mention.earth`) edge. It has two jobs:
+ * This worker owns the apex (`mention.earth`) edge. It has three jobs:
  *
  * 1. ActivityPub content negotiation for LOCAL profile URLs. The fediverse
  *    discovers a Mention profile two ways:
@@ -33,6 +33,20 @@
  *    302) to `https://api.mention.earth`, preserving method + headers + body so
  *    POST XRPC calls survive. The original `Host` is forwarded as
  *    `X-Forwarded-Host` (the backend's atproto-did handler reads it).
+ *
+ * 3. ActivityPub apex PROXY (federation). Mention's ActivityPub actor IDs and inbox
+ *    live on the APEX host (`mention.earth/ap/...`), not the backend — the HTTP
+ *    signature a remote server (e.g. Mastodon) signs binds the request host
+ *    `mention.earth`. A CF zone rule used to 301 `/ap/*` to `api.mention.earth`, but
+ *    a 301 drops the POST body and changes the host, so Mastodon INBOX deliveries
+ *    died on it. So the apex federation paths are PROXIED (origin-fetch, not a 302,
+ *    all HTTP methods) to the backend with method + headers + body intact; the
+ *    original apex host is forwarded as `X-Forwarded-Host` and the backend verifies
+ *    the signature against that host. Paths: `/ap` + `/ap/*`,
+ *    `/.well-known/webfinger`, `/.well-known/host-meta` (+`.json`),
+ *    `/.well-known/nodeinfo`, `/nodeinfo/*`. The allowlist is explicit on
+ *    `pathname` — we do NOT blanket-proxy `/.well-known/*`, so future static files
+ *    (AASA, assetlinks.json) stay served by Pages.
  *
  * Everything else (human browsers, federated profiles, all other routes) is served
  * from static assets via `env.ASSETS.fetch`, which also honors the `_redirects`
@@ -71,6 +85,26 @@ function isBridgeBackendPath(pathname) {
 }
 
 /**
+ * Apex paths owned by ActivityPub federation that must be proxied to the backend.
+ * These are the actor/inbox/discovery endpoints the backend mounts under the apex
+ * host (`/ap`, webfinger, host-meta, nodeinfo). The allowlist is explicit — we do
+ * NOT match all of `/.well-known/*`, so future static files (AASA, assetlinks.json)
+ * keep being served by Pages. The `/ap` prefix check requires an exact match or a
+ * `/`-delimited segment so an unrelated path like `/apply` never matches.
+ */
+function isFederationBackendPath(pathname) {
+  return (
+    pathname === '/ap' ||
+    pathname.startsWith('/ap/') ||
+    pathname === '/.well-known/webfinger' ||
+    pathname === '/.well-known/host-meta' ||
+    pathname === '/.well-known/host-meta.json' ||
+    pathname === '/.well-known/nodeinfo' ||
+    pathname.startsWith('/nodeinfo/')
+  );
+}
+
+/**
  * Whether the `Accept` header asks for ActivityPub JSON. Mastodon may send
  * `application/ld+json; profile="https://www.w3.org/ns/activitystreams"`, so a
  * case-insensitive substring match on the JSON media subtypes is sufficient.
@@ -82,11 +116,12 @@ function wantsActivityPub(accept) {
 }
 
 /**
- * Proxy an apex bridge request to the backend origin, preserving the method,
- * headers, and body so POST XRPC calls work. The path + query string are kept
- * verbatim; only the origin changes (`mention.earth` → `api.mention.earth`). The
- * original apex host is forwarded as `X-Forwarded-Host` because the backend's
- * `.well-known/atproto-did` handler reads it to derive the handle.
+ * Proxy an apex request to the backend origin, preserving the method, headers, and
+ * body so POST calls (atproto XRPC, ActivityPub inbox deliveries) work. The path +
+ * query string are kept verbatim; only the origin changes (`mention.earth` →
+ * `api.mention.earth`). The original apex host is forwarded as `X-Forwarded-Host`
+ * because backend handlers read it — the atproto-did handler derives the handle
+ * from it, and ActivityPub signature verification binds it as the request host.
  */
 function proxyToBackend(request) {
   const incoming = new URL(request.url);
@@ -116,7 +151,13 @@ export default {
       return proxyToBackend(request);
     }
 
-    // 2. ActivityPub content negotiation for local profile URLs.
+    // 2. ActivityPub federation apex paths (actor/inbox/webfinger/nodeinfo) → proxy
+    // to the backend, preserving method + body so signed inbox POSTs verify.
+    if (isFederationBackendPath(pathname)) {
+      return proxyToBackend(request);
+    }
+
+    // 3. ActivityPub content negotiation for local profile URLs.
     const match = pathname.match(LOCAL_PROFILE_PATH);
     if (match && wantsActivityPub(request.headers.get('Accept'))) {
       const username = match[1];
@@ -130,7 +171,7 @@ export default {
       });
     }
 
-    // 3. Serve the static export (and the `_redirects` SPA fallback) for everything
+    // 4. Serve the static export (and the `_redirects` SPA fallback) for everything
     // else: human browsers, federated profiles, and all other routes.
     return env.ASSETS.fetch(request);
   },
