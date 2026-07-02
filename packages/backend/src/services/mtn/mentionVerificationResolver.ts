@@ -57,7 +57,7 @@ async function resolveSubjectPublicKeys(oxyUserId: string): Promise<string[]> {
   try {
     const doc = await getServiceOxyClient().resolveDid(oxyUserId);
     const keys = (doc.verificationMethod ?? [])
-      .map((vm) => vm.publicKeyHex)
+      .map((vm) => ('publicKeyHex' in vm ? vm.publicKeyHex : undefined))
       .filter((key): key is string => typeof key === 'string' && key.length > 0);
     vmCache.set(oxyUserId, { keys, expiresAt: Date.now() + VM_CACHE_TTL_MS });
     return keys;
