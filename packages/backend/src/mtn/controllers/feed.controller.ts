@@ -11,6 +11,7 @@ import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { feedEngine } from '../feed/engine/FeedEngine';
+import type { FeedEngineContext } from '../feed/engine/types';
 import { CustomFeed } from '../feed/feeds/CustomFeed';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
@@ -108,6 +109,77 @@ async function mergeFederatedFollowIds(
   }
 }
 
+/** Hard cap on the mutual-id set threaded into the Mutuals feed context. */
+const MAX_MUTUAL_IDS = 5000;
+
+/**
+ * Normalize the (upstream, still-in-flight) `oxyClient.getMutualUserIds` result
+ * into a string id list. Accepts a bare `string[]` or a `{ data | userIds }`
+ * wrapper; anything else yields `[]`.
+ */
+function normalizeMutualIdList(value: unknown): string[] {
+  const source =
+    Array.isArray(value)
+      ? value
+      : Array.isArray((value as { data?: unknown })?.data)
+        ? (value as { data: unknown[] }).data
+        : Array.isArray((value as { userIds?: unknown })?.userIds)
+          ? (value as { userIds: unknown[] }).userIds
+          : [];
+  return source.filter((v): v is string => typeof v === 'string' && v.length > 0);
+}
+
+/**
+ * Federated mutuals: remote actors the viewer both follows (accepted outbound)
+ * AND is followed by (accepted inbound), mapped to their linked Oxy user ids.
+ */
+async function getFederatedMutualIds(localUserId: string): Promise<string[]> {
+  const [outbound, inbound] = await Promise.all([
+    FederatedFollow.distinct('remoteActorUri', { localUserId, direction: 'outbound', status: 'accepted' }),
+    FederatedFollow.distinct('remoteActorUri', { localUserId, direction: 'inbound', status: 'accepted' }),
+  ]);
+  const outboundSet = new Set(outbound as string[]);
+  const mutualUris = (inbound as string[]).filter((uri) => outboundSet.has(uri));
+  if (mutualUris.length === 0) return [];
+
+  const actors = await FederatedActor.find(
+    { uri: { $in: mutualUris }, oxyUserId: { $ne: null } },
+    { oxyUserId: 1 },
+  ).lean();
+  return actors
+    .map((actor) => actor.oxyUserId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
+/**
+ * The viewer's mutual-follow author ids for the Mutuals feed: Oxy graph mutuals
+ * (via `@oxyhq/core` `getMutualUserIds`, when the SDK method is available) ∪
+ * federated mutuals. Both branches soft-fail to `[]`; the Oxy branch is guarded
+ * with an optional call because the SDK method arrives via a separate upstream
+ * track. Deduped and capped.
+ */
+async function computeMutualIds(currentUserId: string): Promise<string[]> {
+  const mutualsClient = oxyClient as { getMutualUserIds?: (opts: { limit?: number }) => Promise<unknown> };
+
+  let oxyMutualIds: string[] = [];
+  if (typeof mutualsClient.getMutualUserIds === 'function') {
+    try {
+      oxyMutualIds = normalizeMutualIdList(await mutualsClient.getMutualUserIds({ limit: MAX_MUTUAL_IDS }));
+    } catch (error) {
+      logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
+    }
+  }
+
+  let federatedMutualIds: string[] = [];
+  try {
+    federatedMutualIds = await getFederatedMutualIds(currentUserId);
+  } catch (error) {
+    logger.warn('[MtnFeedController] Failed to load federated mutual ids', error);
+  }
+
+  return Array.from(new Set([...oxyMutualIds, ...federatedMutualIds])).slice(0, MAX_MUTUAL_IDS);
+}
+
 
 /**
  * Resolve the descriptors NOT owned by the engine in Phase 1 to their legacy
@@ -194,7 +266,7 @@ class MtnFeedController {
       const viewerRegion = userPreferenceService.getTopRegion(userBehavior);
 
       // Build context
-      const context = {
+      const context: FeedEngineContext = {
         currentUserId,
         followingIds,
         subscribedListMemberIds,
@@ -203,6 +275,13 @@ class MtnFeedController {
         showSensitiveContent,
         viewerRegion,
       };
+
+      // The Mutuals feed needs the viewer's mutual-follow id set. Compute it ONLY
+      // for that descriptor (Oxy graph mutuals ∪ federated mutuals) so no other
+      // feed pays for it.
+      if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {
+        context.mutualIds = await computeMutualIds(currentUserId);
+      }
 
       // Resolve the descriptor to a composable feed DEFINITION and run it through
       // the engine. `custom|id` (legacy CustomFeed) and `feedgen|uri` (external
@@ -304,12 +383,16 @@ class MtnFeedController {
         }
       }
 
-      const context = {
+      const context: FeedEngineContext = {
         currentUserId,
         followingIds,
         subscribedListMemberIds,
         oxyClient,
       };
+
+      if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {
+        context.mutualIds = await computeMutualIds(currentUserId);
+      }
 
       const definition = resolveDefinition(descriptor);
       let latest;
