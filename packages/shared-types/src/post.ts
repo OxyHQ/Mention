@@ -69,6 +69,22 @@ export interface MediaItem {
    * viewer falls back to `url`.
    */
   fullUrl?: string;
+  /**
+   * Adaptive-bitrate HLS master playlist URL for native (non-federated) videos,
+   * when the background transcode has produced one. `expo-video` (AVPlayer on
+   * iOS, ExoPlayer on Android) plays an `.m3u8` URL natively and switches
+   * quality automatically based on network conditions — no extra client code
+   * needed beyond preferring this URL over `url`.
+   *
+   * NOT guaranteed to be ready: variant generation is fire-and-forget on
+   * upload (see `OxyHQServices/packages/api/src/services/assetService.ts`
+   * `queueVariantGeneration`), so a just-uploaded video's HLS ladder may not
+   * exist yet — requesting it can 404/500. Consumers MUST fall back to `url`
+   * (the raw original, always playable) on a playback error; never treat
+   * `hlsUrl` as authoritative on its own. Omitted for federated/proxied video
+   * (no Oxy variant system exists for those).
+   */
+  hlsUrl?: string;
 }
 
 export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'podcast';
