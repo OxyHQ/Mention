@@ -74,6 +74,12 @@ export interface SignalModule {
 export interface FilterModule {
   id: string;
   kind: 'filter';
+  /**
+   * Whether a user may enable this filter in a custom feed (surfaced in the
+   * Phase 3 builder). Internal pipeline filters (safety / language / mute-block)
+   * leave this unset. Undefined is treated as "not user-composable".
+   */
+  userComposable?: boolean;
   /** Optional Mongo clause merged into source queries via the shared base match. */
   clause?(ctx: FeedEngineContext, params: Record<string, unknown>): Record<string, unknown> | undefined;
   /** Optional in-memory predicate applied to the merged candidate pool. */
