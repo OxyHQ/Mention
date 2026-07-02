@@ -24,6 +24,7 @@ import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../../../middleware/rateLimitStore';
 import { enqueueInboxActivity } from '../../../queue/producers';
 import { resolveAvatarUrl, resolveMediaRef } from '../../../utils/mediaResolver';
+import { isFediverseSharingEnabledByUsername } from '../../../services/fediverseSharing';
 
 const router = Router();
 
@@ -208,6 +209,13 @@ router.get('/users/:username', async (req: Request, res: Response) => {
 
     const resolved = await resolveOxyUser(username);
     if (!resolved) return res.status(404).json({ error: 'User not found' });
+
+    // Sharing OFF must be indistinguishable from a nonexistent user — same
+    // 404 body, no separate error code.
+    if (!(await isFediverseSharingEnabledByUsername(username))) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const user = resolved as ActorUserView;
 
     const publicKey = await getPublicKey(username);
@@ -270,6 +278,17 @@ router.get('/users/:username', async (req: Request, res: Response) => {
  */
 router.post('/users/:username/inbox', async (req: Request, res: Response) => {
   if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
+
+  // Sharing OFF must be indistinguishable from a nonexistent user — same 404
+  // body, no separate error code. `isFediverseSharingEnabledByUsername`
+  // already resolves the user and returns `false` for an unknown username
+  // too, so this single check also 404s a bogus `:username` (this route
+  // otherwise never validated it against the shared inbox's generic path).
+  const username = getUsername(req);
+  if (!(await isFediverseSharingEnabledByUsername(username))) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
   return handleInbox(req, res);
 });
 
@@ -352,6 +371,12 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
   try {
     const user = await resolveOxyUser(username);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Sharing OFF must be indistinguishable from a nonexistent user — same
+    // 404 body, no separate error code.
+    if (!(await isFediverseSharingEnabledByUsername(username))) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     const userId = user._id || user.id;
     const totalPosts = await Post.countDocuments({
@@ -437,6 +462,15 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
   try {
     const user = await resolveOxyUser(username);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Sharing OFF must be indistinguishable from a nonexistent user — same
+    // 404 body, no separate error code. This route was not in the original
+    // gate list but serves a user's content the same as the other AP
+    // surfaces, so it gets the same treatment.
+    if (!(await isFediverseSharingEnabledByUsername(username))) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const userId = user._id || user.id;
 
     const post = await Post.findOne({
@@ -472,6 +506,13 @@ router.get('/users/:username/followers', async (req: Request, res: Response) => 
   try {
     const user = await resolveOxyUser(username);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Sharing OFF must be indistinguishable from a nonexistent user — same
+    // 404 body, no separate error code.
+    if (!(await isFediverseSharingEnabledByUsername(username))) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const userId = String(user._id || user.id);
 
     const count = await FederatedFollow.countDocuments({
@@ -504,6 +545,13 @@ router.get('/users/:username/following', async (req: Request, res: Response) => 
   try {
     const user = await resolveOxyUser(username);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Sharing OFF must be indistinguishable from a nonexistent user — same
+    // 404 body, no separate error code.
+    if (!(await isFediverseSharingEnabledByUsername(username))) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const userId = String(user._id || user.id);
 
     const count = await FederatedFollow.countDocuments({

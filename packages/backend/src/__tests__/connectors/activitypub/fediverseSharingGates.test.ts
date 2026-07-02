@@ -1,0 +1,250 @@
+import express from 'express';
+import request from 'supertest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * Contract tests for the fediverseSharing gate on every user-scoped AP /
+ * discovery surface: webfinger, actor, outbox, followers, following, user
+ * inbox POST, and post dereference. When sharing is OFF each surface must
+ * return the SAME body as an unknown user (`{ error: 'User not found' }`) —
+ * see `docs/superpowers/specs/2026-07-02-fediverse-sharing-consent-design.md`.
+ *
+ * The shared inbox (`POST /ap/inbox`) is intentionally NOT covered here —
+ * per-target gating for it happens inside inbox processing (Task 5).
+ */
+
+const AP_ACCEPT = 'application/activity+json';
+const VALID_ID = '507f1f77bcf86cd799439011';
+
+const mocks = vi.hoisted(() => ({
+  resolveOxyUser: vi.fn(),
+  isFediverseSharingEnabledByUsername: vi.fn(),
+  getPublicKey: vi.fn(),
+  buildCreateNoteActivity: vi.fn(),
+  userSettingsFindOne: vi.fn(),
+  postFind: vi.fn(),
+  postCountDocuments: vi.fn(),
+  postFindOne: vi.fn(),
+  followedCountDocuments: vi.fn(),
+  resolveAvatarUrl: vi.fn(),
+  resolveMediaRef: vi.fn(),
+  verifyHttpSignature: vi.fn(),
+  enqueueInboxActivity: vi.fn(),
+  redisGet: vi.fn(),
+}));
+
+vi.mock('express-rate-limit', () => ({
+  default: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+vi.mock('../../../middleware/rateLimitStore', () => ({ RedisStore: class {} }));
+vi.mock('../../../queue/producers', () => ({
+  enqueueInboxActivity: (...args: unknown[]) => mocks.enqueueInboxActivity(...args),
+}));
+
+vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
+  activityPubConnector: {
+    buildCreateNoteActivity: (...args: unknown[]) => mocks.buildCreateNoteActivity(...args),
+    fetchPublicKey: vi.fn(),
+    processInboxActivity: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  verifyHttpSignature: (...args: unknown[]) => mocks.verifyHttpSignature(...args),
+  getPublicKey: (...args: unknown[]) => mocks.getPublicKey(...args),
+}));
+
+vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants')>();
+  return { ...actual, resolveOxyUser: (...args: unknown[]) => mocks.resolveOxyUser(...args) };
+});
+
+vi.mock('../../../services/fediverseSharing', () => ({
+  isFediverseSharingEnabledByUsername: (...args: unknown[]) =>
+    mocks.isFediverseSharingEnabledByUsername(...args),
+}));
+
+vi.mock('../../../utils/mediaResolver', () => ({
+  resolveAvatarUrl: (...args: unknown[]) => mocks.resolveAvatarUrl(...args),
+  resolveMediaRef: (...args: unknown[]) => mocks.resolveMediaRef(...args),
+}));
+
+vi.mock('../../../models/Post', () => ({
+  Post: {
+    countDocuments: (...args: unknown[]) => mocks.postCountDocuments(...args),
+    find: (...args: unknown[]) => mocks.postFind(...args),
+    findOne: (...args: unknown[]) => mocks.postFindOne(...args),
+  },
+}));
+
+vi.mock('../../../models/UserSettings', () => ({
+  default: { findOne: (...args: unknown[]) => mocks.userSettingsFindOne(...args) },
+}));
+
+vi.mock('../../../models/FederatedFollow', () => ({
+  default: { countDocuments: (...args: unknown[]) => mocks.followedCountDocuments(...args) },
+}));
+
+vi.mock('../../../utils/redis', () => ({
+  getRedisClient: vi.fn().mockReturnValue({ isReady: false, get: mocks.redisGet }),
+}));
+
+import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
+import webfingerRoutes from '../../../connectors/activitypub/routes/wellKnown.routes';
+
+const apApp = express();
+apApp.use(express.json());
+apApp.use('/ap', apRoutes);
+
+const wellKnownApp = express();
+wellKnownApp.use('/.well-known', webfingerRoutes);
+
+const RESOLVED_USER = {
+  _id: 'u1',
+  id: 'u1',
+  username: 'alice',
+  name: { displayName: 'Alice' },
+  avatar: null,
+  bio: '',
+  createdAt: '2020-01-01T00:00:00.000Z',
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.resolveOxyUser.mockResolvedValue(RESOLVED_USER);
+  mocks.getPublicKey.mockResolvedValue({
+    keyId: 'https://mention.earth/ap/users/alice#main-key',
+    publicKeyPem: 'PEM',
+  });
+  mocks.resolveAvatarUrl.mockReturnValue(undefined);
+  mocks.resolveMediaRef.mockReturnValue({ url: undefined });
+  mocks.userSettingsFindOne.mockReturnValue({ lean: async () => null });
+  mocks.postCountDocuments.mockResolvedValue(0);
+  mocks.postFind.mockReturnValue({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) });
+  mocks.postFindOne.mockReturnValue({ lean: async () => ({ _id: VALID_ID, content: { text: 'hi' } }) });
+  mocks.followedCountDocuments.mockResolvedValue(0);
+  mocks.buildCreateNoteActivity.mockReturnValue({
+    '@context': ['https://www.w3.org/ns/activitystreams'],
+    type: 'Create',
+    object: { id: `https://mention.earth/ap/users/alice/posts/${VALID_ID}`, type: 'Note' },
+  });
+  mocks.verifyHttpSignature.mockResolvedValue({
+    verified: true,
+    actorUri: 'https://remote.example/users/bob',
+  });
+  mocks.enqueueInboxActivity.mockResolvedValue(true);
+  mocks.redisGet.mockResolvedValue(null);
+});
+
+const NOT_FOUND_BODY = { error: 'User not found' };
+
+describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
+  describe('GET /.well-known/webfinger', () => {
+    const qs = '?resource=acct:alice@mention.earth';
+
+    it('200s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+      const res = await request(wellKnownApp).get(`/.well-known/webfinger${qs}`).expect(200);
+      expect(res.body.subject).toBe('acct:alice@mention.earth');
+      expect(mocks.isFediverseSharingEnabledByUsername).toHaveBeenCalledWith('alice');
+    });
+
+    it('404s with the unknown-user body when sharing is disabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+      const res = await request(wellKnownApp).get(`/.well-known/webfinger${qs}`).expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+    });
+  });
+
+  describe('GET /ap/users/:username — actor', () => {
+    it('200s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+      const res = await request(apApp).get('/ap/users/alice').set('Accept', AP_ACCEPT).expect(200);
+      expect(res.body.type).toBe('Person');
+      expect(mocks.isFediverseSharingEnabledByUsername).toHaveBeenCalledWith('alice');
+    });
+
+    it('404s with the unknown-user body when sharing is disabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+      const res = await request(apApp).get('/ap/users/alice').set('Accept', AP_ACCEPT).expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+    });
+  });
+
+  describe('POST /ap/users/:username/inbox — user inbox', () => {
+    const activity = { type: 'Follow', actor: 'https://remote.example/users/bob' };
+
+    it('202s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+      await request(apApp).post('/ap/users/alice/inbox').send(activity).expect(202);
+      expect(mocks.isFediverseSharingEnabledByUsername).toHaveBeenCalledWith('alice');
+      expect(mocks.verifyHttpSignature).toHaveBeenCalled();
+    });
+
+    it('404s with the unknown-user body when sharing is disabled, without verifying the signature', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+      const res = await request(apApp).post('/ap/users/alice/inbox').send(activity).expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+      expect(mocks.verifyHttpSignature).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /ap/users/:username/outbox', () => {
+    it('200s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+      const res = await request(apApp).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(200);
+      expect(res.body.type).toBe('OrderedCollection');
+    });
+
+    it('404s with the unknown-user body when sharing is disabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+      const res = await request(apApp).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+    });
+  });
+
+  describe('GET /ap/users/:username/followers', () => {
+    it('200s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+      const res = await request(apApp).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(200);
+      expect(res.body.type).toBe('OrderedCollection');
+    });
+
+    it('404s with the unknown-user body when sharing is disabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+      const res = await request(apApp).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+    });
+  });
+
+  describe('GET /ap/users/:username/following', () => {
+    it('200s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+      const res = await request(apApp).get('/ap/users/alice/following').set('Accept', AP_ACCEPT).expect(200);
+      expect(res.body.type).toBe('OrderedCollection');
+    });
+
+    it('404s with the unknown-user body when sharing is disabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+      const res = await request(apApp).get('/ap/users/alice/following').set('Accept', AP_ACCEPT).expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+    });
+  });
+
+  describe('GET /ap/users/:username/posts/:id — dereference (beyond brief, flagged: serves user content)', () => {
+    it('200s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
+      await request(apApp).get(`/ap/users/alice/posts/${VALID_ID}`).set('Accept', AP_ACCEPT).expect(200);
+    });
+
+    it('404s with the unknown-user body when sharing is disabled', async () => {
+      mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+      const res = await request(apApp)
+        .get(`/ap/users/alice/posts/${VALID_ID}`)
+        .set('Accept', AP_ACCEPT)
+        .expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+      expect(mocks.postFindOne).not.toHaveBeenCalled();
+    });
+  });
+});

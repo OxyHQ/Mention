@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { FEDERATION_DOMAIN, FEDERATION_ENABLED, actorUrl, resolveOxyUser } from '../constants';
 import { logger } from '../../../utils/logger';
 import { getRedisClient } from '../../../utils/redis';
+import { isFediverseSharingEnabledByUsername } from '../../../services/fediverseSharing';
 
 const router = Router();
 
@@ -56,6 +57,12 @@ router.get('/webfinger', async (req: Request, res: Response) => {
 
     const user = await resolveOxyUser(username);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Sharing OFF must be indistinguishable from a nonexistent user — same
+    // 404 body, no separate error code.
+    if (!(await isFediverseSharingEnabledByUsername(username))) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     const response = {
       subject: `acct:${username}@${FEDERATION_DOMAIN}`,
