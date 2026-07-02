@@ -12,6 +12,8 @@
  * each connector and in the registry, never here.
  */
 
+import type { MediaItem } from '@mention/shared-types';
+
 /** Supported external networks. */
 export type NetworkId = 'activitypub' | 'atproto';
 
@@ -101,7 +103,7 @@ export interface FetchPostsResult {
 /** Minimal local-post shape a `post.create` event carries to outbound delivery. */
 export interface LocalPostEventPayload {
   _id: unknown;
-  content: { text?: string };
+  content: { text?: string; media?: MediaItem[] };
   hashtags?: string[];
   mentions?: string[];
   visibility: string;

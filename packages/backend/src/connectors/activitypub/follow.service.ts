@@ -11,14 +11,81 @@ import {
   USER_AGENT,
   actorUrl,
 } from './constants';
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { enqueueDelivery } from '../../queue/producers';
 import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
+import { resolveMediaRef } from '../../utils/mediaResolver';
+import { isAbsoluteHttpUrl } from '../shared/url';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
 const DELIVERY_RESPONSE_PREVIEW_MAX_BYTES = 1024;
+
+/**
+ * MIME derivation for an ActivityPub media `attachment`. Extension-first (for the
+ * federated raw URLs / CDNs that carry one), otherwise a category default keyed
+ * off the stored media `type`. Every default is a MIME Mastodon accepts, so an
+ * attachment is never dropped for an "unsupported mediaType"; remote servers
+ * re-derive the exact type when they download the file, so a category-level hint
+ * (e.g. `image/jpeg` for a PNG served id-only from our CDN) is corrected there.
+ */
+const ATTACHMENT_MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+};
+const ATTACHMENT_MIME_BY_TYPE: Record<MediaItem['type'], string> = {
+  image: 'image/jpeg',
+  video: 'video/mp4',
+  gif: 'image/gif',
+};
+
+/**
+ * Build one ActivityStreams `Document` attachment from a stored post media item,
+ * or `undefined` when it cannot be resolved to an absolute URL. Native Oxy file
+ * ids are resolved through the canonical media chokepoint (`resolveMediaRef`);
+ * federated media stored as a raw absolute URL is advertised verbatim (never
+ * proxied back out to the fediverse). Fail-soft: any resolution problem yields
+ * `undefined` so a single bad item never breaks the Note.
+ */
+function buildNoteAttachment(item: MediaItem | undefined | null): Record<string, unknown> | undefined {
+  const ref = item?.id;
+  if (!ref) return undefined;
+
+  let url: string | undefined;
+  try {
+    url = isAbsoluteHttpUrl(ref) ? ref : resolveMediaRef(ref).url || undefined;
+  } catch {
+    return undefined;
+  }
+  if (!url || !isAbsoluteHttpUrl(url)) return undefined;
+
+  // Extension from the PATHNAME only — never the host (its dots would yield a
+  // bogus "extension"). Absent/unknown → category default below.
+  let extension: string | undefined;
+  try {
+    extension = new URL(url).pathname.split('.').pop()?.toLowerCase();
+  } catch {
+    extension = undefined;
+  }
+  const mediaType =
+    (extension && ATTACHMENT_MIME_BY_EXT[extension]) ||
+    ATTACHMENT_MIME_BY_TYPE[item?.type as MediaItem['type']] ||
+    'image/jpeg';
+
+  const attachment: Record<string, unknown> = { type: 'Document', mediaType, url };
+  // Alt text → AP `name` (accessibility description), when the author provided one.
+  if (item?.alt) attachment.name = item.alt;
+  return attachment;
+}
 
 async function readResponsePreview(response: NodeJS.ReadableStream): Promise<string> {
   const chunks: Buffer[] = [];
@@ -210,13 +277,27 @@ export class FollowService {
 
   /**
    * Convert a local Mention post to an ActivityPub Create(Note) activity.
+   *
+   * The SINGLE Note builder shared by push delivery (`federateNewPost`), the
+   * outbox page, and the per-post dereference route so every surface Mastodon
+   * reads carries the same fidelity: canonical post URL, hashtag `tag`s, and
+   * media `attachment`s (built via the canonical media chokepoint, fail-soft).
    */
   buildCreateNoteActivity(
-    post: { _id: any; content: { text?: string }; hashtags?: string[]; mentions?: string[]; createdAt: string },
+    post: {
+      _id: any;
+      content: { text?: string; media?: MediaItem[] };
+      hashtags?: string[];
+      mentions?: string[];
+      createdAt: string | Date;
+    },
     username: string,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
     const noteId = `${actor}/posts/${post._id}`;
+    // Emit a canonical ISO 8601 `published` regardless of whether the caller
+    // passed a Mongoose `Date` (outbox/dereference) or an ISO string (push).
+    const published = post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt;
 
     const tags: Array<Record<string, string>> = [];
     if (post.hashtags) {
@@ -229,12 +310,18 @@ export class FollowService {
       }
     }
 
+    const attachments = Array.isArray(post.content?.media)
+      ? post.content.media
+          .map(buildNoteAttachment)
+          .filter((a): a is Record<string, unknown> => a !== undefined)
+      : [];
+
     return {
       '@context': AP_CONTEXT,
       id: `${noteId}/activity`,
       type: 'Create',
       actor,
-      published: post.createdAt,
+      published,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [`${actor}/followers`],
       object: {
@@ -243,10 +330,11 @@ export class FollowService {
         attributedTo: actor,
         url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${post._id}`,
         content: post.content.text || '',
-        published: post.createdAt,
+        published,
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: [`${actor}/followers`],
         tag: tags.length > 0 ? tags : undefined,
+        attachment: attachments.length > 0 ? attachments : undefined,
       },
     };
   }
@@ -255,7 +343,7 @@ export class FollowService {
    * Federate a newly created local post to all remote followers.
    */
   async federateNewPost(
-    post: { _id: any; content: { text?: string }; hashtags?: string[]; mentions?: string[]; visibility: string; createdAt: string },
+    post: { _id: any; content: { text?: string; media?: MediaItem[] }; hashtags?: string[]; mentions?: string[]; visibility: string; createdAt: string },
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {

@@ -1,3 +1,4 @@
+import type { MediaItem } from '@mention/shared-types';
 import type { IFederatedActor } from '../../models/FederatedActor';
 import type {
   NetworkConnector,
@@ -255,14 +256,20 @@ class ActivityPubConnector implements NetworkConnector {
   }
 
   buildCreateNoteActivity(
-    post: { _id: any; content: { text?: string }; hashtags?: string[]; mentions?: string[]; createdAt: string },
+    post: {
+      _id: any;
+      content: { text?: string; media?: MediaItem[] };
+      hashtags?: string[];
+      mentions?: string[];
+      createdAt: string | Date;
+    },
     username: string,
   ): Record<string, unknown> {
     return followService.buildCreateNoteActivity(post, username);
   }
 
   federateNewPost(
-    post: { _id: any; content: { text?: string }; hashtags?: string[]; mentions?: string[]; visibility: string; createdAt: string },
+    post: { _id: any; content: { text?: string; media?: MediaItem[] }; hashtags?: string[]; mentions?: string[]; visibility: string; createdAt: string },
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {

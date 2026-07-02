@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
+import { isValidObjectId } from 'mongoose';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
 import { verifyHttpSignature, getPublicKey } from '../crypto';
 import { Post } from '../../../models/Post';
+import UserSettings from '../../../models/UserSettings';
 import FederatedFollow from '../../../models/FederatedFollow';
 import {
   FEDERATION_DOMAIN,
@@ -21,7 +23,7 @@ import {
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../../../middleware/rateLimitStore';
 import { enqueueInboxActivity } from '../../../queue/producers';
-import { resolveAvatarUrl } from '../../../utils/mediaResolver';
+import { resolveAvatarUrl, resolveMediaRef } from '../../../utils/mediaResolver';
 
 const router = Router();
 
@@ -52,14 +54,16 @@ function getUsername(req: Request): string {
 
 /** Fields of the resolved Oxy user the actor document reads. */
 interface ActorUserView {
+  _id?: string | null;
+  id?: string | null;
   name?: { displayName?: string | null } | null;
   bio?: string | null;
   avatar?: string | null;
   createdAt?: string | null;
 }
 
-/** Map common image extensions to a MIME type for the actor `icon.mediaType`. */
-const ICON_MEDIA_TYPE_BY_EXT: Record<string, string> = {
+/** Map common image extensions to a MIME type for an actor image `mediaType`. */
+const IMAGE_MEDIA_TYPE_BY_EXT: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -75,6 +79,24 @@ function isAbsoluteHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Build an ActivityPub `Image` object from an already-absolute URL, deriving
+ * `mediaType` from the URL extension when recognizable (a bare `Image` with a
+ * `url` is spec-valid, so an unknown extension simply omits `mediaType` rather
+ * than asserting a wrong one). Shared by the actor `icon` (avatar) and `image`
+ * (profile banner) builders.
+ */
+function apImageObject(url: string): { type: 'Image'; url: string; mediaType?: string } {
+  let extension: string | undefined;
+  try {
+    extension = new URL(url).pathname.split('.').pop()?.toLowerCase();
+  } catch {
+    extension = url.split('?')[0]?.split('.').pop()?.toLowerCase();
+  }
+  const mediaType = extension ? IMAGE_MEDIA_TYPE_BY_EXT[extension] : undefined;
+  return mediaType ? { type: 'Image', url, mediaType } : { type: 'Image', url };
 }
 
 /**
@@ -112,15 +134,34 @@ function buildActorIcon(avatar: string | null | undefined): { type: 'Image'; url
     return undefined;
   }
 
-  let extension: string | undefined;
-  try {
-    const pathname = new URL(resolved).pathname;
-    extension = pathname.split('.').pop()?.toLowerCase();
-  } catch {
-    extension = resolved.split('?')[0]?.split('.').pop()?.toLowerCase();
+  return apImageObject(resolved);
+}
+
+/**
+ * Build the actor `image` (profile banner/header) object for ActivityPub.
+ *
+ * Mastodon renders the AP `image` property as the profile HEADER banner — a
+ * Mention user's banner is otherwise invisible across the fediverse. The banner
+ * reference lives in Mention's own `UserSettings.profileHeaderImage` (a raw Oxy
+ * file id or an absolute URL), the same field the profile-design endpoint reads
+ * and `mirrorFederatedBanner` writes for the inbound direction. It is resolved
+ * through the canonical media chokepoint (`resolveMediaRef`) to a final absolute
+ * URL — an Oxy file id → CDN URL, an external URL → proxied through our origin —
+ * mirroring {@link buildActorIcon}'s absolute-URL invariant.
+ *
+ * Returns undefined when there is no banner or none can be resolved to an
+ * absolute URL, so callers omit the field cleanly.
+ */
+function buildActorImage(banner: string | null | undefined): { type: 'Image'; url: string; mediaType?: string } | undefined {
+  if (!banner) return undefined;
+
+  const resolved = resolveMediaRef(banner).url;
+  if (!resolved || !isAbsoluteHttpUrl(resolved)) {
+    logger.warn(`[Federation] Omitting actor image — banner did not resolve to an absolute URL (ref: ${banner})`);
+    return undefined;
   }
-  const mediaType = extension ? ICON_MEDIA_TYPE_BY_EXT[extension] : undefined;
-  return mediaType ? { type: 'Image', url: resolved, mediaType } : { type: 'Image', url: resolved };
+
+  return apImageObject(resolved);
 }
 
 /**
@@ -171,6 +212,16 @@ router.get('/users/:username', async (req: Request, res: Response) => {
 
     const publicKey = await getPublicKey(username);
 
+    // The profile banner lives in Mention's own per-user settings (not the Oxy
+    // user DTO), keyed by the resolved Oxy user id — the same field the
+    // profile-design endpoint reads. Advertise it as the AP `image` (Mastodon
+    // header). Absent settings / banner cleanly omits the field.
+    const userId = user._id || user.id;
+    const settings = userId
+      ? await UserSettings.findOne({ oxyUserId: String(userId) }, { profileHeaderImage: 1 })
+          .lean<{ profileHeaderImage?: string } | null>()
+      : null;
+
     // Canonical display name is owned by the Oxy API (`name.displayName`). Do not
     // recompute it from first/last/full/username. Fall back to the username only
     // if the API somehow omitted it, so `name` is never empty.
@@ -192,6 +243,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
       discoverable: true,
       manuallyApprovesFollowers: false,
       icon: buildActorIcon(user.avatar),
+      image: buildActorImage(settings?.profileHeaderImage),
       publicKey: {
         id: publicKey.keyId,
         owner: actorUrl(username),
@@ -333,26 +385,11 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
       .limit(limit)
       .lean();
 
-    const items = posts.map((post) => {
-      const noteId = `${actorUrl(username)}/posts/${post._id}`;
-      return {
-        id: `${noteId}/activity`,
-        type: 'Create',
-        actor: actorUrl(username),
-        published: post.createdAt,
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${actorUrl(username)}/followers`],
-        object: {
-          id: noteId,
-          type: 'Note',
-          attributedTo: actorUrl(username),
-          content: post.content?.text || '',
-          published: post.createdAt,
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
-          cc: [`${actorUrl(username)}/followers`],
-        },
-      };
-    });
+    // Reuse the SINGLE Note builder that push delivery uses, so outbox backfill
+    // (Mastodon ≥4.4 imports up to 20 items on discovery) carries the same
+    // fidelity as pushed posts: canonical url, hashtag `tag`s, and media
+    // `attachment`s. One implementation for both paths.
+    const items = posts.map((post) => activityPubConnector.buildCreateNoteActivity(post, username));
 
     res.set('Content-Type', AP_CONTENT_TYPE);
     return res.json({
@@ -365,6 +402,61 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     });
   } catch (err) {
     logger.error('Outbox endpoint error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /ap/users/:username/posts/:id — Dereference a single post as an AP Note.
+ *
+ * The Note id minted everywhere (push delivery, outbox, `buildCreateNoteActivity`)
+ * is `https://<domain>/ap/users/<username>/posts/<postId>`, so this route MUST
+ * serve that object for Mastodon's URL-search import of an old post to work — the
+ * remote server fetches the Note id it discovered and expects the Note JSON back.
+ *
+ * Visibility gating: only PUBLIC + PUBLISHED posts owned by the named user are
+ * dereferenceable; anything else 404s (never leak drafts/private/other-user
+ * posts). Reuses the SAME Note-building path as the outbox (Task 2), unwrapping
+ * the Create envelope to return the bare Note with its own `@context`.
+ */
+router.get('/users/:username/posts/:id', async (req: Request, res: Response) => {
+  if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
+
+  const username = getUsername(req);
+  const postId = typeof req.params.id === 'string' ? req.params.id : String(req.params.id);
+
+  if (!wantsActivityPub(req)) {
+    // A human/browser hit the Note URL — send them to the on-site post.
+    return res.redirect(`https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`);
+  }
+
+  // A malformed id can never match a real post — 404 without touching Mongo
+  // (an invalid ObjectId would otherwise throw a CastError → 500).
+  if (!isValidObjectId(postId)) return res.status(404).json({ error: 'Post not found' });
+
+  try {
+    const user = await resolveOxyUser(username);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userId = user._id || user.id;
+
+    const post = await Post.findOne({
+      _id: postId,
+      oxyUserId: userId,
+      visibility: 'public',
+      status: 'published',
+    }).lean();
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    // Build via the shared Note path, then unwrap the Create envelope: a
+    // dereferenced Note is the `object`, carrying its own top-level `@context`.
+    const activity = activityPubConnector.buildCreateNoteActivity(post, username);
+    const note = activity.object as Record<string, unknown>;
+
+    res.set('Content-Type', AP_CONTENT_TYPE);
+    res.set('Cache-Control', 'max-age=300');
+    return res.json({ '@context': AP_CONTEXT, ...note });
+  } catch (err) {
+    logger.error('Post dereference endpoint error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

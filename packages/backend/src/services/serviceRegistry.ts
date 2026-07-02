@@ -1,3 +1,4 @@
+import type { MediaItem } from '@mention/shared-types';
 import type { IPost } from '../models/Post';
 import type { CreatePostParams } from './PostCreationService';
 
@@ -28,7 +29,7 @@ export interface PostFederator {
   federateNewPost(
     post: {
       _id: unknown;
-      content: { text?: string };
+      content: { text?: string; media?: MediaItem[] };
       hashtags?: string[];
       mentions?: string[];
       visibility: string;
