@@ -5,6 +5,7 @@ import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { VideosRail } from './videos/VideosRail';
+import { VideoComments } from './videos/VideoComments';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { asViewStyle, asTextStyle, type WebViewStyle } from '@/types/webStyles';
@@ -42,9 +43,25 @@ export function RightBar() {
     // route is mounted. Reading it here keeps the rail swap reactive and exact
     // (no pathname string-matching), so the immersive rail mounts/unmounts in
     // lockstep with the videos screen.
-    const { active: videosRailActive } = useVideosRail();
+    const { active: videosRailActive, commentsOpen, commentsPostId, setRailState } = useVideosRail();
 
     if (!isRightBarVisible) return null;
+
+    if (videosRailActive && commentsOpen && commentsPostId) {
+        return (
+            <View className="flex-col" style={styles.container}>
+                <VideoComments
+                    postId={commentsPostId}
+                    onClose={() => setRailState({ commentsOpen: false, commentsPostId: null })}
+                    onCommentPosted={() => {
+                        // The rail's activePost.commentsCount is a read-only projection the
+                        // /videos screen owns and refreshes on its own optimistic update
+                        // (see videos.tsx's handleCommentPosted) — no action needed here.
+                    }}
+                />
+            </View>
+        );
+    }
 
     if (videosRailActive) {
         return (

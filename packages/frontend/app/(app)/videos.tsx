@@ -630,9 +630,10 @@ const VideoItem = memo<VideoItemProps>(({
     }, [item.id, item.isLiked, onLike]);
 
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
-    // On desktop the engagement column + the on-video follow live in the rail;
-    // the overlay keeps only the Shorts-style author/caption/sound block.
-    const showOnVideoActions = !isDesktop;
+    // On-video actions now show on every platform/breakpoint — desktop no
+    // longer moves them into the right-column rail (VideosRail keeps only
+    // prev/next + follow + views for desktop; see VideosRail.tsx).
+    const showOnVideoActions = true;
     const showOnVideoFollow = !isDesktop && Boolean(item.user?.id) && item.user?.id !== viewerId;
     const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
 
@@ -863,7 +864,7 @@ export default function VideosScreen() {
     // Desktop (>=990) gate — shared source of truth with the RightBar. On desktop
     // the engagement column + on-video follow move into the rail.
     const isDesktop = useIsRightBarVisible();
-    const { setRailState } = useVideosRail();
+    const { setRailState, commentsOpen: railCommentsOpen } = useVideosRail();
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
@@ -872,6 +873,20 @@ export default function VideosScreen() {
     const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
+
+    // Close any open comments (desktop panel and/or mobile sheet) when the
+    // active video changes — otherwise swiping to a new video while comments
+    // are open would leave the PREVIOUS video's comments showing over the new
+    // one. Ref-during-render reset (no useEffect), same pattern as
+    // `useExpandableText`'s reset-on-change guard.
+    const prevVisibleIndexRef = useRef(currentVisibleIndex);
+    if (prevVisibleIndexRef.current !== currentVisibleIndex) {
+        prevVisibleIndexRef.current = currentVisibleIndex;
+        if (railCommentsOpen) {
+            setRailState({ commentsOpen: false, commentsPostId: null });
+        }
+        openBottomSheet(false);
+    }
 
     // Prefetch posters in a wider radius than the live-player window — see
     // `POSTER_PREFETCH_RADIUS` above.

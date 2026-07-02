@@ -24,6 +24,8 @@ export interface VideosRailState {
   index: number;
   total: number;
   activePost: VideosRailActivePost | null;
+  commentsOpen: boolean;
+  commentsPostId: string | null;
   prev: () => void;
   next: () => void;
   onLike: () => void;
@@ -50,6 +52,8 @@ const DEFAULT_STATE: VideosRailState = {
   index: 0,
   total: 0,
   activePost: null,
+  commentsOpen: false,
+  commentsPostId: null,
   prev: NOOP,
   next: NOOP,
   onLike: NOOP,
