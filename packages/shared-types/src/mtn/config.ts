@@ -181,6 +181,100 @@ export const MtnConfig = {
         lowPenalty: 0.7,
       },
     },
+
+    /**
+     * OPT-IN ranking signals (Phase 2b).
+     *
+     * Each of these is default-NEUTRAL (multiplier exactly 1.0) and is applied by
+     * `FeedRankingService` ONLY when a feed definition explicitly enables the
+     * matching signal module (custom feeds + deliberate future tuning). They are
+     * NOT part of any preset's default signal set, so For You / Explore / Videos /
+     * Media ranking is unchanged. Every weight below is deliberately CONSERVATIVE
+     * and bounded so a single opt-in signal nudges — never dominates — the score.
+     */
+    optInSignals: {
+      /** Favor posts that carry media (image / video / gif). */
+      mediaBoost: {
+        /** Multiplier for a post with at least one media attachment. */
+        boost: 1.15,
+      },
+      /** Favor positive-sentiment posts (AI Stage-B `sentiment`, provenance-gated). */
+      positivity: {
+        /** Multiplier for a `sentiment === 'positive'` classified post. */
+        boost: 1.1,
+      },
+      /**
+       * Favor constructive / conversational posts. Scales with the classified
+       * `constructiveness` score (provenance-gated) or, absent that, the reply
+       * ratio derived from `stats`. The multiplier is `1 + signal * (maxBoost-1)`,
+       * so a signal of 0 collapses to neutral.
+       */
+      conversational: {
+        /** Ceiling on the conversational multiplier (signal === 1). */
+        maxBoost: 1.2,
+      },
+      /**
+       * DISCOVERY lift for brand-new posts and low-follower ("cold") authors, to
+       * help fresh content surface. Applied when the post is within `windowMs` of
+       * creation OR the author's follower count is below `newAuthorFollowerThreshold`.
+       */
+      coldStartBoost: {
+        boost: 1.15,
+        /** Posts newer than this get the freshness lift. 6h. */
+        windowMs: 6 * 60 * 60 * 1000,
+        /** Authors with fewer followers than this are treated as cold-start authors. */
+        newAuthorFollowerThreshold: 25,
+      },
+      /**
+       * SOFT de-prioritize (not hard-exclude) posts the viewer has already seen —
+       * a gentle downrank so seen content can still appear but yields to fresh
+       * content. Multiplier < 1.
+       */
+      penalizeSeen: {
+        penalty: 0.5,
+      },
+      /** Small lift for verified authors (Oxy `isVerified`). */
+      verifiedBoost: {
+        boost: 1.1,
+      },
+      /**
+       * Lift scaled by how many of the viewer's network (following ∪ mutuals)
+       * engaged the post (liked / boosted). Multiplier is `1 + count * perEngager`,
+       * clamped to `maxBoost`.
+       */
+      socialProof: {
+        perEngager: 0.1,
+        maxBoost: 1.5,
+      },
+      /**
+       * Lift for authors the viewer MUTUALLY engages with — an author who is both
+       * a mutual follow AND in the viewer's learned `preferredAuthors` (weight ≥
+       * `minAuthorWeight`).
+       */
+      reciprocityBoost: {
+        boost: 1.2,
+        /** Minimum learned author-affinity weight for the reciprocity lift to apply. */
+        minAuthorWeight: 0.3,
+      },
+      /**
+       * Lift for high-dwell posts — posts whose average impression duration meets
+       * `thresholdMs`. Scales linearly from `boost` (at threshold) toward `maxBoost`
+       * for longer dwell; neutral below threshold or when no dwell data exists.
+       */
+      dwellTime: {
+        thresholdMs: 4000,
+        boost: 1.15,
+        maxBoost: 1.25,
+      },
+      /**
+       * EXPLORATION lift for posts whose topics the viewer has NOT recently seen,
+       * to break out of topic echo chambers. Applied when a post has at least one
+       * topic and NONE of its topics are in the viewer's recent-topic set.
+       */
+      noveltyBoost: {
+        boost: 1.15,
+      },
+    },
   },
 
   // --- Feed parameters ---

@@ -47,6 +47,14 @@ describe('buildModuleCatalog', () => {
     expect(signalIds).toContain('recency');
   });
 
+  it('includes the Phase 2b opt-in signals (builder-composable for custom feeds)', () => {
+    const catalog = buildModuleCatalog(registry);
+    const signalIds = catalog.signals.map((s) => s.id);
+    for (const id of ['mediaBoost', 'positivity', 'conversational', 'coldStartBoost']) {
+      expect(signalIds).toContain(id);
+    }
+  });
+
   it('annotates each entry with i18n keys + a params schema', () => {
     const catalog = buildModuleCatalog(registry);
     const keywords = catalog.sources.find((s) => s.id === 'keywords');

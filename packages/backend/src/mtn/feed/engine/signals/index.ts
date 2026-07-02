@@ -13,7 +13,19 @@
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { SignalModule } from '../types';
 
-/** id → `MtnConfig.ranking` weight key the signal maps onto. */
+/**
+ * id → weight key the signal maps onto.
+ *
+ * The first group are the ALWAYS-ON preset signals composed unconditionally
+ * inside `FeedRankingService.calculatePostScore` (their keys map onto
+ * `MtnConfig.ranking` blocks; a definition listing them is descriptive only).
+ *
+ * The second group are the Phase 2b OPT-IN signals: their `weightKey` (identical
+ * to the id) is what `FeedEngine` forwards to `rankPosts` as `enabledSignals`, so
+ * the scorer fires ONLY when a definition enables it. Config lives under
+ * `MtnConfig.ranking.optInSignals.<id>`. They are default-neutral and NOT in any
+ * preset's signal set.
+ */
 const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   engagement: 'engagement',
   recency: 'recency',
@@ -24,6 +36,11 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   trendingVelocity: 'trending',
   timeOfDay: 'timeOfDay',
   diversity: 'diversity',
+  // Opt-in (Phase 2b) — content signals.
+  mediaBoost: 'mediaBoost',
+  positivity: 'positivity',
+  conversational: 'conversational',
+  coldStartBoost: 'coldStartBoost',
 };
 
 export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(

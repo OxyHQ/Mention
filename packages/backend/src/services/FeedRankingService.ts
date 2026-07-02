@@ -56,6 +56,36 @@ export interface FeedRankingSettings {
 }
 
 /**
+ * Per-request data the OPT-IN (Phase 2b) ranking signals read inside
+ * {@link FeedRankingService.calculatePostScore}. Every field is optional and
+ * every opt-in scorer degrades to a NEUTRAL `1.0` multiplier when its field is
+ * absent, so this context is purely additive: a definition that enables none of
+ * the opt-in signals passes an empty (or absent) {@link enabledSignals} and
+ * ranking is byte-for-byte unchanged. `rankPosts` resolves the maps/sets below
+ * from the pool + viewer context, but ONLY for the signals actually enabled.
+ */
+export interface OptInSignalContext {
+  /**
+   * The `weightKey`s of the opt-in signals the feed definition enabled. An opt-in
+   * scorer contributes ONLY when its key is in this set; when the set is absent or
+   * empty, NO opt-in signal fires (the preset default).
+   */
+  enabledSignals?: Set<string>;
+  /** Post ids the viewer has already seen — `penalizeSeen`. */
+  seenPostIdsSet?: Set<string>;
+  /** Oxy authorId → verified flag — `verifiedBoost`. */
+  authorVerified?: Map<string, boolean>;
+  /** postId → count of network (following ∪ mutuals) engagers — `socialProof`. */
+  networkEngagerCounts?: Map<string, number>;
+  /** The viewer's mutual-follow author id set — `reciprocityBoost`. */
+  mutualIdsSet?: Set<string>;
+  /** postId → average impression dwell time in ms — `dwellTime`. */
+  dwellAverages?: Map<string, number>;
+  /** Topic slugs/ids the viewer has recently seen — `noveltyBoost`. */
+  viewerRecentTopics?: Set<string>;
+}
+
+/**
  * The post document shape the ranking pipeline operates on: a lean Post plus the
  * runtime ranking-breakdown fields this service attaches in place
  * (`finalScore`, `_rank*`, `rankingExplanation`). Posts arrive as `.lean()`
@@ -74,6 +104,9 @@ interface RankablePost {
   threadId?: string;
   parentPostId?: string;
   language?: string;
+  // Lean feed projections carry `content` for media-aware signals; only the
+  // `media` array is read here (presence check), so it is intentionally opaque.
+  content?: { media?: unknown[] | null };
   stats?: Partial<{
     likesCount: number;
     boostsCount: number;
@@ -166,6 +199,29 @@ export class FeedRankingService {
     }
 
     return counts;
+  }
+
+  /**
+   * Resolve the per-request OPT-IN (Phase 2b) signal context for a candidate
+   * pool. Each map/set is populated ONLY when its signal appears in
+   * `enabledSignals`, so a feed that enables no opt-in signals (every preset)
+   * returns an effectively-empty context and every opt-in scorer stays neutral —
+   * no extra queries, no ranking change. Every resolution is fail-soft: a failure
+   * yields an absent map, which the scorer treats as "no signal" (neutral).
+   *
+   * Content signals (`mediaBoost` / `positivity` / `conversational` /
+   * `coldStartBoost`) read only fields already on the candidate post (plus the
+   * follower counts resolved for authority), so they need nothing resolved here.
+   */
+  private async resolveOptInContext(
+    _posts: RankablePost[],
+    _userId: string | undefined,
+    enabledSignals: Set<string> | undefined,
+  ): Promise<OptInSignalContext> {
+    if (!enabledSignals || enabledSignals.size === 0) {
+      return {};
+    }
+    return { enabledSignals };
   }
 
   private buildBehaviorSets(userBehavior: RankingUserBehavior | undefined): BehaviorSets | undefined {
@@ -396,7 +452,7 @@ export class FeedRankingService {
        * posts rank normally for this viewer. Defaults to false (SFW).
        */
       showSensitiveContent?: boolean;
-    } = {}
+    } & OptInSignalContext = {}
   ): Promise<number> {
     // Helper to guard each sub-score against NaN/Infinity
     const safe = (score: number, fallback: number = 1): number =>
@@ -474,6 +530,11 @@ export class FeedRankingService {
     // Thread boost: thread roots with replies get a bump (encourages thread engagement)
     const threadBoost = safe(this.calculateThreadBoost(post));
 
+    // OPT-IN (Phase 2b) signals. Exactly 1.0 (identity) unless the feed
+    // definition enabled one or more opt-in signals AND their data is present, so
+    // preset feeds (which enable none) are byte-for-byte unchanged.
+    const optInSignals = safe(this.calculateOptInSignals(post, context));
+
     // Combine all scores (each sub-score is already guarded)
     const finalScore = engagementScore
       * recencyScore
@@ -485,7 +546,8 @@ export class FeedRankingService {
       * timeOfDayScore
       * threadBoost
       * diversityPenalty
-      * negativePenalty;
+      * negativePenalty
+      * optInSignals;
 
     const safeScore = Math.max(0, finalScore); // Ensure non-negative
 
@@ -495,7 +557,9 @@ export class FeedRankingService {
     // Relationship breakdown folds in the viewer-independent authority signal so
     // the explainer reflects the full author contribution to the score.
     post._rankRelationship = authorScore * authorityScore;
-    post._rankPersonalization = personalizationScore;
+    // Personalization breakdown folds in the opt-in signals (exactly 1.0 for
+    // preset feeds, so this is unchanged there).
+    post._rankPersonalization = personalizationScore * optInSignals;
     post._rankQuality = qualityScore * trendingBoost * timeOfDayScore * threadBoost;
     post._rankDiversity = diversityPenalty * negativePenalty;
 
@@ -641,6 +705,157 @@ export class FeedRankingService {
     const { logScale, min, max } = this.R.authority;
     const raw = 1 + logScale * Math.log1p(followerCount);
     return Math.min(max, Math.max(min, raw));
+  }
+
+  // ---------------------------------------------------------------------------
+  // OPT-IN (Phase 2b) ranking signals.
+  //
+  // Each scorer below returns a MULTIPLIER and is DEFAULT-NEUTRAL — exactly 1.0
+  // when its input data is absent or below its provenance bar. They are applied
+  // by {@link calculateOptInSignals} ONLY for the signals a feed definition
+  // enabled (`context.enabledSignals`), so preset feeds (which enable none) are
+  // unaffected. Config lives in `MtnConfig.ranking.optInSignals` — no magic
+  // numbers here.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Compose the enabled opt-in signal multipliers for a post. Returns exactly
+   * `1.0` when the definition enabled no opt-in signals (the preset default), so
+   * this is a no-op for For You / Explore / Videos / Media. Each enabled scorer
+   * is still individually default-neutral when its data is missing.
+   */
+  private calculateOptInSignals(
+    post: RankablePost,
+    context: OptInSignalContext & {
+      authorFollowerCounts?: Map<string, number>;
+      userBehavior?: RankingUserBehavior;
+    },
+  ): number {
+    const enabled = context.enabledSignals;
+    if (!enabled || enabled.size === 0) {
+      return 1.0;
+    }
+
+    const authorId = String(post.oxyUserId);
+    let multiplier = 1.0;
+    if (enabled.has('mediaBoost')) {
+      multiplier *= this.calculateMediaBoost(post);
+    }
+    if (enabled.has('positivity')) {
+      multiplier *= this.calculatePositivityBoost(post);
+    }
+    if (enabled.has('conversational')) {
+      multiplier *= this.calculateConversationalBoost(post);
+    }
+    if (enabled.has('coldStartBoost')) {
+      multiplier *= this.calculateColdStartBoost(post, context.authorFollowerCounts?.get(authorId));
+    }
+    return multiplier;
+  }
+
+  /**
+   * `mediaBoost` — favor posts that carry media (image / video / gif). Neutral
+   * (1.0) for a text-only post; the configured boost when the post has at least
+   * one media attachment (or is an image/video post by type).
+   */
+  public calculateMediaBoost(post: RankablePost): number {
+    const media = post?.content?.media;
+    const hasMediaArray = Array.isArray(media) && media.length > 0;
+    const type = typeof post?.type === 'string' ? post.type.toLowerCase() : '';
+    const isMediaType = type === 'image' || type === 'video' || type === 'gif';
+    return hasMediaArray || isMediaType ? this.R.optInSignals.mediaBoost.boost : 1.0;
+  }
+
+  /**
+   * `positivity` — favor positive-sentiment posts. PROVENANCE-GATED: sentiment is
+   * an AI Stage-B field, so it is only trusted when `status === 'classified'`.
+   * Returns the configured boost for a classified `positive` post, `1.0`
+   * otherwise (unclassified, or any non-positive sentiment).
+   */
+  public calculatePositivityBoost(post: RankablePost): number {
+    const classification = post?.postClassification;
+    if (!classification || classification.status !== 'classified') {
+      return 1.0;
+    }
+    return classification.sentiment === 'positive' ? this.R.optInSignals.positivity.boost : 1.0;
+  }
+
+  /**
+   * `conversational` — favor constructive / conversational posts. Prefers the
+   * classified `constructiveness` score (provenance-gated, 0..1); when that is
+   * absent it falls back to the reply ratio derived from `stats`
+   * (comments / (comments + likes + boosts)). The multiplier is
+   * `1 + signal * (maxBoost - 1)`, so a signal of 0 → neutral `1.0`, a signal of
+   * 1 → `maxBoost`. Neutral when there is neither a constructiveness score nor
+   * any engagement to derive a ratio from.
+   */
+  public calculateConversationalBoost(post: RankablePost): number {
+    const { maxBoost } = this.R.optInSignals.conversational;
+
+    const constructiveness = this.getClassifiedConstructiveness(post);
+    if (constructiveness !== null) {
+      return 1 + constructiveness * (maxBoost - 1);
+    }
+
+    const stats = post?.stats || {};
+    const comments = stats.commentsCount || 0;
+    const denom = comments + (stats.likesCount || 0) + (stats.boostsCount || 0);
+    if (denom <= 0) {
+      return 1.0;
+    }
+    const replyRatio = comments / denom;
+    return 1 + replyRatio * (maxBoost - 1);
+  }
+
+  /**
+   * `coldStartBoost` — a small DISCOVERY lift for content that would otherwise
+   * struggle to accrue engagement: brand-new posts (within the configured window)
+   * OR posts from low-follower "cold-start" authors. Neutral (1.0) for an
+   * established post whose author is well-followed (or whose follower count is
+   * unknown), so it never penalizes.
+   *
+   * @param followerCount - the post author's follower count, or `undefined`.
+   */
+  public calculateColdStartBoost(post: RankablePost, followerCount: number | undefined): number {
+    const { boost, windowMs, newAuthorFollowerThreshold } = this.R.optInSignals.coldStartBoost;
+
+    const createdMs = new Date(post?.createdAt ?? NaN).getTime();
+    const isFreshPost = Number.isFinite(createdMs) && Date.now() - createdMs <= windowMs;
+
+    const isColdAuthor =
+      typeof followerCount === 'number' &&
+      Number.isFinite(followerCount) &&
+      followerCount >= 0 &&
+      followerCount < newAuthorFollowerThreshold;
+
+    return isFreshPost || isColdAuthor ? boost : 1.0;
+  }
+
+  /**
+   * Resolve a post's classified `constructiveness` score when it is safe to use
+   * for ranking. Mirrors the provenance guard of {@link getClassifiedScores}
+   * (AI-classified OR baselined to the current ruleset version) but validates
+   * ONLY `constructiveness` (it is orthogonal to the spam/toxicity/quality triad
+   * that method validates). Returns the score in `[0, 1]`, or `null` when there
+   * is no usable signal so the caller falls back to a neutral behavior.
+   */
+  private getClassifiedConstructiveness(post: RankablePost): number | null {
+    const classification = post?.postClassification;
+    if (!classification) {
+      return null;
+    }
+    const isClassified = classification.status === 'classified';
+    const version = classification.version;
+    const isCurrentBaseline =
+      typeof version === 'number' && version >= BASELINE_CLASSIFIER_VERSION;
+    if (!isClassified && !isCurrentBaseline) {
+      return null;
+    }
+    const value = classification.scores?.constructiveness;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+      return null;
+    }
+    return value;
   }
 
   /**
@@ -1033,6 +1248,12 @@ export class FeedRankingService {
        * default viewers behave exactly as before.
        */
       showSensitiveContent?: boolean;
+      /**
+       * The `weightKey`s of the OPT-IN (Phase 2b) ranking signals the feed
+       * definition enabled. Absent/empty for every preset feed, so preset ranking
+       * is unchanged; a custom feed forwards its enabled opt-in signals here.
+       */
+      enabledSignals?: Set<string>;
     } = {}
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
@@ -1075,6 +1296,12 @@ export class FeedRankingService {
     // single batched round trip for the cold authors only.
     const authorFollowerCounts = context.authorFollowerCounts
       ?? await this.resolveAuthorFollowerCounts(posts);
+
+    // Resolve the OPT-IN (Phase 2b) signal context ONCE for this request. Every
+    // per-signal resolution is gated on the signal being enabled, so a feed that
+    // enables no opt-in signals (every preset) pays nothing here and its scoring
+    // is unchanged.
+    const optInContext = await this.resolveOptInContext(posts, userId, context.enabledSignals);
 
     // Pre-calculate engagement scores with caching (batch load from cache)
     const engagementScoreCache = new Map<string, number>();
@@ -1124,6 +1351,7 @@ export class FeedRankingService {
           behaviorSets,
           authorFollowerCounts,
           showSensitiveContent: context.showSensitiveContent,
+          ...optInContext,
         });
         return { post, score, originalIndex };
       })

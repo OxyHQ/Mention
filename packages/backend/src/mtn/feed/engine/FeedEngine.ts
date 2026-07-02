@@ -175,6 +175,23 @@ export class FeedEngine {
     return Array.from(merged.values());
   }
 
+  /**
+   * Resolve the `weightKey`s of a definition's ENABLED signal modules, forwarded
+   * to `rankPosts` as `enabledSignals`. Preset feeds list only the always-on
+   * signals (whose keys the ranking service composes unconditionally and ignores
+   * for opt-in gating), so this is a no-op for them; a custom feed that enables an
+   * OPT-IN signal (mediaBoost, positivity, …) turns that signal on here.
+   */
+  private resolveEnabledSignalKeys(definition: FeedDefinition): Set<string> {
+    const keys = new Set<string>();
+    for (const ref of definition.signals) {
+      if (!ref.enabled) continue;
+      const signal = this.registry.getSignal(ref.module);
+      if (signal?.weightKey) keys.add(signal.weightKey);
+    }
+    return keys;
+  }
+
   /** Resolve the in-memory `keep()` predicates of the definition's enabled filters. */
   private resolveKeepPredicates(
     definition: FeedDefinition,
@@ -237,6 +254,7 @@ export class FeedEngine {
         followingIds: ctx.followingIds,
         userBehavior: ctx.userBehavior,
         feedSettings: ctx.feedSettings,
+        enabledSignals: this.resolveEnabledSignalKeys(definition),
         ...(exec.passSensitiveOptIn ? { showSensitiveContent: ctx.showSensitiveContent === true } : {}),
       })) as RankedCandidate[];
 
