@@ -63,6 +63,7 @@ describe('moreLikeThis source', () => {
       postClassification: { topics: ['cats', 'pets'] },
       hashtags: ['meow'],
       oxyUserId: 'author1',
+      visibility: PostVisibility.PUBLIC,
     };
     // High overlap (2 topics + 1 tag = 3) must rank above low overlap (1 topic = 1).
     findRouter = () => [
@@ -91,7 +92,12 @@ describe('moreLikeThis source', () => {
   });
 
   it('counts an author match as overlap even without shared topics/tags', async () => {
-    seedDoc = { postClassification: { topics: [] }, hashtags: [], oxyUserId: 'author1' };
+    seedDoc = {
+      postClassification: { topics: [] },
+      hashtags: [],
+      oxyUserId: 'author1',
+      visibility: PostVisibility.PUBLIC,
+    };
     findRouter = () => [makePost(20, { oxyUserId: 'author1', postClassification: { topics: [] }, hashtags: [] })];
     const posts = await moreLikeThisSource.gather({}, { postId: oid(1).toString() }, 30);
     expect(posts[0].finalScore).toBe(1);
@@ -122,6 +128,63 @@ describe('moreLikeThis source', () => {
   it('returns [] for an invalid seed post id', async () => {
     const posts = await moreLikeThisSource.gather({}, { postId: 'not-an-id' }, 30);
     expect(posts).toEqual([]);
+  });
+
+  it('rejects a PRIVATE seed whose author the viewer does not follow (no query runs)', async () => {
+    seedDoc = {
+      postClassification: { topics: ['cats'] },
+      hashtags: ['meow'],
+      oxyUserId: 'author1',
+      visibility: PostVisibility.PRIVATE,
+    };
+    // A router that WOULD return results — proves the seed was rejected before any query.
+    findRouter = () => [makePost(60, { postClassification: { topics: ['cats'] } })];
+    const ctx: FeedEngineContext = { currentUserId: 'viewer', followingIds: ['someoneElse'] };
+    const posts = await moreLikeThisSource.gather(ctx, { postId: oid(1).toString() }, 30);
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
+  });
+
+  it('uses a FOLLOWERS_ONLY seed when the viewer follows its author', async () => {
+    seedDoc = {
+      postClassification: { topics: ['cats'] },
+      hashtags: ['meow'],
+      oxyUserId: 'author1',
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+    };
+    findRouter = () => [makePost(61, { postClassification: { topics: ['cats'] }, hashtags: ['meow'] })];
+    const ctx: FeedEngineContext = { currentUserId: 'viewer', followingIds: ['author1'] };
+    const posts = await moreLikeThisSource.gather(ctx, { postId: oid(1).toString() }, 30);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(61).toString()]);
+    expect(findCalls).toHaveLength(1);
+  });
+
+  it('uses the viewer’s OWN private seed', async () => {
+    seedDoc = {
+      postClassification: { topics: ['cats'] },
+      hashtags: ['meow'],
+      oxyUserId: 'viewer',
+      visibility: PostVisibility.PRIVATE,
+    };
+    findRouter = () => [makePost(62, { postClassification: { topics: ['cats'] } })];
+    const ctx: FeedEngineContext = { currentUserId: 'viewer', followingIds: [] };
+    const posts = await moreLikeThisSource.gather(ctx, { postId: oid(1).toString() }, 30);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(62).toString()]);
+    expect(findCalls).toHaveLength(1);
+  });
+
+  it('uses a PUBLIC seed regardless of viewer follow state (unchanged behavior)', async () => {
+    seedDoc = {
+      postClassification: { topics: ['cats'] },
+      hashtags: ['meow'],
+      oxyUserId: 'author1',
+      visibility: PostVisibility.PUBLIC,
+    };
+    findRouter = () => [makePost(63, { postClassification: { topics: ['cats'] } })];
+    const ctx: FeedEngineContext = { currentUserId: 'viewer', followingIds: [] };
+    const posts = await moreLikeThisSource.gather(ctx, { postId: oid(1).toString() }, 30);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(63).toString()]);
+    expect(findCalls).toHaveLength(1);
   });
 });
 

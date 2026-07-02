@@ -57,30 +57,62 @@ interface MoreLikeThisSeed {
 }
 
 /**
+ * Whether `ctx`'s viewer is authorized to use a `postId`-driven seed — i.e. to
+ * read the seed post's topics/hashtags/author. Without this gate a viewer could
+ * pass a PRIVATE / FOLLOWERS_ONLY post's id and infer its classification from the
+ * returned "related" posts (the results are public/SFW, but the SEED's attributes
+ * would leak). Mirrors the post-visibility rule used elsewhere:
+ * PUBLIC is open; the viewer's own posts are always allowed; FOLLOWERS_ONLY
+ * requires the viewer to follow the author; everything else is denied.
+ *
+ * NOTE: block / restrict relationships are not resolved onto the feed engine
+ * context pre-hydration, so this enforces post VISIBILITY only. A viewer blocked
+ * by the seed's author could still seed on that author's PUBLIC post — consistent
+ * with the public/SFW nature of the results.
+ */
+function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEngineContext): boolean {
+  if (visibility === PostVisibility.PUBLIC) return true;
+  if (seedAuthorId && seedAuthorId === ctx.currentUserId) return true;
+  if (visibility === PostVisibility.FOLLOWERS_ONLY && (ctx.followingIds ?? []).includes(seedAuthorId)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Resolve the similarity seed from params. `postId` loads the seed post and reads
  * its classification topics / hashtags / author; otherwise the seed is taken
  * directly from `{ topics, hashtags, authorId }` (builder-composable, no lookup).
- * Returns `null` when a `postId` was given but is invalid / not found.
+ * Returns `null` when a `postId` was given but is invalid / not found, or when the
+ * viewer is not authorized to view that seed post (see {@link isSeedAuthorized}).
+ * The direct builder path performs no lookup and cannot leak.
  */
-async function resolveSeed(params: Record<string, unknown>): Promise<MoreLikeThisSeed | null> {
+async function resolveSeed(
+  params: Record<string, unknown>,
+  ctx: FeedEngineContext,
+): Promise<MoreLikeThisSeed | null> {
   const postId = typeof params.postId === 'string' ? params.postId : '';
 
   if (postId) {
     if (!mongoose.Types.ObjectId.isValid(postId)) return null;
-    let seedPost: { postClassification?: { topics?: unknown }; hashtags?: unknown; oxyUserId?: unknown } | null;
+    let seedPost:
+      | { postClassification?: { topics?: unknown }; hashtags?: unknown; oxyUserId?: unknown; visibility?: unknown }
+      | null;
     try {
       seedPost = await Post.findById(postId)
-        .select('postClassification.topics hashtags oxyUserId')
+        .select('postClassification.topics hashtags oxyUserId visibility')
         .lean();
     } catch (error) {
       logger.warn('[moreLikeThis source] Failed to load seed post', { postId, error });
       return null;
     }
     if (!seedPost) return null;
+    const authorId = typeof seedPost.oxyUserId === 'string' ? seedPost.oxyUserId : '';
+    if (!isSeedAuthorized(seedPost.visibility, authorId, ctx)) return null;
     return {
       topics: normalizeTerms(seedPost.postClassification?.topics, MAX_SEED_TERMS),
       hashtags: normalizeTerms(seedPost.hashtags, MAX_SEED_TERMS),
-      authorId: typeof seedPost.oxyUserId === 'string' ? seedPost.oxyUserId : '',
+      authorId,
       excludeId: new mongoose.Types.ObjectId(postId),
     };
   }
@@ -131,7 +163,7 @@ export const moreLikeThisSource: SourceModule = {
   kind: 'source',
   userComposable: true,
   gather: async (ctx, params, cap) => {
-    const seed = await resolveSeed(params);
+    const seed = await resolveSeed(params, ctx);
     if (!seed) return [];
     if (seed.topics.length === 0 && seed.hashtags.length === 0 && !seed.authorId) return [];
 
