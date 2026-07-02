@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
 import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, PanResponder, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle, type LayoutChangeEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { show as toast } from '@oxyhq/bloom/toast';
@@ -28,6 +28,8 @@ import { cn } from '@/lib/utils';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { VideoComments } from '@/components/videos/VideoComments';
 
 // ── Tuning constants ─────────────────────────────────────────────
 // One-screen vertical pager: keep the live-player window tight so only the
@@ -853,7 +855,6 @@ export default function VideosScreen() {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { height: WINDOW_HEIGHT } = useWindowDimensions();
-    const router = useRouter();
     const isFocused = useIsFocused();
     const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
     const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
@@ -863,6 +864,7 @@ export default function VideosScreen() {
     // the engagement column + on-video follow move into the rail.
     const isDesktop = useIsRightBarVisible();
     const { setRailState } = useVideosRail();
+    const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1268,9 +1270,30 @@ export default function VideosScreen() {
         }
     }, [likePost, unlikePost, t]);
 
+    const handleCommentPosted = useCallback((postId: string) => {
+        setPosts(prev => prev.map(p =>
+            p.id === postId
+                ? { ...p, stats: { ...p.stats, commentsCount: p.stats.commentsCount + 1 } }
+                : p
+        ));
+    }, []);
+
     const handleComment = useCallback((postId: string) => {
-        router.push(`/compose?replyToPostId=${postId}`);
-    }, [router]);
+        if (isDesktop) {
+            // Desktop: Task 5 wires this through VideosRailContext instead.
+            setRailState({ commentsOpen: true, commentsPostId: postId });
+            return;
+        }
+        setBottomSheetContent(
+            <VideoComments
+                postId={postId}
+                onClose={() => openBottomSheet(false)}
+                onCommentPosted={() => handleCommentPosted(postId)}
+            />,
+            { scrollable: false },
+        );
+        openBottomSheet(true);
+    }, [isDesktop, setRailState, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
 
     const handleBoost = useCallback(async (postId: string, isBoosted: boolean) => {
         try {
