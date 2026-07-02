@@ -99,6 +99,12 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       if (['default', 'more', 'muchMore', 'all'].includes(appearance.postTextExpand)) {
         update.appearance.postTextExpand = appearance.postTextExpand;
       }
+      if (['openPost', 'expandInline'].includes(appearance.postReadMoreAction)) {
+        update.appearance.postReadMoreAction = appearance.postReadMoreAction;
+      }
+      if (typeof appearance.collapseLongBio === 'boolean') {
+        update.appearance.collapseLongBio = appearance.collapseLongBio;
+      }
     }
     
     if (typeof profileHeaderImage === 'string') {

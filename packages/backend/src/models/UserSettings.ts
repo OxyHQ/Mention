@@ -10,10 +10,15 @@ export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
  */
 export type PostTextExpand = 'default' | 'more' | 'muchMore' | 'all';
 
+/** Behavior when tapping a truncated post's "Read more" link. */
+export type PostReadMoreAction = 'openPost' | 'expandInline';
+
 export interface AppearanceSettings {
   themeMode: ThemeMode;
   primaryColor?: string;
   postTextExpand?: PostTextExpand;
+  postReadMoreAction?: PostReadMoreAction;
+  collapseLongBio?: boolean;
 }
 
 export interface LabelAction {
@@ -153,6 +158,8 @@ const AppearanceSchema = new Schema<AppearanceSettings>({
   themeMode: { type: String, enum: ['light', 'dark', 'system', 'adaptive'], default: 'system' },
   primaryColor: { type: String, default: undefined },
   postTextExpand: { type: String, enum: ['default', 'more', 'muchMore', 'all'], default: 'default' },
+  postReadMoreAction: { type: String, enum: ['openPost', 'expandInline'], default: 'openPost' },
+  collapseLongBio: { type: Boolean, default: true },
 }, { _id: false });
 
 const LabelActionSchema = new Schema<LabelAction>({
