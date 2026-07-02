@@ -408,7 +408,7 @@ const PostSchema = new Schema<IPost>({
   visibility: { type: String, enum: Object.values(PostVisibility), default: PostVisibility.PUBLIC, index: true },
   isEdited: { type: Boolean, default: false },
   editHistory: [{ type: String }],
-  language: { type: String, default: 'en', index: true },
+  language: { type: String, index: true },
   tags: [{ type: String }],
   mentions: [{ type: String, index: true }],
   hashtags: [{ type: String, index: true }],
