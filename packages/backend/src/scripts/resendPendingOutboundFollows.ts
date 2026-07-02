@@ -111,7 +111,15 @@ async function resendPendingOutboundFollows(): Promise<void> {
 }
 
 if (require.main === module) {
-  resendPendingOutboundFollows();
+  // Exit deterministically: imported singletons (BullMQ Redis connection, media
+  // cache workers) keep the event loop alive, so the process would otherwise sit
+  // RUNNING for minutes after the work completes. Mirrors backfillFederatedBanners.
+  resendPendingOutboundFollows()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[resendPendingOutboundFollows] unhandled failure', error);
+      process.exit(1);
+    });
 }
 
 export default resendPendingOutboundFollows;

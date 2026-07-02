@@ -21,7 +21,13 @@ import type { InboxJobData, DeliveryJobData } from './types';
  */
 const JOB_ID_HASH_LENGTH = 40;
 
-/** Stable short hash used to build collision-safe, length-bounded jobIds. */
+/**
+ * Stable short hash used to build collision-safe, length-bounded jobIds. Output
+ * is lowercase hex, so a `<prefix>-<hash>` jobId never contains a `:` — BullMQ
+ * rejects any custom jobId containing a colon (unless it splits into exactly 3
+ * parts, a deprecated repeatable-job compat path we must not rely on), which
+ * previously made every enqueue throw and silently fall back to the Mongo queue.
+ */
 function shortHash(input: string): string {
   return createHash('sha256').update(input).digest('hex').slice(0, JOB_ID_HASH_LENGTH);
 }
@@ -49,7 +55,7 @@ export async function enqueueInboxActivity(data: InboxJobData): Promise<boolean>
   // as an orphan. Without these options the inbox job would run only ONCE
   // (BullMQ's default), so a transient defer would lose the activity.
   await queue.add('inbox', data, {
-    jobId: `inbox:${shortHash(`${data.verifiedActorUri}|${activityId}`)}`,
+    jobId: `inbox-${shortHash(`${data.verifiedActorUri}|${activityId}`)}`,
     attempts: INBOX_JOB_ATTEMPTS,
     backoff: { type: 'exponential', delay: INBOX_BACKOFF_BASE_MS },
   });
@@ -70,7 +76,7 @@ export async function enqueueDelivery(data: DeliveryJobData): Promise<boolean> {
   // Without a stable activity id we cannot safely dedupe; fall back to letting
   // BullMQ assign a fresh id (every enqueue is a distinct delivery attempt).
   const jobId = activityId
-    ? `delivery:${shortHash(`${data.targetInbox}|${activityId}`)}`
+    ? `delivery-${shortHash(`${data.targetInbox}|${activityId}`)}`
     : undefined;
 
   await queue.add('delivery', data, {

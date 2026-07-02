@@ -170,7 +170,15 @@ async function recomputeFederatedEngagement(): Promise<void> {
 }
 
 if (require.main === module) {
-  recomputeFederatedEngagement();
+  // Exit deterministically: imported singletons can keep the event loop alive, so
+  // the process would otherwise sit RUNNING after the work completes. Mirrors
+  // backfillFederatedBanners.
+  recomputeFederatedEngagement()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[recomputeFederatedEngagement] unhandled failure', error);
+      process.exit(1);
+    });
 }
 
 export default recomputeFederatedEngagement;

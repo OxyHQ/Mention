@@ -26,6 +26,18 @@ function shortHash(input: string): string {
   return createHash('sha256').update(input).digest('hex').slice(0, 40);
 }
 
+/**
+ * BullMQ rejects a custom jobId that contains a `:` unless it splits into
+ * exactly 3 parts (a deprecated compat path). Producer jobIds must therefore
+ * carry NO colon at all — a `<prefix>:<hash>` (2-part) id threw at enqueue time
+ * and every job silently fell back to the Mongo queue. This asserts the real
+ * invariant the mocked `add` cannot enforce for us.
+ */
+function expectValidBullmqJobId(jobId: unknown): void {
+  expect(typeof jobId).toBe('string');
+  expect(jobId as string).not.toContain(':');
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getInboxQueue.mockReturnValue({ add: mocks.inboxAdd });
@@ -40,7 +52,7 @@ describe('enqueueInboxActivity', () => {
     const ok = await enqueueInboxActivity({ activity, verifiedActorUri: 'https://remote/users/bob' });
 
     expect(ok).toBe(true);
-    const expectedJobId = `inbox:${shortHash(`https://remote/users/bob|${activity.id}`)}`;
+    const expectedJobId = `inbox-${shortHash(`https://remote/users/bob|${activity.id}`)}`;
 
     expect(mocks.inboxAdd).toHaveBeenCalledWith(
       'inbox',
@@ -51,6 +63,9 @@ describe('enqueueInboxActivity', () => {
         backoff: { type: 'exponential', delay: INBOX_BACKOFF_BASE_MS },
       },
     );
+    // The generated id must be a legal BullMQ custom id (no colon).
+    expectValidBullmqJobId(expectedJobId);
+    expectValidBullmqJobId(mocks.inboxAdd.mock.calls[0][2].jobId);
   });
 
   it('produces the SAME jobId for a redelivered identical activity (idempotent enqueue)', async () => {
@@ -71,8 +86,8 @@ describe('enqueueInboxActivity', () => {
 
     const firstJobId = mocks.inboxAdd.mock.calls[0][2].jobId;
     const secondJobId = mocks.inboxAdd.mock.calls[1][2].jobId;
-    const bobJobId = `inbox:${shortHash(`https://remote/users/bob|${activity.id}`)}`;
-    const malloryJobId = `inbox:${shortHash(`https://evil.example/users/mallory|${activity.id}`)}`;
+    const bobJobId = `inbox-${shortHash(`https://remote/users/bob|${activity.id}`)}`;
+    const malloryJobId = `inbox-${shortHash(`https://evil.example/users/mallory|${activity.id}`)}`;
 
     expect(firstJobId).toBe(bobJobId);
     expect(secondJobId).toBe(malloryJobId);
@@ -114,11 +129,39 @@ describe('enqueueDelivery', () => {
       'delivery',
       { activityJson, targetInbox: 'https://remote/inbox', senderOxyUserId: 'oxy_alice' },
       {
-        jobId: `delivery:${shortHash('https://remote/inbox|https://local/a/1')}`,
+        jobId: `delivery-${shortHash('https://remote/inbox|https://local/a/1')}`,
         attempts: DELIVERY_JOB_ATTEMPTS,
         backoff: { type: DELIVERY_BACKOFF_STRATEGY },
       },
     );
+  });
+
+  it('builds a colon-free jobId even though the inbox URL and activity id contain colons', async () => {
+    // Regression: the raw inputs are full URLs (`https://…`), so a naive jobId
+    // carried colons and BullMQ rejected it — every delivery fell back to Mongo.
+    const ok = await enqueueDelivery({
+      activityJson: { id: 'https://local.example/users/alice/statuses/1', type: 'Create' },
+      targetInbox: 'https://remote.example:8443/users/bob/inbox',
+      senderOxyUserId: 'oxy_alice',
+    });
+
+    expect(ok).toBe(true);
+    expectValidBullmqJobId(mocks.deliveryAdd.mock.calls[0][2].jobId);
+  });
+
+  it('produces the SAME colon-free jobId for an identical redelivery (stable dedupe)', async () => {
+    const data = {
+      activityJson: { id: 'https://local/a/1', type: 'Create' },
+      targetInbox: 'https://remote/inbox',
+      senderOxyUserId: 'oxy_alice',
+    };
+    await enqueueDelivery(data);
+    await enqueueDelivery(data);
+
+    const firstJobId = mocks.deliveryAdd.mock.calls[0][2].jobId;
+    const secondJobId = mocks.deliveryAdd.mock.calls[1][2].jobId;
+    expect(firstJobId).toBe(secondJobId);
+    expectValidBullmqJobId(firstJobId);
   });
 
   it('omits the jobId (every enqueue is distinct) when the activity has no id', async () => {
