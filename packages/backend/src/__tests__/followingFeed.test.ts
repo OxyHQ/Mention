@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+/**
+ * The `following` source (timeline variant) must reproduce the Following feed's
+ * visibility authorization: followed authors + the viewer may show public /
+ * followers-only; subscribed-list-only authors show public ONLY (list
+ * subscription is feed-inclusion, never a follow relationship).
+ */
+
 const capturedFindQueries: Array<Record<string, unknown>> = [];
-const hydrateSlicesMock = vi.fn();
-const sliceFeedMock = vi.fn();
 
 vi.mock('../models/Post', () => ({
   Post: {
@@ -11,11 +16,7 @@ vi.mock('../models/Post', () => ({
       return {
         select: () => ({
           sort: () => ({
-            limit: () => ({
-              maxTimeMS: () => ({
-                lean: () => Promise.resolve([]),
-              }),
-            }),
+            limit: () => ({ maxTimeMS: () => ({ lean: () => Promise.resolve([]) }) }),
           }),
         }),
       };
@@ -23,37 +24,22 @@ vi.mock('../models/Post', () => ({
   },
 }));
 
-vi.mock('../services/PostHydrationService', () => ({
-  postHydrationService: {
-    hydrateSlices: () => hydrateSlicesMock(),
-  },
-}));
-
-vi.mock('../services/ThreadSlicingService', () => ({
-  threadSlicingService: { sliceFeed: (...args: unknown[]) => sliceFeedMock(...args) },
-}));
-
-import { FollowingFeed } from '../mtn/feed/feeds/FollowingFeed';
+import { followingSource } from '../mtn/feed/engine/sources/forYouSources';
+import type { FeedEngineContext } from '../mtn/feed/engine/types';
 
 beforeEach(() => {
   capturedFindQueries.length = 0;
   vi.clearAllMocks();
-  sliceFeedMock.mockResolvedValue({ slices: [] });
-  hydrateSlicesMock.mockResolvedValue([]);
 });
 
-describe('FollowingFeed visibility authorization', () => {
+describe('following source (timeline) visibility authorization', () => {
   it('keeps subscribed-list authors public-only instead of granting followers-only access', async () => {
-    const feed = new FollowingFeed();
-
-    await feed.fetch(
-      { cursor: undefined, limit: 20 },
-      {
-        currentUserId: 'viewer',
-        followingIds: ['real-follow'],
-        subscribedListMemberIds: ['list-only'],
-      },
-    );
+    const ctx: FeedEngineContext = {
+      currentUserId: 'viewer',
+      followingIds: ['real-follow'],
+      subscribedListMemberIds: ['list-only'],
+    };
+    await followingSource.gather(ctx, { timeline: true }, 31);
 
     expect(capturedFindQueries).toHaveLength(1);
     expect(capturedFindQueries[0]).toMatchObject({
@@ -61,14 +47,8 @@ describe('FollowingFeed visibility authorization', () => {
       $and: [
         {
           $or: [
-            {
-              oxyUserId: { $in: ['viewer', 'real-follow'] },
-              visibility: { $in: ['public', 'followers_only'] },
-            },
-            {
-              oxyUserId: { $in: ['list-only'] },
-              visibility: 'public',
-            },
+            { oxyUserId: { $in: ['viewer', 'real-follow'] }, visibility: { $in: ['public', 'followers_only'] } },
+            { oxyUserId: { $in: ['list-only'] }, visibility: 'public' },
           ],
         },
       ],
@@ -76,29 +56,19 @@ describe('FollowingFeed visibility authorization', () => {
   });
 
   it('does not duplicate real follows in the public-only subscribed-list branch', async () => {
-    const feed = new FollowingFeed();
-
-    await feed.fetch(
-      { cursor: undefined, limit: 20 },
-      {
-        currentUserId: 'viewer',
-        followingIds: ['real-follow'],
-        subscribedListMemberIds: ['viewer', 'real-follow', 'list-only'],
-      },
-    );
+    const ctx: FeedEngineContext = {
+      currentUserId: 'viewer',
+      followingIds: ['real-follow'],
+      subscribedListMemberIds: ['viewer', 'real-follow', 'list-only'],
+    };
+    await followingSource.gather(ctx, { timeline: true }, 31);
 
     expect(capturedFindQueries[0]).toMatchObject({
       $and: [
         {
           $or: [
-            {
-              oxyUserId: { $in: ['viewer', 'real-follow'] },
-              visibility: { $in: ['public', 'followers_only'] },
-            },
-            {
-              oxyUserId: { $in: ['list-only'] },
-              visibility: 'public',
-            },
+            { oxyUserId: { $in: ['viewer', 'real-follow'] }, visibility: { $in: ['public', 'followers_only'] } },
+            { oxyUserId: { $in: ['list-only'] }, visibility: 'public' },
           ],
         },
       ],

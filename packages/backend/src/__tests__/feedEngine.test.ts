@@ -9,13 +9,13 @@ import mongoose from 'mongoose';
  */
 
 // --- Mock the heavy collaborators the engine calls. ---
-const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>) => {
+const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>, _userId?: unknown, _ctx?: unknown) => {
   // Attach finalScore from the fixture `_testScore` (higher = ranked first).
   for (const p of posts) p.finalScore = (p._testScore as number | undefined) ?? 0;
   return posts;
 });
 vi.mock('../services/FeedRankingService', () => ({
-  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as [Array<Record<string, unknown>>])) },
+  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)) },
 }));
 
 // sliceFeed → one single-item slice per post, preserving order.
@@ -168,5 +168,51 @@ describe('FeedEngine — soft-fail', () => {
 
     const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 30 });
     expect(result.items.map((i) => i.id)).toEqual([oid(1).toString()]);
+  });
+});
+
+describe('FeedEngine — ranked fallbacks', () => {
+  function rankedDef(): FeedDefinition {
+    return {
+      id: 'test-fallback',
+      title: 'Test',
+      mode: 'ranked',
+      sources: [{ module: 'lane', enabled: true }],
+      signals: [],
+      filters: [],
+      execution: { seenPosts: true, neverBlank: true, popularFallback: 'popular', passSensitiveOptIn: true },
+    };
+  }
+
+  it('serves the popular fallback for an anonymous viewer (never gathering the ranked lane)', async () => {
+    const laneGather = vi.fn(async () => [makePost(1, { _testScore: 5 })]);
+    const popularGather = vi.fn(async () => [makePost(9)]);
+    registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: laneGather });
+    registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: popularGather });
+
+    const result = await engine.run(rankedDef(), {}, { limit: 30 });
+    expect(popularGather).toHaveBeenCalledOnce();
+    expect(laneGather).not.toHaveBeenCalled();
+    expect(result.items.map((i) => i.id)).toEqual([oid(9).toString()]);
+  });
+
+  it('falls back to popular when the authenticated ranked pool is empty (never-blank)', async () => {
+    registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: async () => [] });
+    const popularGather = vi.fn(async () => [makePost(9)]);
+    registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: popularGather });
+
+    const result = await engine.run(rankedDef(), { currentUserId: 'viewer' }, { limit: 30 });
+    expect(popularGather).toHaveBeenCalledOnce();
+    expect(result.items.map((i) => i.id)).toEqual([oid(9).toString()]);
+  });
+
+  it('threads the viewer sensitive opt-in into rankPosts when passSensitiveOptIn is set', async () => {
+    registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: async () => [makePost(1, { _testScore: 5 })] });
+    registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: async () => [] });
+
+    await engine.run(rankedDef(), { currentUserId: 'viewer', showSensitiveContent: true }, { limit: 30 });
+    expect(rankPosts).toHaveBeenCalledOnce();
+    const rankCtx = rankPosts.mock.calls[0][2] as { showSensitiveContent?: boolean };
+    expect(rankCtx.showSensitiveContent).toBe(true);
   });
 });

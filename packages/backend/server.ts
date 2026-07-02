@@ -85,7 +85,7 @@ import federationApiRoutes from './src/connectors/connectors.routes';
 import atprotoBridgeRoutes, { bridgeMetaRouter as atprotoBridgeMetaRoutes, wellKnownBridgeRouter } from './src/connectors/atproto/bridge/routes';
 
 // MTN Protocol
-import { registerAllFeeds } from './src/mtn/feed/registerFeeds';
+import { registerAllModules } from './src/mtn/feed/engine';
 
 // Middleware
 import { createOxyRateLimit } from '@oxyhq/core/server';
@@ -1134,8 +1134,8 @@ const bootServer = async () => {
     logger.warn("Failed to start federation queue workers", error);
   }
 
-  // Register MTN Protocol feed implementations
-  registerAllFeeds();
+  // Register MTN Protocol feed engine modules (sources / signals / filters)
+  registerAllModules();
 
   // Start server after all async setup is complete
   server.listen(PORT, '0.0.0.0', () => {

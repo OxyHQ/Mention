@@ -6,12 +6,14 @@
  */
 
 import { Request, Response } from 'express';
-import { isValidFeedDescriptor, MtnConfig, createPostUri } from '@mention/shared-types';
+import { isValidFeedDescriptor, MtnConfig, createPostUri, parseFeedDescriptor } from '@mention/shared-types';
 import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { feedAPIRegistry } from '../feed/FeedAPIRegistry';
 import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { feedEngine } from '../feed/engine/FeedEngine';
+import { CustomFeed } from '../feed/feeds/CustomFeed';
+import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
+import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { UserPrivacyManager } from '../UserPrivacyManager';
@@ -107,6 +109,19 @@ async function mergeFederatedFollowIds(
 }
 
 
+/**
+ * Resolve the descriptors NOT owned by the engine in Phase 1 to their legacy
+ * FeedAPI implementation: `custom|id` (the stored CustomFeed, migrated to a
+ * definition in Phase 3) and `feedgen|uri` (external generator stub). Returns
+ * `null` for anything else.
+ */
+function resolveLegacyFeed(descriptor: FeedDescriptor): FeedAPI | null {
+  const { source, params } = parseFeedDescriptor(descriptor);
+  if (source === 'custom') return new CustomFeed(params[0]);
+  if (source === 'feedgen') return new FeedGeneratorFeed(params[0]);
+  return null;
+}
+
 class MtnFeedController {
   /**
    * GET /api/feed?descriptor=for_you&cursor=...&limit=30
@@ -198,7 +213,7 @@ class MtnFeedController {
       if (definition) {
         response = await feedEngine.run(definition, context, { cursor, limit });
       } else {
-        const feedApi = feedAPIRegistry.resolve(descriptor, context);
+        const feedApi = resolveLegacyFeed(descriptor);
         if (!feedApi) {
           res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
           return;
@@ -301,7 +316,7 @@ class MtnFeedController {
       if (definition) {
         latest = await feedEngine.peekLatest(definition, context);
       } else {
-        const feedApi = feedAPIRegistry.resolve(descriptor, context);
+        const feedApi = resolveLegacyFeed(descriptor);
         if (!feedApi) {
           res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
           return;
