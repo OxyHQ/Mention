@@ -71,6 +71,10 @@ import { SuggestedUsers } from './suggestions/SuggestedUsers';
 
 const IS_WEB = Platform.OS === 'web';
 
+// Banner image wrapped for the pull-to-zoom parallax (scale driven by the shared
+// scrollY). Created once at module scope so it is a stable component type.
+const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
+
 // Helper functions
 const isProfilePrivate = (
     profileData: ProfileData | null,
@@ -459,6 +463,22 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         [scrollY]
     );
 
+    // Pull-to-zoom banner parallax: on overscroll (negative scroll offset, i.e.
+    // pulling the content down past the top) the banner scales 1 → 1.5. Uses the
+    // same `scrollY` Animated.Value as the banner fade above for consistency; on
+    // web `window.scrollY` never goes negative, so this stays clamped at 1 (no
+    // rubber-band there) while native's bouncing ScrollView drives the zoom.
+    const bannerScale = useMemo(
+        () =>
+            scrollY.interpolate({
+                inputRange: [-150, 0],
+                outputRange: [1.5, 1],
+                extrapolateLeft: 'extend',
+                extrapolateRight: 'clamp',
+            }),
+        [scrollY]
+    );
+
     // Header name overlay opacity - shows when scrolled past profile content.
     // Guard against the pre-measurement window: until ProfileContent's onLayout
     // reports a real height, profileContentHeight is 0, which would make the
@@ -592,10 +612,13 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     className="left-0 right-0 overflow-hidden web:sticky web:z-[1] web:[margin-bottom:-170px]"
                                     style={[webStickyChrome.banner, panelStickyTopInset, { height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }]}
                                 >
-                                    <ImageBackground
+                                    <AnimatedImageBackground
                                         source={{ uri: bannerUri }}
                                         className="absolute left-0 right-0 top-0 overflow-hidden"
-                                        style={{ height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED }}
+                                        style={{
+                                            height: LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED,
+                                            transform: [{ scale: bannerScale }],
+                                        }}
                                     />
                                     <Animated.View
                                         className="absolute left-0 right-0 top-0 overflow-hidden bg-background"

@@ -3,16 +3,19 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import { useDerivedValue, interpolate, Extrapolation } from 'react-native-reanimated';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
+import { LAYOUT } from './types';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
@@ -45,6 +48,20 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
   useFederatedFollowSync(profileId, isFederated, actorUri);
 
+  // Normalized 0 → 1 collapse driver for the avatar shrink, derived on the UI
+  // thread from the shared scroll offset (fed by both the native ScrollView and
+  // the web window-scroll listener via LayoutScrollContext). Maps the first
+  // HEADER_HEIGHT_EXPANDED px of scroll to the full shrink; clamped past that.
+  const { scrollPosition } = useLayoutScroll();
+  const avatarCollapseProgress = useDerivedValue(() =>
+    interpolate(
+      scrollPosition.value,
+      [0, LAYOUT.HEADER_HEIGHT_EXPANDED],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+  );
+
   return (
     <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -45 }}>
       <View className="relative">
@@ -54,6 +71,9 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           className="border-[3px] border-background bg-secondary"
           style={{ width: 90, height: 90, borderRadius: 45 }}
           imageStyle={{}}
+          collapseProgress={avatarCollapseProgress}
+          collapseMinScale={0.45}
+          collapseTranslateY={16}
         />
         {!isOwnProfile && profileId && (
           <PresenceIndicator

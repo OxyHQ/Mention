@@ -20,6 +20,9 @@ import Animated, {
   withTiming,
   runOnJS,
   Easing,
+  interpolate,
+  Extrapolation,
+  type SharedValue,
 } from 'react-native-reanimated';
 import {
   GestureHandlerRootView,
@@ -45,6 +48,20 @@ interface ZoomableAvatarProps {
   style?: StyleProp<ViewStyle>;
   imageStyle?: StyleProp<ImageStyle>;
   className?: string;
+  /**
+   * Optional scroll-collapse driver in the range 0 (expanded) → 1 (fully
+   * collapsed). When provided, the resting (non-zoomed) avatar scales toward
+   * `collapseMinScale` and shifts down by `collapseTranslateY` as the value
+   * moves 0 → 1 — the classic "avatar shrinks into the header" effect on a
+   * scrollable profile/detail screen. The caller derives this normalized value
+   * from its own scroll source, so `ZoomableAvatar` stays generic. The shrink is
+   * purely additive to the tap-to-zoom transform and is gated OFF while zoomed.
+   */
+  collapseProgress?: SharedValue<number>;
+  /** Scale the resting avatar reaches at full collapse (default 1 = no shrink). */
+  collapseMinScale?: number;
+  /** Downward shift (px) the resting avatar reaches at full collapse (default 0). */
+  collapseTranslateY?: number;
 }
 
 export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
@@ -53,6 +70,9 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   style,
   imageStyle,
   className,
+  collapseProgress,
+  collapseMinScale = 1,
+  collapseTranslateY = 0,
 }) => {
   const theme = useTheme();
   const { oxyServices } = useAuth();
@@ -323,17 +343,22 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     [handleDismiss, isZoomed, SCREEN_HEIGHT, MAX_ZOOM_SIZE, size]
   );
 
-  // Style for the small avatar (not zoomed)
+  // Style for the small avatar (not zoomed). When a `collapseProgress` driver is
+  // supplied, the resting avatar shrinks toward `collapseMinScale` and slides
+  // down by `collapseTranslateY` as the value goes 0 → 1. The shrink is gated OFF
+  // while zoomed so it never fights the tap-to-zoom transform.
   const avatarAnimatedStyle = useAnimatedStyle(() => {
     if (isZoomed) {
       return {
         opacity: 0,
       };
     }
+    const progress = collapseProgress?.value ?? 0;
     return {
       opacity: 1,
       transform: [
-        { scale: 1 },
+        { scale: interpolate(progress, [0, 1], [1, collapseMinScale], Extrapolation.CLAMP) },
+        { translateY: interpolate(progress, [0, 1], [0, collapseTranslateY], Extrapolation.CLAMP) },
       ],
       borderRadius: size / 2,
     };
