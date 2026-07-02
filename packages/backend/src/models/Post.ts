@@ -42,6 +42,10 @@ export interface IPost extends Document {
   replyPermission?: ReplyPermission[]; // Who can reply and quote this post
   reviewReplies?: boolean; // Whether to review and approve replies before they're visible
   quotesDisabled?: boolean; // Whether quote posts are disabled
+  // Editorial/curation flag powering the `curated` feed source. Sparse: only set
+  // on posts an admin curator explicitly promotes. The admin setter endpoint is
+  // deferred (Phase 2 ships the field + the reader source; no post sets it yet).
+  curated?: boolean;
   stats: PostStats;
   metadata: PostMetadata;
   location?: { // Post creation location metadata
@@ -423,6 +427,9 @@ const PostSchema = new Schema<IPost>({
   },
   reviewReplies: { type: Boolean, default: false },
   quotesDisabled: { type: Boolean, default: false },
+  // Editorial curation flag (sparse — only present on curated posts). Reader:
+  // the `curated` feed source. No writer ships in Phase 2 (admin setter deferred).
+  curated: { type: Boolean, index: { sparse: true } },
   status: {
     type: String,
     enum: ['draft', 'published', 'scheduled'],
