@@ -58,6 +58,9 @@ describe('buildModuleCatalog', () => {
       'penalizeSeen',
       'verifiedBoost',
       'dwellTime',
+      'socialProof',
+      'reciprocityBoost',
+      'noveltyBoost',
     ]) {
       expect(signalIds).toContain(id);
     }

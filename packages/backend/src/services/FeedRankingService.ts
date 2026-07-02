@@ -233,13 +233,19 @@ export class FeedRankingService {
     authorVerified: Map<string, boolean>;
     /** The viewer's seen post ids (for `penalizeSeen`). */
     seenPostIds?: string[];
+    /** The viewer's following ids (for `socialProof`'s network set). */
+    followingIds: string[];
+    /** The viewer's mutual ids (for `socialProof` + `reciprocityBoost`). */
+    mutualIds?: string[];
   }): Promise<OptInSignalContext> {
-    const { posts, enabledSignals, authorVerified, seenPostIds } = params;
+    const { posts, userId, enabledSignals, authorVerified, seenPostIds, followingIds, mutualIds } = params;
     if (!enabledSignals || enabledSignals.size === 0) {
       return {};
     }
 
     const optIn: OptInSignalContext = { enabledSignals };
+    const postIds = (): string[] =>
+      posts.map((p) => (p?._id != null ? String(p._id) : '')).filter((id) => id.length > 0);
 
     if (enabledSignals.has('verifiedBoost')) {
       optIn.authorVerified = authorVerified;
@@ -249,12 +255,26 @@ export class FeedRankingService {
       optIn.seenPostIdsSet = new Set(seenPostIds);
     }
 
+    if (enabledSignals.has('reciprocityBoost') && mutualIds && mutualIds.length > 0) {
+      optIn.mutualIdsSet = new Set(mutualIds);
+    }
+
     if (enabledSignals.has('dwellTime')) {
-      const postIds = posts
-        .map((p) => (p?._id != null ? String(p._id) : ''))
-        .filter((id) => id.length > 0);
       const { getDwellAverages } = await import('./dwellAggregate.js');
-      optIn.dwellAverages = await getDwellAverages(postIds);
+      optIn.dwellAverages = await getDwellAverages(postIds());
+    }
+
+    if (enabledSignals.has('socialProof')) {
+      const engagerIds = Array.from(new Set([...(followingIds ?? []), ...(mutualIds ?? [])]));
+      if (engagerIds.length > 0) {
+        const { getNetworkEngagerCounts } = await import('./networkEngagement.js');
+        optIn.networkEngagerCounts = await getNetworkEngagerCounts(postIds(), engagerIds);
+      }
+    }
+
+    if (enabledSignals.has('noveltyBoost') && userId) {
+      const { getRecentTopics } = await import('./viewerRecentTopics.js');
+      optIn.viewerRecentTopics = await getRecentTopics(userId);
     }
 
     return optIn;
@@ -795,6 +815,15 @@ export class FeedRankingService {
     if (enabled.has('dwellTime')) {
       multiplier *= this.calculateDwellTimeBoost(post, context.dwellAverages);
     }
+    if (enabled.has('socialProof')) {
+      multiplier *= this.calculateSocialProofBoost(post, context.networkEngagerCounts);
+    }
+    if (enabled.has('reciprocityBoost')) {
+      multiplier *= this.calculateReciprocityBoost(post, context.userBehavior, context.mutualIdsSet);
+    }
+    if (enabled.has('noveltyBoost')) {
+      multiplier *= this.calculateNoveltyBoost(post, context.viewerRecentTopics);
+    }
     return multiplier;
   }
 
@@ -924,6 +953,74 @@ export class FeedRankingService {
     const over = (avg - thresholdMs) / thresholdMs; // 0 at threshold, 1 at 2× threshold
     const scaled = boost + over * (maxBoost - boost);
     return Math.min(maxBoost, Math.max(boost, scaled));
+  }
+
+  /**
+   * `socialProof` — favor posts that people in the viewer's network (following ∪
+   * mutuals) liked or boosted. Reads the request-scoped `postId → distinct
+   * network-engager count` map. Neutral (1.0) when there is no data or the count
+   * is 0; otherwise `1 + count * perEngager`, clamped to `maxBoost` so a viral
+   * post can't run away with the score.
+   */
+  public calculateSocialProofBoost(
+    post: RankablePost,
+    networkEngagerCounts: Map<string, number> | undefined,
+  ): number {
+    if (!networkEngagerCounts) {
+      return 1.0;
+    }
+    const id = post?._id != null ? String(post._id) : '';
+    const count = id ? networkEngagerCounts.get(id) : undefined;
+    if (typeof count !== 'number' || !Number.isFinite(count) || count <= 0) {
+      return 1.0;
+    }
+    const { perEngager, maxBoost } = this.R.optInSignals.socialProof;
+    return Math.min(maxBoost, 1 + count * perEngager);
+  }
+
+  /**
+   * `reciprocityBoost` — favor authors the viewer MUTUALLY engages with: an
+   * author who is BOTH a mutual follow (in `mutualIdsSet`) AND a learned
+   * `preferredAuthor` at or above `minAuthorWeight`. Neutral (1.0) when there are
+   * no mutuals, no learned behavior, the author is not a mutual, or the author is
+   * not a (sufficiently-weighted) preferred author.
+   */
+  public calculateReciprocityBoost(
+    post: RankablePost,
+    userBehavior: RankingUserBehavior | undefined,
+    mutualIdsSet: Set<string> | undefined,
+  ): number {
+    if (!mutualIdsSet || mutualIdsSet.size === 0 || !userBehavior?.preferredAuthors) {
+      return 1.0;
+    }
+    const authorId = post?.oxyUserId ? String(post.oxyUserId) : '';
+    if (!authorId || !mutualIdsSet.has(authorId)) {
+      return 1.0;
+    }
+    const { boost, minAuthorWeight } = this.R.optInSignals.reciprocityBoost;
+    const preference = userBehavior.preferredAuthors.find((a) => a.authorId === authorId);
+    return preference && preference.weight >= minAuthorWeight ? boost : 1.0;
+  }
+
+  /**
+   * `noveltyBoost` — an EXPLORATION lift for posts whose topics the viewer has
+   * NOT recently seen, to break out of topic echo chambers. Neutral (1.0) when
+   * there is no recent-topic set, the post has no topics (novelty can't be
+   * judged), or ANY of the post's topics is in the recent set; the configured
+   * boost when the post has topics and ALL of them are novel to the viewer.
+   */
+  public calculateNoveltyBoost(post: RankablePost, viewerRecentTopics: Set<string> | undefined): number {
+    if (!viewerRecentTopics || viewerRecentTopics.size === 0) {
+      return 1.0;
+    }
+    const names = this.getCanonicalTopics(post)
+      .map((t) => (typeof t.name === 'string' ? t.name.toLowerCase() : ''))
+      .filter((name) => name.length > 0);
+    if (names.length === 0) {
+      return 1.0;
+    }
+    const seenAny = names.some((name) => viewerRecentTopics.has(name));
+    return seenAny ? 1.0 : this.R.optInSignals.noveltyBoost.boost;
   }
 
   /**
@@ -1354,6 +1451,12 @@ export class FeedRankingService {
        * `penalizeSeen` opt-in signal. Only consumed when `penalizeSeen` is enabled.
        */
       seenPostIds?: string[];
+      /**
+       * The viewer's mutual-follow author ids — used by the `socialProof`
+       * (network = following ∪ mutuals) and `reciprocityBoost` opt-in signals.
+       * Only consumed when one of those signals is enabled.
+       */
+      mutualIds?: string[];
     } = {}
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
@@ -1414,6 +1517,8 @@ export class FeedRankingService {
       enabledSignals: context.enabledSignals,
       authorVerified,
       seenPostIds: context.seenPostIds,
+      followingIds: followingIds ?? [],
+      mutualIds: context.mutualIds,
     });
 
     // Pre-calculate engagement scores with caching (batch load from cache)

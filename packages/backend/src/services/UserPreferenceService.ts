@@ -5,6 +5,7 @@ import Bookmark from '../models/Bookmark';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { MtnConfig, isVideoSurface } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+import { recordSeenTopics } from './viewerRecentTopics';
 
 /**
  * Optional originating-surface context for an interaction. `surface` is the
@@ -117,6 +118,23 @@ export class UserPreferenceService {
       if (!post) {
         logger.warn(`[UserPreference] Post ${postId} not found, skipping interaction recording`);
         return;
+      }
+
+      // Feed the viewer's RECENT-TOPIC set (powers the opt-in `noveltyBoost`
+      // ranking signal). Positive signals only — a genuine view / like / etc.
+      // means the viewer was exposed to these topics. Best-effort and
+      // fire-and-forget (the helper never rejects), so it never blocks or fails
+      // interaction recording.
+      if ((this.LEARNING_WEIGHTS[interactionType] || 0) > 0) {
+        const seenTopics = [
+          ...this.getCanonicalTopics(post)
+            .map((t) => (typeof t.name === 'string' ? t.name : ''))
+            .filter((name) => name.length > 0),
+          ...(Array.isArray(post.hashtags) ? post.hashtags : []),
+        ];
+        if (seenTopics.length > 0) {
+          void recordSeenTopics(userId, seenTopics);
+        }
       }
 
       // Apply the load-modify-save under a bounded retry loop so concurrent

@@ -45,6 +45,10 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   penalizeSeen: 'penalizeSeen',
   verifiedBoost: 'verifiedBoost',
   dwellTime: 'dwellTime',
+  // Opt-in (Phase 2b) — network signals.
+  socialProof: 'socialProof',
+  reciprocityBoost: 'reciprocityBoost',
+  noveltyBoost: 'noveltyBoost',
 };
 
 export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(
