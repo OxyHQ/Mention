@@ -14,26 +14,39 @@ import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
+import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types';
 
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
-import { ThemedView } from '@/components/ThemedView';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import SEO from '@/components/SEO';
 
-import { getData, storeData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
+import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@oxyhq/services';
 
-const PINNED_KEY = 'mention.pinnedFeeds';
-
 const IS_WEB = Platform.OS === 'web';
+
+/**
+ * Ionicons glyph per preset id. The shared catalog carries Lucide names; the
+ * feeds screen renders with Ionicons (its existing icon set), so this maps the
+ * small, fixed preset set rather than pulling in a second icon library.
+ */
+const PRESET_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  for_you: 'sparkles',
+  following: 'people',
+  trending: 'flame',
+  explore: 'compass',
+  mutuals: 'people-circle',
+  friends_popular: 'heart',
+  videos: 'film',
+};
 
 interface FeedItem {
   _id?: string;
@@ -53,46 +66,71 @@ interface FeedItem {
   isLiked?: boolean;
 }
 
-// Simple row for quick-access feeds
-const QuickFeedRow = ({
-  icon,
-  iconColor,
-  label,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  iconColor: string;
-  label: string;
-  onPress?: () => void;
-}) => {
+// Pin toggle button shared by preset + custom rows.
+const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }) => {
   const theme = useTheme();
   return (
     <TouchableOpacity
-      style={[styles.quickRow, { borderBottomColor: theme.colors.border }]}
       onPress={onPress}
-      activeOpacity={0.7}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      style={[
+        styles.pinBtn,
+        pinned
+          ? { backgroundColor: theme.colors.backgroundSecondary }
+          : { backgroundColor: theme.colors.primary },
+      ]}
     >
-      <Ionicons name={icon} size={20} color={iconColor} />
-      <Text className="flex-1 text-[15px] font-semibold text-foreground">{label}</Text>
-      <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
+      <Ionicons name={pinned ? 'checkmark' : 'add'} size={14} color={pinned ? theme.colors.text : '#fff'} />
     </TouchableOpacity>
   );
 };
 
-// Compact feed card row
-const FeedRow = ({
-  item,
+// Built-in preset feed row (For You / Following / Trending / Discover / …).
+const PresetRow = ({
+  preset,
   pinned,
+  canEdit,
   onTogglePin,
   t,
 }: {
-  item: FeedItem;
+  preset: PresetFeed;
   pinned: boolean;
-  onTogglePin: (id: string) => void;
+  canEdit: boolean;
+  onTogglePin: () => void;
   t: (key: string) => string;
 }) => {
   const theme = useTheme();
-  const feedId = `custom:${item._id || item.id}`;
+  return (
+    <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
+      <View className="w-9 h-9 rounded-full items-center justify-center bg-secondary">
+        <Ionicons name={PRESET_ICONS[preset.id] ?? 'sparkles'} size={20} color={theme.colors.primary} />
+      </View>
+      <View className="flex-1 gap-0.5">
+        <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+          {t(preset.labelKey)}
+        </Text>
+        <Text className="text-[13px] leading-[18px] text-muted-foreground" numberOfLines={2}>
+          {t(preset.descriptionKey)}
+        </Text>
+      </View>
+      {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
+    </View>
+  );
+};
+
+// Compact custom-feed card row
+const FeedRow = ({
+  item,
+  pinned,
+  canEdit,
+  onTogglePin,
+}: {
+  item: FeedItem;
+  pinned: boolean;
+  canEdit: boolean;
+  onTogglePin: () => void;
+}) => {
+  const theme = useTheme();
   const memberCount = (item.memberOxyUserIds || []).length;
 
   return (
@@ -117,22 +155,7 @@ const FeedRow = ({
           </Text>
         ) : null}
       </View>
-      <TouchableOpacity
-        onPress={() => onTogglePin(feedId)}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={[
-          styles.pinBtn,
-          pinned
-            ? { backgroundColor: theme.colors.backgroundSecondary }
-            : { backgroundColor: theme.colors.primary },
-        ]}
-      >
-        <Ionicons
-          name={pinned ? 'checkmark' : 'add'}
-          size={14}
-          color={pinned ? theme.colors.text : '#fff'}
-        />
-      </TouchableOpacity>
+      {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
     </TouchableOpacity>
   );
 };
@@ -141,7 +164,7 @@ const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
-  const [pinned, setPinned] = useState<string[]>([]);
+  const { isPinned, pin, unpin, canEdit } = useFeedPreferences();
   const [myFeeds, setMyFeeds] = useState<FeedItem[]>([]);
   const [publicFeeds, setPublicFeeds] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -155,15 +178,13 @@ const FeedsScreen: React.FC = () => {
 
     try {
       setLoading(true);
-      const [mine, pub, storedPinned] = await Promise.all([
+      const [mine, pub] = await Promise.all([
         canUsePrivateApi
           ? customFeedsService.list({ mine: true })
           : Promise.resolve({ items: [], total: 0 }),
         customFeedsService.list({ publicOnly: true }),
-        getData<string[]>(PINNED_KEY),
       ]);
 
-      setPinned(storedPinned || []);
       setMyFeeds(mine.items || []);
 
       const mineIds = new Set((mine.items || []).map((feed: FeedItem) => String(feed._id || feed.id)));
@@ -190,15 +211,29 @@ const FeedsScreen: React.FC = () => {
     loadFeeds();
   }, [loadFeeds]);
 
-  const onTogglePin = useCallback(async (id: string) => {
-    setPinned((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      storeData(PINNED_KEY, next).catch((error) => {
-        logger.warn('Failed to persist pinned feeds', { error });
-      });
-      return next;
-    });
-  }, []);
+  // Presets available to this viewer: hide viewer-relative (requiresAuth) presets
+  // for anonymous viewers.
+  const visiblePresets = useMemo(
+    () => PRESET_FEEDS.filter((preset) => canUsePrivateApi || !preset.requiresAuth),
+    [canUsePrivateApi],
+  );
+
+  const togglePreset = useCallback(
+    (preset: PresetFeed) => {
+      if (isPinned(preset.id)) unpin(preset.id);
+      else pin({ key: preset.id, descriptor: preset.descriptor });
+    },
+    [isPinned, pin, unpin],
+  );
+
+  const toggleCustom = useCallback(
+    (feedId: string) => {
+      const key = `custom:${feedId}`;
+      if (isPinned(key)) unpin(key);
+      else pin({ key, descriptor: `custom|${feedId}` });
+    },
+    [isPinned, pin, unpin],
+  );
 
   const filteredPublic = useMemo(() => {
     if (!searchQuery.trim()) return publicFeeds;
@@ -214,21 +249,20 @@ const FeedsScreen: React.FC = () => {
   // Directory body — identical on both platforms; only the scroll host differs.
   const content = (
     <>
-      {/* Quick access feeds */}
-      <QuickFeedRow icon="swap-vertical" iconColor={theme.colors.primary} label={t('feeds.following')} onPress={() => router.push('/')} />
-
-      {/* Pinned custom feeds in quick list */}
-      {myFeeds
-        .filter((f) => pinned.includes(`custom:${f._id || f.id}`))
-        .map((f) => (
-          <QuickFeedRow
-            key={f._id || f.id}
-            icon="pin"
-            iconColor={theme.colors.primary}
-            label={f.title || 'Untitled'}
-            onPress={() => router.push(`/feeds/${f._id || f.id}`)}
-          />
-        ))}
+      {/* Built-in preset feeds */}
+      <Text className="text-[15px] font-bold text-foreground mt-2 mb-1">
+        {t('feeds.presets.title')}
+      </Text>
+      {visiblePresets.map((preset) => (
+        <PresetRow
+          key={preset.id}
+          preset={preset}
+          pinned={isPinned(preset.id)}
+          canEdit={canEdit}
+          onTogglePin={() => togglePreset(preset)}
+          t={t}
+        />
+      ))}
 
       {/* Discover feeds */}
       <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
@@ -259,9 +293,9 @@ const FeedsScreen: React.FC = () => {
           <FeedRow
             key={String(item._id || item.id)}
             item={item}
-            pinned={pinned.includes(`custom:${item._id || item.id}`)}
-            onTogglePin={onTogglePin}
-            t={t}
+            pinned={isPinned(`custom:${item._id || item.id}`)}
+            canEdit={canEdit}
+            onTogglePin={() => toggleCustom(String(item._id || item.id))}
           />
         ))
       )}
@@ -276,9 +310,9 @@ const FeedsScreen: React.FC = () => {
             <FeedRow
               key={String(f._id || f.id)}
               item={f}
-              pinned={pinned.includes(`custom:${f._id || f.id}`)}
-              onTogglePin={onTogglePin}
-              t={t}
+              pinned={isPinned(`custom:${f._id || f.id}`)}
+              canEdit={canEdit}
+              onTogglePin={() => toggleCustom(String(f._id || f.id))}
             />
           ))}
         </>
@@ -325,11 +359,13 @@ const FeedsScreen: React.FC = () => {
         )}
 
         {/* FAB that rides the BottomBar's show/hide (web mobile). */}
-        <BottomBarAwareFab
-          onPress={() => router.push('/feeds/new')}
-          icon={<Ionicons name="add" size={24} color="white" />}
-          accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
-        />
+        {canEdit ? (
+          <BottomBarAwareFab
+            onPress={() => router.push('/feeds/new')}
+            icon={<Ionicons name="add" size={24} color="white" />}
+            accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
+          />
+        ) : null}
       </SafeAreaView>
     </>
   );
@@ -338,13 +374,6 @@ const FeedsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
-  },
-  quickRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 13,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 14,
   },
   searchInput: {
   },

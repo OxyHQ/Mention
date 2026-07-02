@@ -927,6 +927,213 @@
       "members": "Members",
       "remove": "Remove",
       "createButton": "Create Feed"
+    },
+    "presets": {
+      "title": "Built-in feeds",
+      "for_you": {
+        "label": "For You",
+        "description": "A personalized mix tuned to what you engage with."
+      },
+      "following": {
+        "label": "Following",
+        "description": "The latest posts from people you follow."
+      },
+      "trending": {
+        "label": "Trending",
+        "description": "What's popular across Mention right now."
+      },
+      "explore": {
+        "label": "Discover",
+        "description": "Fresh posts and people from across the network."
+      },
+      "mutuals": {
+        "label": "Mutuals",
+        "description": "Posts from people you follow who follow you back."
+      },
+      "friends_popular": {
+        "label": "Popular with Friends",
+        "description": "Posts your friends are engaging with."
+      },
+      "videos": {
+        "label": "Videos",
+        "description": "A full-screen feed of videos."
+      }
+    },
+    "builder": {
+      "createTitle": "New feed",
+      "editTitle": "Edit feed",
+      "create": "Create",
+      "saveChanges": "Save changes",
+      "titleLabel": "Title",
+      "titlePlaceholder": "My awesome feed",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "What is this feed about?",
+      "visibility": "Visibility",
+      "public": "Public",
+      "private": "Private",
+      "publicDescription": "Public feeds can be discovered and shared by anyone.",
+      "mode": "Ranking",
+      "ranked": "Ranked",
+      "chronological": "Latest",
+      "modeDescription": "Ranked orders posts by relevance; Latest shows newest first.",
+      "sources": "Sources",
+      "sourcesDescription": "Where posts come from. Enable at least one.",
+      "filters": "Filters",
+      "filtersDescription": "Narrow down which posts appear.",
+      "signals": "Ranking signals",
+      "signalsDescription": "Fine-tune how ranked posts are ordered.",
+      "preview": "Preview",
+      "saveToPreview": "Save the feed to see a live preview.",
+      "addAccounts": "Add accounts",
+      "searchAccounts": "Search people",
+      "chipPlaceholder": "Type and press enter",
+      "add": "Add",
+      "needsSource": "Enable at least one source",
+      "needsTitle": "Give your feed a title",
+      "saved": "Feed saved",
+      "saveFailed": "Couldn't save the feed"
+    },
+    "modules": {
+      "accounts": {
+        "label": "Accounts",
+        "description": "Posts from specific people you choose."
+      },
+      "keywords": {
+        "label": "Keywords & hashtags",
+        "description": "Posts matching words or hashtags."
+      },
+      "topic": {
+        "label": "Topic",
+        "description": "Posts classified under a topic."
+      },
+      "trending": {
+        "label": "Trending",
+        "description": "Popular posts across the network."
+      },
+      "globalDiscovery": {
+        "label": "Global discovery",
+        "description": "Fresh posts from across the network."
+      },
+      "quotes": {
+        "label": "Quotes",
+        "description": "Posts that quote a post or author."
+      },
+      "starterPack": {
+        "label": "Starter pack",
+        "description": "Posts from a starter pack's members."
+      },
+      "questions": {
+        "label": "Questions",
+        "description": "Posts that ask questions."
+      },
+      "news": {
+        "label": "News",
+        "description": "Posts linking to news."
+      },
+      "instance": {
+        "label": "Instance",
+        "description": "Posts from a fediverse instance."
+      },
+      "links": {
+        "label": "Links",
+        "description": "Posts linking to a domain."
+      },
+      "newVoices": {
+        "label": "New voices",
+        "description": "Posts from newer accounts."
+      },
+      "topReplies": {
+        "label": "Top replies",
+        "description": "Highly-engaged replies."
+      },
+      "curated": {
+        "label": "Curated",
+        "description": "Editorially curated posts."
+      },
+      "language": {
+        "label": "Language",
+        "description": "Posts in chosen languages."
+      },
+      "region": {
+        "label": "Region",
+        "description": "Posts from a region."
+      },
+      "languagePreference": {
+        "label": "Language",
+        "description": "Only posts in these languages."
+      },
+      "mediaOnly": {
+        "label": "Media only",
+        "description": "Only posts with images or video."
+      },
+      "noReplies": {
+        "label": "No replies",
+        "description": "Hide replies."
+      },
+      "noBoosts": {
+        "label": "No boosts",
+        "description": "Hide boosts."
+      },
+      "linksOnly": {
+        "label": "Links only",
+        "description": "Only posts with links."
+      },
+      "maxLength": {
+        "label": "Max length",
+        "description": "Hide posts longer than a limit."
+      },
+      "minLength": {
+        "label": "Min length",
+        "description": "Hide posts shorter than a limit."
+      },
+      "minEngagement": {
+        "label": "Minimum engagement",
+        "description": "Require a minimum of likes, boosts, etc."
+      },
+      "recencyWindow": {
+        "label": "Recency window",
+        "description": "Only posts within a time window."
+      },
+      "customMuteWords": {
+        "label": "Mute words",
+        "description": "Hide posts containing these words."
+      },
+      "keywordDenylist": {
+        "label": "Keyword denylist",
+        "description": "Hide posts matching these keywords."
+      },
+      "domainAllowlist": {
+        "label": "Domain allowlist",
+        "description": "Only posts linking to these domains."
+      },
+      "domainDenylist": {
+        "label": "Domain denylist",
+        "description": "Hide posts linking to these domains."
+      },
+      "instanceAllowlist": {
+        "label": "Instance allowlist",
+        "description": "Only posts from these instances."
+      },
+      "instanceDenylist": {
+        "label": "Instance denylist",
+        "description": "Hide posts from these instances."
+      },
+      "topicAllowlist": {
+        "label": "Topic allowlist",
+        "description": "Only posts in these topics."
+      },
+      "topicDenylist": {
+        "label": "Topic denylist",
+        "description": "Hide posts in these topics."
+      },
+      "minFollowers": {
+        "label": "Minimum followers",
+        "description": "Only authors above a follower count."
+      },
+      "minAccountAge": {
+        "label": "Minimum account age",
+        "description": "Only older accounts."
+      }
     }
   },
   "connections": {
