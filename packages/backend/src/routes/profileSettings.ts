@@ -86,6 +86,11 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // are public-facing media that an anonymous <img> must be able to load.
     let newBannerFileId: string | undefined;
 
+    // NOTE: Updating `appearance` replaces the entire subdocument because it's built as
+    // a nested object under the `appearance` key, unlike `profileCustomization`/`externalEmbeds`
+    // which use dot-notation. Any missing field gets backfilled with schema defaults on write.
+    // Callers MUST send the complete current `appearance` object or risk silently resetting fields.
+    // The frontend (app/(app)/settings/appearance.tsx) already does this correctly via saveSettings.
     if (appearance) {
       update['appearance'] = {};
       if (appearance.themeMode && ['light', 'dark', 'system'].includes(appearance.themeMode)) {
