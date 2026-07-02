@@ -877,18 +877,43 @@ export default function VideosScreen() {
     // Close any open comments (desktop panel and/or mobile sheet) when the
     // active video changes — otherwise swiping to a new video while comments
     // are open would leave the PREVIOUS video's comments showing over the new
-    // one.
+    // one. Reads railCommentsOpen/setRailState/openBottomSheet via refs so this
+    // effect re-runs ONLY on an actual index change — NOT when opening/closing
+    // comments itself flips railCommentsOpen (that would immediately undo the
+    // open).
+    const railCommentsOpenRef = useRef(railCommentsOpen);
+    railCommentsOpenRef.current = railCommentsOpen;
+    const setRailStateRef = useRef(setRailState);
+    setRailStateRef.current = setRailState;
+    const openBottomSheetRef = useRef(openBottomSheet);
+    openBottomSheetRef.current = openBottomSheet;
+
     const isFirstVisibleIndexRender = useRef(true);
     useEffect(() => {
         if (isFirstVisibleIndexRender.current) {
             isFirstVisibleIndexRender.current = false;
             return;
         }
-        if (railCommentsOpen) {
-            setRailState({ commentsOpen: false, commentsPostId: null });
+        if (railCommentsOpenRef.current) {
+            setRailStateRef.current({ commentsOpen: false, commentsPostId: null });
         }
+        openBottomSheetRef.current(false);
+    }, [currentVisibleIndex]);
+
+    // Reset comments-open state whenever the viewport crosses the desktop
+    // breakpoint while comments are open — otherwise a stale panel/sheet from
+    // one layout can resurface after resizing back across the breakpoint.
+    // `isDesktop` only changes on real breakpoint crossings, so depending on it
+    // directly (unlike the effect above) is safe.
+    const isFirstDesktopRender = useRef(true);
+    useEffect(() => {
+        if (isFirstDesktopRender.current) {
+            isFirstDesktopRender.current = false;
+            return;
+        }
+        setRailState({ commentsOpen: false, commentsPostId: null });
         openBottomSheet(false);
-    }, [currentVisibleIndex, railCommentsOpen, setRailState, openBottomSheet]);
+    }, [isDesktop, setRailState, openBottomSheet]);
 
     // Prefetch posters in a wider radius than the live-player window — see
     // `POSTER_PREFETCH_RADIUS` above.
@@ -1413,20 +1438,9 @@ export default function VideosScreen() {
             activePost: railActivePost,
             prev,
             next,
-            onLike: () => {
-                if (railActivePost) handleLike(railActivePost.id, railActivePost.isLiked);
-            },
-            onComment: () => {
-                if (railActivePost) handleComment(railActivePost.id);
-            },
-            onBoost: () => {
-                if (railActivePost) handleBoost(railActivePost.id, railActivePost.isBoosted);
-            },
-            onShare: () => {
-                if (activeVideoPost) handleShare(activeVideoPost);
-            },
+            onCommentPosted: handleCommentPosted,
         });
-    }, [setRailState, currentVisibleIndex, posts.length, railActivePost, activeVideoPost, prev, next, handleLike, handleComment, handleBoost, handleShare]);
+    }, [setRailState, currentVisibleIndex, posts.length, railActivePost, prev, next, handleCommentPosted]);
 
     const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => (
         <VideoItem
