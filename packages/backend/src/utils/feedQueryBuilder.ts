@@ -192,7 +192,10 @@ export class FeedQueryBuilder {
       query['metadata.isSensitive'] = { $ne: true };
     }
     if (filters.language) {
-      query.language = filters.language;
+      // Match the canonical multi-language array (multikey index): Mongo matches an
+      // array field by element equality, so the scalar matches any post whose
+      // `postClassification.languages` contains it.
+      query['postClassification.languages'] = filters.language;
     }
     if (filters.dateFrom) {
       const dateFrom = typeof filters.dateFrom === 'string' || filters.dateFrom instanceof Date 

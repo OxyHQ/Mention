@@ -2,8 +2,9 @@ import { FeedPostSlice } from '@mention/shared-types';
 import { TunerContext } from '../FeedTuner';
 
 /**
- * Filter slices to only include preferred languages.
- * If no language preferences set, passes through all slices.
+ * Filter slices to preferred languages using the canonical
+ * `postClassification.languages` array (surfaced via hydrated metadata).
+ * Any-overlap match; posts with no declared language pass through.
  */
 export function filterByLanguage(slices: FeedPostSlice[], ctx: TunerContext): FeedPostSlice[] {
   const langs = ctx.preferences.languages;
@@ -12,12 +13,11 @@ export function filterByLanguage(slices: FeedPostSlice[], ctx: TunerContext): Fe
   const langSet = new Set(langs.map((l) => l.toLowerCase()));
 
   return slices.filter((slice) => {
-    // Check the anchor post's language
     const anchorPost = slice.items[0]?.post;
     if (!anchorPost) return true;
-    const postLang = (anchorPost.metadata as any)?.language?.toLowerCase();
-    // Pass through posts with no language set
-    if (!postLang) return true;
-    return langSet.has(postLang);
+    const postLangs = anchorPost.metadata?.languages;
+    // Pass through posts with no language set.
+    if (!postLangs || postLangs.length === 0) return true;
+    return postLangs.some((l) => langSet.has(l.toLowerCase()));
   });
 }

@@ -226,9 +226,11 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Language filter
+      // Language filter — match the canonical multi-language array (multikey
+      // index). Mongo matches an array field by element equality, so the scalar
+      // matches any post whose `postClassification.languages` contains it.
       if (language && typeof language === 'string') {
-        filter.language = language;
+        filter['postClassification.languages'] = language;
       }
 
       // Cursor-based pagination
