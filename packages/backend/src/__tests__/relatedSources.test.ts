@@ -33,7 +33,7 @@ vi.mock('../models/Post', () => ({
   },
 }));
 
-import { moreLikeThisSource } from '../mtn/feed/engine/sources/relatedSources';
+import { moreLikeThisSource, nearbySource } from '../mtn/feed/engine/sources/relatedSources';
 import type { FeedEngineContext } from '../mtn/feed/engine/types';
 
 const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
@@ -114,5 +114,56 @@ describe('moreLikeThis source', () => {
   it('returns [] for an invalid seed post id', async () => {
     const posts = await moreLikeThisSource.gather({}, { postId: 'not-an-id' }, 30);
     expect(posts).toEqual([]);
+  });
+});
+
+describe('nearby source', () => {
+  it('builds a geo $near query from lat/lng with the default radius', async () => {
+    findRouter = () => [makePost(40)];
+    const posts = await nearbySource.gather({}, { lat: 37.7, lng: -122.4 }, 30);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(40).toString()]);
+    const near = (findCalls[0].location as { $near: { $geometry: { coordinates: number[] }; $maxDistance: number } })
+      .$near;
+    // GeoJSON is [longitude, latitude].
+    expect(near.$geometry.coordinates).toEqual([-122.4, 37.7]);
+    expect(near.$maxDistance).toBe(50 * 1000);
+    expect(findCalls[0].visibility).toBe(PostVisibility.PUBLIC);
+  });
+
+  it('clamps an oversized radiusKm to the max and honors a provided radius', async () => {
+    findRouter = () => [makePost(41)];
+    await nearbySource.gather({}, { lat: 0, lng: 0, radiusKm: 99999 }, 30);
+    const near = (findCalls[0].location as { $near: { $maxDistance: number } }).$near;
+    expect(near.$maxDistance).toBe(500 * 1000);
+  });
+
+  it('accepts numeric-string coordinates', async () => {
+    findRouter = () => [makePost(42)];
+    await nearbySource.gather({}, { lat: '10', lng: '20', radiusKm: '25' }, 30);
+    const near = (findCalls[0].location as { $near: { $geometry: { coordinates: number[] }; $maxDistance: number } })
+      .$near;
+    expect(near.$geometry.coordinates).toEqual([20, 10]);
+    expect(near.$maxDistance).toBe(25 * 1000);
+  });
+
+  it('falls back to the viewer region when no coordinates are given', async () => {
+    findRouter = () => [makePost(43)];
+    const ctx: FeedEngineContext = { currentUserId: 'viewer', viewerRegion: 'US' };
+    await nearbySource.gather(ctx, {}, 30);
+    expect(findCalls[0]['postClassification.region']).toBe('US');
+    expect(findCalls[0].location).toBeUndefined();
+  });
+
+  it('falls back to the viewer region for out-of-range coordinates', async () => {
+    findRouter = () => [makePost(44)];
+    const ctx: FeedEngineContext = { viewerRegion: 'DE' };
+    await nearbySource.gather(ctx, { lat: 999, lng: 999 }, 30);
+    expect(findCalls[0]['postClassification.region']).toBe('DE');
+  });
+
+  it('returns [] with neither coordinates nor a viewer region', async () => {
+    const posts = await nearbySource.gather({}, {}, 30);
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
   });
 });

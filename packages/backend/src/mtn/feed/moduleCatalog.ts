@@ -76,6 +76,11 @@ export const MODULE_PARAMS_SCHEMAS: Record<string, ParamsSchema> = {
     hashtags: stringArray(20),
     authorId: { type: 'string' },
   }),
+  nearby: schema({
+    lat: { type: 'number' },
+    lng: { type: 'number' },
+    radiusKm: { type: 'number' },
+  }),
 
   // Filters
   languagePreference: schema({ languages: stringArray(20) }),

@@ -15,6 +15,7 @@ import mongoose from 'mongoose';
 import { PostVisibility, MtnConfig } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
 import { FEED_FIELDS } from '../../FeedAPI';
+import { ChronoCursor } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
@@ -175,4 +176,95 @@ export const moreLikeThisSource: SourceModule = {
   },
 };
 
-export const relatedSourceModules: SourceModule[] = [moreLikeThisSource];
+/** Default search radius (km) for `nearby` when the caller supplies none. */
+const NEARBY_DEFAULT_RADIUS_KM = 50;
+
+/** Hard ceiling on the `nearby` search radius (km). */
+const NEARBY_MAX_RADIUS_KM = 500;
+
+/** Coerce a loose value to a finite number, or `null`. Accepts numeric strings. */
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+/**
+ * `nearby` / `local`: BEST-EFFORT proximity discovery.
+ *
+ * When valid `{ lat, lng }` are supplied, returns public SFW posts within
+ * `radiusKm` (default {@link NEARBY_DEFAULT_RADIUS_KM}, clamped to
+ * {@link NEARBY_MAX_RADIUS_KM}) via a `$near` geo query on the Post `location`
+ * GeoJSON point (2dsphere-indexed), ordered by ascending distance.
+ *
+ * DATA CAVEAT: post `location` coordinates are SPARSE today (only posts that
+ * explicitly attach a creation location carry them), so the geo path can return
+ * little. When no coordinates are given (or they are out of range) the source
+ * falls back to the viewer's learned `postClassification.region` match — a coarse
+ * "content from your region" approximation that keeps the feed non-empty until
+ * location data improves. Returns `[]` when neither is available.
+ */
+export const nearbySource: SourceModule = {
+  id: 'nearby',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, params, cap) => {
+    const safety = ctx.showSensitiveContent === true ? {} : DISCOVERY_SAFE_MATCH;
+    const lat = toFiniteNumber(params.lat);
+    const lng = toFiniteNumber(params.lng);
+
+    if (lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      const radiusKm = clamp(
+        toFiniteNumber(params.radiusKm) ?? NEARBY_DEFAULT_RADIUS_KM,
+        1,
+        NEARBY_MAX_RADIUS_KM,
+      );
+      const match: Record<string, unknown> = {
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        ...safety,
+        // `$near` requires the `location` 2dsphere index and orders results by
+        // ascending distance, so no additional sort is applied.
+        location: {
+          $near: {
+            $geometry: { type: 'Point', coordinates: [lng, lat] },
+            $maxDistance: radiusKm * 1000,
+          },
+        },
+        $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
+      };
+      return (await Post.find(match)
+        .select(FEED_FIELDS)
+        .limit(cap)
+        .maxTimeMS(5000)
+        .lean()) as unknown as CandidatePost[];
+    }
+
+    const region =
+      typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.trim() ? ctx.viewerRegion : '';
+    if (!region) return [];
+
+    const match: Record<string, unknown> = {
+      'postClassification.region': region,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      ...safety,
+    };
+    ChronoCursor.applyToQuery(match, ctx.cursor);
+    return (await Post.find(match)
+      .select(FEED_FIELDS)
+      .sort({ _id: -1 })
+      .limit(cap)
+      .maxTimeMS(5000)
+      .lean()) as unknown as CandidatePost[];
+  },
+};
+
+export const relatedSourceModules: SourceModule[] = [moreLikeThisSource, nearbySource];
