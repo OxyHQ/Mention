@@ -561,7 +561,18 @@ export interface PostMetadataState {
   isSensitive?: boolean;
   hideEngagementCounts?: boolean;
   isThread?: boolean;
+  /**
+   * Top-level ActivityPub primary language (`postClassification.languages[0]`).
+   * Absent when no language could be determined.
+   */
   language?: string;
+  /**
+   * ALL detected/declared ISO 639-1 languages (primary first), from the canonical
+   * `postClassification.languages` array. Consumers doing language-match (e.g. the
+   * feed language tuner) read this array with any-overlap semantics; the single
+   * {@link PostMetadataState.language} is the protocol-facing primary.
+   */
+  languages?: string[];
   tags?: string[];
   mentions?: string[];
   hashtags?: string[];

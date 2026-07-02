@@ -27,6 +27,11 @@ interface RawPost {
   oxyUserId?: string;
   content?: Partial<PostContent>;
   metadata?: Partial<PostMetadata>;
+  /**
+   * Stage-A classification subdoc. Only the canonical multi-language array is
+   * read during hydration (surfaced to the DTO as `metadata.languages`).
+   */
+  postClassification?: { languages?: string[] };
   stats?: {
     likesCount?: number;
     downvotesCount?: number;
@@ -1178,6 +1183,7 @@ export class PostHydrationService {
       isSensitive: Boolean(post.metadata?.isSensitive),
       isThread: Boolean(post.threadId),
       language: post.language || undefined,
+      languages: post.postClassification?.languages ?? undefined,
       // Only include tags/hashtags if needed (can be large arrays)
       tags: includeFullMetadata && Array.isArray(post.tags) && post.tags.length > 0 ? post.tags : undefined,
       mentions: includeFullMetadata && Array.isArray(post.mentions) && post.mentions.length > 0 ? post.mentions.filter((m): m is string => typeof m === 'string') : undefined,
