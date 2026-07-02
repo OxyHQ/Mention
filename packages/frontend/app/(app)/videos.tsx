@@ -877,16 +877,18 @@ export default function VideosScreen() {
     // Close any open comments (desktop panel and/or mobile sheet) when the
     // active video changes — otherwise swiping to a new video while comments
     // are open would leave the PREVIOUS video's comments showing over the new
-    // one. Ref-during-render reset (no useEffect), same pattern as
-    // `useExpandableText`'s reset-on-change guard.
-    const prevVisibleIndexRef = useRef(currentVisibleIndex);
-    if (prevVisibleIndexRef.current !== currentVisibleIndex) {
-        prevVisibleIndexRef.current = currentVisibleIndex;
+    // one.
+    const isFirstVisibleIndexRender = useRef(true);
+    useEffect(() => {
+        if (isFirstVisibleIndexRender.current) {
+            isFirstVisibleIndexRender.current = false;
+            return;
+        }
         if (railCommentsOpen) {
             setRailState({ commentsOpen: false, commentsPostId: null });
         }
         openBottomSheet(false);
-    }
+    }, [currentVisibleIndex, railCommentsOpen, setRailState, openBottomSheet]);
 
     // Prefetch posters in a wider radius than the live-player window — see
     // `POSTER_PREFETCH_RADIUS` above.
