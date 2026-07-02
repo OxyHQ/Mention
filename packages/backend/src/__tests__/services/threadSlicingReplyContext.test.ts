@@ -44,6 +44,10 @@ vi.mock('../../models/Post', () => ({
 // PostHydrationService; mocking it keeps this a pure unit test of the slicer.
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
+  // Federated fallback repair is a separate, DB-backed boundary exercised in its
+  // own suite (postHydrationFederatedRepair.test.ts). Stub it here so this stays
+  // a pure unit test of the slicer (parents in these cases are local).
+  repairFederatedFallbackSummaries: vi.fn(async () => undefined),
 }));
 
 import { threadSlicingService } from '../../services/ThreadSlicingService';

@@ -303,15 +303,26 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     }, [router, viewPostId, isTappable, feedDescriptor, isNested, isThreadUnit, threadRootId]);
 
+    // Canonical profile handle for the author. Built from the full actor so a
+    // federated actor resolves to `username@domain` (via isFederated + instance)
+    // rather than a bare local-part. Display AND navigation both use this single
+    // value so they can never diverge. Empty for a degraded/unresolvable author
+    // (empty handle) → no `@handle` shown and no tappable link.
+    const authorHandle = useMemo(
+        () =>
+            getNormalizedUserHandle({
+                handle: viewPost.user?.handle,
+                isFederated: viewPost.user?.isFederated,
+                instance: viewPost.user?.instance,
+            }) ?? undefined,
+        [viewPost.user?.handle, viewPost.user?.isFederated, viewPost.user?.instance],
+    );
+
     const goToUser = useCallback(() => {
-        const handle = getNormalizedUserHandle({
-            handle: viewPost.user?.handle,
-            username: viewPost.user?.handle,
-        });
-        if (handle) {
-            router.push(`/@${handle}`);
+        if (authorHandle) {
+            router.push(`/@${authorHandle}`);
         }
-    }, [router, viewPost.user?.handle]);
+    }, [router, authorHandle]);
 
     // "Reposted by X" row → the BOOSTER's profile. Stop propagation so it doesn't
     // also trigger the outer container press (which opens the ORIGINAL post detail).
@@ -319,12 +330,13 @@ const PostItem: React.FC<PostItemProps> = ({
         event?.stopPropagation?.();
         const handle = getNormalizedUserHandle({
             handle: repostedBy?.handle,
-            username: repostedBy?.handle,
+            isFederated: repostedBy?.isFederated,
+            instance: repostedBy?.instance,
         });
         if (handle) {
             router.push(`/@${handle}`);
         }
-    }, [router, repostedBy?.handle]);
+    }, [router, repostedBy?.handle, repostedBy?.isFederated, repostedBy?.instance]);
 
     // Pass the originating feed descriptor as the engagement `source` so the
     // backend can attribute a like/save/boost to the surface it happened on
@@ -644,7 +656,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const replyContextHandle = replyContextAuthor?.handle || replyContextAuthor?.displayName;
 
-    const postAuthor = displayNameOrHandle(viewPost.user.displayName, `@${viewPost.user.handle}`);
+    const postAuthor = displayNameOrHandle(viewPost.user.displayName, `@${authorHandle ?? viewPost.user.handle}`);
     const postTextSummary = content.text
         ? content.text.length > 80
             ? content.text.substring(0, 80) + '...'
@@ -786,7 +798,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     <PostHeader
                         user={{
                             displayName: viewPost.user.displayName,
-                            handle: viewPost.user.handle || '',
+                            handle: authorHandle || viewPost.user.handle || '',
                             verified: viewPost.user.isVerified,
                             isFederated: viewPost.user.isFederated,
                             instance: viewPost.user.instance,

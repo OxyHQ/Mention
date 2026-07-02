@@ -63,7 +63,7 @@ const MAX_ALT_TEXT_LENGTH = config.posts.maxAltTextLength;
 const mapActorSummary = (
   userId: string,
   summary: PostActorSummary | undefined,
-): { id: string; displayName?: string; handle: string; avatar?: string; verified: boolean } => {
+): { id: string; displayName?: string; handle: string; avatar?: string; verified: boolean; isFederated?: boolean; instance?: string } => {
   const actor = summary ?? degradedActorSummary(userId);
   return {
     id: actor.id,
@@ -72,6 +72,10 @@ const mapActorSummary = (
     handle: actor.handle,
     avatar: actor.avatarUrl,
     verified: Boolean(actor.isVerified),
+    // Federation context so the client builds a `username@domain` profile link
+    // for a federated liker/booster instead of a bare/local handle.
+    isFederated: actor.isFederated,
+    instance: actor.instance,
   };
 };
 

@@ -17,7 +17,7 @@ import {
 } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
-import { resolveUserSummaries } from './PostHydrationService';
+import { resolveUserSummaries, repairFederatedFallbackSummaries } from './PostHydrationService';
 
 export interface ThreadSlicingOptions {
   enableThreadGrouping: boolean;
@@ -293,6 +293,9 @@ class ThreadSlicingService {
     postById: Map<string, RawPost>,
   ): Promise<Map<string, PostActorSummary>> {
     const authorIds = new Set<string>();
+    // Federated parent authors — so a degraded "Replying to @Unknown user"
+    // header is repaired to the real `@username@domain` handle.
+    const federatedAuthorIds = new Set<string>();
 
     for (const post of posts) {
       if (!post.parentPostId) continue;
@@ -300,6 +303,9 @@ class ThreadSlicingService {
       const authorId = parent?.oxyUserId ? String(parent.oxyUserId) : '';
       if (authorId) {
         authorIds.add(authorId);
+        if (parent?.federation) {
+          federatedAuthorIds.add(authorId);
+        }
       }
     }
 
@@ -312,6 +318,7 @@ class ThreadSlicingService {
     for (const [userId, value] of resolved) {
       summaries.set(userId, value.summary);
     }
+    await repairFederatedFallbackSummaries(summaries, federatedAuthorIds);
     return summaries;
   }
 }
