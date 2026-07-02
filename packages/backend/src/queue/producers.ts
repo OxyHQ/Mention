@@ -1,12 +1,14 @@
 import { createHash } from 'crypto';
-import { getInboxQueue, getDeliveryQueue } from './queues';
+import { getInboxQueue, getDeliveryQueue, getSharingCleanupQueue } from './queues';
 import {
   DELIVERY_JOB_ATTEMPTS,
   DELIVERY_BACKOFF_STRATEGY,
   INBOX_JOB_ATTEMPTS,
   INBOX_BACKOFF_BASE_MS,
+  SHARING_CLEANUP_JOB_ATTEMPTS,
+  SHARING_CLEANUP_BACKOFF_BASE_MS,
 } from './constants';
-import type { InboxJobData, DeliveryJobData } from './types';
+import type { InboxJobData, DeliveryJobData, SharingCleanupJobData } from './types';
 
 /**
  * Producer helpers — the single place that enqueues federation jobs with the
@@ -103,6 +105,25 @@ export async function enqueueDeliveryWithJobId(
     jobId,
     attempts: DELIVERY_JOB_ATTEMPTS,
     backoff: { type: DELIVERY_BACKOFF_STRATEGY },
+  });
+  return true;
+}
+
+/**
+ * Enqueue a sharing-cleanup job. Dedupes on (oxyUserId + nonce) so the same
+ * toggle-off event is never double-queued; a distinct nonce per toggle (the
+ * route mints `String(Date.now())`) lets a user who flips sharing off, on,
+ * then off again enqueue a fresh cleanup each time. Returns false when no
+ * queue is available (caller should run `runSharingCleanup` inline).
+ */
+export async function enqueueSharingCleanup(data: SharingCleanupJobData): Promise<boolean> {
+  const queue = getSharingCleanupQueue();
+  if (!queue) return false;
+
+  await queue.add('sharing-cleanup', data, {
+    jobId: `sharingcleanup-${shortHash(`${data.oxyUserId}|${data.nonce}`)}`,
+    attempts: SHARING_CLEANUP_JOB_ATTEMPTS,
+    backoff: { type: 'exponential', delay: SHARING_CLEANUP_BACKOFF_BASE_MS },
   });
   return true;
 }

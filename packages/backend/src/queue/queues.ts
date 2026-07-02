@@ -4,14 +4,17 @@ import {
   FEDERATION_INBOX_QUEUE,
   FEDERATION_DELIVERY_QUEUE,
   FEDERATION_PERIODIC_QUEUE,
+  FEDERATION_SHARING_CLEANUP_QUEUE,
   INBOX_REMOVE_ON_COMPLETE_COUNT,
   INBOX_REMOVE_ON_FAIL_COUNT,
   DELIVERY_REMOVE_ON_COMPLETE_COUNT,
   DELIVERY_REMOVE_ON_FAIL_COUNT,
   PERIODIC_REMOVE_ON_COMPLETE_COUNT,
   PERIODIC_REMOVE_ON_FAIL_COUNT,
+  SHARING_CLEANUP_REMOVE_ON_COMPLETE_COUNT,
+  SHARING_CLEANUP_REMOVE_ON_FAIL_COUNT,
 } from './constants';
-import type { InboxJobData, DeliveryJobData, PeriodicJobData } from './types';
+import type { InboxJobData, DeliveryJobData, PeriodicJobData, SharingCleanupJobData } from './types';
 
 /**
  * Lazily-constructed BullMQ producer queues.
@@ -34,6 +37,7 @@ function baseQueueOptions(removeOnComplete: number, removeOnFail: number): Queue
 let inboxQueue: Queue<InboxJobData> | null = null;
 let deliveryQueue: Queue<DeliveryJobData> | null = null;
 let periodicQueue: Queue<PeriodicJobData> | null = null;
+let sharingCleanupQueue: Queue<SharingCleanupJobData> | null = null;
 
 /**
  * Get the inbound-activity queue, or null when Redis is not configured (callers
@@ -81,16 +85,33 @@ export function getPeriodicQueue(): Queue<PeriodicJobData> | null {
   return periodicQueue;
 }
 
+/**
+ * Get the sharing-cleanup queue, or null when Redis is not configured (callers
+ * fall back to inline fire-and-forget processing of `runSharingCleanup`).
+ */
+export function getSharingCleanupQueue(): Queue<SharingCleanupJobData> | null {
+  if (!isQueueEnabled()) return null;
+  if (!sharingCleanupQueue) {
+    sharingCleanupQueue = new Queue<SharingCleanupJobData>(
+      FEDERATION_SHARING_CLEANUP_QUEUE,
+      baseQueueOptions(SHARING_CLEANUP_REMOVE_ON_COMPLETE_COUNT, SHARING_CLEANUP_REMOVE_ON_FAIL_COUNT),
+    );
+  }
+  return sharingCleanupQueue;
+}
+
 /** Close all open producer queues. Internal — used by {@link shutdownQueues}. */
 export async function closeQueues(): Promise<void> {
-  const open: Array<Queue<InboxJobData> | Queue<DeliveryJobData> | Queue<PeriodicJobData>> = [];
+  const open: Array<Queue<InboxJobData> | Queue<DeliveryJobData> | Queue<PeriodicJobData> | Queue<SharingCleanupJobData>> = [];
   if (inboxQueue) open.push(inboxQueue);
   if (deliveryQueue) open.push(deliveryQueue);
   if (periodicQueue) open.push(periodicQueue);
+  if (sharingCleanupQueue) open.push(sharingCleanupQueue);
 
   await Promise.allSettled(open.map((q) => q.close()));
 
   inboxQueue = null;
   deliveryQueue = null;
   periodicQueue = null;
+  sharingCleanupQueue = null;
 }

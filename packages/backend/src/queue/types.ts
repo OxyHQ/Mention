@@ -38,3 +38,15 @@ export type PeriodicTaskName =
 export interface PeriodicJobData {
   task: PeriodicTaskName;
 }
+
+/**
+ * One-off Delete(actor) + follower teardown dispatched when a user turns
+ * fediverse sharing OFF. `nonce` is used only to key the dedupe jobId
+ * (`enqueueSharingCleanup`) — `runSharingCleanup` mints its own nonce for the
+ * Delete activity's `id`.
+ */
+export interface SharingCleanupJobData {
+  oxyUserId: string;
+  username: string;
+  nonce: string;
+}

@@ -18,7 +18,10 @@ import type { NetworkConnector } from './types';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
-import { isFediverseSharingEnabled } from '../services/fediverseSharing';
+import { isFediverseSharingEnabled, invalidateFediverseSharing } from '../services/fediverseSharing';
+import { invalidateWebfingerCache } from './activitypub/webfingerCache';
+import { enqueueSharingCleanup } from '../queue/producers';
+import { runSharingCleanup } from './activitypub/sharingCleanup.service';
 
 /**
  * Cross-network connector API (mounted at `/federation`, URL kept stable for the
@@ -356,6 +359,61 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
   } catch (err) {
     logger.error('Federation unfollow error:', err);
     return res.status(500).json({ error: 'Unfollow failed' });
+  }
+});
+
+/**
+ * POST /federation/sharing-changed
+ *
+ * Session-authenticated notification that the caller's `fediverseSharing` flag
+ * may have just changed in Oxy (no body — the route never trusts a
+ * client-supplied value). Evicts every cache keyed on the OLD value, re-reads
+ * the flag from Oxy, and — only on a transition to OFF — queues the
+ * Delete(actor) + follower-teardown cleanup (`runSharingCleanup`).
+ *
+ * Two independent caches key on this flag and MUST both be evicted on every
+ * call, regardless of the new value:
+ *  - `isFediverseSharingEnabled`'s own Redis cache (`invalidateFediverseSharing`).
+ *  - The WebFinger JRD cache (`invalidateWebfingerCache`) — `GET
+ *    /.well-known/webfinger` serves a cache hit BEFORE its sharing gate runs,
+ *    so a stale entry would keep a toggled user (un)discoverable for up to 1h.
+ */
+router.post('/sharing-changed', async (req: AuthRequest, res: Response) => {
+  if (!requireAnyConnector(res)) return;
+  const userId = resolveUserOr401(req, res);
+  if (!userId) return;
+
+  try {
+    await invalidateFediverseSharing(userId);
+    // Fresh read from Oxy, AFTER invalidating — never trust the client's view
+    // of the flag.
+    const enabled = await isFediverseSharingEnabled(userId);
+
+    // See the matching comment in `POST /follow` above for why this is a
+    // dynamic `import()` rather than a static one.
+    const { oxy } = await import('../../server');
+    const user = await oxy.getUserById(userId);
+
+    let cleanupQueued = false;
+    if (user?.username) {
+      await invalidateWebfingerCache(user.username);
+
+      if (!enabled) {
+        cleanupQueued = true;
+        const nonce = String(Date.now());
+        const queued = await enqueueSharingCleanup({ oxyUserId: userId, username: user.username, nonce });
+        if (!queued) {
+          runSharingCleanup(userId, user.username).catch((err) => {
+            logger.error('sharing cleanup inline failed:', err);
+          });
+        }
+      }
+    }
+
+    return res.status(202).json({ status: 'ok', cleanupQueued });
+  } catch (err) {
+    logger.error('sharing-changed error:', err);
+    return res.status(500).json({ error: 'Failed to apply sharing change' });
   }
 });
 

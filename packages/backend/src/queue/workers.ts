@@ -5,16 +5,25 @@ import {
   FEDERATION_INBOX_QUEUE,
   FEDERATION_DELIVERY_QUEUE,
   FEDERATION_PERIODIC_QUEUE,
+  FEDERATION_SHARING_CLEANUP_QUEUE,
   INBOX_WORKER_CONCURRENCY,
   DELIVERY_WORKER_CONCURRENCY,
   PERIODIC_WORKER_CONCURRENCY,
+  SHARING_CLEANUP_WORKER_CONCURRENCY,
   DELIVERY_BACKOFF_INTERVALS_MS,
   DELIVERY_BACKOFF_STRATEGY,
 } from './constants';
-import type { InboxJobData, DeliveryJobData, PeriodicJobData, PeriodicTaskName } from './types';
+import type {
+  InboxJobData,
+  DeliveryJobData,
+  PeriodicJobData,
+  PeriodicTaskName,
+  SharingCleanupJobData,
+} from './types';
 import { logger } from '../utils/logger';
 import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
 import { federationJobScheduler } from '../services/FederationJobScheduler';
+import { runSharingCleanup } from '../connectors/activitypub/sharingCleanup.service';
 import { oxy } from '../../server';
 
 /**
@@ -37,6 +46,7 @@ import { oxy } from '../../server';
 let inboxWorker: Worker<InboxJobData> | null = null;
 let deliveryWorker: Worker<DeliveryJobData> | null = null;
 let periodicWorker: Worker<PeriodicJobData> | null = null;
+let sharingCleanupWorker: Worker<SharingCleanupJobData> | null = null;
 let workersStarted = false;
 
 /**
@@ -102,6 +112,18 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
     // tiered backoff until DELIVERY_JOB_ATTEMPTS is exhausted.
     throw new Error(`Delivery to ${targetInbox} failed (will retry)`);
   }
+}
+
+/**
+ * Process one sharing-cleanup job. Delegates to `runSharingCleanup`, which is
+ * already idempotent — a retry after a partial failure re-reads current state
+ * and converges rather than double-sending.
+ *
+ * Exported for unit testing (see {@link processInboxJob}).
+ */
+export async function processSharingCleanupJob(job: Job<SharingCleanupJobData>): Promise<void> {
+  const { oxyUserId, username } = job.data;
+  await runSharingCleanup(oxyUserId, username);
 }
 
 /**
@@ -176,7 +198,16 @@ export function startWorkers(): void {
     concurrency: PERIODIC_WORKER_CONCURRENCY,
   });
 
-  for (const worker of [inboxWorker, deliveryWorker, periodicWorker]) {
+  sharingCleanupWorker = new Worker<SharingCleanupJobData>(
+    FEDERATION_SHARING_CLEANUP_QUEUE,
+    processSharingCleanupJob,
+    {
+      connection,
+      concurrency: SHARING_CLEANUP_WORKER_CONCURRENCY,
+    },
+  );
+
+  for (const worker of [inboxWorker, deliveryWorker, periodicWorker, sharingCleanupWorker]) {
     worker.on('failed', (job, err) => {
       const jobId = job?.id ?? 'unknown';
       logger.warn(`[Queue] job ${worker.name}:${jobId} failed: ${err.message}`);
@@ -186,7 +217,7 @@ export function startWorkers(): void {
     });
   }
 
-  logger.info('Federation queue workers started (inbox, delivery, periodic)');
+  logger.info('Federation queue workers started (inbox, delivery, periodic, sharing-cleanup)');
 }
 
 /**
@@ -198,16 +229,20 @@ export async function shutdownQueues(): Promise<void> {
     return;
   }
 
-  const workers: Array<Worker<InboxJobData> | Worker<DeliveryJobData> | Worker<PeriodicJobData>> = [];
+  const workers: Array<
+    Worker<InboxJobData> | Worker<DeliveryJobData> | Worker<PeriodicJobData> | Worker<SharingCleanupJobData>
+  > = [];
   if (inboxWorker) workers.push(inboxWorker);
   if (deliveryWorker) workers.push(deliveryWorker);
   if (periodicWorker) workers.push(periodicWorker);
+  if (sharingCleanupWorker) workers.push(sharingCleanupWorker);
 
   await Promise.allSettled(workers.map((w) => w.close()));
 
   inboxWorker = null;
   deliveryWorker = null;
   periodicWorker = null;
+  sharingCleanupWorker = null;
   workersStarted = false;
 
   await closeQueues();

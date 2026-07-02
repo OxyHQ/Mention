@@ -4,6 +4,7 @@ import { FEDERATION_DOMAIN, FEDERATION_ENABLED, actorUrl, resolveOxyUser } from 
 import { logger } from '../../../utils/logger';
 import { getRedisClient } from '../../../utils/redis';
 import { isFediverseSharingEnabledByUsername } from '../../../services/fediverseSharing';
+import { webfingerCacheKey } from '../webfingerCache';
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.get('/webfinger', async (req: Request, res: Response) => {
 
   try {
     // Check Redis cache first
-    const cacheKey = `webfinger:${username.toLowerCase()}`;
+    const cacheKey = webfingerCacheKey(username);
     const redis = getRedisClient();
     if (redis?.isReady) {
       try {

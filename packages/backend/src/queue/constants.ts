@@ -26,6 +26,13 @@ export const FEDERATION_DELIVERY_QUEUE = 'federation-delivery';
 /** Periodic federation maintenance jobs (cron-style repeatable jobs). */
 export const FEDERATION_PERIODIC_QUEUE = 'federation-periodic';
 
+/**
+ * One-off Delete(actor) + follower teardown dispatched when a user turns
+ * fediverse sharing OFF. Not a repeatable schedule (unlike the periodic
+ * queue) — each toggle enqueues exactly one job.
+ */
+export const FEDERATION_SHARING_CLEANUP_QUEUE = 'federation-sharing-cleanup';
+
 // --- Inbox worker tunables --------------------------------------------------
 
 /**
@@ -149,3 +156,26 @@ export const PERIODIC_REMOVE_ON_COMPLETE_COUNT = 100;
 
 /** Failed periodic jobs retained before automatic removal. */
 export const PERIODIC_REMOVE_ON_FAIL_COUNT = 500;
+
+// --- Sharing-cleanup worker tunables -----------------------------------------
+
+/**
+ * Total attempts for a sharing-cleanup job (1 initial + retries). The job is
+ * mostly local DB reads/writes plus one broadcast handed off to the delivery
+ * queue itself (which has its own retry budget), so a small bounded retry —
+ * mirroring the inbox worker's reasoning — covers transient DB/Oxy-bridge/Redis
+ * hiccups without holding a poison job forever.
+ */
+export const SHARING_CLEANUP_JOB_ATTEMPTS = 5;
+
+/** Base delay for the sharing-cleanup exponential backoff (ms). */
+export const SHARING_CLEANUP_BACKOFF_BASE_MS = 5 * MS_PER_SECOND;
+
+/** Concurrency for the sharing-cleanup worker (per process). */
+export const SHARING_CLEANUP_WORKER_CONCURRENCY = 4;
+
+/** Completed sharing-cleanup jobs retained for observability before automatic removal. */
+export const SHARING_CLEANUP_REMOVE_ON_COMPLETE_COUNT = 500;
+
+/** Failed sharing-cleanup jobs retained for debugging before automatic removal. */
+export const SHARING_CLEANUP_REMOVE_ON_FAIL_COUNT = 2000;
