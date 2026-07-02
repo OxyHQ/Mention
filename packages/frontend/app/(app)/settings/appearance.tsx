@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Image, Pressable } from 'react-native';
-import { useAppearanceStore, type PostTextExpand } from '@/store/appearanceStore';
+import { useAppearanceStore, type PostTextExpand, type PostReadMoreAction } from '@/store/appearanceStore';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -38,6 +38,8 @@ export default function AppearanceSettingsScreen() {
     ? 'system'
     : bloomMode;
   const postTextExpand: PostTextExpand = mySettings?.appearance?.postTextExpand ?? 'default';
+  const postReadMoreAction: PostReadMoreAction = mySettings?.appearance?.postReadMoreAction ?? 'openPost';
+  const collapseLongBio: boolean = mySettings?.appearance?.collapseLongBio ?? true;
   const [headerImageId, setHeaderImageId] = useState<string>(mySettings?.profileHeaderImage ?? '');
   const [settingsSaving, setSettingsSaving] = useState(false);
   const saving = settingsSaving || colorSaving;
@@ -65,18 +67,33 @@ export default function AppearanceSettingsScreen() {
 
   const preset = APP_COLOR_PRESETS[appColor];
 
-  const saveSettings = useCallback(async (updates: { themeMode?: ThemeMode; primaryColor?: string; headerImageId?: string; postTextExpand?: PostTextExpand }) => {
+  const saveSettings = useCallback(async (updates: {
+    themeMode?: ThemeMode;
+    primaryColor?: string;
+    headerImageId?: string;
+    postTextExpand?: PostTextExpand;
+    postReadMoreAction?: PostReadMoreAction;
+    collapseLongBio?: boolean;
+  }) => {
     setSettingsSaving(true);
     const mode = updates.themeMode ?? themeMode;
     const color = updates.primaryColor ?? preset.hex;
     const header = updates.headerImageId ?? headerImageId;
     const expand = updates.postTextExpand ?? postTextExpand;
+    const readMoreAction = updates.postReadMoreAction ?? postReadMoreAction;
+    const collapseBio = updates.collapseLongBio ?? collapseLongBio;
     await updateMySettings({
-      appearance: { themeMode: mode, primaryColor: color || undefined, postTextExpand: expand },
+      appearance: {
+        themeMode: mode,
+        primaryColor: color || undefined,
+        postTextExpand: expand,
+        postReadMoreAction: readMoreAction,
+        collapseLongBio: collapseBio,
+      },
       profileHeaderImage: header || null,
     });
     setSettingsSaving(false);
-  }, [themeMode, preset.hex, headerImageId, postTextExpand, updateMySettings]);
+  }, [themeMode, preset.hex, headerImageId, postTextExpand, postReadMoreAction, collapseLongBio, updateMySettings]);
 
   const onThemeModeChange = useCallback((mode: ThemeMode) => {
     setMode(mode);
@@ -85,6 +102,14 @@ export default function AppearanceSettingsScreen() {
 
   const onPostTextExpandChange = useCallback((value: PostTextExpand) => {
     void saveSettings({ postTextExpand: value });
+  }, [saveSettings]);
+
+  const onPostReadMoreActionChange = useCallback((value: PostReadMoreAction) => {
+    void saveSettings({ postReadMoreAction: value });
+  }, [saveSettings]);
+
+  const onCollapseLongBioChange = useCallback((value: 'collapse' | 'full') => {
+    void saveSettings({ collapseLongBio: value === 'collapse' });
   }, [saveSettings]);
 
   const onColorChange = saveColor;
@@ -187,6 +212,54 @@ export default function AppearanceSettingsScreen() {
             </SegmentedControlItem>
             <SegmentedControlItem value="all">
               <SegmentedControlItemText>{t('settings.appearance.postTextLength.all', 'Show all')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+          </SegmentedControl>
+        </View>
+
+        <SettingsListDivider />
+
+        {/* Read more tap behavior */}
+        <View className="px-5 py-3 gap-3">
+          <View className="flex-row items-center gap-3">
+            <Icon name="expand-outline" size={22} color={colors.text} />
+            <Text className="text-[16px] text-foreground">
+              {t('settings.appearance.readMoreAction', 'On "Read more" tap')}
+            </Text>
+          </View>
+          <SegmentedControl
+            label={t('settings.appearance.readMoreAction', 'On "Read more" tap')}
+            type="radio"
+            value={postReadMoreAction}
+            onChange={onPostReadMoreActionChange}>
+            <SegmentedControlItem value="openPost">
+              <SegmentedControlItemText>{t('settings.appearance.readMoreAction.openPost', 'Open post')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+            <SegmentedControlItem value="expandInline">
+              <SegmentedControlItemText>{t('settings.appearance.readMoreAction.expandInline', 'Expand here')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+          </SegmentedControl>
+        </View>
+
+        <SettingsListDivider />
+
+        {/* Profile bio collapse */}
+        <View className="px-5 py-3 gap-3">
+          <View className="flex-row items-center gap-3">
+            <Icon name="reader-outline" size={22} color={colors.text} />
+            <Text className="text-[16px] text-foreground">
+              {t('settings.appearance.collapseBio', 'Profile bios')}
+            </Text>
+          </View>
+          <SegmentedControl
+            label={t('settings.appearance.collapseBio', 'Profile bios')}
+            type="radio"
+            value={collapseLongBio ? 'collapse' : 'full'}
+            onChange={onCollapseLongBioChange}>
+            <SegmentedControlItem value="collapse">
+              <SegmentedControlItemText>{t('settings.appearance.collapseBio.collapse', 'Collapse if long')}</SegmentedControlItemText>
+            </SegmentedControlItem>
+            <SegmentedControlItem value="full">
+              <SegmentedControlItemText>{t('settings.appearance.collapseBio.full', 'Always show full')}</SegmentedControlItemText>
             </SegmentedControlItem>
           </SegmentedControl>
         </View>
