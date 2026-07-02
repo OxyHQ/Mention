@@ -13,6 +13,7 @@ Mention federates every account by default with no user-facing control and no ex
 3. **Educational sheet triggers**: tapping the fediverse badge (own profile when sharing is ON, and on federated profiles/posts) and from the Fediverse settings screen.
 4. **Dedicated settings screen** (`Ajustes → Fediverso`), not a row buried in Privacy.
 5. **Bottom sheet = Bloom UI** (`@oxyhq/bloom/bottom-sheet`) via Mention's existing global `BottomSheetContext`.
+6. **The consent flag lives in Oxy** (identity-level, ecosystem-wide), enforced by Mention. Revised from the first draft after Nate's review — see the boundary section.
 
 ## Boundary: what lives in Mention vs Oxy
 
@@ -25,19 +26,24 @@ Mention federates every account by default with no user-facing control and no ex
 - `FederatedActor` (transport cache: inbox/sharedInbox URLs, remote public keys).
 - `FederatedFollow` (AP state machine: direction, pending/accepted, activity ids for Accept/Undo correlation). Not a duplicate of Oxy's graph — protocol state; the bridge keeps both in sync, idempotently.
 - HTTP signatures, delivery queues, inbox processing, media proxying.
-- **The `fediverseSharing` consent flag.** The federated identity is `@user@mention.earth` — a Mention-domain actor. The gate sits on Mention's hot paths (actor fetch, webfinger, delivery); storing it in Oxy would put a network call inside every AP request and couple federation availability to oxy-api.
 
-**Future promotion rule:** if a second Oxy app ever federates the same identity, promote the consent flag to Oxy so the ecosystem has one decision. Not built now (YAGNI).
+**The `fediverseSharing` consent flag lives in OXY** (revised 2026-07-02 with Nate, superseding the first draft). Rationale:
+- It is identity-level consent — "my identity may be shared outside the Oxy ecosystem" — not app policy. Oxy already owns the other identity-level federation material (AP signing keys, the federated-user bridge, the follow graph). If a second Oxy app federates tomorrow, it inherits the same single decision.
+- Zero hot-path cost: Mention's AP routes ALREADY resolve the user through oxy-api (`resolveOxyUser`) on every actor/webfinger hit and cache the result (`userSummaryCache`). The flag rides on the user DTO Mention already fetches — no extra network call.
+- Enforcement and protocol cleanup stay in Mention: Oxy states the decision; the Mention post office enforces it on its own AP surface.
 
 ## Backend
 
 ### Data + chokepoint
 
-- `UserSettings.privacy.fediverseSharing: { type: Boolean, default: true }` (`packages/backend/src/models/UserSettings.ts`), whitelisted in `routes/profileSettings.ts` `privacyFields`.
-- New `services/fediverseSharing.ts` — the ONLY read path:
-  - `isFediverseSharingEnabled(oxyUserId)` and `...ByUsername(username)` (username → oxyUserId via the existing resolver).
-  - Redis cache (`fedisharing:v1:<oxyUserId>`, TTL 10m) mirroring `userSummaryCache`; invalidated by the `profileSettings` PUT when the value changes. Default `true` on miss/absent doc.
-- No inline `UserSettings` lookups at gates — everything imports the helper.
+**oxy-api (owns the flag):**
+- `privacySettings.fediverseSharing: boolean, default true` on the User model, exposed in the user/profile DTOs (so it arrives wherever the user object already travels), writable by the session user through the existing settings/profile update route (field whitelisted like its siblings), and surfaced by an SDK accessor in `@oxyhq/core`.
+- No new Oxy route: it is one more privacy field on existing plumbing.
+
+**Mention (reads it, never stores it):**
+- New `services/fediverseSharing.ts` — the ONLY read path: `isFediverseSharingEnabled(oxyUserId)` / `...ByUsername(username)`. It reads the flag from the Oxy user object Mention already resolves and caches (`resolveOxyUser` / `userSummaryCache`, Redis TTL 10m). Default `true` when the field is absent (older DTOs).
+- When the toggle is flipped FROM Mention, the app tells its backend to invalidate that user's cache entry immediately (gates flip at once). A flip made elsewhere (e.g. a future Oxy accounts UI) propagates within the cache TTL — documented, acceptable.
+- No inline lookups at gates — everything imports the helper.
 
 ### Gates (sharing OFF)
 
@@ -51,16 +57,17 @@ Mention federates every account by default with no user-facing control and no ex
 
 ### Toggle transitions
 
-- **ON→OFF** (detected in the `profileSettings` PUT): enqueue an async job (BullMQ, Mongo fallback — existing queue conventions; job id hashed, never raw URLs):
+- The write goes to OXY (SDK, session-authed). The Mention frontend then calls a small Mention backend endpoint (`POST /federation/sharing-changed`, session-authed) that (a) invalidates the user's sharing cache and (b) on ON→OFF enqueues the protocol cleanup job (BullMQ, Mongo fallback — existing queue conventions; job id hashed, never raw URLs):
   1. Deliver `Delete { object: actorUri }` to the shared inboxes of all inbound followers (Threads-style deletion request; best-effort).
   2. Delete inbound `FederatedFollow` rows and bridge-unfollow their Oxy edges (`POST /federation/follow`, action `unfollow` — idempotent).
-- **OFF→ON**: no fan-out. Actor resolves again; remote followers must re-follow (same caveat Threads documents). Cache invalidated so gates flip immediately.
+- The cleanup endpoint reads the CURRENT flag from Oxy server-side (never trusts the client) and no-ops when sharing is still on — safe to call spuriously, idempotent to re-run.
+- **OFF→ON**: no fan-out; cache invalidated so the actor resolves again immediately. Remote followers must re-follow (same caveat Threads documents).
 - UI confirms ON→OFF with an explicit warning before writing (see frontend).
 
 ## Frontend
 
 - **`app/(app)/settings/fediverse.tsx`** — dedicated screen (Bloom `SettingsListGroup`/`SettingsListItem` + `Switch`):
-  - toggle "Compartir en el fediverso" (optimistic write via the `usePrivacySettings` pattern, extended with `fediverseSharing`),
+  - toggle "Compartir en el fediverso" — optimistic UI; writes to OXY via the SDK (the flag lives on the Oxy user), then calls Mention's `POST /federation/sharing-changed` (cache invalidation + cleanup job),
   - the user's federated handle `@user@mention.earth`,
   - row "¿Qué es el fediverso?" → opens the educational sheet,
   - turning OFF first opens a Bloom `Dialog` confirmation: followers will be lost, deletion will be requested from other servers, cannot be guaranteed (Threads wording).
@@ -74,7 +81,7 @@ Mention federates every account by default with no user-facing control and no ex
 
 ## Error handling
 
-- Settings write fails → optimistic toggle reverts (existing `usePrivacySettings` behavior).
+- Oxy settings write fails → optimistic toggle reverts. `sharing-changed` call fails after a successful Oxy write → gates still converge via cache TTL; the endpoint is idempotent and retried by the client once.
 - OFF-transition job is retry-safe: Delete fan-out is best-effort per inbox; row deletion + bridge-unfollow are idempotent (re-running converges).
 - Redis down → helper falls back to a direct `UserSettings` read (no cached default that silently re-enables sharing).
 
@@ -86,4 +93,4 @@ Mention federates every account by default with no user-facing control and no ex
 
 ## Out of scope
 
-- `featured`/pinned collection, per-post federation control, migrating consent to Oxy (future promotion rule above), atproto bridge surface (stays dark behind `ATPROTO_BRIDGE_ENABLED`).
+- `featured`/pinned collection, per-post federation control, atproto bridge surface (stays dark behind `ATPROTO_BRIDGE_ENABLED`).
