@@ -18,6 +18,9 @@ import {
   videosDefinition,
   mediaDefinition,
   savedDefinition,
+  trendingDefinition,
+  mutualsDefinition,
+  friendsPopularDefinition,
   authorDefinition,
   hashtagDefinition,
   topicDefinition,
@@ -42,6 +45,12 @@ export function resolveDefinition(descriptor: FeedDescriptor): FeedDefinition | 
       return mediaDefinition;
     case 'saved':
       return savedDefinition;
+    case 'trending':
+      return trendingDefinition;
+    case 'mutuals':
+      return mutualsDefinition;
+    case 'friends_popular':
+      return friendsPopularDefinition;
     case 'author': {
       const authorId = params[0];
       if (!authorId) return null;
