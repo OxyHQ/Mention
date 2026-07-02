@@ -9,7 +9,7 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style, trailingBadge }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
@@ -60,6 +60,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                 {isAutomated && (
                     <AutomatedIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
+                {trailingBadge}
             </View>
             {showHandleLine ? (
                 isFederated ? (

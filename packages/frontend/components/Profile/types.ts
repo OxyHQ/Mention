@@ -44,6 +44,8 @@ export interface UserNameProps {
   };
   unifiedColors?: boolean;
   onPress?: () => void;
+  /** Extra element rendered inline after the verified/federated/agent icons. */
+  trailingBadge?: React.ReactNode;
 }
 
 export type UserNameComponent = React.ComponentType<UserNameProps>;

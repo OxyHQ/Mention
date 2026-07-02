@@ -158,6 +158,12 @@ export default function SettingsScreen() {
                             description={t('settings.privacy.description', { defaultValue: 'Profile visibility, blocked profiles, hidden words' })}
                             onPress={() => router.push('/settings/privacy')}
                         />
+                        <SettingsListItem
+                            icon={<RowIcon name="globe-outline" />}
+                            title={t('fediverse.settings.title')}
+                            description={t('fediverse.settings.description')}
+                            onPress={() => router.push('/settings/fediverse')}
+                        />
                     </SettingsListGroup>
                 )}
 

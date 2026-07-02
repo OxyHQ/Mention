@@ -19,6 +19,8 @@ import { PrivateBadge } from './PrivateBadge';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { useAuth } from '@oxyhq/services';
+import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
 import { mergeBioAndProfileLinks } from '@/utils/mergeBioAndProfileLinks';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
@@ -47,8 +49,15 @@ export const ProfileContent = memo(function ProfileContent({
   onLayout,
 }: ProfileContentProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const design = profileData.design;
   const minimalistMode = design.minimalistMode;
+  // Own, non-federated profile opted into fediverse sharing (absent flag ⇒ on):
+  // a tappable badge next to the handle explaining the fediverse.
+  const fediverseBadge =
+    isOwnProfile && !profileData.isFederated && user?.fediverseSharing !== false ? (
+      <FediverseBadge size={20} />
+    ) : undefined;
   const profileHandle = getNormalizedUserHandle({
     username: profileData.username || username,
     instance: profileData.instance,
@@ -86,6 +95,8 @@ export const ProfileContent = memo(function ProfileContent({
           verified={profileData.verified}
           isPrivate={isPrivate}
           privacySettings={profileData.privacy}
+          isOwnProfile={isOwnProfile}
+          trailingBadge={fediverseBadge}
 
           UserNameComponent={UserName}
         />
@@ -136,6 +147,7 @@ export const ProfileContent = memo(function ProfileContent({
             isFederated={profileData.isFederated}
             variant="default"
             style={userNameStyle}
+            trailingBadge={fediverseBadge}
           />
           <View className="flex-row items-center gap-2 flex-wrap">
             {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}

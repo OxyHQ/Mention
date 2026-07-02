@@ -156,7 +156,8 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   profileId,
   isOwnProfile,
   UserNameComponent,
-}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean }) {
+  trailingBadge,
+}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean; trailingBadge?: React.ReactNode }) {
   const theme = useTheme();
   return (
     <View className="flex-row justify-between items-start mb-4 relative w-full gap-4">
@@ -166,6 +167,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
           handle={username}
           verified={false}
           variant="default"
+          trailingBadge={trailingBadge}
           style={{
             name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
             handle: { fontSize: 15, marginBottom: 12 },

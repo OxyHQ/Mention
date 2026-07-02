@@ -3,7 +3,7 @@ import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { displayNameOrHandle } from '@/utils/displayName';
 
@@ -93,9 +93,7 @@ export function ProfileCard({
                 @{profile.username}
               </ThemedText>
             )}
-            {profile.isFederated && (
-              <FediverseIcon size={13} className="text-muted-foreground" />
-            )}
+            {profile.isFederated && <FediverseBadge size={13} />}
           </View>
         </View>
         {showFollowButton && (
