@@ -30,6 +30,21 @@ describe('buildModuleCatalog', () => {
     expect(sourceIds).not.toContain('mutuals');
   });
 
+  it('includes the Phase 4 userComposable related sources', () => {
+    const catalog = buildModuleCatalog(registry);
+    const sourceIds = catalog.sources.map((s) => s.id);
+    expect(sourceIds).toContain('moreLikeThis');
+    expect(sourceIds).toContain('nearby');
+    expect(sourceIds).toContain('risingCreators');
+
+    const moreLikeThis = catalog.sources.find((s) => s.id === 'moreLikeThis');
+    expect(moreLikeThis?.paramsSchema.properties.topics?.maxItems).toBe(20);
+    const nearby = catalog.sources.find((s) => s.id === 'nearby');
+    expect(nearby?.paramsSchema.properties.lat).toEqual({ type: 'number' });
+    const rising = catalog.sources.find((s) => s.id === 'risingCreators');
+    expect(rising?.paramsSchema.properties).toEqual({});
+  });
+
   it('includes userComposable filters and excludes internal ones', () => {
     const catalog = buildModuleCatalog(registry);
     const filterIds = catalog.filters.map((f) => f.id);

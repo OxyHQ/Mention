@@ -11,6 +11,7 @@ import { PostVisibility } from '@mention/shared-types';
 const findCalls: Array<Record<string, unknown>> = [];
 let findRouter: (match: Record<string, unknown>) => unknown[] = () => [];
 let seedDoc: Record<string, unknown> | null = null;
+let snapshotGroups: Array<Record<string, unknown>> = [];
 
 function chainable(result: unknown[]) {
   const chain = {
@@ -33,7 +34,13 @@ vi.mock('../models/Post', () => ({
   },
 }));
 
-import { moreLikeThisSource, nearbySource } from '../mtn/feed/engine/sources/relatedSources';
+vi.mock('../models/AuthorFollowerSnapshot', () => ({
+  AuthorFollowerSnapshot: {
+    aggregate: vi.fn(() => ({ option: () => Promise.resolve(snapshotGroups) })),
+  },
+}));
+
+import { moreLikeThisSource, nearbySource, risingCreatorsSource } from '../mtn/feed/engine/sources/relatedSources';
 import type { FeedEngineContext } from '../mtn/feed/engine/types';
 
 const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
@@ -45,6 +52,7 @@ beforeEach(() => {
   findCalls.length = 0;
   findRouter = () => [];
   seedDoc = null;
+  snapshotGroups = [];
   vi.clearAllMocks();
 });
 
@@ -163,6 +171,44 @@ describe('nearby source', () => {
 
   it('returns [] with neither coordinates nor a viewer region', async () => {
     const posts = await nearbySource.gather({}, {}, 30);
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
+  });
+});
+
+describe('risingCreators source', () => {
+  it('ranks authors by follower-growth rate and scores their posts by that rate', async () => {
+    // A: 100 -> 110 (delta 10, rate 10/max(100,10) = 0.1)
+    // B: 5 -> 50  (delta 45, rate 45/max(5,10)  = 4.5)  -> ranks first
+    // C: 100 -> 90 (delta -10)                          -> excluded (not rising)
+    snapshotGroups = [
+      { _id: 'A', first: 100, last: 110 },
+      { _id: 'B', first: 5, last: 50 },
+      { _id: 'C', first: 100, last: 90 },
+    ];
+    findRouter = () => [makePost(50, { oxyUserId: 'A' }), makePost(51, { oxyUserId: 'B' })];
+
+    const posts = await risingCreatorsSource.gather({}, {}, 30);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(51).toString(), oid(50).toString()]);
+    expect(posts[0].finalScore).toBeCloseTo(4.5, 5);
+    expect(posts[1].finalScore).toBeCloseTo(0.1, 5);
+
+    // Only rising authors (positive delta) are queried, ordered by rate desc.
+    const match = findCalls[0];
+    expect(match.oxyUserId).toEqual({ $in: ['B', 'A'] });
+    expect(match.visibility).toBe(PostVisibility.PUBLIC);
+  });
+
+  it('returns [] when there are no snapshots', async () => {
+    snapshotGroups = [];
+    const posts = await risingCreatorsSource.gather({}, {}, 30);
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
+  });
+
+  it('returns [] when no author has positive growth', async () => {
+    snapshotGroups = [{ _id: 'A', first: 100, last: 100 }, { _id: 'B', first: 50, last: 40 }];
+    const posts = await risingCreatorsSource.gather({}, {}, 30);
     expect(posts).toEqual([]);
     expect(findCalls).toHaveLength(0);
   });

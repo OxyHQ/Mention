@@ -1033,6 +1033,16 @@ function startSchedulers(): void {
   } catch (error) {
     logger.warn("Failed to start MTN node scheduler", error);
   }
+
+  // Follower Snapshot Job (leader-gated + env-gated on REDIS_URL): samples
+  // follower counts for active authors, powering the `risingCreators` feed
+  // source's follower-growth delta. Timers are unref'd; inline no-op without Redis.
+  try {
+    const { followerSnapshotJob } = require("./src/services/followerSnapshotJob");
+    followerSnapshotJob.start();
+  } catch (error) {
+    logger.warn("Failed to start follower snapshot job", error);
+  }
 }
 
 /**
@@ -1092,6 +1102,13 @@ function stopSchedulers(): void {
     mentionNodeScheduler.stop();
   } catch (error) {
     logger.warn("Failed to stop MTN node scheduler", error);
+  }
+
+  try {
+    const { followerSnapshotJob } = require("./src/services/followerSnapshotJob");
+    followerSnapshotJob.stop();
+  } catch (error) {
+    logger.warn("Failed to stop follower snapshot job", error);
   }
 }
 

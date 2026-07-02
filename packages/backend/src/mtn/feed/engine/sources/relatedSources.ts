@@ -14,6 +14,7 @@
 import mongoose from 'mongoose';
 import { PostVisibility, MtnConfig } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
+import { AuthorFollowerSnapshot } from '../../../../models/AuthorFollowerSnapshot';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
@@ -267,4 +268,124 @@ export const nearbySource: SourceModule = {
   },
 };
 
-export const relatedSourceModules: SourceModule[] = [moreLikeThisSource, nearbySource];
+/** Window over which follower-growth delta is measured for `risingCreators`. 7 days. */
+const RISING_CREATORS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Denominator floor for the growth RATE (`delta / max(baseline, smoothing)`). It
+ * keeps the rate finite for zero/near-zero baselines while still favouring
+ * genuine up-and-comers over already-huge accounts adding the same absolute
+ * count.
+ */
+const RISING_FOLLOWER_SMOOTHING = 10;
+
+/** Max rising authors whose posts are fetched per request. */
+const RISING_CREATORS_MAX_AUTHORS = 100;
+
+/** Overfetch factor for the rising authors' recent posts (in-memory rate re-rank). */
+const RISING_CREATORS_POST_MULTIPLIER = 3;
+
+/** A grouped follower-count row (first/last snapshot within the window) per author. */
+interface SnapshotGroup {
+  _id: unknown;
+  first: number;
+  last: number;
+}
+
+/**
+ * `risingCreators`: creators gaining followers fastest right now.
+ *
+ * Reads {@link AuthorFollowerSnapshot} (populated by the leader-gated
+ * `followerSnapshotJob`), computes each author's follower-growth delta over the
+ * window (last − first snapshot), ranks by growth RATE (smoothed so up-and-comers
+ * beat already-huge accounts), and returns those authors' recent public SFW
+ * top-level posts, scored (`finalScore`) by their author's growth rate.
+ *
+ * INFRA CAVEAT: inert until the snapshot job has recorded at least two samples
+ * spanning the window for some authors — with no snapshots (or no positive
+ * growth) it soft-fails to `[]`.
+ */
+export const risingCreatorsSource: SourceModule = {
+  id: 'risingCreators',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, _params, cap) => {
+    const windowStart = new Date(Date.now() - RISING_CREATORS_WINDOW_MS);
+
+    let groups: SnapshotGroup[];
+    try {
+      groups = (await AuthorFollowerSnapshot.aggregate([
+        { $match: { at: { $gte: windowStart } } },
+        { $sort: { at: 1 } },
+        {
+          $group: {
+            _id: '$oxyUserId',
+            first: { $first: '$followerCount' },
+            last: { $last: '$followerCount' },
+          },
+        },
+      ]).option({ maxTimeMS: 5000 })) as SnapshotGroup[];
+    } catch (error) {
+      logger.warn('[risingCreators source] Failed to aggregate follower snapshots', error);
+      return [];
+    }
+
+    const ranked = groups
+      .map((group) => {
+        const first = typeof group.first === 'number' ? group.first : 0;
+        const last = typeof group.last === 'number' ? group.last : 0;
+        const delta = last - first;
+        return {
+          id: group._id ? String(group._id) : '',
+          delta,
+          rate: delta / Math.max(first, RISING_FOLLOWER_SMOOTHING),
+        };
+      })
+      .filter((group) => group.id.length > 0 && group.delta > 0)
+      .sort((a, b) => b.rate - a.rate)
+      .slice(0, RISING_CREATORS_MAX_AUTHORS);
+    if (ranked.length === 0) return [];
+
+    const rateById = new Map(ranked.map((group) => [group.id, group.rate]));
+    const authorIds = ranked.map((group) => group.id);
+
+    const allowSensitive = ctx.showSensitiveContent === true;
+    const postWindowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
+    const match: Record<string, unknown> = {
+      oxyUserId: { $in: authorIds },
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      createdAt: { $gte: postWindowStart },
+      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      $and: [
+        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
+      ],
+    };
+
+    const poolSize = Math.min(cap * RISING_CREATORS_POST_MULTIPLIER, MORE_LIKE_THIS_MAX_POOL);
+    const posts = (await Post.find(match)
+      .select(FEED_FIELDS)
+      .sort({ _id: -1 })
+      .limit(poolSize)
+      .maxTimeMS(5000)
+      .lean()) as unknown as CandidatePost[];
+
+    return posts
+      .map((post) => {
+        post.finalScore = typeof post.oxyUserId === 'string' ? rateById.get(post.oxyUserId) ?? 0 : 0;
+        return post;
+      })
+      .sort((a, b) => {
+        const diff = (b.finalScore ?? 0) - (a.finalScore ?? 0);
+        return diff !== 0 ? diff : createdAtMs(b) - createdAtMs(a);
+      })
+      .slice(0, cap);
+  },
+};
+
+export const relatedSourceModules: SourceModule[] = [
+  moreLikeThisSource,
+  nearbySource,
+  risingCreatorsSource,
+];
