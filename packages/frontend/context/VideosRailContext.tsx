@@ -28,6 +28,10 @@ export interface VideosRailState {
   commentsPostId: string | null;
   prev: () => void;
   next: () => void;
+  onLike: () => void;
+  onComment: () => void;
+  onBoost: () => void;
+  onShare: () => void;
   onCommentPosted: (postId: string) => void;
 }
 
@@ -53,6 +57,10 @@ const DEFAULT_STATE: VideosRailState = {
   commentsPostId: null,
   prev: NOOP,
   next: NOOP,
+  onLike: NOOP,
+  onComment: NOOP,
+  onBoost: NOOP,
+  onShare: NOOP,
   onCommentPosted: NOOP,
 };
 

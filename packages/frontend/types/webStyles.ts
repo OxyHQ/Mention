@@ -25,7 +25,7 @@ type WebOnlyStyleProps = {
 type WebOnlyStyleKeys = keyof WebOnlyStyleProps;
 
 /** Viewport-relative length values valid in CSS but absent from RN's number-only sizes. */
-type WebLength = `${number}vh` | `${number}vw`;
+type WebLength = `${number}vh` | `${number}vw` | `calc(${string})`;
 
 /** ViewStyle plus web-only CSS values/properties react-native-web understands. */
 export type WebViewStyle = Omit<ViewStyle, 'position' | 'height' | 'width' | WebOnlyStyleKeys> &

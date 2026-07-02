@@ -630,10 +630,7 @@ const VideoItem = memo<VideoItemProps>(({
     }, [item.id, item.isLiked, onLike]);
 
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
-    // On-video actions now show on every platform/breakpoint — desktop no
-    // longer moves them into the right-column rail (VideosRail keeps only
-    // prev/next + follow + views for desktop; see VideosRail.tsx).
-    const showOnVideoActions = true;
+    const showOnVideoActions = !isDesktop;
     const showOnVideoFollow = !isDesktop && Boolean(item.user?.id) && item.user?.id !== viewerId;
     const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
 
@@ -1438,9 +1435,21 @@ export default function VideosScreen() {
             activePost: railActivePost,
             prev,
             next,
+            onLike: () => {
+                if (railActivePost) handleLike(railActivePost.id, railActivePost.isLiked);
+            },
+            onComment: () => {
+                if (railActivePost) handleComment(railActivePost.id);
+            },
+            onBoost: () => {
+                if (railActivePost) handleBoost(railActivePost.id, railActivePost.isBoosted);
+            },
+            onShare: () => {
+                if (activeVideoPost) handleShare(activeVideoPost);
+            },
             onCommentPosted: handleCommentPosted,
         });
-    }, [setRailState, currentVisibleIndex, posts.length, railActivePost, prev, next, handleCommentPosted]);
+    }, [setRailState, currentVisibleIndex, posts.length, railActivePost, prev, next, handleLike, handleComment, handleBoost, handleShare, activeVideoPost, handleCommentPosted]);
 
     const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => (
         <VideoItem

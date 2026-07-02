@@ -18,14 +18,27 @@ const LINK_STYLE = Platform.OS === 'web' ? asTextStyle({ cursor: 'pointer' }) : 
 // `position: 'sticky'` is a valid react-native-web value absent from RN's native
 // `ViewStyle['position']` union — author the web container style through the
 // shared extended ViewStyle (same pattern as SideBar) rather than an `as any` cast.
+const RIGHTBAR_STICKY_TOP = 50;
+const RIGHTBAR_STICKY_BOTTOM = 20;
+
 const webStickyContainer: WebViewStyle = {
     position: 'sticky',
     // `alignSelf: flex-start` keeps this column from being stretched to the tall
     // shell row's height (default flex stretch), so the sticky box has room to
     // pin while only the center feed scrolls.
     alignSelf: 'flex-start',
-    top: 50,
-    bottom: 20,
+    top: RIGHTBAR_STICKY_TOP,
+    bottom: RIGHTBAR_STICKY_BOTTOM,
+};
+
+// The videos-rail branch needs its content anchored toward the BOTTOM of the
+// sticky slot (not shrink-wrapped to the top, which is what `webStickyContainer`
+// alone produces). Giving the box an explicit height equal to the sticky
+// window itself (viewport height minus the same top/bottom offsets above) lets
+// `justifyContent: 'flex-end'` push the rail's content down within that window,
+// instead of `alignSelf: flex-start` shrinking the box to its own content height.
+const videosRailStickyHeight: WebViewStyle = {
+    height: `calc(100vh - ${RIGHTBAR_STICKY_TOP + RIGHTBAR_STICKY_BOTTOM}px)`,
 };
 
 // Static footer links that don't depend on translations — URLs never change
@@ -61,7 +74,7 @@ export function RightBar() {
 
     if (videosRailActive) {
         return (
-            <View className="flex-col px-4 pt-4" style={styles.container}>
+            <View className="flex-col px-4 pt-4" style={[styles.container, styles.videosRailContainer]}>
                 <VideosRail />
             </View>
         );
@@ -114,5 +127,14 @@ const styles = StyleSheet.create({
     container: {
         width: 350,
         ...(Platform.OS === 'web' ? asViewStyle(webStickyContainer) : null),
+    },
+    // Anchors the rail's arrows/follow/actions/views cluster toward the bottom
+    // of the sticky slot instead of hugging its top. On native the container
+    // already stretches to the parent's height (no `alignSelf` override there),
+    // so `justifyContent` alone is enough; on web the explicit height above is
+    // required first since `alignSelf: flex-start` would otherwise shrink-wrap it.
+    videosRailContainer: {
+        justifyContent: 'flex-end',
+        ...(Platform.OS === 'web' ? asViewStyle(videosRailStickyHeight) : null),
     },
 });
