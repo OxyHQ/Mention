@@ -6,7 +6,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
 
@@ -147,7 +147,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 </Text>
               ) : null}
               {user.isFederated ? (
-                <FediverseIcon size={13} className="text-muted-foreground self-center ml-1" />
+                <FediverseBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
               ) : null}
             </View>
             {!!timeLabel && (

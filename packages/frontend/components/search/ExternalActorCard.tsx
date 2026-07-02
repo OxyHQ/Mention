@@ -10,7 +10,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/ui/Button';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
 import {
@@ -128,7 +128,7 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
             {displayName}
           </ThemedText>
           <View className="flex-row items-center gap-1">
-            <FediverseIcon size={13} color={theme.colors.textSecondary} />
+            <FediverseBadge size={13} color={theme.colors.textSecondary} />
             <ThemedText
               className="text-muted-foreground text-sm"
               style={{ lineHeight: 18 }}

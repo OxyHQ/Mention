@@ -12,7 +12,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@oxyhq/bloom/portal';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from '@/components/UserName';
-import { FediverseIcon } from '@/assets/icons/fediverse-icon';
+import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
 import { type ProfileHoverCardProps } from './types';
 
 const IS_TOUCH_DEVICE = typeof window !== 'undefined' && 'ontouchstart' in window;
@@ -381,7 +381,7 @@ function CardContent({
             <Text className="text-muted-foreground text-xs">@{profile.instance}</Text>
           )}
           {profile.isFederated && (
-            <FediverseIcon size={13} className="text-muted-foreground" />
+            <FediverseBadge size={13} className="text-muted-foreground" />
           )}
         </View>
       </View>
