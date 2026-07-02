@@ -41,6 +41,10 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   positivity: 'positivity',
   conversational: 'conversational',
   coldStartBoost: 'coldStartBoost',
+  // Opt-in (Phase 2b) — engagement-history signals.
+  penalizeSeen: 'penalizeSeen',
+  verifiedBoost: 'verifiedBoost',
+  dwellTime: 'dwellTime',
 };
 
 export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(

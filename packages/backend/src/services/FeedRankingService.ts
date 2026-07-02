@@ -163,15 +163,24 @@ export class FeedRankingService {
   }
 
   /**
-   * Resolve `authorId → followerCount` for the unique authors of a candidate
-   * post set, used by the author-authority signal. Backed by the shared
-   * Redis user-summary cache + a single bulk Oxy fetch for cold authors, so the
-   * common case (warm cache) is one Redis round trip with no Oxy call. Authors
-   * whose follower count is unavailable are simply absent from the map and fall
-   * back to a neutral authority multiplier.
+   * Resolve per-author summary maps for the unique authors of a candidate post
+   * set, in a SINGLE pass:
+   *   - `followerCounts` (`authorId → followerCount`) for the author-authority
+   *     signal, and
+   *   - `verified` (`authorId → isVerified`) for the opt-in `verifiedBoost` signal.
+   *
+   * Backed by the shared Redis user-summary cache + a single bulk Oxy fetch for
+   * cold authors, so the common case (warm cache) is one Redis round trip with no
+   * Oxy call. Authors whose value is unavailable are simply absent from the
+   * relevant map and fall back to a neutral multiplier. Resolving both maps here
+   * means `verifiedBoost` costs nothing beyond the authority resolution that
+   * already runs on every ranked request.
    */
-  private async resolveAuthorFollowerCounts(posts: RankablePost[]): Promise<Map<string, number>> {
-    const counts = new Map<string, number>();
+  private async resolveAuthorSummaries(
+    posts: RankablePost[],
+  ): Promise<{ followerCounts: Map<string, number>; verified: Map<string, boolean> }> {
+    const followerCounts = new Map<string, number>();
+    const verified = new Map<string, boolean>();
 
     const authorIds = Array.from(
       new Set(
@@ -181,7 +190,7 @@ export class FeedRankingService {
       ),
     );
     if (authorIds.length === 0) {
-      return counts;
+      return { followerCounts, verified };
     }
 
     try {
@@ -191,14 +200,17 @@ export class FeedRankingService {
       const resolved = await resolveUserSummaries(authorIds);
       for (const [authorId, value] of resolved) {
         if (typeof value.followerCount === 'number') {
-          counts.set(authorId, value.followerCount);
+          followerCounts.set(authorId, value.followerCount);
+        }
+        if (typeof value.summary?.isVerified === 'boolean') {
+          verified.set(authorId, value.summary.isVerified);
         }
       }
     } catch (error) {
-      logger.warn('Failed to resolve author follower counts for authority signal:', error);
+      logger.warn('Failed to resolve author summaries for ranking signals:', error);
     }
 
-    return counts;
+    return { followerCounts, verified };
   }
 
   /**
@@ -213,15 +225,39 @@ export class FeedRankingService {
    * `coldStartBoost`) read only fields already on the candidate post (plus the
    * follower counts resolved for authority), so they need nothing resolved here.
    */
-  private async resolveOptInContext(
-    _posts: RankablePost[],
-    _userId: string | undefined,
-    enabledSignals: Set<string> | undefined,
-  ): Promise<OptInSignalContext> {
+  private async resolveOptInContext(params: {
+    posts: RankablePost[];
+    userId: string | undefined;
+    enabledSignals: Set<string> | undefined;
+    /** Verified flags already resolved alongside the authority follower counts. */
+    authorVerified: Map<string, boolean>;
+    /** The viewer's seen post ids (for `penalizeSeen`). */
+    seenPostIds?: string[];
+  }): Promise<OptInSignalContext> {
+    const { posts, enabledSignals, authorVerified, seenPostIds } = params;
     if (!enabledSignals || enabledSignals.size === 0) {
       return {};
     }
-    return { enabledSignals };
+
+    const optIn: OptInSignalContext = { enabledSignals };
+
+    if (enabledSignals.has('verifiedBoost')) {
+      optIn.authorVerified = authorVerified;
+    }
+
+    if (enabledSignals.has('penalizeSeen') && seenPostIds && seenPostIds.length > 0) {
+      optIn.seenPostIdsSet = new Set(seenPostIds);
+    }
+
+    if (enabledSignals.has('dwellTime')) {
+      const postIds = posts
+        .map((p) => (p?._id != null ? String(p._id) : ''))
+        .filter((id) => id.length > 0);
+      const { getDwellAverages } = await import('./dwellAggregate.js');
+      optIn.dwellAverages = await getDwellAverages(postIds);
+    }
+
+    return optIn;
   }
 
   private buildBehaviorSets(userBehavior: RankingUserBehavior | undefined): BehaviorSets | undefined {
@@ -750,6 +786,15 @@ export class FeedRankingService {
     if (enabled.has('coldStartBoost')) {
       multiplier *= this.calculateColdStartBoost(post, context.authorFollowerCounts?.get(authorId));
     }
+    if (enabled.has('penalizeSeen')) {
+      multiplier *= this.calculatePenalizeSeen(post, context.seenPostIdsSet);
+    }
+    if (enabled.has('verifiedBoost')) {
+      multiplier *= this.calculateVerifiedBoost(post, context.authorVerified);
+    }
+    if (enabled.has('dwellTime')) {
+      multiplier *= this.calculateDwellTimeBoost(post, context.dwellAverages);
+    }
     return multiplier;
   }
 
@@ -829,6 +874,56 @@ export class FeedRankingService {
       followerCount < newAuthorFollowerThreshold;
 
     return isFreshPost || isColdAuthor ? boost : 1.0;
+  }
+
+  /**
+   * `penalizeSeen` — a SOFT de-prioritization (not a hard exclude) of posts the
+   * viewer has already seen: the configured penalty (< 1) when the post id is in
+   * the viewer's seen set, `1.0` otherwise (or when there is no seen set). Lets a
+   * seen post still surface but yield to fresh content.
+   */
+  public calculatePenalizeSeen(post: RankablePost, seenPostIds: Set<string> | undefined): number {
+    if (!seenPostIds || seenPostIds.size === 0) {
+      return 1.0;
+    }
+    const id = post?._id != null ? String(post._id) : '';
+    return id && seenPostIds.has(id) ? this.R.optInSignals.penalizeSeen.penalty : 1.0;
+  }
+
+  /**
+   * `verifiedBoost` — a small lift for verified authors. Neutral (1.0) when the
+   * verified map is absent, the author is not in it, or the author is not
+   * verified; the configured boost when `authorVerified.get(authorId) === true`.
+   */
+  public calculateVerifiedBoost(post: RankablePost, authorVerified: Map<string, boolean> | undefined): number {
+    if (!authorVerified) {
+      return 1.0;
+    }
+    const authorId = post?.oxyUserId ? String(post.oxyUserId) : '';
+    return authorId && authorVerified.get(authorId) === true ? this.R.optInSignals.verifiedBoost.boost : 1.0;
+  }
+
+  /**
+   * `dwellTime` — favor posts that hold attention. Reads the post's average
+   * impression dwell (ms) from the request-scoped dwell map. Neutral (1.0) when
+   * there is no dwell data or the average is below `thresholdMs`; otherwise a
+   * lift that scales LINEARLY from `boost` (at the threshold) toward `maxBoost`
+   * (reached at 2× the threshold) and clamps there — so an extreme sample can
+   * never run away with the score.
+   */
+  public calculateDwellTimeBoost(post: RankablePost, dwellAverages: Map<string, number> | undefined): number {
+    if (!dwellAverages) {
+      return 1.0;
+    }
+    const id = post?._id != null ? String(post._id) : '';
+    const avg = id ? dwellAverages.get(id) : undefined;
+    const { thresholdMs, boost, maxBoost } = this.R.optInSignals.dwellTime;
+    if (typeof avg !== 'number' || !Number.isFinite(avg) || avg < thresholdMs) {
+      return 1.0;
+    }
+    const over = (avg - thresholdMs) / thresholdMs; // 0 at threshold, 1 at 2× threshold
+    const scaled = boost + over * (maxBoost - boost);
+    return Math.min(maxBoost, Math.max(boost, scaled));
   }
 
   /**
@@ -1254,6 +1349,11 @@ export class FeedRankingService {
        * is unchanged; a custom feed forwards its enabled opt-in signals here.
        */
       enabledSignals?: Set<string>;
+      /**
+       * The viewer's already-seen post ids — resolved into a set for the
+       * `penalizeSeen` opt-in signal. Only consumed when `penalizeSeen` is enabled.
+       */
+      seenPostIds?: string[];
     } = {}
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
@@ -1294,14 +1394,27 @@ export class FeedRankingService {
     // Resolve author follower counts ONCE for the authority signal (unless the
     // caller already supplied them). Cache-backed + bulk-fetched, so this is a
     // single batched round trip for the cold authors only.
-    const authorFollowerCounts = context.authorFollowerCounts
-      ?? await this.resolveAuthorFollowerCounts(posts);
+    // Resolve author summaries ONCE for the authority signal (follower counts)
+    // and, in the same pass, the verified flags the opt-in `verifiedBoost` reads.
+    // Skipped entirely when the caller supplied follower counts (then verified is
+    // absent → `verifiedBoost` neutral, which only custom feeds enable anyway).
+    const { followerCounts: resolvedFollowerCounts, verified: authorVerified } =
+      context.authorFollowerCounts
+        ? { followerCounts: context.authorFollowerCounts, verified: new Map<string, boolean>() }
+        : await this.resolveAuthorSummaries(posts);
+    const authorFollowerCounts = resolvedFollowerCounts;
 
     // Resolve the OPT-IN (Phase 2b) signal context ONCE for this request. Every
     // per-signal resolution is gated on the signal being enabled, so a feed that
     // enables no opt-in signals (every preset) pays nothing here and its scoring
     // is unchanged.
-    const optInContext = await this.resolveOptInContext(posts, userId, context.enabledSignals);
+    const optInContext = await this.resolveOptInContext({
+      posts,
+      userId,
+      enabledSignals: context.enabledSignals,
+      authorVerified,
+      seenPostIds: context.seenPostIds,
+    });
 
     // Pre-calculate engagement scores with caching (batch load from cache)
     const engagementScoreCache = new Map<string, number>();

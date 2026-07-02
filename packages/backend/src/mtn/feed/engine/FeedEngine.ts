@@ -255,6 +255,7 @@ export class FeedEngine {
         userBehavior: ctx.userBehavior,
         feedSettings: ctx.feedSettings,
         enabledSignals: this.resolveEnabledSignalKeys(definition),
+        seenPostIds: ctx.seenPostIds,
         ...(exec.passSensitiveOptIn ? { showSensitiveContent: ctx.showSensitiveContent === true } : {}),
       })) as RankedCandidate[];
 

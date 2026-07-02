@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { isPostEligibleForViewTelemetry, recordDedupedView } from '../../services/feedViewCounter';
+import { recordDwell } from '../../services/dwellAggregate';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 
 export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
@@ -88,6 +89,13 @@ async function applyImpressionSignals(interaction: FeedInteractionData): Promise
   await userPreferenceService.recordInteraction(interaction.userId, postId, signal, {
     surface: interaction.feedDescriptor,
   });
+
+  // 3. Fold the dwell duration into the post's rolling average (opt-in
+  //    `dwellTime` ranking signal). Best-effort; a no-op without a real dwell or
+  //    when Redis is unavailable.
+  if (dwellMs > 0) {
+    await recordDwell(postId, dwellMs);
+  }
 }
 
 /**

@@ -158,6 +158,63 @@ describe('coldStartBoost scorer', () => {
   });
 });
 
+describe('penalizeSeen scorer', () => {
+  it('is neutral (1.0) when the seen set is absent or empty', () => {
+    expect(service.calculatePenalizeSeen(makePost(), undefined)).toBe(1.0);
+    expect(service.calculatePenalizeSeen(makePost(), new Set())).toBe(1.0);
+  });
+
+  it('is neutral for a post the viewer has NOT seen', () => {
+    expect(service.calculatePenalizeSeen(makePost({ _id: 'p1' }), new Set(['other']))).toBe(1.0);
+  });
+
+  it('penalizes a post the viewer has already seen', () => {
+    expect(service.calculatePenalizeSeen(makePost({ _id: 'p1' }), new Set(['p1']))).toBe(
+      R.penalizeSeen.penalty,
+    );
+  });
+});
+
+describe('verifiedBoost scorer', () => {
+  it('is neutral (1.0) when the verified map is absent', () => {
+    expect(service.calculateVerifiedBoost(makePost(), undefined)).toBe(1.0);
+  });
+
+  it('is neutral when the author is not present / not verified', () => {
+    expect(service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map())).toBe(1.0);
+    expect(service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map([['a1', false]]))).toBe(1.0);
+  });
+
+  it('boosts a verified author', () => {
+    expect(service.calculateVerifiedBoost(makePost({ oxyUserId: 'a1' }), new Map([['a1', true]]))).toBe(
+      R.verifiedBoost.boost,
+    );
+  });
+});
+
+describe('dwellTime scorer', () => {
+  it('is neutral (1.0) when there is no dwell data', () => {
+    expect(service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), undefined)).toBe(1.0);
+    expect(service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map())).toBe(1.0);
+  });
+
+  it('is neutral for a post whose average dwell is below the threshold', () => {
+    const below = R.dwellTime.thresholdMs - 1;
+    expect(service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map([['p1', below]]))).toBe(1.0);
+  });
+
+  it('boosts a high-dwell post, scaled and capped at maxBoost', () => {
+    // At the threshold → base boost.
+    expect(
+      service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs]])),
+    ).toBeCloseTo(R.dwellTime.boost, 5);
+    // Far above the threshold → clamped to maxBoost.
+    expect(
+      service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs * 100]])),
+    ).toBeCloseTo(R.dwellTime.maxBoost, 5);
+  });
+});
+
 describe('opt-in signals are OFF unless the definition enables them (no regression)', () => {
   it('a media post scores identically with and without enabledSignals (mediaBoost off)', async () => {
     const media = makePost({ content: { media: [{ id: 'm1' }] } });
@@ -188,5 +245,31 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
       authorFollowerCounts: new Map([['author-1', 100000]]),
     });
     expect(on / off).toBeCloseTo(R.coldStartBoost.boost, 5);
+  });
+
+  it('enabling penalizeSeen downranks a seen post', async () => {
+    const post = makePost({ _id: 'seen-1' });
+    const off = await scoreWith(post, { seenPostIdsSet: new Set(['seen-1']) });
+    const on = await scoreWith(post, {
+      enabledSignals: new Set(['penalizeSeen']),
+      seenPostIdsSet: new Set(['seen-1']),
+    });
+    expect(on / off).toBeCloseTo(R.penalizeSeen.penalty, 5);
+  });
+
+  it('enabling verifiedBoost lifts a verified author', async () => {
+    const post = makePost({ oxyUserId: 'a1' });
+    const verified = new Map([['a1', true]]);
+    const off = await scoreWith(post, { authorVerified: verified });
+    const on = await scoreWith(post, { enabledSignals: new Set(['verifiedBoost']), authorVerified: verified });
+    expect(on / off).toBeCloseTo(R.verifiedBoost.boost, 5);
+  });
+
+  it('enabling dwellTime lifts a high-dwell post', async () => {
+    const post = makePost({ _id: 'p1' });
+    const dwell = new Map([['p1', R.dwellTime.thresholdMs]]);
+    const off = await scoreWith(post, { dwellAverages: dwell });
+    const on = await scoreWith(post, { enabledSignals: new Set(['dwellTime']), dwellAverages: dwell });
+    expect(on / off).toBeCloseTo(R.dwellTime.boost, 5);
   });
 });

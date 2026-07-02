@@ -50,7 +50,15 @@ describe('buildModuleCatalog', () => {
   it('includes the Phase 2b opt-in signals (builder-composable for custom feeds)', () => {
     const catalog = buildModuleCatalog(registry);
     const signalIds = catalog.signals.map((s) => s.id);
-    for (const id of ['mediaBoost', 'positivity', 'conversational', 'coldStartBoost']) {
+    for (const id of [
+      'mediaBoost',
+      'positivity',
+      'conversational',
+      'coldStartBoost',
+      'penalizeSeen',
+      'verifiedBoost',
+      'dwellTime',
+    ]) {
       expect(signalIds).toContain(id);
     }
   });
