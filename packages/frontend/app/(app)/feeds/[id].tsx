@@ -20,15 +20,14 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
-import { listsService } from '@/services/listsService';
-import { subscribeToListChanges } from '@/services/listMutations';
+import { useFeedPreferences } from '@/hooks/useFeedPreferences';
+import { useAuth } from '@oxyhq/services';
 import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
-import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { show as toast } from '@oxyhq/bloom/toast';
@@ -38,8 +37,6 @@ import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxyhq/services';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-
-const PINNED_KEY = 'mention.pinnedFeeds';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';
 
@@ -146,8 +143,10 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
   isLiked,
   isTogglingLike,
   isPinned,
+  isOwner,
   onToggleLike,
   onTogglePin,
+  onEdit,
   onShare,
   onClose,
 }: {
@@ -156,8 +155,10 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
   isLiked: boolean;
   isTogglingLike: boolean;
   isPinned: boolean;
+  isOwner: boolean;
   onToggleLike: () => void;
   onTogglePin: () => void;
+  onEdit: () => void;
   onShare: () => void;
   onClose: () => void;
 }) {
@@ -247,6 +248,22 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Owner-only edit */}
+      {isOwner ? (
+        <TouchableOpacity
+          className="h-10 rounded-lg flex-row items-center justify-center gap-1.5"
+          style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
+          onPress={() => {
+            onClose();
+            onEdit();
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="create-outline" size={18} color={theme.colors.text} />
+          <Text className="text-[15px] font-medium text-foreground">Edit feed</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* Divider + report */}
       <View style={[infoStyles.divider, { backgroundColor: theme.colors.border }]} />
@@ -597,15 +614,19 @@ export default function CustomFeedTimelineScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
+  const { isPinned: isFeedPinned, pin, unpin } = useFeedPreferences();
   const [feed, setFeed] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [authorsCsv, setAuthorsCsv] = useState('');
-  const [pinned, setPinned] = useState<string[]>([]);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [isTogglingLike, setIsTogglingLike] = useState(false);
   const [activeTab, setActiveTab] = useState<FeedTab>('recent');
+
+  const pinKey = `custom:${id}`;
+  const isPinned = isFeedPinned(pinKey);
+  const isOwner = Boolean(feed?.ownerOxyUserId && user?.id && feed.ownerOxyUserId === user.id);
 
   const TABS = TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) }));
 
@@ -619,27 +640,14 @@ export default function CustomFeedTimelineScreen() {
     infoSheetRef.current?.dismiss();
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const stored = (await getData<string[]>(PINNED_KEY)) || [];
-        setPinned(stored);
-      } catch { }
-    })();
-  }, []);
+  const onTogglePin = useCallback(() => {
+    if (isFeedPinned(pinKey)) unpin(pinKey);
+    else pin({ key: pinKey, descriptor: `custom|${id}` });
+  }, [id, pinKey, isFeedPinned, pin, unpin]);
 
-  const onTogglePin = useCallback(async () => {
-    const feedId = `custom:${id}`;
-    const newPinned = pinned.includes(feedId)
-      ? pinned.filter((p) => p !== feedId)
-      : [...pinned, feedId];
-    setPinned(newPinned);
-    storeData(PINNED_KEY, newPinned).catch(() => { });
-  }, [id, pinned]);
-
-  // Source list ids of the loaded feed, tracked so a change to any of them can
-  // trigger a re-expansion of the feed's authors.
-  const sourceListIdsRef = useRef<string[]>([]);
+  const onEdit = useCallback(() => {
+    router.push(`/feeds/${id}/edit`);
+  }, [id]);
 
   const loadFeed = useCallback(async (signal?: { cancelled: boolean }) => {
     const cancelled = () => signal?.cancelled === true;
@@ -649,28 +657,6 @@ export default function CustomFeedTimelineScreen() {
       setFeed(f);
       setLikeCount(f.likeCount || 0);
       setIsLiked(f.isLiked || false);
-      sourceListIdsRef.current = Array.isArray(f.sourceListIds)
-        ? f.sourceListIds.map((lid: string) => String(lid))
-        : [];
-
-      // Expand authors from members + lists
-      const authors = new Set<string>(f.memberOxyUserIds || []);
-      if (f.sourceListIds?.length) {
-        await Promise.all(
-          f.sourceListIds.map(async (lid: string) => {
-            try {
-              const l = await listsService.get(String(lid));
-              (l.memberOxyUserIds || []).forEach((uid: string) => authors.add(uid));
-            } catch { }
-          })
-        );
-      }
-      // Exclude owner unless explicitly added as member
-      const ownerId = f.ownerOxyUserId;
-      if (ownerId && !f.memberOxyUserIds?.includes(ownerId)) {
-        authors.delete(ownerId);
-      }
-      if (!cancelled()) setAuthorsCsv(Array.from(authors).join(','));
     } catch {
       if (!cancelled()) setError('Failed to load feed');
     } finally {
@@ -683,18 +669,6 @@ export default function CustomFeedTimelineScreen() {
     loadFeed(signal);
     return () => { signal.cancelled = true; };
   }, [loadFeed]);
-
-  // When a source list this feed is built from changes (members added/removed),
-  // re-expand the feed's authors so the embedded `<Feed authors>` re-fetches.
-  useEffect(() => {
-    return subscribeToListChanges((changedId) => {
-      if (changedId === null || sourceListIdsRef.current.includes(String(changedId))) {
-        loadFeed();
-      }
-    });
-  }, [loadFeed]);
-
-  const isPinned = pinned.includes(`custom:${id}`);
 
   const onToggleLike = useCallback(async () => {
     if (isTogglingLike) return;
@@ -741,18 +715,6 @@ export default function CustomFeedTimelineScreen() {
 
   const members: MemberProfile[] = feed?.members || [];
   const keywords: string[] = feed?.keywords || [];
-  const memberCount = feed?.memberCount ?? (feed?.memberOxyUserIds || []).length;
-  const topicCount = feed?.topicCount ?? keywords.length;
-
-  const feedFilters = useMemo(() => ({
-    authors: authorsCsv,
-    keywords: keywords.join(','),
-    includeReplies: feed?.includeReplies,
-    includeBoosts: feed?.includeBoosts,
-    includeMedia: feed?.includeMedia,
-    language: feed?.language,
-    excludeOwner: true,
-  }), [authorsCsv, keywords, feed?.includeReplies, feed?.includeBoosts, feed?.includeMedia, feed?.language]);
 
   const tabBar = useMemo(() => (
     <AnimatedTabBar
@@ -807,9 +769,11 @@ export default function CustomFeedTimelineScreen() {
         // `recent` is the ONLY feed tab and it is the virtualized, scroll-owning
         // Feed (NOT scrollEnabled={false}) — it owns the document scroll on web
         // (window virtualizer) with the tab bar passed as its listHeaderComponent.
-        // The other tabs (profiles/topics/reviews) render NON-feed content inside
-        // their own <ScrollView>, so the feed is not embedded anywhere here.
-        <Feed type="mixed" filters={feedFilters} listHeaderComponent={listHeader} />
+        // It renders the stored definition through the engine timeline (the same
+        // `/feeds/:id/timeline` the home custom tabs use), so definition-based
+        // feeds render here too. The other tabs (profiles/topics/reviews) render
+        // NON-feed content inside their own <ScrollView>.
+        <Feed type="custom" filters={{ customFeedId: String(id) }} listHeaderComponent={listHeader} />
       ) : (
         <ScrollView stickyHeaderIndices={[0]}>
           {tabBar}
@@ -840,8 +804,10 @@ export default function CustomFeedTimelineScreen() {
             isLiked={isLiked}
             isTogglingLike={isTogglingLike}
             isPinned={isPinned}
+            isOwner={isOwner}
             onToggleLike={onToggleLike}
             onTogglePin={onTogglePin}
+            onEdit={onEdit}
             onShare={onShare}
             onClose={closeInfoSheet}
           />

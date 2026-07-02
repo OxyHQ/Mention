@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
@@ -9,8 +9,9 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Feed from '@/components/Feed/Feed';
-import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
+import { useFeedPreferences } from '@/hooks/useFeedPreferences';
+import { PRESET_FEEDS, parseFeedDescriptor, type FeedType } from '@mention/shared-types';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
@@ -30,25 +31,20 @@ import { useAuth } from '@oxyhq/services';
 import { logger } from '@/lib/logger';
 import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 
-type HomeTab = 'for_you' | 'following' | 'trending' | string;
+type HomeTab = string;
 
-interface PinnedFeed {
-    id: string;
-    title: string;
-    feedId: string;
-}
-
-interface FeedReference {
-    _id?: string;
-    id?: string;
-    title?: string;
-}
-
-const PINNED_KEY = 'mention.pinnedFeeds';
+/**
+ * A resolved home tab derived from a pinned {@link SavedFeed}. `descriptor` tabs
+ * render an inline `<Feed>`; a tab with a `route` (e.g. Videos) navigates to its
+ * dedicated screen instead; `custom` tabs render the engine timeline.
+ */
+type HomeTabModel =
+    | { key: string; label: string; kind: 'descriptor'; type: FeedType; route?: string }
+    | { key: string; label: string; kind: 'custom'; feedId: string };
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
-    const { isAuthenticated, isAuthResolved, canUsePrivateApi, user } = useAuth();
+    const { isAuthResolved, canUsePrivateApi, user } = useAuth();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { open: openDrawer } = useDrawer();
@@ -64,67 +60,87 @@ const HomeScreen: React.FC = () => {
     const bottomBarHidden = useBottomBarHidden();
     const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
 
-    // Pinned/custom feeds load once through React Query, keyed on the auth
-    // identity, replacing the old useEffect + useFocusEffect pair that fired four
-    // requests on mount and an uncached refetch on every screen focus. Cached and
-    // deduped; refetches only after the stale window. The inner Promise.all keeps
-    // the two list requests parallel.
-    const pinnedFeedsQuery = useQuery<PinnedFeed[]>({
-        queryKey: ['customFeeds', 'home', user?.id],
-        enabled: canUsePrivateApi,
+    // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
+    // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
+    // viewers get the read-only default (For You).
+    const { pinnedFeeds } = useFeedPreferences();
+
+    const presetById = useMemo(() => new Map(PRESET_FEEDS.map((p) => [p.id, p])), []);
+
+    // Whether any pinned feed is a custom feed — gates the (title-only) custom-feed
+    // fetch so users with no custom pins never trigger it.
+    const hasPinnedCustom = useMemo(
+        () => pinnedFeeds.some((sf) => parseFeedDescriptor(sf.descriptor).source === 'custom'),
+        [pinnedFeeds],
+    );
+
+    // Resolve custom-feed ids → titles for the tab labels (pinned custom feeds
+    // carry only a descriptor). Keyed on the auth identity; cached + deduped.
+    const customTitlesQuery = useQuery<Map<string, string>>({
+        queryKey: ['customFeeds', 'titles', user?.id],
+        enabled: canUsePrivateApi && hasPinnedCustom,
         staleTime: 5 * 60 * 1000,
         queryFn: async () => {
+            const map = new Map<string, string>();
             try {
-                const pinned = (await getData<string[]>(PINNED_KEY)) || [];
-
-                const [mineFeeds, publicFeeds] = await Promise.all([
+                const [mine, pub] = await Promise.all([
                     customFeedsService.list({ mine: true }),
-                    customFeedsService.list({ publicOnly: true })
+                    customFeedsService.list({ publicOnly: true }),
                 ]);
-
-                const myFeedsList = mineFeeds.items || [];
-                const publicFeedsList = publicFeeds.items || [];
-
-                const allFeedsMap = new Map<string, FeedReference>();
-                [...myFeedsList, ...publicFeedsList].forEach((feed: FeedReference) => {
+                [...(mine.items || []), ...(pub.items || [])].forEach((feed) => {
                     const feedId = String(feed._id || feed.id);
-                    if (!allFeedsMap.has(feedId)) {
-                        allFeedsMap.set(feedId, feed);
-                    }
+                    if (!map.has(feedId)) map.set(feedId, feed.title || t('feeds.untitled', { defaultValue: 'Feed' }));
                 });
-                const allFeeds = Array.from(allFeedsMap.values());
-
-                return pinned
-                    .map((id) => {
-                        const feedId = id.replace('custom:', '');
-                        const feed = allFeeds.find((f) => String(f._id || f.id) === feedId);
-                        if (feed) {
-                            return {
-                                id,
-                                title: feed.title || 'Untitled Feed',
-                                feedId
-                            };
-                        }
-                        return null;
-                    })
-                    .filter(Boolean) as PinnedFeed[];
-            } catch (error: unknown) {
-                logger.warn('Failed to load pinned feeds', { error });
-                return [];
+            } catch (error) {
+                logger.warn('Failed to load custom feed titles', { error });
             }
+            return map;
         },
     });
 
-    const pinnedFeeds = pinnedFeedsQuery.data ?? [];
+    const customTitles = customTitlesQuery.data;
+
+    const homeTabs = useMemo<HomeTabModel[]>(() => {
+        return pinnedFeeds
+            .filter((sf) => {
+                // Belt-and-suspenders: hide viewer-relative presets + custom feeds
+                // for anonymous viewers (the hook's anon default already excludes them).
+                if (canUsePrivateApi) return true;
+                const preset = presetById.get(sf.key);
+                return preset ? !preset.requiresAuth : false;
+            })
+            .map((sf): HomeTabModel => {
+                const { source, params } = parseFeedDescriptor(sf.descriptor);
+                if (source === 'custom') {
+                    const feedId = params[0] ?? '';
+                    return {
+                        key: sf.key,
+                        kind: 'custom',
+                        feedId,
+                        label: customTitles?.get(feedId) ?? t('feeds.untitled', { defaultValue: 'Feed' }),
+                    };
+                }
+                const preset = presetById.get(sf.key);
+                return {
+                    key: sf.key,
+                    kind: 'descriptor',
+                    type: source as FeedType,
+                    route: preset?.route,
+                    label: preset ? t(preset.labelKey) : sf.descriptor,
+                };
+            });
+    }, [pinnedFeeds, canUsePrivateApi, presetById, customTitles, t]);
 
     useEffect(() => {
-        // Only force-reset auth-only tabs once auth is RESOLVED. During the
-        // undetermined cold-boot window `isAuthenticated` is false but not a real
-        // logout, so resetting here would fight a session that is about to restore.
-        if (isAuthResolved && !isAuthenticated && (activeTab === 'following' || activeTab.startsWith('custom:'))) {
-            setActiveTab('for_you');
+        // Keep the active tab valid as the pinned set changes (e.g. logout removes
+        // Following / custom tabs → fall back to the first tab, For You). Only act
+        // once auth is RESOLVED so the cold-boot window doesn't fight a session
+        // that is about to restore.
+        if (!isAuthResolved) return;
+        if (homeTabs.length > 0 && !homeTabs.some((tab) => tab.key === activeTab)) {
+            setActiveTab(homeTabs[0].key);
         }
-    }, [isAuthResolved, isAuthenticated, activeTab]);
+    }, [isAuthResolved, homeTabs, activeTab]);
 
     useEffect(() => {
         const handleRefresh = () => {
@@ -172,6 +188,13 @@ const HomeScreen: React.FC = () => {
     });
 
     const handleTabPress = (tabId: HomeTab) => {
+        // A routed tab (Videos) opens its dedicated screen instead of rendering
+        // inline; it never becomes the active content tab.
+        const tab = homeTabs.find((x) => x.key === tabId);
+        if (tab?.kind === 'descriptor' && tab.route) {
+            router.push(tab.route);
+            return;
+        }
         if (tabId === activeTab) {
             setRefreshKey(prev => prev + 1);
         } else {
@@ -180,53 +203,45 @@ const HomeScreen: React.FC = () => {
     };
 
     const renderContent = () => {
-        // Feeds that render in both the anon and authed branches (for_you, trending)
-        // must remount when the auth identity flips so their mount-time fetch re-runs
-        // against the now-ready token. Without an identity-scoped key, React reconciles
-        // the same element across the anon→authed transition and the feed stays stuck
-        // on anonymous (or empty) content. This is the belt-and-suspenders guarantee
-        // alongside the auth-keyed initial-fetch effect inside useFeedState. The feed
-        // itself shows its normal loading spinner while a session restores on cold
-        // boot; once auth resolves the key flips anon→userId and the Feed remounts to
-        // fetch the authenticated feed.
+        // Feeds that render in both the anon and authed branches (for_you, …) must
+        // remount when the auth identity flips so their mount-time fetch re-runs
+        // against the now-ready token. Without an identity-scoped key, React
+        // reconciles the same element across the anon→authed transition and the feed
+        // stays stuck on anonymous (or empty) content. This is the belt-and-suspenders
+        // guarantee alongside the auth-keyed initial-fetch effect inside useFeedState.
         const feedIdentity = canUsePrivateApi && user?.id ? user.id : 'anon';
 
-        if (canUsePrivateApi && activeTab.startsWith('custom:')) {
-            const feedId = activeTab.replace('custom:', '');
-            const pinnedFeed = pinnedFeeds.find(f => f.feedId === feedId);
-            if (pinnedFeed) {
-                return (
-                    <Feed
-                        key={`custom-${feedId}-${feedIdentity}`}
-                        type="custom"
-                        filters={{
-                            customFeedId: feedId
-                        }}
-                        reloadKey={refreshKey}
-                        showComposeButton
-                        onComposePress={() => router.push('/compose')}
-                    />
-                );
-            }
+        // Resolve the active tab; fall back to the first tab (For You) if the active
+        // key is momentarily stale (the reset effect converges it next render).
+        const tab = homeTabs.find((x) => x.key === activeTab) ?? homeTabs[0];
+        const composeProps = canUsePrivateApi
+            ? { showComposeButton: true, onComposePress: () => router.push('/compose') }
+            : {};
+
+        if (!tab) {
+            return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} {...composeProps} />;
         }
 
-        if (!canUsePrivateApi) {
-            switch (activeTab) {
-                case 'trending':
-                    return <Feed key={`trending-${feedIdentity}`} type="explore" reloadKey={refreshKey} />;
-                default:
-                    return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} />;
-            }
+        if (tab.kind === 'custom') {
+            return (
+                <Feed
+                    key={`custom-${tab.feedId}-${feedIdentity}`}
+                    type="custom"
+                    filters={{ customFeedId: tab.feedId }}
+                    reloadKey={refreshKey}
+                    {...composeProps}
+                />
+            );
         }
 
-        switch (activeTab) {
-            case 'following':
-                return <Feed key={`following-${feedIdentity}`} type="following" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
-            case 'trending':
-                return <Feed key={`trending-${feedIdentity}`} type="explore" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
-            default:
-                return <Feed key={`for_you-${feedIdentity}`} type="for_you" reloadKey={refreshKey} showComposeButton onComposePress={() => router.push('/compose')} />;
-        }
+        return (
+            <Feed
+                key={`${tab.type}-${feedIdentity}`}
+                type={tab.type}
+                reloadKey={refreshKey}
+                {...composeProps}
+            />
+        );
     };
 
     return (
@@ -298,15 +313,10 @@ const HomeScreen: React.FC = () => {
                         header (101). */}
                     <PanelStickyHeader level={1} zIndex={100} style={tabBarAnimatedStyle}>
                         <AnimatedTabBar
-                            tabs={[
-                                { id: 'for_you', label: t('For You') },
-                                ...(canUsePrivateApi ? [{ id: 'following', label: t('Following') }] : []),
-                                { id: 'trending', label: t('Trending') },
-                                ...(canUsePrivateApi ? pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })) : []),
-                            ]}
+                            tabs={homeTabs.map((tab) => ({ id: tab.key, label: tab.label }))}
                             activeTabId={activeTab}
                             onTabPress={handleTabPress}
-                            scrollEnabled={canUsePrivateApi && pinnedFeeds.length > 0}
+                            scrollEnabled={homeTabs.length > 3}
                         />
                     </PanelStickyHeader>
 
