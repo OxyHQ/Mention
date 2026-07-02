@@ -40,6 +40,11 @@ const FEED_PAGE_LIMIT = 20;
 // lead time to buffer before the viewer reaches it. Five concurrent mounted
 // players (-2,-1,0,+1,+2) is still a bounded, small number of decoders.
 const ACTIVE_WINDOW_RADIUS = 2;
+// Poster images are tiny (the `thumb` variant, already cached memory-disk) —
+// prefetch a wider window than the live-player radius so the very first frame
+// the viewer sees on a fast multi-swipe is already in cache, even before that
+// row's video decoder starts buffering.
+const POSTER_PREFETCH_RADIUS = ACTIVE_WINDOW_RADIUS + 2;
 // FlatList must keep the window rows mounted (poster) so they can promote to a
 // live player without a remount; WINDOW_SIZE is in screens (one screen = one row).
 const FLATLIST_CONFIG = {
@@ -495,6 +500,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
                             contentFit="contain"
                             cachePolicy="memory-disk"
                             transition={150}
+                            priority="high"
                             onError={handlePosterError}
                         />
                     ) : (
@@ -860,6 +866,22 @@ export default function VideosScreen() {
     const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
+
+    // Prefetch posters in a wider radius than the live-player window — see
+    // `POSTER_PREFETCH_RADIUS` above.
+    useEffect(() => {
+        const start = Math.max(0, currentVisibleIndex - POSTER_PREFETCH_RADIUS);
+        const end = Math.min(posts.length - 1, currentVisibleIndex + POSTER_PREFETCH_RADIUS);
+        for (let i = start; i <= end; i++) {
+            const posterUrl = posts[i]?.posterUrl;
+            if (posterUrl) {
+                Image.prefetch(posterUrl).catch(() => {
+                    // Prefetch is a pure optimization — a failure here is
+                    // identical to a cache miss, never surfaced to the viewer.
+                });
+            }
+        }
+    }, [currentVisibleIndex, posts]);
     // 'videos' = For You (ranked video feed); 'following' = following feed filtered
     // to videos. Read through a ref inside the stable load callbacks so switching
     // tabs doesn't thrash callback identity.
