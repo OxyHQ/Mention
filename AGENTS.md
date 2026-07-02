@@ -114,6 +114,16 @@ ActivityPub is implemented as the `activitypub/ActivityPubConnector` inside the 
 - **One-shot scripts in `src/scripts/` MUST `mongoose.disconnect()` and `process.exit()` when done** — imported singletons (BullMQ Redis connections, MediaCache workers) otherwise keep the Fargate one-shot task running forever.
 - **Background jobs (BullMQ):** Federation inbound activities enqueued (inbox 202s fast, worker runs `processInboxActivity`); `FederationJobScheduler` repeatable jobs; outbound delivery via BullMQ. All env-gated on `REDIS_URL`. Queue names must not contain `:`; see `~/Oxy/AGENTS.md` for the BullMQ job-id `:` gotcha.
 
+### Fediverse Sharing Consent
+
+- **Per-user consent**: Oxy owns `privacySettings.fediverseSharing` (default `true`); user DTOs expose the PUBLIC derived boolean `fediverseSharing` (absent ⇒ enabled). Mention NEVER stores the flag.
+- **Read path**: `packages/backend/src/services/fediverseSharing.ts` is the ONLY read path — Mention Redis `fedisharing:v1:<id>` is the single cache authority; all SDK reads for consent use `{ cache:false }` (the SDK's own 5-min GET cache must never feed consent decisions). Gates: webfinger + all user AP surfaces 404 when off (indistinguishable from unknown user); inbound NEW engagement (Follow/reply/Like/Announce) dropped for local OFF owners; Undo handlers stay UNGATED (teardown must converge); outbound gated at `ConnectorRegistry.deliver` + `/federation/follow|unfollow` routes (403). Fail-open on Oxy outage everywhere EXCEPT the cleanup job's guard (tri-state; `'unavailable'` throws for BullMQ retry) and inbox POST (`'unavailable'` proceeds 202 — a 4xx makes Mastodon drop deliveries forever).
+- **Toggle flow**: frontend writes to Oxy (SDK `updatePrivacySettings`) then calls Mention `POST /federation/sharing-changed` (re-reads the flag server-side; ON→OFF enqueues `federation-sharing-cleanup`: `Delete(actor)` broadcast → bridge-unfollow → ID-scoped row deletion, throw-on-partial for retry; also invalidates the webfinger JRD cache).
+- **UI**: `FediverseInfoSheet` (Bloom `BottomSheet`, 3 steps) + `FediverseBadge` + `settings/fediverse.tsx`; i18n `fediverse.*` (en/es/it).
+- **Author hydration rule** (from the ghost-handle bug, `1301f07b`): author hydration must NEVER emit a raw `oxyUserId` as `handle`/`displayName` — unresolved authors get the degraded summary (empty handle, `'Unknown user'`), never cached in Redis. No `/@<id>` links.
+
+Spec/plan: `docs/superpowers/specs/2026-07-02-fediverse-sharing-consent-design.md`, `docs/superpowers/plans/2026-07-02-fediverse-sharing-consent.md`.
+
 ### Starter Packs
 
 Tool for the VIEWER to follow pack members — one-by-one or all at once via multi-user `FollowButton`. "Follow all" also calls `starterPacksService.use(id)`. There is NO "follow the pack" concept.
