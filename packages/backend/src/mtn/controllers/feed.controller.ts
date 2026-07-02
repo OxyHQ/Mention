@@ -105,6 +105,42 @@ async function computeMutualIds(currentUserId: string): Promise<string[]> {
   return Array.from(new Set([...oxyMutualIds, ...federatedMutualIds])).slice(0, MAX_MUTUAL_IDS);
 }
 
+/** Hard cap on the friends-of-friends id set threaded into the feed context. */
+const MAX_FOF_IDS = 5000;
+
+/**
+ * Structural capability for the Oxy follows-of-follows endpoint. The SDK method
+ * is not shipped yet (upstream, handled separately), so it is invoked via a
+ * runtime capability check rather than a hard dependency — exactly the mutuals
+ * upstream pattern. When the method lands on `@oxyhq/core`, this guard passes and
+ * the feed goes live with no further Mention change.
+ */
+interface FollowsOfFollowsCapable {
+  getFollowsOfFollowsIds(params?: { limit?: number }): Promise<string[]>;
+}
+
+function supportsFollowsOfFollows(client: unknown): client is FollowsOfFollowsCapable {
+  return typeof (client as { getFollowsOfFollowsIds?: unknown }).getFollowsOfFollowsIds === 'function';
+}
+
+/**
+ * The viewer's friends-of-friends author ids for the Friends-of-Friends feed.
+ * Resolved via the Oxy follows-of-follows endpoint (guarded optional call: the
+ * SDK method does not exist yet, so this soft-fails to `[]` until it ships).
+ * Bounded + deduped by the endpoint contract (excludes the viewer's own follows
+ * and self).
+ */
+async function computeFriendsOfFriendsIds(): Promise<string[]> {
+  if (!supportsFollowsOfFollows(oxyClient)) return [];
+  try {
+    const ids = await oxyClient.getFollowsOfFollowsIds({ limit: MAX_FOF_IDS });
+    return ids.filter((id) => typeof id === 'string' && id.length > 0).slice(0, MAX_FOF_IDS);
+  } catch (error) {
+    logger.warn('[MtnFeedController] Failed to load friends-of-friends ids', error);
+    return [];
+  }
+}
+
 
 /**
  * Resolve the one descriptor still served by a legacy FeedAPI: `feedgen|uri`
@@ -155,6 +191,13 @@ class MtnFeedController {
       // feed pays for it.
       if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {
         context.mutualIds = await computeMutualIds(currentUserId);
+      }
+
+      // The Friends-of-Friends feed needs the viewer's follows-of-follows id set.
+      // Resolve it ONLY for that descriptor (guarded Oxy optional call) so no
+      // other feed pays for it.
+      if (currentUserId && parseFeedDescriptor(descriptor).source === 'friends_of_friends') {
+        context.fofIds = await computeFriendsOfFriendsIds();
       }
 
       // Resolve the descriptor to a composable feed DEFINITION and run it through
@@ -265,6 +308,10 @@ class MtnFeedController {
 
       if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {
         context.mutualIds = await computeMutualIds(currentUserId);
+      }
+
+      if (currentUserId && parseFeedDescriptor(descriptor).source === 'friends_of_friends') {
+        context.fofIds = await computeFriendsOfFriendsIds();
       }
 
       const definition = await resolveDefinition(descriptor, context);

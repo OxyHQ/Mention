@@ -20,7 +20,7 @@ export interface FeedBoost extends HydratedPost {
 }
 
 // Feed types and actions
-export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'boosts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'videos' | 'custom' | 'hashtag' | 'topic' | 'trending' | 'mutuals' | 'friends_popular';
+export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'boosts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'videos' | 'custom' | 'hashtag' | 'topic' | 'trending' | 'mutuals' | 'friends_popular' | 'friends_of_friends';
 
 export type PostAction = 'reply' | 'boost' | 'like' | 'share';
 

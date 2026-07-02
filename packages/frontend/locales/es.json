@@ -850,6 +850,10 @@
       "friends_popular": {
         "label": "Popular con Amigos",
         "description": "Publicaciones con las que interactúan tus amigos."
+      },
+      "friends_of_friends": {
+        "label": "Amigos de Amigos",
+        "description": "Publicaciones de cuentas que siguen tus seguidos."
       }
     },
     "builder": {

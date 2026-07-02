@@ -25,6 +25,7 @@ import {
   trendingDefinition,
   mutualsDefinition,
   friendsPopularDefinition,
+  friendsOfFriendsDefinition,
   authorDefinition,
   hashtagDefinition,
   topicDefinition,
@@ -63,6 +64,8 @@ export async function resolveDefinition(
       return mutualsDefinition;
     case 'friends_popular':
       return friendsPopularDefinition;
+    case 'friends_of_friends':
+      return friendsOfFriendsDefinition;
     case 'author': {
       const authorId = params[0];
       if (!authorId) return null;

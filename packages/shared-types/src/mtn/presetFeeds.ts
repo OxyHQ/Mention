@@ -106,4 +106,13 @@ export const PRESET_FEEDS: PresetFeed[] = [
     defaultPinned: false,
     requiresAuth: true,
   },
+  {
+    id: 'friends_of_friends',
+    labelKey: 'feeds.presets.friends_of_friends.label',
+    descriptionKey: 'feeds.presets.friends_of_friends.description',
+    descriptor: 'friends_of_friends',
+    icon: 'users',
+    defaultPinned: false,
+    requiresAuth: true,
+  },
 ];

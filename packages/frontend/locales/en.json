@@ -963,6 +963,10 @@
       "friends_popular": {
         "label": "Popular with Friends",
         "description": "Posts your friends are engaging with."
+      },
+      "friends_of_friends": {
+        "label": "Friends of Friends",
+        "description": "Posts from accounts your follows follow."
       }
     },
     "builder": {

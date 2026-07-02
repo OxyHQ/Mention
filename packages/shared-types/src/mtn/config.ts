@@ -376,6 +376,7 @@ export const MtnConfig = {
       trending: 15000,
       mutuals: 5000,
       friends_popular: 10000,
+      friends_of_friends: 10000,
     } as Record<string, number>,
   },
 

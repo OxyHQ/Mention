@@ -506,6 +506,30 @@ export const topRepliesSource: SourceModule = {
 };
 
 /**
+ * `friendsOfFriends`: posts by accounts the viewer's follows follow (but the
+ * viewer does not) — social-graph expansion. `ctx.fofIds` is populated by the
+ * controller (via the Oxy follows-of-follows endpoint, guarded optional call)
+ * ONLY for the Friends-of-Friends feed; returns `[]` when it is empty (any other
+ * context, or a viewer whose network yields none). PUBLIC-only — FoF authors are
+ * NOT the viewer's followers, so followers-only posts are excluded.
+ */
+export const friendsOfFriendsSource: SourceModule = {
+  id: 'friendsOfFriends',
+  kind: 'source',
+  userComposable: false,
+  gather: async (ctx, _params, cap) => {
+    const fofIds = ctx.fofIds ?? [];
+    if (fofIds.length === 0) return [];
+
+    return fetchChrono(
+      { oxyUserId: { $in: fofIds }, visibility: PostVisibility.PUBLIC, status: 'published' },
+      ctx.cursor,
+      cap,
+    );
+  },
+};
+
+/**
  * `curated`: editorially-promoted posts (`curated === true`). The `curated` flag
  * is sparse on Post; no writer ships in Phase 2 (admin setter deferred), so this
  * source is inert until posts are promoted.
@@ -533,5 +557,6 @@ export const socialSourceModules: SourceModule[] = [
   linksSource,
   newVoicesSource,
   topRepliesSource,
+  friendsOfFriendsSource,
   curatedSource,
 ];

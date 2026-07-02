@@ -42,6 +42,18 @@ describe('friends_popular definition', () => {
   });
 });
 
+describe('friends_of_friends definition', () => {
+  it('is a chronological single-source FoF feed with reply context + boost hydration', async () => {
+    const def = await resolveDefinition('friends_of_friends');
+    expect(def).not.toBeNull();
+    expect(def!.mode).toBe('chronological');
+    expect(def!.sources.map((s) => s.module)).toEqual(['friendsOfFriends']);
+    expect(def!.signals).toEqual([]);
+    expect(def!.execution?.hydrateMaxDepth).toBe(1);
+    expect(def!.execution?.replyContext).toBe(true);
+  });
+});
+
 describe('resolveDefinition still returns null for unknown descriptors', () => {
   it('unknown → null', async () => {
     expect(await resolveDefinition('nonsense' as FeedDescriptor)).toBeNull();

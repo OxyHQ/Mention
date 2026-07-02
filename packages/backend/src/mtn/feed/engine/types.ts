@@ -39,6 +39,13 @@ export interface FeedEngineContext extends FeedContext {
   /** Viewer's mutual-follow author ids. Populated only for definitions that use the `mutuals` source. */
   mutualIds?: string[];
   /**
+   * Viewer's friends-of-friends author ids (accounts the viewer's follows follow,
+   * excluding the viewer's own follows + self). Populated by the controller ONLY
+   * for the `friends_of_friends` descriptor, via the Oxy follows-of-follows
+   * endpoint (guarded optional call), so no other feed pays for it.
+   */
+  fofIds?: string[];
+  /**
    * The viewer's seen post ids (resolved by the engine for `seenPosts`
    * definitions). Sources exclude these; the engine marks emitted posts seen.
    */

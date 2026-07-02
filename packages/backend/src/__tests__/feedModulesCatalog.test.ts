@@ -28,6 +28,8 @@ describe('buildModuleCatalog', () => {
     expect(sourceIds).not.toContain('following');
     expect(sourceIds).not.toContain('authored');
     expect(sourceIds).not.toContain('mutuals');
+    // friendsOfFriends is viewer-relative (populated by the controller), not composable.
+    expect(sourceIds).not.toContain('friendsOfFriends');
   });
 
   it('includes the Phase 4 userComposable related sources', () => {

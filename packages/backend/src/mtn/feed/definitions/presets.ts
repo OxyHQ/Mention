@@ -182,6 +182,26 @@ export const friendsPopularDefinition: FeedDefinition = {
   },
 };
 
+/**
+ * Friends of Friends — chronological timeline of posts by accounts the viewer's
+ * follows follow (but the viewer does not). Requires `ctx.fofIds` (populated by
+ * the controller via the Oxy follows-of-follows endpoint). Reply context + boost
+ * hydration (`maxDepth:1`) so FoF replies/reposts render in full.
+ */
+export const friendsOfFriendsDefinition: FeedDefinition = {
+  id: 'friends_of_friends',
+  title: 'Friends of Friends',
+  mode: 'chronological',
+  sources: [enabled('friendsOfFriends')],
+  signals: [],
+  filters: [],
+  execution: {
+    threadGrouping: true,
+    replyContext: true,
+    hydrateMaxDepth: 1,
+  },
+};
+
 /** Saved — the viewer's bookmarks, in bookmark order (ordered, items-only). */
 export const savedDefinition: FeedDefinition = {
   id: 'saved',

@@ -64,6 +64,7 @@ import {
   hashtagFollowsSource,
   starterPackSource,
   onThisDaySource,
+  friendsOfFriendsSource,
 } from '../mtn/feed/engine/sources/socialSources';
 import type { FeedEngineContext } from '../mtn/feed/engine/types';
 
@@ -245,5 +246,23 @@ describe('onThisDay source', () => {
     await onThisDaySource.gather({ currentUserId: 'viewer', followingIds: ['f1'] }, { scope: 'follows' }, 30);
     const match = findCalls[0];
     expect(match.oxyUserId).toEqual({ $in: ['viewer', 'f1'] });
+  });
+});
+
+describe('friendsOfFriends source', () => {
+  it('queries ctx.fofIds with PUBLIC-only visibility', async () => {
+    findRouter = () => [makePost(12)];
+    const ctx: FeedEngineContext = { currentUserId: 'viewer', fofIds: ['x1', 'x2'] };
+    const posts = await friendsOfFriendsSource.gather(ctx, {}, 30);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(12).toString()]);
+    const match = findCalls[0];
+    expect(match.oxyUserId).toEqual({ $in: ['x1', 'x2'] });
+    expect(match.visibility).toBe(PostVisibility.PUBLIC);
+  });
+
+  it('returns [] when ctx.fofIds is empty', async () => {
+    const posts = await friendsOfFriendsSource.gather({ currentUserId: 'viewer' }, {}, 30);
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
   });
 });
