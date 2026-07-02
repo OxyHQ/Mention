@@ -72,6 +72,19 @@ export async function mget(userIds: string[]): Promise<Map<string, CachedUserSum
       const keys = userIds.map(keyFor);
       const values = await redis.mGet(keys);
 
+      // Defensive: a Redis client/server can return a non-array reply for MGET
+      // (observed against ElastiCache Valkey). A non-array here throws a
+      // TypeError that `withRedisFallback` does NOT swallow (it only degrades
+      // connection errors), which 500s the whole feed. Treat any non-array reply
+      // as a full cache miss so hydration degrades gracefully to a cold fetch.
+      if (!Array.isArray(values)) {
+        logger.debug('[UserSummaryCache] mGet returned a non-array reply; treating as cache miss', {
+          replyType: typeof values,
+          keyCount: keys.length,
+        });
+        return result;
+      }
+
       values.forEach((raw, index) => {
         if (!raw) return;
         try {
