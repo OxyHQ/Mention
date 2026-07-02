@@ -17,8 +17,16 @@ import { EntityFollow } from '../../../../models/EntityFollow';
 import { StarterPack } from '../../../../models/StarterPack';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
+import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
+
+/**
+ * A "new voice" author must have at most this many recent posts to qualify as
+ * low-volume in the local approximation. True account-age / follower-count
+ * gating is Phase-4-blocked (needs Oxy user data).
+ */
+const NEW_VOICE_MAX_RECENT_POSTS = 20;
 
 /** Chronological fetch shared by the timeline-style social sources. */
 async function fetchChrono(match: Record<string, unknown>, cursor: string | undefined, cap: number): Promise<CandidatePost[]> {
@@ -29,6 +37,34 @@ async function fetchChrono(match: Record<string, unknown>, cursor: string | unde
     .limit(cap)
     .maxTimeMS(5000)
     .lean()) as unknown as CandidatePost[];
+}
+
+/** Fetch posts by id, preserving the given id order (used by the pre-ranked aggregate sources). */
+async function fetchPostsByIds(ids: mongoose.Types.ObjectId[]): Promise<CandidatePost[]> {
+  if (ids.length === 0) return [];
+  const posts = (await Post.find({ _id: { $in: ids } })
+    .select(FEED_FIELDS)
+    .maxTimeMS(5000)
+    .lean()) as unknown as CandidatePost[];
+  const order = new Map(ids.map((id, i) => [String(id), i]));
+  return posts.sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
+}
+
+/** Standard engagement composite (mirrors the discovery aggregations). */
+function engagementScoreExpr() {
+  const cfg = MtnConfig.ranking.engagement;
+  return {
+    $add: [
+      { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, cfg.likeWeight] },
+      { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, cfg.boostWeight] },
+      { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, cfg.commentWeight] },
+    ],
+  };
+}
+
+/** Escape a domain for safe embedding in a RegExp. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -298,6 +334,190 @@ export const onThisDaySource: SourceModule = {
   },
 };
 
+/** `questions`: posts classified with `intent === 'question'` (Q&A discovery). */
+export const questionsSource: SourceModule = {
+  id: 'questions',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, _params, cap) =>
+    fetchChrono(
+      { 'postClassification.intent': 'question', visibility: PostVisibility.PUBLIC, status: 'published' },
+      ctx.cursor,
+      cap,
+    ),
+};
+
+/** `news`: posts classified with `intent === 'news'` or a `news` topic. */
+export const newsSource: SourceModule = {
+  id: 'news',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, _params, cap) =>
+    fetchChrono(
+      {
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        $and: [{ $or: [{ 'postClassification.intent': 'news' }, { 'postClassification.topics': 'news' }] }],
+      },
+      ctx.cursor,
+      cap,
+    ),
+};
+
+/**
+ * `instance`: posts from a specific fediverse instance (`params.domain`), or
+ * local-only posts when `params.domain === 'local'`.
+ *
+ * NOTE (data-model gap): Post has no indexed `federation.instanceDomain` field —
+ * only `federation.actorUri`. Remote-instance matching therefore uses an anchored
+ * host-prefix regex on `federation.actorUri` (correct but not index-served).
+ * Phase-4 optimization: denormalize + index `federation.instanceDomain` at ingest.
+ */
+export const instanceSource: SourceModule = {
+  id: 'instance',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, params, cap) => {
+    const domain = typeof params.domain === 'string' ? params.domain.trim().toLowerCase() : '';
+    if (!domain) return [];
+
+    const match: Record<string, unknown> = { visibility: PostVisibility.PUBLIC, status: 'published' };
+    if (domain === 'local') {
+      match.$and = [{ $or: [{ federation: null }, { federation: { $exists: false } }] }];
+    } else {
+      match['federation.actorUri'] = new RegExp(`^https?://${escapeRegExp(domain)}(?::\\d+)?/`, 'i');
+    }
+    return fetchChrono(match, ctx.cursor, cap);
+  },
+};
+
+/**
+ * `links`: posts linking to a specific domain (`params.domain`) — "news from
+ * domain X".
+ *
+ * NOTE (data-model gap): Post has no indexed link-host field; link previews are
+ * cached in Redis, not stored on the post. Matching therefore scans the cited
+ * `content.sources[].url` and inline `content.text` links with a host-boundary
+ * regex (correct but not index-served). Phase-4 optimization: persist + index a
+ * normalized `content.linkHosts` array at ingest.
+ */
+export const linksSource: SourceModule = {
+  id: 'links',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, params, cap) => {
+    const domain = typeof params.domain === 'string' ? params.domain.trim().toLowerCase() : '';
+    if (!domain) return [];
+
+    const hostRegex = new RegExp(`https?://(?:[a-z0-9-]+\\.)*${escapeRegExp(domain)}(?:[/:?#]|\\s|$)`, 'i');
+    const match: Record<string, unknown> = {
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      $and: [{ $or: [{ 'content.sources.url': hostRegex }, { 'content.text': hostRegex }] }],
+    };
+    return fetchChrono(match, ctx.cursor, cap);
+  },
+};
+
+/**
+ * `newVoices`: cold-start discovery of accounts new to the network.
+ *
+ * NOTE (data-model gap): true "new account" detection (account creation age +
+ * follower count) requires Oxy user data and is Phase-4-blocked. This local
+ * approximation surfaces LOW-VOLUME authors active in the recency window (few
+ * recent posts), earliest-arriving first — a bounded proxy. Fetches each
+ * qualifying author's latest post. Always SFW for safe-for-work viewers.
+ */
+export const newVoicesSource: SourceModule = {
+  id: 'newVoices',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, _params, cap) => {
+    const allowSensitive = ctx.showSensitiveContent === true;
+    const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
+
+    const match: Record<string, unknown> = {
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      createdAt: { $gte: windowStart },
+      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      $and: [
+        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
+      ],
+    };
+
+    const groups = (await Post.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: '$oxyUserId',
+          latestPostId: { $max: '$_id' },
+          recentCount: { $sum: 1 },
+          firstPostAt: { $min: '$createdAt' },
+        },
+      },
+      { $match: { recentCount: { $lte: NEW_VOICE_MAX_RECENT_POSTS } } },
+      { $sort: { firstPostAt: -1 } },
+      { $limit: cap },
+    ]).option({ maxTimeMS: 5000 })) as Array<{ latestPostId: unknown }>;
+
+    const ids = groups
+      .map((g) => g.latestPostId)
+      .filter((id): id is mongoose.Types.ObjectId => id instanceof mongoose.Types.ObjectId);
+    return fetchPostsByIds(ids);
+  },
+};
+
+/**
+ * `topReplies`: the highest-engagement replies in the recency window ("best
+ * replies"). Aggregates an engagement composite to rank, then fetches the ranked
+ * posts preserving that order. Always SFW for safe-for-work viewers.
+ */
+export const topRepliesSource: SourceModule = {
+  id: 'topReplies',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, _params, cap) => {
+    const allowSensitive = ctx.showSensitiveContent === true;
+    const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
+
+    const match: Record<string, unknown> = {
+      parentPostId: { $ne: null },
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      createdAt: { $gte: windowStart },
+      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+    };
+
+    const ranked = (await Post.aggregate([
+      { $match: match },
+      { $addFields: { engagementScore: engagementScoreExpr() } },
+      { $sort: { engagementScore: -1, _id: -1 } },
+      { $limit: cap },
+      { $project: { _id: 1 } },
+    ]).option({ maxTimeMS: 5000 })) as Array<{ _id: unknown }>;
+
+    const ids = ranked
+      .map((r) => r._id)
+      .filter((id): id is mongoose.Types.ObjectId => id instanceof mongoose.Types.ObjectId);
+    return fetchPostsByIds(ids);
+  },
+};
+
+/**
+ * `curated`: editorially-promoted posts (`curated === true`). The `curated` flag
+ * is sparse on Post; no writer ships in Phase 2 (admin setter deferred), so this
+ * source is inert until posts are promoted.
+ */
+export const curatedSource: SourceModule = {
+  id: 'curated',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, _params, cap) =>
+    fetchChrono({ curated: true, visibility: PostVisibility.PUBLIC, status: 'published' }, ctx.cursor, cap),
+};
+
 export const socialSourceModules: SourceModule[] = [
   friendsEngagedSource,
   quotesSource,
@@ -307,4 +527,11 @@ export const socialSourceModules: SourceModule[] = [
   hashtagFollowsSource,
   starterPackSource,
   onThisDaySource,
+  questionsSource,
+  newsSource,
+  instanceSource,
+  linksSource,
+  newVoicesSource,
+  topRepliesSource,
+  curatedSource,
 ];
