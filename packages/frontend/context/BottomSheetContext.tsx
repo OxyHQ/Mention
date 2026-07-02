@@ -4,7 +4,7 @@ import BottomSheet, { type BottomSheetRef } from "@oxyhq/bloom/bottom-sheet";
 
 export interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
-    setBottomSheetContent: (content: ReactNode) => void;
+    setBottomSheetContent: (content: ReactNode, options?: { scrollable?: boolean }) => void;
     bottomSheetRef: React.RefObject<BottomSheetRef | null>;
 }
 
@@ -15,7 +15,8 @@ export const BottomSheetContext = createContext<BottomSheetContextProps>({
 });
 
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [bottomSheetContent, setBottomSheetContent] = useState<ReactNode>(null);
+    const [bottomSheetContent, setBottomSheetContentState] = useState<ReactNode>(null);
+    const [scrollable, setScrollable] = useState(true);
     const bottomSheetRef = useRef<BottomSheetRef | null>(null);
 
     const openBottomSheet = useCallback((isOpen: boolean) => {
@@ -26,11 +27,16 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
         }
     }, []);
 
+    const setBottomSheetContent = useCallback((content: ReactNode, options?: { scrollable?: boolean }) => {
+        setBottomSheetContentState(content);
+        setScrollable(options?.scrollable ?? true);
+    }, []);
+
     const contextValue = useMemo(() => ({
         openBottomSheet,
         setBottomSheetContent,
         bottomSheetRef,
-    }), [openBottomSheet]);
+    }), [openBottomSheet, setBottomSheetContent]);
 
     return (
         <BottomSheetContext.Provider value={contextValue}>
@@ -39,6 +45,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 ref={bottomSheetRef}
                 enablePanDownToClose={true}
                 style={styles.contentContainer}
+                scrollable={scrollable}
             >
                 <View style={styles.contentView}>
                     {bottomSheetContent}
