@@ -279,6 +279,9 @@ export const MtnConfig = {
       topic: 15000,
       list: 10000,
       feedgen: 5000,
+      trending: 15000,
+      mutuals: 5000,
+      friends_popular: 10000,
     } as Record<string, number>,
   },
 
