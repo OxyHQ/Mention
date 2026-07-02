@@ -11,6 +11,7 @@ import {
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { isFediverseSharingEnabledByUsername } from '../../services/fediverseSharing';
 import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
 import { outboxSyncService } from './outbox.service';
@@ -164,6 +165,17 @@ export class InboxProcessingService {
       return;
     }
     const localUserId = String(user._id || user.id);
+
+    // The target user may have turned fediverse sharing off — drop the Follow
+    // silently (no bridge, no Accept, no Reject). A Reject is unverifiable
+    // against a 404'd actor and would reveal the account exists, so this must
+    // look identical to a Follow sent to an unknown user. Gated here, BEFORE
+    // the follower actor is fetched/resolved, so an OFF user never triggers any
+    // of the bridge/Accept/notification side effects below.
+    if (!(await isFediverseSharingEnabledByUsername(username))) {
+      logger.debug(`[Federation] inbound follow for ${username} dropped — sharing off`);
+      return;
+    }
 
     // Resolve the follower actor and REQUIRE its Oxy user id: a fediverse
     // follower must become a real Oxy edge, never a Mention-only ghost. When the

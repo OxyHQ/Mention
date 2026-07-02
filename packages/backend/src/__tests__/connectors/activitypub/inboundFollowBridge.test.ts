@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   loggerInfo: vi.fn(),
   loggerError: vi.fn(),
   loggerDebug: vi.fn(),
+  isFediverseSharingEnabledByUsername: vi.fn(),
 }));
 
 vi.mock('../../../utils/logger', () => ({
@@ -147,6 +148,11 @@ vi.mock('../../../services/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 
+vi.mock('../../../services/fediverseSharing', () => ({
+  isFediverseSharingEnabledByUsername: (...args: unknown[]) =>
+    mocks.isFediverseSharingEnabledByUsername(...args),
+}));
+
 vi.mock('../../../services/serviceRegistry', () => ({
   getPostCreator: () => ({ create: mocks.postCreatorCreate }),
   registerPostFederator: vi.fn(),
@@ -219,6 +225,7 @@ beforeEach(() => {
   mocks.followDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.createNotification.mockResolvedValue(undefined);
   sendAcceptSpy.mockResolvedValue(undefined);
+  mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(true);
 });
 
 describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
@@ -294,6 +301,29 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
     expect(mocks.makeServiceRequest).toHaveBeenCalledTimes(1);
     expect(sendAcceptSpy).toHaveBeenCalledTimes(1);
     expect(mocks.loggerWarn).toHaveBeenCalled();
+  });
+});
+
+describe('handleIncomingFollow — dropped when the target has fediverse sharing off', () => {
+  it('drops the follow silently right after resolving the local user, before touching the actor/bridge/Accept chain', async () => {
+    mocks.isFediverseSharingEnabledByUsername.mockResolvedValue(false);
+    stubFollowerActor('oxy_bob');
+
+    await expect(
+      inboxProcessingService.processInboxActivity(followActivity(), actorUri),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.isFediverseSharingEnabledByUsername).toHaveBeenCalledWith('alice');
+    // Gate runs BEFORE the follower actor fetch — no actor lookup, no bridge, no
+    // Accept, no FederatedFollow row, and (since a Reject would be unverifiable
+    // against a 404'd actor and would reveal the account exists) no Reject either.
+    expect(mocks.actorFindOne).not.toHaveBeenCalled();
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(sendAcceptSpy).not.toHaveBeenCalled();
+    expect(mocks.followFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(mocks.followUpdateOne).not.toHaveBeenCalled();
+    expect(mocks.createNotification).not.toHaveBeenCalled();
+    expect(mocks.loggerDebug).toHaveBeenCalledWith(expect.stringContaining('alice'));
   });
 });
 

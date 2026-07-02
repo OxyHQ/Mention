@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
+  isFediverseSharingEnabled: vi.fn(),
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -17,6 +18,14 @@ vi.mock('../../utils/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
   },
+}));
+
+// This file exercises the fan-out/isolation behavior of `federateNewPost`, not
+// the fediverseSharing gate (covered by `connectorRegistrySharingGate.test.ts`)
+// — default every acting user to "sharing on" so the gate never short-circuits
+// delivery here.
+vi.mock('../../services/fediverseSharing', () => ({
+  isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
@@ -54,6 +63,7 @@ const POST: LocalPostEventPayload = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.isFediverseSharingEnabled.mockResolvedValue(true);
 });
 
 describe('ConnectorRegistry.federateNewPost', () => {

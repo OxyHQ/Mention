@@ -13,6 +13,7 @@ import {
 } from './constants';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { enqueueDelivery } from '../../queue/producers';
+import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
@@ -348,6 +349,11 @@ export class FollowService {
     senderUsername: string,
   ): Promise<void> {
     if (!FEDERATION_ENABLED) return;
+    // Defensive: the `ConnectorRegistry` outbound seam already gates every
+    // event on `fediverseSharing` before it reaches a connector. This
+    // duplicate check protects any other caller that might reach
+    // `federateNewPost` directly, bypassing the registry.
+    if (!(await isFediverseSharingEnabled(senderOxyUserId))) return;
     if (post.visibility !== PostVisibility.PUBLIC) return;
 
     try {

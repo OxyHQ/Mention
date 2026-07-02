@@ -1,10 +1,27 @@
 import { logger } from '../utils/logger';
+import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 import type { PostFederator } from '../services/serviceRegistry';
 import type {
   NetworkConnector,
   NormalizedExternalActor,
+  LocalNetworkEvent,
   LocalPostEventPayload,
 } from './types';
+
+/** The Oxy user whose `fediverseSharing` consent gates a given outbound event. */
+function actingOxyUserId(event: LocalNetworkEvent): string {
+  switch (event.kind) {
+    case 'post.create':
+      return event.actorOxyUserId;
+    case 'follow.add':
+    case 'follow.remove':
+      return event.localOxyUserId;
+    default: {
+      const exhaustive: never = event;
+      throw new Error(`ConnectorRegistry: unhandled local event ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
 
 /**
  * Holds the enabled network connectors and fans local domain events out to them.
@@ -29,39 +46,55 @@ export class ConnectorRegistry implements PostFederator {
   }
 
   /**
+   * The single outbound seam: every local domain event fans out to every
+   * enabled connector through here, gated FIRST on the acting user's
+   * `fediverseSharing` consent so a user who turned sharing off never leaks a
+   * post/follow/like/boost to ANY connector.
+   *
+   * Once past the gate, delivery is fanned out with `Promise.allSettled` so one
+   * connector's failure (e.g. a transient ActivityPub network error) does NOT
+   * abort delivery to the others and does NOT propagate back to the caller —
+   * outbound federation is best-effort. Each rejected connector is logged with
+   * its id; the method resolves once every connector has been attempted.
+   */
+  async deliver(event: LocalNetworkEvent): Promise<void> {
+    const actorOxyUserId = actingOxyUserId(event);
+    if (!(await isFediverseSharingEnabled(actorOxyUserId))) {
+      logger.debug(`[Connectors] sharing off for ${actorOxyUserId} — skipping federation`);
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      this.connectors.map((connector) => connector.deliver(event)),
+    );
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        logger.error(
+          `[connectors] deliver(${event.kind}) failed for connector "${this.connectors[index].id}":`,
+          result.reason,
+        );
+      }
+    });
+  }
+
+  /**
    * Federate a newly created local post outbound to every enabled connector.
    * Each connector decides what delivery means for its network (ActivityPub
    * delivers to remote followers; future connectors write their own records).
-   *
-   * Delivery is fanned out with `Promise.allSettled` so one connector's failure
-   * (e.g. a transient ActivityPub network error) does NOT abort delivery to the
-   * others and does NOT propagate back to `PostCreationService` — the local post
-   * is already persisted; outbound federation is best-effort. Each rejected
-   * connector is logged with its id; the method resolves once every connector has
-   * been attempted.
+   * A thin `post.create` wrapper over {@link deliver} — kept as its own method
+   * because it implements the {@link PostFederator} seam `PostCreationService`
+   * depends on via `serviceRegistry`.
    */
   async federateNewPost(
     post: LocalPostEventPayload,
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {
-    const results = await Promise.allSettled(
-      this.connectors.map((connector) =>
-        connector.deliver({
-          kind: 'post.create',
-          post,
-          actorOxyUserId: senderOxyUserId,
-          actorUsername: senderUsername,
-        }),
-      ),
-    );
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        logger.error(
-          `[connectors] federateNewPost delivery failed for connector "${this.connectors[index].id}":`,
-          result.reason,
-        );
-      }
+    await this.deliver({
+      kind: 'post.create',
+      post,
+      actorOxyUserId: senderOxyUserId,
+      actorUsername: senderUsername,
     });
   }
 
