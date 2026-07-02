@@ -26,8 +26,6 @@ export interface PresetFeed {
   icon: string;
   defaultPinned: boolean;
   requiresAuth: boolean;
-  /** Optional dedicated screen route (feeds that are not just a home tab). */
-  route?: string;
 }
 
 /**
@@ -107,15 +105,5 @@ export const PRESET_FEEDS: PresetFeed[] = [
     icon: 'heart-handshake',
     defaultPinned: false,
     requiresAuth: true,
-  },
-  {
-    id: 'videos',
-    labelKey: 'feeds.presets.videos.label',
-    descriptionKey: 'feeds.presets.videos.description',
-    descriptor: 'videos',
-    icon: 'clapperboard',
-    defaultPinned: false,
-    requiresAuth: false,
-    route: '/videos',
   },
 ];

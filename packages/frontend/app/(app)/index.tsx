@@ -35,11 +35,10 @@ type HomeTab = string;
 
 /**
  * A resolved home tab derived from a pinned {@link SavedFeed}. `descriptor` tabs
- * render an inline `<Feed>`; a tab with a `route` (e.g. Videos) navigates to its
- * dedicated screen instead; `custom` tabs render the engine timeline.
+ * render an inline `<Feed>`; `custom` tabs render the engine timeline.
  */
 type HomeTabModel =
-    | { key: string; label: string; kind: 'descriptor'; type: FeedType; route?: string }
+    | { key: string; label: string; kind: 'descriptor'; type: FeedType }
     | { key: string; label: string; kind: 'custom'; feedId: string };
 
 const HomeScreen: React.FC = () => {
@@ -125,7 +124,6 @@ const HomeScreen: React.FC = () => {
                     key: sf.key,
                     kind: 'descriptor',
                     type: source as FeedType,
-                    route: preset?.route,
                     label: preset ? t(preset.labelKey) : sf.descriptor,
                 };
             });
@@ -188,13 +186,6 @@ const HomeScreen: React.FC = () => {
     });
 
     const handleTabPress = (tabId: HomeTab) => {
-        // A routed tab (Videos) opens its dedicated screen instead of rendering
-        // inline; it never becomes the active content tab.
-        const tab = homeTabs.find((x) => x.key === tabId);
-        if (tab?.kind === 'descriptor' && tab.route) {
-            router.push(tab.route);
-            return;
-        }
         if (tabId === activeTab) {
             setRefreshKey(prev => prev + 1);
         } else {

@@ -772,6 +772,16 @@
   },
   "feeds": {
     "title": "Feed",
+    "view": {
+      "notFound": {
+        "title": "Feed no encontrado",
+        "subtitle": "Este feed ya no está disponible."
+      },
+      "signInRequired": {
+        "title": "Inicia sesión para ver este feed",
+        "subtitle": "Este feed está personalizado para tu cuenta."
+      }
+    },
     "pinned": "Fijado",
     "pinFeed": "Fijar Feed",
     "myFeeds": {
@@ -840,10 +850,6 @@
       "friends_popular": {
         "label": "Popular con Amigos",
         "description": "Publicaciones con las que interactúan tus amigos."
-      },
-      "videos": {
-        "label": "Vídeos",
-        "description": "Un feed de vídeos a pantalla completa."
       }
     },
     "builder": {

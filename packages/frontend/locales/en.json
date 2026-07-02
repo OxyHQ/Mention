@@ -885,6 +885,16 @@
   },
   "feeds": {
     "title": "Feeds",
+    "view": {
+      "notFound": {
+        "title": "Feed not found",
+        "subtitle": "This feed is no longer available."
+      },
+      "signInRequired": {
+        "title": "Sign in to view this feed",
+        "subtitle": "This feed is personalized to your account."
+      }
+    },
     "pinned": "Pinned",
     "pinFeed": "Pin Feed",
     "myFeeds": {
@@ -953,10 +963,6 @@
       "friends_popular": {
         "label": "Popular with Friends",
         "description": "Posts your friends are engaging with."
-      },
-      "videos": {
-        "label": "Videos",
-        "description": "A full-screen feed of videos."
       }
     },
     "builder": {

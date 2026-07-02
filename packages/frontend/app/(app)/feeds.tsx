@@ -45,7 +45,6 @@ const PRESET_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   explore: 'compass',
   mutuals: 'people-circle',
   friends_popular: 'heart',
-  videos: 'film',
 };
 
 interface FeedItem {
@@ -85,78 +84,96 @@ const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }
   );
 };
 
-// Built-in preset feed row (For You / Following / Trending / Discover / …).
+// Built-in preset feed row (For You / Following / Trending / Discover / …). The
+// row body opens the feed viewer; pin/unpin is a separate control beside it.
 const PresetRow = ({
   preset,
   pinned,
   canEdit,
+  onOpen,
   onTogglePin,
   t,
 }: {
   preset: PresetFeed;
   pinned: boolean;
   canEdit: boolean;
+  onOpen: () => void;
   onTogglePin: () => void;
   t: (key: string) => string;
 }) => {
   const theme = useTheme();
   return (
     <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
-      <View className="w-9 h-9 rounded-full items-center justify-center bg-secondary">
-        <Ionicons name={PRESET_ICONS[preset.id] ?? 'sparkles'} size={20} color={theme.colors.primary} />
-      </View>
-      <View className="flex-1 gap-0.5">
-        <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-          {t(preset.labelKey)}
-        </Text>
-        <Text className="text-[13px] leading-[18px] text-muted-foreground" numberOfLines={2}>
-          {t(preset.descriptionKey)}
-        </Text>
-      </View>
+      <TouchableOpacity
+        className="flex-1 flex-row items-center gap-3"
+        onPress={onOpen}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={t(preset.labelKey)}
+      >
+        <View className="w-9 h-9 rounded-full items-center justify-center bg-secondary">
+          <Ionicons name={PRESET_ICONS[preset.id] ?? 'sparkles'} size={20} color={theme.colors.primary} />
+        </View>
+        <View className="flex-1 gap-0.5">
+          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+            {t(preset.labelKey)}
+          </Text>
+          <Text className="text-[13px] leading-[18px] text-muted-foreground" numberOfLines={2}>
+            {t(preset.descriptionKey)}
+          </Text>
+        </View>
+      </TouchableOpacity>
       {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
     </View>
   );
 };
 
-// Compact custom-feed card row
+// Compact custom-feed card row. The row body opens the feed detail; pin/unpin is
+// a separate control beside it.
 const FeedRow = ({
   item,
   pinned,
   canEdit,
+  onOpen,
   onTogglePin,
 }: {
   item: FeedItem;
   pinned: boolean;
   canEdit: boolean;
+  onOpen: () => void;
   onTogglePin: () => void;
 }) => {
   const theme = useTheme();
   const memberCount = (item.memberOxyUserIds || []).length;
 
   return (
-    <TouchableOpacity
-      style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}
-      onPress={() => router.push(`/feeds/${item._id || item.id}`)}
-      activeOpacity={0.7}
-    >
-      <Avatar source={item.avatar || undefined} size={36} />
-      <View className="flex-1 gap-0.5">
-        <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-          {item.title || 'Untitled Feed'}
-        </Text>
-        <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
-          {item.owner ? `@${item.owner.username || item.owner.handle}` : ''}
-          {memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : ''}
-          {typeof item.likeCount === 'number' && item.likeCount > 0 ? ` · ${formatCompactNumber(item.likeCount)} likes` : ''}
-        </Text>
-        {item.description ? (
-          <Text className="text-[13px] leading-[18px] mt-0.5 text-muted-foreground" numberOfLines={2}>
-            {item.description}
+    <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
+      <TouchableOpacity
+        className="flex-1 flex-row items-center gap-3"
+        onPress={onOpen}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={item.title || 'Untitled Feed'}
+      >
+        <Avatar source={item.avatar || undefined} size={36} />
+        <View className="flex-1 gap-0.5">
+          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+            {item.title || 'Untitled Feed'}
           </Text>
-        ) : null}
-      </View>
+          <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
+            {item.owner ? `@${item.owner.username || item.owner.handle}` : ''}
+            {memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : ''}
+            {typeof item.likeCount === 'number' && item.likeCount > 0 ? ` · ${formatCompactNumber(item.likeCount)} likes` : ''}
+          </Text>
+          {item.description ? (
+            <Text className="text-[13px] leading-[18px] mt-0.5 text-muted-foreground" numberOfLines={2}>
+              {item.description}
+            </Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
       {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
-    </TouchableOpacity>
+    </View>
   );
 };
 
@@ -227,6 +244,18 @@ const FeedsScreen: React.FC = () => {
     [isPinned, pin, unpin],
   );
 
+  // Tapping a preset row opens a read-only viewer for that descriptor (no pin
+  // required); the descriptor + resolved title are passed through to the viewer.
+  const openPreset = useCallback(
+    (preset: PresetFeed) => {
+      router.push({
+        pathname: '/feeds/view',
+        params: { descriptor: preset.descriptor, title: t(preset.labelKey) },
+      });
+    },
+    [t],
+  );
+
   const toggleCustom = useCallback(
     (feedId: string) => {
       const key = `custom:${feedId}`;
@@ -260,6 +289,7 @@ const FeedsScreen: React.FC = () => {
           preset={preset}
           pinned={isPinned(preset.id)}
           canEdit={canEdit}
+          onOpen={() => openPreset(preset)}
           onTogglePin={() => togglePreset(preset)}
           t={t}
         />
@@ -296,6 +326,7 @@ const FeedsScreen: React.FC = () => {
             item={item}
             pinned={isPinned(`custom:${item._id || item.id}`)}
             canEdit={canEdit}
+            onOpen={() => router.push(`/feeds/${item._id || item.id}`)}
             onTogglePin={() => toggleCustom(String(item._id || item.id))}
           />
         ))
@@ -313,6 +344,7 @@ const FeedsScreen: React.FC = () => {
               item={f}
               pinned={isPinned(`custom:${f._id || f.id}`)}
               canEdit={canEdit}
+              onOpen={() => router.push(`/feeds/${f._id || f.id}`)}
               onTogglePin={() => toggleCustom(String(f._id || f.id))}
             />
           ))}

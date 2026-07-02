@@ -40,7 +40,7 @@ describe('PRESET_FEEDS catalog', () => {
     const descriptors = PRESET_FEEDS.map((p) => p.descriptor);
     expect(descriptors).toEqual(
       expect.arrayContaining([
-        'for_you', 'following', 'trending', 'explore', 'mutuals', 'friends_popular', 'videos',
+        'for_you', 'following', 'trending', 'explore', 'mutuals', 'friends_popular',
       ]),
     );
   });
