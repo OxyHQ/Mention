@@ -116,10 +116,28 @@ export interface FeedExecution {
   seenPosts?: boolean;
   /** Ranked personalized feeds: fall back to popular when the pool empties. Default `false`. */
   neverBlank?: boolean;
+  /**
+   * Source id serving the engagement-sorted popular fallback for the anonymous +
+   * never-blank paths (For You / Videos / Media). When unset, ranked feeds have
+   * no popular fallback (Explore serves anonymous via its own neutral-relevance
+   * source).
+   */
+  popularFallback?: string;
+  /**
+   * Hard ceiling on the merged (deduped) candidate pool, applied during the
+   * merge (For You uses `MtnConfig.feed.candidateSources.maxPool`). Unset =
+   * single-source feeds rely on the source's own fetch limit (no engine cap).
+   */
+  maxPool?: number;
   /** Ranked feeds: pass the viewer's sensitive opt-in into `rankPosts`. Default `false`. */
   passSensitiveOptIn?: boolean;
-  /** Produce a sliced response. When `false`, hydrate the candidates as flat items (Saved, likes). Default `true`. */
-  slice?: boolean;
+  /**
+   * "Ordered" feeds (Saved, Author-likes): the source returns the page's
+   * candidates already in order (stamping `_feedCursor` on the last one when more
+   * pages exist). The engine skips ranking + slicing and hydrates flat items.
+   * Default `false`.
+   */
+  ordered?: boolean;
   /** Saved feed: stamp `viewerState.isSaved` on every hydrated item. Default `false`. */
   markSaved?: boolean;
   /**
