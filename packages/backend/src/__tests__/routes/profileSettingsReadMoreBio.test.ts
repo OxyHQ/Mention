@@ -150,4 +150,30 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       collapseLongBio: false,
     });
   });
+
+  it('a later partial-appearance request (e.g. color picker sending only primaryColor) does not reset earlier appearance fields', async () => {
+    // Regression test for the whole-subdocument-replace bug: `appearance` is a
+    // Mongoose single-nested subdocument, so a request that builds it as one
+    // nested object under `update['appearance']` silently backfills any field
+    // not present in the request with schema defaults, wiping earlier values.
+    // `useAppColorSave.ts` sends exactly this kind of partial payload
+    // (`{ appearance: { primaryColor: hex } }`) when the user only taps a color
+    // swatch — it must not clobber `postReadMoreAction`/`themeMode` set earlier.
+    await request(app)
+      .put('/profile/settings')
+      .send({ appearance: { postReadMoreAction: 'expandInline', themeMode: 'dark' } })
+      .expect(200);
+
+    await request(app)
+      .put('/profile/settings')
+      .send({ appearance: { primaryColor: '#ff0000' } })
+      .expect(200);
+
+    const settings = await getSettings();
+    expect(settings.appearance).toEqual({
+      postReadMoreAction: 'expandInline',
+      themeMode: 'dark',
+      primaryColor: '#ff0000',
+    });
+  });
 });

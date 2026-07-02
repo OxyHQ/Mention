@@ -86,29 +86,27 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // are public-facing media that an anonymous <img> must be able to load.
     let newBannerFileId: string | undefined;
 
-    // NOTE: Updating `appearance` replaces the entire subdocument because it's built as
-    // a nested object under the `appearance` key, unlike `profileCustomization`/`externalEmbeds`
-    // which use dot-notation. Any missing field gets backfilled with schema defaults on write.
-    // Callers MUST send the complete current `appearance` object or risk silently resetting fields.
-    // The frontend (app/(app)/settings/appearance.tsx) already does this correctly via saveSettings.
+    // Dot-notation, same safe pattern as `profileCustomization`/`externalEmbeds` below:
+    // each field is set at its own leaf path, so a partial `appearance` payload (e.g. the
+    // color picker sending only `primaryColor`) only touches the fields present in the
+    // request and leaves every other appearance field untouched.
     if (appearance) {
-      update['appearance'] = {};
       if (appearance.themeMode && ['light', 'dark', 'system'].includes(appearance.themeMode)) {
-        update.appearance.themeMode = appearance.themeMode;
+        update['appearance.themeMode'] = appearance.themeMode;
       }
       if (typeof appearance.primaryColor === 'string' && appearance.primaryColor.trim()) {
-        update.appearance.primaryColor = appearance.primaryColor.trim();
+        update['appearance.primaryColor'] = appearance.primaryColor.trim();
       } else if (appearance.primaryColor === null) {
-        update.appearance.primaryColor = undefined;
+        unset['appearance.primaryColor'] = '';
       }
       if (['default', 'more', 'muchMore', 'all'].includes(appearance.postTextExpand)) {
-        update.appearance.postTextExpand = appearance.postTextExpand;
+        update['appearance.postTextExpand'] = appearance.postTextExpand;
       }
       if (['openPost', 'expandInline'].includes(appearance.postReadMoreAction)) {
-        update.appearance.postReadMoreAction = appearance.postReadMoreAction;
+        update['appearance.postReadMoreAction'] = appearance.postReadMoreAction;
       }
       if (typeof appearance.collapseLongBio === 'boolean') {
-        update.appearance.collapseLongBio = appearance.collapseLongBio;
+        update['appearance.collapseLongBio'] = appearance.collapseLongBio;
       }
     }
     
