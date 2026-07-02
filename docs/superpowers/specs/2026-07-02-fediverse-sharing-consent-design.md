@@ -1,0 +1,89 @@
+# Fediverse sharing consent (Threads-style) — design
+
+Date: 2026-07-02 · Status: approved design, pending implementation plan
+
+## Problem
+
+Mention federates every account by default with no user-facing control and no explanation of what the fediverse is. Threads ships a consent surface: an educational flow, an explicit sharing setting, and a fediverse badge. We want the same affordances, adapted to Mention's reality (federation is already live and on for everyone).
+
+## Decisions (made with Nate, 2026-07-02)
+
+1. **Opt-out, default ON.** No regression for existing federated accounts and followers. The educational flow is contextual, not a signup gate.
+2. **OFF = full Threads-style shutdown**: actor undiscoverable, inbound follows rejected, nothing delivered, deletion requested from remote servers. Reversible; remote followers must re-follow after re-enabling.
+3. **Educational sheet triggers**: tapping the fediverse badge (own profile when sharing is ON, and on federated profiles/posts) and from the Fediverse settings screen.
+4. **Dedicated settings screen** (`Ajustes → Fediverso`), not a row buried in Privacy.
+5. **Bottom sheet = Bloom UI** (`@oxyhq/bloom/bottom-sheet`) via Mention's existing global `BottomSheetContext`.
+
+## Boundary: what lives in Mention vs Oxy
+
+**Oxy owns WHO** — identity and graph, read by the whole ecosystem:
+- Federated actors as Oxy users `type:'federated'` (`PUT /users/resolve`).
+- The follow graph (`Follow` edges + `_count`), fed by Mention via the service route `POST /federation/follow`.
+- User AP signing keys (`/federation/sign`, public-key routes, domain-scoped credentials).
+
+**Mention owns HOW** — wire protocol and app policy:
+- `FederatedActor` (transport cache: inbox/sharedInbox URLs, remote public keys).
+- `FederatedFollow` (AP state machine: direction, pending/accepted, activity ids for Accept/Undo correlation). Not a duplicate of Oxy's graph — protocol state; the bridge keeps both in sync, idempotently.
+- HTTP signatures, delivery queues, inbox processing, media proxying.
+- **The `fediverseSharing` consent flag.** The federated identity is `@user@mention.earth` — a Mention-domain actor. The gate sits on Mention's hot paths (actor fetch, webfinger, delivery); storing it in Oxy would put a network call inside every AP request and couple federation availability to oxy-api.
+
+**Future promotion rule:** if a second Oxy app ever federates the same identity, promote the consent flag to Oxy so the ecosystem has one decision. Not built now (YAGNI).
+
+## Backend
+
+### Data + chokepoint
+
+- `UserSettings.privacy.fediverseSharing: { type: Boolean, default: true }` (`packages/backend/src/models/UserSettings.ts`), whitelisted in `routes/profileSettings.ts` `privacyFields`.
+- New `services/fediverseSharing.ts` — the ONLY read path:
+  - `isFediverseSharingEnabled(oxyUserId)` and `...ByUsername(username)` (username → oxyUserId via the existing resolver).
+  - Redis cache (`fedisharing:v1:<oxyUserId>`, TTL 10m) mirroring `userSummaryCache`; invalidated by the `profileSettings` PUT when the value changes. Default `true` on miss/absent doc.
+- No inline `UserSettings` lookups at gates — everything imports the helper.
+
+### Gates (sharing OFF)
+
+| Surface | Behavior when OFF |
+|---|---|
+| `GET /.well-known/webfinger` for the user | 404 (stops discovery) |
+| `GET /ap/users/:username` + `/outbox`, `/followers`, `/following`, user `/inbox` | 404 — indistinguishable from a nonexistent user |
+| Shared inbox activities targeting the user (`handleIncomingFollow` and the rest) | dropped silently (debug log) — no `FederatedFollow`, no Oxy bridge, no Accept, no Reject. A `Reject` can't be sent consistently: the remote server couldn't verify its signature against a 404 actor, and answering at all would reveal the account exists |
+| Outbound (posts, likes, boosts, follows) | gated once at the connector-agnostic seam — `ConnectorRegistry` deliver/federate entry points check `actorOxyUserId` — so no network sees the user's activity. `follow.service.federateNewPost` keeps a defensive check |
+| Read side (viewing federated content in Mention) | untouched — consuming public remote content is not sharing |
+
+### Toggle transitions
+
+- **ON→OFF** (detected in the `profileSettings` PUT): enqueue an async job (BullMQ, Mongo fallback — existing queue conventions; job id hashed, never raw URLs):
+  1. Deliver `Delete { object: actorUri }` to the shared inboxes of all inbound followers (Threads-style deletion request; best-effort).
+  2. Delete inbound `FederatedFollow` rows and bridge-unfollow their Oxy edges (`POST /federation/follow`, action `unfollow` — idempotent).
+- **OFF→ON**: no fan-out. Actor resolves again; remote followers must re-follow (same caveat Threads documents). Cache invalidated so gates flip immediately.
+- UI confirms ON→OFF with an explicit warning before writing (see frontend).
+
+## Frontend
+
+- **`app/(app)/settings/fediverse.tsx`** — dedicated screen (Bloom `SettingsListGroup`/`SettingsListItem` + `Switch`):
+  - toggle "Compartir en el fediverso" (optimistic write via the `usePrivacySettings` pattern, extended with `fediverseSharing`),
+  - the user's federated handle `@user@mention.earth`,
+  - row "¿Qué es el fediverso?" → opens the educational sheet,
+  - turning OFF first opens a Bloom `Dialog` confirmation: followers will be lost, deletion will be requested from other servers, cannot be guaranteed (Threads wording).
+  - Entry row "Fediverso" in `settings/index.tsx`.
+- **`components/Fediverse/FediverseInfoSheet.tsx`** — 3-step educational flow inside the global `BottomSheetContext` (Bloom `BottomSheet`, single-detent, internal step state, Next/Back):
+  1. Qué es el fediverso (red de servidores interconectados, analogía email).
+  2. Cómo funciona compartir (perfil público visible desde otros servidores; cada servidor tiene sus normas; Mention no modera lo remoto).
+  3. Tu control (apagar en ajustes; pediremos borrado pero no se garantiza). Final CTA: "Entendido" — or "Activar" when sharing is OFF (writes the setting).
+- **`components/Fediverse/FediverseBadge.tsx`** — one component, two placements: own profile header when sharing is ON; federated profiles/posts (next to the `@user@domain` handle). Tap → `FediverseInfoSheet`.
+- i18n: keys under `fediverse.*` in `locales/en.json`, `es.json`, `it.json`.
+
+## Error handling
+
+- Settings write fails → optimistic toggle reverts (existing `usePrivacySettings` behavior).
+- OFF-transition job is retry-safe: Delete fan-out is best-effort per inbox; row deletion + bridge-unfollow are idempotent (re-running converges).
+- Redis down → helper falls back to a direct `UserSettings` read (no cached default that silently re-enables sharing).
+
+## Testing
+
+- Backend unit tests: each gate ON/OFF (actor 404, webfinger 404, Reject on follow, outbound skip), cache invalidation on settings write, ON→OFF job (Delete fan-out addressed per shared inbox, rows removed, bridge called), defaults (missing doc → enabled).
+- Frontend: typecheck; sheet and toggle verified in a real browser (Jest doesn't catch sheet/layout races — repo convention).
+- E2E: toggle OFF → actor 404s from a real fediverse fetch, Mastodon follow gets rejected; toggle ON → discoverable again.
+
+## Out of scope
+
+- `featured`/pinned collection, per-post federation control, migrating consent to Oxy (future promotion rule above), atproto bridge surface (stays dark behind `ATPROTO_BRIDGE_ENABLED`).
