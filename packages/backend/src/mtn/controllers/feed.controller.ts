@@ -344,8 +344,14 @@ class MtnFeedController {
   async recordInteraction(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
+      // Optional auth: this route runs under `optionalAuth`, so anonymous public
+      // browse reaches it too (the web feed reports impression telemetry for
+      // everyone). There is no viewer to attribute an anonymous interaction to,
+      // and ranking must never ingest anonymous signal — so silently no-op with a
+      // 200 rather than 401. A 401 here spammed anonymous feeds with failed
+      // requests and console errors.
       if (!userId) {
-        res.status(401).json({ success: false, error: 'Authentication required' });
+        res.json({ success: true });
         return;
       }
 

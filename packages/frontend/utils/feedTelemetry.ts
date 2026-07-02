@@ -93,6 +93,12 @@ interface PendingImpression {
  */
 export class FeedImpressionTracker {
     private readonly descriptor: string;
+    // Live predicate gating whether an impression may be POSTed. Read at report
+    // time (never cached) so a session that becomes reportable mid-flight — auth
+    // landing via SSO restore — starts sending without recreating the tracker.
+    // Defaults to always-report so non-auth-aware callers (and unit tests) behave
+    // exactly as before.
+    private readonly canReport: () => boolean;
     private readonly pending = new Map<string, PendingImpression>();
     private safetyTimer: ReturnType<typeof setInterval> | null = null;
     // Flushes elapsed since the timer was last (re)armed. Reset on every re-arm
@@ -100,8 +106,9 @@ export class FeedImpressionTracker {
     private safetyFlushesSinceArm = 0;
     private disposed = false;
 
-    constructor(descriptor: string) {
+    constructor(descriptor: string, canReport: () => boolean = () => true) {
         this.descriptor = descriptor;
+        this.canReport = canReport;
     }
 
     /** Mark a post as ≥50% visible (idempotent while it stays visible). */
@@ -237,6 +244,12 @@ export class FeedImpressionTracker {
     // Emit the impression exactly once per post (with the accumulated dwell).
     private report(entry: PendingImpression): void {
         if (!entry.qualified || entry.sent) return;
+        // Never POST telemetry for a viewer who cannot use the private API
+        // (anonymous public browse, or auth still resolving): the endpoint would
+        // 401 and an anonymous feed would loop failed requests + console errors.
+        // Leave `sent` false so the impression is still emitted if the session
+        // becomes reportable (auth lands mid-session) before this post disposes.
+        if (!this.canReport()) return;
         entry.sent = true;
         feedService.sendFeedInteraction({
             feedDescriptor: this.descriptor,
@@ -263,16 +276,26 @@ export class FeedImpressionTracker {
 export function useFeedImpressionTracker(
     descriptor: string,
     resetKey?: string | number,
+    canReport = true,
 ): { current: FeedImpressionTracker } {
     const trackerRef = useRef<FeedImpressionTracker | null>(null);
     // The session identity the current tracker was built for. A change in either
     // the descriptor or the reset key starts a new session.
     const sessionKeyRef = useRef<string>(`${descriptor}::${resetKey ?? ''}`);
 
+    // Mirror the latest "may report" state into a ref and hand the tracker a
+    // STABLE getter that reads it live. This keeps the tracker instance-stable
+    // across auth-cold-boot flips (anon → authed): the same tracker simply starts
+    // reporting once `canReport` becomes true, without a session reset that would
+    // drop in-progress dwell.
+    const canReportRef = useRef(canReport);
+    canReportRef.current = canReport;
+    const canReportGetterRef = useRef<() => boolean>(() => canReportRef.current);
+
     // Lazily create on first render so the very first viewable rows are tracked
     // even before any effect runs.
     if (trackerRef.current === null) {
-        trackerRef.current = new FeedImpressionTracker(descriptor);
+        trackerRef.current = new FeedImpressionTracker(descriptor, canReportGetterRef.current);
     }
 
     // Recreate the tracker when the session identity changes (different feed
@@ -285,7 +308,7 @@ export function useFeedImpressionTracker(
     if (sessionKeyRef.current !== sessionKey) {
         sessionKeyRef.current = sessionKey;
         trackerRef.current.dispose();
-        trackerRef.current = new FeedImpressionTracker(descriptor);
+        trackerRef.current = new FeedImpressionTracker(descriptor, canReportGetterRef.current);
     }
 
     // Dispose on unmount so a navigated-away feed flushes and stops its timer.

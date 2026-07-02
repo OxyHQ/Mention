@@ -91,7 +91,7 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
     } = props;
 
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
-    const { user: currentUser, isAuthenticated } = useAuth();
+    const { user: currentUser, isAuthenticated, canUsePrivateApi } = useAuth();
     const { blockedSet } = usePrivacyControls();
 
     const feedState = useFeedState({
@@ -156,6 +156,10 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
         feedRows,
         feedState,
         isAuthenticated,
+        // Feed-ranking telemetry may only POST for a viewer whose private API is
+        // usable — an anonymous (or still-resolving) viewer would 401 the
+        // `/feed/mtn/interactions` write in a loop. Gate reporting on this.
+        canReport: canUsePrivateApi,
         currentUserId: currentUser?.id,
         handleLoadMore,
         handleRetry,
@@ -239,6 +243,7 @@ function VirtualizedWebFeed(props: FeedProps) {
         feedRows,
         feedState,
         isAuthenticated,
+        canReport,
         handleLoadMore,
         handleRetry,
     } = useWebFeed(merged);
@@ -246,9 +251,10 @@ function VirtualizedWebFeed(props: FeedProps) {
     // Feed-ranking telemetry: derive the descriptor this feed reports against and
     // own an impression tracker for the session. The session resets when the
     // descriptor changes or the feed is reloaded (reloadKey), so impressions are
-    // counted once per post per session.
+    // counted once per post per session. `canReport` short-circuits reporting for
+    // anonymous viewers so a public browse never POSTs (and never 401-loops).
     const feedDescriptor = resolveFeedDescriptor(type, userId, filters, showOnlySaved);
-    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey);
+    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey, canReport);
 
     // Wrapper element used as the virtualizer's measurement origin. The window is
     // the scroller; `scrollMargin` is the wrapper's offset from the document top
